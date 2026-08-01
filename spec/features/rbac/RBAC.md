@@ -1,203 +1,368 @@
 # MetaLoom // RBAC (Role-Based Access Control)
 
-This document describes how MetaLoom authorizes API access: the permission model, the
-permission taxonomy, and exactly where and how permissions are enforced in the REST and
-GraphQL APIs. It also records the known enforcement gaps.
+How MetaLoom decides **who may do what**: the identity chain (user → group → role → permission),
+where the decision is made on each transport, and the enforcement gaps that are still open.
 
-> This is a living specification consumed by AI agents and developers. It complements
-> [../../loom/RESTAPI.md](../../loom/RESTAPI.md) §2.6 (which currently links to a
-> not-yet-existing `PERMISSION.md`); this file is the authoritative RBAC reference.
+> **Scope.** This file is the compact operational reference for the *chain and its enforcement*.
+> [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) is the deeper reference for the
+> **permission taxonomy**, the grant API and the schema defects — this file deliberately does not
+> repeat the constant-by-constant inventory. Authentication (JWT, OAuth2 BFF, API tokens) lives in
+> [../../loom/RESTAPI.md](../../loom/RESTAPI.md); the transports are described in
+> [../../loom/GRAPHQL.md](../../loom/GRAPHQL.md), [../../loom/GRPC.md](../../loom/GRPC.md),
+> [../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md) and [../../loom/MCP.md](../../loom/MCP.md).
+> The two authorization specs overlap substantially and are merge candidates (§8).
 
-## 1. Model
+---
 
-MetaLoom uses a classic **user → group → role → permission** chain, augmented with direct
-user and token grants. The schema originates in
-`loom/db/flyway/src/main/resources/db/migration/V2.1__add_acl.sql` and is extended by later
-`V2.x` migrations (e.g. `V2.25` blacklist/person, `V2.53` agent memory, `V2.54` memory deny
-rules).
+## 1. The chain
 
-Tables:
+```mermaid
+graph LR
+    U["user<br/><i>uuid, username, enabled, deleted, sso</i>"]
+    G["group"]
+    R["role"]
+    P["loom_permission<br/><i>enum value</i>"]
+    T["token"]
 
-- `user`, `group`, `role` — the entity tables.
-- `user_group` — M:N users ↔ groups.
-- `role_group` — M:N roles ↔ groups.
-- `role_permission (role_uuid, resource, permission)` — permissions granted to a role.
-- `user_permission (user_uuid, resource, permission)` — permissions granted directly to a user.
-- `token_permission (token_uuid, resource, permission)` — permissions granted to an API token.
+    U -->|user_group<br/>PK user,group| G
+    G -->|role_group<br/>PK group,role| R
+    R -->|role_permission<br/>PK role,permission| P
+    U -.->|user_permission — PK user_uuid only<br/>ONE row per user| P
+    T -.->|token_permission — no code path| P
 
-**Effective permissions** for a user are computed in
-`PermissionDaoImpl.loadPermissionsForUser`
-(`loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/perm/PermissionDaoImpl.java`) as the
-union of:
+    style T stroke-dasharray: 5 5
+```
 
-1. role permissions reached via `USER_GROUP → ROLE_GROUP → ROLE_PERMISSION`, and
-2. direct `USER_PERMISSION` rows,
+Facts that contradict the schema's appearance:
 
-returning a `ResourcePermissionSet`. A parallel `loadPermissionsForToken` covers API-token auth.
+- **There is no `user_role` and no `group_role` table.** The join table is `role_group`
+  (`group_uuid`, `role_uuid`). A role can only reach a user through a group.
+- **`user_permission`'s primary key is `(user_uuid)` alone** — a user can hold at most **one**
+  direct grant, ever. A second `grantUserPermission` for the same user is a PK violation. Grant
+  test permissions via **role + group** instead (§5).
+- **`token_permission` is dead.** `loadPermissionsForToken` is not on the `PermissionDao`
+  interface, has zero call sites and its body is broken. API keys resolve to their owning user and
+  therefore inherit that user's **full** authority; tokens cannot be attenuated.
+- **The `resource` column is stored but never read** in the decision path (§3). `"all"` is not a
+  wildcard, just the default string written by the 2-arg `grantRolePermission`.
+- **There is no superuser flag.** `user` has `enabled` / `deleted` / `sso`, no `admin` column, and
+  `requirePerm` has no bypass. Admin power is purely the `admin-role` grants.
 
-> **Direct-grant pitfall:** `user_permission` is keyed such that a user carries at most one
-> direct permission grant. To give a test/user several permissions, grant them to a **role** and
-> attach the role to the user via a **group** (see the test setup in §5).
+All seven tables are created in `V2.1__add_acl.sql`; **no later migration alters them** — later
+migrations only `ALTER TYPE "loom_permission" ADD VALUE`.
 
-**Caching.** `PermissionCache`
-(`loom/services/auth/auth-common/.../auth/PermissionCache.java`) is a Caffeine cache (max 10,000)
-keyed by user UUID → `ResourcePermissionSet`. `LoomAuthorizationProvider` implements the Vert.x
-`AuthorizationProvider`: on `getAuthorizations(user)` it reads the `uuid` claim, loads the
-(cached) permission set, and converts each entry into a Vert.x `PermissionBasedAuthorization`
-placed on `user.authorizations()`.
+**Effective permissions** = `PermissionDaoImpl.loadPermissionsForUser(userUuid)`, the union of
+`ROLE_PERMISSION ⨝ ROLE_GROUP ⨝ USER_GROUP` plus the direct `USER_PERMISSION` rows, returned as a
+`ResourcePermissionSet`.
 
-## 2. Permission taxonomy
+**Caching.** `PermissionCache` is a Caffeine cache (`maximumSize = 10_000`) keyed by user UUID.
+It exposes only `get` — **no TTL, no invalidation**. `LoomAuthorizationProvider.getAuthorizations`
+reads the `uuid` claim, loads the (cached) set and converts each entry into a Vert.x
+`PermissionBasedAuthorization` on `user.authorizations()`.
 
-All permissions are constants of the single enum
-`io.metaloom.loom.db.model.perm.Permission`
-(`loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java`). The DB mirror is
-the Postgres enum `loom_permission`; the jOOQ mirror is `JooqLoomPermission`
-(the DAO bridges via `JooqLoomPermission.valueOf(perm.name())`).
+### 1.1 Bootstrap
 
-Naming convention: **`{VERB}_{ENTITY}`**, with the standard CRUD verbs
-`CREATE_`, `READ_`, `UPDATE_`, `DELETE_` per entity — e.g. `CREATE_USER`, `READ_USER`,
-`UPDATE_USER`, `DELETE_USER`. Entities include: Annotation, Asset, AssetBinary, Attachment,
-User, Role, Group, Space, Cluster, Collection, Comment, Embedding, Reaction, Task, Tag, Token,
-Library, Pipeline, AssetPool, Blacklist, Person, Detection, Chat, Skill, ChatSession, Memory,
-MemoryDenyRule, …
-
-Notable rules:
-
-- **There is no dedicated `LIST` permission.** List endpoints reuse the entity's `READ_*`
-  permission (e.g. `list(lrc, READ_ROLE, …)`).
-- Non-CRUD verbs exist for special actions: `TAG_ASSET`, `UNTAG_ASSET`,
-  `RESTORE_PIPELINE_VERSION`, `RESTORE_SKILL_VERSION`, `MANAGE_CORTEX_INSTANCE`,
-  `UPDATE_PIPELINE_RUN` (governs pipeline run cancel/pause/resume).
-
-## 3. Where permissions are checked — REST
-
-The REST enforcement funnel:
+`DatabaseInitializer.init()` establishes exactly one privileged path, idempotently:
 
 ```
-*EndpointService (maps each op → Permission: CREATE_/READ_/UPDATE_/DELETE_X)
-  → AbstractCRUDEndpointService.{create, load, list, update, delete}
+user "admin"  →  group "admins" (GROUP_NAME)  →  role "admin-role" (ROLE_NAME)  →  all Permission.values()
+```
+
+The initial password comes from `LOOM_INITIAL_PASSWORD`; if unset a random 8-character string is
+generated and printed to stdout on first boot. `DemoDatabaseInitializer` additionally seeds
+`Editors` / `Viewers` groups with matching roles — the closest thing to a documented standard role
+set.
+
+> **Upgrade gotcha:** the "grant all permissions" loop sits **inside** the `if (role == null)`
+> branch. On an existing installation a newly added `Permission` constant is therefore **never**
+> granted to `admin-role`; the admin silently loses access to the new feature until the grant is
+> inserted manually.
+
+### 1.2 Enum sync (summary — details in PERMISSIONS.md §2)
+
+| Layer | Count @ `499f71f7` |
+|---|---|
+| Java `Permission` (`loom/db/api`) | **129** |
+| Postgres `loom_permission` | **134** |
+| DB-only (unreachable, harmless) | `CREATE_PIPELINE_VERSION`, `CREATE/READ/UPDATE/DELETE_WEBHOOK` |
+| Java-only (would break `valueOf` at grant time) | **none** |
+
+The 4 webhook values are residue: `V2.55__remove_webhook.sql` dropped the feature, and Postgres
+cannot drop an enum value. `PermissionDaoImpl` bridges via `JooqLoomPermission.valueOf(perm.name())`,
+so a Java constant without a DB value throws at grant time — keep the Java side a subset.
+
+`Permission.java` carries a **per-constant audit comment** (`doc:` i18n text present, `ui:` offered
+by the admin ACL matrix, `test:` covering test, `[unused: no code checks it]`). Six constants are
+currently marked unused: `CREATE/DELETE/UPDATE_ASSET_LOCATION`, `CREATE_PIPELINE_RUN`,
+`DELETE_PIPELINE_RUN`, `READ_CORTEX_INSTANCE`. Refresh those comments when you change a permission.
+
+---
+
+## 2. Enforcement — REST
+
+```
+*EndpointService (op → Permission)
+  → AbstractCRUDEndpointService.{create,load,list,update,delete}
     → AbstractEndpointService.checkPerm(lrc, permission, action)
-      → LoomRoutingContext.requirePerm(perm...)
-        → Vert.x PermissionBasedAuthorization.create(perm.name()).match(user)
+      → LoomRoutingContext.requirePerm(Permission...)
+        → PermissionBasedAuthorization.create(perm.name()).match(user)   // 403 MISSING_PERM
 ```
 
-- `AbstractCRUDEndpointService`
-  (`loom/services/rest/.../rest/service/AbstractCRUDEndpointService.java`) provides generic
-  `create/load/list/update/delete` helpers, each taking the required `Permission` and wrapping
-  the DB work inside `checkPerm(...)`.
-- `AbstractEndpointService.checkPerm`
-  (`loom/services/rest/.../rest/service/AbstractEndpointService.java`) resolves the caller's
-  authorizations and, on failure, throws `LoomRestException(403, MISSING_PERM, "Invalid permissions")`.
-- **Result of a missing permission: HTTP `403` with error code `MISSING_PERM`.**
+- Missing/invalid JWT → **401** (`LoomAuthenticationHandler`, before authorization runs).
+- Missing permission → **403** with error code `MISSING_PERM`.
+- **`checkPerm` runs before the DAO loader**, so an unprivileged caller gets `403` even for a
+  non-existent UUID — 403 precedes 404. (For a *permitted* caller, foreign element-scoped objects
+  surface as `404`, keeping them indistinguishable from missing ones.)
+- Two escape hatches beyond the generic CRUD path:
+  - **Bespoke `requirePerm`** — e.g. `ProcessorEndpoint` guards `/:uuid/restrictions` and worker
+    deletion with `MANAGE_CORTEX_INSTANCE` and throws the 403 itself.
+  - **`lrc.permissions()`** returns a non-throwing `Predicate<Permission>` after loading
+    authorizations once, for endpoints that must *filter* rather than reject.
+    `SearchEndpointService` is the reference: `READ_SEARCH` is the wholesale gate, then a
+    `SearchEntityType → READ_*` map narrows the result set per entity type.
 
-> **Ordering note:** `checkPerm` runs **before** the DAO loader. A caller lacking the permission
-> receives `403` even when the target UUID does not exist — the `403` takes precedence over the
-> `404`. (Conversely, for a permitted caller, element-scoped resources that belong to another user
-> surface as `404`, keeping foreign objects indistinguishable from missing ones.)
+## 3. Enforcement — GraphQL
 
-Each concrete `*EndpointService` under
-`loom/services/rest/.../rest/service/impl/` maps its operations to permissions, e.g.
-`RoleEndpointService`:
+Field level, decoupled from the graphql module via an injected checker:
 
-```java
-public void delete(...) { delete(lrc, DELETE_ROLE, uuid); }
-public void list(...)   { list(lrc, READ_ROLE, modelBuilder::toRoleList); }
-public void load(...)   { load(lrc, READ_ROLE, () -> dao().load(uuid), modelBuilder::toResponse); }
-public void create(...) { create(lrc, CREATE_ROLE, () -> {...}, modelBuilder::toResponse); }
-public void update(...) { update(lrc, UPDATE_ROLE, () -> {...}, modelBuilder::toResponse); }
-```
+- `GraphQLPermissionChecker` — `@FunctionalInterface boolean hasPermission(Permission)`,
+  `CONTEXT_KEY = "loom.permissionChecker"`.
+- `AbstractDomainWiring.requirePermission(env, permission)` runs at the top of every data fetcher:
+  no checker in context → `GraphqlErrorException` code **`UNAUTHENTICATED`**; permission absent →
+  code **`FORBIDDEN`** plus a `permission` extension.
+- `GraphQLEndpoint` resolves `lrc.permissionChecker()` once (async) and puts it into
+  `ExecutionInput.graphQLContext(...)`.
 
-Authentication (identifying the caller before authorization) is handled separately by
-`LoomAuthenticationHandler`
-(`loom/services/auth/auth-common/.../auth/LoomAuthenticationHandler.java`); an unauthenticated
-request is rejected with `401` before it reaches the permission check.
+The checker delegates to the same `PermissionBasedAuthorization…match(user)` call REST uses, so
+**both APIs share one decision function**. The GraphQL surface is read-only — every fetcher
+requires a `READ_*` permission (`AclWiring`, `AssetWiring`, `MemoryWiring`, `PipelineWiring`,
+`SkillWiring`).
 
-## 4. Where permissions are checked — GraphQL
+## 4. Coverage by transport
 
-The GraphQL API enforces permissions at the **field level**, decoupled from the graphql module
-via an injected checker.
+| Transport | Authenticates | Authorizes | Notes |
+|---|---|---|---|
+| REST | yes | yes | `checkPerm` / `requirePerm`; 403 `MISSING_PERM` |
+| GraphQL | yes | yes | field level, `FORBIDDEN` / `UNAUTHENTICATED` |
+| MCP | optional | **partial** | `MCPToolRegistry.dispatch` gates on `user != null && !requiredPermissions.isEmpty()` — a **null user skips the check and dispatches the tool**. `MCPAuthenticationHandler` yields null when `LOOM_MCP_AUTH_ENABLED=false` (default) or in lenient mode. `checkPermissions` itself fails closed (`.recover(err -> false)`), and required permissions are free-form `String`s, so typos are unsatisfiable but silent. |
+| gRPC | yes | **no** | `GrpcAuthenticator` calls `authHandler.authenticateToken` only; no `Permission` is referenced anywhere in `loom/services/grpc`. |
+| WebSocket | yes (post-upgrade) | **no** | `WebSocketAuthenticator`; lenient by default, `LOOM_WS_STRICT_AUTH=true` / `-Dloom.ws.strictAuth` requires a token. |
 
-- `GraphQLPermissionChecker`
-  (`loom/services/graphql/.../graphql/GraphQLPermissionChecker.java`) — a `@FunctionalInterface`
-  with `boolean hasPermission(Permission)` and `CONTEXT_KEY = "loom.permissionChecker"`.
-- `AbstractDomainWiring.requirePermission(env, permission)`
-  (`loom/services/graphql/.../graphql/AbstractDomainWiring.java`) is called at the top of every
-  data fetcher. It pulls the checker from `env.getGraphQlContext()`:
-  - missing checker → `GraphqlErrorException` with code **`UNAUTHENTICATED`**;
-  - missing permission → code **`FORBIDDEN`** (with a `permission` extension naming the required perm).
-- Injection point: `GraphQLEndpoint`
-  (`loom/services/rest/.../rest/endpoint/impl/GraphQLEndpoint.java`) first resolves
-  `lrc.permissionChecker()` (loading the user's authorizations once, asynchronously), then places
-  it into `ExecutionInput.graphQLContext(...)`.
+Anything reachable **only** over gRPC or WebSocket is effectively unauthorized.
 
-The checker (`LoomRoutingContext.permissionChecker()`) delegates to the same
-`PermissionBasedAuthorization.create(perm.name()).match(user)` evaluation used by REST — so **REST
-and GraphQL share identical underlying authorization logic**. The GraphQL API is currently
-**read-only**: every fetcher requires a `READ_*` permission (wirings: `AclWiring` for
-users/roles/groups, `AssetWiring`, `MemoryWiring`, `PipelineWiring`, `SkillWiring`).
+Endpoints registered without `secure(...)`: `HealthEndpoint`, `LoginEndpoint`, `OAuth2Endpoint`,
+`RESTInfoEndpoint` (intentional), plus `NodeDescriptorEndpoint` (node descriptors **and**
+`/api/v1/pipeline/content-types`) and `PipelineEventEndpoint` (WS, own authenticator) — the last
+two are unintentional.
 
-## 5. Known gaps
+---
 
-- **Permissions are global per type; the `resource` column is ignored.** The ACL tables carry a
-  `resource` column and the grant APIs accept it, but `LoomAuthorizationProvider` builds each
-  Vert.x authorization from the permission **name only** (`PermissionBasedAuthorization.create(perm.getPermission())`).
-  Both REST `requirePerm` and GraphQL `requirePermission` match on `perm.name()` alone. There is
-  **no object/element-level (per-UUID) enforcement** — the `resource` string is a forward-looking
-  hook that is not yet wired into the check path. True object-level enforcement would require
-  threading `resource` through `LoomAuthorizationProvider`.
-- **MCP server bypasses auth entirely.** The MCP server (separate port, RESTAPI.md §4.5/§7.9)
-  accesses DAOs directly and does not apply the authentication or permission layers.
-- **Unsecured auxiliary endpoints.** `NodeDescriptorEndpoint` and the ContentTypes endpoint are
-  not secured; the Processor and PipelineEvent WebSocket routes use post-upgrade auth rather than
-  the standard handler (strict WS auth is opt-in via `LOOM_WS_STRICT_AUTH=true`).
-- **Dangling doc link.** RESTAPI.md §2.6 references `PERMISSION.md`, which does not exist; treat
-  this file as the RBAC reference until that link is reconciled.
+## 5. Test setup
 
-## 6. Test coverage
+RBAC is verified end-to-end against a live server plus a **pooled** test database (run
+`./setup-pool.sh` first — see [../../CONTEXT.md](../../CONTEXT.md)).
 
-RBAC enforcement is verified end-to-end against a live server + pooled database.
-
-- **REST CRUD** — the CRUD endpoint contract now bakes in permission-denied cases. The interface
-  `CRUDEndpointTestcases`
-  (`loom/core/src/test/java/io/metaloom/loom/core/endpoint/CRUDEndpointTestcases.java`) declares
-  `testCreateRequiresPermission`, `testReadRequiresPermission`, `testListRequiresPermission`, and
-  `testDeleteRequiresPermission`. `AbstractCRUDEndpointTest` implements them generically: it logs
-  in as a freshly provisioned user holding **no** permissions
-  (`AbstractEndpointTest.loginPermissionlessClient()`) and asserts each operation returns `403`
-  (`expect(403, "Forbidden", …)`). Every concrete `*EndpointTest` supplies the four entity-specific
-  request builders (`createRequest`/`loadRequest`/`listRequest`/`deleteRequest`), so the compiler
-  forces permission coverage on all CRUD entities (User, Role, Group, Asset, Tag, Task, Library,
-  Space, Cluster, Person, Annotation, Detection, Embedding, Attachment, AssetBinary, AssetPool,
-  Chat, Skill).
-- **GraphQL** — the analogous contract is `GraphQLSecurityTestcases`
-  (`.../endpoint/graphql/GraphQLSecurityTestcases.java`): every domain GraphQL test must implement
-  `testIndividualRetrievalRequiresPermission` and `testListRetrievalRequiresPermission`, using
-  `AbstractGraphQLTest.loginPermissionlessClient()` + `assertRetrievalForbidden(client, READ_X, query)`.
-- **Bespoke negatives** — additional permission tests exist for non-CRUD flows, e.g. Pipeline run
-  control (`PipelineRun*EndpointTest`, `403` without `READ_/UPDATE_PIPELINE_RUN`) and the memory
-  deny-list (`MemoryDenyRuleEndpointTest`, asserting `*_MEMORY` does not grant `*_MEMORY_DENY_RULE`).
-
-### RBAC test setup pattern
-
-To grant a non-admin test user a specific permission set, create a role, grant it the
-permissions, and attach it via a group (direct user grants are limited to one permission — see
-§1). Example from `SkillEndpointTest`/`MemoryEndpointTest`:
+**Granting a non-admin test user a permission set** — always via role + group, never via repeated
+direct grants (`user_permission` PK, §1). Pattern from `SkillEndpointTest` / `MemoryEndpointTest` /
+`MemoryDenyRuleEndpointTest`:
 
 ```java
 DaoCollection daos = loom.internal().daos();
 User joedoe = daos.userDao().load(USER_UUID);
 Role role = daos.roleDao().createRole(ADMIN_UUID, "test-role");
 daos.roleDao().store(role);
-for (Permission perm : List.of(Permission.CREATE_SKILL, Permission.READ_SKILL, /* … */)) {
-    daos.permissionDao().grantRolePermission(role.getUuid(), perm, "test");
+for (Permission perm : List.of(Permission.CREATE_SKILL, Permission.READ_SKILL /* … */)) {
+    daos.permissionDao().grantRolePermission(role.getUuid(), perm, "test");   // 3-arg only!
 }
-Group group = daos.groupDao().create(joedoe, "test-group");
+Group group = daos.groupDao().createGroup(ADMIN_UUID, "test-group");
 daos.groupDao().store(group);
 daos.groupDao().addRoleToGroup(group, role);
 daos.groupDao().addUserToGroup(group, joedoe);
 client.setToken(client.login("joedoe", "finger").sync().body().getToken());
 ```
 
-For the inverse (a caller that must be denied), `loginPermissionlessClient()` provisions a fresh
-enabled user with **no** grants — authentication succeeds (valid token), but every permission
-check fails.
+**Asserting a denial** — `AbstractEndpointTest.loginPermissionlessClient()` provisions a fresh
+enabled user `nobody` with no grants: authentication succeeds, every permission check fails.
+
+**Generic contracts.**
+
+- `CRUDEndpointTestcases` declares `testCreateRequiresPermission`, `testReadRequiresPermission`,
+  `testListRequiresPermission`, `testDeleteRequiresPermission`. `AbstractCRUDEndpointTest`
+  implements all four generically (`expect(403, "Forbidden", …)`); subclasses only supply
+  `createRequest` / `loadRequest` / `listRequest` / `deleteRequest`. **There is no generic
+  `UPDATE` case** — that is why nearly every `UPDATE_*` constant reads `test:none`.
+- `GraphQLSecurityTestcases` declares `testIndividualRetrievalRequiresPermission` and
+  `testListRetrievalRequiresPermission`, implemented via `AbstractGraphQLTest.loginPermissionlessClient()`
+  + `assertRetrievalForbidden(client, READ_X, query)`.
+
+**Actual coverage @ `499f71f7`:** of the **49** `*EndpointTest` classes, **18** extend
+`AbstractCRUDEndpointTest` and inherit the four 403 cases (Annotation, Asset, AssetBinary,
+AssetPool, Attachment, Chat, Cluster, Detection, Embedding, Group, Library, Person, Role, Skill,
+Space, Tag, Task, User); **10** more assert a 403 bespoke (AssetBinaryData, DedupGroup, Memory,
+MemoryDenyRule, PipelineRunCancel/Item/Pause/Stats, Search, SimilarAssets). The remaining ~21 —
+including Blacklist/Collection/Comment/Reaction/Token/Transcript/NodeResult/AssetComponent flows —
+assert **no** permission behaviour. All **7** domain GraphQL tests (Asset, Group, Memory, Pipeline,
+Role, Skill, User) implement the security contract.
+
+> `MemoryDenyRuleEndpointTest.testMemoryPermissionsDoNotGrantDenylistAccess` is weaker than its
+> name: it builds a `*_MEMORY`-only role but then asserts on an **unauthenticated** request
+> (`401 || 403`), so it never proves that `*_MEMORY` fails to grant `*_MEMORY_DENY_RULE`.
+
+---
+
+## 6. Conventions and gotchas
+
+- **Grant via role + group.** One direct `user_permission` row per user, full stop.
+- **`grantUserPermission(uuid, perm)` (2-arg) always throws NPE** — it delegates with
+  `resource = null` into a `requireNonNull`. Use the 3-arg form. The 2-arg *role* overload is fine
+  (defaults `resource` to `"all"`).
+- **No revoke, no upsert.** Removing a grant means raw SQL or deleting the role; re-granting an
+  existing pair is a PK violation.
+- **`resource` scopes nothing.** Do not build features assuming per-object grants.
+- **The permission cache never invalidates.** Grants made after a user has been cached take effect
+  only after eviction under size pressure or a restart — this silently masks membership tests.
+- **403 is overloaded.** `checkPerm`'s `onFailure` turns *any* failure (including a DB outage) into
+  403 `MISSING_PERM`; an in-place `TODO` acknowledges it. It also `throw`s from inside a
+  `Future` callback, which only reaches the router because permission loading is synchronous
+  today — making persistence async would silently drop the response.
+- **New entity ⇒ three layers.** Add the `CREATE/READ/UPDATE/DELETE_<ENTITY>` constants to
+  `Permission.java`, add an `ALTER TYPE "loom_permission" ADD VALUE IF NOT EXISTS …` migration, then
+  regenerate jOOQ (`loom/db/jooq/generate.sh`) and re-run `./setup-pool.sh`.
+- **Sub-resources inherit the parent's permission** — see PERMISSIONS.md §2.5 before minting new
+  constants.
+- **Existing installs do not get new admin grants** (§1.1).
+- **New endpoint ⇒ new 403 test.** Extending `AbstractCRUDEndpointTest` gives you four for free;
+  non-CRUD routes need a bespoke case (`PipelineRunCancelEndpointTest` is the template).
+
+---
+
+## 7. Key Classes Reference
+
+| Class | Package / module | Purpose |
+|---|---|---|
+| `Permission` | `io.metaloom.loom.db.model.perm` (loom/db/api) | 129-value enum, source of truth for Java; per-constant audit comments |
+| `PermissionDao` | `io.metaloom.loom.db.model.perm` (loom/db/api) | Grant + load API (no revoke) |
+| `PermissionDaoImpl` | `io.metaloom.loom.db.jooq.dao.perm` (loom/db/jooq) | The user→group→role join; dead `loadPermissionsForToken` |
+| `ResourcePermission(Set)` | `io.metaloom.loom.db.model.perm` (loom/db/api) | `(permission, resource)` pair; no `equals`/`hashCode` despite `HashSet` |
+| `LoomAuthorizationProvider` | `io.metaloom.loom.auth` (auth-common) | DB perms → Vert.x authorizations; **drops `resource`** |
+| `PermissionCache` | `io.metaloom.loom.auth` (auth-common) | Caffeine, 10k entries, no TTL/invalidation |
+| `LoomAuthenticationHandler` | `io.metaloom.loom.auth` (auth-common) | Authentication (401) before any permission check |
+| `LoomRoutingContext` | `io.metaloom.loom.rest` (loom/services/rest) | `requirePerm(...)`, `permissions()`, `permissionChecker()` — the sole decision point |
+| `AbstractEndpointService` | `…rest.service` | `checkPerm(...)`; throws 403 `MISSING_PERM` |
+| `AbstractCRUDEndpointService` | `…rest.service` | Generic guarded create/load/list/update/delete |
+| `SearchEndpointService` | `…rest.service.impl` | Predicate-based partial filtering (`READ_SEARCH` + per-type `READ_*`) |
+| `GraphQLPermissionChecker` | `io.metaloom.loom.graphql` (loom/services/graphql) | Injected field-level checker |
+| `AbstractDomainWiring` | `io.metaloom.loom.graphql` | `requirePermission(env, perm)`; `UNAUTHENTICATED`/`FORBIDDEN` |
+| `MCPToolRegistry` | `io.metaloom.loom.mcp.tool` (loom/services/mcp) | Parallel, string-based MCP permission check |
+| `GrpcAuthenticator` | `io.metaloom.loom.server.grpc` | Authenticates only — no authorization |
+| `WebSocketAuthenticator` | `…rest.service.impl` | Post-upgrade WS auth; `LOOM_WS_STRICT_AUTH` |
+| `DatabaseInitializer` | `io.metaloom.loom.core.boot` (loom/core) | admin user/group/role + all grants |
+| `AbstractCRUDEndpointTest` | `io.metaloom.loom.core.endpoint` (test) | The four inherited 403 cases |
+| `CRUDEndpointTestcases` / `GraphQLSecurityTestcases` | `io.metaloom.loom.core.endpoint(.graphql)` (test) | Compile-time permission-test contracts |
+
+### 7.1 Configuration
+
+| Environment variable | Default | Effect on authorization |
+|---|---|---|
+| `LOOM_INITIAL_PASSWORD` | *(random 8 chars, printed to stdout)* | Password of the all-permissions `admin` user |
+| `LOOM_TOKEN_EXPIRATION_TIME` | `3600` | JWT lifetime (seconds) |
+| `LOOM_MCP_AUTH_ENABLED` | `false` | When false, MCP callers are anonymous → tool permission check is skipped |
+| `LOOM_MCP_AUTH_STRICT_MODE` | `false` | When false, credential-less MCP calls stay anonymous |
+| `LOOM_WS_STRICT_AUTH` | `false` | When true, WebSocket upgrades require a token |
+
+Permission enforcement itself has no configuration switches.
+
+---
+
+## 8. Where do I find …?
+
+| I want to … | Look at |
+|---|---|
+| See the RBAC DDL | `loom/db/flyway/src/main/resources/db/migration/V2.1__add_acl.sql` |
+| Trace the permission enum history | `grep -l loom_permission loom/db/flyway/src/main/resources/db/migration/*.sql` |
+| Add a permission constant | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java` + a new `ALTER TYPE` migration |
+| Understand the user→group→role join | `loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/perm/PermissionDaoImpl.java` |
+| Change how a permission is checked | `loom/services/rest/src/main/java/io/metaloom/loom/rest/LoomRoutingContext.java` (`requirePerm`) |
+| Change the denial status code | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/AbstractEndpointService.java` (`checkPerm`) |
+| Find which permission guards an endpoint | `grep -rn "checkPerm\|requirePerm\|Permission\." loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/` |
+| Add cache invalidation | `loom/services/auth/auth-common/src/main/java/io/metaloom/loom/auth/PermissionCache.java` |
+| Change bootstrap roles/grants | `loom/core/src/main/java/io/metaloom/loom/core/boot/DatabaseInitializer.java` |
+| Write a 403 endpoint test | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/AbstractCRUDEndpointTest.java` |
+| Write a GraphQL security test | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/graphql/GraphQLSecurityTestcases.java` |
+| Adjust the test RBAC fixture | `loom/fixture/src/main/java/io/metaloom/loom/test/fixture/TestFixtureProvider.java` |
+| See MCP's separate check | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/MCPToolRegistry.java` |
+| Read the permission taxonomy | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) |
+
+---
+
+## 9. Progress Assessment
+
+### 9.1 Implemented
+
+- [x] `user`/`group`/`role` entities + `user_group` / `role_group` joins with `ON DELETE CASCADE`
+- [x] Transitive resolution user → group → role → permission (`loadPermissionsForUser`)
+- [x] Direct per-user grants (one row per user — see defects)
+- [x] `LoomAuthorizationProvider` bridging DB permissions to Vert.x authorizations
+- [x] Caffeine-backed `PermissionCache`
+- [x] REST enforcement: `checkPerm` / `requirePerm`, 403 `MISSING_PERM`
+- [x] Predicate-based partial filtering (`lrc.permissions()`, `SearchEndpointService`)
+- [x] Bespoke `requirePerm` guards (`ProcessorEndpoint` / `MANAGE_CORTEX_INSTANCE`)
+- [x] GraphQL field-level enforcement (`UNAUTHENTICATED` / `FORBIDDEN`)
+- [x] Bootstrap admin user/group/role with all grants; demo editor/viewer roles
+- [x] Compile-time permission-test contracts for CRUD REST and GraphQL
+- [x] `RESTAPI.md` now links a real authorization spec (the old dangling `PERMISSION.md` link is gone)
+
+### 9.2 Schema defects
+
+- [ ] `user_permission` PK is `(user_uuid)` — should be `(user_uuid, resource, permission)`
+- [ ] `token_permission` PK is `(token_uuid)`, and its FK lacks `ON DELETE CASCADE`
+- [ ] `role_permission` PK omits `resource`
+- [ ] Redundant unique indexes on all three permission tables
+- [ ] No reverse index on `user_group` / `role_group` for membership-admin queries
+
+### 9.3 Enforcement gaps (re-verified @ `499f71f7`)
+
+- [ ] `resource` is persisted but discarded — **no object-level enforcement** (`LoomAuthorizationProvider`)
+- [ ] gRPC authenticates but performs **no** permission check
+- [ ] WebSocket authenticates post-upgrade, lenient by default, and performs **no** permission check
+- [ ] MCP dispatches tools with **no** permission check when the user is null (default config)
+- [ ] MCP required permissions are free-form strings, not the `Permission` enum
+- [ ] `NodeDescriptorEndpoint` (incl. `/api/v1/pipeline/content-types`) and `PipelineEventEndpoint` are not `secure(...)`d
+- [ ] Permission cache has no TTL and no invalidation API
+- [ ] 403 conflates "lacks permission" with "lookup failed"; the throw-from-callback breaks if persistence goes async
+- [ ] `user.enabled` / `user.deleted` are never re-checked; JWTs self-renew, no revocation
+- [ ] New `Permission` constants are not granted to an existing `admin-role` (§1.1)
+- [ ] `token_permission` unwired — API keys inherit the owner's full authority
+- [ ] 2-arg `grantUserPermission` always NPEs; no revoke; no idempotent grant
+
+### 9.4 Missing functionality
+
+- [ ] No REST/GraphQL/gRPC surface for granting or revoking permissions
+- [ ] `RoleCreateRequest`/`RoleUpdateRequest.permissions` are accepted and **silently dropped**;
+      `RoleResponse.permissions` is never populated — the admin ACL matrix in
+      `loom-ui/src/features/admin/AdminArea.tsx` calls `updateRole({ permissions })` into a no-op
+- [ ] The REST `RolePermission` enum has 4 values against 129 domain permissions
+- [ ] No group-membership routes (`GroupEndpoint` is plain CRUD; `GroupDao.addUserToGroup` /
+      `addRoleToGroup` are reachable only from Java)
+- [ ] 5 DB-only enum values (4 of them webhook residue) are unreachable vocabulary
+- [ ] 6 `Permission` constants are granted but checked nowhere (`[unused]` markers in `Permission.java`)
+
+### 9.5 Test gaps
+
+- [ ] No generic `testUpdateRequiresPermission` — `UPDATE_*` is essentially untested
+- [ ] ~21 of 49 `*EndpointTest` classes assert no permission behaviour at all
+- [ ] `MemoryDenyRuleEndpointTest`'s permission case asserts unauthenticated access, not permission
+      separation
+- [ ] No test asserts that removing a user from a group revokes the derived permissions (masked by
+      the non-invalidating cache)
+- [ ] `PermissionDaoTest` asserts only non-nullity of the resolved set; `RoleDaoTest` is empty
+
+### 9.6 Documentation
+
+- [ ] RBAC.md and [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) cover the same
+      subsystem from two angles and drift apart (PERMISSIONS.md still cites 104/109 enum values and
+      claims the pipeline-run endpoints are unguarded — both are stale). **Recommendation: merge
+      them into `spec/features/permissions/PERMISSIONS.md` and leave RBAC.md as a stub redirect.**
+
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (re-verified the RBAC chain, enum counts and every enforcement gap against the code; corrected the MCP/doc-link claims and the test-coverage numbers)_

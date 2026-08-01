@@ -1,233 +1,276 @@
 # TASK_UI_AI_ML — AI / ML
 
-Gap-analysis tasks between the Loom REST API and the Loom UI for the AI/ML entities
-(Embedding, Cluster, Detection, Person, Vector Config, Chat). Follows [../../TASKS.template.md](../../TASKS.template.md).
-
-Sources of truth:
-- REST routes: [EmbeddingEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/EmbeddingEndpoint.java), [ClusterEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ClusterEndpoint.java), [PersonEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/PersonEndpoint.java), [ChatEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ChatEndpoint.java), [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (detections), [DetectionEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/DetectionEndpointService.java).
-- REST spec: [RESTAPI.md](../RESTAPI.md). Domain group 4: [DOMAIN.md](../DOMAIN.md).
-- UI spec: [LOOM_UI.md](./LOOM_UI.md).
-
-## Coverage Matrix
-
-| Entity | REST Operation (path · method) | UI Status | Where / Gap |
-|--------|-------------------------------|-----------|-------------|
-| **Embedding** | `/api/v1/embeddings` · POST (create) | Missing | No `api/*.ts` module and no feature. Only appears as an RBAC permission string in [AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) and an untyped `embeddings?: unknown[]` field in [api/assets.ts](../../../loom-ui/src/api/assets.ts). |
-| **Embedding** | `/api/v1/embeddings/:uuid` · POST (update) | Missing | No UI. |
-| **Embedding** | `/api/v1/embeddings/:uuid` · DELETE | Missing | No UI. |
-| **Embedding** | `/api/v1/embeddings` · GET (list) | Missing | No UI. |
-| **Embedding** | `/api/v1/embeddings/:uuid` · GET (read) | Missing | No UI. |
-| **Embedding** | `/api/v1/embeddings/:embeddingUuid/attachments` · POST (create attachment) | Missing | No UI, and per [RESTAPI.md](../RESTAPI.md) the HTTP client itself lacks embedding-attachment methods. |
-| **Embedding** | `/api/v1/embeddings/:embeddingUuid/attachments` · GET (list attachments) | Missing | No UI. |
-| **Embedding ↔ Cluster** | `embedding_cluster` (no REST route) | N/A (no REST surface) | Association not exposed by REST — `EmbeddingModel` has no `clusterUuid`, no `/embeddings/:uuid/clusters` route. Cannot be built in UI without backend work. |
-| **Cluster** | `/api/v1/clusters` · POST (create) | Implemented | [FaceDetectionManagement.tsx](../../../loom-ui/src/features/faceDetection/FaceDetectionManagement.tsx) create-cluster dialog → `createCluster` in [api/clusters.ts](../../../loom-ui/src/api/clusters.ts). |
-| **Cluster** | `/api/v1/clusters/:uuid` · POST (update) | Partial | [ClustersPanel.tsx](../../../loom-ui/src/features/faceDetection/ClustersPanel.tsx) `apiUpdateCluster` sends only `{ name }`. `type` and `meta` from `ClusterUpdateRequest` are never editable. |
-| **Cluster** | `/api/v1/clusters/:uuid` · DELETE | Implemented | [ClustersPanel.tsx](../../../loom-ui/src/features/faceDetection/ClustersPanel.tsx) `apiDeleteCluster`. |
-| **Cluster** | `/api/v1/clusters` · GET (list) | Implemented | [FaceDetectionManagement.tsx](../../../loom-ui/src/features/faceDetection/FaceDetectionManagement.tsx), [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx). |
-| **Cluster** | `/api/v1/clusters/:uuid` · GET (read) | Partial | `loadCluster` exists in [api/clusters.ts](../../../loom-ui/src/api/clusters.ts) but has no caller; the UI relies on the list payload, so there is no single-cluster detail view. |
-| **Cluster ↔ Tag** | `tag_cluster` (no REST route) | N/A (no REST surface) | No `/clusters/:uuid/tags` endpoint; cluster tagging cannot be surfaced. DOMAIN group 4 lists the relation. |
-| **Cluster ↔ Collection** | `collection_cluster` (no REST route) | N/A (no REST surface) | No cluster↔collection linking endpoint exists. |
-| **Detection** | `/api/v1/assets/:uuid/detections` · POST (create) | Implemented | `createDetection` in [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx). |
-| **Detection** | `/api/v1/assets/:uuid/detections/bulk` · POST (bulk create) | Implemented | `bulkCreateDetections` in [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx). |
-| **Detection** | `/api/v1/assets/:uuid/detections` · GET (list) | Implemented | [ObjectDetectionManagement.tsx](../../../loom-ui/src/features/detection/ObjectDetectionManagement.tsx), [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) via `listAssetDetections`. |
-| **Detection** | `/api/v1/assets/:uuid/detections/:detectionUuid` · GET (read) | Missing | `loadDetection` defined in [api/detections.ts](../../../loom-ui/src/api/detections.ts) but never called. |
-| **Detection** | `/api/v1/assets/:uuid/detections/:detectionUuid` · POST (update) | Implemented | Confirm-flow in [ObjectDetectionManagement.tsx](../../../loom-ui/src/features/detection/ObjectDetectionManagement.tsx) (`updateDetection` sets `meta.confirmed`) and [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx). |
-| **Detection** | `/api/v1/assets/:uuid/detections/:detectionUuid` · DELETE | Implemented | [ObjectDetectionManagement.tsx](../../../loom-ui/src/features/detection/ObjectDetectionManagement.tsx) reject-flow, [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx). |
-| **Detection (LLM)** | (uses same `/detections` routes, `type` = LLM) | Missing | [LLMDetectionManagement.tsx](../../../loom-ui/src/features/detection/LLMDetectionManagement.tsx) imports only `listAssets`; prompts/results are local component state and are never persisted to or read from `/detections`. |
-| **Person** | `/api/v1/persons` · POST (create) | Implemented | `createPerson` in [FaceDetectionManagement.tsx](../../../loom-ui/src/features/faceDetection/FaceDetectionManagement.tsx). |
-| **Person** | `/api/v1/persons/:uuid` · POST (update) | Partial | [PersonsPanel.tsx](../../../loom-ui/src/features/faceDetection/PersonsPanel.tsx) sends `{ alias, firstname, lastname }` only. `primaryImageUuid` (present in `PersonUpdateRequest`/`PersonResponse` in [api/persons.ts](../../../loom-ui/src/api/persons.ts)) is never set from the UI. |
-| **Person** | `/api/v1/persons/:uuid` · DELETE | Implemented | `apiDeletePerson` in [PersonsPanel.tsx](../../../loom-ui/src/features/faceDetection/PersonsPanel.tsx). |
-| **Person** | `/api/v1/persons` · GET (list) | Implemented | `listPersons` in [FaceDetectionManagement.tsx](../../../loom-ui/src/features/faceDetection/FaceDetectionManagement.tsx). |
-| **Person** | `/api/v1/persons/:uuid` · GET (read) | Missing | `loadPerson` defined in [api/persons.ts](../../../loom-ui/src/api/persons.ts) but has no caller. |
-| **Person images (gallery)** | `person_image` table (no REST route) | N/A (no REST surface) | DOMAIN group 4 describes "a gallery of images and a primary image", but no `/persons/:uuid/images` endpoint exists; only the scalar `primaryImageUuid` is exposed. Gallery management requires backend work. |
-| **Vector Config** | `vector_config` table (no REST route) | N/A (no REST surface) | Table added by migration `V2.6__add_vector_config` ([PERSISTENCE.md](../PERSISTENCE.md)) and listed in DOMAIN group 4, but there is no `VectorConfigEndpoint` and no UI. |
-| **Chat** | `/api/v1/chats` · POST (create) | Missing | [ChatWorkspace.tsx](../../../loom-ui/src/features/chat/ChatWorkspace.tsx) uses `mockChatService` from [mock/services](../../../loom-ui/src/mock/services); no `api/chat.ts` module exists. |
-| **Chat** | `/api/v1/chats/:uuid` · POST (update, message history) | Missing | Mock only; `ChatModel.messages` (JsonArray) never persisted. |
-| **Chat** | `/api/v1/chats/:uuid` · DELETE | Missing | Mock only. |
-| **Chat** | `/api/v1/chats` · GET (list sessions) | Missing | Mock only; no session list/switcher against REST. |
-| **Chat** | `/api/v1/chats/:uuid` · GET (read/load session) | Missing | `mockChatService.getHistory()` is used instead of a REST session load. |
+> Open UI work items for the AI/ML entities (Embedding, Cluster, Detection, Person, Dedup Group),
+> derived from a code audit of `loom-ui/` and `loom/services/rest/.../endpoint/impl/` on
+> 2026-08-01. Format follows [../../TASKS.template.md](../../TASKS.template.md).
+>
+> **Context:** [LOOM_UI.md](LOOM_UI.md) (UI spec) · [../RESTAPI.md](../RESTAPI.md) ·
+> [../DOMAIN.md](../DOMAIN.md) group 4
+>
+> **Ordering:** Task 1 (Workflow mock removal) is the only user-visible correctness issue —
+> the face/person workflow currently shows fabricated data against real assets. Tasks 2–5 are
+> independent. Task 6 is a decision.
+>
+> **Owned elsewhere — do not duplicate here:**
+> * **Chat / agent UI** → [TASK_UI_CHAT.md](TASK_UI_CHAT.md) and [CHAT.md](CHAT.md).
+> * **Semantic / vector search UI** → [../../features/search/SEMANTIC_SEARCH.md](../../features/search/SEMANTIC_SEARCH.md).
+>   Nothing can be built here yet: `embedding.vector` is a staging buffer with **no ANN index and
+>   no producer**, so any similarity query is a full scan.
+> * **Lexical search UI** → [../../features/search/SEARCH_PLAN.md](../../features/search/SEARCH_PLAN.md) P1-16…P1-20.
 
 ---
 
+## Closed — outcome records
+
+| Task (as originally filed) | Outcome — where it landed |
+|---|---|
+| Chat is mock-only (`mockChatService`) | ✅ DONE — real `loom-ui/src/api/chat.ts` (`listChats`/`loadChat`/`createChat`/`updateChat`/`deleteChat`) and `api/chatSessions.ts`; `features/chat/ChatWorkspace.tsx` + `features/chatSessions/`. Remaining chat work is tracked in [TASK_UI_CHAT.md](TASK_UI_CHAT.md) |
+| Detection CRUD partially wired | ✅ DONE — `api/detections.ts` list/create/bulk/update/delete all driven from `features/detection/ObjectDetectionManagement.tsx` and `features/assetDetail/AssetDetail.tsx`; `e2e/detections-backend.spec.ts` |
+| Cluster / Person CRUD missing | ✅ DONE — `api/clusters.ts` + `api/persons.ts`, UI in `features/faceDetection/{FaceDetectionManagement,ClustersPanel,PersonsPanel}.tsx`; `e2e/clusters-backend.spec.ts`, `e2e/persons-backend.spec.ts`. The remaining field-level gaps are Tasks 3 and 4 |
+| `loadDetection` / `loadPerson` / `loadCluster` have no caller | ✅ CLOSED as a non-gap for detections and persons — the list payload is complete and a single-load call would be a redundant round-trip. Only the cluster case has a real detail-view need (Task 4) |
 
 ---
 
-## Task: Build an Embedding management UI (CRUD + attachments)
+## Task 1: Replace the mock face/person seed in the Workflow view
 
-**Argumentation Summary:** Embedding is a first-class REST entity with full CRUD plus attachment sub-resources, an RBAC permission set (`CREATE/READ/UPDATE/DELETE_EMBEDDING` already listed in AdminArea), yet it has no `api` module and no feature at all in the UI. There is currently no way to inspect, delete, or manage embeddings or their attachments.
+**Argumentation Summary:** `features/workflow/WorkflowView.tsx` is one of only **two** modules
+left in the tree that import `src/mock/` — `import { FACE_CLUSTERS, PERSONS } from "../../mock/data"`
+(line 20), plus a hardcoded VLM result string around line 582. Assets and detections in the same
+view are real (`listAssets`, `listAssetDetections`), so the face-detection and LLM workflow modes
+present **fabricated clusters and persons over genuine assets** — the most misleading state in the
+UI, because nothing marks the data as sample. The real endpoints (`/clusters`, `/persons`) are
+already consumed by `FaceDetectionManagement.tsx`.
 
-**Improvement Summary:** Add `api/embeddings.ts` and a management view (list + detail + delete, plus an attachments sub-panel) analogous to the cluster/person tooling.
+**Improvement Summary:** Feed the workflow face/person modes from `listClusters`/`listPersons` and
+remove the mock import, or badge the residual synthetic parts explicitly.
 
 ```
-Endpoints (from EmbeddingEndpoint.java, basePath /api/v1/embeddings):
-  - POST   /api/v1/embeddings                                  → create (EmbeddingCreateRequest: area, vector, type, assetUuid, source)
-  - GET    /api/v1/embeddings                                   → list (paged)
-  - GET    /api/v1/embeddings/:uuid                             → read
-  - POST   /api/v1/embeddings/:uuid                             → update
-  - DELETE /api/v1/embeddings/:uuid                            → delete
-  - POST   /api/v1/embeddings/:embeddingUuid/attachments       → create attachment
-  - GET    /api/v1/embeddings/:embeddingUuid/attachments       → list attachments
+File: loom-ui/src/features/workflow/WorkflowView.tsx
 
-Work:
-  1. Create loom-ui/src/api/embeddings.ts with EmbeddingResponse (area, vector Float[], type,
-     assetUuid, source), list/load/create/update/delete, plus listEmbeddingAttachments and
-     createEmbeddingAttachment.
-  2. Add a feature view (e.g. loom-ui/src/features/embedding/EmbeddingManagement.tsx, or an
-     embeddings tab under an existing AI area) with a paged list, a read-only detail (vector
-     is high-dimensional — show type/source/assetUuid/area and dimension count, not raw floats),
-     delete, and an attachments sub-list.
-  3. Link embeddings to their asset (assetUuid → AssetDetail) since embeddings are asset-scoped.
+1. Delete the `../../mock/data` import. Load clusters via listClusters(token) (api/clusters.ts)
+   and persons via listPersons(token) (api/persons.ts) in an effect keyed on the auth token,
+   the same way FaceDetectionManagement.tsx already does.
+2. Map ClusterResponse/PersonResponse onto the local view models used at ~line 811 and ~line 985
+   instead of FACE_CLUSTERS.find(...)/PERSONS.
+3. The LLM mode result at ~line 582 has no REST source (LLM detections are not persisted —
+   Task 2). Until Task 2 lands, badge that panel "Sample data" rather than presenting it as an
+   inference result.
+4. After this change `src/mock/data.ts` has exactly one consumer left (MonitoringArea METRICS,
+   tracked in TASK_UI_SYSTEM.md) — update LOOM_UI.md §7.7 in the same commit.
 
-Edge cases: the vector array can be large — never render it raw; attachment create is a binary
-upload (multipart) — confirm the attachment content-type handling against AttachmentEndpoint;
-creating an embedding by hand is unusual (they come from Cortex) so create-from-UI may be
-admin/debug-only — gate behind CREATE_EMBEDDING.
+Edge cases: empty cluster/person lists must fall back to the shared EmptyState, not a blank
+keyboard-driven review screen; the workflow is keyboard-driven, so loading must not steal focus.
 ```
 
-**References:**
-- [EmbeddingEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/EmbeddingEndpoint.java)
-- [EmbeddingEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/EmbeddingEndpointService.java)
-- [EmbeddingModel.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/embedding/EmbeddingModel.java)
-- [AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) (Embedding permission set)
+**References:** [WorkflowView.tsx](../../../loom-ui/src/features/workflow/WorkflowView.tsx) ·
+[api/clusters.ts](../../../loom-ui/src/api/clusters.ts) · [api/persons.ts](../../../loom-ui/src/api/persons.ts) ·
+[LOOM_UI.md](LOOM_UI.md) §7.7 (remaining mock data — must be updated with this task)
 
-**Test Requirements:**
-- Unit test `api/embeddings.ts` including the two attachment sub-resource calls.
-- Component test: list renders, delete calls `deleteEmbedding`, attachments sub-list calls `listEmbeddingAttachments`.
+**Test Requirements:** `loom-ui/e2e/workflow-rating-mocked.spec.ts` exists; add
+`e2e/workflow-faces-mocked.spec.ts` routing `/api/v1/clusters` and `/api/v1/persons` and
+asserting the rendered names come from the mocked responses. Run: `cd loom-ui && yarn e2e --grep workflow`.
 
 ---
 
-## Task: Persist LLM detections through the Detection REST API
+## Task 2: Persist LLM detections through the detection endpoints
 
-**Argumentation Summary:** The LLM tab of Detection Management lets users define prompts and shows results, but [LLMDetectionManagement.tsx](../../../loom-ui/src/features/detection/LLMDetectionManagement.tsx) only imports `listAssets` — every prompt and result lives in local component state and vanishes on unmount. The object-detection sibling already persists through `/assets/:uuid/detections`, so the LLM path is an inconsistent, non-persistent gap.
+**Argumentation Summary:** `features/detection/LLMDetectionManagement.tsx` imports exactly one api
+module — `listAssets` from `api/assets.ts`. Every prompt definition and every result lives in local
+component state and is lost on unmount. Its sibling `ObjectDetectionManagement.tsx` persists through
+`/assets/:uuid/detections`, so the LLM tab silently behaves differently from a tab that looks
+identical.
 
-**Improvement Summary:** Wire LLM prompt runs and their results to the detection endpoints (or the correct detection `type`) so they load, persist, and delete like object detections.
+**Improvement Summary:** Store LLM prompt runs as detections of the LLM type so they load,
+persist, confirm and reject exactly like object detections.
 
 ```
-Endpoints (asset sub-resource, AssetEndpoint.java):
-  - GET    /api/v1/assets/:uuid/detections            → list (filter by LLM type)
-  - POST   /api/v1/assets/:uuid/detections            → create
-  - POST   /api/v1/assets/:uuid/detections/:detectionUuid → update
-  - DELETE /api/v1/assets/:uuid/detections/:detectionUuid → delete
+Routes (asset sub-resource, AssetEndpoint.java → DetectionEndpointService):
+  GET/POST /api/v1/assets/:uuid/detections
+  POST/DELETE /api/v1/assets/:uuid/detections/:detectionUuid
 
-Work:
-  1. Confirm the detection `type` string used for LLM results (object detection uses
-     "objectdetection" in ObjectDetectionManagement.tsx line ~41; find the LLM equivalent
-     via DetectionEndpointService / DetectionType).
-  2. In LLMDetectionManagement.tsx, load existing LLM detections via listAssetDetections
-     (filtering on that type), and persist prompt-run outputs via createDetection, storing
-     the prompt/model/effort/result payload in detection.meta.
-  3. Support confirm (updateDetection meta) and reject (deleteDetection), matching the
-     ObjectDetectionManagement review UX.
+1. Determine the detection type string for LLM output from DetectionEndpointService /
+   the node kind Cortex writes (object detection uses "objectdetection" in
+   ObjectDetectionManagement.tsx ~line 41). Do NOT invent a new value.
+   ⚠️ `detection` is unique on (asset_uuid, node_kind, frame_number, detection_index) —
+   two results for one frame must carry distinct detection_index or the insert aborts
+   (LOOM_UI.md §7.8 gotcha).
+2. In LLMDetectionManagement.tsx: load via listAssetDetections filtered on that type; persist a
+   run via createDetection with prompt/model/effort/output in detection.meta.
+3. Confirm → updateDetection(meta.confirmed); reject → deleteDetection. Mirror the
+   ObjectDetectionManagement review UX rather than inventing a second one.
 
-Edge cases: prompt config (name/model/prompt/reasoningEffort) may not map to a single detection —
-decide whether prompt definitions belong in detection.meta or need their own store; keep the
-existing dialog UX; handle assets with no LLM detections gracefully.
+Edge cases: a prompt *definition* is not a detection — decide whether definitions live in
+detection.meta or stay client-side; assets with no LLM detections must render EmptyState.
 ```
 
-**References:**
-- [LLMDetectionManagement.tsx](../../../loom-ui/src/features/detection/LLMDetectionManagement.tsx)
-- [ObjectDetectionManagement.tsx](../../../loom-ui/src/features/detection/ObjectDetectionManagement.tsx) (reference persistence pattern)
-- [DetectionEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/DetectionEndpointService.java)
-- [api/detections.ts](../../../loom-ui/src/api/detections.ts)
+**References:** [LLMDetectionManagement.tsx](../../../loom-ui/src/features/detection/LLMDetectionManagement.tsx) ·
+[ObjectDetectionManagement.tsx](../../../loom-ui/src/features/detection/ObjectDetectionManagement.tsx) (reference pattern) ·
+[api/detections.ts](../../../loom-ui/src/api/detections.ts) ·
+[DetectionEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/DetectionEndpointService.java)
 
-**Test Requirements:**
-- Test that a prompt run persists via `createDetection` and reloads via `listAssetDetections`.
-- Test confirm/reject calling `updateDetection`/`deleteDetection`.
+**Test Requirements:** `loom-ui/e2e/llm-detections-mocked.spec.ts` — a prompt run POSTs to
+`/assets/:uuid/detections`, a reload re-renders it from the list route, confirm/reject issue
+update/delete. Run: `cd loom-ui && yarn e2e --grep detection`.
 
 ---
 
-## Task: Let the Person editor set the primary image and expose a person image gallery
+## Task 3: Let the person editor set the primary image
 
-**Argumentation Summary:** `PersonResponse`/`PersonUpdateRequest` already carry `primaryImageUuid` and `createPerson`/`updatePerson` accept it, but the Person edit dialog in [PersonsPanel.tsx](../../../loom-ui/src/features/faceDetection/PersonsPanel.tsx) only edits alias/first/last name, so the primary image can never be chosen. DOMAIN group 4 further describes each person as having "a gallery of images and a primary image" (`person_image` table), which the UI cannot show at all. The primary-image field is a UI-only gap (REST already supports it); the gallery is a REST gap to record.
+**Argumentation Summary:** `PersonResponse`/`PersonUpdateRequest` carry `primaryImageUuid` and
+`api/persons.ts` passes it through, but `features/faceDetection/PersonsPanel.tsx` `handleUpdate`
+(~line 54) sends only `{ alias, firstname, lastname }`. A person's primary image can therefore
+never be chosen from the UI, and person cards have no avatar.
 
-**Improvement Summary:** Add primary-image selection to the person editor now (REST already supports it); record the missing `person_image` gallery REST surface as a backend prerequisite for full gallery management.
+**Improvement Summary:** Include `primaryImageUuid` in the person update and add a picker plus a
+thumbnail on the person card.
 
 ```
-Part A — UI gap (REST already supports it):
-  In PersonsPanel.tsx handleUpdate (~line 57) include primaryImageUuid in the apiUpdatePerson
-  request, and add a control to pick it — e.g. an asset/image picker (reuse AssetBrowser) that
-  yields the chosen image UUID. Show the current primary image (persons.ts primaryImageUuid) as
-  a thumbnail in the person card and edit dialog.
+File: loom-ui/src/features/faceDetection/PersonsPanel.tsx
 
-Part B — REST gap (record + prerequisite):
-  There is NO /api/v1/persons/:uuid/images endpoint (PersonEndpoint.java exposes only CRUD),
-  even though the person_image table exists. A true gallery (add/remove images, choose primary
-  from the gallery) requires a new person-image sub-resource endpoint first. File that backend
-  task; until it exists the UI can only manage the scalar primaryImageUuid.
+1. Add primaryImageUuid to the apiUpdatePerson payload in handleUpdate (~line 57).
+2. Picker: the natural source is the person's confirmed face detections — reuse the crop
+   rendering already used by FaceDetectionPanel.tsx rather than a generic asset browser.
+3. Render the current primary image as a thumbnail on the card and in the edit dialog;
+   support clearing it (send null).
 
-Edge cases: primaryImageUuid may reference an asset binary — resolve it to a thumbnail URL the
-same way faces are rendered elsewhere; handle persons with no primary image; clearing the primary
-image (send null/omit).
+Not buildable today: a true image *gallery*. The person_image table exists but PersonEndpoint
+exposes CRUD only — no /persons/:uuid/images sub-resource. See "No REST surface" below.
 ```
 
-**References:**
-- [PersonEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/PersonEndpoint.java) (CRUD only — no image sub-resource)
-- [PersonResponse.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/person/PersonResponse.java) (`primaryImageUuid`)
-- [PersonsPanel.tsx](../../../loom-ui/src/features/faceDetection/PersonsPanel.tsx)
-- [api/persons.ts](../../../loom-ui/src/api/persons.ts)
-- [DOMAIN.md](../DOMAIN.md) group 4 (Person / `person_image`)
+**References:** [PersonsPanel.tsx](../../../loom-ui/src/features/faceDetection/PersonsPanel.tsx) ·
+[api/persons.ts](../../../loom-ui/src/api/persons.ts) ·
+[PersonEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/PersonEndpoint.java) ·
+[../DOMAIN.md](../DOMAIN.md) group 4
 
-**Test Requirements:**
-- Test that editing a person sends `primaryImageUuid` in the update body and renders the thumbnail.
-- Test clearing the primary image.
+**Test Requirements:** extend `loom-ui/e2e/persons-backend.spec.ts` (and add a mocked spec)
+asserting the update body contains `primaryImageUuid` and that clearing it round-trips.
+Run: `cd loom-ui && yarn e2e --grep persons`.
 
 ---
 
-## Task: Complete the Cluster editor (type + meta) and add a single-cluster detail view
+## Task 4: Complete the cluster editor (type + meta) and add a cluster detail view
 
-**Argumentation Summary:** Cluster update is only partially covered: [ClustersPanel.tsx](../../../loom-ui/src/features/faceDetection/ClustersPanel.tsx) sends `{ name }` only, so `type` and `meta` (both in `ClusterUpdateRequest`) can never be edited. `loadCluster` also exists in the api module with no caller, so there is no dedicated cluster detail view — everything relies on the list payload.
+**Argumentation Summary:** `features/faceDetection/ClustersPanel.tsx` `handleUpdate` (~line 47)
+calls `apiUpdateCluster(token, id, { name: editName })` — `type` and `meta`, both accepted by
+`ClusterUpdateRequest`, can never be edited. `loadCluster` in `api/clusters.ts` has no caller, so
+there is no single-cluster view; everything is driven off the list payload.
 
-**Improvement Summary:** Expose `type` and `meta` in the cluster edit dialog and add a cluster detail view backed by `loadCluster`.
+**Improvement Summary:** Expose `type` and `meta` in the edit dialog and add a detail view backed
+by `loadCluster`.
 
 ```
-Endpoints (ClusterEndpoint.java):
-  - POST /api/v1/clusters/:uuid  → update (ClusterUpdateRequest: name, type, meta)
-  - GET  /api/v1/clusters/:uuid  → read (currently unused loadCluster in api/clusters.ts)
-
-Work:
-  1. In ClustersPanel.tsx handleUpdate (~line 47) include type and meta in the apiUpdateCluster
-     call; add fields for them to the edit dialog (type as a select if the allowed values are
-     enumerable; meta as a JSON/key-value editor).
-  2. Add a cluster detail view that calls loadCluster and shows members/metadata, rather than
-     depending solely on listClusters.
-
-Note (no REST surface — record only, do not implement): DOMAIN group 4 lists Cluster ↔ Tag
-(tag_cluster) and Cluster ↔ Collection (collection_cluster) relations, and embedding↔cluster
-(embedding_cluster), but NONE have REST endpoints (no /clusters/:uuid/tags, /clusters/:uuid/
-collections, or cluster-membership route). Cluster tagging, collection assignment, and cluster
-merge therefore cannot be built in the UI without new endpoints — flag as backend prerequisites.
-
-Edge cases: meta is free-form JSON — validate before submit; empty type; keep delete/rename intact.
+1. ClustersPanel.tsx handleUpdate (~line 47): include type and meta in apiUpdateCluster; add a
+   type select (enumerate from ClusterResponse usage) and a JSON/key-value editor for meta with
+   parse validation before submit.
+2. Add a cluster detail view (own file under features/faceDetection/) that calls loadCluster and
+   lists members; route it from the cluster row.
+3. Keep rename and delete behaviour unchanged.
 ```
 
-**References:**
-- [ClusterEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ClusterEndpoint.java)
-- [ClusterResponse.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/cluster/ClusterResponse.java)
-- [ClustersPanel.tsx](../../../loom-ui/src/features/faceDetection/ClustersPanel.tsx)
-- [api/clusters.ts](../../../loom-ui/src/api/clusters.ts)
-- [DOMAIN.md](../DOMAIN.md) group 4 (Cluster relations without REST surface)
+**References:** [ClustersPanel.tsx](../../../loom-ui/src/features/faceDetection/ClustersPanel.tsx) ·
+[api/clusters.ts](../../../loom-ui/src/api/clusters.ts) ·
+[ClusterEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ClusterEndpoint.java)
 
-**Test Requirements:**
-- Test that updating a cluster sends `type` and `meta` in the body.
-- Test the detail view calls `loadCluster` and renders it.
+**Test Requirements:** extend `loom-ui/e2e/clusters-backend.spec.ts` with a type+meta update; add
+a mocked spec asserting the detail view issues `GET /clusters/:uuid`.
+Run: `cd loom-ui && yarn e2e --grep clusters`.
 
 ---
 
-## Recorded findings (no action / backend prerequisites)
+## Task 5: Build the dedup-group review UI
 
-These are verified surfaces where the gap is a missing REST endpoint, not a missing UI, and are
-recorded here so they are not mistaken for UI omissions:
+**Argumentation Summary:** `DedupGroupEndpoint` (migration `V2.61`) registers
+`POST/GET /api/v1/dedup-groups`, `GET/PATCH/DELETE /api/v1/dedup-groups/:uuid` and
+`GET /api/v1/assets/:uuid/dedup-groups`, with `DedupGroupResponse`/`DedupGroupMemberModel` in
+`rest-model`. **No `loom-ui` code references `dedup-groups`** — a repo-wide grep finds only i18n
+strings and `features/workflow/WorkflowView.tsx`'s "deduplication" mode, which reviews locally
+computed candidates and persists nothing. The dedup pipeline node therefore writes PENDING groups
+that no operator can confirm, and the apply node has nothing CONFIRMED to act on: the feature is
+end-to-end blocked on this UI.
+[NODE_DEDUP_PLAN.md](../../features/pipeline-nodes/NODE_DEDUP_PLAN.md) names this file as the
+owner of the task.
 
-- **Vector Config** — table `vector_config` exists (migration `V2.6__add_vector_config`, DOMAIN
-  group 4) but there is **no REST endpoint** (`VectorConfigEndpoint` does not exist) and no UI.
-  Any "custom vector index" configuration screen requires a backend endpoint first.
-- **Person image gallery** — `person_image` table exists but no `/persons/:uuid/images` route;
-  only scalar `primaryImageUuid` is exposed (see Person task).
-- **Cluster ↔ Tag / Cluster ↔ Collection / Embedding ↔ Cluster** — association tables
-  (`tag_cluster`, `collection_cluster`, `embedding_cluster`) exist per DOMAIN group 4 but have no
-  REST routes; cluster tagging/collection-assignment/membership and cluster merge are not
-  buildable in the UI without new endpoints.
-- **Detection has no top-level entity endpoint** — detections are only asset sub-resources
-  (`/assets/:uuid/detections…`); `DetectionEndpointService` is invoked from `AssetEndpoint`. There
-  is no standalone `/api/v1/detections` list, so a global detection browser is not currently
-  possible via REST.
+**Improvement Summary:** Add `api/dedupGroups.ts` and make the workflow deduplication mode read
+PENDING groups and write CONFIRMED/REJECTED back via PATCH.
+
+```
+Routes:
+  GET   /api/v1/dedup-groups?status=PENDING      -> review queue          (READ_DEDUP)
+  GET   /api/v1/dedup-groups/:uuid               -> one group + members   (READ_DEDUP)
+  PATCH /api/v1/dedup-groups/:uuid               -> status + KEEP member  (UPDATE_DEDUP)
+  DELETE/POST /api/v1/dedup-groups[/:uuid]                                (DELETE/CREATE_DEDUP)
+  GET   /api/v1/assets/:uuid/dedup-groups        -> groups for one asset  (READ_DEDUP)
+
+1. New loom-ui/src/api/dedupGroups.ts (list with status filter, load, patch, delete).
+   Members carry a `size` and `zero_chunk_count` snapshot recorded at discovery time — display
+   them; do not recompute.
+2. Rewire the "deduplication" mode in WorkflowView.tsx: Y = PATCH status CONFIRMED with the
+   selected KEEP member, N = PATCH status REJECTED. Keep the existing keyboard map.
+3. Add a "Duplicates" row to AssetDetail via GET /assets/:uuid/dedup-groups.
+4. Creation belongs to the discovery node — do not expose POST in the UI.
+
+Edge cases: a group whose members were deleted between discovery and review; a concurrent PATCH
+(refetch on 409/stale); the KEEP choice is mandatory before CONFIRMED.
+```
+
+**References:** [DedupGroupEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/DedupGroupEndpoint.java) ·
+[../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../features/pipeline-nodes/NODE_DEDUP_PLAN.md) §2.1 (route/permission table) ·
+[WorkflowView.tsx](../../../loom-ui/src/features/workflow/WorkflowView.tsx) · migration `V2.61`
+
+**Test Requirements:** `loom-ui/src/api/dedupGroups.test.ts`; `loom-ui/e2e/dedup-mocked.spec.ts`
+(confirm/reject issue PATCH with the right status and KEEP) and a `dedup-backend.spec.ts` once
+demo data seeds a PENDING group. Run: `cd loom-ui && yarn test && yarn e2e --grep dedup`.
+
+---
+
+## Task 6: Decide whether Embeddings get a management UI
+
+**Argumentation Summary:** `EmbeddingEndpoint` has full CRUD plus `/embeddings/:embeddingUuid/attachments`,
+and `CREATE/READ/UPDATE/DELETE_EMBEDDING` are already listed in `AdminArea.tsx` `PERMISSION_GROUPS`
+with i18n descriptions. `loom-ui` has no `api/embeddings.ts`; the only trace is an untyped
+`embeddings?: unknown[]` field in `api/assets.ts`. Before building a screen, note the context:
+`embedding.vector` has no ANN index and no producer
+([SEMANTIC_SEARCH.md](../../features/search/SEMANTIC_SEARCH.md)), so an embeddings browser today
+would list rows nothing writes and nothing queries. This is a product decision, not a coding gap.
+
+**Improvement Summary:** Either defer the UI until the semantic-search producer exists, or ship a
+minimal read-only admin/debug list.
+
+```
+If deferring (recommended today): record "no UI until a vector producer exists" in
+../RESTAPI.md next to the /embeddings rows and close this task.
+
+If building the minimal version:
+  1. loom-ui/src/api/embeddings.ts — list/load/delete + listEmbeddingAttachments.
+     Never render the raw vector: show area/type/source/assetUuid and the dimension count.
+  2. A read-only admin tab gated on READ_EMBEDDING; link assetUuid → /assets/:uuid.
+  3. Skip create/update — embeddings are Cortex output.
+
+Not buildable either way: embedding ↔ cluster membership has no REST route (see below).
+```
+
+**References:** [EmbeddingEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/EmbeddingEndpoint.java) ·
+[../../features/search/SEMANTIC_SEARCH.md](../../features/search/SEMANTIC_SEARCH.md) §"no ANN index" ·
+[AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) `PERMISSION_GROUPS`
+
+**Test Requirements:** if deferred, spec note only. If built, `loom-ui/src/api/embeddings.test.ts`
+plus a mocked list spec asserting the raw vector is never rendered.
+
+---
+
+## No REST surface — backend prerequisites, not UI gaps
+
+* **`vector_config`** — table exists (`V2.6`), no `VectorConfigEndpoint`, no UI.
+* **`person_image`** — table exists, `PersonEndpoint` is CRUD-only; only the scalar
+  `primaryImageUuid` is reachable (Task 3).
+* **`embedding_cluster`, `tag_cluster`, `collection_cluster`** — association tables in
+  [../DOMAIN.md](../DOMAIN.md) group 4 with no routes: cluster membership, cluster tagging,
+  cluster→collection assignment and cluster merge are all unbuildable in the UI today.
+* **No top-level `/api/v1/detections`** — detections exist only as an asset sub-resource, so a
+  global detection browser is not possible via REST.
+* **`POST /api/v1/similarity-index/rebuild`** (`SimilarityIndexEndpoint`, perceptual fingerprint
+  k-NN) has no UI consumer. If an operator action is wanted it belongs on the maintenance screen —
+  see [TASK_UI_SYSTEM.md](TASK_UI_SYSTEM.md), not here.
+
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (closed the chat/detection/cluster/person wiring items, added the workflow mock-removal and dedup-group review tasks, and reframed embeddings as a decision)_

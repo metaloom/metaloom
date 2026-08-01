@@ -1,515 +1,206 @@
-# Scene Layout Node — Design & Implementation Plan
+# Scene Layout Node — Technical Specification
 
-> **Status: implemented.** The node and its wiring are built; 61 unit tests and one integration test
-> pass. Prerequisite P2 (the `FacedetectNode` `detections` output) shipped with it. P3
-> (`objectdetect`) remains open, so today the node relates faces to faces — see §2.
->
-> **Three things landed differently from the design below**, each recorded in place:
->
-> 1. **The video coordinate-space caution in §6 is resolved**, not open. `VideoFaceScanner` has its
->    scale-down path hard-disabled and rescales boxes back to native frame coordinates when it is on,
->    so video boxes are native pixels. What is genuinely unavailable is the frame *size* —
->    `VideoFile` exposes none — so the video payload omits `imageWidth`/`imageHeight` rather than
->    reporting a guess.
-> 2. **Normalized rows on the REST fallback are refused, not rescaled.** The design said to apply a
->    logged heuristic. Half of it is unimplementable: nothing records the source image dimensions, so
->    normalized boxes cannot be turned into pixels at all. The node logs which branch it took and
->    declines the normalized one.
-> 3. **A single detection is a skip**, added during implementation. One object has nothing to relate
->    to, so a component row for it would carry no information.
->
-> **Node kind**: `scene-layout` · **Module**: `cortex/nodes/scene-layout` ·
-> **Package**: `io.metaloom.cortex.node.scenelayout` · **No model, no sidecar.**
->
-> **Naming.** This node was first sketched as "correlation". That name was dropped: *correlation*
-> means a statistical relationship between variables, which is not what this does. It computes
-> **spatial layout** — where detected things sit relative to one another in the image and in depth.
-> Any older reference to `NODE_CORRELATION_PLAN.md` or a `CorrelationNode` means this file.
->
-> **Hard prerequisite**: [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md). This node consumes the
-> `depthmap` node's output and cannot run without it.
->
-> **Scope**: the Cortex-level `scene-layout` node. The node system as a whole is
-> [NODES.md](NODES.md); the persistence model is §2 there and is not duplicated here.
->
-> The source of truth is the code under `cortex/`.
+> **Audience: AI coding agents.** The Cortex `scene-layout` node joins detector bounding boxes to a
+> depth map and derives **depth bands** (`FOREGROUND` / `MIDGROUND` / `BACKGROUND`) and **pairwise
+> spatial relations** (`IN_FRONT_OF`, `OCCLUDES`, `LEFT_OF`, `NEXT_TO`, …). Pure geometry and
+> statistics — no model, no sidecar, no network.
 
----
+## 🟢 Status: BUILT — verified at `499f71f7`
 
-## 1. Motivation
+The node, the pure-logic solver and sampler, the typed ports, the descriptor, the persistence, the
+customer docs and **59 unit tests** all exist. Spatial-relation derivation is *implemented*, not a
+TODO; the depth dependency is *wired* through a declared `struct/depthmap` port. There are zero
+`TODO`/`FIXME` markers in the module.
 
-Cortex knows *what* is in an image and *where its box is*, but nothing about how the things relate.
-`FacedetectNode` writes a list of boxes; a future `objectdetect` will write more. Two boxes that
-overlap might be a person standing in front of a car or a person visible through its window, and
-nothing in the system can tell the difference — because that difference is depth.
+Two things remain genuinely open, and neither is a design question:
 
-`scene-layout` joins detector boxes to a depth map and derives the relations:
+1. 🔴 **`SceneLayoutNodeIntegrationTest` is broken** — it feeds the pre-port payload shape (§4.1).
+2. 🔴 **No object detection exists anywhere in Cortex**, so today the node relates **faces to faces**
+   only (§4.2). This is a prerequisite, not a defect in this node.
 
-```
-person-0  IN_FRONT_OF  car-0        (confidence 0.91)
-person-0  OCCLUDES     car-0        (overlap 0.34)
-person-0  LEFT_OF      person-1
-person-1  BEHIND       car-0
-```
+⚠️ **Corrections against the previous revision of this file.** It carried an "implemented" header over
+sections still marked *"Status: not implemented"* (§8 node) and *"not written"* (§12 tests), and over a
+whole configuration section for options that no longer exist. Those are removed. Four further
+statements were wrong:
 
-plus a **depth band** per object — `FOREGROUND` / `MIDGROUND` / `BACKGROUND` — which is the direct
-answer to "which detected objects are foreground and which are background".
-
-| Consumer | What it gets |
+| Previously specified | Actually built |
 |---|---|
-| Captioning / LLM | Grounded prepositions. `phrases[]` drops straight into a prompt instead of the model guessing |
-| Search ([../search/SEARCH.md](../search/SEARCH.md)) | "person in the foreground", "two people side by side" become queryable |
-| Editorial / DAM | Subject isolation, auto-crop that keeps the foreground subject, background-blur candidates |
-| Review workflows | "the face is behind glass / in the background" as a rejection reason |
+| `depthNodeId` (default `"depthmap"`) and `detectionSources` (default `["facedetect"]`) options | 🔴 **Both deleted** (commit `1f718676`). Replaced by declared ports `depth : struct/depthmap ONE` and `detections : detection/* MANY` — the pipeline author draws an edge instead ([NODES.md](NODES.md) §6.4) |
+| Output keys `scene_layout_result` / `_object_count` / `_relation_count` (`NodeOutputKey`) | **Typed ports** `result`, `object_count`, `relation_count` (`OutputPort` + `ContentTypeRegistry`) |
+| Normalized boxes on the REST fallback get a logged rescale heuristic | Normalized rows are **refused**, not rescaled — nothing records source image dimensions, so they cannot be converted at all. Only the ">1.0 ⇒ pixels" branch is usable |
+| `loom-ui` `ICON_MAP` gains `schema` | 🔴 `PipelineEditor.tsx` has **no `ICON_MAP`** — the palette is descriptor-driven. `setIcon("schema")` in the descriptor is the only icon choice |
 
-### Non-goals
+**Node kind**: `scene-layout` · **Module**: `cortex/nodes/scene-layout` (aggregator + `core`) ·
+**Package**: `io.metaloom.cortex.node.scenelayout` · **No model, no sidecar.**
 
-- **Not a detector.** It creates no boxes. It relates boxes that other nodes produced.
-- **Not a learned scene-graph model.** No SGG network, no relation classifier. Pure geometry and
-  statistics over the boxes and the depth map — deterministic, explainable, and CPU-cheap.
-- **Not 3D reconstruction.** Relative ordering and image-plane relations only. No camera pose, no
-  world coordinates, no metric distances between objects (even in the depth node's `METRIC` mode,
-  which only gives per-pixel range, not inter-object geometry).
-- **Not video, in v1.** Images only, matching the `depthmap` node's v1 scope.
+**Hard prerequisite**: [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md). Node system:
+[NODES.md](NODES.md). Ports and content types:
+[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4. Adding a node:
+[../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md).
 
----
+> **Naming.** First sketched as "correlation"; renamed because *correlation* means a statistical
+> relationship between variables, which is not what this does. Any reference to
+> `NODE_CORRELATION_PLAN.md` or a `CorrelationNode` means this file. Also unrelated to the existing
+> **`scene-detection`** node (temporal video cuts) — do not wire one expecting the other.
 
-## 2. 🔴 The prerequisite that limits what this node can do today
-
-> **Status: verified against code at `29cadb66`. This is not a hypothetical.**
-
-**There is still no object detection anywhere in Cortex.** A case-insensitive grep for
-`yolo|objectdetect|object_detect|ObjectDetection` across `cortex/` (java/xml/json) returns **zero**
-hits, and `yolo4j` is not a dependency of any pom in this repo. The `detection.label` column and the
-`type='objectdetection'` value exist in the schema purely in anticipation; nothing writes them.
-
-The consequence, stated plainly so nobody is surprised: **as shipped, this node can only relate faces
-to faces.** "Person is behind car" is *not* reachable until an `objectdetect` node exists.
-
-That does not make the node premature — face-to-face layout is genuinely useful (group photos,
-who-is-in-front framing, foreground-subject selection), and building it now means the object
-detector plugs in with **zero changes here**, because the node is written detector-agnostic: it
-consumes boxes, and does not care which node produced them.
-
-### Prerequisites, in order
-
-| # | Prerequisite | Status | Needed for |
-|---|---|---|---|
-| P1 | [`depthmap` node](NODE_DEPTHMAP_PLAN.md) | **built** | **Everything.** Hard dependency |
-| P2 | `FacedetectNode` emits its bounding boxes as a node output | **built** — §6 | The upstream-output path; offline operation |
-| P3 | An `objectdetect` node (yolo4j, wired like `InspireFacedetector` in `FacedetectNodeModule`) | **not started, out of scope** | Any non-face object. Deserves its own plan |
-| P4 | `DetectionResponse` exposes `nodeKind` / `label` / `detectionIndex` | not started, out of scope | The REST read-back path for *object classes*. Faces work without it (`type="face"`) |
+**The code under `cortex/nodes/scene-layout/` is the source of truth.**
 
 ---
 
-## 3. What already exists (verified against code at `29cadb66`)
+## 1. Already implemented
 
-| Concern | Reference | Notes |
-|---|---|---|
-| Base node lifecycle + ledger helpers | `cortex/common/…/node/AbstractMediaNode.java` | `process()` L51; `compute(...)` L102; `recordNodeResult(...)` L120; `resultRef(table, uuids…)` L151 |
-| Reading configurable upstream outputs | `SentimentNode.resolveText` / `SentimentNodeOptions.textSources`, `TtsNode.resolveText` | The `nodeId:outputKey` source-list pattern this node copies for both its inputs |
-| Writing a JSON component + ledger | `cortex/nodes/sentiment/core/…/SentimentNode.persist(...)` | The exact `createAssetJsonComp` + `recordNodeResult(resultRef("asset_json_comp", uuid))` shape |
-| `asset_json_comp` | `V2.23__add_asset_json_comp.sql`, rewritten by `V2.40__rework_asset_json_comp.sql` | Natural key `(asset_uuid, node_kind, schema_type, variant)`; `data jsonb` with a GIN index |
-| Detections in Loom | `V2.43__rework_detection_embedding.sql`; `DetectionMethods.listAssetDetections(AssetId)` | Read-back path. Key `(asset_uuid, node_kind, frame_number, detection_index)` |
-| Face detections produced | `cortex/nodes/facedetect/core/…/FacedetectNode.java` | `persist(...)` → `bulkCreateAssetDetections` with `type="face"`, boxes as **absolute pixels** |
-| Image reading without OpenCV | `cortex/nodes/vlm/core/…/VlmImages.java` | `ImageIO`-based; the house pattern for a node that must not pull in the video4j native runtime |
-| In-heap skip cache | `cortex/common/…/cache/LocalResultCache.java` | Bounded access-order LRU keyed by `media.absolutePath()` |
-| Affinity / segmentation | `loom/pipeline/…/graph/{PipelineGraphNode,PipelineSegmenter,AffinityValidator}.java` | `"affinity"` on the node JSON; `DEFAULT_AFFINITY = "default"` |
+| Item | Where it lives |
+|---|---|
+| `SceneLayoutNode` (428 lines) — lifecycle, input gathering, projection, persistence | `cortex/nodes/scene-layout/core/src/main/java/io/metaloom/cortex/node/scenelayout/SceneLayoutNode.java` |
+| `RelationSolver` (209 lines) — **pure**: bands, relations, phrases. No I/O | same package, `RelationSolver.java` |
+| `DepthSampler` (61 lines) — **pure**: box → core inset → p25/p50/p75 | same package, `DepthSampler.java` |
+| `DepthMap` (155 lines) — 16-bit PNG decode, image→map projection, scene quantiles | same package, `DepthMap.java` |
+| Value types `LayoutObject`, `SpatialRelation`, `BoxF`, `DepthStats`; enums `RelationPredicate` (12), `DepthBand` (3) | same package |
+| `SceneLayoutNodeOptions` (12 fields, `KEY="scene-layout"`) + `validate()` | same package, `SceneLayoutNodeOptions.java` |
+| `SceneLayoutNodeModule` — `@Binds @IntoSet`, **`@Binds @IntoMap @StringKey("scene-layout")`**, option-deserializer info, `@Provides` options | same package |
+| Typed ports: `depth : struct/depthmap` ONE, `detections : detection/*` **MANY** → `result : struct/scene-layout`, `object_count`/`relation_count : scalar/integer` | `SceneLayoutNode.IN_DEPTH` / `IN_DETECTIONS` / `OUT_*` |
+| `ContentTypeRegistry.STRUCT_SCENE_LAYOUT = "struct/scene-layout"` + `all()` entry | `loom-shared/node-model/.../spec/ContentTypeRegistry.java:69,126` |
+| `SceneLayoutDescriptorProvider` (icon `schema`, `ANALYSIS`, `PARALLEL`, concurrency **4**, 11 parameters) + `META-INF/services` | `loom-shared/node-model/.../spec/SceneLayoutDescriptorProvider.java` |
+| Build wiring | `cortex/nodes/pom.xml:34`; `cortex/processor/pom.xml:153`; `integration-test/pom.xml:179` |
+| Kind registration | `cortex/cli/.../dagger/NodeCollectionModule.java:18,55`; guarded by `NodeRegistrarTest:60` |
+| **Prerequisite P2** — `FacedetectNode` emits `detections` (MANY) with an explicit `coordinates` marker | `cortex/nodes/facedetect/core/.../FacedetectNode.java`; `FacedetectNodeDetectionsTest` |
+| Persistence: `asset_json_comp`, `nodeKind`/`schemaType` = `scene-layout`, `variant=""`, `producerVersion` = the **depth model id** | `SceneLayoutNode.persist(...)`; table `V2.40__rework_asset_json_comp.sql` |
+| Unit tests — `RelationSolverTest` (15), `SceneLayoutNodeTest` (15), `DepthSamplerTest` (9), `SceneLayoutNodePersistenceTest` (7), `SceneLayoutOptionsValidationTest` (7), `SceneLayoutNodePipelineTest` (6) + `SceneLayoutFixtures`, `assertj/` helpers | `cortex/nodes/scene-layout/core/src/test/java/io/metaloom/cortex/node/scenelayout/` |
+| Port-conformance guard; Loom-side two-input-join fixtures | `integration-test/.../NodePortConformanceTest.java:74`; `PipelineGraphParserTest.java:238,316`; `PipelineRunEngineTest.java:369` |
+| Customer docs | `website/content/english/docs/nodes/scene-layout/index.adoc` (+ 4 links in `nodes/_index.adoc`) |
+| Catalogue rows | [NODES.md](NODES.md) §2/§3/§5/§12; [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4 |
 
-### Four constraints that shape the design
+### 1.1 What the node actually does
 
-1. **`FacedetectNode` does not emit its boxes.**
-   [FacedetectNode.java:49-50](../../../cortex/nodes/facedetect/core/src/main/java/io/metaloom/cortex/node/facedetect/FacedetectNode.java)
-   declares exactly two output keys — `face_count` and `facedetect_flag`. The `List<Detection>` built
-   in `processImage` / `processVideo` goes straight into `persist(...)`; the boxes never reach
-   `ctx.output(...)`. Fixing that is §6, and it is in scope for this change.
+`isProcessable` → `options().isEnabled() && ctx.media().isImage()`. Video is out (blocked on
+per-keyframe depth). `compute` then:
 
-2. **Node output values are strings after a cache round-trip.** `XAttrNodeCache.serializeOutputMap`
-   writes `key=value.toString()` and deserializes every value back as a `String` — an `Integer`
-   `face_count` returns as `"3"`. Structured data between nodes must therefore be an explicitly
-   JSON-encoded `NodeOutputKey<String>`, re-parsed by the consumer. That is why both the new
-   `detections` key and this node's `scene_layout_result` are JSON strings.
+1. `LocalResultCache<String>` (10 000, keyed on `media().absolutePath()`) → re-emit, `origin(LOCAL)`.
+2. Read `IN_DEPTH` JSON; it must carry a `path`. Missing → **skip** `"no depth map"`.
+3. 🔴 `convention` must equal `"NEARNESS"`, else **skip** `"unsupported depth convention"` — the node
+   refuses to guess which direction "closer" is.
+4. The map file must exist on **this** worker. Missing → skip `"depth map file not found"` plus a warn
+   naming affinity groups as the likely cause (§5).
+5. Detections: **one element per detection** from `ctx.inputs(IN_DETECTIONS)`. Each needs a top-level
+   `bbox {x,y,w,h}`; optional `coordinates:"NORMALIZED"` + `imageWidth`/`imageHeight` (then scaled to
+   pixels), `type`, `label`, `index`, `confidence`. Object id = `label + "-" + index`.
+6. Fallback (`allowLoomFallback`, default true): `client().listAssetDetections(uuid)`. Heuristic — any
+   bbox component `> 1.0` ⇒ pixels; **normalized rows are refused** (no stored source dimensions).
+7. `< 1` detection → skip `"no detections"`; `< 2` → skip `"only one detection - nothing to relate"`.
+   One object has nothing to relate to, so a component row for it would carry no information.
+8. `DepthMap.read(mapFile, imageWidth, imageHeight)` — 16-bit grayscale → `[0,1]` nearness (8-bit
+   accepted, `/255`).
+9. `maxObjects` cap by **box area descending**; relations are O(n²).
+10. Per object: `map.projectFromImage(box)` then `DepthSampler.sample(map, mapBox, coreInset,
+    minCorePixels)` → median / p25 / p75 / pixel count over the box's **central core**. Unsampleable
+    objects are dropped; `< 2` survivors → skip.
+11. `RelationSolver.assignBands(objects, map)` → `.solve(objects)` → optional `.phrases(...)`.
+12. Emit all three ports, cache, `persist(...)`, `origin(COMPUTED)`. Any exception → `FAILED` ledger +
+    `ctx.failure`.
 
-3. **The depth map is worker-local.** The `depthmap` node writes a PNG under
-   `metaPath/depthmap_bin/…` and records only a ledger row (no byte-ingest endpoint exists). So
-   `scene-layout` must run on the same worker, pinned via the node JSON's `"affinity"` field. See
-   §10 — this is the failure mode most likely to bite in production.
+### 1.2 The algorithm, in the two pure classes
 
-4. **🔴 The `detection` bbox convention is inconsistent in the existing code.**
-   `V2.43__rework_detection_embedding.sql` comments the column as
-   *"Bounding box X, normalized 0-1. This is the single geometry convention"*, but
-   `FacedetectNode.persist` writes **absolute pixels** (`BoundingBox(int x, int y, …)` cast to
-   float), `DetectionModelValidator` is an interface of empty default methods that validates
-   nothing, and **no source image dimensions are stored anywhere**, so an absolute box cannot be
-   normalized after the fact without re-reading the media.
+**`DepthSampler`** samples only the box's central core, inset by `coreInset` (0.25) per side — the
+middle 50% by width and height. This is the whole trick: a bounding box is a rectangle around a
+non-rectangular thing, so its corners are background. Including them pulls a foreground person's
+median toward the wall behind them, which for two people at similar distance is enough to flip the
+ordering. `near` = p50; `spread` = p75 − p25 (how depth-consistent, hence how trustworthy, the object
+is). Cores under `minCorePixels` are dropped.
 
-   This spec **documents rather than silently fixes** this — quietly changing what a shared table
-   means would break whatever reads it later. The design works around it instead: §6's payload
-   carries an explicit `coordinates` marker plus the dimensions the boxes were measured against, so
-   the upstream path is unambiguous; the REST fallback path applies a logged heuristic (§5.1).
-   Repairing the convention properly is its own task (§11).
+**`RelationSolver.relate(a, b, out)`** over every ordered pair:
 
----
+| Predicate | Condition |
+|---|---|
+| `IN_FRONT_OF` / `BEHIND` | `z = (near(a) − near(b)) / ((spread(a)+spread(b))/2 + 1e-6)`; `z ≥ depthZThreshold` / `z ≤ −t` |
+| `SAME_DEPTH` | otherwise — emitted **once per unordered pair** (via `id.compareTo`) |
+| `CONTAINS` | `intersection / area(b) ≥ containmentRatio` |
+| `OCCLUDES` + `OCCLUDED_BY` | overlap **and** `IN_FRONT_OF` — emitted as an inverse pair |
+| `LEFT_OF` / `RIGHT_OF` | boxes do **not** `overlapsX`; by `centerX` |
+| `ABOVE` / `BELOW` | else, boxes do not `overlapsY`; by `centerY` |
+| `NEXT_TO` | `SAME_DEPTH` and `gapRatio ≤ nextToMaxGap`; once per unordered pair |
 
-## 4. Design decisions
+`z` rather than raw Δ because a 0.05 gap between two flat, confidently-measured objects is real while
+the same 0.05 between two noisy ones is not. Occlusion is gated on **depth as well as overlap** —
+overlapping boxes at the same depth are adjacent, not occluding, and calling that occlusion is exactly
+the 2D-only mistake this node exists to avoid. Every relation carries a `JsonObject evidence`
+(`deltaNear`, `z`, `overlap`, `containment`, `gapRatio`). Results are sorted confidence-descending,
+then truncated to `maxRelations`.
 
-> **Status: agreed.**
+**Bands** come from `assignBands` using **whole-scene** depth quantiles (`map.sceneQuantile`), not
+from the objects' own range: banding should describe where an object sits *in the picture*. Using only
+the objects' depths would label the nearer of two equally-distant background faces "foreground".
+Quantiles rather than k-means — explainable, dependency-free, and stable with only two objects
+(clustering two points always yields two clusters, which is always the wrong answer).
 
-| Question | Decision | Rationale |
-|---|---|---|
-| Learned relation model or geometry? | **Geometry + statistics, in Java** | Deterministic, explainable ("why did it say behind?" → a number), no model to license or serve, runs in microseconds. A learned SGG model would add a third sidecar for a job arithmetic does well |
-| Where do boxes come from? | **Upstream output first, Loom read-back as fallback** | The upstream path works offline and carries the coordinate marker; the read-back path works when the detector ran in an earlier run or on another node. Detector-agnostic either way |
-| Where does depth come from? | **The `depthmap` node's `depthmap_path` + `depthmap_meta` outputs** | Full-resolution sampling, no precision loss. Costs an affinity constraint (§10) |
-| One depth value per object? | **A distribution over the box core** (p25/p50/p75), not a single pixel | A single centre pixel lands on a hand, a hat, or a hole in the object. The spread is also what makes the confidence score meaningful |
-| Persistence | **`asset_json_comp`, `schemaType="scene-layout"`** | It is structured, queryable-in-principle output with no dedicated table need — exactly what `asset_json_comp` exists for (its own table comment states the promotion policy) |
-| Emit readable phrases? | **Yes, `phrases[]` alongside the structured relations** | The main consumers are LLM prompts and text search. Making them each re-derive English from predicates is duplicated work and duplicated bugs |
+### 1.3 Persisted payload
 
----
-
-## 5. Algorithm
-
-> **Status: designed.** The pure-logic parts live in `DepthSampler` and `RelationSolver` so they are
-> testable without a node, a file, or a mock (§9).
-
-### 5.1 Gather inputs
-
-**Depth** — from the configured depth node id (default `"depthmap"`):
-`ctx.upstreamOutput(depthNodeId, "depthmap_path")` and `"depthmap_meta"`. The PNG is read with
-`ImageIO` as `TYPE_USHORT_GRAY`; samples come from `raster.getSample(x, y, 0)` in `0..65535` and are
-divided by `65535.0` to give **nearness in `[0,1]`, where 1 is nearest the camera**. If either output
-is missing, or the file does not exist, the node returns `ctx.skipped("no depth map")` — a missing
-prerequisite is a skip, not a failure.
-
-**Boxes** — in priority order:
-
-1. `ctx.upstreamOutput(detectorNodeId, "detections")` for each configured detector (default
-   `["facedetect"]`). The §6 payload, which carries `coordinates` and the reference dimensions.
-2. Fallback: `client().listAssetDetections(asset.getUuid())` when the upstream output is absent and
-   we are online with a known asset.
-
-On the fallback path the coordinate convention is unknown (constraint 4). The node applies a
-heuristic — *if any of `bboxX/Y/Width/Height` exceeds `1.0`, treat all four as absolute pixels
-against the source image dimensions; otherwise treat them as normalized* — and **logs at WARN which
-branch it took**. A heuristic that runs silently is a bug waiting to be blamed on the depth model.
-
-### 5.2 Project boxes into depth-map space
-
-`depthmap_meta.width/height` are the **map's** dimensions, which are the source image downscaled to
-`maxDim` — not the image's own. Boxes are scaled by `mapW / imageW`, `mapH / imageH`. Skipping this
-step produces no exception and no warning, only wrong samples: a box in the bottom-right of a 4000px
-image would sample near the centre of a 1024px map.
-
-### 5.3 Per-object depth — sample the core, not the box
-
-For each box, sample only its **central core**: inset by `coreInset` (default `0.25`) on each side,
-i.e. the middle 50% by width and height. Then take p25 / p50 / p75 of the nearness values there.
-
-The inset is the whole trick. A bounding box is a rectangle around a non-rectangular thing, so its
-corners are background. Including them pulls a foreground person's median toward the wall behind
-them, and for two people at similar distance that is enough to flip the ordering. Sampling the core
-keeps the statistic on the object.
-
-- `near` = p50 — the object's depth
-- `spread` = p75 − p25 — how depth-consistent the object is. High spread means a slanted object, a
-  bad box, or an unreliable depth region; either way the relations involving it deserve less trust.
-
-Boxes whose core is smaller than `minCorePixels` (default 16 px²) are dropped and logged — a box that
-tiny yields a statistic that is noise.
-
-### 5.4 Depth bands
-
-Bands come from quantiles of the **whole scene's** depth histogram, not of the objects' depths:
-
-- `near ≥ scene p66` → `FOREGROUND` (option `foregroundQuantile`)
-- `near ≤ scene p33` → `BACKGROUND` (option `backgroundQuantile`)
-- otherwise → `MIDGROUND`
-
-Against the whole scene, because banding should describe where an object sits *in the picture*. Using
-only the objects' own depths would label the nearer of two equally-distant background faces
-"foreground", which is wrong and would read as a bug.
-
-Quantiles rather than k-means: explainable, dependency-free, and stable when there are only two
-objects — clustering two points always produces two clusters, which is exactly the wrong answer.
-
-### 5.5 Pairwise relations
-
-For each ordered pair (A, B), separation is scored relative to the objects' own noise:
-
-```
-Δ = near(A) − near(B)
-s = (spread(A) + spread(B)) / 2 + ε
-z = Δ / s
-```
-
-`z` rather than raw `Δ` because a 0.05 difference between two flat, confidently-measured objects is
-real, while the same 0.05 between two noisy ones is not. Dividing by the pooled spread says so.
-
-| Predicate | Condition | Confidence |
-|---|---|---|
-| `IN_FRONT_OF` | `z ≥ depthZThreshold` (default `1.0`) | `min(1, z / (2·t))` |
-| `BEHIND` | `z ≤ −depthZThreshold` | `min(1, \|z\| / (2·t))` |
-| `SAME_DEPTH` | otherwise | `1 − \|z\| / t` |
-| `OCCLUDES` / `OCCLUDED_BY` | 2D overlap ÷ smaller box area ≥ `occlusionMinOverlap` (`0.05`) **and** a depth predicate fired | the overlap ratio |
-| `CONTAINS` / `INSIDE` | intersection ÷ area(B) ≥ `containmentRatio` (`0.85`) | the containment ratio |
-| `LEFT_OF` / `RIGHT_OF` | boxes do not overlap on x; by centre-x | normalized gap |
-| `ABOVE` / `BELOW` | boxes do not overlap on y; by centre-y | normalized gap |
-| `NEXT_TO` | gap ÷ mean box size ≤ `nextToMaxGap` (`0.5`) **and** `SAME_DEPTH` | `1 − gap ratio` |
-
-Each pair emits **at most one depth predicate and one lateral predicate**, plus optional occlusion
-and containment. Emitting every true statement would bury the interesting ones.
-
-`OCCLUDES` is deliberately gated on depth as well as overlap: two overlapping boxes at the same depth
-are adjacent, not occluding, and calling that occlusion is the classic 2D-only mistake this node
-exists to avoid.
-
-### 5.6 Guards
-
-- `maxObjects` (default `40`) — keep the largest boxes; relations are O(n²).
-- `maxRelations` (default `200`) — cap the output.
-- **Anything dropped is `log()`-ed with the count.** A silently truncated result reads as "these are
-  all the relations", which is worse than a short result you know is short.
-
-### 5.7 Phrases
-
-Readable strings generated from the predicates, using each object's `label` and index:
-
-```
-"face-0 is in front of face-1"
-"face-0 is left of face-1"
-"face-0 is in the foreground"
-```
-
-They exist because the primary consumers are LLM prompts and text search, and giving each of them
-their own predicate-to-English mapping would mean the same bug written twice.
-
----
-
-## 6. Prerequisite change — `FacedetectNode` emits its boxes
-
-> **Status: in scope for this change.** One new output key plus the code that fills it.
-
-```java
-public static final NodeOutputKey<String> OUTPUT_DETECTIONS = NodeOutputKey.of("detections", String.class);
-```
-
-Populated in both `processImage` and `processVideo`, from the same `List<Detection>` already being
-handed to `persist(...)`:
+One `asset_json_comp` row per asset. Natural key `(asset_uuid, node_kind, schema_type, variant)` makes
+a re-run an upsert; `variant` is `""` in v1 and reserved for a frame number once video lands.
+`producerVersion` is the **depth model id** — the layout is only as good as the depth that produced it.
 
 ```jsonc
-{
-  "imageWidth": 1920, "imageHeight": 1080,
-  "coordinates": "ABSOLUTE_PIXELS",          // explicit — see constraint 4
-  "detections": [
-    { "index": 0, "type": "face", "label": "face", "frame": 0,
-      "bbox": { "x": 100, "y": 50, "w": 80, "h": 80 }, "confidence": 1.0 }
-  ]
-}
-```
-
-Why the marker and the dimensions: they make this payload immune to the normalized-vs-pixels
-ambiguity in the `detection` table. A consumer never has to guess, and when the table's convention is
-eventually repaired the marker simply changes value.
-
-**No cache change is needed.** `FacedetectNode` already does
-`resultCache.put(path, new HashMap<>(ctx.outputs()))` gated on the presence of `facedetect_flag`, so
-the new key rides along with the existing snapshot.
-
-⚠️ **Verify the video coordinate space during implementation.** The video path scans frames through
-`VideoFaceScanner`, and `FacedetectNodeOptions.videoScaleSize` (default 384) may mean the boxes are
-measured against a *rescaled* frame rather than the native resolution. Whatever the boxes are
-measured against is what `imageWidth`/`imageHeight` must report — check `VideoFaceScanner` before
-assuming native dimensions.
-
-Also update, in the same change: `FacedetectDescriptorProvider` (add the `detections` output with
-content type `DATA_FACEDETECTION`), `website/content/english/docs/nodes/facedetect/index.adoc`, and
-the facedetect row in [NODES.md](NODES.md) §3.
-
----
-
-## 7. Persistence
-
-> **Status: designed.**
-
-One `asset_json_comp` row: `nodeKind = "scene-layout"`, `schemaType = "scene-layout"`,
-`variant = ""`, `producerVersion` = the depth model id carried through from `depthmap_meta` (the
-layout is only as good as the depth that produced it, so that provenance belongs on the row). The
-natural key `(asset_uuid, node_kind, schema_type, variant)` makes a re-run an upsert.
-
-Then the ledger:
-`recordNodeResult(asset, ctx, SUCCESS, null, producerVersion, resultRef("asset_json_comp", compUuid))`.
-
-`variant` is reserved for future use: per-frame results in video mode would key on the frame number,
-and a pipeline with two independent detector sets could key on the detector. v1 writes one row per
-asset.
-
-```jsonc
-// asset_json_comp.data
 {
   "image": { "width": 1920, "height": 1080 },
-  "depth": {
-    "model": "depth-anything/Depth-Anything-V2-Small-hf",
-    "convention": "NEARNESS", "source": "RELATIVE",
-    "mapWidth": 1024, "mapHeight": 576,
-    "sceneQuantiles": { "p33": 0.21, "p66": 0.54 }
-  },
-  "objects": [
-    { "id": "face-0", "label": "face", "type": "face", "source": "facedetect",
-      "bbox": { "x": 100, "y": 50, "w": 80, "h": 80 }, "confidence": 1.0,
-      "depth": { "near": 0.82, "p25": 0.79, "p75": 0.85, "spread": 0.06, "band": "FOREGROUND" } },
-    { "id": "face-1", "label": "face", "type": "face", "source": "facedetect",
-      "bbox": { "x": 400, "y": 60, "w": 60, "h": 60 }, "confidence": 1.0,
-      "depth": { "near": 0.44, "p25": 0.41, "p75": 0.49, "spread": 0.08, "band": "MIDGROUND" } }
-  ],
-  "relations": [
-    { "subject": "face-0", "predicate": "IN_FRONT_OF", "object": "face-1",
-      "confidence": 0.91, "evidence": { "deltaNear": 0.38, "z": 5.4 } },
-    { "subject": "face-0", "predicate": "LEFT_OF", "object": "face-1",
-      "confidence": 0.74, "evidence": { "gapRatio": 0.26 } }
-  ],
-  "phrases": [
-    "face-0 is in front of face-1",
-    "face-0 is left of face-1",
-    "face-0 is in the foreground"
-  ],
-  "truncated": { "objects": 0, "relations": 0 }
+  "depth": { "model": "...", "convention": "NEARNESS", "source": "RELATIVE",
+             "mapWidth": 1024, "mapHeight": 576,
+             "sceneQuantiles": { "background": 0.21, "foreground": 0.54 } },
+  "objects":   [ { "id": "face-0", "label": "face", "type": "face", "source": "facedetect",
+                   "bbox": {...}, "confidence": 1.0,
+                   "depth": { "near": 0.82, "p25": 0.79, "p75": 0.85, "spread": 0.06,
+                              "band": "FOREGROUND" } } ],
+  "relations": [ { "subject": "face-0", "predicate": "IN_FRONT_OF", "object": "face-1",
+                   "confidence": 0.91, "evidence": { "deltaNear": 0.38, "z": 5.4 } } ],
+  "phrases":   [ "face-0 is in front of face-1", "face-0 is in the foreground" ],
+  "truncated": { "objects": 0, "unsampled": 0, "relations": 0 }
 }
 ```
 
-`truncated` is explicit rather than implied — see §5.6.
+There is **no** `SceneLayout` or `LayoutRegion` class — the payload is built as a raw `JsonObject` in
+`SceneLayoutNode.buildPayload()`.
 
 ---
 
-## 8. Implementation outline — `cortex/nodes/scene-layout/core/`
+## 2. Configuration
 
-> **Status: not implemented.**
+**No environment variables.** This node has no sidecar and no external service; everything is node
+configuration from the pipeline definition (options key `scene-layout`). Cortex-wide variables are in
+[../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md).
 
-New Maven module `cortex/nodes/scene-layout/` (aggregator `pom` + `core` jar — copy
-`cortex/nodes/sentiment/`, whose `core/pom.xml` carries **zero** `<dependencies>` because everything
-is inherited from `cortex/nodes/pom.xml`). Package `io.metaloom.cortex.node.scenelayout`:
+| Option | Type | Default | Validation | Meaning |
+|---|---|---|---|---|
+| `enabled` / `processIncomplete` / `retryFailed` / `timeoutMs` | — | `true` / `false` / `false` / `0` | — | inherited from `AbstractNodeOptions` |
+| `allowLoomFallback` | boolean | `true` | — | Fall back to `listAssetDetections` when the `detections` port delivers nothing |
+| `coreInset` | double | `0.25` | `[0, 0.5)` | Fraction inset per side before sampling depth |
+| `minCorePixels` | int | `16` | `> 0` | Smaller cores are dropped and logged. ⚠️ **not exposed in the descriptor** — YAML only |
+| `depthZThreshold` | double | `1.0` | `> 0` | \|z\| above which a depth ordering is asserted |
+| `occlusionMinOverlap` | double | `0.05` | `[0, 1]` | Overlap ÷ smaller-box area needed to call occlusion |
+| `containmentRatio` | double | `0.85` | `(0, 1]` | Intersection ÷ area(B) needed for `CONTAINS` |
+| `nextToMaxGap` | double | `0.5` | `> 0` | Gap ÷ mean box size below which `NEXT_TO` fires |
+| `foregroundQuantile` | double | `0.66` | `(0, 1]`, **must exceed** background | Scene quantile at/above which an object is `FOREGROUND` |
+| `backgroundQuantile` | double | `0.33` | `[0, 1)` | Scene quantile at/below which an object is `BACKGROUND` |
+| `maxObjects` | int | `40` | `> 0` | Largest-first cap (relations are O(n²)) |
+| `maxRelations` | int | `200` | `> 0` | Output cap |
+| `emitPhrases` | boolean | `true` | — | Emit the readable `phrases[]` array |
 
-| Class | Role |
-|---|---|
-| `SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions>` | Lifecycle, input gathering, persistence. Thin |
-| `SceneLayoutNodeOptions extends AbstractNodeOptions<…>` | `KEY = "scene-layout"`; §9 fields; `validate()` |
-| `SceneLayoutNodeModule extends AbstractNodeModule` | The four Dagger bindings, `@StringKey("scene-layout")` |
-| `DepthMap` | Wraps the decoded PNG + meta; `nearnessAt(x, y)`, `coreStats(box)`, `sceneQuantile(q)` |
-| `DepthSampler` | Pure: box → core inset → p25/p50/p75. **No I/O** |
-| `RelationSolver` | Pure: `List<LayoutObject>` → `List<SpatialRelation>` + bands + phrases. **No I/O** |
-| `LayoutObject`, `SpatialRelation`, `BoxF` | Records |
-| `RelationPredicate` | `enum { IN_FRONT_OF, BEHIND, SAME_DEPTH, OCCLUDES, OCCLUDED_BY, CONTAINS, INSIDE, LEFT_OF, RIGHT_OF, ABOVE, BELOW, NEXT_TO }` |
-| `DepthBand` | `enum { FOREGROUND, MIDGROUND, BACKGROUND }` |
-
-The `DepthSampler` / `RelationSolver` split is not decoration: it is what makes the interesting logic
-testable with plain arrays and no filesystem (§9).
-
-Node specifics:
-
-```java
-public static final NodeOutputKey<String>  OUTPUT_SCENE_LAYOUT_RESULT   = NodeOutputKey.of("scene_layout_result", String.class);
-public static final NodeOutputKey<Integer> OUTPUT_SCENE_LAYOUT_OBJECTS  = NodeOutputKey.of("scene_layout_object_count", Integer.class);
-public static final NodeOutputKey<Integer> OUTPUT_SCENE_LAYOUT_RELATIONS= NodeOutputKey.of("scene_layout_relation_count", Integer.class);
-```
-
-- `name()` → `"scene-layout"`.
-- `isProcessable(ctx)` → `options().isEnabled() && ctx.media().isImage()`. Depth and box availability
-  are checked in `compute` and produce a **skip with a reason**, not a failure — a pipeline where the
-  detector found nothing is a normal outcome.
-- `LocalResultCache<String>` sized `10_000`, keyed on `media.absolutePath()`, holding the result
-  JSON. Hit → `metrics.recordAiCacheHit("scene-layout")`, re-emit, `ctx.origin(LOCAL).next()`,
-  **no re-persist**.
-- `compute` → gather (§5.1) → project (§5.2) → sample (§5.3) → band (§5.4) → relate (§5.5) → emit →
-  cache → `persist(...)` → `ctx.origin(COMPUTED).next()`. Exceptions → `FAILED` ledger +
-  `ctx.failure(...).next()`.
-- `persist(...)` copies `SentimentNode.persist` verbatim in shape, guarded by
-  `if (asset == null || client() == null) return;`.
-
-### Wiring that is easy to forget
-
-| # | File | Change |
-|---|---|---|
-| 1 | `cortex/nodes/pom.xml` | `<module>scene-layout</module>` |
-| 2 | `cortex/processor/pom.xml` | `cortex-scene-layout-node` dependency |
-| 3 | `integration-test/pom.xml` | same artifact, `${loom.cortex.version}` |
-| 4 | `cortex/cli/…/dagger/NodeCollectionModule.java` | import + `SceneLayoutNodeModule.class` in `includes` |
-| 5 | `cortex/cli/src/test/…/dagger/NodeRegistrarTest.java` | add `"scene-layout"` to the expected-kinds assertion |
-| 6 | `loom-shared/node-model/…/spec/SceneLayoutDescriptorProvider.java` | **new** |
-| 7 | `…/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` | add the FQCN |
-| 8 | `loom-shared/node-model/src/test/…/NodeDescriptorServiceLoaderTest.java` | 🔴 bump both hard-coded counts (`19` providers, `32` descriptors at `29cadb66`) and the expected-kind array |
-| 9 | `loom-shared/node-model/…/spec/ContentTypes.java` | add `DATA_SCENE_LAYOUT = "data/scene_layout"` constant **and** its `all()` entry |
-| 10 | `loom-ui/src/features/pipeline/PipelineEditor.tsx` | add `schema` to `ICON_MAP` (+ the MUI import) |
-| 11 | `website/content/english/docs/nodes/scene-layout/index.adoc` + `nodes/_index.adoc` (3 spots) | customer docs |
-| 12 | [NODES.md](NODES.md) | §2 persistence, §3 node catalogue, §5 options, §12 capability matrix + IT-coverage prose |
-| 13 | `FacedetectNode` + its descriptor + its docs page | §6 |
-
-Descriptor sketch:
-
-```java
-new NodeDescriptor()
-  .setKind("scene-layout").setName("Scene Layout")
-  .setDescription("Relate detected objects to one another using a depth map: foreground/background bands and pairwise spatial relations.")
-  .setIcon("schema").setCategory(ANALYSIS)
-  .setInputs(List.of(
-      new NodeInput("depth", DATA_DEPTHMAP, true),
-      new NodeInput("detections", DATA_FACEDETECTION, true)))
-  .setOutputs(List.of(
-      new NodeOutput("scene_layout_result", DATA_SCENE_LAYOUT),
-      new NodeOutput("scene_layout_object_count", DATA_INTEGER),
-      new NodeOutput("scene_layout_relation_count", DATA_INTEGER)))
-  .setDefaultConcurrency(4).setDefaultMode(PARALLEL).setEvents(STANDARD_EVENTS)
-```
-
-`defaultConcurrency = 4`, unlike the model-backed nodes: there is no shared model or device to
-contend for, only CPU.
-
-> ⚠️ `imagegen` shipped **without** a descriptor provider and is therefore invisible to the UI
-> palette and to pipeline validation. Items 6–9 are not optional.
+🔴 **Deleted, do not reintroduce**: `depthNodeId` and `detectionSources`. Naming an upstream node in a
+string option is the anti-pattern that ports replaced ([NODES.md](NODES.md) §6.4).
 
 ---
 
-## 9. Configuration
-
-> **Status: designed.**
-
-| Option | Type | Default | Meaning |
-|---|---|---|---|
-| `enabled` / `processIncomplete` / `retryFailed` | boolean | — | inherited from `AbstractNodeOptions` |
-| `depthNodeId` | String | `depthmap` | Upstream node id supplying `depthmap_path` / `depthmap_meta` |
-| `detectionSources` | List&lt;String&gt; | `["facedetect"]` | Upstream node ids whose `detections` output is consumed |
-| `allowLoomFallback` | boolean | `true` | Fall back to `listAssetDetections` when no upstream `detections` output is present |
-| `coreInset` | double | `0.25` | Fraction inset per side before sampling depth (§5.3) |
-| `minCorePixels` | int | `16` | Boxes with a smaller core are dropped and logged |
-| `depthZThreshold` | double | `1.0` | `\|z\|` above which a depth ordering is asserted (§5.5) |
-| `occlusionMinOverlap` | double | `0.05` | Overlap ÷ smaller-box area needed to call occlusion |
-| `containmentRatio` | double | `0.85` | Intersection ÷ area(B) needed for `CONTAINS` |
-| `nextToMaxGap` | double | `0.5` | Gap ÷ mean box size below which `NEXT_TO` fires |
-| `foregroundQuantile` | double | `0.66` | Scene quantile at or above which an object is `FOREGROUND` |
-| `backgroundQuantile` | double | `0.33` | Scene quantile at or below which an object is `BACKGROUND` |
-| `maxObjects` | int | `40` | Largest-first cap (relations are O(n²)) |
-| `maxRelations` | int | `200` | Output cap |
-| `emitPhrases` | boolean | `true` | Emit the readable `phrases[]` array |
-
-**No environment variables.** This node has no sidecar and no external service — everything is node
-configuration from the pipeline definition. Cortex-wide variables (`LOOM_HOST`, `CORTEX_META_PATH`,
-`CORTEX_NODE_WHITELIST`, …) are in [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md).
-
----
-
-## 10. Pipeline placement
-
-> **Status: designed.**
+## 3. Pipeline placement
 
 ```mermaid
 flowchart LR
     FS[filesystem-source] --> SHA[sha512]
-    SHA --> FD["facedetect<br/>(+ detections output)"]
+    SHA --> FD["facedetect"]
     SHA --> DM[depthmap]
-    FD -->|detections| SL[scene-layout]
-    DM -->|depthmap_path + _meta| SL
+    FD -->|"detections : detection/* MANY"| SL[scene-layout]
+    DM -->|"meta : struct/depthmap"| SL
     SL -.asset_json_comp.-> LOOM[("Loom backend")]
     SL -.phrases.-> CAP[captioning / llm]
 ```
 
-🔴 **`depthmap` and `scene-layout` must share an affinity group.** The depth PNG lives only on the
+🔴 **`depthmap` and `scene-layout` must share an affinity group** — the depth PNG lives only on the
 worker that produced it:
 
 ```jsonc
@@ -518,81 +209,132 @@ worker that produced it:
 { "id": "scene-layout", "type": "scene-layout", "affinity": "vision" }
 ```
 
-`AffinityValidator` warns when a segment is *unplaceable* (no single worker is permitted to run all
-its kinds) or when a group got *split*, but it cannot warn about a group you forgot to declare —
-that failure surfaces as a plain "depth map not found" skip on a different worker, which looks like a
-depth-node problem and is not.
+`AffinityValidator` warns when a segment is *unplaceable* or a group got *split*, but it cannot warn
+about a group you never declared — that failure surfaces as a `"depth map file not found"` skip on a
+different worker, which looks like a depth-node problem and is not.
 
 ---
 
-## 11. Conventions and Gotchas
+## 4. Open work
 
-- 🔴 **Affinity is mandatory** (§10). The most likely production failure, and it does not announce
-  itself.
+### 4.1 🔴 `SceneLayoutNodeIntegrationTest` is stale and fails
 
-- 🔴 **NEARNESS: larger = closer.** The depth PNG encodes nearness, not distance;
-  `65535` is nearest. Invert this and every relation in the output is backwards while the node
-  reports `SUCCESS`.
+Commit `1f718676` mechanically converted the test to the `NodeInputs` API but left the **pre-port
+batch payload shape**: it passes a single element
 
-- 🔴 **Scale boxes into map space** (§5.2). `depthmap_meta.width/height` are the *map's* dimensions
-  after `maxDim` downscaling, not the image's. No exception is thrown when you forget — the samples
-  are just wrong.
+```jsonc
+{ "imageWidth": …, "imageHeight": …, "coordinates": "ABSOLUTE_PIXELS", "detections": [ … ] }
+```
 
-- 🔴 **The `detection` table's geometry convention is inconsistent** (constraint 4): the migration
-  comment says normalized 0–1, `FacedetectNode` writes pixels, nothing validates, and no source
-  dimensions are recorded. Prefer the upstream `detections` output, which carries an explicit
-  `coordinates` marker. On the REST fallback, log which branch the heuristic took.
+whereas `SceneLayoutNode.readElement` requires a **top-level `bbox`** and is called once per element.
+That element parses to `null`, detections come back empty, the REST fallback finds nothing, and the
+node returns `SKIPPED` — while the test asserts `SUCCESS` and `OUT_OBJECT_COUNT == 2`.
 
-- **`DetectionResponse` omits `nodeKind`, `label` and `detectionIndex`.** The REST fallback can
-  therefore distinguish rows only by `type`, and cannot recover an object class. Fine for faces;
-  P4 in §2 before object detection is useful.
+Fix: emit **one element per detection**, exactly as `SceneLayoutFixtures.detection(...)` does in the
+unit tests. A stale `java.util.Map` import also remains at line 11.
 
-- **Sample the box core, not the box** (§5.3). Corners are background. This single detail decides
-  whether the node is right or plausible-looking.
+### 4.2 🔴 P3 — no object detection exists
 
-- **Score with `z`, not raw Δ.** A depth gap only means something relative to how noisy the two
-  objects' depths are.
+A case-insensitive grep for `yolo|objectdetect|object_detect|ObjectDetection` across `cortex/` (java,
+xml, json) and `loom-shared/node-model/src` returns **zero** hits; `yolo4j` is not a dependency of any
+pom. The `detection.label` column and the `type='objectdetection'` value exist in the schema purely in
+anticipation — nothing writes them.
 
-- **Occlusion needs depth as well as overlap.** Overlapping boxes at the same depth are adjacent,
-  not occluding.
+Stated plainly: **as shipped, this node relates faces to faces.** "Person is behind car" is not
+reachable until an `objectdetect` node exists. That does not make the node premature — face-to-face
+layout is useful (group photos, who-is-in-front framing, foreground-subject selection), and the
+detector plugs in with **zero changes here**, because `IN_DETECTIONS` binds on `detection/*`, not on
+a producer.
 
-- **No silent caps.** `maxObjects` / `maxRelations` truncation is logged *and* reported in the
-  payload's `truncated` block.
+| # | Prerequisite | Status |
+|---|---|---|
+| P1 | [`depthmap` node](NODE_DEPTHMAP_PLAN.md) | **built** — hard dependency, wired via `struct/depthmap` |
+| P2 | `FacedetectNode` emits `detections` | **built** — with an explicit `coordinates` marker |
+| P3 | An `objectdetect` node (yolo4j, wired like `InspireFacedetector` in `FacedetectNodeModule`) | **not started.** Deserves its own plan |
+| P4 | `DetectionResponse` exposes `nodeKind` / `label` / `detectionIndex` | not started. Only needed for the REST-fallback path to recover *object classes*; faces work via `type="face"` |
 
-- **A missing input is a skip, not a failure.** No depth map, no boxes, or fewer than two objects →
-  `ctx.skipped(reason)`. A `FAILED` result blocks blocking downstream nodes and pollutes the run
-  summary for what is a normal outcome.
+### 4.3 Defects worth fixing
 
-- **`ImageIO`, not OpenCV.** Follow `VlmImages` — this node must not pull the video4j native runtime
-  into workers that only need arithmetic.
+- [ ] 🔴 **`truncated.relations` is hardcoded to `0`.** `SceneLayoutNode.buildPayload()` writes
+      `.put("relations", 0)` unconditionally while `RelationSolver.solve()` really does truncate at
+      `maxRelations`. The block's stated purpose — "a silently shortened result reads as *these are
+      all the relations*" — is defeated for the relation axis. `objects` and `unsampled` are correct.
+- [ ] 🔴 **`RelationPredicate.INSIDE` is dead.** It is declared, documented as the inverse of
+      `CONTAINS`, and advertised in the website's relation table, but `RelationSolver` never emits it.
+      `OCCLUDES`/`OCCLUDED_BY` *are* emitted as an inverse pair; `CONTAINS` is not. Either emit
+      `INSIDE` alongside `CONTAINS` or remove the enum constant and the doc row.
+- [ ] 🔴 **`phrases[]` are not searchable.** `V2.58__add_search_document.sql`'s
+      `search_extract_json_text` handles `ocr`, `tika`, `caption`, `video-caption`,
+      `face-description`, `llm` and `vlm` — **`scene-layout` is absent**, so the payload contributes
+      nothing to the search document. Both the code comment ("the primary consumers are LLM prompts
+      and text search") and the website ("drop it straight into a search index") over-claim until a
+      `WHEN 'scene-layout'` branch is added.
+- [ ] **Cache key ignores every input.** `LocalResultCache` is keyed on `absolutePath` alone, so
+      rewiring the depth map, swapping detectors or changing any threshold re-serves a stale layout
+      ([NODES.md](NODES.md) §4 names `dominant-color` as the model to copy: path + hash of the wired
+      payloads and every result-affecting option).
+- [ ] **`minCorePixels` is not a descriptor parameter**, so it is unreachable from the pipeline editor.
 
-- **Registration is three strings and one binding** in `SceneLayoutNodeModule`, then the module goes
-  into `NodeCollectionModule.includes`. Adding it to `PipelineNodeFactoryModule` is the **old** way
-  and is wrong.
+### 4.4 Follow-ups (not defects)
 
-- **Node id vs. kind.** `scene-layout` is unrelated to the existing `scene-detection` node (temporal
-  video scene cuts). The similar names are unfortunate; do not wire one expecting the other.
-
-- **No demo data needed.** `DemoDatabaseInitializer` holds no per-node Cortex config.
+- [ ] **Extend `DetectionResponse`** (P4) with `nodeKind` / `label` / `detectionIndex`. Carries an
+      endpoint-test obligation per [../../guidelines/CODING.md](../../guidelines/CODING.md).
+- [ ] **Repair the `detection` geometry convention.** `V2.43__rework_detection_embedding.sql` comments
+      the column as "normalized 0-1, the single geometry convention", `FacedetectNode.persist` writes
+      **absolute pixels**, `DetectionModelValidator` validates nothing, and no source dimensions are
+      stored anywhere. This spec documents rather than silently patches it — quietly changing what a
+      shared table means would break whatever reads it later. Its own task.
+- [ ] **Video / per-frame layout** — one result per keyframe keyed by `variant = frameNumber`. Blocked
+      on the `depthmap` node's own video support.
+- [ ] **Relations as first-class rows** — if the UI ever renders a relation graph or search filters on
+      predicates, `asset_json_comp` should graduate to a typed table (the promotion policy stated in
+      that table's own comment). Not now: nothing queries it.
+- [ ] **Feed `phrases[]` into captioning** — `CaptioningNode` could take the layout as prompt context
+      for spatially grounded captions.
+- [ ] **No example pipeline uses `scene-layout`** anywhere under `examples/`, `helm/` or `e2e-test/`.
 
 ---
 
-## 12. Test setup
+## 5. Conventions and Gotchas
 
-> **Status: not written.**
-
-| Test | What it covers |
+| Area | Gotcha |
 |---|---|
-| **`RelationSolverTest`** (the important one) | Pure logic on **synthetic depth gradients** — a left-half-near / right-half-far ramp with planted boxes gives exact expected predicates with no model, no GPU, no file I/O. Cases: clear front/behind; equal depth → `SAME_DEPTH` + `NEXT_TO`; overlap + depth gap → `OCCLUDES`; overlap + equal depth → **no** occlusion; containment; left/right and above/below; high spread suppressing a marginal ordering; `maxObjects`/`maxRelations` truncation reported |
-| `DepthSamplerTest` | Core inset arithmetic; p25/p50/p75 on a known array; boxes at image edges clamped; sub-`minCorePixels` boxes dropped |
-| `SceneLayoutNodeTest` | Happy path with a generated 16-bit PNG on `@TempDir` and a stub upstream `detections` output; missing depth → skip; missing boxes → skip; single object → skip; second run served from `LocalResultCache` |
-| `SceneLayoutNodePersistenceTest` | Mockito `LoomHttpClient`; `verify createAssetJsonComp` with `nodeKind`/`schemaType` = `"scene-layout"`, `variant=""`, `producerVersion` = the depth model id; ledger row with `resultRef.table == "asset_json_comp"`. Failure path records `FAILED` and never writes the component |
-| `SceneLayoutNodePipelineTest` | `extends AbstractNodeChainTest`; `adapt(node)`, output-key propagation via `PipelineAssertions.hasNodeOutput` + `CapturingNode`; disabled / dry-run |
-| `SceneLayoutOptionsValidationTest` (+ `assertj/` helpers) | Option validation |
-| `FacedetectNodeTest` (extend) | The new `detections` output: present on the image path, correct box values, `coordinates` marker and dimensions, survives a `LocalResultCache` hit |
-| `integration-test/…/node/SceneLayoutNodeIntegrationTest` | Mirrors `SentimentNodeIntegrationTest`: real in-process Loom, real `LoomHttpClient`, a real 16-bit depth PNG on disk and a real `detections` upstream payload. Asserts `SUCCESS`, then reads the `scene-layout` `asset_json_comp` **back over REST** and checks objects, bands and relations |
+| **Affinity** | 🔴 **Mandatory.** The depth PNG is worker-local (§3). The most likely production failure, and it does not announce itself — it looks like a depth-node problem. |
+| **NEARNESS** | 🔴 **Larger = closer**; `65535` is nearest. Invert this and every relation is backwards while the node reports `SUCCESS`. The node refuses any other `convention` value rather than guessing. |
+| **Project into map space** | 🔴 `depthMeta.width/height` are the **map's** dimensions after `maxDim` downscaling; `imageWidth`/`imageHeight` are the image's. `DepthMap.projectFromImage` exists for this. Skip it and there is no exception — just wrong samples. |
+| **Sample the core, not the box** | 🔴 Corners are background. This single detail decides whether the node is right or merely plausible-looking. |
+| **Score with `z`, not raw Δ** | A depth gap only means something relative to how noisy the two objects' depths are. |
+| **Occlusion needs depth** | ⚠️ Overlapping boxes at the same depth are adjacent, not occluding. |
+| **One element per detection** | 🔴 `IN_DETECTIONS` is a **MANY** port; `readElement` reads a top-level `bbox` from *each* element. A batch wrapper `{detections:[…]}` silently parses to nothing — this is exactly what breaks the integration test (§4.1). |
+| **Detection geometry is inconsistent** | 🔴 The migration says normalized 0–1, `FacedetectNode` writes pixels, nothing validates, no source dimensions are recorded. Prefer the port payload, which carries an explicit `coordinates` marker. On the REST fallback only the ">1.0 ⇒ pixels" branch works; normalized rows are **refused**. |
+| **`DetectionResponse` omits `nodeKind`/`label`/`detectionIndex`** | ⚠️ The REST fallback can distinguish rows only by `type` and cannot recover an object class. Fine for faces; P4 before object detection is useful. |
+| **A missing input is a skip, not a failure** | ⚠️ No depth map, no boxes, fewer than two objects → `ctx.skipped(reason)`. A `FAILED` result blocks downstream nodes and pollutes the run summary for what is a normal outcome. |
+| **No silent caps** | `maxObjects` / unsampled truncation is logged **and** reported in `truncated` — except `relations`, which is hardcoded to 0 (§4.3). |
+| **`ImageIO`, not OpenCV** | This module's `core/pom.xml` declares **zero** dependencies on purpose, including no dependency on `cortex-depthmap-node` — it reads the PNG with plain ImageIO so workers that only need arithmetic never pull the video4j native runtime. |
+| **`scene-layout` ≠ `scene-detection`** | ⚠️ The latter is temporal video scene cuts. The similar names are unfortunate. |
+| **No `ICON_MAP`** | ⚠️ `PipelineEditor.tsx` has no icon map — the descriptor's `setIcon("schema")` is the only place an icon is chosen. |
+| **Registration** | Three strings and one binding in `SceneLayoutNodeModule`, then the module goes into `NodeCollectionModule.includes`. `PipelineNodeFactoryModule` is the **old** way and is wrong. |
+| **No demo data** | `DemoDatabaseInitializer` holds no per-node Cortex config. |
 
-Building the test fixture — a synthetic depth map, which is what makes this node cheap to test:
+---
+
+## 6. Test setup
+
+The interesting logic is testable with plain arrays and no filesystem — that is why `DepthSampler` and
+`RelationSolver` are separate, pure classes.
+
+| Test | Covers |
+|---|---|
+| **`RelationSolverTest` (15)** — the primary correctness suite | Synthetic depth gradients: clear front/behind; `SAME_DEPTH` emitted once; noisy spread suppressing a marginal ordering; overlap + depth gap → `OCCLUDES`; overlap at equal depth → **no** occlusion; containment; left/right; above/below; `NEXT_TO`; evidence recorded; cap keeps the strongest; bands from the whole scene |
+| `DepthSamplerTest` (9) | 16-bit decode, clamping at edges, projection, core ≠ whole box, quartiles, tiny/outside boxes rejected, quantile ordering, inset never collapses |
+| `SceneLayoutNodeTest` (15) | Full node against a real synthetic PNG; skips for no depth / missing artifact / bad convention / no detections / single detection / non-image / disabled; caching; `maxObjects` cap; image-space boxes; provenance; malformed payload |
+| `SceneLayoutNodePersistenceTest` (7) | `createAssetJsonComp` with `nodeKind`/`schemaType` = `scene-layout`, `variant=""`, `producerVersion` = the depth model; ledger `resultRef.table == "asset_json_comp"`; `FAILED` path writes no component; skip writes nothing; Loom fallback on/off/precedence; **normalized rows refused** |
+| `SceneLayoutNodePipelineTest` (6) | `extends AbstractNodeChainTest` — adapter, completion/tracking events, downstream chaining, disabled, dry-run |
+| `SceneLayoutOptionsValidationTest` (7) | Option validation incl. the foreground > background constraint |
+| `SceneLayoutFixtures` | Split / ramp / flat depth maps, `depthMeta`, and the **correct** one-element-per-detection payload |
+| `SceneLayoutNodeIntegrationTest` | 🔴 **Currently broken** — see §4.1 |
+
+Building the fixture — a synthetic depth map is what makes this node cheap to test:
 
 ```java
 // left half near (nearness 0.9), right half far (nearness 0.1)
@@ -606,152 +348,114 @@ ImageIO.write(map, "png", pngFile);
 
 ```bash
 mvn -pl cortex/nodes/scene-layout/core -am test
-mvn -pl cortex/nodes/facedetect/core test           # the new detections output
-mvn -pl loom-shared/node-model test                 # the ServiceLoader count guard
-mvn -pl cortex/cli test -Dtest=NodeRegistrarTest    # the kind-registration guard
+mvn -pl cortex/nodes/facedetect/core test           # the detections output (P2)
+mvn -pl loom-shared/node-model test                 # ServiceLoader count guard
+mvn -pl cortex/cli test -Dtest=NodeRegistrarTest    # kind-registration guard
 mvn -pl integration-test -Dtest=SceneLayoutNodeIntegrationTest test
 ```
 
-🔴 Run `./setup-pool.sh` before the integration test, and clean-rebuild `loom/core` after the
+🔴 Run `./setup-pool.sh` before the integration test, and clean-rebuild `loom/core` after any
 `NodeCollectionModule` change — a stale Dagger component surfaces as `NoSuchMethodError`.
 
 ---
 
-## 13. Open decisions & follow-ups
+## 7. Key Classes Reference
 
-- [ ] **`objectdetect` node** (P3, §2) — yolo4j-backed, wired like `InspireFacedetector` in
-      `FacedetectNodeModule`, writing `type="objectdetection"` with a real `label`. Deserves its own
-      plan. **This is what makes "person behind car" possible.**
-- [ ] **Extend `DetectionResponse`** (P4) with `nodeKind` / `label` / `detectionIndex`, so the REST
-      fallback can recover object classes. Carries an endpoint-test obligation per
-      [../../guidelines/CODING.md](../../guidelines/CODING.md).
-- [ ] **Repair the `detection` geometry convention** — decide normalized vs. pixels, record source
-      dimensions, enforce it in `DetectionModelValidator`, migrate existing rows. Its own task; this
-      spec only documents the inconsistency (constraint 4).
-- [ ] **Video / per-frame layout** — one result per keyframe, keyed by `variant = frameNumber`.
-      Blocked on the `depthmap` node's own video support.
-- [ ] **Relations as first-class rows.** If the UI ever renders a relation graph or search filters on
-      predicates, `asset_json_comp` should graduate to a typed table — the promotion policy stated in
-      that table's own comment. Not now: nothing queries it yet.
-- [ ] **Feed `phrases[]` into captioning.** `CaptioningNode` could take the layout as prompt context
-      for spatially grounded captions. A natural follow-up once both nodes exist.
-- [ ] **Depth-aware person clustering.** `FacedetectNode` already clusters faces (DBSCAN); depth
-      could disambiguate two same-looking faces at different distances. Speculative.
-
----
-
-## 14. Key Classes Reference
-
-| Class | Package | Purpose |
+| Class | Package / module | Purpose |
 |---|---|---|
-| `SceneLayoutNode` | `io.metaloom.cortex.node.scenelayout` | The node: gathers inputs, runs the solver, persists |
-| `SceneLayoutNodeOptions` | `io.metaloom.cortex.node.scenelayout` | Config incl. thresholds and source ids; `KEY="scene-layout"` |
-| `SceneLayoutNodeModule` | `io.metaloom.cortex.node.scenelayout` | Dagger bindings incl. `@StringKey("scene-layout")` |
-| `DepthMap` | `io.metaloom.cortex.node.scenelayout` | Decoded 16-bit PNG + meta; nearness lookup, scene quantiles |
-| `DepthSampler` | `io.metaloom.cortex.node.scenelayout` | **Pure**: box → core inset → p25/p50/p75 |
-| `RelationSolver` | `io.metaloom.cortex.node.scenelayout` | **Pure**: objects → bands, relations, phrases |
-| `LayoutObject` / `SpatialRelation` / `BoxF` | `io.metaloom.cortex.node.scenelayout` | Value records |
-| `RelationPredicate` / `DepthBand` | `io.metaloom.cortex.node.scenelayout` | Enums |
-| `SceneLayoutDescriptorProvider` | `io.metaloom.loom.nodes.spec` | UI palette + pipeline-validation descriptor |
+| `SceneLayoutNode` | `io.metaloom.cortex.node.scenelayout` (`cortex/nodes/scene-layout/core`) | Gathers inputs, projects, runs the solver, persists |
+| `RelationSolver` | same | **Pure**: objects → bands, relations, phrases |
+| `DepthSampler` | same | **Pure**: box → core inset → p25/p50/p75 |
+| `DepthMap` | same | Decoded 16-bit PNG + meta; `projectFromImage`, `nearnessAt`, `sceneQuantile` |
+| `LayoutObject` / `SpatialRelation` / `BoxF` / `DepthStats` | same | Value records |
+| `RelationPredicate` / `DepthBand` | same | 12 predicates (each with an English `phrase()`) / 3 bands |
+| `SceneLayoutNodeOptions` | same | 12 fields; `KEY="scene-layout"` |
+| `SceneLayoutNodeModule` | same | Dagger bindings incl. `@StringKey("scene-layout")` |
+| `SceneLayoutDescriptorProvider` | `io.metaloom.loom.nodes.spec` (`loom-shared/node-model`) | UI palette + pipeline-validation descriptor |
+| `ContentTypeRegistry` | same package | `STRUCT_SCENE_LAYOUT`, `STRUCT_DEPTHMAP`, `DETECTION_ANY`, `SCALAR_INTEGER` |
 | `DepthmapNode` | `io.metaloom.cortex.node.depthmap` | Upstream producer — [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md) |
-| `FacedetectNode` | `io.metaloom.cortex.node.facedetect` | Upstream producer; gains the `detections` output (§6) |
+| `FacedetectNode` | `io.metaloom.cortex.node.facedetect` | Upstream producer of `detections` (P2) |
 | `AbstractMediaNode` | `io.metaloom.cortex.common.node` | Lifecycle + `recordNodeResult` / `resultRef` |
 | `LocalResultCache` | `io.metaloom.cortex.common.cache` | In-heap worker-lifetime LRU skip cache |
-| `NodeCollectionModule` | `io.metaloom.cortex.cli.dagger` | Aggregates node modules (the one central Dagger edit) |
+| `NodeCollectionModule` | `io.metaloom.cortex.cli.dagger` | Aggregates node modules — the one central Dagger edit |
 | `DetectionMethods` | `io.metaloom.loom.client.common.method` | `listAssetDetections` — the REST fallback |
 | `JsonCompCreateRequest` | `io.metaloom.loom.rest.model.jsoncomp` | `nodeKind`/`schemaType`/`variant`/`producerVersion`/`data` |
 | `AffinityValidator` | `io.metaloom.loom.pipeline.graph` | Warns about split / unplaceable affinity groups |
 
 ---
 
-## 15. Where do I find …?
+## 8. Where do I find …?
 
 | I want to … | Look at |
 |---|---|
+| The relation algorithm | `cortex/nodes/scene-layout/core/src/main/java/io/metaloom/cortex/node/scenelayout/RelationSolver.java` |
+| The depth sampling | `.../DepthSampler.java`, `.../DepthMap.java` |
 | The depth map this node consumes | [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md) |
-| The `asset_json_comp` + ledger write shape | `cortex/nodes/sentiment/core/.../SentimentNode.java` (`persist`) |
-| The configurable-upstream-source pattern | `SentimentNode.resolveText` / `SentimentNodeOptions.textSources`, `TtsNode.resolveText` |
-| How face boxes are produced and persisted | `cortex/nodes/facedetect/core/.../FacedetectNode.java` (`persist`) |
+| Port ids, content types, cardinality | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4 |
+| Why `depthNodeId` / `detectionSources` are gone | [NODES.md](NODES.md) §6.4 |
+| The `asset_json_comp` + ledger write shape | [NODES.md](NODES.md) §2; `cortex/nodes/sentiment/core/.../SentimentNode.java` (`persist`) |
+| How face boxes are produced and persisted | `cortex/nodes/facedetect/core/.../FacedetectNode.java` |
 | The detection schema and its bbox comment | `loom/db/flyway/.../V2.43__rework_detection_embedding.sql` |
 | The `asset_json_comp` schema and promotion policy | `loom/db/flyway/.../V2.40__rework_asset_json_comp.sql` |
-| Reading detections back over REST | `loom-client/common/.../method/DetectionMethods.java` |
-| Image reading without OpenCV | `cortex/nodes/vlm/core/.../VlmImages.java` |
+| The search-document extractor (missing this schema type) | `loom/db/flyway/.../V2.58__add_search_document.sql` |
+| How to add a node at all | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
 | Where a node registers as a runnable kind | its `*NodeModule` (`@StringKey`) + `NodeCollectionModule.includes` |
 | Where a node registers for the UI | `loom-shared/node-model/.../spec/` + the `META-INF/services` file |
-| The UI icon map | `loom-ui/src/features/pipeline/PipelineEditor.tsx` (`ICON_MAP`, ~L82) |
 | Affinity / segmentation | `loom/pipeline/.../graph/{PipelineSegmenter,AffinityValidator,PipelineGraphNode}.java` |
-| Test exemplars | `cortex/nodes/sentiment/core/src/test/.../Sentiment*Test`, `integration-test/.../node/SentimentNodeIntegrationTest.java` |
-| Customer docs pattern | `website/content/english/docs/nodes/sentiment/index.adoc` + `nodes/_index.adoc` |
+| Customer docs | `website/content/english/docs/nodes/scene-layout/index.adoc` |
+| Cortex config precedence | [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
 
 ---
 
-## 16. Progress Assessment
+## 9. Progress Assessment
 
-### Design
-- [x] Node renamed from "correlation" to `scene-layout` with the reasoning recorded
-- [x] Relation taxonomy, banding and confidence scoring defined (§5)
-- [x] Persistence shape (`asset_json_comp`, `schemaType="scene-layout"`) and payload defined (§7)
-- [x] Prerequisite chain P1–P4 identified; the object-detection gap stated up front (§2)
-- [x] The `detection` bbox-convention inconsistency documented rather than silently patched (§3)
+### Built
+- [x] Module `cortex/nodes/scene-layout/` (aggregator + `core`), `cortex/nodes/pom.xml` entry, processor + integration-test dependencies
+- [x] `SceneLayoutNode`, `SceneLayoutNodeOptions`, `SceneLayoutNodeModule`
+- [x] Pure logic: `RelationSolver`, `DepthSampler`, `DepthMap`, plus `LayoutObject` / `SpatialRelation` / `BoxF` / `DepthStats` / `RelationPredicate` / `DepthBand`
+- [x] `@Binds @IntoMap @StringKey("scene-layout")` + `NodeCollectionModule.includes` + `NodeRegistrarTest` guard
+- [x] Typed ports (`depth` ONE, `detections` MANY → `result`, `object_count`, `relation_count`); `ContentTypeRegistry.STRUCT_SCENE_LAYOUT` + `all()` entry
+- [x] `SceneLayoutDescriptorProvider` + `META-INF/services`; descriptor-count guard updated
+- [x] Persistence: `asset_json_comp` (`schemaType="scene-layout"`, `producerVersion` = depth model) + ledger `resultRef`
+- [x] **P1** depthmap built and wired; **P2** `FacedetectNode` `detections` output + `FacedetectNodeDetectionsTest`
+- [x] 59 unit tests across six classes; `NodePortConformanceTest` entry
+- [x] Customer docs; [NODES.md](NODES.md) and [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) rows
 
-### Prerequisites
-- [x] **P1** — [`depthmap` node](NODE_DEPTHMAP_PLAN.md) built (hard blocker)
-- [x] **P2** — `FacedetectNode` `detections` output key (§6), incl. the video coordinate-space check
-- [ ] P3 — `objectdetect` node (out of scope; own plan)
-- [ ] P4 — `DetectionResponse` extended with `nodeKind`/`label`/`detectionIndex` (out of scope)
-
-### Node
-- [x] Module `cortex/nodes/scene-layout/` (aggregator + core poms); `cortex/nodes/pom.xml` entry
-- [x] `DepthMap`, `DepthSampler`, `RelationSolver`, records and enums
-- [x] `SceneLayoutNodeOptions` (+ `validate()`), `SceneLayoutNode`, `SceneLayoutNodeModule`
-- [x] `cortex/processor/pom.xml` + `integration-test/pom.xml` dependencies
-- [x] `SceneLayoutNodeModule.class` in `NodeCollectionModule.includes`
-- [x] `NodeRegistrarTest` expected-kinds assertion updated
-
-### UI / descriptors
-- [x] `SceneLayoutDescriptorProvider` + `META-INF/services` entry
-- [x] `NodeDescriptorServiceLoaderTest` counts and expected-kind array bumped
-- [x] `ContentTypes.DATA_SCENE_LAYOUT` constant **and** `all()` entry
-- [x] `ICON_MAP` gains `schema` in `PipelineEditor.tsx`
-- [x] `FacedetectDescriptorProvider` gains the `detections` output
-
-### Tests
-- [x] `RelationSolverTest` on synthetic depth gradients (the primary correctness test) — 15 tests
-- [x] `DepthSamplerTest`
-- [x] `SceneLayoutNodeTest`, `SceneLayoutNodePersistenceTest`, `SceneLayoutNodePipelineTest`, `SceneLayoutOptionsValidationTest` (+ assertj helpers) — 61 tests green in total
-- [x] `FacedetectNodeDetectionsTest` covers the new output (a new class rather than extending the existing suite — there was no `FacedetectNodeTest`, only options and pipeline tests)
-- [x] `integration-test/.../node/SceneLayoutNodeIntegrationTest`
-
-### Docs
-- [x] [NODES.md](NODES.md) — §2 persistence, §3 node catalogue (incl. the facedetect output-keys row), §5 options, §12 capability matrix + IT-coverage prose
-- [x] `website/content/english/docs/nodes/scene-layout/index.adoc` + `nodes/_index.adoc` (3 spots)
-- [x] `website/content/english/docs/nodes/facedetect/index.adoc` updated for the new output
-- [x] [../../CONTEXT.md](../../CONTEXT.md) §2 spec-tree entry
-- [x] `NODE_CORRELATION_PLAN.md` deleted (superseded by this file)
+### Open
+- [ ] 🔴 Fix `SceneLayoutNodeIntegrationTest` — pre-port payload shape, currently asserts `SUCCESS` on a skip (§4.1)
+- [ ] 🔴 `truncated.relations` hardcoded to `0` (§4.3)
+- [ ] 🔴 `RelationPredicate.INSIDE` declared and advertised but never emitted (§4.3)
+- [ ] 🔴 `scene-layout` missing from the `search_extract_json_text` whitelist, so `phrases[]` are not searchable (§4.3)
+- [ ] Cache key includes the wired depth map, detections and thresholds (§4.3)
+- [ ] `minCorePixels` exposed as a descriptor parameter (§4.3)
+- [ ] **P3** `objectdetect` node — the only thing that makes "person behind car" reachable (§4.2)
+- [ ] **P4** `DetectionResponse` gains `nodeKind` / `label` / `detectionIndex` (§4.4)
+- [ ] Repair the `detection` geometry convention (§4.4)
+- [ ] Video / per-frame layout, blocked on depthmap video support (§4.4)
+- [ ] An example pipeline that actually uses this node (§4.4)
 
 ### Deliberately not built
-- [ ] ~~A learned scene-graph (SGG) model~~ — rejected; geometry is explainable and free (§4)
-- [ ] ~~3D reconstruction / world coordinates~~ — out of scope (§1)
-- [ ] ~~Relations as first-class DB rows~~ — `asset_json_comp` until something queries them (§13)
-- [ ] ~~Video / per-frame layout~~ — blocked on depthmap video support (§13)
+- [ ] ~~A learned scene-graph (SGG) model~~ — rejected; geometry is deterministic, explainable ("why behind?" → a number), unlicensed and CPU-cheap
+- [ ] ~~3D reconstruction / camera pose / world coordinates~~ — out of scope; relative ordering and image-plane relations only
+- [ ] ~~Relations as first-class DB rows~~ — `asset_json_comp` until something queries them
+- [ ] ~~Detection of any kind~~ — this node creates no boxes; it relates boxes others produced
 
 ---
 
-## 17. References
+## 10. References
 
 - [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md) — the required upstream node, designed alongside this one
-- [NODES.md](NODES.md) — node system, persistence model (§2), capability matrix (§12)
-- [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md) — the `asset_json_comp` persistence exemplar and upstream-source pattern
+- [NODES.md](NODES.md) — node system, persistence (§2), registration (§5), the deleted node-id options (§6.4), capability matrix (§12)
+- [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) — port ids, content types, cardinality
+- [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) — the add-a-node recipe
+- [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md) — the `asset_json_comp` persistence exemplar
 - [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) — pipeline engine, segmentation, affinity
-- [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md), [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) — schema audit context for the detection-geometry issue
-- [../search/SEARCH.md](../search/SEARCH.md) — a downstream consumer, not yet implemented
-- [../../guidelines/CODING.md](../../guidelines/CODING.md), [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md), [../../SPEC_RULES.md](../../SPEC_RULES.md)
-- [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) — Cortex-wide configuration
+- [../search/SEARCH.md](../search/SEARCH.md) — a downstream consumer, blocked on §4.3
+- [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md), [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) — schema-audit context for the detection-geometry issue
+- [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md), [../../guidelines/CODING.md](../../guidelines/CODING.md), [../../SPEC_RULES.md](../../SPEC_RULES.md)
 
 ---
 
-_Git HEAD revision: `29cadb66`_
-_Last updated: 2026-07-28 (implemented: node, pure-logic solver and sampler, wiring, descriptors, tests
-and docs, plus prerequisite P2 on `FacedetectNode`. 61 unit tests + 1 integration test green. Three
-documented deviations from the original design are listed in the header. Open: P3 `objectdetect`,
-without which the node relates only faces to faces)_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (verified BUILT against the tree; removed the stale "not implemented"/"not written" section headers and the deleted `depthNodeId`/`detectionSources` options, and replaced the design narrative with an inventory plus four newly found defects — the broken integration test, hardcoded `truncated.relations`, dead `INSIDE` predicate and the missing search-document branch.)_

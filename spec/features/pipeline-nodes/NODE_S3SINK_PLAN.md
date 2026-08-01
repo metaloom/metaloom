@@ -1,530 +1,311 @@
-# S3 Sink Node — Design & Implementation Plan
+# S3 Sink Node — Design Record
 
-> Design document for a new Cortex pipeline node (`s3-sink`) that writes files produced by
-> upstream nodes — thumbnails, depth maps, generated images, speech audio — into an
-> S3 bucket, and **creates the corresponding binaries in Loom** so they become
-> first-class, retrievable content rather than files on one worker's disk.
+> ## 🟢 Status: BUILT and shipped (phase 1)
 >
-> Read alongside [NODES.md](NODES.md) (the node system),
-> [NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md) (the ingest half, already implemented —
-> this node reuses its `cortex/s3-common` module) and
-> [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) (the type reference).
-> The source of truth is the code; this is a plan, not a record.
+> Kind `s3-sink`, module `cortex/nodes/s3-sink` (aggregator + `core/`), package
+> `io.metaloom.cortex.node.sink.s3`. Bound unconditionally via
+> `@Binds @IntoMap @StringKey(S3SinkNode.KIND)` in `S3SinkNodeModule`. 89 node tests, 7 integration
+> tests against a real MinIO container, website docs and a demo pipeline shipped.
 >
-> **Status: phase 1 implemented.** Node kind `s3-sink`; code in
-> [cortex/nodes/s3-sink](../../../cortex/nodes/s3-sink). 93 node tests and 7 integration tests
-> against a real MinIO container pass. Phases 2 and 3 (structured binary location and the
-> `attachment` derivation edge) are Loom-side work and remain open — §13.
+> **Corrections to earlier revisions of this file, verified against the code:**
+>
+> 1. 🔴 **The `recordNodeResult` ledger bug is fixed and shipped.** `AbstractMediaNode` declares
+>    `protected String nodeId()` and `recordNodeResult` calls `ledger.setNodeId(nodeId())`.
+>    `S3SinkNode` overrides it with its graph-local id. The old text ("hard-codes `setNodeId("")`")
+>    described the pre-fix state.
+> 2. 🔴 **The `artifacts` option and `autoDiscover` no longer exist.** They were replaced by a typed
+>    `artifacts` **MANY** input port over `artifact/*` (`S3SinkNode.IN_ARTIFACTS`). Selection is now
+>    "whatever the edge carries", in sequence order — §3.
+> 3. 🔴 **Outputs are typed ports**, not the old `s3_sink_*` keys: `result : struct/json`,
+>    `count : scalar/integer`, `flag : scalar/string`.
+> 4. **Phases 2 and 3 are no longer this file's work.** They are superseded by
+>    [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
+> 5. SPI counts are now **26 providers / 41 kinds**, not 22/36.
+>
+> **This file is now a design record, not a plan.** The code is the source of truth.
+
+Read alongside [NODES.md](NODES.md) (the node system, the persistence matrix, the affinity gap),
+[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) (the `artifact/*` family and
+ONE/MANY cardinality), [NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md) (the ingest half, which owns
+`cortex/s3-common`) and [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) (the
+`CORTEX_S3_*` flags this node shares with `s3-source`).
 
 ---
 
-## 1. Motivation
+## 1. Already implemented
 
-Five nodes produce bytes today and none of them can put those bytes anywhere durable. Each
-writes into a worker-local cache and records a ledger row saying "this happened":
+| Item | Where it lives |
+|---|---|
+| The node — upload → SHA-512 → `createAsset` → json comp + ledger | `cortex/nodes/s3-sink/core/…/S3SinkNode.java` (`KIND = "s3-sink"`, `SCHEMA_TYPE = "s3-artifact"`) |
+| Typed ports `IN_ARTIFACTS` (MANY, `artifact/*`), `OUT_RESULT`, `OUT_COUNT`, `OUT_FLAG` | same |
+| `PipelineConfigurable.configure(nodeDef)` — per-instance bucket/template/flags, graph-local `nodeId` | same |
+| Per-instance options + `validate()` | `…/S3SinkNodeOptions.java` (`KEY = "s3-sink"`) |
+| Dagger module (`@Binds @IntoSet` + `@Binds @IntoMap @StringKey`) | `…/S3SinkNodeModule.java`, collected in `cortex/cli/…/dagger/NodeCollectionModule.java` |
+| Port elements → ordered files (+ `includeSource`) | `…/ArtifactSelector.java`, `…/SinkArtifact.java` |
+| Key template: parse, validate, render | `…/S3KeyTemplate.java` |
+| Per-artifact outcome + `toJson()` | `…/UploadedArtifact.java` (`State`: `UPLOADED`/`PRESENT`/`FAILED`/`MISSING`) |
+| Idempotency policy | `…/OverwritePolicy.java` (`NEVER` \| `IF_DIFFERENT` \| `ALWAYS`) |
+| `upload(...)` returning the stored `S3ObjectRef`; extension → MIME | `cortex/s3-common/…/S3ObjectStore.java`, `…/AwsS3ObjectStore.java`, `…/S3ContentTypes.java` |
+| The `nodeId()` seam | `cortex/common/…/node/AbstractMediaNode.java` (`nodeId()`, used by `recordNodeResult`) |
+| Descriptor: `OUTPUT`, icon `cloud_upload`, 9 parameters | `loom-shared/node-model/…/spec/S3SinkDescriptorProvider.java` |
+| 89 unit tests (`S3SinkNodeTest`, `…PersistenceTest`, `…OptionsValidationTest`, `S3KeyTemplateTest`, `ArtifactSelectorTest`) | `cortex/nodes/s3-sink/core/src/test/…` |
+| 7 integration tests (real MinIO + in-process Loom) | `integration-test/…/integration/node/S3SinkNodeIntegrationTest.java` |
+| Two demo pipelines using `s3-sink` | `loom/core/…/boot/DemoDatabaseInitializer.java` |
+| Customer-facing docs | `website/content/english/docs/nodes/s3-sink/index.adoc` |
 
-| Node | cache | path output | persists |
-|---|---|---|---|
-| `ThumbnailNode` | `metaPath/thumbnail_bin` | `thumbnail_path` | ledger only |
-| `DepthmapNode` | `metaPath/depthmap_bin` | `depthmap_path` | ledger only |
-| `ImageGenNode` | `metaPath/imagegen_bin` | `imagegen_path` | ledger only |
-| `TtsNode` | `metaPath/tts_bin` | `tts_path` | ledger only |
-| `ScriptNode` | `metaPath/script_bin/<nodeId>` | declared per instance | `asset_json_comp` + ledger |
-
-`DepthmapNode`'s own class javadoc states the gap plainly:
-
-> the PNG is written to a local cache under `metaPath/depthmap_bin` and only the
-> `asset_node_result` ledger entry is recorded in Loom — **the bytes stay local (there is no
-> byte-ingest endpoint for produced media yet)**.
-
-And `DaoAssetSink` — Loom's pipeline→asset sink — names the same wall from the server side:
-
-> *"Only hashes have somewhere to go today. **Thumbnails**, embeddings, OCR text and transcripts
-> are computed and still land nowhere, and this is the seam where mapping them belongs."*
-
-The consequences compound. A thumbnail exists only on the worker that made it, so the UI cannot
-show it; a re-run on a different worker recomputes it; `SceneLayoutNode` can only consume
-`depthmap_path` by being pinned to the same machine; and nothing survives the worker being
-replaced.
-
-`s3-sink` closes this: it uploads the artifacts to a bucket **and registers them in Loom as
-assets**, which is what makes them retrievable by anything other than the process that made them.
-
-### Non-goals
-
-- **A general upload endpoint in Loom.** `AssetUploadEndpointService` already moves multipart
-  bytes to a local upload directory. This node writes to object storage directly and tells Loom
-  *where*, which is a different problem.
-- **Presigned URLs / a Loom read proxy for S3 objects.** Needed before the UI can render an
-  S3-hosted thumbnail; tracked in §16, not built here.
-- **Replacing the local `*_bin` caches.** They stay — see §9 for why deleting them by default
-  would break `scene-layout`.
+**What it persists** (see [NODES.md](NODES.md) §2): one `asset` **per uploaded artifact**
+(`origin` = the `s3://` URI) plus an `asset_json_comp` (`schemaType = s3-artifact`,
+`variant` = node id) and an `asset_node_result` ledger row (`producerVersion` = bucket) on the
+**source** asset.
 
 ---
 
-## 2. Decisions
+## 2. Why the node exists, and what it is *not*
 
-> **Status: agreed with the user before design.**
+Five nodes produce bytes and none of them can put those bytes anywhere durable — each writes a
+worker-local `metaPath/*_bin` file and records a ledger row saying "this happened". `s3-sink` is the
+**current workaround**: it uploads to a bucket named in the pipeline definition using *worker*
+credentials and registers the artifact as a new Loom asset.
 
-| # | Decision | Choice | Why |
-|---|---|---|---|
-| 1 | What Loom records | **Create binaries/assets in Loom**, not just a component row | The user's requirement. A derived artifact that is not an asset is not retrievable, which was the whole point |
-| 2 | What gets uploaded | Whatever binary data the sink receives on its input | The type system is acknowledged as a mess and is being cleaned separately — do not over-engineer selection now |
-| 3 | Local file | Kept by default; `deleteAfterUpload` is opt-in | `SceneLayoutNode` reads `depthmap_path` off the same worker's disk |
-| 4 | Source media | The sink **also accepts the asset itself** as input, so `filesystem-source → s3-sink` archives originals | The user's requirement |
+🔴 **That is not the same as raw-byte ingest into Loom's binary storage.** The real gap — a node
+handing bytes to Loom so they land in whichever backend the target library uses — is owned by
+[../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md),
+with the byte endpoints and pool model in
+[../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md). **Do not restate either here.**
 
-Decision 2 has a direct consequence worth stating: this plan deliberately keeps artifact
-selection simple (§6) and does **not** invent a typed artifact contract. When
-[../pipeline/NODE_DATA_TYPES_PLAN.md](../pipeline/NODE_DATA_TYPES_PLAN.md) lands, the selector is
-the one place that should change.
+Non-goals: a general upload endpoint in Loom (`AssetUploadEndpointService` already handles multipart
+into a local directory); presigned URLs or a Loom read proxy for S3 objects; replacing the local
+`*_bin` caches (§5 explains why deleting them by default would break `scene-layout`).
 
 ---
 
-## 3. Architecture
+## 3. What gets uploaded
 
 ```mermaid
 flowchart LR
-    subgraph W["Worker (producer and sink must share it — §10)"]
-        PROD["thumbnail / depthmap /<br/>imagegen / tts / script"]
+    subgraph W["Worker (producer and sink must share it — §6)"]
+        PROD["thumbnail / depthmap / imagegen /<br/>videogen / tts / script / watermark"]
         BIN[("metaPath/*_bin")]
         SINK["S3SinkNode"]
         PROD -- "writes bytes" --> BIN
-        PROD -- "emits *_path" --> SINK
+        PROD -- "artifact/* edge" --> SINK
         BIN -- "reads" --> SINK
     end
-
     SINK -- "PutObject" --> S3[("S3 bucket")]
-    SINK -- "createAsset (artifact bytes)" --> LOOM[("Loom")]
-    SINK -- "asset_node_result ledger" --> LOOM
-
-    MEDIA["media item (asset input)"] -.->|"includeSource"| SINK
+    SINK -- "createAsset (per artifact)" --> LOOM[("Loom")]
+    SINK -- "asset_json_comp + asset_node_result" --> LOOM
+    MEDIA["media item"] -.->|"includeSource"| SINK
 ```
 
-Three things happen per artifact, in this order, and the order matters:
+**Every element of the `artifacts` port**, in sequence order, plus the media item itself when
+`includeSource` is set (which is what makes `filesystem-source → s3-sink` an archiver).
 
-1. **SHA-512 the local file.** Loom's `asset.sha512sum` is `NOT NULL UNIQUE` — the identity rule
-   in `V2.46__asset_identity.sql` means *an asset cannot exist before its bytes are hashed*. The
-   sink has the bytes locally, so this is cheap and unavoidable.
-2. **Upload to S3**, at a deterministic key (§7).
-3. **Create the asset in Loom** for the artifact, with `origin` = the `s3://` URI, plus the
-   `asset_node_result` ledger on the *source* asset recording that this sink ran.
+> The typed port replaced two workarounds that existed only because there was no way to say "this
+> file, from that node" in the graph: an `artifacts` option holding `nodeId:outputKey` strings, which
+> broke whenever a node was renamed, and an `autoDiscover` flag that uploaded anything whose output
+> key ended in `_path` — silently missing every `script` image, because those keys are author-named.
+
+When the media is already an `s3://` reference (an `s3-source` run) the sink **skips it** rather
+than round-tripping bytes it fetched a moment ago.
+
+**Resolution rules.** Blank → not an artifact. Relative → resolved against `metaPath`. Duplicates on
+the normalised absolute path are dropped, first wins. `maxArtifacts` (default 64) exceeded → fail,
+never truncate — a script emitting 5000 images is a bug and a truncating sink hides it.
+`maxArtifactBytes` (default 0 = unbounded) exceeded → that artifact fails with its size.
+
+🔴 **Presence is recorded, not filtered.** An element naming a file that is not on this worker
+becomes `MISSING` and **fails the node**. That is the affinity failure (§6) and it must never be
+quiet.
 
 ---
 
-## 4. What Loom actually supports today — verified
+## 4. Key template and content type
 
-> 🔴 **Superseded for the Loom-side rows.** Phase 2 (§8.2) was implemented on 2026-08-01 together
-> with the binary-handling work: `poolUuid` now reaches `AssetBinary` and the REST models, the three
-> `"S3 support has not yet been implemented"` branches are implemented, `asset_location.pool_uuid` is
-> written on every upload, and the cardinality question this plan called blocking is answered. The
-> table below is kept as the record of *why* phase 1 looks the way it does. For the current state
-> read [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) and the follow-on
-> [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
+Placeholders: `{sha512}` (of the **artifact**), `{sha512:N}` (first N hex; `{sha512:4}` matches
+`HashUtils.segmentPath`), `{sourceSha512}` / `{sourceSha512:N}`, `{nodeId}`, `{sourceNode}`,
+`{sourceKey}`, `{ext}` (with the dot), `{filename}`, `{basename}`, `{assetUuid}`, `{index}`,
+`{indexSuffix}` (`""` when single-valued, `-<n>` when not).
 
-This section exists because the obvious design did not work, and the reasons are not guessable.
+```
+Default: cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}
+```
 
-| Assumption | Reality |
+Content-addressed on the artifact's own hash, so identical bytes always land at the same key — which
+is what makes the `IF_DIFFERENT` skip meaningful and re-uploads free. Sharded at the same 4-hex
+level as the local `*_bin` layout.
+
+Rejected at parse: unknown placeholder, `{sha512:0}`, `{sha512:129}`. Rejected at render: an empty
+key, a key ending in `/` (`AwsS3ObjectStore.list` filters directory placeholders out, so the object
+would be invisible to `s3-source`), a `.`/`..` segment, a control character, or >1024 bytes UTF-8.
+Normalised: collapse `//`, strip a leading `/`. **An unresolvable placeholder fails the artifact —
+never substitute.** A key containing the literal string `null` collides every asset onto it.
+
+`S3ContentTypes` lives in `cortex/s3-common` because it stamps both the object's `Content-Type` and
+the created asset's `mimeType`. There is **no reusable MIME helper anywhere else** in the workspace —
+the mapping exists twice as private switches (`DaoAssetSink.mimeTypeOf`, `SessionFsEndpointService`).
+
+---
+
+## 5. Options
+
+All **per pipeline instance** (`configure(nodeDef)`). Connection settings stay worker-level on
+`CortexOptions.getS3()` / `CORTEX_S3_*` — see
+[../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) and
+[NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md) §5 for the full 16-flag table — because a pipeline
+definition is stored in Postgres and rendered verbatim in the editor, and `ParameterType` has no
+`SECRET` value.
+
+| Option | Type | Default | Notes |
+|---|---|---|---|
+| `bucket` | `STRING` | — | Required at `configure`, **not** at `validate()` (§7) |
+| `keyTemplate` | `STRING` | `cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}` | §4 |
+| `includeSource` | `BOOLEAN` | `false` | Also upload the media item; skipped when it is already `s3://` |
+| `createAssets` | `BOOLEAN` | `true` | Off = upload only, no Loom asset per artifact |
+| `overwrite` | `ENUM` | `IF_DIFFERENT` | `NEVER` \| `IF_DIFFERENT` \| `ALWAYS` |
+| `deleteAfterUpload` | `BOOLEAN` | `false` | 🔴 see below |
+| `maxArtifacts` | `INTEGER` | `64` | Exceeded → fail, never truncate |
+| `maxArtifactBytes` | `INTEGER` | `0` | `0` = unbounded |
+| `failOnPartial` | `BOOLEAN` | `true` | |
+| `enabled` | `BOOLEAN` | `true` | Standard node parameter |
+
+🔴 **`deleteAfterUpload` defaults to `false`, and the reason belongs in the javadoc, the descriptor
+and [NODES.md](NODES.md):** `SceneLayoutNode` reads `depthmap_path` from the **same worker's**
+`depthmap_bin` cache. A sink that deleted by default would break that chain, and it would surface as
+`scene-layout` skipping with "depth map not found" — which looks like a depthmap bug and is not.
+When enabled: delete only artifacts confirmed present in S3; **never** the media file; only files
+under `metaPath`; failures are WARN-logged and never fail the node, because the bytes are safe.
+
+---
+
+## 6. 🔴 The same-worker constraint
+
+The sink reads files a producer wrote **on the same worker**. Dispatched elsewhere it sees nothing,
+and there is no affinity mechanism today: `NodeTaskRunner`'s javadoc says affinity groups "**will
+later** let Loom dispatch a whole subgraph", the editor has an affinity channel nothing consumes, and
+no migration has an affinity column. The working configurations are a single-worker deployment or a
+`CORTEX_NODE_WHITELIST` that co-locates producer and sink.
+
+**Mitigation built into the design:** distinguish "upstream output absent" (→ skip, legitimate — the
+producer did not run for this media type) from "output present but the file is not on this worker"
+(→ **fail**, naming the path and the producer). A sink that silently uploads nothing looks like
+success, which is the failure mode this node works hardest to avoid.
+
+---
+
+## 7. Conventions and Gotchas
+
+🔴 **`ctx.failure(msg).abort()`, never `.next()`.** `NodeContextImpl.next()` ignores a recorded
+failure cause and reports SUCCESS ([NODES.md](NODES.md)). For a sink, "green node, nothing in the
+bucket" is the worst possible outcome.
+
+🔴 **`validate()` deliberately does not require `bucket`.** `RegistryNodeRegistrar.adapt` validates
+the *worker's* options for every node it builds, so a `bucket`-required `validate()` would make every
+`s3-sink` in every pipeline fail to build with a misleading message. `validate()` checks shape;
+`configure(nodeDef)` requires the effective bucket and throws, which `adapt` reports as
+`Node 'x' configuration failed: …`. Same split `ScriptNode` uses for its script.
+
+| Gotcha | Detail |
 |---|---|
-| `AssetCreateRequest` can say where the bytes live | **No.** It has `file` (`FileInfo`), `hashes`, and metadata. The only location-ish slot is the free-text `FileInfo.origin` → column `asset.initial_origin`, whose own comment sanctions *"first filepath encountered, **first s3 path**, url, hash"* |
-| An asset can be attached to an `asset_pool` | **Not from code.** The schema hop `asset → asset_location.pool_uuid → asset_pool` exists (`V2.20`), but `AssetBinary` (the live model), `AssetBinaryCreateRequest` and the `/binaries` endpoint all omit `poolUuid`. **Nothing in the codebase ever writes that column.** The demo initializer even creates an S3 pool and links no binary to it |
-| `AssetBinaryEndpointService` can record an S3 binary | **No.** Three branches (`create`, `update`, `createForAsset`) do `log.error("S3 support has not yet been implemented"); lrc.error(...)` |
-| `AssetUpdateRequest.s3` sets the S3 location | **No — it silently discards.** It writes `AssetImpl.s3BucketName`/`s3ObjectPath`, in-memory fields whose DB columns `V2.46` dropped |
-| There is a derived/parent asset relation | **No.** `asset_remix` is undirected, unlabelled, and has no DAO or endpoint. **`attachment` is the sanctioned mechanism** — see below |
-| The `/locations` client methods work | **No.** `LoomHttpClientImpl` has them; no server route registers `/locations` |
-
-### `attachment` is the sanctioned home for derived binaries
-
-`V2.44__attachment_provenance.sql` was written for precisely this use case, and says so:
-
-> `-- Make attachment the sink for node-produced derived binaries.`
-> `-- ThumbnailNode produces contact sheets and had nowhere to record them […] Derived binaries`
-> `-- are a general category - proxies, waveforms, extracted audio - and every one of them would`
-> `-- have hit the same wall.`
-
-It adds `node_kind`, `node_id`, `producer_version`, `variant`, `run_uuid`, `task_uuid`, the
-attachment types `CONTACT_SHEET` / `POSTER_FRAME` / `WAVEFORM` / `PROXY` / `EXTRACTED_AUDIO`, a
-partial unique index `(asset_uuid, type, node_kind, variant)` for idempotency, and `ON DELETE
-CASCADE` from `asset`.
-
-**But `attachment_binary` is `(sha512sum, size)` only — it has no path, no pool, no location.**
-So `attachment` can express *"this asset has a contact sheet produced by node X with hash H"* and
-cannot express *where those bytes are*. That is the missing piece for S3, on both the asset and
-the attachment side.
-
-### What this means for the design
-
-Creating a full, structurally-located binary record is a **Loom-side project**, not a node change.
-So the work is phased (§8): phase 1 gets real, queryable assets into Loom using only what exists
-today; phases 2 and 3 add the structure. The node's contract does not change between phases.
+| `ctx.abort()` returns an empty output map | `NodeContextImpl.abort()` passes `Collections.emptyMap()`, so a FAILED sink cannot report per-artifact detail through its ports. The detail still reaches Loom via the `asset_json_comp`, written **before** the node returns — but `result` is only observable on a successful or `failOnPartial=false` run |
+| Zero artifacts → `ctx.skipped(...).next()`, not a failure | A sink downstream of a `depthmap` that skipped a video must not redden every video in the run |
+| S3 inactive on this worker → **fail, not skip** | Skipping would be silent data loss on a green run. The kind map is static, so unlike `s3-source` the sink cannot be capability-gated away; the message names the fix (`CORTEX_NODE_WHITELIST`) |
+| An asset cannot exist before its bytes are hashed | `asset.sha512sum` is `NOT NULL UNIQUE` (`V2.46`). SHA-512 the artifact first, then handle "already exists" — the same bytes are the same asset |
+| Do **not** compare local MD5 to the ETag | Multipart ETags are `<md5-of-md5s>-<partcount>`. `IF_DIFFERENT` compares key + size |
+| `.thumb` is a JPEG | `PreviewGenerator.save` → `ImageUtils.saveJPG` in video4j. If that changes, `S3ContentTypes` silently lies |
+| Do not use `Files.probeContentType` | Platform-dependent and commonly null in slim containers, so the stored type would differ between a laptop and production |
+| `JsonCompCreateRequest.setData` takes a `JsonObject` | The column is `jsonb NOT NULL`, so the payload must be an object wrapping the array, never a bare array |
+| The node takes `@Nullable LoomClient` | Offline mode provides a null client, and Dagger refuses to inject a `@Nullable`-provided binding into a non-annotated parameter |
+| **Not** `@Singleton` | It is `PipelineConfigurable`; `PipelineConfigurableTest.testTwoS3SinkNodesGetIndependentInstances` is the guard |
+| `LocalResultCache` would be task-scoped here | The node is built per task, so a local cache would dedupe within a batch only. The HEAD is what makes re-runs cheap |
+| A key ending in `/` is invisible to `s3-source` | `AwsS3ObjectStore.list` filters directory placeholders out |
+| `upload(...)` returns `S3ObjectRef` | Taking the etag from `PutObjectResponse.eTag()` avoids an extra HEAD per artifact |
+| `setup-pool.sh` before any IT | And again after any Flyway change |
 
 ---
 
-## 5. Module layout
+## 8. Key Classes Reference
 
-New module `cortex/nodes/s3-sink` (aggregator pom + `core/`, mirroring `cortex/nodes/depthmap`),
-artifact `cortex-s3-sink-node`, package `io.metaloom.cortex.node.sink.s3`.
-
-| Class | Responsibility |
-|---|---|
-| `S3SinkNode` | `AbstractMediaNode<S3SinkNodeOptions>` implements `PipelineConfigurable`. **Not `@Singleton`** |
-| `S3SinkNodeOptions` | `KEY = "s3-sink"`; per-instance config + `validate()` |
-| `S3SinkNodeModule` | Dagger: `@Binds @IntoSet` + `@Binds @IntoMap @StringKey("s3-sink")` + options |
-| `ArtifactSelector` | upstream outputs (+ optionally the media item) → ordered `List<SinkArtifact>` |
-| `SinkArtifact` | `record(sourceNode, sourceKey, index, multiValued, Path file)` |
-| `UploadedArtifact` | per-artifact outcome + `toJson()` |
-| `S3KeyTemplate` | parse + render; pure, no IO |
-| `OverwritePolicy` | `NEVER` \| `IF_DIFFERENT` \| `ALWAYS` |
-
-Additions to existing modules:
-
-| File | Change |
-|---|---|
-| `cortex/s3-common/.../S3ObjectStore.java` | add `upload(...)` |
-| `cortex/s3-common/.../AwsS3ObjectStore.java` | implement it |
-| `cortex/s3-common/.../S3ContentTypes.java` | **new** — extension → content type |
-| `cortex/s3-common/src/test/.../FakeS3ObjectStore.java` | implement `upload` + assertion accessors |
-| `cortex/common/.../AbstractMediaNode.java` | `nodeId()` seam (§8.3) |
-| `loom-shared/node-model/.../S3SinkDescriptorProvider.java` | **new** |
-
-The node depends on `S3ObjectStore`, never on the AWS SDK — which is what keeps its unit tests
-free of MinIO.
+| Class | Package / module | Purpose |
+|---|---|---|
+| `S3SinkNode` | `io.metaloom.cortex.node.sink.s3` (`cortex/nodes/s3-sink/core`) | `AbstractMediaNode<S3SinkNodeOptions>` + `PipelineConfigurable`; overrides `nodeId()` |
+| `S3SinkNodeOptions` | same | `KEY = "s3-sink"`; per-instance config + `validate()` |
+| `S3SinkNodeModule` | same | `@Binds @IntoSet` + `@Binds @IntoMap @StringKey(S3SinkNode.KIND)` + options |
+| `ArtifactSelector` | same | Port elements (+ optionally the media item) → ordered `List<SinkArtifact>` |
+| `SinkArtifact` | same | Record: port, sequence index, multi-valued flag, file, presence |
+| `UploadedArtifact` | same | Per-artifact outcome + `toJson()`; `State` = `UPLOADED`/`PRESENT`/`FAILED`/`MISSING` |
+| `S3KeyTemplate` | same | Parse + render; pure, no IO |
+| `OverwritePolicy` | same | `NEVER` \| `IF_DIFFERENT` \| `ALWAYS` |
+| `S3ObjectStore` / `AwsS3ObjectStore` / `S3ContentTypes` / `S3Support` | `io.metaloom.cortex.s3` (`cortex/s3-common`) | Upload seam, MIME mapping, "is S3 configured" — owned by [NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md) |
+| `FakeS3ObjectStore` | same (test scope) | In-memory store + assertion accessors; keeps unit tests MinIO-free |
+| `AbstractMediaNode` | `io.metaloom.cortex.common.node` (`cortex/common`) | `nodeId()` seam; `recordNodeResult` writes `ledger.setNodeId(nodeId())` |
+| `S3SinkDescriptorProvider` | `io.metaloom.loom.nodes.spec` (`loom-shared/node-model`) | `OUTPUT`, icon `cloud_upload`, 9 parameters |
 
 ---
 
-## 6. What gets uploaded
+## 9. Progress Assessment
 
-### 6.1 Sources
+### Done
 
-Three, in this precedence:
+- [x] Upload seam — `S3ObjectStore.upload` returning `S3ObjectRef`, `AwsS3ObjectStore.upload`,
+      `S3ContentTypes`, `FakeS3ObjectStore.upload` + accessors
+- [x] **`AbstractMediaNode.nodeId()` seam** — additive, zero behaviour change; `recordNodeResult`
+      now writes `nodeId()`, so two sink instances no longer overwrite each other's ledger row
+- [x] Module `cortex/nodes/s3-sink` + `core`, registered in `cortex/nodes/pom.xml` and
+      `cortex/processor/pom.xml`
+- [x] Pure pieces, test-first — `OverwritePolicy`, `S3KeyTemplate`, `SinkArtifact`,
+      `UploadedArtifact`, `ArtifactSelector`, options + validation
+- [x] The node — upload → SHA-512 → `createAsset` → json comp + ledger; 89 unit tests
+- [x] CLI wiring — `NodeCollectionModule`, `PipelineConfigurableTest` case
+- [x] Descriptor + SPI registration (26 providers / 41 kinds)
+- [x] Integration test — `S3SinkNodeIntegrationTest`, 7 tests against real MinIO
+- [x] Docs & demo — `website/content/english/docs/nodes/s3-sink/`, two demo pipelines,
+      [NODES.md](NODES.md), the `start-minio.sh` recipe
+- [x] **Migration to the typed port model** — `artifacts` MANY input over `artifact/*`; the
+      `artifacts` option and `autoDiscover` deleted; outputs are `result`/`count`/`flag`
+- [x] **Loom-side phase 2** (2026-08-01, done elsewhere) — `poolUuid` through `AssetBinary`/REST, the
+      S3 branches of `AssetBinaryEndpointService`, and the location-cardinality answer (an asset has
+      0..n locations keyed `(library_uuid, path)`; the primary is the oldest).
+      See [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md)
 
-1. **Explicit `artifacts`** — ordered `List<String>` of `nodeId:outputKey`, the shape
-   `SentimentNodeOptions.textSources` uses, but **all** entries are uploaded rather than
-   first-match-wins. When non-empty this is authoritative and auto-discovery is off (merging the
-   two would make it impossible to *exclude* something).
-2. **Auto-discovery** (`autoDiscover`, default `true`, used when `artifacts` is empty) — every
-   upstream output whose key ends in `_path` and resolves to an existing regular file. This
-   covers `thumbnail_path`, `depthmap_path`, `imagegen_path`, `tts_path` and correctly excludes
-   `depthmap_meta` (JSON) and every `*_flag`.
-3. **`includeSource`** (default `false`) — also upload `ctx.media().file()`, the media item
-   itself. This is what makes `filesystem-source → s3-sink` an archiver. When the media is
-   *already* an `s3://` reference (an `s3-source` run) the sink **skips it** rather than
-   round-tripping bytes it fetched a moment ago; a server-side copy for cross-bucket archiving is
-   follow-up work (§16).
+### Open
 
-⚠️ `ScriptNode` image outputs do **not** end in `_path` — output keys are author-chosen — so a
-script's images need an explicit `artifacts` entry. Say so in the descriptor description.
-
-### 6.2 Multi-valued outputs
-
-`ScriptNode` emits `IMAGE` as a `String` and `IMAGE_LIST` as a `List<String>` — **but on a
-`LocalResultCache` hit it re-emits through `new JsonObject(cached)`, so the same output arrives as
-a `JsonArray`.** The selector must accept `String`, `List<?>` and `JsonArray`, preserving the
-element index. Anything else is debug-logged and ignored.
-
-### 6.3 Resolution rules
-
-1. Blank/null → not an artifact.
-2. Relative path → resolve against `cortexOptions.getMetaPath()`.
-3. **Output present but the file missing on disk → `MISSING` → fail the node** with a message
-   naming the producer. This is the affinity failure (§10) and it must never be quiet.
-4. Dedup on the normalised absolute path, first wins.
-5. `maxArtifacts` (default 64) exceeded → fail, do not truncate. A script emitting 5000 images is
-   a bug, and a truncating sink hides it.
-6. `maxArtifactBytes` (default 0 = unbounded) exceeded → that artifact fails with its size.
-
----
-
-## 7. Key template and content type
-
-### 7.1 Placeholders
-
-`{sha512}` (of the **artifact**, not the source — see §8.1), `{sha512:N}` (first N hex chars;
-`{sha512:4}` matches `HashUtils.segmentPath`), `{sourceSha512}` / `{sourceSha512:N}` (the source
-media), `{nodeId}`, `{sourceNode}`, `{sourceKey}`, `{ext}` (with the dot), `{filename}`,
-`{basename}`, `{assetUuid}`, `{index}`, `{indexSuffix}` (`""` when single-valued, `-<n>` when not).
-
-**Default:**
-
-```
-cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}
-```
-
-Content-addressed on the artifact's own hash, so the same bytes always land at the same key — which
-is what makes the idempotency skip (§11) meaningful and makes re-uploads free. Sharded at the same
-4-hex level as the local `*_bin` layout. `{indexSuffix}` is unnecessary in the default because the
-artifact hash already distinguishes list elements; it exists for templates that key on the source.
-
-### 7.2 Validation
-
-Reject at parse: unknown placeholder, `{sha512:0}`, `{sha512:129}`. Reject at render: a key that is
-empty, ends in `/` (`AwsS3ObjectStore.list` filters those out as directory placeholders, so the
-object would be invisible to `s3-source`), contains a `.`/`..` segment or a control character, or
-exceeds 1024 bytes UTF-8. Normalise: collapse `//`, strip a leading `/`.
-
-**An unresolvable placeholder fails the artifact — never substitute.** A key containing the literal
-string `null` is the worst outcome: every asset collides onto it.
-
-### 7.3 `S3ContentTypes`
-
-There is **no reusable MIME helper anywhere** in the workspace — `io.metaloom.utils.fs` has none,
-`loom-shared` has none, and the mapping exists twice as private switches (`DaoAssetSink.mimeTypeOf`,
-`SessionFsEndpointService`). So `cortex/s3-common` gets a small public one, and it is also what
-stamps `mimeType` on the created asset (§8).
-
-Two load-bearing points:
-
-- **`.thumb` → `image/jpeg`.** `ThumbnailNode` writes a JPEG under a `.thumb` name
-  (`PreviewGenerator.save` → `ImageUtils.saveJPG`). Left as `application/octet-stream` every
-  browser downloads the object instead of rendering it, and the asset's `mime_type` would be wrong.
-- **Do not use `Files.probeContentType`** — platform-dependent, commonly null in slim containers,
-  so the stored type would differ between a laptop and production.
+- [ ] 🔴 **The sink still has no `poolUuid` / `poolName` option.** It uploads to its own bucket using
+      worker credentials and records the location in `asset.initial_origin`. Loom now models "a pool
+      that lives in S3" (`asset_pool`, `library.pool_uuid`, `BinaryStorageResolver`), and nothing
+      connects the two. Wiring them raises the same question `s3-source` has: whose endpoint wins,
+      the pool row's or the worker's `S3ClientOptions.endpoint`?
+- [ ] 🔴 **Raw-byte ingest into Loom binary storage.** The general cross-node gap this sink works
+      around is specified in
+      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md),
+      which supersedes this file's former phases 2 and 3. Not this node's work.
+- [ ] **The derivation edge.** `attachment` (`V2.44`) has `node_kind`, `node_id`,
+      `producer_version`, `variant`, `run_uuid` and is the sanctioned home for node-produced derived
+      binaries, but its provenance columns are invisible to REST and `attachment_binary` is
+      `(sha512sum, size)` only — it says a binary exists, not where. Specified as Phase A of the plan
+      above.
+- [ ] **`ScriptNode` still does not override `nodeId()`.** It writes `node_id = ''` like the other 20+
+      nodes, so two script instances on one asset still collide in `asset_node_result`. Deferred
+      because it has persistence tests asserting the current shape; existing rows need a decision.
+- [ ] **Loom cannot serve these bytes.** The UI cannot render an S3-hosted thumbnail without
+      presigned URLs or a Loom proxy route.
+- [ ] **An asset per artifact multiplies asset count.** A 10k-video library with thumbnails and depth
+      maps triples it. Acceptable — they *are* distinct binaries — but list/search should learn to
+      filter derived assets, which is another argument for the `attachment` edge.
+- [ ] **`IF_DIFFERENT` compares key + size only.** The clean upgrade is writing the SHA-512 as object
+      metadata on PUT and comparing on HEAD; deferred because `S3ObjectRef` has no metadata field.
+- [ ] **Concurrency stays at 1.** The `UrlConnectionHttpClient` is a worker-wide singleton shared
+      with `s3-source` listing and materialization; raising sink concurrency competes with source
+      downloads. Revisit with numbers.
+- [ ] **No server-side copy** for cross-bucket archiving when the media is already `s3://`.
 
 ---
 
-## 8. Persistence — creating binaries in Loom
-
-### 8.1 Phase 1 — the artifact becomes a real asset (no Loom changes)
-
-Per uploaded artifact:
-
-```java
-// 1. Identity. asset.sha512sum is NOT NULL UNIQUE, so this must come first.
-SHA512 artifactHash = HashUtils.computeSHA512(artifact.file());
-
-// 2. The asset may already exist - the same thumbnail bytes for the same input are
-//    the same asset. Mirror AbstractNodeIntegrationTest.getOrCreateAsset.
-AssetResponse existing = tryLoad(artifactHash);
-if (existing == null) {
-    AssetCreateRequest request = new AssetCreateRequest();
-    request.setFile(new FileInfo()
-        .setFilename(artifact.file().getFileName().toString())
-        .setMimeType(S3ContentTypes.of(artifact.file()))
-        .setOrigin(uri)                       // "s3://bucket/key" - sanctioned by the
-                                              // asset.initial_origin column comment
-        .setSize(Files.size(artifact.file()))
-        .setFirstSeen(Instant.now()));
-    request.setHashes(new HashInfo().setSHA512(artifactHash));
-    request.setMeta(provenance);              // sourceAsset, sourceNode, sourceKey, bucket, key, etag
-    existing = client().createAsset(request).sync().body();
-}
-```
-
-This works today with **zero Loom changes** and delivers the user's requirement: the thumbnail is a
-first-class, queryable Loom asset whose `origin` records exactly where its bytes are.
-
-The **source** asset separately gets:
-- an `asset_json_comp` (`schemaType = "s3-artifact"`, `variant = nodeId`) listing every artifact
-  with `{uri, bucket, key, etag, size, artifactAssetUuid, sourceNode, sourceKey, state}` — this is
-  the queryable index of "what did this sink publish for this asset", and it is what a later phase
-  turns into real `attachment` rows;
-- the `asset_node_result` ledger row (`producerVersion = bucket`).
-
-⚠️ `JsonCompCreateRequest.setData` takes a `JsonObject` and the column is `jsonb NOT NULL` — the
-payload must be an object wrapping the array, not a bare array.
-
-### 8.2 Phase 2 — structured location (Loom change)
-
-Make the location a real record rather than a string in `origin`:
-
-- add `poolUuid` to `AssetBinary` / `AssetBinaryCreateRequest` / `AssetBinaryUpdateRequest`
-  (the `asset_location.pool_uuid` column already exists and **nothing writes it**);
-- implement the three `request.getS3()` branches of `AssetBinaryEndpointService` that currently
-  `log.error("S3 support has not yet been implemented")`, using the existing `AssetS3Meta`
-  (`{bucket, objectPath}`);
-- the sink gains an optional `poolName`/`poolUuid` option and posts a binary after creating the
-  asset.
-
-Blocking question for that phase: `AssetBinaryDao.loadByAssetUuid` returns a **single** row, and
-`V2.48` already relaxed the unique constraint to `(library_uuid, path)`. The cardinality question
-("can an asset have several locations?") must be answered before this is built.
-
-### 8.3 Phase 3 — the derivation edge (Loom change)
-
-Expose `attachment`'s provenance columns (`type`, `node_kind`, `node_id`, `producer_version`,
-`variant`, `run_uuid`) through `AttachmentModel`/`AttachmentResponse` and the client — they exist in
-the DB since `V2.44` and are invisible to REST. Then the sink also writes an `attachment` on the
-**source** asset (`type = CONTACT_SHEET` for thumbnails, `POSTER_FRAME`, `WAVEFORM`, `PROXY`,
-`EXTRACTED_AUDIO`), giving "this thumbnail came from that video" — which no other mechanism
-provides.
-
-### 8.4 The ledger `nodeId` collision — fix, don't document
-
-`AbstractMediaNode.recordNodeResult` hard-codes `ledger.setNodeId("")`, while `asset_node_result`
-is `UNIQUE (asset_uuid, node_kind, node_id)`. **Two `s3-sink` instances in one graph** — say a
-thumbnails bucket and an archive bucket — **would overwrite each other's ledger row.** `ScriptNode`
-has the same latent bug.
-
-Add a `protected String nodeId()` seam defaulting to `""`, and use it in `recordNodeResult`.
-Blast radius is nil: 24 node classes and 62 call sites keep the identical 6-arg signature and keep
-writing `node_id = ''`; the wire, DAO and DB sides are already fully plumbed
-(`NodeResultCreateRequest.nodeId` exists, the endpoint normalises null→`""`, `upsert` keys on it).
-Only `S3SinkNode` overrides it. **Do not migrate `ScriptNode` in this change** — it has persistence
-tests asserting the current shape; file it as the immediate follow-up.
-
----
-
-## 9. Options
-
-```java
-public static final String DEFAULT_KEY_TEMPLATE =
-    "cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}";
-
-private String bucket;
-private String keyTemplate = DEFAULT_KEY_TEMPLATE;
-private List<String> artifacts = new ArrayList<>();
-private boolean autoDiscover = true;
-private boolean includeSource = false;
-private boolean createAssets = true;          // phase 1 asset creation; off = upload only
-private OverwritePolicy overwrite = OverwritePolicy.IF_DIFFERENT;
-private boolean deleteAfterUpload = false;
-private int maxArtifacts = 64;
-private long maxArtifactBytes = 0;
-private boolean failOnPartial = true;
-```
-
-All of these are **per pipeline instance** (`configure(nodeDef)`). Connection settings —
-`endpoint`, `region`, `accessKey`, `secretKey`, `pathStyleAccess` — stay worker-level on
-`CortexOptions.getS3()` / `CORTEX_S3_*`, because a pipeline definition is stored in Postgres and
-rendered verbatim in the editor, and `ParameterType` has no `SECRET` value.
-
-⚠️ **`validate()` must not require `bucket`.** `RegistryNodeRegistrar.adapt` validates the
-*worker's* options for every node it builds, and the bucket belongs on the node definition — a
-`bucket`-required `validate()` would make every `s3-sink` in every pipeline fail to build with a
-misleading message. `validate()` checks shape; `configure(nodeDef)` requires the effective bucket
-and throws, which `adapt` reports as `Node 'x' configuration failed: …`. Same split `ScriptNode`
-uses for its script.
-
-### `deleteAfterUpload`
-
-🔴 **Default `false`, and the reason belongs in the javadoc, the descriptor and NODES.md:**
-`SceneLayoutNode` reads `depthmap_path` from the **same worker's** `depthmap_bin` cache. A sink
-that deleted by default would break that chain, and it would surface as `scene-layout` skipping
-with "depth map not found" — which looks like a depthmap bug and is not.
-
-When enabled: delete only artifacts confirmed present in S3; **never** `ctx.media().file()`; only
-files under `cortexOptions.getMetaPath()` (an `artifacts` entry or a script `PATH` output can name
-any string); failures are WARN-logged and never fail the node, because the bytes are already safe.
-
----
-
-## 10. 🔴 The same-worker constraint
-
-The sink reads files a producer wrote **on the same worker**. Dispatched elsewhere it sees nothing.
-
-And there is no mechanism to prevent that today: `NodeTaskRunner`'s javadoc says affinity groups
-"**will later** let Loom dispatch a whole subgraph"; the pipeline editor has an affinity channel
-nothing consumes; no migration has an affinity column. The working configurations are a
-single-worker deployment, or a `CORTEX_NODE_WHITELIST` (NODES.md §11) that co-locates producer and
-sink. This is the constraint `depthmap`→`scene-layout` already carries — but worse here, because a
-sink that silently uploads nothing looks like success.
-
-**Mitigation, built into the design:** distinguish "upstream output absent" (→ skip, legitimate —
-the producer did not run for this media type) from "output present but the file is not on this
-worker" (→ **fail**, with `"artifact <path> from <node>:<key> is not present on this worker;
-s3-sink must run on the same worker as its producer"`). This is the single highest-value defensive
-detail in the plan.
-
----
-
-## 11. Idempotency and failure
-
-**Idempotency:** `overwrite = IF_DIFFERENT` by default — `head(bucket, key)` before each PUT, skip
-when an object exists at that key with the same size. One small round trip versus a multi-megabyte
-PUT; on a re-run over an already-published corpus this turns N PUTs per asset into N HEADs. Because
-the default key is the artifact's own SHA-512, "same key, same size" is a strong statement that the
-identical bytes are already there. **Do not compare local MD5 to the ETag** — multipart ETags are
-`<md5-of-md5s>-<partcount>`, as `S3ObjectRef`'s javadoc records.
-
-**Failure:** use `ctx.failure(msg).abort()`, never `.next()`. NODES.md §10 records that
-`NodeContextImpl.next()` ignores a recorded failure cause and reports SUCCESS — eleven nodes are on
-the wrong side of that. For a sink, "green node, nothing in the bucket" is the worst possible
-outcome. Do not make it the twelfth.
-
-- Every artifact is attempted; one failure never abandons the rest.
-- The json comp is written with all artifacts tagged `UPLOADED` / `PRESENT` / `FAILED` / `MISSING`,
-  so a partial result is diagnosable from Loom rather than a log grep, and the retry is cheap.
-- Ledger `FAILED` with `reason = "uploaded 3 of 5 artifacts; first failure: …"`.
-- **Zero artifacts resolved → `ctx.skipped("no artifacts").next()`**, not a failure. A sink
-  downstream of a `depthmap` that skipped a video must not redden every video in the run.
-- **S3 inactive on this worker → fail, not skip.** Skipping would be silent data loss on a green
-  run. `RegistryNodeRegistrar` refuses to advertise `s3-source` when S3 is inactive, but that move
-  is unavailable for a processing node (the kind map is static), so the message must name the
-  operational fix: restrict `s3-sink` via `CORTEX_NODE_WHITELIST`.
-
-Runtime outputs: `s3_sink_flag` (`DONE`/`PARTIAL`/`FAILED`), `s3_sink_count` (Integer),
-`s3_sink_result` (String JSON).
-
----
-
-## 12. Descriptor, registration, testing
-
-**Descriptor:** new `S3SinkDescriptorProvider`, kind `s3-sink`, `NodeCategory.OUTPUT` (it exists;
-`LoomNodeDescriptorProvider` was the precedent — it has since been deleted with its node), icon `cloud_upload`, inputs `media : media/*` +
-`data : data/path`, `setOutputs(List.of())`, `setDefaultBlocking(false)`.
-
-**Registration:** `cortex/nodes/pom.xml`, `cortex/processor/pom.xml`,
-`NodeCollectionModule.java`, `integration-test/pom.xml`, the SPI services file, and **two
-hard-coded counts** in `NodeDescriptorServiceLoaderTest` (`21→22` providers, `35→36` kinds) plus
-the expected-kinds array.
-
-**Tests** — the four-file node convention (`S3SinkNodeTest`, `S3SinkNodePersistenceTest`,
-`S3SinkNodePipelineTest`, `S3SinkOptionsValidationTest`) plus `S3KeyTemplateTest`,
-`ArtifactSelectorTest`, `S3ContentTypesTest`. Unit tests run against `FakeS3ObjectStore`; MinIO
-stays confined to the integration test.
-
-`S3SinkNodeIntegrationTest` (real `MinioContainer` + in-process Loom, as `S3SourceNodeIntegrationTest`
-does) asserts: the object is in the bucket with the expected key and `Content-Type: image/jpeg` for
-a `.thumb`; **an asset was created for the artifact** and is loadable by its SHA-512 with
-`origin` = the `s3://` URI; the source asset's json comp and ledger rows are readable over REST; a
-second run uploads nothing (idempotency); two sink instances with different ids both persist without
-overwriting each other's comp **or ledger** row (the §8.4 fix, proven end to end); and
-`includeSource` uploads the media itself.
-
-Add `testTwoS3SinkNodesGetIndependentInstances` to `PipelineConfigurableTest` — the guard against
-someone marking the node `@Singleton`.
-
----
-
-## 13. Progress Assessment
-
-- [x] **Upload seam** — `S3ObjectStore.upload`, `AwsS3ObjectStore.upload`, `S3ContentTypes` +
-      test, `FakeS3ObjectStore.upload` + accessors
-- [x] **`AbstractMediaNode.nodeId()` seam** (§8.4) — additive, zero behaviour change
-- [x] **Module skeleton** — `cortex/nodes/s3-sink` + `core`, registered in `cortex/nodes/pom.xml`
-- [x] **Pure pieces, test-first** — `OverwritePolicy`, `S3KeyTemplate`, `SinkArtifact`,
-      `UploadedArtifact`, `ArtifactSelector`, `S3SinkNodeOptions` + validation
-- [x] **The node** — `S3SinkNode` (upload → SHA-512 → createAsset → comp + ledger),
-      `S3SinkNodeModule`, the four node tests
-- [x] **CLI wiring** — `NodeCollectionModule`, `cortex/processor/pom.xml`,
-      `PipelineConfigurableTest` case
-- [x] **Descriptor + registration** — provider, services file, both counts, expected-kinds array
-- [x] **Integration test** — `S3SinkNodeIntegrationTest` + `integration-test/pom.xml`
-- [x] **Docs & demo** — `website/content/english/docs/nodes/s3-sink/`, a demo pipeline in
-      `DemoDatabaseInitializer`, NODES.md (§2 payload table, §3 node table, §5 options, §5.1
-      "ScriptNode is no longer the only `PipelineConfigurable`", §10, §12 matrix), `start-minio.sh`
-      recipe
-- [x] **Phase 2 (Loom)** — done 2026-08-01: `poolUuid` through `AssetBinary`/REST, the S3 branches of
-      `AssetBinaryEndpointService`, and the location-cardinality answer (an asset has 0..n locations
-      keyed `(library_uuid, path)`; the primary is the oldest). See
-      [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md).
-      ⚠️ The sink does **not** yet take a `poolUuid` option — it still uploads to its own bucket and
-      records the location in `origin`. Wiring it to a pool is open
-- [ ] **Phase 3 (Loom)** — expose `attachment` provenance through REST; sink writes the
-      derivation edge. Now specified as Phase A of
-      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
-- [ ] **Follow-up** — migrate `ScriptNode` onto `nodeId()` and decide what to do with its existing
-      `node_id = ''` rows
-
----
-
-## 14. Verification
+## 10. Test Setup
 
 ```bash
-cd /home/defaultuser/workspaces/metaloom/metaloom
-
 mvn -pl cortex/s3-common test
 mvn -pl cortex/common test
-mvn -pl cortex/nodes/s3-sink/core test
+mvn -pl cortex/nodes/s3-sink/core test                                 # 89 tests
 mvn -pl cortex/cli test -Dtest=PipelineConfigurableTest
 mvn -pl loom-shared/node-model test -Dtest=NodeDescriptorServiceLoaderTest
 
@@ -532,94 +313,57 @@ mvn -pl loom-shared/node-model test -Dtest=NodeDescriptorServiceLoaderTest
 mvn -pl cortex/nodes/depthmap/core,cortex/nodes/script/core,cortex/nodes/sentiment/core,cortex/nodes/thumbnail/core test
 
 ./setup-pool.sh
-mvn -pl integration-test verify -Dtest=S3SinkNodeIntegrationTest
-mvn -pl integration-test verify -Dtest=S3SourceNodeIntegrationTest   # the seam change touches its store
+mvn -pl integration-test verify -Dtest=S3SinkNodeIntegrationTest        # 7 tests, real MinIO
+mvn -pl integration-test verify -Dtest=S3SourceNodeIntegrationTest      # the shared seam
 ```
 
-Manual smoke test:
+| Test | What it guards against |
+|---|---|
+| `S3KeyTemplateTest` | An unknown placeholder reaching render; a key with `..`, a trailing `/` or the literal `null`; a silent substitution |
+| `ArtifactSelectorTest` | A missing file being filtered instead of reported; duplicates uploaded twice; the media item slipping in without `includeSource` |
+| `S3SinkOptionsValidationTest` | `validate()` regaining a `bucket` requirement and breaking every pipeline build |
+| `S3SinkNodeTest` | A green node with an empty bucket; a partial run not surfacing; zero artifacts failing instead of skipping |
+| `S3SinkNodePersistenceTest` | The json comp, the ledger row and the per-artifact states not matching what was uploaded |
+| `S3SinkNodeIntegrationTest` | End to end: the object present with `Content-Type: image/jpeg` for a `.thumb`; an asset created for the artifact and loadable by its SHA-512 with `origin` = the `s3://` URI; a second run uploading nothing; **two sink instances both persisting without overwriting each other's comp or ledger row**; `includeSource` uploading the media itself |
+| `PipelineConfigurableTest` | Someone marking the node `@Singleton` |
+
+Manual smoke test: `./start-minio.sh`, export the `CORTEX_S3_*` variables, build
+`filesystem-source → sha512 → thumbnail → s3-sink` (`id=archive`, `bucket=media`), run it, then
 
 ```bash
-./start-minio.sh
-export CORTEX_S3_ENDPOINT=http://localhost:9000 CORTEX_S3_REGION=us-east-1 \
-       CORTEX_S3_ACCESS_KEY=minioadmin CORTEX_S3_SECRET_KEY=minioadmin CORTEX_S3_PATH_STYLE=true
-./start-postgres.sh && ./start-server.sh && ./start-cortex.sh
-```
-
-Build `filesystem-source → sha512 → thumbnail → s3-sink` (sink `id=archive`, `bucket=media`), run it, then:
-
-```bash
-mc ls --recursive metaloom-dev/media/cortex/
-mc stat metaloom-dev/media/cortex/thumbnail/thumbnail_path/<shard>/<sha512>.thumb
+mc stat metaloom-dev/media/cortex/thumbnail/<port>/<shard>/<sha512>.thumb
 #   -> Content-Type: image/jpeg   (octet-stream here means S3ContentTypes regressed)
 ```
 
-- Re-run and confirm `Last Modified` is unchanged — the `IF_DIFFERENT` skip.
-- `GET /api/v1/assets/<artifactSha512>` returns the **thumbnail's own asset**, `origin` = the `s3://` URI.
-- `GET /api/v1/assets/<sourceUuid>/json-comps | jq '.data[] | select(.schemaType=="s3-artifact")'`.
-- Add a second sink `id=archive2, bucket=media2` and confirm **two** `asset_node_result` rows for
-  `node_kind='s3-sink'` — the §8.4 fix, visible end to end.
+Re-run and confirm `Last Modified` is unchanged (the `IF_DIFFERENT` skip);
+`GET /api/v1/assets/<artifactSha512>` returns the thumbnail's **own** asset; and a second sink
+(`id=archive2, bucket=media2`) yields **two** `asset_node_result` rows for `node_kind='s3-sink'`.
 
 ---
 
-## 15. Conventions and Gotchas
+## 11. Where do I find …?
 
-| Gotcha | Detail |
+| Need | Path |
 |---|---|
-| An asset cannot exist before its bytes are hashed | `asset.sha512sum` is `NOT NULL UNIQUE` (`V2.46`). SHA-512 the artifact before `createAsset`, and handle "already exists" — the same bytes are the same asset |
-| `AssetUpdateRequest.s3` silently discards | Its setters target in-memory-only fields whose columns `V2.46` dropped. Never use it |
-| `asset_pool` is unreachable from code | The `asset_location.pool_uuid` column exists and nothing writes it. Phase 2 |
-| `attachment_binary` has no location | `(sha512sum, size)` only. It says a binary exists, not where |
-| `.thumb` is a JPEG | `PreviewGenerator.save` → `ImageUtils.saveJPG` in video4j. If that changes, `S3ContentTypes` silently lies — pin the assumption in a comment |
-| `ScriptNode` list outputs arrive as `JsonArray` on a cache hit | Not `List<String>`. Handle both |
-| A key ending in `/` is invisible to `s3-source` | `AwsS3ObjectStore.list` filters directory placeholders out |
-| `LocalResultCache` on a `PipelineConfigurable` node is task-scoped | The node is built per task, not per worker, so the cache dedupes within a batch, not across runs. The HEAD is what makes re-runs cheap |
-| `setup-pool.sh` before any IT | And again after any Flyway change |
+| The node | `cortex/nodes/s3-sink/core/src/main/java/io/metaloom/cortex/node/sink/s3/S3SinkNode.java` |
+| What gets uploaded | `…/sink/s3/ArtifactSelector.java` |
+| The key template rules | `…/sink/s3/S3KeyTemplate.java` |
+| Per-artifact outcome JSON | `…/sink/s3/UploadedArtifact.java` |
+| Options + validation | `…/sink/s3/S3SinkNodeOptions.java` |
+| The ledger `nodeId()` seam | `cortex/common/src/main/java/io/metaloom/cortex/common/node/AbstractMediaNode.java` |
+| Upload + MIME mapping | `cortex/s3-common/…/s3/AwsS3ObjectStore.java`, `…/s3/S3ContentTypes.java` |
+| The in-memory store used by unit tests | `cortex/s3-common/src/test/…/FakeS3ObjectStore.java` |
+| The descriptor | `loom-shared/node-model/…/spec/S3SinkDescriptorProvider.java` |
+| Kind binding | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java` |
+| Demo pipelines | `loom/core/…/boot/DemoDatabaseInitializer.java` |
+| Customer-facing docs | `website/content/english/docs/nodes/s3-sink/index.adoc` |
+| The `CORTEX_S3_*` flags | [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
+| The `artifact/*` type family and MANY ports | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
+| Loom's byte endpoints and pool model | [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) |
+| The real fix this node substitutes for | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| How to build the next node | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
 
 ---
 
-## 16. Risks and Open Questions
-
-| Risk | Assessment |
-|---|---|
-| 🔴 **Same-worker affinity, with no affinity mechanism** | §10. Mitigated by failing loudly on a missing artifact file, but the real fix is affinity groups, which do not exist |
-| **Loom cannot serve these bytes yet** | The UI cannot render an S3-hosted thumbnail without presigned URLs or a Loom proxy route. Phase 2/3 territory |
-| ~~**Asset-location cardinality is unanswered**~~ | **Answered 2026-08-01.** An asset has 0..n locations keyed `(library_uuid, path)`; `loadPrimaryByAssetUuid` returns the oldest and `/assets/:uuid/binaries` returns all. A thumbnail + depth map + wav are *not* locations of the asset — they are attachments or separate assets. See [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) §3 |
-| **`asset_pool.s3_*` duplicates the sink's `bucket`** | Loom already models "a pool that lives in S3" and nothing populates it. Should the sink take a `poolUuid` instead? Recommend not yet — it would couple a node to a table nothing writes, and the pool's endpoint would fight the worker-level `S3ClientOptions.endpoint` |
-| **Creating an asset per artifact multiplies asset count** | A 10k-video library with thumbnails + depth maps triples it. Acceptable — they *are* distinct binaries — but list/search UX should probably learn to filter derived assets, which is another argument for the phase 3 `attachment` edge |
-| **ETag is not a content hash** | The `IF_DIFFERENT` check is key + size. The clean upgrade is writing the SHA-512 as object metadata on PUT and comparing on HEAD; deferred because `S3ObjectRef` has no metadata field |
-| **`{sha512}` of the artifact requires reading the file twice** | Once to hash, once to upload. Unavoidable without streaming both at once; artifacts are small |
-| **Concurrency starts at 1** | The `UrlConnectionHttpClient` is a worker-wide singleton shared with `s3-source` listing and materialization; raising sink concurrency competes with source downloads. Revisit with numbers |
-
----
-
-## 17. What changed against this design
-
-1. **`validate()` deliberately does not require `bucket`.** Anticipated in §9 and confirmed in
-   practice: `RegistryNodeRegistrar.adapt` validates the *worker's* options for every node it
-   builds, so a `bucket`-required `validate()` breaks every `s3-sink` in every pipeline.
-   `configure(...)` enforces it instead.
-
-2. **`ctx.abort()` returns an empty output map**, so a FAILED sink cannot report its per-artifact
-   detail through node outputs — `NodeContextImpl.abort()` passes `Collections.emptyMap()`. The
-   detail still reaches Loom through the `asset_json_comp`, which is written before the node
-   returns, so nothing is lost; but `s3_sink_result` is only observable on a successful or
-   `failOnPartial=false` run. Worth knowing when debugging.
-
-3. **`upload(...)` returns `S3ObjectRef` rather than `void`.** The plan's `void` signature would
-   have cost an extra HEAD per artifact just to learn the etag; returning the stored object takes
-   it from `PutObjectResponse.eTag()` instead.
-
-4. **The node takes `@Nullable LoomClient`.** Offline mode provides a null client, and Dagger
-   refuses to inject a `@Nullable`-provided binding into a non-annotated parameter.
-
-5. **`S3ContentTypes` lives in `cortex/s3-common`, not the node.** It stamps both the object's
-   `Content-Type` and the created asset's `mimeType`, and `s3-source` will want it too.
-
-_Git HEAD revision: `5ac79b6d`_
-_Last updated: 2026-07-28 (phase 1 implemented — `s3-sink` uploads node-produced artifacts to an S3
-bucket and creates a Loom asset per artifact, with a content-addressed key template, an
-`IF_DIFFERENT` skip that makes re-runs nearly free, and a loud failure when an artifact is not on
-this worker. Also added the `AbstractMediaNode.nodeId()` seam so two sink instances stop
-overwriting each other's ledger row. §4 records what Loom does and does not support today, verified
-against the schema and REST layer; phases 2 and 3 remain open. §17 records what changed on contact
-with the code.)_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (reduced to a design record — shipped work collapsed into one table, the stale `setNodeId("")` claim corrected, and the removed `artifacts`/`autoDiscover` options replaced by the typed `artifacts` MANY port.)_

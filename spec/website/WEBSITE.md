@@ -1,343 +1,264 @@
 # MetaLoom Customer-Facing Website (Hugo)
 
-This document specifies the MetaLoom customer-facing website — a [Hugo](https://gohugo.io/)
-static site that renders the marketing landing page, blog and the **customer-facing product
-documentation** for Loom and Cortex. It is written for an AI coding agent that needs to add,
-edit or restructure site content or fix the build/publish flow.
+The MetaLoom marketing site and **customer-facing product documentation** at
+`https://metaloom.io` — a [Hugo](https://gohugo.io/) static site under `website/`. Written for an AI
+coding agent that has to add or restructure site content, or fix the build/publish flow.
 
-> Scope boundary: this spec covers the **website content and build** only. The product itself
-> (Loom server, Cortex engine, REST API, pipeline model) is specified in the sibling spec files
-> under `spec/`. The `.adoc` documentation pages describe those systems for end users but are
-> not the source of truth for their behavior — cross-check code and the product specs when the
-> two disagree.
+> **Scope boundary.** This file covers the **site: content inventory, build, checks, publish**.
+> It does **not** re-describe the product. Where a `.adoc` page describes Loom/Cortex behaviour, the
+> product specs and the code are authoritative — see [Related specs](#related-specs).
+> **When the code and a docs page disagree, the code wins — fix the page in the same change**
+> ([../guidelines/CODING.md](../guidelines/CODING.md) § Docs).
+
+## Related specs
+
+| Topic | Spec |
+|---|---|
+| Definition of done for a code change (incl. **the customer-docs rules**) | [../guidelines/CODING.md](../guidelines/CODING.md) |
+| Definition of done for a spec change | [../SPEC_RULES.md](../SPEC_RULES.md) |
+| Spec-tree entry point / routing | [../CONTEXT.md](../CONTEXT.md) |
+| The `/pipeline-editor/` page (backend-free editor + simulator) | [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
+| Typed ports, content types, cardinality (vocabulary the docs must match) | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Node catalogue / adding a node | [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md), [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
+| REST API (source of the staged OpenAPI document) | [../loom/RESTAPI.md](../loom/RESTAPI.md) |
+| The product pipeline editor in `loom-ui` | [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) |
+| MetaLoom Studio commercial claims | [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) |
 
 ## TL;DR
 
-* Source project: `metaloom/website/` — Hugo site, theme `meghna-hugo` (vendored/customized).
-* Customer-facing docs live in `website/content/english/docs/**` as **AsciiDoc** (`.adoc`).
-* Content language is AsciiDoc (needs `asciidoctor` on `PATH`); the landing page is data-driven
-  from `website/data/en/*.yml` + theme partials.
-* The **home page** is short by design and routes readers two ways — see
-  [The home page](#the-home-page). Six top-level areas besides the docs: **`/tour/`** (the
-  design-led product tour), **`/studio/`** (the commercial edition — a second, warm-accented
-  scroller), **`/features/`** (the full list), **`/pipeline-editor/`** (a self-contained,
-  backend-free pipeline editor + simulator — see [The Pipeline Editor page](#the-pipeline-editor-page)),
-  **`/announcements/`** (releases) and `/blog/`.
-  ⚠️ `/tour/` **used to be `/studios/`**; it was renamed so it could not be confused with
-  `/studio/`, and a Hugo alias redirects the old URL.
-* Build with `website/build.sh` → output goes to `website/dist/` (`publishDir = "dist"`). The
-  build fails on localhost links **and on broken internal links** (see
-  [The build-output checks](#the-build-output-checks)).
-* Publish: the separate **`metaloom-website`** repo (a sibling checkout, *not* part of this
-  repo) runs `pull.sh` to copy `website/dist` → its `docs/` folder and serves it via **GitHub
-  Pages** at `metaloom.io` (see [Publishing](#publishing-flow)).
+* Source: `website/` — Hugo, theme `meghna-hugo` (vendored + heavily customised), `publishDir = "dist"`,
+  `baseURL = https://metaloom.io`. Single language `en`, `contentDir = content/english`.
+* Docs and blog are **AsciiDoc** (`.adoc`) — `asciidoctor` must be on `PATH` and allow-listed in
+  `[security.exec]`. The marketing pages are **data-driven** from `data/en/*.yml`.
+* Build with `./build.sh` → `dist/`, then two gates: a **localhost-link check** and
+  `check-links.mjs` (broken internal links + missing `#anchors`). Both fail the build.
+* **Hugo extended ≥ 0.158 is required.** The system `hugo` on this machine is **0.131 and cannot
+  build the site** — fetch a newer extended binary into the scratchpad (see
+  [Prerequisites](#prerequisites)).
+* Publish is manual: the **sibling `metaloom-website` repo** runs `pull.sh` to copy `website/dist`
+  → its `docs/`, served by GitHub Pages at `metaloom.io`.
+* Seven top-level areas besides `/docs/`: `/tour/`, `/features/`, `/studio/`,
+  `/pipeline-editor/`, `/announcements/`, `/blog/`, `/author/`.
+  ⚠️ `/tour/` **used to be `/studios/`** — renamed so it could not be confused with `/studio/`; a
+  Hugo alias keeps the old URL alive.
+* Three **generated artefacts are staged into `static/` by hand** and go stale silently: the OpenAPI
+  document, the GraphQL SDL and the node-descriptor snapshot. See
+  [Staged generated artefacts](#staged-generated-artefacts).
 
-## Architecture / Component Relationships
+## Architecture
 
-```
-                 authors edit .adoc / .yml
-                          │
-                          ▼
-   ┌───────────────────────────────────────────────┐
-   │  metaloom/website/  (Hugo source, this repo)   │
-   │                                                │
-   │  content/english/docs/**   ← customer docs     │
-   │  content/english/blog/**   ← blog posts        │
-   │  data/en/*.yml             ← landing-page data │
-   │  themes/meghna-hugo/       ← layouts + CSS     │
-   │  config.toml               ← site config       │
-   └───────────────────────────────────────────────┘
-            │ build.sh: yarn build (LESS→CSS) + hugo
-            ▼
-   ┌───────────────────────────────────────────────┐
-   │  website/dist/   (generated, git-ignored)      │
-   └───────────────────────────────────────────────┘
-            │ metaloom-website/pull.sh copies dist → docs/
-            ▼
-   ┌───────────────────────────────────────────────┐
-   │  metaloom-website/  (separate repo, staging)   │
-   │  docs/  + CNAME(metaloom.io) → GitHub Pages     │
-   └───────────────────────────────────────────────┘
-            │ git push
-            ▼
-        https://metaloom.io
+```mermaid
+flowchart TB
+  subgraph gen["Generated in-repo (loom/doc → manual cp)"]
+    OAPI["openapi.json / .yaml"]
+    SDL["loom.graphqls"]
+    ND["node-descriptors.json"]
+  end
+
+  subgraph src["website/ — Hugo source (this repo)"]
+    C["content/english/**<br/>docs (.adoc) · blog · announcements"]
+    D["data/en/*.yml<br/>home · tour · studio · feature"]
+    T["themes/meghna-hugo/<br/>layouts · less → main.css · assets · static/plugins"]
+    S["static/<br/>images · CNAME · docs/examples · pipeline-editor"]
+    CFG["config.toml"]
+  end
+
+  gen -. "manual cp" .-> S
+  C --> HUGO; D --> HUGO; T --> HUGO; S --> HUGO; CFG --> HUGO
+  HUGO["build.sh: yarn build (LESS→CSS) + hugo"] --> DIST["dist/ (git-ignored)"]
+  DIST --> CHK["localhost-link check<br/>check-links.mjs"]
+  CHK --> PULL["metaloom-website/pull.sh<br/>rm -rf docs; cp -ra ../metaloom/website/dist docs"]
+  PULL --> GH["GitHub Pages + CNAME → https://metaloom.io"]
 ```
 
-Two distinct projects, do not confuse them:
+**Two different things are called `metaloom-website`** — do not confuse them:
 
-| Project | Path | Role |
-| --- | --- | --- |
-| `metaloom-website` (Hugo source) | `metaloom/website/` (this repo, Maven artifactId `metaloom-website`) | Editable source: content, theme, config. Build produces `dist/`. |
-| `metaloom-website` (staging/publish) | `/home/defaultuser/workspaces/metaloom/metaloom-website/` (sibling repo) | Holds the *built* site under `docs/` and publishes via GitHub Pages. Only `pull.sh` + generated `docs/`. Do not hand-edit `docs/`; it is overwritten on every pull. |
+| | Path | Role |
+|---|---|---|
+| Hugo source | `metaloom/website/` (Maven artifactId `metaloom-website`, `packaging=pom`) | Editable source. `build.sh` produces `dist/`. The pom carries **no build logic** — it only registers the module in the reactor. |
+| Publish repo | `../metaloom-website/` (sibling checkout, **not** part of this repo) | Holds the *built* site under `docs/` + `CNAME`. Never hand-edit `docs/` — `pull.sh` wipes it. |
 
 ## Building
 
-The Hugo source is `website/`. All commands below assume you `cd website` first.
+All commands assume `cd website` first.
 
 ### Prerequisites
 
-* **Hugo** (extended, **≥ 0.158**) — the config uses the post-0.158 multilingual keys
-  (`[languages.en] locale`/`label`, not the old `languageCode`/`languageName`) and templates use
-  `hugo.Data` / `site.Language.Locale`. Older Hugo (≤0.131) will error on these.
-* **Node + npm** — used by the theme to compile CSS (`themes/meghna-hugo` has its own
-  `package.json`). `build.sh` prefers `yarn` if present and falls back to `npm` otherwise.
-* **asciidoctor** — required because docs/blog are AsciiDoc. `config.toml` explicitly allows the
-  `asciidoctor` external binary under `[security.exec] allow`. Without it, `.adoc` pages render
-  empty or Hugo errors.
+* **Hugo extended, ≥ 0.158.** `config.toml` uses post-0.158 multilingual keys
+  (`[Languages.en] locale`/`label`) and templates use `hugo.Data` / `site.Language.Locale`.
+  **The system binary is 0.131 and will error out** — download an extended ≥ 0.158 release into the
+  scratchpad and call it explicitly.
+* **Node + npm/yarn** — the theme has its own `package.json`; `build.sh` prefers `yarn`, falls back
+  to `npm`. `yarn install` rewrites `themes/meghna-hugo/yarn.lock`; **restore it** rather than
+  committing the churn.
+* **`asciidoctor` on `PATH`** — without it `.adoc` pages render empty.
 
 ### Commands
 
 | Command | What it does |
-| --- | --- |
-| `./build.sh` | Full build: `cd themes/meghna-hugo && (yarn\|npm) install && … build` (compiles theme CSS), then `hugo` at the project root → writes `dist/`, then the two **build-output checks** (below). |
-| `./watch.sh` | Runs `build.sh` then `hugo server -b http://localhost:1313/` for live local preview. |
-| `hugo` | Site build only (assumes theme CSS already built). Output → `dist/`. |
-| `node check-links.mjs [dist]` | The broken-link check on its own — useful while editing links without a full rebuild. |
+|---|---|
+| `./build.sh` | theme CSS (`yarn install && yarn build` → `assets/css/main.css`) → `hugo` → `dist/` → the two checks. `set -o errexit -o nounset`, so a missing tool fails the whole script. |
+| `./watch.sh` | `./build.sh` then `hugo server -b http://localhost:1313/`. |
+| `hugo` | Site build only (theme CSS assumed current). |
+| `node check-links.mjs [dist]` | The broken-link check standalone — fast iteration while editing links. |
 
-### The build-output checks
+### The two build-output gates
 
-`build.sh` ends with two checks over `dist/`. Both exit 1 and print every offending page, and both
-are cheap enough to run on every build.
+**1. Localhost links.** `build.sh` greps `dist/**/*.{html,xml}` for
+`(href|src|srcset|action|data-src|data-openapi-url|data-graphql-url|data-schema-url)="…(localhost|127.0.0.1|0.0.0.0|[::1])…"`
+and exits 1 listing every offender. A published URL pointing at the reader's own machine fails CORS
+and triggers the browser's Local Network Access prompt.
 
-#### The localhost-link check
+Mentioning a local address **in prose is fine** — but Asciidoctor auto-links a bare URL *even inside
+backticks*. Suppress it with a leading backslash: `` `\http://localhost:8092/ui/` ``. In a `++++`
+block write `<code>…</code>`, not `<a href>`.
 
-`build.sh` fails (exit 1) when the generated `dist/` contains a **link or resource attribute**
-pointing at the build machine — `href`, `src`, `srcset`, `action`, `data-src` or the plugin
-`data-*-url` attributes with a `localhost` / `127.0.0.1` / `0.0.0.0` / `[::1]` host. Such a URL makes
-the published site send the reader's browser to their *own* machine (and triggers the browser's
-Local Network Access prompt).
+**2. `check-links.mjs`** (plain Node, no deps) walks every page in `dist/`, collects
+`href|src|srcset|action|poster|data-src|data-*-url`, and resolves each **internal** target against
+the build output (pretty URLs: `/docs/`, `/docs`, `/docs.html` all resolve). `#fragment` targets are
+checked against the target document's `id=`/`name=` attributes, so a renamed heading is caught.
+`metaloom.io`/`www.metaloom.io` count as internal; every other host is skipped — **it never fetches
+the network**. Two failure shapes it catches regularly:
 
-Mentioning a local address **in documentation text is fine** — the demo container is documented as
-`localhost:8092` all over the docs. Only the attributes are rejected. The catch is that Asciidoctor
-**auto-links a bare URL even inside backticks**, so `` `http://localhost:8092` `` still renders as an
-`<a href>`. Suppress it with a leading backslash:
+1. A relative `link:` missing its `../` — `link:rest-api[…]` on `/docs/loom/graphql-api/` resolves to
+   `/docs/loom/graphql-api/rest-api`.
+2. A child page Hugo never built, because the parent used `index.adoc` (leaf bundle) instead of
+   `_index.adoc` (branch bundle). See [Conventions and Gotchas](#conventions-and-gotchas).
 
-```asciidoc
-The UI is at `\http://localhost:8092/ui/` — log in as `admin`.
-```
-
-The backslash is consumed by Asciidoctor; the rendered page shows `http://localhost:8092/ui/` as
-plain monospace text. In a raw-HTML `++++` block, just write `<code>…</code>` instead of `<a href>`.
-
-#### The broken-link check (`check-links.mjs`)
-
-`website/check-links.mjs` (plain Node, no dependencies) walks every `*.html` in `dist/`, collects
-the `href`/`src`/`srcset`/`action`/`poster`/`data-*-url` attributes a browser would follow and
-verifies that each **internal** target is served by the build:
-
-* Pretty URLs resolve the way the published site serves them — `/docs/`, `/docs` and `/docs.html`
-  all map to a file if one exists.
-* `#fragment` targets are checked against the `id=`/`name=` attributes of the target document, so a
-  renamed heading is caught (that is what `#loom-ui` and `#loom-app` were).
-* Absolute URLs to `metaloom.io` / `www.metaloom.io` are treated as internal; every other host is
-  skipped — this is an offline consistency check, it never fetches the network.
-* `mailto:`/`tel:`/`javascript:`/`data:` and bare `#` are ignored.
-
-Run it directly with `node check-links.mjs` after editing links. Two failure shapes it catches
-regularly:
-
-1. **A relative `link:` without `../`.** `link:rest-api[REST API]` on `/docs/loom/graphql-api/`
-   resolves to `/docs/loom/graphql-api/rest-api`, not `/docs/loom/rest-api/`.
-2. **A child page that Hugo never built.** A directory holding `index.adoc` is a *leaf* bundle, so
-   any subdirectory in it is a resource, not a page — `docs/deployment/helm/` produced no output
-   until `docs/deployment/index.adoc` was renamed to `_index.adoc`. See the gotcha below.
-
-`build.sh` uses `set -o errexit -o nounset` — a missing `asciidoctor`/`hugo`/`node` (or both `yarn`
-**and** `npm`) fails the whole script. `dist/` and `docs/` are git-ignored in this repo (see
-`website/.gitignore`), so a build never dirties the working tree with output.
-
-### Maven integration
-
-`website/pom.xml` is a `packaging=pom` module of the `metaloom-parent` reactor (artifactId
-`metaloom-website`). It does **not** invoke Hugo — it exists so the website participates in the
-Maven module graph/versioning. The real build is `build.sh`.
-
-## Folder Structure
+## Folder structure
 
 ```
 website/
-├── config.toml            # Hugo site config: baseURL, theme, menu, plugins, params
-├── build.sh               # theme CSS build + hugo + the two dist/ checks
-├── check-links.mjs        # broken-internal-link checker (run by build.sh, also standalone)
-├── watch.sh               # build + hugo server (local preview)
-├── pom.xml                # Maven pom module (no build logic)
-├── .gitignore             # ignores dist/, docs/, resources/, node_modules, target ...
-├── content/
-│   └── english/           # contentDir for the "en" language (config.toml)
-│       ├── _index.md      # home-page front matter (title, description, page_css)
-│       ├── docs/          # ★ CUSTOMER-FACING DOCUMENTATION (AsciiDoc)
-│       ├── features/      # /features/ — full feature list, rendered from data/en/feature.yml
-│       ├── tour/         # ★ /tour/ — design-led product tour (_index.md only; alias /studios/)
-│       ├── studio/       # ★ /studio/ — MetaLoom Studio, the commercial edition (_index.md only)
-│       ├── pipeline-editor/ # ★ /pipeline-editor/ — in-browser pipeline editor + simulator (_index.md only)
-│       ├── announcements/ # release announcements (_index.adoc + one bundle per release)
-│       ├── blog/          # blog posts (one folder per post, index.adoc)
-│       └── author/        # blog author pages
-├── content-off/           # DISABLED content (not built; parked pages). e.g. an old POC post
-├── data/en/*.yml          # page copy: home.yml (/), tour.yml (/tour/), studio.yml (/studio/),
-│                          #   feature.yml (/features/). The other files are legacy Meghna
-│                          #   sections, unused.
-├── i18n/en.yaml           # UI string translations (menu labels, "Read more", etc.)
-├── static/                # copied verbatim to dist/: images/, CNAME, .nojekyll, robots
-│   ├── images/og-*.jpg    # 1200x630 social cards (see Social cards & page metadata)
-│   └── docs/examples/openapi.{json,yaml}  # staged OpenAPI doc: downloadable + rendered by Swagger UI
-├── resources/_gen/        # Hugo asset cache (git-ignored)
-├── themes/meghna-hugo/    # vendored + customized theme (layouts, LESS, JS plugins)
-│   └── assets/            # Hugo-processed assets: css/{main,home,tour,studio,pipeline-editor}.css,
-│                          #   js/{script,reveal,pipeline-editor}.js, images/scenery/*.jpg
-└── dist/                  # BUILD OUTPUT (git-ignored) → what gets published
+├── config.toml            # baseURL, theme, menu, plugins, params, security
+├── build.sh · watch.sh    # build (+2 gates) · build + preview server
+├── check-links.mjs        # internal-link + anchor checker
+├── pom.xml                # Maven module registration only
+├── content/english/       # contentDir — see the page inventory below
+├── content-off/           # parked, NOT built: java-ffm-graph-storage-poc/
+├── data/en/*.yml          # LIVE: home · tour · studio · feature. The other 11 are dead Meghna copy
+├── i18n/en.yaml           # UI strings (menu labels, footer headings, "Read more")
+├── static/                # verbatim → dist/: images/ · CNAME · .nojekyll
+│   ├── docs/examples/     #   openapi.{json,yaml} · schema.graphql   (staged, generated)
+│   ├── pipeline-editor/   #   node-descriptors.json                  (staged, generated)
+│   └── images/og-*.jpg    #   1200×630 social cards
+├── themes/meghna-hugo/    # the only theme
+│   ├── layouts/           #   index · alias · 404 · _default · docs · announcements · author
+│   │                      #   · features · tour · studio · pipeline-editor · partials
+│   ├── less/              #   main.less + includes/{custom,adoc,docs,toc,variables}.less → assets/css/main.css
+│   ├── assets/css/        #   main.css (compiled) · home.css · tour.css · studio.css · pipeline-editor.css
+│   ├── assets/js/         #   script.js · reveal.js · pipeline-editor.js
+│   ├── assets/images/scenery/  # 4 photos, Hugo-processed to webp; shared by /tour/ and /studio/
+│   └── static/plugins/    #   14 vendored plugins incl. swagger · graphiql · nodeviz · toc
+└── dist/                  # BUILD OUTPUT (git-ignored)
 ```
 
-### Documentation tree (`content/english/docs/`)
+There is **no project-root `layouts/` or `archetypes/`** — every template lives in the theme.
 
-The docs are the primary customer-facing deliverable. Structure mirrors the two product
-subsystems plus shared conceptual pages:
+## Page inventory
 
+Every content page is a **page bundle**: a directory with `index.adoc`/`index.md` (leaf) or
+`_index.adoc`/`_index.md` (section/branch). Co-located images live in the same folder.
+
+### Top-level areas
+
+| URL | Content | Copy lives in | Layout |
+|---|---|---|---|
+| `/` | `_index.md` (front matter only) | `data/en/home.yml` | `layouts/index.html` + `partials/home/*` |
+| `/tour/` | `_index.md` (front matter only, `aliases: [/studios/]`) | `data/en/tour.yml` | `layouts/tour/list.html` + `partials/tour/art-*.html` (8) |
+| `/features/` | `_index.md` | `data/en/feature.yml` | `layouts/features/list.html` |
+| `/studio/` | `_index.md` (front matter only) | `data/en/studio.yml` | `layouts/studio/list.html` + `partials/studio/art-*.html` (7) |
+| `/pipeline-editor/` | `_index.md` (front matter only) | — (all in JS) | `layouts/pipeline-editor/list.html` — see [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
+| `/announcements/` | `_index.adoc` + `metaloom-1-0-0/index.adoc` | in the pages | `layouts/announcements/{list,single}.html` |
+| `/blog/` | `_index.md` + 6 post bundles | in the posts | `layouts/_default/{list,article,single}.html` |
+| `/author/jotschi/` | `author/jotschi.md` | in the page | `layouts/author/single.html` |
+| `/docs/**` | `.adoc` (below) | in the pages | `layouts/docs/{list,single}.html` |
+
+Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup`,
+`day3-vertx-dagger-poc`, `day4-vertx-jooq-poc`, `video-fingerprinting`.
+
+### `content/english/docs/` — the customer documentation
+
+`_index.adoc` is the landing page (card grid, "Start Here", concepts, "Choose Your Path" table).
+`variables.adoc-include` carries the shared attributes (`:icons: font`, `:toc:`,
+`:source-highlighter:`); the `.adoc-include` extension keeps Hugo from rendering it as a page.
+
+| Section | Pages |
+|---|---|
+| **top level** | `getting-started/` (weight 1) · `operation/` · `pipeline/` · `ui/` (15 screenshots) · `cli/` · `deployment/` (`_index` + `helm/`) |
+| **`playbooks/`** (weight 3) | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
+| **`nodes/`** | `_index` + **28 node pages**: `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filters · fingerprint · hash · imagegen · llm · ocr · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · thumbnail · tika · tts · videogen · vlm · watermark · whisper` |
+| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
+| **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
+| **`legal/`** (weight 9) | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
+| **legacy stubs** | `rest/` · `test/` · `configuration/` — unlinked placeholders, candidates for deletion |
+
+Grouped node pages cover several kinds each: `hash/` covers `md5`/`sha256`/`sha512`/`chunk-hash`,
+`filters/` covers the eight `filter-*` kinds, `dedup/` covers `hash-dedup`/`fingerprint-dedup`/
+`fingerprint-dedup-apply`. Pages that structure moved: the coding sandbox is a section of
+`loom/chat/` (not its own page); the per-node reference moved from `cortex/nodes/` to top-level
+`nodes/`; `docs/cortex/features/` was folded into `nodes/_index.adoc` + `operation/`;
+`docs/interaction/` was renamed `docs/operation/`.
+
+> **Two things must never come back into the docs:** an "online vs offline mode" for Cortex
+> (`isOfflineMode()` only means "no Loom client configured") and **webhooks** (not a product
+> feature). Neither belongs in `data/en/feature.yml` either.
+
+### The customer-docs rules ([../guidelines/CODING.md](../guidelines/CODING.md) § Docs)
+
+New **customer-facing** features must be documented under `website/content/english/docs/`:
+
+* **Don't mention spec files.**
+* **No internal coding references** — class names, packages, module paths.
+* **Keep the tone customer-facing.**
+* **No ASCII-art diagrams** — inline SVG, or an `ml-nodeviz` block on a node page.
+
+## Staged generated artefacts
+
+Three files under `static/` are **generated, never hand-written**, and copied in by hand. Nothing
+automates the copy and no check catches staleness — regenerate **in the same change** as the source
+edit.
+
+| Staged file | Generated by | Consumed by |
+|---|---|---|
+| `static/docs/examples/openapi.{json,yaml}` | `io.metaloom.loom.doc.impl.OpenAPIGenerator` (driven by `ExampleGenerator`), over `io.metaloom.loom.rest.openapi.LoomOpenAPI` | `docs/loom/rest-api/` — download cards + the embedded **Swagger UI** |
+| `static/docs/examples/schema.graphql` | plain copy of `loom/services/graphql/src/main/resources/loom.graphqls` | `docs/loom/graphql-api/` — the embedded **GraphiQL** explorer |
+| `static/pipeline-editor/node-descriptors.json` | `io.metaloom.loom.doc.impl.NodeDescriptorGenerator` (same driver) | `/pipeline-editor/` — see [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
+
+```bash
+mvn -q -pl loom/doc -am -DskipTests -Dmaven.javadoc.skip=true install
+cd loom/doc && mvn -q exec:java -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator
+# working dir MUST be loom/doc/ — the generators write to the relative src/main/generated/
+cp src/main/generated/openapi.json           ../../website/static/docs/examples/
+cp src/main/generated/openapi.yaml           ../../website/static/docs/examples/
+cp src/main/generated/node-descriptors.json  ../../website/static/pipeline-editor/
+cp ../services/graphql/src/main/resources/loom.graphqls \
+   ../../website/static/docs/examples/schema.graphql
 ```
-docs/
-├── _index.adoc            # Docs landing page: card grid, "Start Here", concepts, path table
-├── variables.adoc-include # shared AsciiDoc attributes (:icons: font, :toc:, highlighter)
-├── getting-started/       # run the demo container locally (weight: 1 → sorts first)
-├── deployment/            # Container Images (loom-server/-demo, cortex-server, session-runner) + ports
-├── playbooks/             # ── Task-oriented end-to-end guides (weight: 3) ──
-│   ├── _index.adoc        # card grid + § "Which node kinds a worker can actually run"
-│   ├── docker/            # single-host stack: postgres + loom-server + cortex, volumes, compose
-│   ├── kubernetes/        # in-cluster stack, SA + sandbox RBAC/quota/NetworkPolicy, Helm packaging
-│   ├── transcription/     # whisper pipeline → transcripts the chat agent can search
-│   ├── scene-analysis/    # scene-detection + whisper/thumbnail; audio vs visual routes
-│   ├── translation/       # extract (whisper/tika/ocr/vlm) → translate → optional tts dubbing
-│   └── python-node/       # custom node as a Python worker (wire protocol + node descriptor)
-│                          #   incl. § "Generating a Node With a Coding Agent" (paste-ready prompt)
-├── operation/             # Loom & Cortex runtime model — architecture, worker lifecycle (Loom owns the DAG)
-├── pipeline/              # pipeline mechanism — Loom runs the graph, delegates tasks to Cortex
-├── nodes/                 # ── Nodes subsystem (top-level "box" like Loom/Cortex) ──
-│   ├── _index.adoc        # node catalogue + requirements-at-a-glance
-│   └── <kind>/            # one page per node: hash, fingerprint, consistency, thumbnail, facedetect,
-│                          #   facedescription, ocr, tika, whisper, llm, quality, scene-detection,
-│                          #   captioning, dedup, filesystem-source, loom, filters
-│                          #   (each: description, applies-to, inputs, output keys, requirements, config, use cases)
-├── loom/                  # ── Loom subsystem ──
-│   ├── _index.adoc        # component overview + links
-│   ├── rest-api/          # REST API reference (embeds Swagger UI)
-│   ├── java-client/       # typed Java HTTP client usage
-│   ├── authentication/    # JWT / OAuth2 auth model
-│   ├── configuration/     # YAML config + env vars (incl. LOOM_AI_*, LOOM_AGENT_SANDBOX_*, LOOM_AGENT_MEMORY_*)
-│   ├── metrics/           # Prometheus scrape endpoint (:8989) + the loom_* meter catalog
-│   ├── features/          # assets, users, groups, roles, tags, pipelines
-│   ├── chat/              # Chat & AI Agent — agentic loop, Sessions, Skills (w/ examples), Memory, coding sandbox (+ deployment)
-│   ├── artifacts/ · maven-artifacts/ · containers/ · helm-chart/  # deploy/coordinates
-│   │                          #   rest-api/ = spec download (yaml/json) + Swagger UI explorer + tables
-│   └── examples/          # snippets from the /examples module
-├── legal/                 # ── Legal & Licensing (weight: 9 → sorts last) ──
-│   ├── _index.adoc        # hub: platform license (Apache-2.0), commercial-use warning, card grid
-│   ├── model-licenses/    # per-node model/runtime license inventory; non-commercial call-outs
-│   └── ai-disclosure/     # how the source was produced (2023–2025 hand-written, 2026+ AI-assisted)
-├── cortex/                # ── Cortex subsystem (now a daemon that serves nodes) ──
-│   ├── _index.adoc        # engine overview
-│   ├── configuration/ · monitoring/ · metrics/ · artifacts/   # node pages live under top-level nodes/ now;
-│   │                                                          #   metrics/ = cortex_* catalog on :8093
-│   ├── maven-artifacts/ · containers/ · examples/   # examples cover Java node, Java daemon, Python worker
-└── (legacy stubs)         # rest/, test/, configuration/ — old placeholder pages, see Gotchas
-```
 
-> The **coding sandbox** deployment (podman/k8s backends, RBAC, `LOOM_AGENT_SANDBOX_*`) now lives
-> inside `loom/chat/` (§ Coding Sandbox), not a separate `loom/agent-sandbox/` page. The per-node
-> reference moved from `cortex/nodes/` to the top-level `nodes/` section. The landing feature list is
-> data-driven from `data/en/feature.yml` (includes the Chat & AI Agent and Cortex Processing Nodes
-> items).
->
-> `docs/cortex/features/` was removed — its capability copy is merged into `docs/nodes/_index.adoc`
-> (§ Processing Capabilities / § Authoring Your Own Node) and its deployment copy into
-> `docs/operation/` (§ Deployment Patterns). `docs/interaction/` was renamed to `docs/operation/`.
-> **Cortex has no offline mode** — do not reintroduce "online vs offline" copy; `isOfflineMode()` in
-> the code only means "no Loom client configured". Webhooks are likewise not a product feature and
-> must not be listed in the docs or `data/en/feature.yml`.
+* `-Dmaven.javadoc.skip=true` is currently required — `loom/pipeline` has a pre-existing javadoc
+  error that fails `javadoc:jar`. Unrelated to the website.
+* Guards: `LoomOpenAPITest` (`loom/services/rest`) pins the OpenAPI polish step;
+  `NodeDescriptorGeneratorTest` (`loom/doc`) pins snapshot kind coverage and the port-model fields.
+* A running server serves the live equivalents at `/api/v1/openapi[.yaml|.json]`, `/graphiql` and
+  `GET /api/v1/pipeline/node-descriptors`.
 
-Every content page is a **page bundle**: a directory containing `index.adoc` (a leaf page) or
-`_index.adoc` (a section/branch page). Co-located assets (images) go in the same folder.
+### Swagger UI / GraphiQL wiring
 
-### The OpenAPI spec: download + API explorer
+Both plugins (`themes/meghna-hugo/static/plugins/{swagger,graphiql}/`) are loaded on **every** page
+via `[[params.plugins.js]]`, so each **must bail out when its mount div is absent** — otherwise it
+renders into `null` and throws site-wide. Mount points are raw-HTML blocks (`#swagger-ui`,
+`#graphiql`) in the two pages; per-page `data-openapi-url` / `data-graphql-url` / `data-schema-url`
+attributes override the defaults, which must stay **site-relative**. Swagger options:
+`docExpansion:'none'`, `filter:true`, `deepLinking:true`, alphabetical sorting,
+`persistAuthorization`, and `validatorUrl: null` — the site must never ship a reader's spec to
+`validator.swagger.io`. Swagger UI ships light-theme CSS, so `#swagger-ui` gets its own light
+surface in `custom.less` rather than being restyled operation by operation.
 
-The REST API page (`docs/loom/rest-api/`) offers the API in three forms:
+## Node diagrams (`nodeviz`)
 
-1. **Download** — `openapi.yaml` / `openapi.json` links in a card grid, served straight from
-   `website/static/docs/examples/`.
-2. **API Explorer** — an embedded **Swagger UI** (`plugins/swagger/*`, wired in `config.toml`)
-   that renders the same document. It covers ~130 paths, grouped into ~35 resource tags.
-3. **Endpoint Reference** — hand-written summary tables for the most-used routes. These are a
-   reading guide; the explorer is the authoritative list.
-
-The OpenAPI document is **generated from the Loom server's endpoint registry** — never written by
-hand — and must be regenerated whenever endpoints change.
-
-#### Regenerating
-
-1. The generation logic lives in `io.metaloom.loom.rest.openapi.LoomOpenAPI`
-   (module `loom/services/rest`). It builds a throw-away `ApiRouter`, registers **every** endpoint
-   of the rest module on it, runs the external `io.metaloom.vertx.openapi.OpenAPIGenerator` over
-   the result and then *polishes* the raw route dump into a usable document:
-   Vert.x `:uuid` paths become OpenAPI `{uuid}` templates with declared path parameters, operations
-   get tags/summaries/operationIds, JWT + cookie security schemes are declared (with the pre-auth
-   routes opting out), the standard 400/401/403/404/500 error responses are filled in and the route
-   examples are inlined as real JSON instead of escaped strings.
-2. `io.metaloom.loom.doc.impl.OpenAPIGenerator` (module `loom/doc`) drives it and writes both
-   `loom/doc/src/main/generated/openapi.json` and `openapi.yaml`. It runs from `loom/doc` because
-   the chat/memory endpoints live in `loom/agent/*`, which depends on the rest module and therefore
-   cannot be referenced from `LoomOpenAPI` itself — they are passed in through the extra-endpoint
-   factory.
-3. `io.metaloom.loom.doc.ExampleGenerator#main` runs all doc generators (OpenAPI + Loom config +
-   REST model). Run it after adding/removing/renaming REST endpoints or changing DTOs:
-
-   ```bash
-   mvn -q -pl loom/doc -am -DskipTests install
-   cd loom/doc && mvn -q exec:java -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator
-   ```
-   (Working directory must be `loom/doc/` — the generator writes to the relative
-   `src/main/generated/`.)
-4. Stage **both** generated files into the site (copy them — nothing does this automatically):
-
-   ```bash
-   cp loom/doc/src/main/generated/openapi.json website/static/docs/examples/
-   cp loom/doc/src/main/generated/openapi.yaml website/static/docs/examples/
-   ```
-5. A running server serves the same document for its own endpoint set at `/api/v1/openapi`
-   (YAML), `/api/v1/openapi.yaml` and `/api/v1/openapi.json`, with the address it was fetched from
-   filled in as the server URL.
-
-`LoomOpenAPITest` guards the generation and the polish step (path templating, path parameters,
-operation descriptions, security schemes, inlined examples, endpoint coverage). Run
-`mvn -pl loom/services/rest test` after endpoint changes.
-
-> ⚠️ The checked-in `loom/doc/src/main/generated/openapi.*` can go stale relative to the code.
-> Regenerate them in the same change as any REST endpoint edit, and re-stage them for the website.
-
-#### Swagger UI wiring (`themes/meghna-hugo/static/plugins/swagger/swagger.js`)
-
-* The plugin JS is loaded on **every** page (`[[params.plugins.js]]` in `config.toml`), so the
-  script must bail out when `#swagger-ui` is absent — otherwise SwaggerUIBundle renders into `null`
-  and throws *React error #200* site-wide.
-* The `url` must stay **site-relative** (`/docs/examples/openapi.json`). An absolute
-  `http://localhost:1313/...` URL makes the published site fetch the *visitor's* machine, which
-  fails CORS and triggers the browser's Local Network Access prompt
-  ("metaloom.io wants to access other apps and services on this device").
-* The mount point is a raw-HTML block `<div id="swagger-ui"></div>` in
-  `docs/loom/rest-api/index.adoc`; a per-page `data-openapi-url` attribute overrides the default URL.
-* Explorer options: `docExpansion: 'none'` (the spec is too big to open expanded), `filter: true`,
-  `deepLinking: true` (so `#/users/getUsersByUuid` links to a single operation), alphabetical tag
-  and operation sorting, `persistAuthorization` and `validatorUrl: null` — the published site must
-  never ship a reader's spec to `validator.swagger.io`.
-* **Contrast:** Swagger UI ships light-theme CSS and assumes a white page. On this dark site its
-  headings and descriptions would be near-invisible, so `#swagger-ui` is given its own light surface
-  in `less/includes/custom.less` (mirrored into the compiled `assets/css/main.css`) rather than
-  being restyled operation by operation.
-* Card headings inside raw-HTML blocks on a docs page carry `data-toc-skip` so bootstrap-toc keeps
-  them out of the sidebar TOC.
-
-### Node diagrams (`nodeviz`)
-
-Every page under `docs/nodes/<kind>/` opens with a generated diagram of that node in a pipeline —
-typed inputs on the left, the node in the middle, typed outputs on the right, an animated flow, and a
-tab per alternative configuration. The page carries only a JSON spec inside a passthrough block:
+Every page under `docs/nodes/<kind>/` opens with a generated diagram — typed inputs left, node
+centre, typed outputs right, animated flow, one tab per alternative configuration. **28 pages carry
+a spec.** The page contains only JSON in a passthrough block:
 
 ```asciidoc
 ++++
@@ -349,1356 +270,425 @@ tab per alternative configuration. The page carries only a JSON spec inside a pa
 ++++
 ```
 
-* The renderer is `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (wired in `config.toml` like
-  Swagger/GraphiQL, and a no-op on pages without `.ml-nodeviz`). Geometry, icons, the hover card and
-  both animations live there — **change the drawing once, all 27 node pages follow**.
-* Root fields: `kind`, `applies`, `badge` (pill above the box), `persist` (rendered as
-  *"persisted to …"*), and either an `inputs`/`outputs` pair or
-  `configs: [{name, note, inputs, outputs}, …]` for alternative configurations. More than one config
-  renders a tab row.
-* **Port fields — six:**
+Renderer: `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (no-op without `.ml-nodeviz`).
+**Change the drawing once and all 28 pages follow.** Styling is `.nv-*` in `custom.less`.
 
-| Field | Meaning |
-|---|---|
-| `t` | Type key into `TYPES`; drives the icon, the colour and the default content type |
-| `l` | Port label |
-| `d` | Sub-label / description. Falls back to the type name, and in the hover card to a generated *"A single X for this item"* / *"A sequence of X elements from this item"* |
-| `opt` | Dashed edge and dashed port outline; appends `· optional` |
-| **`c`** | **Cardinality.** The only recognised value is the literal string `"many"` (`var many = p.c === "many";`); **absence means one** — there is no `"one"` token |
-| **`ct`** | **Content-type id override**, for when a port is more specific than its icon. Resolved as `p.ct \|\| ty.ct`, so a page normally writes only `"t":"face"` and gets `detection/face` for free |
+* Root fields: `kind`, `applies`, `badge`, `persist`, and either an `inputs`/`outputs` pair or
+  `configs: [{name, note, inputs, outputs}, …]` (more than one renders a tab row).
+* **Port fields — six:** `t` (type key into `TYPES` → icon, colour, default content type),
+  `l` (label), `d` (description), `opt` (dashed = optional), **`c`** (cardinality — the *only*
+  recognised value is the literal `"many"`; **absence means one**, there is no `"one"` token),
+  **`ct`** (content-type id override, resolved as `p.ct || ty.ct`).
+* `TYPES` has **29 entries** whose `ct` values are the **real `family/subtype` ids** from
+  `ContentTypeRegistry` (`media/image`, `detection/face`, `struct/embedding`, `hash/*`,
+  `control/filter`, …). `action` is the one entry with no `ct` — a side effect carries no value.
+  Unknown types fall back to a neutral dot: add to `TYPES` + `icon()` rather than inventing labels.
+* **Cardinality is encoded three ways on purpose** — a dashed stacked mark + ` · many` suffix in the
+  diagram, a `one`/`many` badge in the hover card, and the card's pip animation tempo (one pip at
+  2.6 s vs three staggered at 1.5 s). `prefers-reduced-motion` freezes both into static states
+  rather than hiding them.
+* Ports are focusable (`tabindex="0"`, `role="button"`, an `aria-label` naming side/label/content
+  type/cardinality); the card opens on hover **and** focus and **toggles on click** so it works on
+  touch.
+* The type key renders once on `docs/nodes/_index.adoc` via `<div class="ml-nodeviz-legend"></div>`
+  — a hand-ordered subset of `LEGEND` (18 keys) plus the cardinality note. Cardinality is a second
+  axis, not a type, so it is taught once beside the icon key.
+* ⚠️ The spec lives in a **single-quoted HTML attribute** — **never use an apostrophe in the JSON**.
+  Nothing enforces this: an apostrophe truncates the attribute, `JSON.parse` throws, and the
+  `try/catch` leaves a blank diagram. All 28 pages currently comply (exactly two `'` per line).
 
-* **Types** (`TYPES`, one entry per key): `image · video · audio · document · media · file · text ·
-  transcript · caption · json · number · string · boolean · hash · fingerprint · vector · face ·
-  bbox · timeframe · segments · depth · quality · color · layout · path · artifact · flag · action ·
-  branch`. Each carries `{c: colour, n: display name, ct: content-type id}` and the `ct` values are
-  the **real `family/subtype` ids** from `ContentTypeRegistry` (`media/image`, `detection/face`,
-  `struct/embedding`, `hash/*`, `control/filter`, …). `action` is the one entry with no `ct` — a side
-  effect carries no value. Unknown types fall back to a neutral dot, so add new ones to `TYPES` +
-  `icon()` rather than inventing labels.
-* **Cardinality is encoded three ways**, deliberately, because a word is skimmed past:
-  1. **In the diagram** — a `MANY` port gets a dashed stacked mark under its icon (`.nv-many-mark`)
-     and a ` · many` suffix on its sub-label, so it is legible without interacting.
-  2. **In the card** — a `one` / `many` badge (`.nv-tip-card`, amber when `is-many`).
-  3. **In motion** — the card's flow track holds three `.nv-tip-pip` spans. A `ONE` port runs a
-     single pip at `2.6s`; a `MANY` port runs all three at `1.5s`, staggered `0.5s` / `1s`. The icon
-     pulse follows the same tempo. Under `prefers-reduced-motion` both freeze into a static
-     one-pip-vs-three-pip arrangement rather than disappearing.
-* **The hover / focus / tap card** (`buildTip` + `fillTip`) shows: a live 26×26 re-render of the type
-  icon, the type display name, the content-type id in a `<code>` (hidden when the type has none), the
-  one/many badge, the flow track, the port label, the description, and a meta line
-  *"input · required"* / *"output · optional"*. Ports are focusable (`tabindex="0"`, `role="button"`,
-  and an `aria-label` naming side, label, content type and cardinality); the card opens on
-  `mouseenter`/`focus`, closes on `mouseleave`/`blur` or `Escape`, and **toggles on click** so it
-  works on touch. `placeTip` clamps it inside `.nv-stage` and flips it below the port when there is
-  no room above.
-* **The edge flow** is a separate animation: one `requestAnimationFrame` loop for the whole page,
-  `CYCLE = 4200ms` split into input flow → node fill sweep → output flow. Off-screen diagrams are
-  skipped and reduced motion short-circuits the loop after pinning everything on.
-* **The type key** is rendered once on `docs/nodes/_index.adoc` via
-  `<div class="ml-nodeviz-legend"></div>`. It shows a hand-ordered subset of `LEGEND` (18 keys, not
-  the whole table) as icon + name + the content-type id, **and teaches cardinality** in a trailing
-  note with inline `one` / `many` chips reusing the card's badge styling. Cardinality is a second
-  axis, not a type, so it is explained once next to the icon key rather than repeated per diagram.
-* The spec lives in a **single-quoted HTML attribute** — never use an apostrophe inside the JSON.
-  Nothing enforces this at build or run time: an apostrophe silently truncates the attribute,
-  `JSON.parse` throws, and the renderer's `try/catch` leaves a blank diagram. All 27 pages currently
-  comply (exactly two `'` characters per `data-nodeviz` line).
-* Styling is `.nv-*` in `less/includes/custom.less`, mirrored into the compiled `assets/css/main.css`.
-
-> **Keep the vocabulary in step.** `TYPES[*].ct` values must be ids that exist in
+> **Keep the vocabulary in step.** `TYPES[*].ct` must be ids that exist in
 > `ContentTypeRegistry.all()`. Adding a content type to the product means adding it there **and**
-> here — see [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §2.
+> here — [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) § 2.
 
-### Hand-drawn figures
+## Content conventions
 
-Non-node diagrams are inline SVG in a `++++` block using the shared `.ml-*` vocabulary in
-`custom.less` (`ml-box-container`, `ml-box-part`, `ml-edge`, `ml-chip`, `ml-step`, `ml-flow`,
-`ml-box-gpu`, `ml-box-dyn`, `ml-deny`): the architecture diagram and the container-level **deployment
-overview** on `docs/operation/`, and the **coding sandbox lifecycle** on `docs/loom/chat/`. Give each
-a `<title>` + `<desc>` referenced from `aria-labelledby` — they are the accessible description of the
-figure. All six **playbook** figures follow the same house style, wrapped in
-`<div class="ml-figure">` with `class="ml-arch-svg"` on the `<svg>`.
+**Front matter** is YAML between `---`. Only `title` is required; `weight` orders siblings,
+`page_css: css/<name>.css` gives one page its own stylesheet, `aliases: [/old/]` keeps an old URL
+alive, `image`/`image_webp` name a blog teaser by **bare file name** inside the bundle.
 
-> **Prefix marker ids per page.** `<marker>` ids are document-global, so two figures reusing
-> `ml-arrow` on one page collide and one figure loses its arrowheads. Each page uses its own prefix —
-> `ml-dk-*` (docker), `ml-k8s-*` (kubernetes), `ml-tr-*`, `ml-sc-*`, `ml-tl-*`, `ml-py-*`.
+**AsciiDoc body**: `== Heading`, `[source,bash]----…----`, `|===` tables, `link:target[Label]`,
+admonitions. Internal links are **relative targets that resolve to Hugo pretty URLs**
+(`link:../loom/authentication/[…]`) — match the surrounding trailing-slash style. Card grids and
+note boxes are **raw-HTML passthrough** `++++ … ++++` with Bootstrap markup + theme classes
+(`docs-card`, `note`, `row`, `col-*`); `docs/_index.adoc` is the canonical pattern
+(`enableInlineShortcodes = false`, so shortcodes are not an option). Prefer the front-matter
+`title` and `==` sections over a level-0 `= Title` in the body — the layout already emits the `<h1>`.
 
-> **Do not use ASCII art for architecture or flow diagrams.** It was used in an early draft of the
-> playbooks and replaced; fenced code blocks are for commands, config and JSON only.
+**Figures are inline SVG in a `++++` block**, never ASCII art, using the shared `.ml-*` vocabulary
+in `custom.less` (`ml-box-container`, `ml-box-part`, `ml-edge`, `ml-chip`, `ml-step`, `ml-flow`,
+`ml-box-gpu`, `ml-box-dyn`, `ml-deny`), wrapped in `<div class="ml-figure">` with
+`class="ml-arch-svg"`. Give each a `<title>` + `<desc>` referenced from `aria-labelledby`.
 
-> **Animated figures must not change height.** The dispatch animation on `docs/operation/` swaps its
-> caption text every phase; when the caption box was allowed to grow from one line to two, the page
-> height oscillated, which toggled the window scrollbar and jittered the layout. The caption now has
-> a fixed height, and `custom.less` sets `html { scrollbar-gutter: stable; }` so a scrollbar
-> appearing never reflows the page.
+> ⚠️ **Prefix `<marker>` ids per page** (`ml-dk-*`, `ml-k8s-*`, `ml-tr-*`, `ml-sc-*`, `ml-tl-*`,
+> `ml-py-*`) — marker ids are document-global, so two figures reusing `ml-arrow` collide and one
+> loses its arrowheads.
+>
+> ⚠️ **An animated figure must not change height.** The dispatch animation on `docs/operation/`
+> swaps its caption per phase; a growing caption box oscillated the page height, toggled the
+> scrollbar and jittered the layout. The caption has a fixed height and `custom.less` sets
+> `html { scrollbar-gutter: stable; }`.
 
-### Updating the staged GraphQL schema (GraphiQL explorer)
+## Design system
 
-The **GraphQL API** page (`docs/loom/graphql-api/`) embeds a **GraphiQL** explorer (the
-`plugins/graphiql/*` assets, wired in `config.toml` exactly like Swagger UI). It builds the schema
-in-browser from a staged SDL file, so it works with no backend — only live query *execution* needs a
-running server.
+There is **one palette for the whole site** — CSS custom properties at the top of
+`less/includes/custom.less`, therefore in the global `main.css` on every page:
 
-* The staged schema is `website/static/docs/examples/schema.graphql`, served at the site-relative
-  path `/docs/examples/schema.graphql` (the default `data-schema-url` in
-  `themes/meghna-hugo/static/plugins/graphiql/graphiql.js`).
-* It is a **copy** of the Loom SDL and can go stale — regenerate it in the same change as any schema
-  edit:
+| Group | Tokens |
+|---|---|
+| Surfaces | `--ml-bg` `#0b0e13` · `--ml-bg-alt` · `--ml-surface` · `--ml-surface-hi` · `--ml-card` |
+| Lines / Text | `--ml-line` · `--ml-line-hi` — `--ml-fg` · `--ml-fg-dim` · `--ml-muted` |
+| Accents | `--ml-accent` `#57cbcc` · `--ml-accent-bright` · `--ml-accent-line` · `--ml-accent-wash` · `--ml-warm` · `--ml-warm-soft` |
+| Type | `--ml-sans` (Anaheim) · `--ml-display` (Quattrocento Sans) · `--ml-mono` (JetBrains Mono) |
+| Shape | `--ml-radius` · `--ml-radius-sm` · `--ml-lift` |
 
-  ```bash
-  cp loom/services/graphql/src/main/resources/loom.graphqls \
-     website/static/docs/examples/schema.graphql
-  ```
-* `graphiql.js` mirrors `swagger.js`: it is loaded globally but no-ops unless a `#graphiql` mount
-  div is present, and a per-page `data-graphql-url` attribute can point the explorer at a live
-  endpoint (the GraphiQL analogue of Swagger's `data-openapi-url`). A running Loom server also serves
-  a live GraphiQL at `/graphiql`.
+* `assets/css/home.css` (`/` and `/features/`) defines **no colours** — its `.hm-page` block aliases
+  the tokens. Change a colour once and `/`, `/features/`, `/docs/`, `/blog/`, `/announcements/`
+  all follow.
+* `/tour/` (`.st-*`, teal) and `/studio/` (`.sd-*`, amber `#e2a86e`) keep page-scoped stylesheets on
+  purpose — **that is the one place the accent may differ**. Inside `studio.css` teal survives as
+  `--sd-teal` and marks exactly one thing: *what is open source*. Do not fold them into `main.css`,
+  and note both are **hand-written CSS** — `yarn build` only compiles `less/main.less`.
+* The card object (gradient surface, hairline, teal border, `--ml-lift` hover translate) is
+  deliberately identical on `.hm-feature`, `.docs-card`, `.note`, `.ann-entry`, `.blog-card`.
+* Docs, `/announcements/`, `/blog/` and `/author/` share one reading system: Quattrocento Sans
+  headings, Anaheim prose, monospace values, code as a chip, admonitions as coloured-left-edge
+  callouts, code blocks as a recessed surface, a shared `.page-head` (eyebrow → title → rule) and a
+  `.docs-foot` button pair. Heading offsets use **`scroll-margin-top: 96px`, not padding**.
+* **Scroll reveal** is one script, `assets/js/reveal.js`, with a page-agnostic contract:
+  `data-reveal-scope` on a container, `class="reveal"` per element, `data-reveal-delay="<n>"`
+  (× 90 ms), `data-count-up`. Wire it with `{{ partial "reveal-bootstrap.html" . }}` inside the
+  scope and `{{ partial "reveal-script.html" . }}` after it.
 
-<a id="the-pipeline-editor-page"></a>
-### The Pipeline Editor page (`/pipeline-editor/`)
+> **`html, body { background-color: var(--ml-bg) }` is load-bearing.** The theme's `style.css` still
+> sets `#353b43`; `custom.less` is imported after it and wins. A page that comes out grey means a
+> `background-color` is beating the token block.
+>
+> **Never hide content behind JavaScript.** The hidden start state is scoped to `.reveal-js`, which
+> `reveal-bootstrap.html` sets *synchronously during parse*, and the same snippet removes it after
+> 2.5 s if `reveal.js` never runs. A blocked script degrades to "no animation", never "no content".
+> Every rule is `.reveal-js` hides / `.is-visible` reveals.
+>
+> **All motion is decoration.** Every page-scoped stylesheet ends with a `prefers-reduced-motion`
+> block that disables its animations. Nothing may encode information in movement alone.
+>
+> **No CJK text anywhere** — the site ships no CJK webfont, so a Japanese line renders as tofu.
 
-> **Full spec: [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md)** — the editor's model,
-> validation codes, simulator semantics, tunables, test pass and open gaps live there. This section is
-> the site-catalogue entry; keep the detail out of it.
+Site chrome: `partials/navigation.html` (sticky, translucent, `.is-scrolled` past 12 px,
+`.is-active` + `aria-current` on the current section, hamburger → X) and `partials/footer.html`
+(four columns, labels from `i18n/en.yaml`, contact pills from `[[params.social]]`, the Impressum
+link, the *1.0.0 — not released yet* badge). **Footer headings carry `data-toc-skip`** and
+`plugins/toc/toc.js` scopes bootstrap-toc to `.docs-main-content`, or they land in the docs TOC.
 
-A **self-contained, backend-free pipeline editor + simulator** that lets a visitor design a pipeline
-on an SVG canvas — dragging nodes from a palette, wiring typed ports (invalid connections are
-rejected live), loading demo pipelines — and press **Play** to watch synthetic assets flow from the
-source node through the graph to the loom sink, with an action log. It teaches the pipeline model
-(typed ports, `ONE`/`MANY` cardinality, `MANY` fan-out, the implicit gather on a `MANY` input, and
-filter `PASS`/`REJECT` branch routing) without a running Loom server. It is the same domain covered
-by the full editor in `loom-ui` — see
-[../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md).
+`partials/card.html` builds OG/Twitter metadata for every page: title `<page> | MetaLoom` (bare
+`MetaLoom` on `/`), a description chain (page → `.Summary` → site param, truncated to 200 chars),
+`summary_large_image` with `/images/og-default.jpg` as the fallback, canonical, `og:site_name`,
+`og:type`, `og:locale`, `og:image:alt`, article timestamps. Blog images resolve through
+`partials/func/page-image.html` (prefers `image_webp`, falls back to `image` then
+`/images/banner_square.webp`).
 
-* **Page** — a full-screen custom layout, not a docs page: `content/english/pipeline-editor/_index.md`
-  (front matter `page_css: css/pipeline-editor.css`) + `themes/meghna-hugo/layouts/pipeline-editor/list.html`
-  (`{{ define "main" }}` → `navigation.html` → the `#ml-pipeline-editor` mount div → a fingerprinted
-  `<script>` for the editor asset). A `[[Languages.en.menu.main]]` entry in `config.toml` adds the nav item.
-* **Editor** — `themes/meghna-hugo/assets/js/pipeline-editor.js`, one vanilla IIFE with no dependencies,
-  following the `nodeviz.js` idioms (`E()` SVG helper, `bez()`, a single `requestAnimationFrame` loop,
-  `prefers-reduced-motion`, and a self-guard on the mount element). Styling is
-  `assets/css/pipeline-editor.css`, loaded per-page via `page_css`. The content-type **assignability
-  rule and the eight family colours are a verbatim mirror** of
-  `loom-ui/src/features/pipeline/contentTypes.ts` — only the rule is mirrored, never the vocabulary.
-* **The URL is loaded via a `data-descriptors` attribute**, deliberately NOT one of the names the
-  localhost check greps (`href`/`src`/`srcset`/`action`/`data-src`/`data-openapi-url`/`data-graphql-url`/`data-schema-url`),
-  and its value is a `relURL` so the published site never points a reader at a build-machine host.
+## Legal pages (`docs/legal/`)
 
-#### Regenerating the node-descriptor snapshot
+* `model-licenses/` is an **inventory of what each node loads**, not a generic license page.
+  MetaLoom ships **no weights** — every model is a configuration value — so the page maps
+  node → default model → license → commercial-use verdict, and closes with how to read the deployed
+  values back. Two components are **non-commercial** (`#restricted`): the **InspireFace model packs**
+  used by `facedetect` (Apache-2.0 code, InsightFace academic-only packs, which taints
+  `facedescription` downstream) and **Ideogram 4.0**, the backing model of the `imagegen` node
+  ([../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md)).
+  Conditional (`#conditional`): the Gemma defaults and the gated Llama-3.2 Kartoffel TTS checkpoint.
+  `#clean-stack` gives the permissive-only configuration; `#runtimes` covers redistributed native
+  libraries incl. the FFmpeg `--enable-gpl` caveat.
+* `ai-disclosure/` states the timeline: **2023–2025 no AI code generation, 2026 onwards
+  AI-assisted**, at project level — AI assistance is not tracked per commit, and the page says so.
+* `impressum/` is the **Austrian site disclosure** and the only German page: § 5 ECG, § 25 MedienG,
+  copyright, liability, the EU ODR platform, and a `#datenschutz` section covering what a static
+  site actually processes (GitHub Pages logs, the Google Fonts CDN, external links, email).
 
-The editor has no backend, so it fetches its node catalogue from a **static snapshot** at
-`website/static/pipeline-editor/node-descriptors.json` — the same shape as
-`GET /api/v1/pipeline/node-descriptors` (`{nodeDescriptors, contentTypes}`). It is **generated**, not
-hand-written, by `io.metaloom.loom.doc.impl.NodeDescriptorGenerator` (driven by `ExampleGenerator`,
-exactly like the OpenAPI document), and staged into the site with a manual copy. Regenerate it in the
-same change as any node descriptor / content-type edit:
+> ⚠️ **The Impressum still has `[…]` placeholders** (address, a second direct channel besides
+> email). It is not legally complete until those are real, and the "private project, no Firmenbuch,
+> no UID" rows must be revisited the moment MetaLoom is offered commercially. It is a good-faith
+> template, not lawyer-reviewed.
+>
+> ⚠️ **Keep the inventory honest.** When a node's default model changes, update the page in the same
+> change. Claims must reflect what the code loads (the whisper node runs **whisper.cpp locally** —
+> it does not call a remote ASR endpoint, even though `asr4j` supports one). Do not soften or drop
+> the two `[WARNING]` blocks. The page carries a *not legal advice* disclaimer; keep it that way.
 
-```bash
-mvn -q -pl loom/doc -am -DskipTests -Dmaven.javadoc.skip=true install
-cd loom/doc && mvn -q exec:java -Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator
-cp loom/doc/src/main/generated/node-descriptors.json \
-   website/static/pipeline-editor/node-descriptors.json
-```
+## Capturing Loom UI screenshots (`docs/ui/`)
 
-`NodeDescriptorGeneratorTest` (in `loom/doc`) guards that the snapshot covers every kind the SPI
-provides and uses the port-model schema, so a new node kind that isn't captured fails the build.
-The editor also degrades gracefully on an unknown kind or content type, so a temporarily stale
-snapshot never breaks the page — but keep it in step.
-
-> ⚠️ `mvn install` of `loom/doc` currently needs `-Dmaven.javadoc.skip=true`: the half-landed pipeline
-> refactor has a pre-existing javadoc error in `loom/pipeline` that fails `javadoc:jar`. It is
-> unrelated to the website and to this generator.
-
-## Capturing Loom UI screenshots
-
-The **Loom UI** docs page (`content/english/docs/ui/`) is illustrated with dark-mode screenshots of the
-running application. They are produced by driving a headless Chromium against the **demo container** with
-a Playwright script, and are checked in as page-bundle images (co-located with `index.adoc`, referenced
-`image::name.png[Alt,role=img-fluid]`). Any agent can refresh them by repeating the steps below.
-
-> **Always build a fresh demo image first.** The local `metaloom/loom-demo:latest` can lag behind the
-> source. Rebuild it so the screenshots reflect the current UI and server — do not screenshot a stale
-> image. This mirrors what `e2e.sh` does.
-
-### 1. Build a fresh demo image
-
-From the repo root:
-
-```bash
-mvn -T 8 clean package -DskipTests -pl loom/containers/demo -am   # → loom/containers/demo/target/loom-demo.jar
-( cd loom-ui && npm run build )                                   # → loom-ui/build (bundled into the image)
-( cd loom/containers && ./build-containers.sh jvm demo )          # → metaloom/loom-demo:latest
-```
-
-> Use `jvm demo` explicitly. A bare `./build-containers.sh demo` also tries to build the *native* image
-> (needs GraalVM) and will fail.
-
-### 2. Start the demo stack
-
-The demo container is **not** self-contained — start Postgres first (it provides the `postgres-demo`
-container on the shared `dev` docker network):
+`docs/ui/` holds 15 dark-mode screenshots of the running app, checked in as page-bundle images and
+refreshed by `loom-ui/scripts/capture-ui-screenshots.mjs` (Playwright/Chromium already installed
+under `loom-ui/`; it logs in, forces `localStorage["loom-ui-theme"]="dark"` and navigates by
+**clicking sidebar items** — the SPA has no router `basename` under `/ui/`, so deep-link reloads
+fail).
 
 ```bash
-./start-postgres.sh
-./start-demo.sh
-```
-
-* UI URL: **http://localhost:8092/ui/** (the UI is mounted at `/ui/`, *not* at the site root — the site
-  root just 302s there). Capture scripts should still target `/ui/` directly rather than relying on the
-  redirect.
-* Credentials: **admin** / **finger** (`LOOM_INITIAL_PASSWORD`).
-* The database is auto-seeded by `DemoDatabaseInitializer` (assets, pipelines, faces, users, roles, tags,
-  API keys, skills with two versions each, published chat sessions with context references, agent memory
-  notes, per-asset tasks …), so every screen has real content.
-* **Image assets carry real bytes.** The initializer paints them at runtime and stores them
-  content-addressed, so the asset browser and detail view show pictures rather than placeholder icons.
-  Videos, audio and PDFs have no browser-renderable preview and stay as placeholders — that is expected,
-  not a broken capture.
-* The demo image sets `LOOM_AGENT_MEMORY_ENABLED=true`; without it the memory endpoints are not
-  registered and the Memory screen reads "No memory scopes are available".
-
-### 3. Capture
-
-The capture script is `loom-ui/scripts/capture-ui-screenshots.mjs`. It uses the Playwright + Chromium that
-are already installed under `loom-ui/` (no extra install needed), logs in, forces dark mode
-(`localStorage["loom-ui-theme"]="dark"`), and navigates the app by **clicking sidebar items** — the SPA has
-no router `basename` under `/ui/`, so deep-link reloads do not work; client-side navigation does.
-
-```bash
-cd loom-ui
-node scripts/capture-ui-screenshots.mjs        # writes PNGs into ../website/content/english/docs/ui/
-```
-
-Env overrides: `UI_BASE_URL` (default `http://localhost:8092/ui/`), `LOOM_USER`, `LOOM_PASS`, `OUT_DIR`.
-
-Route/action → filename (keep stable so refreshes overwrite in place):
-
-[cols="1,2"]
-|===
-| File | Source
-| `chat.png` | `/` — Chat (landing)
-| `chat-sessions.png` | AI → Chat Sessions
-| `skills.png` | AI → Skills
-| `memory.png` | AI → Memory
-| `assets.png` | Content → Assets
-| `asset-detail.png` | Assets → the `sunset-beach.jpg` card (targeted by name: list order is not stable, and this asset is the richest — stored binary, tags, reaction, detections, task)
-| `library.png` | Content → Library
-| `tags.png` | Content → Tags
-| `tasks.png` | Content → Tasks
-| `face-detection.png` | Content → Detection (defaults to the Faces tab)
-| `pipeline-editor.png` | Management → Pipelines
-| `pipeline-versions.png` | Pipelines → version badge (history popover open)
-| `cortex.png` | Management → Cortex
-| `monitoring.png` | Management → Monitoring (extra settle time — Recharts animates its series in)
-| `users.png` | Management → ACL → Users
-| `acl-roles.png` | Management → ACL → Permissions (ACL matrix)
-| `api-keys.png` | Management → ACL → API Keys
-|===
-
-> **The ACL screens sit in a collapsible sub-group** that starts closed. `openAclGroup()` clicks
-> `[data-testid="sidebar-group-acl"]` before those three captures; a nav click alone will time out.
-> `clickNav` matches `^\d*<label>\d*$` so an entry with a badge counter (Tasks) still resolves.
-
-> Per-library contents are unseeded in a bare demo. The script captures whatever the demo actually
-> contains — do not fabricate data.
-
-> **The library view auto-selects the first library, which holds nothing.** `library.png` therefore
-> clicks the first entry that is not labelled "0 assets" before shooting, so the grid (and its
-> thumbnails) is what ends up in the screenshot.
-
-> **Asset thumbnails only render when Loom serves the UI.** The grid points an `<img>` at
-> `/api/v1/assets/:uuid/binary/data`, which cannot carry an `Authorization` header and authenticates
-> with the `__Host-loom_token` cookie instead. Served from the container at
-> `http://localhost:8092/ui/` that works; behind a `vite` dev proxy the browser does not store the
-> cookie and every preview 401s back to the type placeholder. **Screenshots that must show
-> thumbnails have to come from the container** — rebuild it after a UI change:
-> `( cd loom-ui && npm run build ) && ( cd loom/containers && ./build-containers.sh jvm demo )`,
-> then `./start-demo.sh`. Recreating the demo container against an existing database yields 404s on
-> the binaries (the rows outlive the seeded files), so re-run `./start-postgres.sh` first for a
-> clean re-seed.
-
-> **Click-to-zoom.** Docs content images (`.docs-main-content .imageblock img`) get a `zoom-in`
-> cursor and open in a full-screen modal *lightbox* on click (dismiss via backdrop click, the ×
-> button, or `Escape`). It is a theme feature — CSS in `themes/meghna-hugo/less/includes/custom.less`
-> (`.ml-lightbox*`, mirrored in the compiled `assets/css/main.css`) and vanilla JS appended to
-> `themes/meghna-hugo/assets/js/script.js` — so it applies to any docs page with images, not just the
-> Loom UI page. It does not alter the page layout.
-
-#### Populating the Cortex view
-
-`cortex.png` needs a live worker, otherwise the list is empty. Build `cortex-server` **from the same
-source revision as the demo image** (an older image fails the registration handshake — "Not registered.
-Send REGISTER first.") and start it on the shared `dev` network. It needs a local OpenCV 5.1 build
-(`../opencv/build/lib/libopencv_core.so.501`; set `OPENCV_LIB_DIR` if elsewhere):
-
-```bash
-mvn -T 8 clean package -DskipTests -pl cortex/container,cortex/cli -am
-( cd cortex/container && ./build-container.sh )                 # → metaloom/cortex-server:latest
-docker run -d --name cortex-demo --network dev -p 8093:8093 \
-  -e LOOM_HOST=loom -e LOOM_PORT=8092 metaloom/cortex-server:latest
-```
-
-It registers within a few seconds (verify: `GET /api/v1/processors` returns a `nodeId`). Then re-run the
-capture script (or just the Cortex step) so `cortex.png` shows the online worker with its metrics and node
-whitelist.
-
-### 4. Tear down
-
-```bash
+# 1 — always build a FRESH demo image; the local one lags the source
+mvn -T 8 clean package -DskipTests -pl loom/containers/demo -am
+( cd loom-ui && npm run build )
+( cd loom/containers && ./build-containers.sh jvm demo )   # 'jvm demo', not bare 'demo' (native needs GraalVM)
+# 2 — start Postgres first: the demo container is NOT self-contained
+./start-postgres.sh && ./start-demo.sh                     # \http://localhost:8092/ui/  admin / finger
+# 3 — capture (env: UI_BASE_URL, LOOM_USER, LOOM_PASS, OUT_DIR)
+cd loom-ui && node scripts/capture-ui-screenshots.mjs
+# 4 — tear down
 docker rm -f loom postgres-demo cortex-demo
 ```
 
-## Content Conventions
-
-### Front matter
-
-YAML front matter delimited by `---` at the top of each `.adoc`:
-
-```yaml
----
-title: Getting Started      # page title (rendered as <h1> by the docs layout)
-weight: 1                   # optional: lower sorts first within a section
----
-```
-
-Only `title` is required; `weight` orders siblings (used by `getting-started` to pin it first).
-
-### AsciiDoc body
-
-* Pages are AsciiDoc; use AsciiDoc syntax (`== Heading`, `[source,bash]----...----`, `|===`
-  tables, `link:target[Label]`, admonitions like `[TIP]`).
-* **Internal links use relative AsciiDoc `link:` targets that resolve to Hugo pretty URLs**,
-  e.g. `link:../loom/authentication/[Authentication]` and `link:rest-api[REST API]`. Keep the
-  trailing-slash pretty-URL style consistent with existing pages.
-* **Diagrams are inline SVG, not ASCII art** — see [Hand-drawn figures](#hand-drawn-figures).
-* Rich landing/section layout (card grids, note boxes) is done with **raw HTML passthrough
-  blocks** `++++ ... ++++` embedding Bootstrap markup + theme CSS classes (`docs-card`, `note`,
-  `row`, `col-*`). See `docs/_index.adoc` for the canonical pattern.
-* Shared attributes live in `docs/variables.adoc-include` (`:icons: font`,
-  `:source-highlighter: prettify`, `:toc:`). The `.adoc-include` extension keeps Hugo from
-  rendering it as a standalone page.
-* Some pages open with a level-0 title (`= Title`) in the body in addition to front-matter
-  `title:` (e.g. `interaction/`); prefer the front-matter title and level-2 (`==`) sections for
-  new pages to match the docs layout, which already emits the `<h1>` from `title`.
-
-### Legal pages (`docs/legal/`)
-
-The legal section answers two questions a customer asks before deploying: *what am I allowed to run*
-and *how was this built*.
-
-* `legal/model-licenses/` is an **inventory of what each node loads**, not a generic license page.
-  MetaLoom ships no weights — every model is a configuration value (`WhisperOptions.modelPath`,
-  `VlmNodeOptions.model`, `FacedetectNodeOptions.inspirefacePackPath`, `ORPHEUS_REPO_DE`,
-  `LOOM_AI_MODEL_ID`, …), so the page maps node → default model → license → commercial-use verdict,
-  and closes with how to read the deployed values back.
-* **Two components are non-commercial** and are called out in `[WARNING]` blocks under
-  `#restricted`: the **InspireFace model packs** used by `facedetect` (code is Apache-2.0, but the
-  packs inherit the InsightFace terms — *academic use only*, which also taints `facedescription`
-  downstream) and **Ideogram 4.0**, the backing model of the planned `imagegen` node (weights under
-  the *Ideogram 4 Non-Commercial Model Agreement*; see `spec/plans/imagegen-node.md`).
-* **Conditionally licensed** entries live under `#conditional`: the Gemma defaults (`gemma2:27b` in
-  `LLMNode`, `gemma3:27b-it-q8_0` in `FacedescriptionNode`) carry the Gemma Terms of Use, and the
-  German TTS checkpoint `SebastianBodza/Kartoffel_Orpheus-3B_german_natural-v0.1` is a gated
-  Llama-3.2 derivative (ungated Apache-2.0 swap: `Thorsten-Voice/tv-orpheus-v1`).
-* `#clean-stack` gives the configuration that stays inside permissive licenses; `#runtimes` covers
-  the native libraries redistributed in the container image, including the **FFmpeg** caveat (upstream
-  LGPL-2.1+, but distro builds are often `--enable-gpl`).
-* `legal/ai-disclosure/` states the timeline: **2023–2025 no AI code generation, 2026 onwards
-  AI-assisted**. AI assistance is *not* tracked per commit — the disclosure is at project level, and
-  the page says so rather than implying commit-level provenance exists.
-* `legal/impressum/` is the **Austrian site disclosure** and the only page on the site written in
-  German, because that is the language the disclosure duty is discharged in. It covers § 5 ECG
-  (operator, address, direct contact, register/UID/trade data, applicable law), § 25 MedienG
-  (Medieninhaber, Unternehmensgegenstand, Blattlinie), copyright, liability for content and links,
-  the EU ODR platform, and a `#datenschutz` section describing what the static site actually
-  processes: GitHub Pages access logs, the Google Fonts CDN, external links, and email contact.
-
-> **The Impressum still has placeholders.** The address and phone number are `[…]` markers, and an
-> AsciiDoc comment at the top of the file lists exactly what has to be filled in. § 5 ECG wants a
-> real geographic address and a *second* direct channel besides email — the page is not complete
-> until those are real. The rows that assume "private project, no Firmenbuch, no UID, no trade
-> licence" have to be revisited the moment MetaLoom is offered commercially.
->
-> Two follow-ups it names but does not fix: the site loads **Google Fonts** from Google's CDN
-> (which is what makes a privacy section necessary at all — self-hosting the two families would
-> remove it), and the page is a good-faith template that has not been reviewed by a lawyer.
-
-> **Keep the inventory honest.** When a node's default model changes, or a node gains/loses a model
-> dependency, update `docs/legal/model-licenses/` in the same change. Claims must reflect what the
-> code actually loads (the whisper node runs **whisper.cpp locally** — it does not call a remote ASR
-> endpoint, even though `asr4j` supports one). The page carries an explicit *not legal advice*
-> disclaimer; do not let it drift into legal advice.
-
-All three legal pages are linked from the docs landing card grid, the "Choose Your Path" table and
-the site footer — see [The site footer](#the-site-footer).
-
-### The site header
-
-`themes/meghna-hugo/layouts/partials/navigation.html`, styled in `less/includes/custom.less`
-(`.navigation`, `.navbar-*`) because it is the same header on every page.
-
-* **Sticky and translucent** — `rgba(17,21,26,.72)` plus `backdrop-filter: blur(16px)`, so the
-  hero shows through it. A `@supports not (backdrop-filter)` fallback swaps in an opaque bar
-  rather than leaving a washed-out one.
-* **`.is-scrolled`** is toggled past 12 px of scroll by a small block at the end of
-  `assets/js/script.js`; it darkens the bar, adds a shadow and shrinks the logo. Cosmetic only —
-  the header is legible in either state.
-* **The current section is marked.** The partial compares `.RelPermalink` against each menu
-  entry's URL and adds `.is-active` (plus `aria-current="page"`), which shows as a teal underline
-  on desktop and a left border on mobile. The underline is the same element that grows on hover.
-* **Menu labels are the `name` values in `config.toml`** and are written capitalised (`Studios`,
-  `Docs`) — no CSS text-transform.
-* The **Discord icon** comes from `params.discordLink`. That key used to sit at the root of
-  `config.toml` where templates could not read it; it now lives under `[params]`.
-* The mobile toggler is a three-bar hamburger that folds into an X (`[aria-expanded="true"]`),
-  and the open panel gets its own solid surface — translucency is fine for a 60 px bar over a
-  hero, not for a full menu with page content behind it.
-
-<a id="the-shared-design-tokens"></a>
-### The shared design tokens (`:root { --ml-* }`)
-
-There is **one palette for the whole site**, declared as CSS custom properties at the top of
-`less/includes/custom.less` and therefore present in the global `main.css` on every page:
-
-| Token group | Names |
-| --- | --- |
-| Surfaces | `--ml-bg` (`#0b0e13`), `--ml-bg-alt` (`#10151c`), `--ml-surface`, `--ml-surface-hi`, `--ml-card` |
-| Lines | `--ml-line`, `--ml-line-hi` |
-| Text | `--ml-fg`, `--ml-fg-dim`, `--ml-muted` |
-| Accents | `--ml-accent` (`#57cbcc`), `--ml-accent-bright`, `--ml-accent-line`, `--ml-accent-wash`, `--ml-warm`, `--ml-warm-soft` |
-| Type | `--ml-sans` (Anaheim), `--ml-display` (Quattrocento Sans), `--ml-mono` (JetBrains Mono) |
-| Shape / motion | `--ml-radius`, `--ml-radius-sm`, `--ml-lift` |
-
-* `assets/css/home.css` (the home page and `/features/`) does **not** define colours any more —
-  its `.hm-page { --hm-bg: var(--ml-bg); … }` block is a set of aliases onto these tokens. Change
-  a colour here and `/`, `/features/`, `/docs/`, `/blog/` and `/announcements/` all follow.
-* `/tour/` (`.st-*`) and `/studio/` (`.sd-*`) keep their own page-scoped stylesheets on purpose —
-  those are the one place the accent is allowed to differ (teal vs. amber). Do not fold them in.
-* `--ml-card` is a shallow gradient, not a flat fill: on a near-black page a grid of cards needs
-  depth without shadows. The card object — gradient surface, `--ml-line` hairline, teal border and
-  a `--ml-lift` translate on hover — is deliberately the same on `.hm-feature` (`/features/`),
-  `.docs-card`, `.note`, `.ann-entry` and `.blog-card`.
-* The **scroll-reveal contract** (`.reveal-js .reveal`, see [Scroll reveal](#scroll-reveal-shared))
-  also lives in `custom.less` rather than `home.css`, because the blog and announcement lists use
-  it too.
-
-> **`html, body { background-color: var(--ml-bg) }` is load-bearing.** The reading pages used to
-> sit on the theme's lighter `#353b43` while the marketing pages were near-black, so walking from
-> `/features/` into `/docs/` read as leaving the site. `style.css` still sets `#353b43` on
-> `html`/`body`; `custom.less` is imported after it and wins. Do not reintroduce a per-page body
-> background override — `home.css` no longer needs one.
-
-### Reading pages — docs, announcements, blog
-
-The docs, `/announcements/` and `/blog/` share the marketing pages' **surface, component
-vocabulary and typographic system**, defined in the *Reading pages* block of
-`less/includes/custom.less`:
-
-* **Headings** — Quattrocento Sans, 700, `-.01em` tracking (the marketing pages' treatment at a
-  size that suits a document). **Prose** — Anaheim, `1.03rem`/`1.78`, `#cdd6df`.
-  **Technical values** — monospace.
-* Two mismatches this block exists to prevent. The first was the split surface (above). The
-  second: a single docs page mixed three fonts by accident — paragraphs rendered in Quattrocento
-  Sans (from the theme's `p` rule), list items and table cells in Anaheim at the body's muted
-  `#737f8a`. Table cells now carry the prose colour, and table headers are small uppercase teal
-  labels on a tinted row.
-* Inline `code` is a chip (subtle background + border) rather than only an orange colour change.
-* **A shared page header** (`.page-head`): teal eyebrow, title, optional lead, hairline rule with
-  a short teal tick under it. **All four reading layouts use it** — docs list, docs single,
-  announcements and the blog/author list — so the eyebrow-then-title rhythm is the same one
-  `/features/` opens with. On the docs layouts the eyebrow names the **parent section**
-  (`Loom`, `Nodes`, `Playbooks`, …) and falls back to *Documentation*; it is suppressed when it
-  would merely repeat the title, as on `/docs/` itself.
-* **Code blocks** are a recessed surface (`--ml-bg-alt`, hairline border, `overflow-x: auto`), not
-  another card — a command sample reads as a readout on the page.
-* **Admonitions are callouts.** Asciidoctor renders `NOTE`/`TIP`/`WARNING` as a two-cell table;
-  the theme's original treatment was a dashed grey box with the label set at `2em`. They are now
-  a card with a coloured left edge and the label as the same small uppercase eyebrow used by
-  `.page-head` — teal for note/tip, the site's warm colour for warning/caution/important. Both
-  label forms are handled (`<div class="title">` and, with `:icons: font`, `<i class="fa icon-*">`).
-* **AsciiDoc tables** (`table.tableblock`, styled in `adoc.less`) are the same object as the
-  `.docs-main-content table` rules: tinted teal header row, hairline row separators, a barely
-  there zebra. `adoc.less` needs its own copy because `table.tableblock` out-specifies them.
-  Do **not** give `.tableblock` `display: block` to make it scroll — the class sits on the
-  `<table>` itself and that collapses every row into a single column.
-* **`.docs-foot`** closes every leaf docs page with the same pair of buttons `/features/` ends on
-  (`.ml-btn` / `.ml-btn-primary` / `.ml-btn-ghost`, the shared button object).
-* **Heading anchors use `scroll-margin-top`, not padding.** The offset that keeps a TOC target
-  clear of the sticky header used to be bought with `margin-top: -2em; padding-top: 3em` on every
-  heading, which turned a long reference page into mostly gaps. `scroll-margin-top: 96px` does the
-  same job at the scroll layer and costs no layout.
-* The blog overview, the announcements list and the author page opt into the shared scroll reveal
-  (`data-reveal-scope` + `reveal-bootstrap.html` + `reveal-script.html`). The blog grid's stagger
-  is an `nth-child` `transition-delay` rule rather than `data-reveal-delay`, because
-  `.Render "article"` cannot pass the loop index into the card. A `prefers-reduced-motion` block
-  at the end of the file switches off every hover lift and transition — nothing here encodes
-  information in movement.
-* The **author page** (`/author/<name>/`) is a reading page too: it uses `.page-head`, an
-  `.author-card` and the `.blog-grid`, not the theme's original centred "About Author" band on
-  its own lighter `.section-bg`.
-  Announcements, the blog overview and blog posts all use it; the copy comes from front matter
-  (`eyebrow`, `subtitle`), never from the template — `_default/list.html` also renders `/author/`.
-* **`body` is a flex column with `min-height: 100vh`** and `#content` grows, so a short page (the
-  announcement list with one entry) no longer leaves the footer floating mid-viewport.
-* The docs sidebar (page TOC + topic list) was left structurally alone — only its fonts were
-  aligned. It is the one part of the docs that was already right.
-
-Blog specifics: `_default/list.html` is the overview (copy from `content/english/blog/_index.md`),
-`_default/article.html` is one card in the grid (image, date, title, summary — the whole card is
-the link), `_default/single.html` is a post: docs-shaped sticky TOC, byline, hero image with
-credit, and a *More posts* list. Styles are the `.blog-*` block in `custom.less`.
-
-<a id="the-site-footer"></a>
-### The site footer
-
-`themes/meghna-hugo/layouts/partials/footer.html` renders the same footer under the marketing
-pages and the docs, so it is styled site-wide in `less/includes/custom.less` (`.site-footer*`,
-mirrored into the compiled `assets/css/main.css`) rather than in a page stylesheet.
-
-Four columns — brand (logo, one-line description, the *1.0.0 — not released yet* badge linking to
-the announcement), *Explore*, *Documentation*, *Project* — then a rule, the copyright line and the
-contact pills.
-
-* **Labels come from `i18n/en.yaml`**, not from the template.
-* **The contact pills come from `[[params.social]]`** in `config.toml`: `icon` (Themify `ti-*` or
-  FontAwesome `fab/fas`, both loaded globally), `label` (rendered *and* used as the accessible
-  name) and `link`. They replaced a single placeholder Twitter icon that pointed at `#`.
-* The **Impressum** link belongs here: the Austrian disclosure duty is per site, and this is what
-  makes it reachable from every page.
-* **Footer headings carry `data-toc-skip`, and `plugins/toc/toc.js` scopes bootstrap-toc to
-  `.docs-main-content`.** With the default (body) scope the footer's column headings were
-  collected into the docs sidebar TOC. Any new site chrome with headings needs the same care.
-
-### Blog post images
-
-A blog post is a page bundle whose front matter names its teaser image by **bare file name**
-(`image:` = the jpg/svg original, `image_webp:` = the webp variant), co-located with `index.adoc`.
-Three places render it — the overview cards (`_default/article.html`, used by both `/blog/` and the
-landing-page blog section), the post hero (`_default/single.html`) and the social-card meta tags
-(`partials/card.html`) — and all three resolve it through one helper:
-
-```go-html-template
-{{ partial "func/page-image.html" . }}   {{/* → site-relative URL, e.g. /blog/day3-…/foo.webp */}}
-```
-
-The partial prefers `image_webp`, falls back to `image`, then to `/images/banner_square.webp`, and
-resolves a bare name against the page bundle (`.Resources.GetMatch`, then `.RelPermalink`). Pass its
-result through `absURL` where an absolute URL is required (`og:image`, `twitter:image:src`).
-
-> **Never concatenate an image name onto `.Permalink` in a template.** That was the original bug:
-> `{{ .Permalink }}/{{ .Params.Image_webp }}` produced a **double slash** (a pretty-URL permalink
-> already ends in `/`) *and* an absolute URL carrying whatever host the build resolved — which is how
-> `http://localhost:1313/blog/day3-vertx-dagger-poc//christian-…webp` ended up in the overview cards.
-> Prefer `.RelPermalink` / `relURL` for anything a browser fetches; reserve absolute URLs for
-> canonical/OpenGraph metadata.
-
-## The home page
-
-The home page is a **short front door**, not a brochure: hero → pre-release notice → "two ways in"
-→ what it is → stack strip → three latest posts. Everything longer lives elsewhere — the visual
-tour on `/tour/`, the full feature list on `/features/`, the blog overview on `/blog/`, the
-reference in `/docs/`. There is no closing "get started" pitch: the hero and the footer carry
-those links already.
-
-| Piece | Path |
-| --- | --- |
-| Front matter (title, description, `page_css`) | `content/english/_index.md` |
-| **All copy** | `data/en/home.yml` |
-| Layout | `themes/meghna-hugo/layouts/index.html` |
-| Hero backdrop + door marks | `themes/meghna-hugo/layouts/partials/home/{art-weave,icon-visual,icon-technical}.html` |
-| Styles | `themes/meghna-hugo/assets/css/home.css` (shared with `/features/`; colours come from the shared `--ml-*` tokens — see [The shared design tokens](#the-shared-design-tokens)) |
-| Motion | `themes/meghna-hugo/assets/js/reveal.js` (shared with `/tour/` and `/studio/`) |
-
-Design intent, worth keeping:
-
-* **It has to serve two visitors at once** — someone with an archive who does not care how it
-  works, and someone who wants the API. That is what the *Two ways in* section does: one card to
-  `/tour/`, one to `/docs/`, so neither reader is made to wade through the other's material.
-  `/studio/` is deliberately **not** a third door — the home page routes visual vs. technical, and
-  the commercial page is reached from the header and the footer instead.
-  The "what it is" tiles reinforce it — a plain-language sentence plus a line of monospace chips
-  (`19 node kinds`, `REST · GraphQL`) so both audiences find their own hook in the same tile.
-* **The pre-release status is the second thing on the page** (and the first is the status pill in
-  the hero). See the next section.
-* The old Meghna landing sections (`about`, `service`, `skill`, `funfacts`, `pricing`,
-  `testimonial`, `contact`, `map`, `banner`, `cta`, `blog`) are **no longer wired in**. The
-  partials and their `data/en/*.yml` files are still in the theme but unused; only
-  `home.yml`, `tour.yml`, `studio.yml` and `feature.yml` are live copy. Do not "fix" the old YAML expecting
-  it to show up.
-
-### The pre-release notice
-
-MetaLoom is not released, and the site says so in four places: the warm status pill in the hero,
-the *Not released yet* card below it, the announcement both link to, and the badge in the footer.
-
-The card pairs the copy with a short **facts list** (`notice.facts` in `data/en/home.yml`) —
-version in tree, published artifacts, demo container — rendered in monospace so it reads as a
-status readout rather than a pitch. Keep those values true; they are the first thing a visitor
-checks the project against. Three links that actually work sit next to it (announcement, blog,
-Discord).
-
-> An earlier revision had a deliberately disabled "Notify me" field here as a placeholder for a
-> mailing list that does not exist. It was removed. If a real list ever appears, add the control
-> *and* say plainly what happens to the address — never a field that looks inert but collects,
-> or one that silently swallows what is typed into it.
-
-### `/features/` — the full list
-
-`/features/` renders `data/en/feature.yml` (both `feature_item` and `feature_item_ops`), so there
-is still exactly **one** place to edit a feature. It is reached from the top navigation and from
-the home page's "All features →".
-
-* Each item takes an optional `link:` — a site-relative path to the docs page covering it (anchors
-  allowed, e.g. `/docs/loom/features/#_permissions`) — rendered as a "Read the docs →" affordance.
-* A title ending in `(planned)` is rendered as a **badge** next to the (stripped) name, so keep
-  writing them that way in the YAML. The `(planned)` items are Image manipulation, Import/Export
-  and S3; CLI and GraphQL lost that marker because both ship.
-* `title`/`content` and `title_ops`/`content_ops` are the two group headings and their intro lines.
-
-<a id="the-studios-page"></a>
-## The /tour/ page (formerly `/studios/`)
-
-`/tour/` is the **non-technical entry point**: a long, dark, image-led scroller aimed at media
-studios, archives and creators, in contrast to the reference-style docs. It is linked from the top
-navigation as *Tour* (`config.toml`, weight 2).
-
-> **It was `/studios/` until 2026-07-28.** The plural page and the new commercial `/studio/` page
-> would have been one character apart, so the tour moved to `/tour/` — content dir, data file,
-> layout dir, art partials and stylesheet all renamed with it, and the photography folder became
-> the neutral `assets/images/scenery/` because both pages draw from it. The old URL is kept alive
-> by `aliases: ["/studios/"]` in `content/english/tour/_index.md`. See
-> [The /studio/ page](#the-studio-page) and [Aliases](#aliases-redirects).
-
-| Piece | Path | Role |
-| --- | --- | --- |
-| Content stub | `content/english/tour/_index.md` | Front matter only — `title`, `description`, `page_css: css/tour.css`, `aliases: [/studios/]`. No body. |
-| Copy | `data/en/tour.yml` | **All text.** Hero, problem, three steps, six capability panels, the numbers strip, the sovereignty and audience cards, the closing CTA. |
-| Layout | `themes/meghna-hugo/layouts/tour/list.html` | Section order, image processing, the inline `st-js` bootstrap. |
-| Art | `themes/meghna-hugo/layouts/partials/tour/art-*.html` | One partial per illustration (inline SVG / small markup + CSS). |
-| Styles | `themes/meghna-hugo/assets/css/tour.css` | Plain CSS (custom properties), everything prefixed `.st-*` (the prefix was **not** renamed — `.st-` is the tour's vocabulary, `.sd-` is Studio's). **Not** compiled from LESS. |
-| Motion | `themes/meghna-hugo/assets/js/reveal.js` | Shared with the home page — see [Scroll reveal](#scroll-reveal-shared). |
-| Photography | `themes/meghna-hugo/assets/images/scenery/*.jpg` | Four abstract light-streak Unsplash shots, resized to webp by Hugo at build time. Shared with `/studio/`, which uses the fourth (`spectrum.jpg`). |
-
-Rules to keep when editing it:
-
-* **Change copy in the YAML, not the layout.** Each panel's `art:` key selects its partial by name
-  (`art: faces` → `partials/tour/art-faces.html`) through
-  `{{ partial (printf "tour/art-%s.html" $p.art) $p }}`, so a new panel needs a partial with a
-  matching file name or the build fails.
-* **The stylesheet is page-scoped.** `partials/head.html` emits a `<link>` only for pages that
-  carry `page_css: <asset path>` in front matter. That mechanism is generic — any future bespoke
-  page can use it — `/studio/` uses the same mechanism for `studio.css`.
-* **`tour.css` is hand-written CSS.** The theme's `yarn build` only compiles `less/main.less`;
-  do not expect a LESS rebuild to touch it.
-* **Never hide content behind JavaScript** — see [Scroll reveal](#scroll-reveal-shared).
-* **All motion is decoration.** The `prefers-reduced-motion` block at the end of `tour.css`
-  disables every animation and transition on the page, so nothing may encode information in
-  movement alone.
-* **No CJK text.** The site ships no CJK webfont; the translation panel deliberately uses
-  Latin-script languages only, because a Japanese line renders as tofu boxes on machines without a
-  system fallback font.
-* Images go through `.Fill "<w>x<h> webp q<n> Center"`, which turns the 1–1.5 MB source JPEGs into
-  15–95 KB webp files. Add new photography to `themes/meghna-hugo/assets/images/scenery/`, not to
-  `static/`, or it will be published unprocessed.
-
-### The hero: travelling light and the bottom fade
-
-The hero photograph is a bundle of colour bands sweeping from the lower left to the upper right.
-Five layers sit inside `.st-hero-media`, and the order is the design:
-
-| Layer | What it does |
-| --- | --- |
-| `img` | the photograph, with a 26 s scale/translate drift |
-| `.st-hero-pulse` ×3 | gradient stripes laid **across** the band axis and slid **along** it, blended into the photo — the "energy passing through the bands" effect |
-| `.st-hero-breathe` | a slow radial swell of teal (`opacity` only) — the "pulsate" half |
-| `.st-hero-veil` | darkens the left side so the headline stays legible |
-| `.st-hero-fade` | the bottom 46 %, fading to `--st-bg` so the bands run out instead of being cut off |
-
-Rules for touching it:
-
-* **Angles follow the picture.** `35deg` is the direction the bands run, so a gradient at that
-  angle puts the stripe edges at right angles to them and the transform slides the stripe along
-  them. The third layer runs the other way (`-58deg`) at lower opacity so the motion does not read
-  as one flat wipe. If the photograph is ever replaced, re-measure the band angle.
-* **Only `transform` and `opacity` are animated**, and `.st-hero-media` carries
-  `isolation: isolate` so the `mix-blend-mode` layers blend into the photo and not into the page.
-  Do not animate `filter` or `background-position` here — that would repaint a full-bleed image
-  every frame.
-* The pulses live **under** the veil on purpose. Above it they would brighten the headline area.
-* `prefers-reduced-motion` freezes them at a fixed opacity rather than hiding them.
-
-<a id="the-studio-page"></a>
-## The /studio/ page — MetaLoom Studio (commercial)
-
-`/studio/` is the **commercial pitch**: the same kind of dark scroller as `/tour/`, aimed at the
-person who has to sign something. It is linked from the top navigation as *Studio*
-(`config.toml`, weight 4) and from the footer's *Explore* column.
-
-> **What it claims is a proposal, not a shipped product.** The monetisation options, the open
-> decisions behind them and the mapping from each claim on the page back to its decision live in
-> [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) § "What The Website Currently Claims".
-> Change the page and that section together, or the two drift.
-
-| Piece | Path | Role |
-| --- | --- | --- |
-| Content stub | `content/english/studio/_index.md` | Front matter only — `title`, `description`, `page_css: css/studio.css`. No body. |
-| Copy | `data/en/studio.yml` | **All text.** Hero, the open-core ledger and its three rules, six capability panels, the numbers strip, the editions table rows, audience cards, the early-access CTA. |
-| Layout | `themes/meghna-hugo/layouts/studio/list.html` | Section order, image processing, the editions `<table>`. |
-| Art | `themes/meghna-hugo/layouts/partials/studio/art-*.html` | One partial per illustration: `ledger`, `identity`, `storage`, `licensing`, `operations`, `support`, `integrations`. |
-| Styles | `themes/meghna-hugo/assets/css/studio.css` | Plain CSS, everything prefixed `.sd-*`. **Not** compiled from LESS. |
-| Motion | `themes/meghna-hugo/assets/js/reveal.js` | Shared — see [Scroll reveal](#scroll-reveal-shared). |
-| Photography | `themes/meghna-hugo/assets/images/scenery/*.jpg` | Shared with `/tour/`; the hero is `spectrum.jpg`, which `/tour/` does not use. |
-
-Rules to keep when editing it:
-
-* **It must not look like `/tour/`.** The two pages share structure, the reveal vocabulary and the
-  photography folder on purpose, but the accent is the deciding difference: `/tour/` is teal
-  (`#57cbcc`), `/studio/` is amber (`#e2a86e`, the site's warm colour). Inside `studio.css` teal
-  survives as `--sd-teal` and marks exactly one thing — **what is open source** (the left column of
-  the ledger, the Community ticks in the editions table). Do not spend it on anything else.
-* **Prefixes are the isolation mechanism.** `/tour/` owns `.st-*`, `/studio/` owns `.sd-*`, and
-  each stylesheet is page-scoped through `page_css`. Nothing is shared between the two files except
-  the `.reveal` contract, which both restate.
-* **Change copy in the YAML, not the layout** — same rule as `/tour/`, same `art:`-key-to-partial
-  mapping (`art: storage` → `partials/studio/art-storage.html`).
-* **The editions comparison is a real `<table>`.** It is comparison data, so it stays a table with
-  `<th scope=…>`, a `<caption class="sr-only">` and an `.sr-only` "included"/"not included" next to
-  every ✓/– glyph — the state must never be carried by colour or a glyph alone. It sits inside
-  `.sd-table-scroll` (`overflow-x: auto`) with a `min-width` on the table, so it scrolls in its own
-  box and the page body never scrolls sideways.
-* **The illustrations hold `white-space: nowrap` runs** (the audit line, the group→role rows, the
-  image digest). A grid track of `1fr` is `minmax(min-content, 1fr)`, so without
-  `.sd-split > * { min-width: 0 }` those runs refuse to shrink and the whole panel is clipped by
-  `.sd-page`'s `overflow-x: hidden` on a phone. That rule is load-bearing — if a new illustration
-  introduces another nowrap run, re-check 420 px (see [Test Setup](#test-setup)).
-* **Two promises on the page are load-bearing**: *nothing that ships open source moves into Studio*
-  and *Studio does not meter processing*. They are the reason the page is credible; do not soften
-  them here and do not contradict them on `/features/` or in the docs.
-* **No prices, and no form.** Pricing is "announced with 1.0.0" until it is decided, and the CTA is
-  a `mailto:` — there is no mailing list, and a field that looks inert but collects (or collects and
-  does nothing) is exactly what the home page's status card was cleaned up to avoid.
-* **Numbers in the art are illustrative.** The response times in `art-support.html` are examples and
-  the partial says so in a comment; real figures belong in a contract, never on a marketing page.
-  The license rows in `art-licensing.html` mirror `docs/legal/model-licenses/` — if a default model
-  or its license changes, change both in the same pass.
-* **All motion is decoration.** The `prefers-reduced-motion` block at the end of `studio.css`
-  disables every animation and transition on the page.
-
-<a id="aliases-redirects"></a>
-## Aliases (redirects)
-
-A page can keep an old URL alive with `aliases:` in its front matter. Hugo then emits a small
-redirect document at each old path — that is how `/studios/` still resolves after the tour moved to
-`/tour/`.
-
-`themes/meghna-hugo/layouts/alias.html` **overrides Hugo's built-in alias template**, and the reason
-is specific to this site: the built-in writes the target as an absolute URL built from
-`site.BaseURL`, which Hugo intermittently resolves to `http://localhost:1313/` when the theme CSS is
-recompiled in the same run (see the gotcha below). `build.sh` fails the build on a localhost `href`
-— correctly, since a published redirect pointing at the reader's own machine is worse than no
-redirect. The override uses `.RelPermalink` instead and adds a visible fallback link for the case
-where the meta-refresh does not fire.
-
-* Alias paths are counted in Hugo's build summary (`Aliases │ 5`) and the output is a plain
-  `dist/<old-path>/index.html`.
-* `check-links.mjs` treats an alias page like any other page, so links pointing at the old URL keep
-  passing — but prefer updating the link to the new target anyway.
-
-<a id="scroll-reveal-shared"></a>
-## Scroll reveal (shared by `/`, `/features/`, `/tour/`, `/studio/`, `/blog/`, `/announcements/` and `/author/`)
-
-One script drives the motion on every page that has any:
-`themes/meghna-hugo/assets/js/reveal.js`. Its contract is three hooks and nothing page-specific:
-
-| Hook | Meaning |
-| --- | --- |
-| `data-reveal-scope` on a container | scan this subtree |
-| `class="reveal"` | fade/slide in when scrolled into view (adds `.is-visible`) |
-| `data-reveal-delay="<n>"` | stagger this one by *n* × 90 ms |
-| `data-count-up` | count the number up from zero when it scrolls in |
-
-Two partials wire it up — put both in any new page that wants it:
-
-```go-html-template
-<main class="hm-page" data-reveal-scope>
-  {{ partial "reveal-bootstrap.html" . }}   {{/* inline, sets .reveal-js during parse */}}
-  …
-</main>
-{{ partial "reveal-script.html" . }}        {{/* loads reveal.js, deferred + SRI */}}
-```
-
-> **Never hide content behind JavaScript.** The hidden start state is scoped to the `.reveal-js`
-> class that `reveal-bootstrap.html` sets *synchronously during parse* (a deferred script would let
-> the finished page paint and then blank it). The same snippet removes the class again after 2.5 s
-> if `reveal.js` never runs, so a blocked script degrades to "no animation", never to "no content".
-> Every "animate in" rule follows the same shape: `.reveal-js` hides, `.is-visible` reveals. The
-> illustrations hang off the same class — their keyframes are written as `.is-visible .foo`, which
-> is why revealing a container starts its art.
->
-> The `.reveal-js .reveal` rule itself lives in the **global** stylesheet
-> (`less/includes/custom.less`), so any layout can opt in with the two partials alone —
-> that is what the blog, announcements and author lists do. `tour.css` and `studio.css` still
-> restate it because they are page-scoped by design.
-
-## Announcements
-
-`/announcements/` carries release announcements — currently the **MetaLoom 1.0.0** page, which
-describes an **unreleased** version on purpose.
-
-* `content/english/announcements/_index.adoc` — section page (title + `subtitle`).
-* `content/english/announcements/<slug>/index.adoc` — one page bundle per announcement.
-* Layouts: `themes/meghna-hugo/layouts/announcements/{list,single}.html`; styles are the `.ann-*`
-  block at the end of `less/includes/custom.less`.
-
-Front matter beyond `title`/`date`/`description`:
-
-| Key | Purpose |
-| --- | --- |
-| `status` | `upcoming` or `released` — selects the badge colour (`.ann-badge-upcoming` is warm/orange). |
-| `status_label` | The badge text, e.g. `Not released yet`. Defaults to `Released`. |
-| `version` | The version the announcement is about. |
-| `image` | Social card for that announcement (`/images/og-metaloom-1-0-0.jpg` for 1.0.0). |
-
-> **An unreleased version must read as unreleased.** The 1.0.0 page leads with an `[IMPORTANT]`
-> block stating that no artifacts are published and the tree is `1.0.0-SNAPSHOT`, the badge says
-> *Not released yet*, and its social card carries the same label. When the release is actually cut,
-> flip `status` to `released`, update the badge label, drop the `[IMPORTANT]` block and regenerate
-> the card — in one change.
-
-## Social cards & page metadata
-
-`partials/card.html` builds the Open Graph and Twitter/X metadata for **every** page; `head.html`
-uses the same fallback chain for `<title>` and `<meta name="description">`.
-
-* **Title** — `<page title> | MetaLoom`, except the home page, which is just `MetaLoom`.
-* **Description** — page `description:` → Hugo `.Summary` → `site.Params.description`
-  (config.toml), trimmed and truncated to 200 characters.
-* **Image** — a page with its own `image`/`image_webp` (blog posts) shares that; everything else
-  shares `/images/og-default.jpg`, a **1200×630** branded card. `twitter:card` is
-  `summary_large_image`, so a square image would be letterboxed — do not point the default at
-  `banner_square.webp` again.
-* Also emitted: `canonical`, `og:site_name`, `og:type` (`article` for `blog`/`announcements`,
-  `website` otherwise), `og:locale` (`en_US`, derived from the `en-us` locale), `og:image:alt`,
-  and `article:published_time`/`article:author` on articles.
-
-### Regenerating the social cards
-
-The cards in `static/images/og-*.jpg` are **rendered from an HTML template with Playwright** — there
-is no design source file to keep in sync, just re-render:
-
-1. Write a 1200×630 HTML page (dark background, one of the `static/images/extra/*.jpg` light-streak
-   photos, `images/logo_word_big.svg`, headline + one sentence + `metaloom.io`).
-2. Serve `dist/` (e.g. `python3 -m http.server 8099 --directory dist`) so the logo and photo
-   resolve, then screenshot it with the Playwright/Chromium already installed under `loom-ui/`:
-
-   ```js
-   const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-   await page.goto('file:///path/to/card.html', { waitUntil: 'networkidle' });
-   await page.screenshot({ path: 'og-default.jpg', type: 'jpeg', quality: 88 });
-   ```
-3. Copy the result into `website/static/images/`. Keep them JPEG and around 50–60 KB.
-
-## Theme & Layouts
-
-`themes/meghna-hugo/` is a vendored, customized copy of the Meghna Hugo theme.
-
-| Layout | Applies to | Notes |
-| --- | --- | --- |
-| `layouts/docs/single.html` | leaf docs pages | 3-col: sticky TOC sidebar (`#toc`, bootstrap-toc) + a `.page-head` (section eyebrow + title + optional lead) + `{{.Content}}` + `.docs-foot`. |
-| `layouts/docs/list.html` | docs section pages (`_index.adoc`) | centered wide column, no sidebar; same `.page-head`, centred. |
-| `layouts/index.html` | home page | Short front door; copy from `data/en/home.yml`. See [The home page](#the-home-page). |
-| `layouts/features/list.html` | `/features/` | Renders `data/en/feature.yml` as cards, `(planned)` titles become badges. |
-| `layouts/tour/list.html` | `/tour/` | Bespoke scroller; see [The /tour/ page](#the-studios-page). |
-| `layouts/studio/list.html` | `/studio/` | The commercial scroller; see [The /studio/ page](#the-studio-page). |
-| `layouts/alias.html` | every `aliases:` entry | Redirect stub — overrides Hugo's built-in so the target is a **relative** URL; see [Aliases](#aliases-redirects). |
-| `layouts/announcements/list.html` | `/announcements/` | Newest-first list of announcement cards with status badges; opts into the shared scroll reveal. |
-| `layouts/announcements/single.html` | one announcement | Docs-style TOC sidebar + a nav of the other announcements. |
-| `layouts/_default/*` , `layouts/author/*` | blog / fallback | article/list/single/baseof. The blog and author lists share `.page-head` + `.blog-grid` + the scroll reveal. |
-
-The `docs` layout family is selected because pages live under the top-level `docs/` section.
-Theme CSS is compiled from `themes/meghna-hugo/less/main.less` via the theme's `yarn build`.
-
-### Plugins (config.toml)
-
-CSS/JS plugins are declared in `config.toml` under `[[params.plugins.css]]` / `[[params.plugins.js]]`:
-Bootstrap, FontAwesome5, Themify icons, slick, magnific-popup, lazy-load, **bootstrap-toc**
-(docs TOC) and **Swagger UI** (`plugins/swagger/*`) used to embed the live Loom REST API.
-
-## Configuration / Settings
-
-The site has no application runtime; "configuration" means `config.toml` keys and build-time
-env. Hugo `getenv` is restricted (`config.toml [security.funcs] getenv = ['^HUGO_', '^CI$']`),
-so only `HUGO_*` and `CI` env vars are readable from templates.
-
-| Setting (config.toml) | Default | Purpose |
-| --- | --- | --- |
-| `baseURL` | `https://metaloom.io` | Canonical site URL used for absolute links. |
-| `title` | `MetaLoom` | Site title. |
-| `theme` | `meghna-hugo` | Active theme directory under `themes/`. |
-| `publishDir` | `dist` | Build output directory (published site root). |
-| `paginate` | `6` | Blog list page size. |
-| `summaryLength` | `15` | Words in auto-generated post summaries. |
-| `enableRobotsTXT` | `true` | Emit `robots.txt`. |
-| `disableLanguages` | `[]` | Languages turned off (none). |
-| `discordLink` | `https://discord.gg/NFdnFcSbfA` | Community link. |
-| `[security.exec] allow` | includes `asciidoctor` | External binaries Hugo may run — **must include `asciidoctor`**. |
-| `Languages.en.contentDir` | `content/english` | Where English content is read from. |
-| `[[Languages.en.menu.main]]` | Tour (2), Features (3), Studio (4), Announcements (5), Blog (6), Docs (6) | Top navigation entries + weights. All point at real pages — no `pre = "#"` anchors. |
-| `params.logo` | `images/logo_word_big.svg` | Header logo asset. |
-| `params.discordLink` | `https://discord.gg/NFdnFcSbfA` | Community link; rendered as the header's icon. Must live under `[params]` — as a root key it is invisible to templates. |
-| `params.canonical_base` | `https://metaloom.io` | Base for the absolute URLs in the social metadata. Duplicates `baseURL` on purpose — see the gotcha below. Keep the two in sync. |
-
-| Build/publish env | Where | Notes |
-| --- | --- | --- |
-| `HUGO_*`, `CI` | build env | Only env vars templates may read (security allowlist). |
-| Node/Yarn | theme build | Installs theme deps + compiles CSS. |
-| `asciidoctor` on PATH | Hugo runtime | Renders all `.adoc` content. |
-
-## Publishing Flow
-
-The Hugo repo is built; a **separate** repo publishes it via GitHub Pages.
-
-1. In `metaloom/website/`, run `./build.sh` → produces `website/dist/`.
-2. In the sibling `metaloom-website` repo, run `./pull.sh`:
-   ```bash
-   rm -rf docs
-   cp -ra ../metaloom/website/dist docs
-   ```
-   i.e. it wipes `docs/` and copies the freshly built `dist/` into it.
-3. Commit & push `metaloom-website` — GitHub Pages serves `docs/` at the `metaloom.io` domain
-   (`docs/CNAME` = `metaloom.io`; the same `CNAME` and a `.nojekyll` marker are shipped from
-   `website/static/`).
-
-Because `pull.sh` deletes and recreates `docs/`, never hand-edit the staging repo's `docs/` —
-change the Hugo source and rebuild.
-
-## Key Files Reference
-
-| File / dir | Purpose |
-| --- | --- |
-| `website/config.toml` | Site config: baseURL, theme, menu, plugins, security exec allow, params. |
-| `website/build.sh` | Theme CSS build (yarn) + `hugo` + localhost-link and broken-link checks. |
-| `website/check-links.mjs` | Broken-internal-link + missing-anchor checker over `dist/`. |
-| `website/content/english/_index.md` | Home-page front matter (`page_css`, description). |
-| `website/data/en/home.yml` | **All copy** for the home page. |
-| `website/themes/meghna-hugo/layouts/index.html` | Home-page layout. |
-| `website/themes/meghna-hugo/layouts/partials/home/*.html` | Hero weave backdrop + the two door marks. |
-| `website/themes/meghna-hugo/assets/css/home.css` | Layout for `/` and `/features/`. Colours are aliases onto the shared `--ml-*` tokens — see [The shared design tokens](#the-shared-design-tokens). |
-| `website/themes/meghna-hugo/less/includes/custom.less` | The global stylesheet: shared `--ml-*` tokens, header, footer, and the *Reading pages* block (docs, announcements, blog, author). Compiled into `assets/css/main.css`. |
-| `website/themes/meghna-hugo/less/includes/adoc.less` | Asciidoctor output: reference tables + admonition icons, on the same tokens. |
-| `website/themes/meghna-hugo/assets/js/reveal.js` | Shared scroll-reveal + count-up. |
-| `website/themes/meghna-hugo/layouts/partials/reveal-{bootstrap,script}.html` | The two lines that wire a page to `reveal.js`. |
-| `website/content/english/features/_index.md` | `/features/` front matter. |
-| `website/content/english/tour/_index.md` | The `/tour/` page stub (front matter only; copy lives in `data/en/tour.yml`; carries `aliases: [/studios/]`). |
-| `website/data/en/tour.yml` | **All copy** for `/tour/`. |
-| `website/themes/meghna-hugo/layouts/tour/list.html` | `/tour/` layout + section order. |
-| `website/themes/meghna-hugo/layouts/partials/tour/art-*.html` | The illustrations on `/tour/` (one per panel). |
-| `website/themes/meghna-hugo/assets/css/tour.css` | `/tour/` stylesheet (page-scoped via `page_css`). |
-| `website/content/english/studio/_index.md` | The `/studio/` page stub. |
-| `website/data/en/studio.yml` | **All copy** for `/studio/`, including the editions table rows. |
-| `website/themes/meghna-hugo/layouts/studio/list.html` | `/studio/` layout + section order. |
-| `website/themes/meghna-hugo/layouts/partials/studio/art-*.html` | The six Studio illustrations. |
-| `website/themes/meghna-hugo/assets/css/studio.css` | `/studio/` stylesheet (amber, `.sd-*`). |
-| `website/themes/meghna-hugo/layouts/alias.html` | Redirect stub for `aliases:` front matter (relative URL, not absolute). |
-| `website/content/english/announcements/**` | Release announcements (`_index.adoc` + one bundle per release). |
-| `website/themes/meghna-hugo/layouts/announcements/*.html` | Announcement list/detail layouts. |
-| `website/themes/meghna-hugo/layouts/partials/card.html` | OG/Twitter metadata for every page (title, description, image chains). |
-| `website/themes/meghna-hugo/layouts/partials/navigation.html` | Site header (sticky, translucent, active-section marking). |
-| `website/themes/meghna-hugo/layouts/partials/footer.html` | Site-wide footer (four link columns, contact pills, Impressum link). |
-| `website/content/english/docs/legal/impressum/index.adoc` | Austrian Impressum + Datenschutz (German; **has placeholders**). |
-| `website/static/images/og-default.jpg`, `og-metaloom-1-0-0.jpg` | 1200×630 social cards. |
-| `website/watch.sh` | Local preview server. |
-| `website/content/english/docs/_index.adoc` | Docs landing (card grid, reading order, concepts). |
-| `website/content/english/docs/**/index.adoc` | Individual customer doc pages (AsciiDoc). |
-| `website/content/english/docs/variables.adoc-include` | Shared AsciiDoc attributes. |
-| `website/content/english/blog/*/index.adoc` | Blog posts. |
-| `website/data/en/*.yml` | Landing-page section copy (edit these, not partials). |
-| `website/i18n/en.yaml` | UI string translations. |
-| `website/static/` | Verbatim assets: `images/`, `CNAME`, `.nojekyll`. |
-| `website/static/docs/examples/openapi.{json,yaml}` | Staged OpenAPI spec — downloadable and rendered by the API explorer. |
-| `website/themes/meghna-hugo/layouts/partials/func/page-image.html` | Resolves a page's `image_webp`/`image` to a site-relative URL (blog teaser, hero, og:image). |
-| `website/themes/meghna-hugo/static/plugins/swagger/swagger.js` | Swagger UI bootstrap + explorer options. |
-| `website/themes/meghna-hugo/layouts/docs/*.html` | Docs page/section templates. |
-| `website/themes/meghna-hugo/layouts/index.html` | Home-page partial pipeline. |
-| `website/pom.xml` | Maven module registration (no build logic). |
-| `metaloom-website/pull.sh` (sibling repo) | Copies `dist` → staging `docs/` for GitHub Pages. |
+Filenames must stay stable so refreshes overwrite in place: `chat`, `chat-sessions`, `skills`,
+`memory`, `assets`, `asset-detail`, `library`, `tags`, `tasks`, `face-detection`, `pipeline-editor`,
+`pipeline-versions`, `cortex`, `monitoring`, `users`, `acl-roles`, `api-keys`.
+
+* `DemoDatabaseInitializer` seeds every screen with real content, and **paints real image bytes**, so
+  the asset browser shows pictures. Video/audio/PDF stay as placeholders — expected, not a failure.
+* **The ACL screens sit in a collapsed sub-group**; `openAclGroup()` must click
+  `[data-testid="sidebar-group-acl"]` first or the nav click times out. `clickNav` matches
+  `^\d*<label>\d*$` so a badge counter (Tasks) still resolves.
+* **The library view auto-selects an empty library** — the script clicks the first entry not labelled
+  "0 assets" before shooting.
+* **Thumbnails only render when Loom serves the UI.** The grid points `<img>` at
+  `/api/v1/assets/:uuid/binary/data`, which authenticates via the `__Host-loom_token` cookie; behind
+  a `vite` dev proxy every preview 401s. Screenshots showing thumbnails **must** come from the
+  container. Recreating the container against an existing DB yields 404s on binaries — re-run
+  `./start-postgres.sh` for a clean re-seed.
+* `cortex.png` needs a live worker built from the **same revision** as the demo image (an older image
+  fails the registration handshake) on the shared `dev` network; it needs a local OpenCV 5.1 build.
+* Docs images get click-to-zoom (`.ml-lightbox*` in `custom.less` + vanilla JS in
+  `assets/js/script.js`) — a theme feature on every docs page, not just this one.
+
+## Configuration
+
+The site has no runtime. "Configuration" is `config.toml` plus the build environment. Hugo `getenv`
+is restricted to `^HUGO_` and `^CI$`, so **templates can read no other env var**.
+
+| `config.toml` key | Value | Purpose |
+|---|---|---|
+| `baseURL` | `https://metaloom.io` | Canonical site URL |
+| `title` / `theme` / `publishDir` | `MetaLoom` / `meghna-hugo` / `dist` | |
+| `paginate` / `summaryLength` | `6` / `15` | Blog list page size, auto-summary words |
+| `enableRobotsTXT` / `disableLanguages` | `true` / `[]` | |
+| `Languages.en.contentDir` | `content/english` | Only language; `locale = en-us`, `label = En` |
+| `[[Languages.en.menu.main]]` | Tour 2 · Features 3 · Studio 4 · **Pipeline Editor 5** · Announcements 6 · Blog 7 · Docs 8 | All point at real pages — never a `pre = "#"` anchor |
+| `[security.exec] allow` | includes `asciidoctor` | **Must** include it or `.adoc` renders empty |
+| `[security] enableInlineShortcodes` | `false` | Why layout uses `++++` passthrough |
+| `[security.funcs] getenv` | `['^HUGO_', '^CI$']` | |
+| `params.logo` | `images/logo_word_big.svg` | |
+| `params.discordLink` | `https://discord.gg/3Dy2SxKUtw` | Header icon. **Must live under `[params]`** — as a root key templates cannot read it |
+| `params.canonical_base` | `https://metaloom.io` | Base for absolute social metadata. Duplicates `baseURL` **on purpose** — see Gotchas |
+| `[[params.social]]` | Discord · GitHub · email | Footer contact pills (`icon`, `label`, `link`) |
+| `[[params.plugins.css]]` / `[[.js]]` | 9 / 15 entries | Bootstrap, FontAwesome5, Themify, slick, magnific-popup, lazy-load, bootstrap-toc, **swagger**, **graphiql**, **nodeviz** |
+
+There is **no `[markup]` / `[markup.asciidocExt]` block** — Asciidoctor runs with Hugo defaults, and
+shared attributes come from `docs/variables.adoc-include` instead.
+
+| Build/publish environment | Where | Notes |
+|---|---|---|
+| `HUGO_*`, `CI` | build env | The only env vars templates may read |
+| Hugo extended ≥ 0.158 | `PATH` | System 0.131 is too old — fetch a newer binary |
+| Node + yarn/npm | theme build | Compiles `less/main.less` → `assets/css/main.css` |
+| `asciidoctor` | `PATH` | Renders all `.adoc` content |
+
+## Publishing flow
+
+1. `cd website && ./build.sh` → `website/dist/`.
+2. In the sibling `metaloom-website` repo: `./pull.sh` → `rm -rf docs; cp -ra ../metaloom/website/dist docs`.
+3. Commit & push — GitHub Pages serves `docs/` at `metaloom.io` (`docs/CNAME`; the `CNAME` and
+   `.nojekyll` markers ship from `website/static/`).
+
+`dist/` and `docs/` are git-ignored here, so a build never dirties the working tree.
 
 ## Where do I find …?
 
 | I want to … | Look at |
-| --- | --- |
+|---|---|
 | Add/edit a customer doc page | `website/content/english/docs/<section>/index.adoc` |
-| Add/edit a task-oriented guide | `website/content/english/docs/playbooks/<name>/index.adoc` (link it from `playbooks/_index.adoc` **and** `docs/_index.adoc`) |
-| Add a new docs section | New folder under `docs/` with `_index.adoc` (section) + child `index.adoc` pages; link it from `docs/_index.adoc` |
-| Change home-page text | `website/data/en/home.yml` (the legacy `about.yml`/`service.yml`/… are no longer rendered) |
-| Change the feature list | `website/data/en/feature.yml` — it drives `/features/` |
-| Change the text on `/tour/` | `website/data/en/tour.yml` (not the layout) |
-| Change the text on `/studio/` | `website/data/en/studio.yml` (not the layout); the commercial reasoning is in [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) |
-| Redirect an old URL to a new one | `aliases:` in the target page's front matter — the stub comes from `layouts/alias.html` |
-| Add scroll-reveal to a new page | `data-reveal-scope` + `.reveal` + the two `reveal-*` partials |
-| Add/redraw an illustration on `/tour/` | `website/themes/meghna-hugo/layouts/partials/tour/art-<name>.html` + styles in `assets/css/tour.css` |
-| Add/redraw an illustration on `/studio/` | `website/themes/meghna-hugo/layouts/partials/studio/art-<name>.html` + styles in `assets/css/studio.css` |
-| Add a release announcement | New bundle under `website/content/english/announcements/<slug>/index.adoc` with `status`/`status_label` |
-| Change what a shared link looks like (social card) | `website/themes/meghna-hugo/layouts/partials/card.html`; the images are `website/static/images/og-*.jpg` |
+| Add a docs **section** | New folder with `_index.adoc` (**not** `index.adoc`) + child `index.adoc` pages; link it from `docs/_index.adoc` |
+| Add a task-oriented guide | `docs/playbooks/<name>/index.adoc` — link from `playbooks/_index.adoc` **and** `docs/_index.adoc` |
+| Add/redraw a node diagram | The `data-nodeviz` block on the page; renderer `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` |
+| Change home / tour / studio / feature copy | `website/data/en/{home,tour,studio,feature}.yml` — **never the layout** |
+| Add an illustration to `/tour/` or `/studio/` | `layouts/partials/{tour,studio}/art-<name>.html` (selected by the `art:` key in the YAML) + `assets/css/{tour,studio}.css` |
 | Give one page its own stylesheet | Front matter `page_css: css/<name>.css` + the asset under `themes/meghna-hugo/assets/css/` |
+| Redirect an old URL | `aliases:` in the target's front matter; the stub comes from `layouts/alias.html` |
+| Add scroll reveal to a page | `data-reveal-scope` + `.reveal` + the two `reveal-*` partials |
+| Add a release announcement | `content/english/announcements/<slug>/index.adoc` with `status` / `status_label` / `version` / `image` |
+| Refresh the OpenAPI / GraphQL / node-descriptor files | [Staged generated artefacts](#staged-generated-artefacts) |
+| Refresh the Loom UI screenshots | [Capturing Loom UI screenshots](#capturing-loom-ui-screenshots-docsui) |
+| Record which model a node uses + its license | `docs/legal/model-licenses/index.adoc` |
+| Fill in the Impressum | `docs/legal/impressum/index.adoc` — the `[…]` markers and the comment block at the top |
+| Change top navigation | `[[Languages.en.menu.main]]` in `config.toml`; look in `partials/navigation.html` + `.navigation` in `custom.less` |
+| Change UI labels / footer headings | `website/i18n/en.yaml` |
+| Change the footer | `layouts/partials/footer.html`; contact pills in `[[params.social]]` |
+| Change site colours | the `--ml-*` block at the top of `less/includes/custom.less` (rebuild via `build.sh`) |
+| Change docs layout / TOC | `layouts/docs/{single,list}.html`; TOC scoping in `static/plugins/toc/toc.js` |
 | Find out why a link 404s | `cd website && node check-links.mjs` |
-| Change top navigation | `[[Languages.en.menu.main]]` blocks in `config.toml` |
-| Change UI labels ("Read more", menu names, footer links) | `website/i18n/en.yaml` |
-| Record which model a node uses and its license | `website/content/english/docs/legal/model-licenses/index.adoc` |
-| State how the code was produced (AI disclosure) | `website/content/english/docs/legal/ai-disclosure/index.adoc` |
-| Change the header / top navigation | `[[Languages.en.menu.main]]` in `config.toml` for the entries; `partials/navigation.html` + `.navigation` rules in `custom.less` for the look |
-| Change the footer | `website/themes/meghna-hugo/layouts/partials/footer.html`, labels in `i18n/en.yaml`, contact pills in `[[params.social]]` |
-| Fill in the Impressum | `website/content/english/docs/legal/impressum/index.adoc` — the `[…]` placeholders and the comment block at the top |
-| Change docs page layout / TOC | `website/themes/meghna-hugo/layouts/docs/single.html` (+ `list.html`) |
-| Add global CSS/JS plugin | `[[params.plugins.css]]` / `[[params.plugins.js]]` in `config.toml` |
-| Change site colors/styles | `website/themes/meghna-hugo/less/` (rebuild via `build.sh`) |
-| Add images to a page | Put them in the same page-bundle folder as the `.adoc` |
-| Change how a blog teaser/hero image is resolved | `website/themes/meghna-hugo/layouts/partials/func/page-image.html` |
-| Fix "build fails with localhost links" | Escape the URL in the `.adoc` (`\http://localhost:8092`) — see [the localhost-link check](#the-localhost-link-check) |
-| Change the published domain | `website/static/CNAME` (and staging `docs/CNAME`) + `baseURL` |
-| Fix "asciidoc renders empty" | Ensure `asciidoctor` installed and allowed in `[security.exec]` |
-| Understand how the site is published | [Publishing Flow](#publishing-flow) / `metaloom-website/pull.sh` |
-| Refresh the OpenAPI spec / API explorer | [The OpenAPI spec](#the-openapi-spec-download--api-explorer) — regenerate in `loom/doc`, then re-stage into `website/static/docs/examples/` |
+| Fix "build fails with localhost links" | Escape the URL: `` `\http://localhost:8092` `` |
+| Fix "asciidoc renders empty" | Install `asciidoctor`; confirm it is in `[security.exec] allow` |
+| Change the published domain | `website/static/CNAME` + `baseURL` + `params.canonical_base` |
+| Understand the `/pipeline-editor/` page | [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
 
 ## Conventions and Gotchas
 
-* **Two `metaloom-website` things exist.** The Hugo source (`website/`, Maven artifactId
-  `metaloom-website`) vs. the sibling publish repo (also named `metaloom-website`). Build in the
-  former, publish from the latter.
-* **AsciiDoc, not Markdown.** Docs/blog are `.adoc`. A missing `asciidoctor` binary silently
-  yields empty pages. Blog `.adoc` and docs share the `variables.adoc-include` attributes.
-* **`dist/` and `docs/` are generated + git-ignored.** Never commit build output to this repo;
-  never hand-edit the staging repo's `docs/` (overwritten by `pull.sh`).
-* **Legacy stub pages exist under `docs/`.** `docs/rest/`, `docs/test/` ("Administration Guide")
-  and top-level `docs/configuration/` are old placeholder pages **not linked** from
-  `docs/_index.adoc`. The maintained equivalents are `docs/loom/rest-api/`,
-  `docs/loom/configuration/` and `docs/cortex/configuration/`. Prefer editing/consolidating into
-  the maintained pages; the stubs are candidates for removal.
-* **`content-off/` is parked content.** It is outside `contentDir` (`content/english`) and is
-  not built. Use it as a place to disable a page without deleting it.
-* **Landing page is data-driven.** Edit `data/en/*.yml`; editing the partial HTML usually isn't
-  needed. Several sections are wired but hidden (menu entries commented out).
-* **Pretty-URL relative links.** Internal `link:` targets rely on Hugo pretty URLs with trailing
-  slashes (`link:../loom/authentication/[...]`). Match the surrounding style or links break.
-* **Raw-HTML passthrough for layout.** Card/grid/note UIs are Bootstrap markup inside `++++`
-  blocks bound to theme CSS classes; `[security] enableInlineShortcodes = false`, so don't rely
-  on shortcodes for these.
-* **Docs section auto-detection.** Pages get the `docs/` layouts purely because they live under
-  the top-level `docs/` section — moving a page out of `docs/` changes its template.
-* **`index.adoc` in a folder makes it a *leaf* bundle — its subfolders stop being pages.** This
-  silently swallowed `docs/deployment/helm/`: the page existed in the source tree, three links
-  pointed at it, and Hugo published nothing because `docs/deployment/index.adoc` made the
-  directory a leaf bundle. A section that has (or may gain) child pages must use `_index.adoc`,
-  which also switches it from `docs/single.html` to `docs/list.html` (no TOC sidebar).
-* **A static path in front matter needs a leading slash.** `image: images/team/js.jpg` is resolved
-  against the *page bundle* first and then appended to the page's own URL, which produced
-  `/author/jotschi/images/team/js.jpg`. Write `/images/team/js.jpg`.
-* **Page-scoped CSS exists.** `page_css: css/<name>.css` in front matter makes `head.html` emit one
-  extra stylesheet for that page only. Use it for bespoke pages instead of growing `custom.less`,
-  which is loaded site-wide.
-* **A menu entry with `pre = "#"` is an anchor on the home page, not a page.** `features` pointed at
-  `#feature` and `blog` at `#blog`; when those sections left the home page every menu link on the
-  site turned into a dead anchor. The link checker catches it now (it validates fragments), but the
-  rule is simpler: menu entries should point at real pages.
+* **`index.adoc` makes a folder a *leaf* bundle — its subfolders stop being pages.** This silently
+  swallowed `docs/deployment/helm/`: the source existed, three links pointed at it, Hugo published
+  nothing. A section that has (or may gain) children **must** use `_index.adoc`, which also switches
+  it from `docs/single.html` to `docs/list.html`.
+* **Docs layouts are selected by section**, purely because pages live under the top-level `docs/`
+  section. Moving a page out of `docs/` changes its template.
+* **Pretty-URL relative links.** `link:` targets rely on trailing-slash pretty URLs. A missing `../`
+  resolves *below* the current page and 404s.
+* **A static path in front matter needs a leading slash.** `image: images/team/js.jpg` resolves
+  against the page bundle and then the page URL → `/author/jotschi/images/team/js.jpg`.
+* **Site-relative over absolute in templates.** Anything a browser fetches must come from
+  `.RelPermalink` / `relURL`. Never concatenate an image name onto `.Permalink` — a pretty permalink
+  already ends in `/`, which produced a **double slash** *and* a localhost-host absolute URL.
 * **Absolute URLs come from `site.Params.canonical_base`, not `site.BaseURL`.** Hugo intermittently
-  resolves `site.BaseURL` to `http://localhost:1313/` for a handful of pages when the theme CSS is
-  rebuilt in the same run. That used to show up only in metadata; once `partials/card.html` emitted
-  a `<link rel="canonical">`, it started failing the localhost check outright. `card.html` therefore
-  builds canonical/`og:url`/`og:image` from the param, which cannot be defaulted. Do not "simplify"
-  it back to `.Permalink` or `absURL`.
-* **A running `hugo server` writes into `dist/`.** `watch.sh` (or any `hugo server`) publishes to the
-  same `dist/` and injects `<script src="/livereload.js…">` into the pages it renders. If a preview
-  server is running while you build, `build.sh` fails on that script tag — correctly, since
-  publishing it would 404 on the live site. Stop the preview server before a release build, or build
-  into a scratch directory (`hugo -d /tmp/distcheck && node check-links.mjs /tmp/distcheck`).
-* **Site-relative over absolute in templates.** Anything the browser fetches (`src`, `href`,
-  stylesheet/plugin paths) must come from `.RelPermalink` / `relURL`, not `.Permalink` / `absURL`.
-  Besides the double-slash trap above, Hugo occasionally resolves `site.BaseURL` to its default
-  `http://localhost:1313/` for a subset of pages in a build (see the open item below) — a relative
-  URL is immune to that.
-* **Hugo sometimes emits `http://localhost:1313` absolute URLs.** Reproducible on Hugo 0.158 *and*
-  0.164: when the theme CSS is recompiled in the same run (i.e. every `./build.sh`), 5–15 of the ~90
-  pages render with `site.BaseURL` = `http://localhost:1313/` even though `config.toml` sets
-  `baseURL = "https://metaloom.io"`; a second `hugo` run without a CSS change comes out clean. It is
-  not a `dist/` staleness issue (it reproduces after `rm -rf dist`) and not concurrency alone
-  (`GOMAXPROCS=1` still shows it). Since the fix above made every *link* relative, what is left
-  affected is absolute-URL **metadata** — `og:url`, `og:image`, `twitter:image:src` and the RSS
-  `<link>`/`<guid>` elements. The `build.sh` check deliberately covers link/resource attributes only,
-  so it does not fail the build on this; see the open item in [Progress](#progress-assessment).
-* **`build.sh` runs `yarn install`**, which rewrites `themes/meghna-hugo/yarn.lock` (and can pin
-  packages to whatever registry the build machine uses). Don't commit that churn along with a
-  content change.
-* **MetaLoom ships no model weights.** Nodes name models by path, repo id or endpoint URL. Any
-  license statement on the site is about a model *you* supply, which is why
-  `docs/legal/model-licenses/` phrases every row as "default, configurable" and carries a *not legal
-  advice* disclaimer. Two entries are hard blockers for commercial use (InspireFace packs, Ideogram
-  4.0) — do not soften or drop those `[WARNING]` blocks.
+  resolves `site.BaseURL` to `http://localhost:1313/` for 5–15 of the ~90 pages when the theme CSS is
+  recompiled in the same run (reproducible on 0.158 *and* 0.164; survives `rm -rf dist` and
+  `GOMAXPROCS=1`). Do not "simplify" `card.html` back to `.Permalink` / `absURL`.
+* **`layouts/alias.html` overrides Hugo's built-in** for the same reason: the built-in writes an
+  absolute `site.BaseURL` target, which trips the localhost check. The override uses `.RelPermalink`
+  and adds a visible fallback link.
+* **A running `hugo server` writes into the same `dist/`** and injects `<script src="/livereload.js">`
+  — `build.sh` then fails on it, correctly. Stop the preview server before a release build, or build
+  into a scratch dir: `hugo -d /tmp/distcheck && node check-links.mjs /tmp/distcheck`.
+* **`build.sh` runs `yarn install`**, which rewrites `themes/meghna-hugo/yarn.lock`. Restore it;
+  don't commit that churn with a content change.
+* **11 of the 15 `data/en/*.yml` files are dead.** Only `home`, `tour`, `studio` and `feature` are
+  rendered; `about`, `service`, `skill`, `funfacts`, `pricing`, `testimonial`, `portfolio`, `team`,
+  `contact`, `banner`, `cta` are unwired legacy Meghna copy. Do not "fix" copy that cannot appear.
+* **`content-off/` is parked content** — outside `contentDir`, not built. Use it to disable a page
+  without deleting it.
+* **Legacy stub pages exist under `docs/`** (`rest/`, `test/`, top-level `configuration/`) — not
+  linked from `docs/_index.adoc`. The maintained equivalents are `docs/loom/rest-api/`,
+  `docs/loom/configuration/` and `docs/cortex/configuration/`.
+* **`(planned)` in a `feature.yml` title renders as a badge** next to the stripped name — keep
+  writing them that way. Feature items take an optional `link:` to the covering docs page.
+* **MetaLoom ships no model weights.** Every license statement on the site is about a model *you*
+  supply, which is why every row is phrased "default, configurable".
+* **The `/studio/` page is a proposal, not a shipped product.** Its claims map back to decisions in
+  [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md)
+  § "What The Website Currently Claims" — change both together. Two promises on it are load-bearing
+  (*nothing open source moves into Studio*, *Studio does not meter processing*); do not soften them
+  there or contradict them in the docs. No prices, and no form — the CTA is a `mailto:`.
+* **Never ship a control that looks inert but collects.** The home page's placeholder "Notify me"
+  field was removed rather than left implying a mailing list exists.
+* **An unreleased version must read as unreleased.** The 1.0.0 announcement leads with an
+  `[IMPORTANT]` block, `status: upcoming`, a *Not released yet* badge and a matching social card.
+  When the release is cut, all four change together.
+* **The `/studio/` editions comparison is a real `<table>`** with `<th scope>`, an `.sr-only`
+  caption and an `.sr-only` "included"/"not included" beside every ✓/– — state must never be carried
+  by colour or a glyph alone. It scrolls inside `.sd-table-scroll`, never the page body.
+* **`.sd-split > * { min-width: 0 }` is load-bearing** — a `1fr` grid track is
+  `minmax(min-content, 1fr)`, so a `white-space: nowrap` run inside one refuses to shrink and gets
+  silently clipped by `.sd-page`'s `overflow-x: hidden` at 420 px.
 
 ## Test Setup
 
-There is no unit/integration test suite for the website; verification is build + visual review.
+There is no automated test suite for the website; verification is **build + the two gates + visual
+review**.
 
-1. Install prerequisites (Hugo extended, Node/Yarn, `asciidoctor`).
-2. From `website/`, run `./watch.sh` (or `./build.sh` for a one-shot build).
-3. Open `http://localhost:1313/` and verify:
-   * Landing page renders all enabled sections.
-   * `/docs/` landing card grid renders and links resolve.
-   * A representative doc page (e.g. `/docs/loom/rest-api/`) renders with sidebar TOC and, for
-     the REST API page, the embedded Swagger UI loads.
-4. Confirm `dist/` is produced with no Hugo errors (missing `asciidoctor` is the usual failure).
-5. Internal links are checked automatically — `build.sh` runs `check-links.mjs` and fails on a
-   broken target or a missing `#anchor`. Run `node check-links.mjs` on its own for a quick pass.
-6. For a visual check of `/tour/` or `/studio/` (or any page) without a browser, serve `dist/` and drive the
-   Playwright/Chromium already installed under `loom-ui/`:
-
+1. Install prerequisites (Hugo extended **≥ 0.158**, Node, `asciidoctor`).
+2. `cd website && ./build.sh` (or `./watch.sh` for `http://localhost:1313/`). A clean run ends with
+   `All done` — no Hugo errors, no localhost hits, `Link check OK — N pages`.
+3. Spot-check: `/docs/` card grid, one leaf page with the sidebar TOC, `/docs/loom/rest-api/`
+   (Swagger UI loads), `/docs/loom/graphql-api/` (GraphiQL builds the schema offline),
+   `/docs/nodes/facedetect/` (nodeviz diagram + hover card), `/pipeline-editor/` (demo loads).
+4. `node check-links.mjs` on its own for a quick link pass while editing.
+5. Visual checks without a browser — serve `dist/` and drive the Playwright/Chromium under
+   `loom-ui/`:
    ```bash
    python3 -m http.server 8099 --directory dist &
-   # navigate to http://localhost:8099/tour/, scroll the page so the IntersectionObserver
-   # reveals every section, then screenshot at 1440px and 420px wide
+   # navigate, SCROLL the page (everything starts hidden until revealed), then shoot 1440px and 420px
    ```
-
-   Scroll before shooting: everything on that page starts hidden until it is revealed.
-7. For the two design-led scrollers, check **horizontal overflow at 420 px** as well —
+6. **Horizontal overflow at 420 px** on `/tour/` and `/studio/`:
    `document.documentElement.scrollWidth` must equal the viewport width minus the scrollbar gutter,
    and no `main` descendant may be clipped by `.st-page`/`.sd-page`'s `overflow-x: hidden`. That
-   clipping is silent: the page still scrolls correctly, the content is just cut off. It is what a
-   `white-space: nowrap` run inside a `1fr` grid track causes — see
-   [The /studio/ page](#the-studio-page).
-8. After touching `custom.less` / `adoc.less` / the reading-page layouts, screenshot **both sides
-   of the seam** — `/features/` and `/docs/`, `/blog/`, `/announcements/` — at 1440 px and 420 px.
-   They must read as one surface; a page that comes out on the theme's old `#353b43` means a
-   `background-color` is winning over the token block. Cover the awkward docs pages too: a page
-   with an admonition and a code block (`/docs/playbooks/docker/`), a reference table
-   (`/docs/nodes/`), a generated diagram (`/docs/nodes/facedetect/`, `/docs/operation/`) and the
-   Swagger explorer (`/docs/loom/rest-api/`), which keeps its own light surface on purpose.
-9. If a page was moved, confirm the alias still resolves: `dist/<old-path>/index.html` must exist
-   and carry a **relative** refresh target (`dist/studios/index.html` → `/tour/`).
-10. Dry-run publish: from the sibling `metaloom-website` repo, `./pull.sh` then inspect `docs/`
-    (do not push unless intending to release).
+   clipping is silent — the page still scrolls, the content is just cut off.
+7. After touching `custom.less` / `adoc.less` / a reading layout, screenshot **both sides of the
+   seam** — `/features/` vs `/docs/`, `/blog/`, `/announcements/` — plus the awkward docs pages: an
+   admonition + code block (`/docs/playbooks/docker/`), a reference table (`/docs/nodes/`), a
+   generated diagram (`/docs/operation/`) and the Swagger explorer (which keeps its own light
+   surface on purpose).
+8. If a page moved, confirm `dist/<old-path>/index.html` exists and carries a **relative** refresh
+   target (`dist/studios/index.html` → `/tour/`).
+9. Dry-run publish: `./pull.sh` in the sibling repo, inspect `docs/`, do **not** push unless
+   releasing.
 
 ## Progress Assessment
 
-Current state of the website (as of the checkout below):
+- [x] Hugo scaffolding: config, vendored theme, `build.sh`/`watch.sh`, Maven module
+- [x] Data-driven marketing pages: `/` (short front door), `/features/`, `/tour/`, `/studio/`
+- [x] `/studios/` → `/tour/` rename with `aliases:` + a `layouts/alias.html` override
+- [x] `/pipeline-editor/` page — spec'd in [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md)
+- [x] `/announcements/` + the MetaLoom 1.0.0 page, marked **not released yet** in badge, lead and card
+- [x] `/blog/` (6 posts) + `/author/` with the shared reading system
+- [x] Docs landing, Getting Started, Operation, Pipeline, Loom UI (15 screenshots), CLI, Deployment
+- [x] Loom docs: REST API (Swagger UI), GraphQL API (GraphiQL), Java client, auth, configuration,
+      metrics, features, chat (incl. coding sandbox), binary storage, artifacts, containers, helm
+- [x] Cortex docs: configuration, monitoring, metrics, artifacts, containers, examples
+      (Java node, Java daemon, Python worker)
+- [x] **28 node pages** under `docs/nodes/`, each with a generated `nodeviz` diagram + the type legend
+- [x] Playbooks: docker, kubernetes, transcription, scene-analysis, translation, python-node
+      (incl. a paste-ready coding-agent prompt hardened against four real generation failures)
+- [x] Legal section: Apache-2.0 hub, model licenses, AI disclosure, Austrian Impressum
+- [x] Both build gates shipping: the localhost-attribute check and `check-links.mjs` (targets + anchors)
+- [x] Absolute metadata built from `params.canonical_base`, closing the `localhost:1313` flake for pages
+- [x] Site header, footer, social cards, page-image resolution, scroll reveal extracted to `reveal.js`
+- [x] GitHub Pages publish flow via the sibling repo (`pull.sh`, `CNAME`)
 
-- [x] Hugo site scaffolding (config, theme, build/watch scripts, Maven module)
-- [x] Data-driven landing page (partials + `data/en/*.yml`)
-- [x] Docs landing page with card grid, reading order and concept map (`docs/_index.adoc`)
-- [x] Getting Started guide (demo container, Loom UI, Loom App)
-- [x] Loom docs: REST API, Java client, authentication, configuration, features, metrics, artifacts,
-      maven-artifacts, containers, helm-chart, examples
-- [x] Cortex docs: nodes, configuration, monitoring, metrics, artifacts, maven-artifacts,
-      containers, examples
-- [x] Shared conceptual docs: operation model, pipeline mechanism
-- [x] Container Images page (`docs/deployment/`) with the full image + port inventory
-- [x] Chat & AI Agent docs (`docs/loom/chat/`) — agentic loop, Sessions, Skills, Memory, coding sandbox
-- [x] Loom UI docs (`docs/ui/`) — dark-mode screenshot tour of every UI area, a new "Loom UI" card on the
-      docs landing grid, and a reproducible capture procedure (`loom-ui/scripts/capture-ui-screenshots.mjs`)
-- [x] UI docs follow the AI / Content / Management navigation (ACL sub-group), and cover Chat Sessions,
-      Tasks and Monitoring; asset screenshots show real image previews from the seeded binaries
-- [x] Agentic Coding Sandbox deployment (`docs/loom/agent-sandbox/`) — podman/k8s backends, RBAC, config
-- [x] Cortex docs updated to the daemon-that-serves-nodes model (Loom owns the DAG); ports use `8092`
-- [x] Cortex examples cover a custom node (Java), a custom daemon (Java) and a custom worker (Python)
-- [x] REST API page extended with pipelines run/versions, processors, chats+stream, sessions, skills,
-      memory, and the `json-comps`/`node-results` persistence endpoints
-- [x] OpenAPI regeneration documented (see "Updating the embedded OpenAPI spec")
-- [x] `/studios/` renamed to `/tour/` (content dir, `data/en/tour.yml`, `layouts/tour/`,
-      `partials/tour/art-*`, `assets/css/tour.css`, `assets/images/scenery/`), every in-site link
-      updated, and `aliases: [/studios/]` + a `layouts/alias.html` override keeping the old URL alive
-- [x] `/studio/` added — the commercial edition scroller (amber `.sd-*`, seven illustrations, an
-      accessible editions table, mailto CTA); reasoning and open decisions in
-      [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md)
-- [ ] `/studio/` carries no pricing — the "announced with 1.0.0" lines in `data/en/studio.yml` have
-      to be replaced once decision D-5 in the Studio plan is made
-- [x] Fixed a generation artifact in `loom/maven-artifacts/index.adoc` (stray `*** Add File:` blob
-      duplicating containers/helm content with the old `metaloom/loom:latest` image name)
-- [x] Swagger UI plugin wired for the Loom REST API — mount point on `docs/loom/rest-api/`,
-      site-relative spec URL, no-op on pages without `#swagger-ui`
-- [x] Staged `openapi.json` at `website/static/docs/examples/openapi.json`
-- [x] GraphQL API page (`docs/loom/graphql-api/`) with an embedded **GraphiQL** explorer — schema
-      built in-browser from the staged `schema.graphql` (offline, execution disabled by default),
-      `plugins/graphiql/*` wired like Swagger, plus a live GraphiQL served by the loom server at
-      `/graphiql`
-- [x] Complete, explorable OpenAPI spec on the REST API page — the generator now covers **all**
-      endpoints (~130 paths / 35 resource tags, incl. the chat and memory endpoints of the agent
-      modules) with `{uuid}` path templating, declared path/query parameters, tags, security
-      schemes, standard error responses and inlined JSON examples
-- [x] Spec offered for **download** (`openapi.yaml` / `openapi.json` cards) next to the embedded
-      **API Explorer** (filter, deep links, collapsed-by-default tag groups, readable on the dark
-      site theme)
-- [x] Server serves the same document at `/api/v1/openapi`, `/openapi.yaml` and `/openapi.json`
-      with its own address as the server URL
-- [x] Playbooks section (`docs/playbooks/`) — Docker deployment, Kubernetes deployment (service
-      account, sandbox RBAC/quota/NetworkPolicy, Helm packaging), and three pipeline playbooks
-      (transcription for the chat agent, scene-level video analysis, translation). Linked from the docs
-      landing card grid, reading order and path table
-- [x] Corrected `docs/loom/helm-chart/` — the page previously documented `helm upgrade --install ./loom/helm`
-      although `loom/helm` contains only a README; it now states that status and points at the Kubernetes
-      playbook
-- [x] Explicit anchors added where cross-page links needed them (`loom/chat/`: `#coding-sandbox`,
-      `#memory`, `#skills`, `#example-skill-transcript-summarizer`; `nodes/`: `#requirements`) — the
-      existing `#coding-sandbox`/`#memory` links were pointing at Asciidoctor's auto-generated
-      `_coding_sandbox`/`_memory` ids and did not resolve
-- [x] Legal & Licensing section (`docs/legal/`) — a **Model Licenses** page inventorying every model,
-      runtime and native library the built-in nodes load, with a commercial-use verdict per entry and
-      `[WARNING]` call-outs for the two non-commercial components (**InspireFace model packs** for
-      `facedetect`, **Ideogram 4.0** for the planned `imagegen`), the conditionally licensed ones
-      (Gemma terms, gated Llama-3.2 Kartoffel TTS checkpoint), a clean-commercial-stack recipe and a
-      table of where each model id is configured
-- [x] **AI Code Generation Disclosure** page (`docs/legal/ai-disclosure/`) — 2023–2025 hand-written,
-      2026 onwards AI-assisted; scope, review/ownership, and the statement that Apache-2.0 and the
-      runtime model licenses are unaffected
-- [x] Legal section wired into the docs landing card grid, the "Choose Your Path" table and a new
-      footer link row (`partials/footer.html` + `i18n/en.yaml`)
-- [x] Custom-node playbook (`docs/playbooks/python-node/`) — Python worker over the wire protocol, the
-      two registrations a custom kind needs (Loom-side node descriptor + the kind the worker advertises),
-      persistence path and packaging. Playbooks contain no Java sources by design; the translation
-      playbook's translate step points here
-- [x] Playbook figures are inline SVG in the `docs/operation/` house style (no ASCII art)
-- [x] `docs/playbooks/python-node/` carries a paste-ready **coding-agent prompt** that generates the
-      whole worker (wire protocol, node contract, persistence, deliverables, definition of done) plus a
-      review checklist of the predictable failure modes. Keep the prompt in sync when the processor
-      protocol or the node-result endpoints change — it duplicates those facts on purpose so an agent
-      without repo access can still produce a correct worker
-- [x] Fixed the same defect at its source in `examples/cortex-python/daemon.py` — it posted the wire
-      state (`COMPLETED`) to `/assets/:uuid/node-results`, which `asset_node_result_state_check`
-      rejects, losing the ledger row while the json-comp still landed. It now maps through
-      `ledger_state()` and stamps `PRODUCER_VERSION` on both writes; `post_json_comp` gained the
-      `variant`/`producerVersion` parameters. The enum is documented on `docs/cortex/examples/` and in
-      the example README
-- [x] Prompt hardened after a real generation run (`workspaces/metaloom/custom-node`, an ffprobe-based
-      `media-probe` worker). What the first version let through: the wire state `COMPLETED` posted to
-      `/node-results`, whose column CHECK only accepts `SUCCESS|FAILED|SKIPPED`; a missing
-      `producerVersion`; no JWT-expiry handling; no advertised-vs-implemented kind check. All four are
-      now explicit in the prompt, the § "Persist the Result" step and the review checklist
-- [x] Corrected the login endpoint across the docs: it is `POST /api/v1/login` (`LoginEndpoint`), not
-      `/api/v1/auth/login` as `docs/loom/authentication/` and the first playbook draft claimed
-- [x] Legal & Licensing landing page leads with a prominent **Apache 2.0** section — what the license
-      permits, what it covers, and where it stops (model weights, third-party runtimes)
-- [x] Blog section with initial posts
-- [x] GitHub Pages publish flow via sibling `metaloom-website` repo (`pull.sh`, CNAME)
-- [x] Blog teaser/hero/social images resolve through `partials/func/page-image.html` — site-relative,
-      no double slash, banner fallback. Fixes the broken overview cards, whose `src` was
-      `{{ .Permalink }}/{{ .Params.Image_webp }}`
-- [x] `build.sh` fails the build when `dist/` contains a link or resource attribute pointing at
-      localhost; the docs that mentioned a local address in prose or a table now escape it
-      (`\http://localhost:8092`) so Asciidoctor stops auto-linking it
-- [x] **Broken-link check** (`website/check-links.mjs`, wired into `build.sh`) — resolves every
-      internal `href`/`src`/`srcset`/`action`/`poster`/`data-*-url` against the build output and
-      verifies `#anchor` fragments; fails the build with a per-page report
-- [x] The 12 live 404s it found are fixed: `docs/deployment/` became a branch bundle so its
-      **Helm Charts** child is actually built (3 links from the docs landing, 1 from
-      `loom/helm-chart/`, 1 from the Kubernetes playbook), the GraphQL API page's sibling links
-      got their `../`, `getting-started` gained explicit `#loom-ui`/`#loom-app` anchors, and the
-      author page's portrait path was absolutised
-- [x] **Home page rebuilt** as a short front door (`layouts/index.html` + `data/en/home.yml` +
-      `assets/css/home.css`): woven-thread hero with a pre-release status pill, the *Not released
-      yet* card, "Two ways in" routing visual vs technical readers, four what-it-is tiles that pair
-      a plain sentence with monospace facts, a stack strip, three latest posts and a one-command
-      CTA. Roughly 20 % shorter than the page it replaced, and the long feature list and blog grid
-      it used to carry now live on their own pages
-- [x] **Pre-release status is unmissable and honest** — hero status pill, the *Not released yet*
-      card with a monospace facts list (version in tree, published artifacts, demo container),
-      three working links, and a badge in the footer. The placeholder "Notify me" field was
-      removed rather than left to imply a mailing list exists
-- [x] **Site header reworked** — sticky translucent bar with a blur, an `.is-scrolled` solid
-      state, current-section marking (teal underline / left border on mobile, `aria-current`),
-      capitalised labels, a Discord icon, and a hamburger that folds into an X over a solid mobile
-      panel
-- [x] **The tour hero given motion** (the page was `/studios/` then) — three blended gradient stripes travelling along the
-      photograph's band axis plus a slow teal swell, and an explicit bottom fade so the colour
-      bands dissolve into the page instead of ending on an edge. `transform`/`opacity` only
-- [x] **Reading pages unified** — one typographic system across docs, announcements and blog
-      (Quattrocento Sans headings, Anaheim prose, monospace values, readable table cells, code
-      chips), a shared `.page-head`, and a sticky footer so short pages stop leaving the footer
-      mid-viewport. The docs sidebar was deliberately left as it was apart from its fonts
-- [x] **Blog reworked** — overview cards (image, date, title, summary, whole-card link) driven by
-      `content/english/blog/_index.md`, and a post layout with a sticky TOC, byline, hero image
-      with credit and a *More posts* list
-- [x] **Site footer rebuilt** — four link columns (brand + status badge, Explore, Documentation,
-      Project), copyright line and contact pills driven by `[[params.social]]`; the placeholder
-      Twitter icon pointing at `#` is gone, and bootstrap-toc is scoped to `.docs-main-content` so
-      the footer headings stop appearing in the docs TOC
-- [x] **Impressum & Datenschutz page** (`docs/legal/impressum/`) — § 5 ECG / § 25 MedienG
-      disclosure in German, plus what the static site processes (GitHub Pages logs, Google Fonts,
-      email); linked from the footer of every page and from the legal card grid
-- [x] **`/features/`** — the full `feature.yml` list on its own page, `(planned)` titles rendered as
-      badges, linked from the navigation and from the home page
-- [x] **Scroll reveal extracted to `assets/js/reveal.js`** with a page-agnostic contract
-      (`data-reveal-scope` / `.reveal` / `data-reveal-delay` / `data-count-up`) and two wiring
-      partials, shared by `/`, the tour and `/studio/`
-- [x] **Absolute URLs no longer depend on `site.BaseURL`** — `card.html` builds canonical/`og:url`/
-      `og:image` from `site.Params.canonical_base`, which closes the long-standing
-      `http://localhost:1313` metadata flake
-- [x] **The product tour** (built as `/studios/`, now `/tour/` — paths below are the *old* ones)
-      — a design-led, image-led scroller for media studios, archives and creators:
-      full-bleed hero, the "lost filename" problem, an animated pipeline figure, six capability
-      panels each with its own illustration (speech, faces, scenes, translation, fingerprints,
-      chat agent), a numbers strip, the on-premise/open-source section, three audience cards and a
-      one-command CTA. Copy is now `data/en/tour.yml`, art `partials/tour/art-*.html`,
-      page-scoped `assets/css/tour.css` + the shared `assets/js/reveal.js`, photography processed to webp
-      by Hugo. Degrades to the finished page with JavaScript off and to a static page under
-      `prefers-reduced-motion`
-- [x] **`/announcements/`** — section, list/detail layouts, `.ann-*` styles, top-menu entry, and
-      the **MetaLoom 1.0.0** announcement: what is in the release (pipeline engine, nodes, agent,
-      APIs, front ends, storage/search/ACL, deployment) plus an *Important points* table (license,
-      no shipped weights, the two non-commercial components, database, hardware, per-worker node
-      availability, API stability) — clearly marked **not released yet** in the badge, the lead
-      block and the social card
-- [x] **Social/summary metadata rebuilt** (`partials/card.html`): `summary_large_image` cards,
-      canonical URL, `og:site_name`/`og:type`/`og:locale`/`og:image:alt`, article timestamps, a
-      real title (`<page> | MetaLoom`) and a description chain (page → summary → site), plus two
-      generated 1200×630 cards (`og-default.jpg`, `og-metaloom-1-0-0.jpg`). The site-wide
-      description fallback is no longer the stale "MetaLoom 2021"
-- [x] `CLI` and `GraphQL` lost their `(planned)` marker in `data/en/feature.yml` — both ship; the
-      CLI blurb now describes the native binary / JAR client
-- [ ] Flip the 1.0.0 announcement from `status: upcoming` to `released` when the release is cut —
-      badge label, the `[IMPORTANT]` lead block and the social card all have to change together
-- [ ] The broken-link check does not fetch **external** links; a dead `https://` link on the site
-      is still invisible. An opt-in network pass (or a scheduled job) would close that
-- [ ] **Fill in the Impressum placeholders** (address, direct contact besides email) — the page is
-      not legally complete until then, and the register/UID/trade rows have to be revisited if the
-      project ever becomes commercial
-- [ ] Self-host the two web fonts instead of loading them from Google's CDN — that transfer is the
-      only reason the Impressum needs a Google Fonts paragraph
-- [ ] The **RSS** `<link>`/`<guid>` elements still come from `site.BaseURL` (Hugo's internal
-      template), so the `localhost:1313` flake can still reach them. The page metadata is fixed —
-      see `canonical_base` — but the feed would need a custom RSS template to be immune
-- [ ] The legacy Meghna landing partials and their data files (`about`, `service`, `skill`,
-      `funfacts`, `pricing`, `testimonial`, `portfolio`, `contact`, `map`, `banner`, `cta`, `blog`)
-      are no longer rendered by any layout. Delete them, or park them in `content-off/`-style
-      fashion, so nobody edits copy that cannot appear
-- [ ] Remove/consolidate legacy stub pages (`docs/rest/`, `docs/test/`, top-level
-      `docs/configuration/`) into the maintained Loom/Cortex pages
-- [ ] Automate the staging of `loom/doc/src/main/generated/openapi.*` into `website/static/` — it is
-      still a manual `cp` after every `ExampleGenerator` run
-- [ ] Document request/response **schemas** in the spec (it currently carries examples only, so
-      generated clients get untyped bodies) — see `spec/loom/RESTAPI.md` §7.5
-- [ ] Describe the two WebSocket endpoints in the spec (OpenAPI 3.0 cannot express them; they are
-      documented in `spec/loom/WEBSOCKET.md` only)
-- [ ] Only load the ~1 MB Swagger UI bundle on the REST API page instead of globally
-- [ ] Fill remaining thin pages (e.g. `helm-chart`) with full content
-- [ ] Automate build+publish (currently manual `build.sh` + `pull.sh` + push)
-- [ ] Revisit the playbooks' "node availability" caveat once `PipelineNodeFactoryModule` registers the
-      remaining kinds (`whisper`, `llm`, `ocr`, `tika`, `facedetect`, `captioning`, `scene-detection`,
-      `quality`, `consistency`, dedup, `loom`, `filter-*`) — the stock worker currently advertises only
-      `filesystem-source`, `asset-source`, the hash kinds, `thumbnail`, `vlm` and `tts`
-- [ ] `docs/nodes/llm/` claims upstream outputs "can be referenced by prompts"; `LLMNode` only binds the
-      asset filename into the prompt. Fix the page (or the node) — the translation playbook documents the
-      code behaviour
-- [ ] Revisit the `imagegen` row in `docs/legal/model-licenses/` once the node actually lands (see
-      `spec/plans/imagegen-node.md`) — it currently documents a *planned* node and its non-commercial
-      Ideogram 4.0 weights
-- [ ] Keep `docs/legal/model-licenses/` in sync with node model defaults (ongoing — the page is only
-      useful if it matches what the code loads)
-- [ ] Keep customer docs in sync with product specs under `spec/` (ongoing)
+### Known gaps and defects
+
+- [ ] **`docs/cortex/metrics/` documents three meters that have no production call site**:
+      `cortex_results_sent_total` and `cortex_results_batches_sent_total` (both emitted only by
+      `recordResultsBatchSent`, which nothing calls) and `cortex_source_ack_timeouts_total`
+      (`recordSourceAckTimeout`, likewise uncalled). The PromQL example under the table —
+      `rate(cortex_results_sent_total)` vs `rate(cortex_node_operations_total)` — therefore always
+      reads zero on the numerator. **Either wire the meters or delete the rows and the example.**
+      The `provider` label list in the same page's AI table (`ollama | smolvlm | whisper |
+      tesseract`) is also incomplete — `tts` and `sentiment` are emitted too.
+- [ ] **`docs/legal/model-licenses/` still calls `imagegen` a *planned* node.** It shipped —
+      `cortex/nodes/image-generation/` with a registered `ImageGenDescriptorProvider`, and
+      `docs/nodes/imagegen/` is a published page. Drop "(planned)" from the row and the prose while
+      keeping the Ideogram 4.0 non-commercial `[WARNING]`. Plan:
+      [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md).
+- [ ] **`docs/loom/_index.adoc` calls the gRPC API "(planned)"** — `loom/services/grpc` ships and
+      `docs/loom/maven-artifacts/` already documents the `loom-grpc-client` coordinates.
+- [ ] **No docs page for the MCP server.** It ships (`loom/services/mcp`, spec
+      [../loom/MCP.md](../loom/MCP.md), port 4041) but appears only as rows in the configuration
+      tables — an LLM-client-facing feature with no page telling a customer how to connect.
+- [ ] **No docs page for the gRPC API** beyond the artifact coordinates — see
+      [../loom/GRPC.md](../loom/GRPC.md).
+- [ ] **No `docs/nodes/loom/` page** for the Loom sink node (`cortex/nodes/loom/`), and no page for
+      the `loom-fetch` source. The sink is the node every "write results back" pipeline ends on.
+- [ ] **No docs page links to `/pipeline-editor/`.** `docs/pipeline/` and `docs/nodes/_index.adoc`
+      are the natural places to send a reader who wants to *try* the model.
+- [ ] `docs/nodes/llm/` claims upstream outputs "can be referenced by prompts"; `LLMNode` only binds
+      the asset filename into the prompt. Fix the page (or the node) — the translation playbook
+      documents the code behaviour.
+- [ ] Revisit the playbooks' "node availability" caveat once `PipelineNodeFactoryModule` registers
+      the remaining kinds; the stock worker still advertises a subset.
+- [ ] Staging the three generated artefacts is a manual `cp` — nothing fails when they go stale.
+      A `build.sh` freshness check or a Maven copy step would close it.
+- [ ] The broken-link check never fetches **external** links; a dead `https://` link is invisible.
+- [ ] The RSS `<link>`/`<guid>` still come from `site.BaseURL` (Hugo's internal template), so the
+      `localhost:1313` flake can still reach the feed. A custom RSS template would fix it.
+- [ ] Only load the ~1 MB Swagger UI bundle on the REST API page instead of globally.
+- [ ] **Fill in the Impressum placeholders** (address, a direct channel besides email).
+- [ ] Self-host the two web fonts instead of Google's CDN — that transfer is the only reason the
+      Impressum needs a Google Fonts paragraph.
+- [ ] Delete or park the 11 unrendered `data/en/*.yml` files and their partials.
+- [ ] Remove/consolidate the legacy stubs `docs/rest/`, `docs/test/`, `docs/configuration/`.
+- [ ] `/studio/` carries no pricing — the "announced with 1.0.0" lines must be replaced once
+      decision D-5 in the Studio plan is made.
+- [ ] Flip the 1.0.0 announcement to `status: released` when the release is cut (badge label,
+      `[IMPORTANT]` block and social card all change together).
+- [ ] Thin pages remain (e.g. `loom/helm-chart/`, which now correctly says `loom/helm` holds only a
+      README and points at the Kubernetes playbook).
+- [ ] Automate build + publish (currently manual `build.sh` + `pull.sh` + push).
+- [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
 
-_GIT HEAD: `3ba0a6ff` (branch `master`)_
-_Generated: 2026-07-29 (UTC) — nodeviz gained the typed-port vocabulary: per-port `c` (cardinality)
-and `ct` (content-type id override) spec fields, a `TYPES` table whose ids are the real
-`family/subtype` vocabulary, a hover/focus/tap card showing the type icon, content type, ONE/MANY
-badge and description, an animated flow track whose motion encodes cardinality, a static stacked mark
-for `MANY` ports in the diagram itself, and a legend that now teaches cardinality alongside the icon
-key. 27 node pages carry specs. Previously: `/studios/` → `/tour/` rename, new `/studio/` commercial
-page, alias mechanism_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (cut ~70% of restating prose, rebuilt the page inventory against the tree, and recorded the cortex-metrics, imagegen-"planned", gRPC-"planned" and missing-MCP/gRPC/loom-node doc defects)_

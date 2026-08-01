@@ -1,401 +1,398 @@
-# Fingerprint Deduplication Nodes — Technical Specification
+# Deduplication Nodes — Technical Specification
 
-> **Audience: AI coding agents.** This document specifies two Cortex nodes that bring the
-> `xdb-clean` perceptual-fingerprint deduplication workflow into MetaLoom, with a
-> **human-in-the-loop** review step instead of an interactive terminal:
+> **Audience: AI coding agents.** The dedup family brings `xdb-clean`'s perceptual-fingerprint
+> workflow into MetaLoom, split across **two nodes and a human decision**:
 >
-> 1. **Discovery** (`fingerprint-dedup`) — finds near-duplicate videos via fingerprint similarity
->    and **reports candidate groups** to Loom for review (no file changes).
-> 2. **Apply** (`fingerprint-dedup-apply`) — reads the **confirmed** groups and moves/marks the
->    duplicate files.
+> 1. **Discovery** (`fingerprint-dedup`) — finds near-duplicate videos via the Lucene similarity
+>    index and writes **candidate groups** to Loom for review. Never touches a file.
+> 2. **Review** — a human sets a group `CONFIRMED` or `REJECTED` over REST.
+> 3. **Apply** (`fingerprint-dedup-apply`) — reads only **CONFIRMED** groups and moves the duplicates.
 >
-> **Status: BUILT** (except demo data, website docs and the per-node E2E). Done and tested:
-> the Flyway migration (`dedup_group` / `dedup_group_member` / `dedup_status`, V2.61) + permissions
-> (V2.62), the `DedupGroupDao` (api + jOOQ, cascade tests green), the REST endpoints
-> (`/api/v1/dedup-groups` ×5 and `GET /api/v1/assets/:uuid/dedup-groups`) with
-> endpoint + permission tests, the DTOs + `DedupGroupMethods` client, and **both Cortex nodes** —
-> `FingerprintDedupNode` (discovery, fills the old stub) and `FingerprintDedupApplyNode` — with
-> options, descriptors, Dagger kind bindings and unit tests.
-> The prerequisite similarity index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) is built too.
-> Test counts: `DedupGroupDaoTest` 6, `DedupGroupEndpointTest` 11, cortex dedup module 11. See §13.
->
-> **Reference behaviour**: `xdb-clean/FPDEDUP_PROCESS.md` documents the original algorithm and its
-> safeguards; this spec maps those onto Loom/Cortex. General node conventions: [NODES.md](NODES.md).
+> Plus `sha512-dedup` / `hash-dedup` (the same class under two kind ids) for exact-hash duplicates.
 
----
+## 🟢 Status: BUILT (backend + both nodes) — verified at `499f71f7`
 
-## 1. Background & the shape of the change
+The schema, permissions, DAO, all six REST routes, the DTOs and client, **both Cortex nodes**, the
+descriptors, the kind bindings and the customer docs all exist. Test counts by `@Test`: cortex dedup
+module **11**, `DedupGroupEndpointTest` **11**, `DedupGroupDaoTest` **6**. The prerequisite similarity
+index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) is built and is what discovery queries.
 
-`xdb-clean`'s `fpdedup` command: builds a Lucene index of fingerprints from a central DB, streams a
-local filesystem scan, queries the index for similar media, applies safeguards, presents best-vs-dups
-to a human in the terminal, records `dup → keep` decisions in a JSONL ledger, and a *separate* action
-later moves the confirmed dups to an `fpdups` folder.
+🔴 **The human-in-the-loop review step has no working UI.** That is the one substantial piece of this
+feature still missing, and §3.1 is the only part of this file that is still a *plan*.
 
-MetaLoom already has the pieces to reproduce this, distributed across Loom and Cortex:
+⚠️ **Corrections against the previous revision of this file.** It carried a "BUILT" header over a
+"§9 — nothing below exists yet" note and a "§13 — Nothing is implemented" line. Those were stale and
+are removed. Four further statements were wrong and are corrected here:
 
-| xdb-clean concept | MetaLoom equivalent |
+| Previously specified | Actually built |
 |---|---|
-| Lucene fingerprint index | `SimilarityIndex` in Loom ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) |
-| `MediaFileEntry` (size, zeroChunkCount, path) | `AssetResponse` + consistency fields (`is_complete`, `zero_chunk_count` from `V2.46`) |
-| Interactive confirm/deny in the terminal | **New `dedup_group` review records** + confirm/deny via REST/UI |
-| JSONL `dup → keep` ledger | `dedup_group` (status) + `dedup_group_member` (role KEEP/DUP) |
-| `FpDedupIndexAction` (moves dups to `fpdups`) | **Apply node** reusing `HashDedupNode.moveMedia` |
+| Website docs still open | `website/content/english/docs/nodes/dedup/index.adoc` **exists** and covers all three kinds |
+| Discovery "skips already-dedupped media (assets already in a CONFIRMED/REJECTED group)" ✅ | 🔴 **Not implemented.** `FingerprintDedupNode` never queries existing groups. Server-side `createDedupGroup` refuses to *reopen* a decided group but happily creates a **new PENDING** one for the same keep+algorithm on every run (§3.2) |
+| Apply "re-hashes the KEEP correctly before any move" ✅ | 🔴 **No re-hash.** `keepPassesSafeguards` checks existence, completeness, size and folder — nothing else (§3.3) |
+| Discovery upserts via a client-side idempotency key | Idempotency lives **server-side**: `DedupGroupEndpointService.createDedupGroup` → `findPendingByKeep(keep, algorithm)` → delete + recreate |
+| Kind-id mismatch `hash-dedup` vs `sha512-dedup` still open | **Fixed** — both `@StringKey`s bind `HashDedupNode`; the descriptor advertises `hash-dedup`, `name()` returns `sha512-dedup` |
 
-**Two nodes, two lifecycles.** Discovery writes review items; apply consumes human decisions. Keeping
-them separate means each is independently schedulable and the risky file-moving step only ever runs on
-human-confirmed data.
+**Module**: `cortex/nodes/dedup` (aggregator + `core`, no `-api` submodule) ·
+**Package**: `io.metaloom.cortex.node.dedup` · **No model, no sidecar.**
 
-### 1.1 What already exists (reuse, don't reinvent)
-
-| Thing | Location | Reuse |
-|---|---|---|
-| `FingerprintDedupNode` **stub** | `cortex/nodes/dedup/core/.../FingerprintDedupNode.java` | becomes the **discovery** node |
-| `HashDedupNode` | `cortex/nodes/dedup/core/.../HashDedupNode.java` | `moveMedia(...)` + safeguards template for **apply** |
-| `DedupNodeOptions` (`dupFolder`) | `cortex/nodes/dedup/core/.../DedupNodeOptions.java` | apply node options (key `fingerprint-dedup-apply`) |
-| `DedupNodeModule` | `cortex/nodes/dedup/core/.../DedupNodeModule.java` | add the two kind bindings |
-| `DedupDescriptorProvider` | `loom-shared/node-model/.../spec/DedupDescriptorProvider.java` | descriptors already list `fingerprint-dedup` |
-| `WhisperNode` two-step persistence | `cortex/nodes/whisper/core/.../WhisperNode.java` | write-back pattern (typed payload + `recordNodeResult`) |
-| `AbstractMediaNode.recordNodeResult / resultRef` | `cortex/common/.../node/AbstractMediaNode.java` | ledger boilerplate |
-| `FileUtils.autoRotate / moveFile` | `cortex` common utils (used by `HashDedupNode`) | file move |
-| Consistency fields on the asset | `loom/db/flyway/.../V2.46__asset_identity.sql` | `is_complete`, `zero_chunk_count` for safeguards |
+General node conventions: [NODES.md](NODES.md). Ports and content types:
+[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6. Adding a node:
+[../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md). The dedup entities in the domain model:
+[../../loom/DOMAIN.md](../../loom/DOMAIN.md). The similarity query this depends on:
+[../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md). Reference algorithm and its safeguards:
+`xdb-clean/FPDEDUP_PROCESS.md`. **The code is the source of truth.**
 
 ---
 
-## 2. Loom schema — the dedup review model
+## 1. Already implemented
 
-🔴 **There is no asset-to-asset relation table today.** The closest existing thing (`task` + `asset_task`)
-cannot express keep-vs-dup roles or per-member similarity scores. A purpose-built, queryable model is
-added instead.
+| Item | Where it lives |
+|---|---|
+| `FingerprintDedupNode` (185 lines) — discovery | `cortex/nodes/dedup/core/src/main/java/io/metaloom/cortex/node/dedup/FingerprintDedupNode.java` |
+| `FingerprintDedupApplyNode` (182 lines) — apply | same package, `FingerprintDedupApplyNode.java` |
+| `HashDedupNode` (143 lines) — exact-hash dedup, `moveMedia` template | same package, `HashDedupNode.java` |
+| `FingerprintDedupDiscoverOptions` (`algorithm`, `scoreThreshold`, `topK`, `allowPartial`, `abortOnLargerDup`) | same package |
+| `DedupNodeOptions` (`dupFolder`) — shared by `sha512-dedup` **and** apply | same package |
+| Kind bindings `sha512-dedup`, `hash-dedup` (alias), `fingerprint-dedup`, `fingerprint-dedup-apply` | `DedupNodeModule.java` |
+| Aggregation into the Dagger graph | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java:6,40`; guarded by `NodeRegistrarTest:59-64` |
+| 3 descriptors (`hash-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply`), category `OUTPUT`, `SEQUENTIAL`, concurrency 1 | `loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/DedupDescriptorProvider.java` + `META-INF/services` |
+| Migration: `dedup_status` enum, `dedup_group`, `dedup_group_member`, 3 indexes, role CHECK, UNIQUE `(group_uuid, asset_uuid)` | `loom/db/flyway/src/main/resources/db/migration/V2.61__add_dedup_group.sql` |
+| Permissions `READ/CREATE/UPDATE/DELETE_DEDUP` (`ALTER TYPE loom_permission`) | `.../V2.62__add_dedup_permission.sql`; enum at `loom/db/api/.../model/perm/Permission.java:221-227` |
+| `DedupGroupDao` (10 methods incl. `findPendingByKeep`) + `DedupGroup` / `DedupGroupMember` models | `loom/db/api/src/main/java/io/metaloom/loom/db/model/dedup/` |
+| jOOQ impls + generated types (`JooqDedupGroup*`, `JooqDedupStatus`) | `loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/dedup/`; `loom/db/jooq/src/jooq/java/.../` |
+| `DedupGroupEndpoint` (5 routes) + `DedupGroupEndpointService` (215 lines, upsert + validation) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/{endpoint,service}/impl/` |
+| `GET /api/v1/assets/:uuid/dedup-groups` | `loom/services/rest/.../endpoint/impl/AssetEndpoint.java:517-522` |
+| DTOs `DedupGroup{Create,Update}Request`, `DedupGroup{,List}Response`, `DedupGroupMemberModel` | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/dedup/` |
+| `DedupGroupMethods` (6 methods) + HTTP impl | `loom-client/common/.../method/DedupGroupMethods.java`; `loom-client/rest/.../LoomHttpClientImpl.java:1585-1622` |
+| Candidate retrieval (Lucene HNSW k-NN over 256-dim fingerprints) | `loom/services/lucene/.../LuceneSimilarityIndex.java` → `GET /api/v1/assets/:uuid/similar-assets` |
+| Tests: `FingerprintDedupNodeTest` (2), `DedupNodeOptionsValidationTest` (5), `FingerprintDedupDiscoverOptionsValidationTest` (4), `DedupGroupEndpointTest` (11), `DedupGroupDaoTest` (6, incl. both delete-cascades) | `cortex/nodes/dedup/core/src/test/…`; `loom/core/src/test/…/DedupGroupEndpointTest.java`; `loom/db/jooq/src/test/…/DedupGroupDaoTest.java` |
+| Customer docs | `website/content/english/docs/nodes/dedup/index.adoc` (+ links in `nodes/_index.adoc`) |
+| Domain-model rows | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) §Dedup Group / Dedup Group Member (V2.61) |
+| Catalogue rows | [NODES.md](NODES.md) §2/§3/§5; [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6 |
 
-Flyway migration **`V2.61__add_dedup_group.sql`** (as built; the permissions follow in
-**`V2.62__add_dedup_permission.sql`**), `loom/db/flyway/src/main/resources/db/migration/`:
+### 1.1 The review model (as built)
 
 ```sql
 CREATE TYPE "dedup_status" AS ENUM ('PENDING', 'CONFIRMED', 'REJECTED');
 
-CREATE TABLE "dedup_group" (
-    "uuid"            uuid PRIMARY KEY,
-    "algorithm"       varchar NOT NULL,                 -- e.g. metaloom-multisector-v1
-    "status"          "dedup_status" NOT NULL DEFAULT 'PENDING',
-    "keep_asset_uuid" uuid REFERENCES "asset" ("uuid") ON DELETE SET NULL,
-    "score"           real,                             -- representative (min member) similarity
-    "meta"            jsonb,
-    "created"         timestamp NOT NULL DEFAULT now(),
-    "creator_uuid"    uuid REFERENCES "user" ("uuid"),  -- NULL = machine-created (discovery node)
-    "edited"          timestamp,
-    "editor_uuid"     uuid REFERENCES "user" ("uuid")
-);
-
-CREATE TABLE "dedup_group_member" (
-    "uuid"             uuid PRIMARY KEY,
-    "group_uuid"       uuid NOT NULL REFERENCES "dedup_group" ("uuid") ON DELETE CASCADE,
-    "asset_uuid"       uuid NOT NULL REFERENCES "asset" ("uuid") ON DELETE CASCADE,
-    "role"             varchar NOT NULL,                -- 'KEEP' | 'DUP'
-    "score"            real,                            -- similarity of this member to the keep
-    "size"            bigint,                           -- snapshot for safeguards & UI
-    "zero_chunk_count" bigint,                          -- snapshot (completeness)
-    UNIQUE ("group_uuid", "asset_uuid")
-);
-
-CREATE INDEX "idx_dedup_group_status"        ON "dedup_group" ("status");
-CREATE INDEX "idx_dedup_group_member_asset"  ON "dedup_group_member" ("asset_uuid");
-CREATE INDEX "idx_dedup_group_member_group"  ON "dedup_group_member" ("group_uuid");
+dedup_group        (uuid PK, algorithm, status, keep_asset_uuid → asset ON DELETE SET NULL,
+                    score real, meta jsonb, created, creator_uuid, edited, editor_uuid)
+dedup_group_member (uuid PK, group_uuid → dedup_group CASCADE, asset_uuid → asset CASCADE,
+                    role CHECK IN ('KEEP','DUP'), score real, size bigint, zero_chunk_count bigint,
+                    UNIQUE (group_uuid, asset_uuid))
 ```
 
-**Modelling notes**
-- One `dedup_group` == one candidate duplicate set (one KEEP + one-or-more DUP members). This mirrors
-  xdb-clean's best-vs-dups result, and generalises the pair case.
-- `keep_asset_uuid` is denormalised for convenience; the authoritative KEEP is the member with
-  `role='KEEP'`. Keep them consistent in the DAO.
-- `ON DELETE SET NULL` on `keep_asset_uuid` but `ON DELETE CASCADE` on the member — deleting the kept
-  asset should not silently delete the whole review record, but a member row is meaningless without its
-  asset.
-- Snapshots (`size`, `zero_chunk_count`) are recorded at discovery time so the review UI and the apply
-  node's safeguards do not have to re-read every asset; the apply node still re-verifies against the
-  live file before moving anything.
+One group = one candidate set (exactly one `KEEP` + N `DUP`). `keep_asset_uuid` is denormalised for
+convenience; the authoritative KEEP is the member with `role='KEEP'` — the DAO keeps them consistent.
+`SET NULL` on the keep but `CASCADE` on members: deleting the kept asset must not silently erase the
+review record, but a membership row without its asset is meaningless. `size` / `zero_chunk_count` are
+**discovery-time snapshots** for the review UI and the apply-node safeguards; apply re-verifies
+against the live file regardless.
 
-**DAO** — `DedupGroupDao` in `loom/db/api` (`io.metaloom.loom.db.model.dedup`), jOOQ impl in
-`loom/db/jooq`. As built: `createGroup`, `storeGroup`, `addMember`, `loadGroup`, `loadMembers`,
-`listByStatus`, `listByAsset`, `findPendingByKeep` (the idempotency lookup), `updateStatus`,
-`deleteGroup`.
-⚠️ **No in-memory impl.** `loom/db/memory` does not mirror every DAO (`AssetNodeResultDao` has none
-either); the jOOQ impl is exercised against the real pooled database instead.
-🔴 **Delete-cascade tests** (per [../../guidelines/CODING.md](../../guidelines/CODING.md)): deleting a
-group removes exactly its members; deleting an asset removes its memberships and nulls `keep_asset_uuid`,
-and removes nothing else.
+`creator_uuid` / `editor_uuid` are **nullable** — a Cortex worker is not a user
+([../../loom/DOMAIN.md](../../loom/DOMAIN.md)).
 
-🔴 After adding the migration: `./setup-pool.sh`, then regenerate jOOQ (`loom/db/jooq/generate.sh` —
-see the project memory note on codegen) so `JooqDedupGroup*` types exist.
-
-### 2.1 REST + client
-
-Per [../../guidelines/CODING.md](../../guidelines/CODING.md) (plural paths, endpoint + permission tests):
+### 1.2 REST surface
 
 | Method & path | Purpose | Permission |
 |---|---|---|
-| `GET /api/v1/dedup-groups?status=PENDING` | List candidate groups (review queue) | `READ_DEDUP` |
+| `POST /api/v1/dedup-groups` | Create (discovery node). **Upsert**: an existing PENDING group with the same keep+algorithm is deleted and recreated; a decided group is never reopened. `201` | `CREATE_DEDUP` |
+| `GET /api/v1/dedup-groups?status=PENDING` | The review queue | `READ_DEDUP` |
 | `GET /api/v1/dedup-groups/:uuid` | One group + members | `READ_DEDUP` |
-| `POST /api/v1/dedup-groups` | Create (used by the discovery node; upsert-on-member-set) | `CREATE_DEDUP` |
-| `PATCH /api/v1/dedup-groups/:uuid` | Confirm/deny → set `status` CONFIRMED/REJECTED, set KEEP | `UPDATE_DEDUP` |
+| `PATCH /api/v1/dedup-groups/:uuid` | Confirm / reject, optionally reassign the KEEP | `UPDATE_DEDUP` |
 | `DELETE /api/v1/dedup-groups/:uuid` | Remove a group | `DELETE_DEDUP` |
-| `GET /api/v1/assets/:uuid/dedup-groups` | Groups involving one asset (apply node uses this) | `READ_DEDUP` |
+| `GET /api/v1/assets/:uuid/dedup-groups` | Groups involving one asset (what apply calls) | `READ_DEDUP` |
 
-New permissions `READ_DEDUP` / `CREATE_DEDUP` / `UPDATE_DEDUP` / `DELETE_DEDUP` (see
-[../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md); grant test perms via group+role, not
-direct user grants — a known pitfall). Client: `DedupGroupMethods` in `loom-client/common` aggregated
-into `ClientMethods`; impl in `loom-client/rest`; DTOs in `loom-shared/rest-model`
-(`DedupGroupCreateRequest`, `DedupGroupResponse`, `DedupGroupListResponse`, `DedupGroupUpdateRequest`).
+Validation: `400` on blank algorithm, empty member list, bad role, bad uuid or bad status; `404` on an
+unknown group. ⚠️ `GET` **without** a `status` param concatenates the PENDING, CONFIRMED and REJECTED
+lists — no combined ordering and no pagination (§3.4).
 
----
+### 1.3 What each node actually does
 
-## 3. Node A — Discovery (`fingerprint-dedup`)
+**`fingerprint-dedup` (discovery)** — `isProcessable` = `media().isVideo()`. Skips when offline, when
+the asset is unknown to Loom, or when `asset.getFingerprint().getFingerprintV1()` is null. Otherwise:
 
-Repurpose the stub `FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDiscoverOptions>`.
+1. `client().listSimilarAssets(uuid, algorithm, topK, scoreThreshold)` → Lucene k-NN hits.
+2. Candidate set = the query asset (score `1.0`) + each hit, **self-excluded by uuid**; each hit is
+   loaded with `loadAsset` for its size and `zeroChunkCount`.
+3. **KEEP = the largest *complete* candidate** (`zeroChunkCount` null or `0`). If none is complete →
+   skip, unless `allowPartial`, in which case the largest overall wins.
+4. Every other candidate becomes a `DUP`. 🔴 If `abortOnLargerDup` (default) and **any** DUP is larger
+   than the KEEP, the whole group is abandoned — never propose discarding the bigger file.
+5. `createDedupGroup(...)` with group `score` = the **minimum** member score, `status=PENDING`.
+6. `recordNodeResult(SUCCESS, "<n> duplicate candidate(s)", algorithm, resultRef("dedup_group", uuid))`.
+7. **No file is read, moved or altered.**
 
-- `name()` = `"fingerprint-dedup"` (descriptor already exists in `DedupDescriptorProvider`).
-- **Ports**: input `IN_FINGERPRINT = InputPort.one("fingerprint", ContentTypeRegistry.HASH_FINGERPRINT, String.class)`
-  (matches the descriptor's declared port), wired from `FingerprintNode.OUT_FINGERPRINT`. Optional output
-  `OUT_DEDUP_GROUP = OutputPort.one("dedup_group", struct/json, String.class)` carrying the group uuid for
-  any downstream consumer. (Ports must equal the descriptor ids — [NODES.md](NODES.md) §1.)
-- `isProcessable(ctx)` = `ctx.media().isVideo()` and a fingerprint is available.
-- `compute(ctx, asset)` — guarded by `asset != null && client() != null` (no-op offline):
-  1. Resolve the query fingerprint (from `IN_FINGERPRINT`, else `asset` fingerprint comp).
-  2. `client().listSimilarAssets(asset.getUuid(), algorithm, topK, threshold)` — the
-     [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) endpoint.
-  3. Build the candidate set from the hits (load each `AssetResponse`), then apply the safeguards that
-     map cleanly from `xdb-clean/FPDEDUP_PROCESS.md` §5 (see §5 below).
-  4. If a valid group survives (≥1 DUP): `client().createDedupGroup(...)` — upsert a `dedup_group`
-     (`status=PENDING`, algorithm, `score`) with members (one KEEP + N DUP, each with role, score, size,
-     zero-chunk snapshot). Idempotency: upsert keyed on the KEEP asset + algorithm (re-running discovery
-     over the same content updates the same PENDING group rather than duplicating it; never touch a
-     CONFIRMED/REJECTED group).
-  5. `recordNodeResult(asset, ctx, SUCCESS, reason, algorithm, resultRef("dedup_group", groupUuid))`.
-  6. **No file is moved or altered.**
-- **Event emission** (the "emit events or gather a list" requirement): the `dedup_group` rows *are* the
-  gathered list. Optionally also publish a `dedup.candidate` event onto the pipeline-events WebSocket
-  (via the existing `PipelineEventBroadcaster` path — see [../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md),
-  [../../loom/EVENTBUS.md](../../loom/EVENTBUS.md)) so a review UI updates live. Secondary; the durable
-  record is the table.
-- **Dagger**: add `@Binds @IntoMap @StringKey("fingerprint-dedup")` in `DedupNodeModule` (the stub
-  deliberately omits this today). Add `CortexNodeOptionDeserializerInfo(FingerprintDedupDiscoverOptions.class, "fingerprint-dedup")`
-  and a `@Provides` options method.
+**`fingerprint-dedup-apply`** — `isProcessable` = media has a SHA-512. `listAssetDedupGroups(uuid)`,
+then for each group: skip unless `status == "CONFIRMED"` **and** this asset is a member with
+`role='DUP'`. Load the KEEP and re-verify it live: exists on disk, `zeroChunkCount` null or `0`,
+`size >= dup size`, and not itself inside `dupFolder`. Idempotent: a dup already inside `dupFolder` is
+skipped. Then `FileUtils.autoRotate` + `moveFile` (dry-run aware) and a ledger-only
+`recordNodeResult(SUCCESS, "fpdup of <keepPath>")`.
 
-`FingerprintDedupDiscoverOptions extends AbstractNodeOptions` (key `fingerprint-dedup`):
-`algorithm` (default `metaloom-multisector-v1`), `scoreThreshold` (default 0.10), `topK` (default 10),
-`allowPartial` (default false), `abortOnLargerDup` (default true). `validate()` calls `validateCommon()`.
+**`sha512-dedup` / `hash-dedup`** — `HashDedupNode`: if Loom already knows an asset for this SHA-512
+and its recorded file exists at a *different* path with the same hash, move the local copy into
+`dupFolder` and record a ledger row.
 
 ---
 
-## 4. Node B — Apply (`fingerprint-dedup-apply`)
-
-New `FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOptions>` (reuse `DedupNodeOptions`;
-`dupFolder`), `name()` = `"fingerprint-dedup-apply"`.
-
-- `isProcessable(ctx)` = has SHA-512 (any media that could be a member).
-- `compute(ctx, asset)` — guarded, no-op offline:
-  1. `client().listAssetDedupGroups(asset.getUuid())`, filter to `status=CONFIRMED`. (**No delta sync** —
-     deferred; see §7. This is a simple per-asset fetch each run.)
-  2. If the current asset is a member with `role='DUP'` in a confirmed group, and the group's **KEEP**
-     asset:
-     - exists on disk, re-hashes to its recorded SHA-512 (the existing `databaseConsistencyFilter`
-       equivalent), is **complete** (`zero_chunk_count == 0`), is **≥** the dup's size, and is **not**
-       itself inside a dups/trash folder — mirroring `FpDedupIndexAction`'s safeguards
-       (`xdb-clean/FPDEDUP_PROCESS.md` §8) —
-     - then move/mark the current (dup) file into `options().getDupFolder()` via **reused**
-       `HashDedupNode.moveMedia(...)` (`FileUtils.autoRotate` + `moveFile`, guarded by `isDryrun()`).
-  3. `recordNodeResult(asset, ctx, SUCCESS, "fpdup of " + keepPath, null, null)` (ledger-only, like
-     `HashDedupNode`).
-  4. **Idempotent**: if the dup file is already in the dups folder / already moved, skip cleanly.
-- **Descriptor**: add a `fingerprint-dedup-apply` descriptor to `DedupDescriptorProvider`
-  (`category=OUTPUT`, `defaultConcurrency(1)`, `defaultMode(SEQUENTIAL)`, input port `one("hash", HASH_ANY)`
-  or `fingerprint`, params `dupFolder` + `enabled`).
-- **Dagger**: `@Binds @IntoSet` + `@Binds @IntoMap @StringKey("fingerprint-dedup-apply")` +
-  option deserializer info + `@Provides` in `DedupNodeModule`.
-
----
-
-## 5. Safeguard mapping (from `xdb-clean/FPDEDUP_PROCESS.md`)
-
-| xdb-clean safeguard | Where in MetaLoom | Carried over? |
-|---|---|---|
-| Exclude the processed file from its own dup set | discovery (filter self by uuid/hash) | ✅ |
-| Skip already-dedupped media | discovery (skip assets already in a CONFIRMED/REJECTED group) | ✅ |
-| KEEP = largest **complete** asset | discovery (sort by size desc among `zero_chunk_count==0`) | ✅ |
-| Abort if any DUP is larger than KEEP | discovery (`abortOnLargerDup`) | ✅ |
-| KEEP must be complete (never discard the more-complete file) | discovery + apply re-check | ✅ |
-| KEEP exists on disk & re-hashes correctly before any move | apply (live re-verify) | ✅ |
-| KEEP not in a `trash`/`crap`/`fpdups` folder | apply (path check) | ✅ |
-| Consistency filter (DB path exists & hash matches) | apply (`databaseConsistencyFilter` equivalent) | ✅ |
-| **Thumbnail dominant-colour similarity** check | — | 🔴 **Not carried over** (open item §8). xdb-clean compares generated thumbnails; MetaLoom would need asset thumbnails available to the node. Documented as a deliberate gap. |
-| Partial-file protection logic | discovery (`allowPartial` off by default; partial handling simplified) | ⚠️ Simplified — MetaLoom's completeness is a single `is_complete`/`zero_chunk_count`, not xdb's multi-partial ranking |
-
----
-
-## 6. Architecture
+## 2. Architecture
 
 ```mermaid
 graph TB
     subgraph cx["Cortex"]
-        FP["FingerprintNode"] -->|OUT_FINGERPRINT| DISC
+        FP["fingerprint node"] -->|"fingerprint : hash/fingerprint"| DISC
         DISC["fingerprint-dedup<br/>(discovery)"]
         APPLY["fingerprint-dedup-apply"]
     end
     DISC -->|"GET assets/:uuid/similar-assets"| SIM
     DISC -->|"POST dedup-groups (PENDING)"| DG
     subgraph loom["Loom"]
-        SIM["SimilarityIndex<br/>(LUCENE_PLAN.md)"]
+        SIM["LuceneSimilarityIndex<br/>(LUCENE_PLAN.md)"]
         DG[("dedup_group / dedup_group_member")]
-        UI["Review UI / API<br/>PATCH status → CONFIRMED/REJECTED"]
+        UI["review<br/>PATCH status → CONFIRMED / REJECTED"]
         DG --- UI
     end
     UI --> DG
-    APPLY -->|"GET assets/:uuid/dedup-groups?status=CONFIRMED"| DG
+    APPLY -->|"GET assets/:uuid/dedup-groups"| DG
     APPLY -->|"move dup → dupFolder + ledger"| FS[("filesystem")]
 ```
 
 ---
 
-## 7. Deferred scope (documented, not built now)
+## 3. Open work
 
-- **Delta/incremental sync** of the confirmed list on the Cortex worker (the `S3DifferentialScanner`
-  Avro-index pattern) and a Loom "changed-since" endpoint. For now the apply node does an idempotent
-  per-asset fetch each run. When corpus size makes that expensive, add a persisted processed-group index
-  on the worker + a `GET /api/v1/dedup-groups?confirmedAfter=` endpoint.
-- **Review UI** (list PENDING groups with thumbnails/sizes, confirm/deny, choose KEEP). Noted here and in
-  the relevant `TASK_UI_*` file ([../../loom/ui/TASK_UI_AI_ML.md](../../loom/ui/TASK_UI_AI_ML.md) or a new
-  section); not designed in this spec.
-- **Thumbnail dominant-colour safeguard** (see §5).
+### 3.1 🔴 The dedup review UI — the one real gap
+
+**Nothing in `loom-ui` calls the dedup API.** There is no `loom-ui/src/api/dedup.ts`, and
+`dedup-groups` appears nowhere under `loom-ui/src` or `loom-ui/e2e`. All four DEDUP permissions are
+annotated `ui:no` in the `Permission` enum, which is accurate today.
+
+What exists is a **mock**: `loom-ui/src/features/workflow/WorkflowView.tsx` (route `/workflow`,
+registered in `layout/AppShell.tsx:61`, sidebar entry `Sidebar.tsx:68`) has a `"deduplication"` mode,
+a `DeduplicationMode` component, a `dedup-default` key profile (`Y` confirm / `N` reject) and i18n
+strings in `en.json` / `de.json`. But:
+
+- groups come from `buildDuplicateGroups(assets)` (~L85-91), which simply **pairs adjacent assets** —
+  it never calls `GET /api/v1/dedup-groups`;
+- decisions live in local React state `dedupDecisions` (~L733) and are **never PATCHed back**.
+
+To finish it:
+
+| Step | Detail |
+|---|---|
+| 1 | `loom-ui/src/api/dedup.ts` — `listDedupGroups(status)`, `loadDedupGroup(uuid)`, `updateDedupGroup(uuid, {status, keepAssetUuid})`, `deleteDedupGroup(uuid)`. Follow any of the 45 sibling modules in `loom-ui/src/api/`. |
+| 2 | Replace `buildDuplicateGroups` with a real query for `status=PENDING`. Group members carry `size` and `zeroChunkCount` snapshots — surface both, they are why a reviewer can decide without opening the files. |
+| 3 | Wire confirm / reject / **choose a different KEEP** to `PATCH`, and reflect the server's response rather than local state. |
+| 4 | Show a thumbnail per member. The `thumbnail` node's artifacts are worker-local; decide whether the UI uses the asset's stored thumbnail or nothing. |
+| 5 | Flip the four `ui:no` annotations in `Permission.java` and grant the perms in the demo roles. |
+| 6 | Playwright mocked e2e per the loom-ui test convention (component tests are mocked Playwright, not RTL/jsdom). |
+
+Until then the workflow is only completable with `curl` or the client library.
+
+### 3.2 🔴 Discovery re-proposes already-decided groups
+
+`FingerprintDedupNode.compute()` never asks Loom whether this asset is already in a CONFIRMED or
+REJECTED group. The server-side upsert (`findPendingByKeep`) only collapses repeated **PENDING**
+proposals; a keep+algorithm pair that a human already rejected gets a **fresh PENDING group on every
+run**, so the review queue refills with decisions that were already made.
+
+Fix: have discovery call `listAssetDedupGroups(uuid)` first and skip when any group containing this
+asset is `CONFIRMED` or `REJECTED` — or add a server-side guard in `createDedupGroup`. Either way it
+needs an endpoint test asserting the second discovery run produces nothing.
+
+### 3.3 🔴 Apply does not re-hash the KEEP
+
+`keepPassesSafeguards` checks existence, completeness, size and folder. `xdb-clean`'s
+`databaseConsistencyFilter` also **re-hashes the keep and compares it to the recorded SHA-512** before
+any move — that is what protects against a keep whose bytes changed since discovery. Add it, and a
+unit test for the mismatch path.
+
+### 3.4 Smaller gaps
+
+- [ ] **No apply-node test at all.** `FingerprintDedupApplyNode`'s confirmed-only gating, its four
+      safeguards and its idempotent skip are entirely untested. `HashDedupNodeTest` is an **empty stub
+      class with zero `@Test` methods**.
+- [ ] **No per-node E2E.** Nothing under `integration-test/` or `e2e-test/` mentions dedup, and
+      `NodePortConformanceTest` has no dedup case. The target: two near-identical demo videos →
+      fingerprinted → discovery produces a PENDING group → `PATCH` CONFIRMED → apply moves the DUP
+      into `dupFolder` and writes a ledger row → re-running apply is a no-op.
+- [ ] **No demo data.** `DemoDatabaseInitializer` seeds no dedup group (shared item with
+      [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)).
+- [ ] 🔴 **`HashDedupNode` blocks on `System.in.read()`** when the local file's size disagrees with the
+      DB record — an interactive halt inside a headless worker. It must log and skip instead.
+- [ ] **Discovery options are unreachable from the pipeline editor.** `DedupDescriptorProvider`
+      exposes only `enabled` and `dupFolder`; `algorithm`, `topK`, `scoreThreshold`, `allowPartial`
+      and `abortOnLargerDup` are **not** descriptor parameters, so they are YAML-only.
+- [ ] **`GET /api/v1/dedup-groups` without `status`** concatenates three separate list queries with no
+      combined ordering and **no pagination** — it will not survive a real review queue.
+- [ ] **Thumbnail dominant-colour safeguard not carried over.** `xdb-clean` compares generated
+      thumbnails before declaring a near-duplicate; MetaLoom gates on fingerprint score plus
+      size/completeness only. A deliberate gap, recorded here so it is not rediscovered as a bug.
+- [ ] **Partial-file handling is simplified.** MetaLoom has a single `is_complete` /
+      `zero_chunk_count` signal, not `xdb-clean`'s multi-partial ranking.
+- [ ] **Delta / incremental sync deferred.** Apply does an idempotent per-asset fetch every run. When
+      corpus size makes that expensive, add a worker-side processed-group index (the
+      `S3DifferentialScanner` Avro pattern) plus `GET /api/v1/dedup-groups?confirmedAfter=`.
+- [ ] **Stale internal doc**: `loom/doc/src/main/docs/cortex/nodes/index.adoc:109-124` lists only
+      `hash-dedup` and `fingerprint-dedup` — no `fingerprint-dedup-apply`.
 
 ---
 
-## 8. Related cleanup (flag)
+## 4. Configuration
 
-⚠️ **Kind-id mismatch on the existing hash dedup node.** `DedupDescriptorProvider` declares kind
-`"hash-dedup"`, but `HashDedupNode.name()` and its Dagger `@StringKey` are `"sha512-dedup"`. The
-descriptor (palette/validation via `PortGraphAnalyzer`) and the executable kind map disagree, so a
-`hash-dedup` node placed in the editor has no runnable kind. Fix in this change (align on one id) or file
-a tracked follow-up — do not let the two new fingerprint kinds inherit the same inconsistency.
+Three node-options keys, all YAML/pipeline-JSON only. **The dedup module reads no environment
+variables.**
 
----
+| Options key | Option | Type | Default | Meaning |
+|---|---|---|---|---|
+| `dedup` (`sha512-dedup` / `hash-dedup`) | `dupFolder` | Path | `duplicates` | Where duplicates are moved |
+| `fingerprint-dedup-apply` | `dupFolder` | Path | `duplicates` | Same class, `DedupNodeOptions` |
+| `fingerprint-dedup` | `algorithm` | String | `metaloom-multisector-v1` | Similarity index algorithm; must be non-blank |
+| | `scoreThreshold` | float | `0.10` | k-NN cutoff; must be `>= 0` |
+| | `topK` | int | `10` | Neighbours requested; must be `> 0` |
+| | `allowPartial` | boolean | `false` | Allow a group when no candidate is complete |
+| | `abortOnLargerDup` | boolean | `true` | Abandon the group if any DUP is larger than the KEEP |
 
-## 9. Key Classes Reference
+All three inherit `enabled`, `processIncomplete`, `retryFailed`, `timeoutMs` from `AbstractNodeOptions`.
+`CortexOptions` sets a per-node timeout default of `60000` ms for the `dedup` key.
 
-> Nothing below exists yet except the reused/stub classes noted.
+The only **environment variable** that gates this feature end to end is on the Loom side:
 
-| Class | Package / module | Purpose |
+| Var | Default | Effect |
 |---|---|---|
-| `FingerprintDedupNode` | `io.metaloom.cortex.node.dedup` (`cortex/nodes/dedup`) | **stub → discovery** node |
-| `FingerprintDedupApplyNode` | `io.metaloom.cortex.node.dedup` | new apply node |
-| `FingerprintDedupDiscoverOptions` | `io.metaloom.cortex.node.dedup` | discovery options (key `fingerprint-dedup`) |
-| `DedupNodeOptions` | `io.metaloom.cortex.node.dedup` | reused apply options (`dupFolder`) |
-| `DedupNodeModule` | `io.metaloom.cortex.node.dedup` | add the two kind bindings |
-| `DedupDescriptorProvider` | `io.metaloom.loom.nodes.spec` (`loom-shared/node-model`) | add `fingerprint-dedup-apply` descriptor |
-| `HashDedupNode` | `io.metaloom.cortex.node.dedup` | `moveMedia` + safeguard template (reused) |
-| `DedupGroupDao` | `io.metaloom.loom.db.model.dedup` (`loom/db/api`, `-jooq`, `-memory`) | review-record persistence |
-| `DedupGroupMethods` | `io.metaloom.loom.client.common.method` (`loom-client/common`) | client |
-| `DedupGroup*Request/Response` | `loom-shared/rest-model` | REST DTOs |
-| `SimilarityMethods.listSimilarAssets` | `loom-client/common` | similarity query ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) |
-| `AbstractMediaNode` (`recordNodeResult`, `resultRef`) | `cortex/common` | ledger write-back |
+| `LOOM_SIMILARITY_ENABLED` | see [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) | When false, `NoopSimilarityIndex` is bound and the similarity routes answer **503** (deliberately not an empty list) — so `fingerprint-dedup` fails loudly rather than silently finding nothing |
 
 ---
 
-## 10. Test Setup
+## 5. Test setup
 
-- **Node unit tests** (mocked `LoomClient`), per [NODES.md](NODES.md) conventions:
-  - discovery: given mocked `listSimilarAssets` hits, asserts the correct KEEP/DUP split, that a group is
-    created with the right members/roles, that a larger-than-keep dup aborts the group, and that an
-    incomplete keep aborts.
-  - apply: given a CONFIRMED group, asserts the dup file is moved (and dryrun does not move); asserts the
-    keep-in-trash / keep-smaller / keep-missing safeguards each block the move; asserts idempotent skip.
-- **Persistence test**: discovery against a mocked client records both the `dedup_group` (+members) and
-  the `asset_node_result` ledger row.
-- **Options `validate()` test** for `FingerprintDedupDiscoverOptions`.
-- **DAO tests** incl. 🔴 **delete-cascade** (§2). Contract tests in `loom/db/api-test`, impl tests in
-  `loom/db/jooq/src/test`.
-- **Endpoint + permission tests** for every `dedup-groups` route (§2.1) — grant perms via group+role.
-- **Per-node E2E** in `integration-test` extending `AbstractNodeIntegrationTest` (rebuild the shaded
-  `cortex/cli` jar + container image first — a known gotcha): two near-identical demo videos →
-  fingerprinted → discovery produces a PENDING group → PATCH CONFIRMED → apply moves the DUP into
-  `dupFolder` and writes a ledger row → re-run apply is a no-op.
-- **Demo data**: `DemoDatabaseInitializer` seeds two near-identical demo videos and one PENDING
-  `dedup_group` over them (shared with [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) §8).
-- 🔴 `./setup-pool.sh` after the migration; verify `loom/db/jooq/generate.sh` still succeeds.
-- **Customer-facing docs**: `website/content/english/docs` — a "find and review duplicate videos" page
-  (customer tone, no class names) per [../../guidelines/CODING.md](../../guidelines/CODING.md).
+| Test | Covers |
+|---|---|
+| `FingerprintDedupNodeTest` (2) | `testReportsGroupWithLargerKeep` — correct KEEP/DUP split; `testAbortsWhenDuplicateLargerThanKeep` — skipped and `createDedupGroup` never called. Mockito over `LoomHttpClient` |
+| `DedupNodeOptionsValidationTest` (5), `FingerprintDedupDiscoverOptionsValidationTest` (4) | Option validation |
+| `DedupGroupDaoTest` (6) | Store/load, `listByStatus` + `listByAsset`, `findPendingByKeep` + `updateStatus`, invalid-role rejection, 🔴 **group-delete cascade**, 🔴 **asset-delete removes memberships and nulls `keep_asset_uuid`** |
+| `DedupGroupEndpointTest` (11) | Create + load, PENDING idempotency, confirm/reject, list-by-asset, delete, invalid status, empty-members rejection, `404`, all routes require permissions (`403`), **`READ_DEDUP` does not grant `UPDATE`**, asset-delete cascade through the API |
+| `NodeRegistrarTest:59-64` | `sha512-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` are registered kinds (`hash-dedup` is not asserted) |
+| — **missing** — | Apply-node unit tests, `HashDedupNodeTest` bodies, any integration/E2E test, demo data (§3.4) |
+
+```bash
+mvn -pl cortex/nodes/dedup/core -am test
+mvn -pl loom/db/jooq test -Dtest=DedupGroupDaoTest
+mvn -pl loom/core test -Dtest=DedupGroupEndpointTest
+mvn -pl cortex/cli test -Dtest=NodeRegistrarTest
+```
+
+🔴 `./setup-pool.sh` before any DAO or endpoint test, and **after** any Flyway change — install
+`loom/db/flyway` first or the pool silently skips the new migration. Regenerate jOOQ with
+`loom/db/jooq/generate.sh` after a schema change. Grant test permissions via **group + role**, never a
+direct `user_permission` grant (one direct grant per user — see `SkillEndpointTest` for the pattern).
 
 ---
 
-## 11. Conventions and Gotchas
+## 6. Conventions and Gotchas
 
 | Area | Gotcha |
 |---|---|
-| **Two lifecycles** | 🔴 Discovery writes review items; apply acts on human decisions. Never let discovery move files, and never let apply act on `PENDING`/`REJECTED` groups. |
-| **Live re-verification** | 🔴 The apply node must re-check the KEEP against the live file (exists, re-hashes, complete, ≥ dup size, not in trash/dups) — the discovery-time snapshots are hints, not authority. |
-| **Idempotency** | ⚠️ Both nodes must be safe to re-run. Discovery upserts the same PENDING group; apply skips already-moved dups. |
-| **Stub → kind binding** | ⚠️ The discovery node only becomes runnable when `@Binds @IntoMap @StringKey("fingerprint-dedup")` is added — the stub omits it today, so Loom currently never dispatches it (kind map = source of truth, [NODES.md](NODES.md) §8). |
-| **Kind-id mismatch** | ⚠️ Existing `hash-dedup` (descriptor) vs `sha512-dedup` (node) — §8. Don't replicate it. |
-| **No relation table before** | 🔴 `dedup_group`/`dedup_group_member` is the *first* asset-to-asset relation in the schema; follow the `V2.46` "intrinsic vs component" placement rule and cascade rules. |
-| **Thumbnail safeguard dropped** | ⚠️ The xdb-clean dominant-colour thumbnail check is not carried over (§5) — near-duplicates are gated by fingerprint score + size/completeness only. |
-| **Offline mode** | ⚠️ Both nodes are no-ops when `client()==null`/offline — the whole workflow requires Loom. |
+| **Two lifecycles** | 🔴 Discovery writes review items; apply acts on human decisions. Never let discovery move files, and never let apply act on `PENDING` or `REJECTED`. |
+| **Live re-verification** | 🔴 The `size` / `zero_chunk_count` columns are discovery-time **snapshots** — hints for the UI, not authority. Apply must re-check the live file (and should also re-hash — §3.3). |
+| **Larger DUP aborts the group** | ⚠️ Not "drop that member" — the *whole* group is abandoned. A duplicate bigger than the keep means the keep selection is wrong, not that one member is odd. |
+| **Idempotency is server-side** | ⚠️ The upsert lives in `DedupGroupEndpointService.createDedupGroup` (delete + recreate the PENDING group), **not** in the node. Do not add a second client-side key. |
+| **Decided groups still get re-proposed** | 🔴 §3.2 — the queue refills with already-rejected pairs on every discovery run. |
+| **`hash-dedup` vs `sha512-dedup`** | ⚠️ Two `@StringKey`s onto **one** `HashDedupNode`. The descriptor advertises `hash-dedup`; `name()` returns `sha512-dedup`, so ledger rows say `sha512-dedup` whichever id was placed. Do not "fix" this by renaming — it is a deliberate alias. |
+| **`sha512-dedup` has no descriptor** | ⚠️ It is runnable but cannot be placed from the UI palette ([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §3.3). |
+| **No in-memory DAO** | ⚠️ `loom/db/memory` does not mirror `DedupGroupDao` — deliberate, following the `AssetNodeResultDao` precedent. The jOOQ impl is exercised against the pooled database. |
+| **First asset-to-asset relation** | 🔴 `dedup_group` / `dedup_group_member` is the schema's first asset-to-asset relation. Respect the cascade split: `SET NULL` on `keep_asset_uuid`, `CASCADE` on members. |
+| **Offline mode** | ⚠️ Both fingerprint nodes are no-ops when `client() == null` or offline — the whole workflow requires Loom **and** an enabled similarity index. |
+| **Thumbnail safeguard dropped** | ⚠️ Near-duplicates are gated by fingerprint score + size/completeness only (§3.4). |
+| **`System.in.read()`** | 🔴 `HashDedupNode` halts on a size mismatch waiting for a keypress. Never copy that pattern into a worker node. |
 
 ---
 
-## 12. Where do I find …?
+## 7. Key Classes Reference
+
+| Class | Package / module | Purpose |
+|---|---|---|
+| `FingerprintDedupNode` | `io.metaloom.cortex.node.dedup` (`cortex/nodes/dedup/core`) | Discovery — similarity query → PENDING group |
+| `FingerprintDedupApplyNode` | same | Apply — CONFIRMED groups → move the dup |
+| `HashDedupNode` | same | Exact-hash dedup; `moveMedia` template |
+| `FingerprintDedupDiscoverOptions` | same | Discovery options (key `fingerprint-dedup`) |
+| `DedupNodeOptions` | same | `dupFolder`; shared by `sha512-dedup` and apply |
+| `DedupNodeModule` | same | Dagger — four `@StringKey` bindings + option deserializers |
+| `DedupDescriptorProvider` | `io.metaloom.loom.nodes.spec` (`loom-shared/node-model`) | The three UI/validation descriptors |
+| `DedupGroupDao` / `DedupGroup` / `DedupGroupMember` | `io.metaloom.loom.db.model.dedup` (`loom/db/api`) | Review-record persistence contract |
+| `DedupGroupDaoImpl` | `io.metaloom.loom.db.jooq.dao.dedup` (`loom/db/jooq`) | jOOQ impl (no memory impl) |
+| `DedupGroupEndpoint` / `DedupGroupEndpointService` | `io.metaloom.loom.rest.{endpoint,service}.impl` | The five `/dedup-groups` routes + upsert logic |
+| `AssetEndpoint` | same | Hosts `GET /assets/:uuid/dedup-groups` |
+| `DedupGroup*Request/Response`, `DedupGroupMemberModel` | `io.metaloom.loom.rest.model.dedup` (`loom-shared/rest-model`) | DTOs; `ROLE_KEEP` / `ROLE_DUP` constants |
+| `DedupGroupMethods` | `io.metaloom.loom.client.common.method` | Client interface (6 methods) |
+| `SimilarityMethods.listSimilarAssets` | same | The candidate query ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) |
+| `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` (`loom/services/lucene`) | HNSW k-NN over `MultiSectorFingerprint` vectors |
+| `AbstractMediaNode` | `io.metaloom.cortex.common.node` | Lifecycle + `recordNodeResult` / `resultRef` |
+| `FileUtils` | `io.metaloom.utils.fs` (utils) | `autoRotate` + `moveFile` |
+| `WorkflowView` | `loom-ui/src/features/workflow/` | 🔴 The **mock** review screen (§3.1) |
+
+---
+
+## 8. Where do I find …?
 
 | Need | Look here |
 |---|---|
-| The reference algorithm & safeguards | `xdb-clean/FPDEDUP_PROCESS.md` |
+| The reference algorithm and its safeguards | `xdb-clean/FPDEDUP_PROCESS.md` |
 | The similarity query this depends on | [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) |
-| The stub to fill (discovery) | `cortex/nodes/dedup/core/.../FingerprintDedupNode.java` |
-| The move/safeguard template (apply) | `cortex/nodes/dedup/core/.../HashDedupNode.java` |
-| Node write-back pattern | [NODES.md](NODES.md) §2; `cortex/nodes/whisper/core/.../WhisperNode.java` |
-| Descriptors / kind registration | `loom-shared/node-model/.../DedupDescriptorProvider.java`; `DedupNodeModule` |
+| The dedup entities in the domain model | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
+| The three node classes | `cortex/nodes/dedup/core/src/main/java/io/metaloom/cortex/node/dedup/` |
+| Kind registration | `DedupNodeModule` (`@StringKey`) + `cortex/cli/.../dagger/NodeCollectionModule.java` |
+| Descriptors / UI palette | `loom-shared/node-model/.../spec/DedupDescriptorProvider.java` + `META-INF/services` |
+| Port ids and content types | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6 |
+| Node write-back / ledger pattern | [NODES.md](NODES.md) §2; `AbstractMediaNode.recordNodeResult` |
+| How to add a node at all | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| Schema + permissions | `loom/db/flyway/.../V2.61__add_dedup_group.sql`, `V2.62__add_dedup_permission.sql` |
 | Asset completeness fields | `loom/db/flyway/.../V2.46__asset_identity.sql` |
-| Permissions model | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) |
-| REST/DAO conventions | [../../guidelines/CODING.md](../../guidelines/CODING.md); [../../loom/RESTAPI.md](../../loom/RESTAPI.md); [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md) |
-| Migration + codegen flow | project memory notes (setup-pool, jOOQ regen); [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md) |
+| Permission model and test grants | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) |
+| REST / DAO conventions, definition of done | [../../guidelines/CODING.md](../../guidelines/CODING.md); [../../loom/RESTAPI.md](../../loom/RESTAPI.md); [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md) |
+| The review screen that must be replaced | `loom-ui/src/features/workflow/WorkflowView.tsx` |
+| Customer docs | `website/content/english/docs/nodes/dedup/index.adoc` |
 
 ---
 
-## 13. Progress Assessment
+## 9. Progress Assessment
 
-Nothing is implemented.
+### Prerequisite
+- [x] Fingerprint similarity index — built end to end ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md))
 
-**Design decisions closed**
-- [x] Two nodes: discovery (`fingerprint-dedup`, fills the stub) + apply (`fingerprint-dedup-apply`) (§3, §4)
-- [x] Candidate groups stored in new typed `dedup_group` / `dedup_group_member` tables (§2)
-- [x] Similarity via the Loom `SimilarityIndex` ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md))
-- [x] Delta sync deferred; apply does idempotent per-asset fetch (§7)
+### Loom backend
+- [x] `V2.61` — `dedup_status`, `dedup_group`, `dedup_group_member`, indexes, role CHECK, UNIQUE
+- [x] `V2.62` + `Permission` enum — `READ/CREATE/UPDATE/DELETE_DEDUP`
+- [x] `DedupGroupDao` (api + jOOQ) with `findPendingByKeep`; delete-cascade tests green (memory impl deliberately skipped)
+- [x] Five `/api/v1/dedup-groups` routes + `GET /api/v1/assets/:uuid/dedup-groups`, server-side PENDING upsert
+- [x] DTOs + `DedupGroupMethods` client + HTTP impl
+- [x] `DedupGroupEndpointTest` (11) incl. RBAC and cascade; `DedupGroupDaoTest` (6)
 
-**Prerequisite**
-- [x] Fingerprint similarity index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) — built end to end (SPI, Lucene impl, Dagger binding, comp hooks, REST + client, 15 tests)
+### Cortex nodes
+- [x] `FingerprintDedupNode` (discovery) + `FingerprintDedupDiscoverOptions`
+- [x] `FingerprintDedupApplyNode` reusing `DedupNodeOptions`, with live KEEP safeguards and idempotent skip
+- [x] Four kind bindings incl. the `hash-dedup` ↔ `sha512-dedup` alias fix
+- [x] Three descriptors + `META-INF/services`
+- [x] 11 module tests (discovery split, larger-dup abort, both option validators)
+- [ ] Apply-node unit tests; `HashDedupNodeTest` is an empty stub (§3.4)
+- [ ] Per-node E2E in `integration-test` (§3.4)
 
-**Loom backend**
-- [x] Migration: `dedup_status`, `dedup_group`, `dedup_group_member` (V2.61) (§2)
-- [x] `DedupGroupDao` (api + jooq) + delete-cascade tests (6 tests green). Memory impl skipped — follows the `AssetNodeResultDao` precedent (no memory impl) (§2, §10)
-- [x] `/api/v1/dedup-groups` (POST/GET/GET-one/PATCH/DELETE) + `/api/v1/assets/:uuid/dedup-groups` endpoints; `DedupGroupEndpointTest` covers the happy path, validation, RBAC (incl. READ_DEDUP not granting UPDATE) and the asset-delete cascade through the API (§2.1)
-- [x] `READ/CREATE/UPDATE/DELETE_DEDUP` permissions (V2.62 + `Permission` enum) (§2.1)
-- [x] `DedupGroupMethods` client + DTOs (`DedupGroup{Create,Update}Request`, `DedupGroupResponse`, `DedupGroupListResponse`, `DedupGroupMemberModel`) (§2.1)
-- [x] `./setup-pool.sh` + jOOQ regen; build unaffected, `JooqDedupGroup*`/`JooqDedupStatus`/`JooqLoomPermission` generated
+### Docs
+- [x] `website/content/english/docs/nodes/dedup/index.adoc`
+- [x] [NODES.md](NODES.md) §2/§3/§5 rows; [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6; [../../loom/DOMAIN.md](../../loom/DOMAIN.md)
+- [ ] `loom/doc/.../cortex/nodes/index.adoc` still omits `fingerprint-dedup-apply` (§3.4)
 
-**Cortex nodes**
-- [x] Discovery: filled `FingerprintDedupNode`, added `FingerprintDedupDiscoverOptions`, kind binding (§3)
-- [x] Apply: `FingerprintDedupApplyNode`, descriptor, kind binding, replicated `moveMedia` + live re-verify safeguards (§4)
-- [x] Node unit + options tests (discovery KEEP/DUP split + larger-dup abort; both options validators) — 11 tests green (§10)
-- [ ] Per-node E2E in `integration-test` (§10)
-
-**Cross-cutting**
-- [ ] Update [NODES.md](NODES.md): FingerprintDedupNode no longer a stub; add `fingerprint-dedup-apply`; add dedup persistence targets to §2 table
-- [x] Update [../../CONTEXT.md](../../CONTEXT.md) §2 index + "which file" table with this file and [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)
-- [x] Fix the `hash-dedup`/`sha512-dedup` id mismatch (§8) — bound both kind ids to `HashDedupNode` (alias), so a `hash-dedup` node is runnable without breaking existing `sha512-dedup` references
-- [ ] Demo data + customer-facing docs (§10)
-
-**Known gaps / open items**
-- [ ] Thumbnail dominant-colour safeguard not carried over (§5)
-- [ ] Partial-file handling simplified vs xdb-clean's multi-partial ranking (§5)
-- [ ] Grouping/dedup-key strategy for re-running discovery (upsert key on KEEP+algorithm) needs validation at scale (§3)
+### Open
+- [ ] 🔴 **Real dedup review UI** — today only a non-wired mock exists (§3.1)
+- [ ] 🔴 Discovery must skip assets already in a CONFIRMED/REJECTED group (§3.2)
+- [ ] 🔴 Apply must re-hash the KEEP before moving (§3.3)
+- [ ] 🔴 `HashDedupNode` blocks on `System.in.read()` (§3.4)
+- [ ] Discovery options exposed as descriptor parameters; paginated `GET /dedup-groups` (§3.4)
+- [ ] Demo data (§3.4)
+- [ ] Thumbnail dominant-colour safeguard; multi-partial ranking; delta sync (§3.4)
 
 ---
 
-_Git HEAD: `3ba0a6ffb92e31cf68fb6ed20744e0066b30a209` (branch `master`)_
-_Last updated: 2026-07-30_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (verified BUILT against the tree; removed the stale "nothing is implemented" line and the website-docs gap, corrected two safeguard claims that the code does not honour, and reduced the design narrative to an inventory plus the open review-UI work.)_

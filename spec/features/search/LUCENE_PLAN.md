@@ -1,290 +1,310 @@
 # Fingerprint Similarity Index (Lucene) — Technical Specification
 
-> **Audience: AI coding agents.** This document specifies a **perceptual video-fingerprint
-> similarity index** owned by the Loom backend: a Lucene HNSW k-NN index over the 256-dim float
-> vectors behind the `MultiSectorFingerprint`, exposed as a `SimilarityIndex` SPI and a REST
-> "similar assets" query. It is the prerequisite for the fingerprint deduplication nodes in
+> **Audience: AI coding agents.** A **perceptual video-fingerprint similarity index** owned by the
+> Loom backend: a Lucene HNSW k-NN index over the 256-dim float vectors behind
+> `MultiSectorFingerprint`, exposed as a `SimilarityIndex` SPI and a REST "similar assets" query. It
+> is the prerequisite for the deduplication nodes in
 > [../pipeline-nodes/NODE_DEDUP_PLAN.md](../pipeline-nodes/NODE_DEDUP_PLAN.md).
->
-> **Status: BUILT.** End-to-end and tested: the `SimilarityIndex` SPI, `LuceneSimilarityIndex` (+
-> `NoopSimilarityIndex`) reusing the `video4j` codec/vector format, `SimilarityOptions` +
-> `SimilarityModule` Dagger binding, the fingerprint-comp write/delete hooks, the REST routes
-> (`GET assets/:uuid/similar-assets`, `POST similarity-index/rebuild`) and the client methods.
-> Verified by `LuceneSimilarityIndexTest` (8) and `SimilarAssetsEndpointTest` (7), the latter driving
-> the whole path: POST a fingerprint → the write hook indexes it → the asset is found as a
-> near-duplicate, with self-exclusion, delete-unindexing, rebuild and permissions covered.
->
-> **Deliberately not built:** a boot-time rebuild (see §4 — the write hook plus the explicit rebuild
-> route cover the same ground without scanning the fingerprint table on every start) and demo data.
->
-> **Scope boundary — read this first.** This is **not** lexical search and **not** embedding
-> search. Three similarity/search subsystems are deliberately kept separate:
->
-> | Subsystem | Query | Backend | Spec |
-> |---|---|---|---|
-> | **Lexical search** | text `q` → documents | Postgres `tsvector` / Elasticsearch | [SEARCH.md](SEARCH.md) |
-> | **Semantic / embedding search** | text `q` or vector → assets | pgvector (`embedding_vec_*`) | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
-> | **Fingerprint similarity (this doc)** | a video fingerprint → near-duplicate videos | Lucene HNSW over `MultiSectorFingerprint.vector()` | **LUCENE_PLAN.md** |
+
+## 🟢 Status: BUILT — verified at `499f71f7`
+
+Everything in §3–§6 exists in the tree. The SPI, both implementations, the Dagger binding, the
+comp write/delete hooks, both REST routes, the client methods and the DTOs are all present, and 15
+tests cover them (`LuceneSimilarityIndexTest` 8, `SimilarAssetsEndpointTest` 7). §2 is the shipped
+architecture, not a proposal.
+
+⚠️ **Correction against the previous revision of this file.** It carried a "BUILT" header over a
+"§7 — nothing below exists yet" note and a "§11 — nothing is implemented" line. Those were stale and
+are removed. Three further statements were wrong and are corrected below:
+
+| Previously specified | Actually built |
+|---|---|
+| Rebuild guarded by a new `MANAGE_SIMILARITY_INDEX` permission | `Permission.UPDATE_ASSET` — no new permission was added |
+| Disabled index answers **400/409** | **503** `LoomRestErrorCode.SEARCH_UNAVAILABLE`, message names the cause |
+| `SimilarityHit.sha512` is populated | 🔴 Always **`null` in production** — both call sites pass `null` (§7.1) |
+
+**Open work** (details in §7): demo data, the `sha512` gap, Helm templating of `LOOM_SIMILARITY_*`,
+multi-sector support, and an explicit shutdown hook. Boot-time auto-rebuild is **deliberately
+skipped**.
+
+### Scope boundary — read this first
+
+This is **not** lexical search and **not** embedding search. Three subsystems, deliberately separate:
+
+| Subsystem | Query | Backend | Status | Spec |
+|---|---|---|---|---|
+| **Lexical search** | text `q` → documents | Postgres `tsvector` (`search_document`) | Phase 1 built | [SEARCH.md](SEARCH.md) |
+| **Semantic / embedding search** | text `q` or vector → assets | pgvector (planned) | not built | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
+| **Fingerprint similarity (this doc)** | a video fingerprint → near-duplicate videos | Lucene HNSW over `MultiSectorFingerprint.vector()` | **built** | **LUCENE_PLAN.md** |
 
 ---
 
-## 1. Why this exists, and why Lucene here
+## 1. Already implemented
 
-### 1.1 The gap
+| Item | Where it lives |
+|---|---|
+| `SimilarityIndex` SPI (8 methods, incl. hex overloads) | `loom-shared/api/src/main/java/io/metaloom/loom/api/search/SimilarityIndex.java` |
+| `SimilarityHit` / `IndexedFingerprint` / `HexFingerprint` records | same package |
+| `LuceneSimilarityIndex` (334 lines) | `loom/services/lucene/src/main/java/io/metaloom/loom/similarity/lucene/LuceneSimilarityIndex.java` |
+| `NoopSimilarityIndex` | `loom/services/lucene/src/main/java/io/metaloom/loom/similarity/NoopSimilarityIndex.java` |
+| Dagger binding + boot guard | `loom/core/src/main/java/io/metaloom/loom/core/dagger/SimilarityModule.java`; installed in `LoomCoreComponent` |
+| `SimilarityOptions` (5 env vars) | `loom-shared/api/src/main/java/io/metaloom/loom/api/options/SimilarityOptions.java` |
+| Comp write/delete hooks (`reindex` / `unindex`) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/FingerprintCompEndpointService.java` |
+| `GET /api/v1/assets/:uuid/similar-assets` route | `…/rest/endpoint/impl/AssetEndpoint.java:511` |
+| `POST /api/v1/similarity-index/rebuild` route | `…/rest/endpoint/impl/SimilarityIndexEndpoint.java` |
+| Endpoint logic (self-exclusion, 503, param parsing) | `…/rest/service/impl/SimilarityEndpointService.java` |
+| `SimilarAssetResponse` / `SimilarAssetListResponse` | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/similarity/` |
+| `SimilarityMethods` client interface + impl | `loom-client/common/.../method/SimilarityMethods.java`; `loom-client/rest/.../LoomHttpClientImpl.java:1567` |
+| `AssetComponentDao.findByAlgorithm(String)` — the rebuild source query | `loom/db/api/.../asset/AssetComponentDao.java:198`; impl `loom/db/jooq/.../AssetComponentDaoImpl.java:804` |
+| Module revived: video4j `fingerprint-indexer` dependency, **no local Lucene pin** | `loom/services/lucene/pom.xml` |
+| Env vars documented | [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md) §4.11 |
+| Routes documented | [../../loom/RESTAPI.md](../../loom/RESTAPI.md) |
+| Multi-instance `write.lock` consequence | [../../CLUSTERING.md](../../CLUSTERING.md) §3.6 / §7 |
 
-`FingerprintNode` computes a whole-video `MultiSectorFingerprint` (v2, 256-dim = 16×16) and
-persists it as a **hex string** to `asset_fingerprint_comp` (algorithm `metaloom-multisector-v1`,
-sector 0). The only lookup Loom offers today is
-`AssetComponentDaoImpl.findByFingerprint(algorithm, fingerprint)` — **exact byte-equality** on the
-hex string, served by the `(algorithm, fingerprint)` btree index. That finds *identical*
-fingerprints, never *perceptually similar* ones, so it cannot drive near-duplicate detection.
+**No Flyway migration was needed.** The index is derived from `asset_fingerprint_comp` (`V2.41`), and
+this feature adds **no Postgres extension** — which is the whole point of choosing Lucene here.
 
-Perceptual similarity requires a **k-nearest-neighbour search over the fingerprint vector**. That
-engine already exists in `video4j` and is proven in `xdb-clean` — it has simply never been wired
-into Loom.
+---
 
-### 1.2 The reconciliation with [SEARCH.md](SEARCH.md) §2 and [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3
+## 2. Why Lucene here, against the SEARCH.md rejection
 
-🔴 [SEARCH.md](SEARCH.md) §2 **rejects Lucene by name** and files task **P1-25** in
-[SEARCH_PLAN.md](SEARCH_PLAN.md) to *delete* `loom/services/lucene`.
-[SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3 chose **pgvector** for embeddings. This document
-adopts Lucene anyway, for **this workload only**, and the reasoning must be understood before
-touching the module:
+🔴 [SEARCH.md](SEARCH.md) §2 rejects Lucene by name and [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 filed
+its deletion. [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) picked pgvector for embeddings. This subsystem
+adopts Lucene anyway, **for this workload only**. Understand the reasoning before touching the module:
 
 1. **The SEARCH.md rejection is about lexical search.** Its objection is that an embedded full-text
-   index becomes *per-replica local state that must be identical across replicas and is a
-   system-of-record*. A fingerprint k-NN index is **none of those things**: it is a **bounded,
-   derived, rebuildable** cache of one float vector per asset, reconstructable in full from
-   `asset_fingerprint_comp` at any time. Losing it costs a rebuild, never data. The distributed-state
-   argument does not transfer.
-2. **Lucene sidesteps the single hardest constraint in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3.2.**
-   pgvector is *not in the stock Postgres image*; an unguarded `CREATE EXTENSION vector` breaks
-   `generate.sh`, `setup-pool.sh`, every developer's local Postgres and the Helm DB — "nobody can
-   build". Lucene is pure-JVM and needs no database extension. The original Lucene rejection never
-   weighed this axis.
-3. **The fingerprint vector is only 256-dim and the corpus is one-vector-per-asset.** This is a small,
-   well-behaved HNSW workload; standing up pgvector *or* an external vector DB for it is disproportionate.
-4. **The SPI keeps the door open.** `SimilarityIndex` mirrors the `VectorIndex` SPI proposed in
-   [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §11, so a later pgvector/Qdrant implementation — or a
-   unification of fingerprint similarity with embedding search — is a module swap, not a rewrite.
+   index becomes per-replica local state that must be identical across replicas *and* is a
+   system-of-record. A fingerprint k-NN index is none of those: it is a bounded, derived, rebuildable
+   cache of one float vector per asset, reconstructable in full from `asset_fingerprint_comp`. Losing
+   it costs a rebuild, never data.
+2. **Lucene sidesteps the hardest constraint in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3.2** —
+   pgvector is not in the stock Postgres image, so an unguarded `CREATE EXTENSION vector` breaks the
+   build for everyone. Lucene is pure-JVM and needs no database extension.
+3. **The corpus is tiny and well-behaved:** 256 dims, one vector per asset.
+4. **The SPI keeps the door open.** `SimilarityIndex` mirrors the `VectorIndex` SPI sketched in
+   [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §5, so a later pgvector/Qdrant implementation — or a
+   unification of the two vector workloads — is a module swap, not a rewrite.
 
-✅ **Companion edits — done.** The three specs this decision touches now agree with the code:
-- [SEARCH.md](SEARCH.md) §1.1 + §2 — the Lucene rejection is scoped to *lexical* search, and the
-  capability table records fingerprint similarity as working.
-- [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 — closed as **superseded**: the module is repurposed, not
-  deleted (the real complaint, the stale Lucene 9.0.0 pin, is gone).
-- [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3 — cross-reference noting fingerprint similarity is a
-  separate vector workload sharing the SPI shape.
-
-### 1.3 What already exists to build on
-
-| Thing | Location | Note |
-|---|---|---|
-| `MultiSectorFingerprint` | `video4j` `fingerprint` module, `io.metaloom.video4j.fingerprint.v2` | v2, 256-dim; `of(String hex)`, `float[] vector()` / `quadVector()` |
-| `HashFingerprintIndexer` | `video4j` `fingerprint-indexer`, `…index.query.impl` | Lucene HNSW `KnnFloatVectorField` writer/reader with a score threshold |
-| `AbstractFingerprintIndexer` | `video4j` `fingerprint-indexer` | `KnnFloatVectorQuery`; `MMapDirectory`; `Lucene99HnswVectorsFormat(maxConn=200, beamWidth=100)` |
-| `HashQueryResult` / `HashQueryResultEntry` | `video4j` `fingerprint-indexer`, `…index.query` | entry exposes `hash()` (stored payload) + score |
-| `QueryResultFactory.DEFAULT_SCORE_THRESHOLD` | `video4j` `fingerprint-indexer` | `0.10f` |
-| `asset_fingerprint_comp` table + `findByFingerprint` | `loom/db/flyway/.../V2.41__add_asset_fingerprint_comp.sql`, `loom/db/jooq/.../AssetComponentDaoImpl.java` | source of truth for the vectors; exact-match only today |
-| `createAssetFingerprintComp` | `loom-client/common/.../method/FingerprintCompMethods.java` | how nodes write a fingerprint comp (upsert) |
-| The module | `loom/services/lucene/` | **now holds** `LuceneSimilarityIndex` + `NoopSimilarityIndex`; depends on video4j `fingerprint-indexer` (was a pom-only stub pinning Lucene 9.0.0) |
-| `SearchProvider` / `NoopSearchProvider` / `SearchModule` | `loom-shared/api`, `loom/db/jooq/.../search/`, `loom/core/.../dagger/SearchModule.java` | the SPI + Dagger pattern to mirror |
-
-> ⚠️ The old stub pinned **Lucene 9.0.0** (Nov 2021); that pin is **removed**. Lucene now arrives
-> transitively from video4j's `fingerprint-indexer` (10.3.0, `Lucene103Codec` /
-> `Lucene99HnswVectorsFormat`) — do not resurrect a local pin.
->
-> ⚠️ `LuceneSimilarityIndex` **reuses video4j's codec and `HighDimensionKnnVectorsFormat`** (so the
-> on-disk format matches `xdb-clean`'s) but writes its own documents rather than calling
-> `HashFingerprintIndexer.indexMedia`: that method stores only `sha512sum` and offers no
-> `asset_uuid` key, no `algorithm` filter and no delete — all three of which this SPI requires.
+✅ Companion spec edits are done: [SEARCH.md](SEARCH.md) §1.1/§2 scope the rejection to lexical search
+and record fingerprint similarity as working; [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 is closed as
+**superseded** (the module is repurposed, not deleted — the real complaint, a stale Lucene 9.0.0 pin,
+is gone); [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) cross-references this file.
 
 ---
 
-## 2. Architecture
+## 3. Architecture (as built)
 
 ```mermaid
 graph TB
     subgraph cortex["Cortex worker"]
         FN["FingerprintNode<br/>MultiSectorFingerprint → hex"]
-        DN["FingerprintDedupNode (discovery)<br/>NODE_DEDUP_PLAN.md"]
+        DN["FingerprintDedupNode<br/>NODE_DEDUP_PLAN.md"]
     end
     FN -->|"POST assets/:uuid/fingerprints"| FC
     DN -->|"GET assets/:uuid/similar-assets"| SEP
 
     subgraph loom["Loom backend"]
-        FC["asset_fingerprint_comp<br/>(fingerprint hex, algorithm)"]
-        SEP["SimilarAssetsEndpoint"]
-        SI["SimilarityIndex (SPI)<br/>LuceneSimilarityIndex"]
+        FC["asset_fingerprint_comp<br/>(fingerprint hex, algorithm, sector_index)"]
+        HOOK["FingerprintCompEndpointService<br/>reindex() / unindex()"]
+        SEP["SimilarityEndpointService"]
+        SI["SimilarityIndex (SPI)<br/>LuceneSimilarityIndex | NoopSimilarityIndex"]
         IDX[("Lucene HNSW index<br/>KnnFloatVectorField · MMapDirectory<br/>LOOM_SIMILARITY_INDEX_PATH")]
-        HOOK["FingerprintComp endpoint hook<br/>index()/remove() on write/delete"]
         FC -->|"on create/delete"| HOOK
         HOOK --> SI
         SEP --> SI
         SI --- IDX
-        FC -.->|"full rebuild<br/>(boot / admin)"| SI
+        FC -.->|"POST similarity-index/rebuild<br/>findByAlgorithm()"| SI
     end
 ```
 
-**System-of-record vs. index.** `asset_fingerprint_comp` is the system-of-record. The Lucene index
-is a **derived cache**: it can be dropped and rebuilt from the comp table at any time. Every write
-path therefore updates the comp table first (existing behaviour) and the index second (new hook);
-a failed index update is logged and never fails the comp write.
+**System-of-record vs. index.** `asset_fingerprint_comp` is the system-of-record; the Lucene index is
+a derived cache. Every write path updates the comp table first and the index second, best-effort: a
+failed index write is logged and never fails the comp write.
 
-**Query path.** The fingerprint hex → `MultiSectorFingerprint.of(hex).vector()` → `SimilarityIndex.query(vector, topK, threshold)` → `List<SimilarityHit>`; the endpoint maps hits (asset uuid + sha512 + score) to a response, excluding the query asset itself.
+**Query path.** stored hex → `MultiSectorFingerprint.of(hex).vector()` (inside the impl) →
+`KnnFloatVectorQuery` pre-filtered by an `algorithm` `TermQuery` → `List<SimilarityHit>` → response
+with the query asset excluded. The endpoint asks the index for `limit + 1` neighbours precisely
+because the asset matches itself and is then dropped.
 
 ---
 
-## 3. The `SimilarityIndex` SPI
+## 4. The `SimilarityIndex` SPI
 
-New package `io.metaloom.loom.api.search` in `loom-shared/api` (alongside `SearchProvider`):
+`io.metaloom.loom.api.search` in `loom-shared/api`, alongside `SearchProvider`:
 
 ```java
-public interface SimilarityIndex {
-
-    /** Upsert one asset's fingerprint vector. Idempotent on (assetUuid, algorithm). */
-    void index(UUID assetUuid, String sha512, String algorithm, float[] vector);
-
-    /** Remove all vectors for an asset (called on asset/comp delete). */
-    void remove(UUID assetUuid);
-
-    /** k-NN query; hits below scoreThreshold are dropped. Never returns null. */
-    List<SimilarityHit> query(String algorithm, float[] vector, int limit, float scoreThreshold);
-
-    /** Rebuild the whole index from the supplied vectors (boot / admin). */
-    void rebuild(Stream<IndexedFingerprint> all);
-
-    /** Flush pending writes to disk. */
-    void commit();
-
-    /** False when disabled or the index dir is unavailable — callers degrade gracefully. */
-    boolean isAvailable();
-}
+void index(UUID assetUuid, String sha512, String algorithm, float[] vector);
+void index(UUID assetUuid, String sha512, String algorithm, String fingerprintHex);
+void remove(UUID assetUuid);
+List<SimilarityHit> query(String algorithm, float[] vector,      int limit, float scoreThreshold);
+List<SimilarityHit> query(String algorithm, String fingerprintHex, int limit, float scoreThreshold);
+void rebuild(Stream<IndexedFingerprint> all);
+void rebuildFromHex(Stream<HexFingerprint> all);
+void commit();
+boolean isAvailable();
 
 public record SimilarityHit(UUID assetUuid, String sha512, float score) {}
 public record IndexedFingerprint(UUID assetUuid, String sha512, String algorithm, float[] vector) {}
+public record HexFingerprint(UUID assetUuid, String sha512, String algorithm, String fingerprintHex) {}
 ```
 
-- `LuceneSimilarityIndex` — the production impl (module `loom/services/lucene`). Wraps video4j's
-  `HashFingerprintIndexer` / `AbstractFingerprintIndexer`. Lucene doc per asset: a
-  `KnnFloatVectorField("fingerprint", vector)` + `StoredField`s for `asset_uuid` and `sha512sum`
-  (video4j already stores `sha512sum`; add `asset_uuid`). `algorithm` is a filter field so multiple
-  algorithms can coexist. Guards all methods behind `isAvailable()`.
-- `NoopSimilarityIndex` — bound when `LOOM_SIMILARITY_ENABLED=false`; `query` returns empty,
-  `isAvailable()` false. Mirrors `NoopSearchProvider`.
-- **Dagger**: `SimilarityModule` in `loom/core` picks the impl from `SimilarityOptions` — exactly the
-  shape of `SearchModule`.
+🔴 **The hex overloads are the ones Loom actually calls.** `asset_fingerprint_comp` stores the
+fingerprint as hex and decoding needs the video4j codec; keeping that knowledge inside the
+implementation is what keeps video4j out of `loom/services/rest`. Malformed hex is logged and skipped,
+never fatal.
 
-> ⚠️ **Concurrency.** Lucene `IndexWriter` is single-writer. Serialize `index()`/`remove()`/`rebuild()`
-> through one writer (a single-thread executor or a lock); readers use a periodically-refreshed
-> `SearcherManager`. video4j's indexer is not written for concurrent Loom-style access — wrap it.
+`LuceneSimilarityIndex` implementation facts worth knowing before editing it:
+
+- Fields: `KnnFloatVectorField("fingerprint")`, `StoredField("asset_uuid")` (also the update/delete
+  `Term`), `StoredField("sha512sum")`, `algorithm` as a filter term.
+- Codec: an anonymous `Lucene103Codec` whose k-NN format is video4j's `HighDimensionKnnVectorsFormat`
+  wrapping `Lucene99HnswVectorsFormat(200, 100)`, sized by
+  `MultiSectorFingerprint.FINGERPRINT_VECTOR_SIZE`. This matches `xdb-clean`'s on-disk format.
+- It writes its **own** documents rather than calling `HashFingerprintIndexer.indexMedia`, which
+  stores only `sha512sum` and offers no `asset_uuid` key, no `algorithm` filter and no delete.
+- Concurrency: a `ReentrantLock` serializes `index`/`remove`/`rebuild`; reads go through a
+  `SearcherManager` opened on the writer for near-real-time visibility.
+- A commit point is forced at open so the `SearcherManager` can read a fresh index.
+
+`NoopSimilarityIndex` is bound whenever similarity is disabled or the directory is unusable: `query`
+returns empty and `isAvailable()` is `false`, which is what makes the endpoint reject rather than lie.
 
 ---
 
-## 4. Index lifecycle & consistency
+## 5. Lifecycle, REST and configuration
 
-| Trigger | Action |
+| Trigger | Behaviour |
 |---|---|
-| **Boot** | Open (creating if absent) the index at `LOOM_SIMILARITY_INDEX_PATH`. ⚠️ **As built there is no automatic boot rebuild**: `SimilarityModule` opens the directory and degrades to `NoopSimilarityIndex` if it cannot. A cold or lost index is repopulated by the explicit rebuild route, which keeps boot time independent of corpus size. |
-| **Fingerprint comp created** | Hook in the fingerprint-comp endpoint service (where `createAssetFingerprintComp` lands) calls `index(assetUuid, sha512, algorithm, vector)` after the DB upsert commits. |
-| **Fingerprint comp / asset deleted** | Same hook (and the asset delete path) calls `remove(assetUuid)`. `asset_fingerprint_comp` already cascades on asset delete; the index removal is the extra step. |
-| **Admin rebuild** | `POST /api/v1/similarity-index/rebuild` triggers a full `rebuild(...)`. |
+| **Boot** | `SimilarityModule` creates the directory, checks writability, opens the index. Any failure → `NoopSimilarityIndex`, logged, **boot continues**. ⚠️ No automatic rebuild — deliberate (§7). |
+| **Fingerprint comp created/updated** | `FingerprintCompEndpointService.reindex(comp)` → `index(...)` + `commit()`, best-effort, after the DB write. |
+| **Fingerprint comp / asset deleted** | `unindex(assetUuid)` → `remove(...)` + `commit()`. `asset_fingerprint_comp` already cascades on asset delete. |
+| **Admin rebuild** | `POST /api/v1/similarity-index/rebuild` → `findByAlgorithm(algorithm)` → `rebuildFromHex(...)`. |
 
-🔴 **Rebuildability is the whole safety story.** Because the index is derived, drift is always
-recoverable: if the hook is ever missed (crash between DB commit and index write), a rebuild restores
-correctness. Do **not** treat the index as authoritative anywhere.
+🔴 **Rebuildability is the whole safety story.** If a hook is ever missed (a crash between the DB
+commit and the index write) a rebuild restores correctness. Never treat the index as authoritative.
 
----
+### REST surface
 
-## 5. REST surface
-
-Per [../../guidelines/CODING.md](../../guidelines/CODING.md) (plural paths, endpoint + permission tests):
-
-| Method & path | Purpose | Permission |
+| Method & path | Permission | Notes |
 |---|---|---|
-| `GET /api/v1/assets/:assetUuid/similar-assets?algorithm=&limit=&threshold=` | Near-duplicates of one asset (looks up its stored fingerprint, queries the index, excludes self) | `READ_ASSET` |
-| `POST /api/v1/similarity-index/rebuild` | Admin full rebuild | new `MANAGE_SIMILARITY_INDEX` (or reuse an existing admin permission) |
+| `GET /api/v1/assets/:uuid/similar-assets?algorithm=&limit=&threshold=` | `READ_ASSET` | Score-desc list, self excluded. Empty 200 when the asset has no fingerprint. `limit` must be a positive integer, `threshold` a float — otherwise 400 `BAD_QUERY_PARAMS`. |
+| `POST /api/v1/similarity-index/rebuild?algorithm=` | `UPDATE_ASSET` | 204 No Content. ⚠️ No dedicated permission was introduced. |
 
-Response `SimilarAssetListResponse` — a list of `{ assetUuid, sha512, score }`, score-desc. Empty
-list (not 404) when the asset has no fingerprint or nothing is above threshold. When the index is
-disabled, the endpoint returns **400/409 naming the reason** rather than silently returning empty
-(the [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §6 "no silent degradation" rule).
+Both answer **503 `SEARCH_UNAVAILABLE`** when disabled or unopenable, with a message distinguishing
+"`LOOM_SIMILARITY_ENABLED=false`" from "the index could not be opened".
 
-Client: new `SimilarityMethods` in `loom-client/common` aggregated into `ClientMethods`; impl in
-`loom-client/rest`:
+Client (`SimilarityMethods`, aggregated into `ClientMethods`):
+
 ```java
-LoomClientRequest<SimilarAssetListResponse> listSimilarAssets(UUID assetUuid, SimilarAssetQueryParameters params);
+LoomClientRequest<SimilarAssetListResponse> listSimilarAssets(UUID assetUuid, String algorithm, Integer limit, Float threshold);
 LoomClientRequest<NoResponse> rebuildSimilarityIndex();
 ```
 
----
-
-## 6. Configuration
+### Configuration
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `LOOM_SIMILARITY_ENABLED` | `false` | Master switch. Boot-forced to `false` (with a warning) if the index dir is not writable. |
-| `LOOM_SIMILARITY_INDEX_PATH` | `${LOOM_STORAGE_...}/similarity-index` | On-disk Lucene index directory (`MMapDirectory`). |
-| `LOOM_SIMILARITY_ALGORITHM` | `metaloom-multisector-v1` | Which `asset_fingerprint_comp.algorithm` participates. |
-| `LOOM_SIMILARITY_SCORE_THRESHOLD` | `0.10` | Default k-NN score floor (video4j `DEFAULT_SCORE_THRESHOLD`); overridable per request. |
-| `LOOM_SIMILARITY_TOPK` | `10` | Default neighbours per query; overridable per request. |
+| `LOOM_SIMILARITY_ENABLED` | `false` | Master switch. Also forced off (logged) when the index dir is unwritable or the index cannot open. |
+| `LOOM_SIMILARITY_INDEX_PATH` | `similarity-index` | On-disk Lucene directory (`MMapDirectory`), relative to the process CWD unless absolute. |
+| `LOOM_SIMILARITY_ALGORITHM` | `metaloom-multisector-v1` | Which `asset_fingerprint_comp.algorithm` participates; per-request overridable. |
+| `LOOM_SIMILARITY_SCORE_THRESHOLD` | `0.10` | k-NN score floor (matches video4j `QueryResultFactory.DEFAULT_SCORE_THRESHOLD`); per-request overridable. |
+| `LOOM_SIMILARITY_TOPK` | `10` | Default neighbours per query; per-request overridable. |
 
-`SimilarityOptions` lives on `LoomOptions` (see [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md)), validated at boot.
+`SimilarityOptions.validate()` only enforces these when `enabled` — a disabled index never blocks boot
+on a bad path. Full config context: [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md) §4.11.
 
 ---
 
-## 7. Key Classes Reference
-
-> Nothing below exists yet; paths are the intended homes.
+## 6. Key Classes Reference
 
 | Class | Package / module | Purpose |
 |---|---|---|
 | `SimilarityIndex` | `io.metaloom.loom.api.search` (`loom-shared/api`) | SPI — sibling of `SearchProvider` |
-| `SimilarityHit` / `IndexedFingerprint` | `io.metaloom.loom.api.search` | query result / rebuild input records |
-| `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` (`loom/services/lucene`) | Lucene HNSW impl wrapping video4j |
-| `NoopSimilarityIndex` | `io.metaloom.loom.similarity` | disabled fallback |
-| `SimilarityModule` | `io.metaloom.loom.core.dagger` (`loom/core`) | Dagger binding (mirrors `SearchModule`) |
-| `SimilarAssetsEndpoint(Service)` | `io.metaloom.loom.rest.endpoint...` (`loom/services/rest`) | REST query endpoint |
-| `SimilarityIndexRebuildEndpoint` | `loom/services/rest` | admin rebuild |
+| `SimilarityHit` / `IndexedFingerprint` / `HexFingerprint` | `io.metaloom.loom.api.search` | query result / rebuild inputs |
+| `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` (`loom/services/lucene`) | Lucene HNSW impl reusing video4j's codec |
+| `NoopSimilarityIndex` | `io.metaloom.loom.similarity` (`loom/services/lucene`) | disabled fallback |
+| `SimilarityModule` | `io.metaloom.loom.core.dagger` (`loom/core`) | Dagger binding + boot guard |
+| `SimilarityOptions` | `io.metaloom.loom.api.options` (`loom-shared/api`) | the five `LOOM_SIMILARITY_*` settings |
+| `SimilarityEndpointService` | `io.metaloom.loom.rest.service.impl` (`loom/services/rest`) | both routes' logic |
+| `SimilarityIndexEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | `/similarity-index/rebuild` |
+| `AssetEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | hosts `/assets/:uuid/similar-assets` |
+| `FingerprintCompEndpointService` | `io.metaloom.loom.rest.service.impl` | the write/delete index hooks |
+| `SimilarAssetResponse` / `SimilarAssetListResponse` | `io.metaloom.loom.rest.model.similarity` (`loom-shared/rest-model`) | REST DTOs |
 | `SimilarityMethods` | `io.metaloom.loom.client.common.method` (`loom-client/common`) | client interface |
-| `SimilarAssetListResponse` / `SimilarAssetQueryParameters` | `loom-shared/rest-model` | REST DTOs |
-| `HashFingerprintIndexer` / `AbstractFingerprintIndexer` | `io.metaloom.video4j.fingerprint.index...` (video4j `fingerprint-indexer`) | **reused** engine |
-| `MultiSectorFingerprint` | `io.metaloom.video4j.fingerprint.v2` (video4j) | `of(hex).vector()` |
+| `AssetComponentDao.findByAlgorithm` | `io.metaloom.loom.db.model.asset` | rebuild source query |
+| `MultiSectorFingerprint` / `HighDimensionKnnVectorsFormat` | video4j (`fingerprint`, `fingerprint-indexer`) | **reused** vector format and codec |
 
 ---
 
-## 8. Test Setup
+## 7. Open work
 
-- **`LuceneSimilarityIndexTest`** (`loom/services/lucene/src/test/...`): index a handful of known
-  vectors in a temp dir; assert a planted near-neighbour is returned above threshold and a dissimilar
-  vector is not; `remove()` drops it; `rebuild()` from a stream reproduces the same results;
-  `isAvailable()` false on an unwritable path.
-- **`SimilarAssetsEndpointTest`** + **permission test** (`READ_ASSET` required; a token without it is
-  rejected) — per [../../guidelines/CODING.md](../../guidelines/CODING.md). Assert self-exclusion and
-  the disabled-index rejection (no silent empty).
-- **Consistency test**: create two fingerprint comps via the client → they become queryable; delete
-  one asset → it disappears from results and nothing else does (cascade + index removal).
-- **Client test**: `listSimilarAssets` round-trips against the endpoint.
-- **Demo data**: `DemoDatabaseInitializer` seeds two near-identical demo videos with fingerprints so
-  `similar-assets` returns a non-empty result out of the box (shared with NODE_DEDUP_PLAN.md's demo).
-- 🔴 Run `./setup-pool.sh` (no migration here, but the dedup companion adds one) and confirm the build
-  is unaffected — this feature adds **no** Postgres extension, which is the point.
+### 7.1 🔴 `sha512` is never populated
+
+`SimilarAssetResponse.sha512` is declared, stored as a Lucene field and covered by the record — but
+**both production call sites pass `null`**:
+
+- `FingerprintCompEndpointService.reindex(...)` → `index(assetUuid, null, algorithm, hex)`
+- `SimilarityEndpointService.rebuild(...)` → `new HexFingerprint(assetUuid, null, algorithm, hex)`
+
+So every hit returns `sha512: null`. Fix by loading the asset's `sha512sum` in both paths (the comp
+already carries `asset_uuid`; the asset DAO has the hash), or drop the field from the DTO. Do **not**
+leave it half-wired — a consumer that trusts it silently gets nulls.
+
+### 7.2 Remaining items
+
+| Item | Detail |
+|---|---|
+| **Demo data** | `DemoDatabaseInitializer` seeds pipelines that *mention* fingerprinting but writes no `asset_fingerprint_comp` rows, so `similar-assets` is empty out of the box. Seed two near-identical fingerprints (share the fixture with [../pipeline-nodes/NODE_DEDUP_PLAN.md](../pipeline-nodes/NODE_DEDUP_PLAN.md)). |
+| **Helm** | `helm/loom` templates **no** `LOOM_SIMILARITY_*` value at all — the feature cannot be enabled from the chart. Add the five values plus a per-replica `indexPath` (§8, "one process per directory"). |
+| **Multi-sector** | Only `sector_index = 0` (whole asset) is indexed, matching what `FingerprintNode` writes. Per-sector indexing would let a clip match a portion of a longer video. |
+| **Shutdown** | The index is never closed on server shutdown; JVM exit releases `write.lock`, but an explicit lifecycle hook would be cleaner and would make tests deterministic. |
+| **Boot auto-rebuild** | ⏭️ **Deliberately skipped.** The write hook plus the explicit rebuild route cover the same ground without scanning the fingerprint table on every start. |
+| **Website docs** | Customer-facing docs are covered by the dedup workflow doc rather than a page of their own. |
 
 ---
 
-## 9. Conventions and Gotchas
+## 8. Conventions and Gotchas
 
 | Area | Gotcha |
 |---|---|
-| **Not lexical/embedding search** | 🔴 Keep this subsystem separate from [SEARCH.md](SEARCH.md) and [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). Same word "similarity", different index, different data. |
+| **Not lexical/embedding search** | 🔴 Keep this subsystem separate from [SEARCH.md](SEARCH.md) and [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). Same word "similarity", different index, different data, different spec. |
 | **Derived index** | 🔴 The Lucene index is a rebuildable cache of `asset_fingerprint_comp`, never a system-of-record. Any drift is fixed by a rebuild. |
-| **Lucene version** | ⚠️ Ignore the stub's Lucene 9.0.0 pin; take Lucene transitively from video4j's `fingerprint-indexer` (Lucene103Codec / HNSW). |
-| **Single writer** | ⚠️ Lucene `IndexWriter` is single-writer; all mutations are serialized through a lock in `LuceneSimilarityIndex`, and reads go through a `SearcherManager`. |
-| **One process per index directory** | 🔴 An `IndexWriter` holds an exclusive `write.lock` on its directory, so **two Loom instances must never share `LOOM_SIMILARITY_INDEX_PATH`** — the second gets `NoopSimilarityIndex` and its similarity routes answer 503. Give every replica its own path (the index is derived, so this costs only a rebuild each). This surfaced concretely in `SimilarAssetsEndpointTest`, where a per-test index directory is required because each test boots its own server. The full multi-instance picture — and why the failure is silent — is in [../../CLUSTERING.md](../../CLUSTERING.md) §3.6. |
-| **Hex, not `float[]`, at the boundary** | ⚠️ `asset_fingerprint_comp` stores the fingerprint as **hex**, and decoding it needs the video4j codec. The SPI therefore carries hex overloads (`index`/`query`/`rebuildFromHex`) which the REST layer uses, keeping video4j out of `loom/services/rest`. Malformed hex is logged and skipped, never fatal — a bad fingerprint must not fail the component write. |
-| **No silent degradation** | 🔴 A disabled index must make the endpoint *reject* the request, not return an empty list that looks like "no duplicates". |
-| **Score semantics** | ⚠️ The score is Lucene's k-NN vector similarity, not a probability. The `0.10` default comes from video4j/xdb-clean; tune per corpus, expose per request. |
-| **Overturns a filed decision** | 🔴 This adopts Lucene against [SEARCH.md](SEARCH.md) §2 / [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25. Do the companion edits in §1.2 or the specs contradict the code. |
+| **One process per index directory** | 🔴 `IndexWriter` holds an exclusive `write.lock`, so **two Loom instances must never share `LOOM_SIMILARITY_INDEX_PATH`** — the second silently gets `NoopSimilarityIndex` and its similarity routes answer 503. Give every replica its own path. This is why `SimilarAssetsEndpointTest` needs a per-test index directory (each test boots its own server). Full picture: [../../CLUSTERING.md](../../CLUSTERING.md) §3.6. |
+| **No silent degradation** | 🔴 A disabled index makes the routes answer **503**, never an empty list — "no duplicates" and "index off" must not look alike to a dedup node. |
+| **`sha512` is null** | 🔴 See §7.1 before consuming that field. |
+| **Rebuild permission** | ⚠️ `UPDATE_ASSET`, not a similarity-specific permission. If you add one, update `RESTAPI.md` and the permission test together. |
+| **Lucene version** | ⚠️ There is **no local Lucene pin** and there must not be one: Lucene arrives transitively from video4j's `fingerprint-indexer` (10.3.0, `Lucene103Codec`). Resurrecting the old 9.0.0 pin breaks the codec match with `xdb-clean`. |
+| **Hex, not `float[]`, at the boundary** | ⚠️ REST and the hooks use the hex overloads so the video4j codec stays inside `loom/services/lucene`. Malformed hex is logged and skipped, never fatal. |
+| **`limit + 1`** | ⚠️ The endpoint over-fetches by one because the query asset always matches itself. Change the k-NN limit and you change the self-exclusion arithmetic. |
+| **Best-effort hooks** | ⚠️ `reindex`/`unindex` swallow failures by design. That means a silent drift is possible — the rebuild route is the recovery path, not an optional extra. |
+| **Score semantics** | ⚠️ Lucene k-NN vector similarity, not a probability. `0.10` comes from video4j/xdb-clean; tune per corpus. |
+| **No migration, no extension** | ✅ This feature touches no Flyway migration and adds no Postgres extension, so `./setup-pool.sh` and `loom/db/jooq/generate.sh` are unaffected. That is the deliberate contrast with [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3.2. |
+
+---
+
+## 9. Test Setup
+
+Existing coverage — extend these rather than starting new classes:
+
+- **`LuceneSimilarityIndexTest`** (`loom/services/lucene/src/test/java/io/metaloom/loom/similarity/lucene/`) — 8 tests:
+  `shouldReturnNearNeighbourAboveThresholdAndDropDissimilar`, `shouldRemoveAsset`,
+  `shouldUpsertOnReindex`, `shouldFilterByAlgorithm`, `shouldRebuildFromStream`,
+  `shouldIndexAndQueryByStoredHex`, `shouldIgnoreMalformedHexInsteadOfThrowing`,
+  `shouldRebuildFromHexStream`. Uses a temp directory per test.
+- **`SimilarAssetsEndpointTest`** (`loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/`) — 7 tests
+  driving the whole path through the client: `testFingerprintWriteMakesAssetsFindable`,
+  `testAssetWithoutFingerprintYieldsEmptyList`, `testDeletingTheFingerprintRemovesItFromTheIndex`,
+  `testRebuildRestoresTheIndexFromTheComponentTable`, `testBadLimitIsRejected`,
+  `testRoutesRequirePermissions`, `testScoreIsReported`.
+  🔴 It configures a **per-test index directory** — each test boots its own server and would otherwise
+  collide on `write.lock`.
+
+What a change here still needs, per [../../guidelines/CODING.md](../../guidelines/CODING.md):
+
+- A test asserting `sha512` is populated, once §7.1 is fixed.
+- A demo-data assertion once §7.2 seeds fingerprints.
+- 🔴 `./setup-pool.sh` before running the endpoint tests (no migration here, but the pooled DB must
+  exist). Confirm the build is unaffected — this feature adds no Postgres extension, which is the point.
 
 ---
 
@@ -292,50 +312,57 @@ LoomClientRequest<NoResponse> rebuildSimilarityIndex();
 
 | Need | Look here |
 |---|---|
-| The fingerprint vector engine (reused) | video4j `fingerprint-indexer`: `…/index/query/impl/HashFingerprintIndexer.java`, `…/index/AbstractFingerprintIndexer.java` |
-| Fingerprint format | video4j `…/fingerprint/v2/MultiSectorFingerprint.java` (`of`, `vector()`) |
+| The SPI and its records | `loom-shared/api/src/main/java/io/metaloom/loom/api/search/` |
+| The Lucene implementation | `loom/services/lucene/src/main/java/io/metaloom/loom/similarity/lucene/LuceneSimilarityIndex.java` |
+| Which impl gets bound, and the boot guard | `loom/core/src/main/java/io/metaloom/loom/core/dagger/SimilarityModule.java` |
+| The write/delete hooks | `loom/services/rest/.../service/impl/FingerprintCompEndpointService.java` (`reindex`/`unindex`) |
+| Route registration | `…/endpoint/impl/AssetEndpoint.java:511`; `…/endpoint/impl/SimilarityIndexEndpoint.java` |
+| Env vars in context | [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md) §4.11 |
+| Route inventory in context | [../../loom/RESTAPI.md](../../loom/RESTAPI.md) |
+| The fingerprint vector format / engine (reused) | video4j `…/fingerprint/v2/MultiSectorFingerprint.java`, `…/fingerprint/index/` |
 | Where fingerprints are stored | `loom/db/flyway/.../V2.41__add_asset_fingerprint_comp.sql`; `loom/db/jooq/.../AssetComponentDaoImpl.java` |
 | How a node writes a fingerprint | `cortex/nodes/fingerprint/core/.../FingerprintNode.java`; `loom-client/common/.../method/FingerprintCompMethods.java` |
-| SPI + Dagger pattern to mirror | `loom-shared/api/.../search/SearchProvider.java`; `loom/db/jooq/.../search/NoopSearchProvider.java`; `loom/core/.../dagger/SearchModule.java` |
-| The module to repurpose | `loom/services/lucene/pom.xml` |
 | The consumer of this index | [../pipeline-nodes/NODE_DEDUP_PLAN.md](../pipeline-nodes/NODE_DEDUP_PLAN.md) |
-| Decisions this overturns | [SEARCH.md](SEARCH.md) §2, [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25, [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3 |
+| Entity model for `asset_fingerprint_comp` | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
+| Multi-instance / `write.lock` consequences | [../../CLUSTERING.md](../../CLUSTERING.md) §3.6, §7 |
+| Decisions this overturns | [SEARCH.md](SEARCH.md) §2, [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 |
 
 ---
 
 ## 11. Progress Assessment
 
-Nothing is implemented.
-
 **Design decisions closed**
-- [x] Lucene (reusing video4j) chosen over pgvector for the *fingerprint* similarity index, behind a `SimilarityIndex` SPI (§1.2, §3)
-- [x] Index is a derived, rebuildable cache of `asset_fingerprint_comp` (§4)
-- [x] Query surface is `GET assets/:uuid/similar-assets` (§5)
+- [x] Lucene (reusing video4j) over pgvector for the *fingerprint* index, behind a `SimilarityIndex` SPI (§2, §4)
+- [x] Index is a derived, rebuildable cache of `asset_fingerprint_comp` (§5)
+- [x] Query surface is `GET /assets/:uuid/similar-assets` (§5)
+- [x] Hex overloads on the SPI so video4j stays out of `loom/services/rest` (§4)
 
-**Implementation**
-- [x] `SimilarityIndex` SPI + records (`SimilarityHit`, `IndexedFingerprint`) in `loom-shared/api` (§3)
-- [x] `LuceneSimilarityIndex` in `loom/services/lucene` (module revived; depends on video4j `fingerprint-indexer` added to the BOM). Own writer/reader (adds `asset_uuid` + `algorithm` filter + `remove()` — video4j's indexer lacks these) reusing video4j's codec/`HighDimensionKnnVectorsFormat`/`MultiSectorFingerprint`. `LuceneSimilarityIndexTest`: 5 tests green (index/query/remove/upsert/algorithm-filter/rebuild) (§3)
-- [x] `NoopSimilarityIndex` (bound when disabled) (§3)
-- [x] `SimilarityModule` Dagger binding driven by `SimilarityOptions`, degrading to Noop instead of failing boot (§3, §6)
-- [x] comp-write/comp-delete hooks in `FingerprintCompEndpointService` (sector 0 only, best-effort) (§4)
-- [x] `GET assets/:uuid/similar-assets` (`SimilarityEndpointService`, self-exclusion, 503 when disabled) + `POST similarity-index/rebuild` (§5)
-- [x] `SimilarityMethods` client interface + `LoomHttpClientImpl` impl + REST DTOs (`SimilarAssetResponse`, `SimilarAssetListResponse`) (§5)
-- [x] `SimilarityOptions` on `LoomOptions` + env wiring + boot guard (unwritable dir → Noop) (§6)
-- [x] `AssetComponentDao.findByAlgorithm(...)` — the rebuild's source query (§4)
-- [x] Tests: `LuceneSimilarityIndexTest` (8: vector + hex + malformed + rebuild + algorithm filter), `SimilarAssetsEndpointTest` (7: write-hook round trip, self-exclusion, delete-unindex, rebuild, bad params, permissions, score)
-- [x] Companion spec edits: [SEARCH.md](SEARCH.md) §1.1/§2, [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 (closed as superseded), [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3 cross-ref (§1.2)
-- [ ] Boot-time auto rebuild — **deliberately skipped**; the write hook + explicit rebuild route cover it (§4)
-- [ ] Demo data seeding two near-identical fingerprinted videos (§8)
-- [ ] Customer-facing docs under `website/content/english/docs` (covered by the dedup workflow doc)
+**Implementation — done**
+- [x] `SimilarityIndex` SPI + `SimilarityHit` / `IndexedFingerprint` / `HexFingerprint` (§4)
+- [x] `LuceneSimilarityIndex` — own documents (`asset_uuid` key, `algorithm` filter, `remove`) on video4j's codec (§4)
+- [x] `NoopSimilarityIndex` bound when disabled (§4)
+- [x] `SimilarityModule` Dagger binding, degrading to Noop instead of failing boot (§4, §5)
+- [x] `SimilarityOptions` on `LoomOptions` + env wiring + `validate()` (§5)
+- [x] Comp write/delete hooks in `FingerprintCompEndpointService` — sector 0, best-effort (§5)
+- [x] `GET /assets/:uuid/similar-assets` (self-exclusion, 503 when disabled) + `POST /similarity-index/rebuild` (§5)
+- [x] `SimilarityMethods` + `LoomHttpClientImpl` impl + `SimilarAssetResponse` / `SimilarAssetListResponse` (§5)
+- [x] `AssetComponentDao.findByAlgorithm(...)` (§5)
+- [x] `ReentrantLock` for mutations + `SearcherManager` for reads (§4)
+- [x] `algorithm` as a `TermQuery` pre-filter, so several algorithms coexist in one index (§4)
+- [x] 15 tests: `LuceneSimilarityIndexTest` (8), `SimilarAssetsEndpointTest` (7) (§9)
+- [x] Companion spec edits in [SEARCH.md](SEARCH.md), [SEARCH_PLAN.md](SEARCH_PLAN.md), [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md), [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../CLUSTERING.md](../../CLUSTERING.md) (§2)
 
-**Known gaps / open items**
-- [x] `algorithm` is a Lucene filter field (`TermQuery` pre-filter on the k-NN query), so several algorithms can coexist in one index
-- [ ] Multi-sector fingerprints (this index uses sector 0 / whole-asset only, matching `FingerprintNode` today)
-- [x] Concurrency wrapper for the single Lucene writer: `ReentrantLock` around mutations + `SearcherManager` for reads (§3)
-- [ ] Multi-instance deployments need one index directory per replica (§9) — no shared-index story yet; recorded in [../../CLUSTERING.md](../../CLUSTERING.md) §3.6/§7 together with the fact that the Helm chart does not template `LOOM_SIMILARITY_*` at all
-- [ ] The index is not closed on server shutdown; the JVM exit releases `write.lock`, but an explicit lifecycle hook would be cleaner
+**Open**
+- [ ] 🔴 `sha512` is `null` on every hit — both call sites pass `null` (§7.1)
+- [ ] Helm chart templates no `LOOM_SIMILARITY_*` value, so the feature is unreachable from the chart (§7.2)
+- [ ] Demo data: no `asset_fingerprint_comp` rows are seeded, so `similar-assets` is empty out of the box (§7.2)
+- [ ] Multi-sector fingerprints — only sector 0 is indexed (§7.2)
+- [ ] No explicit index close on shutdown (§7.2)
+- [ ] No shared-index story for multi-replica deployments; one directory per replica is the rule (§8)
+- [ ] Customer-facing website docs (covered indirectly by the dedup workflow doc)
+- [x] ⏭️ Boot-time auto rebuild — deliberately skipped (§7.2)
 
 ---
 
-_Git HEAD: `3ba0a6ffb92e31cf68fb6ed20744e0066b30a209` (branch `master`)_
-_Last updated: 2026-07-30_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (verified BUILT against the tree; removed stale "nothing is implemented" claims, corrected the rebuild permission and the disabled-index status code, and recorded the null-`sha512` gap.)_

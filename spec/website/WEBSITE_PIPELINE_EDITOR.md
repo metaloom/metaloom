@@ -39,6 +39,11 @@ links here; **do not duplicate the detail below into it**.
   `{nodeDescriptors, contentTypes}` shape as `GET /api/v1/pipeline/node-descriptors`. Currently
   **41 node kinds** and **39 content types**. Regenerate with `loom/doc`'s `ExampleGenerator`
   (see [Regenerating the snapshot](#regenerating-the-snapshot)) — never hand-edit it.
+* 🔴 **All three shipped demos are currently broken.** Every `DEMOS` entry wires a sink node of
+  `type: "loom"`, and **`loom` is not a kind in the snapshot** — no `LoomDescriptorProvider` is
+  registered in the `NodeDescriptorProvider` service file, so the kind never reaches the generator.
+  `loadDemo(0)` runs on boot, so the page's *first impression* is a `(?)` node, an `unknownKind`
+  error and a disabled **Play** button. See [Progress Assessment](#progress-assessment).
 * The snapshot URL reaches the JS through a **`data-descriptors`** attribute whose value is a
   `relURL`. That attribute name is deliberately *not* one of the names `build.sh` and
   `check-links.mjs` grep, so the localhost check never trips on it — and, as a consequence, a broken
@@ -180,7 +185,7 @@ The bundle is loaded only by this layout, but the self-guard is kept deliberatel
 
 ## The node-descriptor snapshot
 
-`website/static/pipeline-editor/node-descriptors.json` (~110 KB) is served verbatim at
+`website/static/pipeline-editor/node-descriptors.json` (~114 KB) is served verbatim at
 `/pipeline-editor/node-descriptors.json`. Shape:
 
 ```json
@@ -196,15 +201,19 @@ The bundle is loaded only by this layout, but the self-guard is kept deliberatel
 }
 ```
 
-Current content (regenerate the numbers when they change):
+Current content — **verified against the staged file at this revision**; regenerate the numbers when
+they change:
 
 | Aspect | Value |
 |---|---|
-| Node kinds | **41** — `SOURCE` 3, `FILTER` 8, `ANALYSIS` 20, `TRANSFORM` 5, `OUTPUT` 5 |
+| Node kinds | **41** — `SOURCE` 3, `FILTER` 8, `ANALYSIS` 20, `TRANSFORM` 6, `OUTPUT` 4 |
 | Sources | `filesystem-source`, `s3-source`, `loom-fetch` |
+| Filters | the eight `filter-*` kinds: `asset-attribute`, `blacklist`, `date`, `duplicate`, `mimetype`, `quality`, `size`, `threshold` |
+| Transforms | `imagegen`, `script`, `thumbnail`, `tts`, `videogen`, `watermark` |
 | Sinks (`OUTPUT`) | `s3-sink`, `hash-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` |
-| Content types | **39** across 8 families: `media · text · detection · hash · scalar · struct · artifact · control`, each with a `<family>/*` wildcard |
-| Port groups declared | three `XOR` `media_alt` groups (`whisper`, `facedetect`, `captioning`); **no** `EXCLUSIVE` output group exists yet |
+| **Absent** | ⚠️ **no `loom` kind** — the Loom write-back sink exists in Cortex (`cortex/nodes/loom/`) but has no `NodeDescriptorProvider`, so it is missing from the snapshot and from the palette. All three demos still reference it. |
+| Content types | **39** across **8 families**, each with a `<family>/*` wildcard: `media` 5, `text` 4, `detection` 4, `hash` 6, `scalar` 5, `struct` 8, `artifact` 5, `control` 2 |
+| Port groups declared | three `XOR` `media_alt` input groups (`whisper`, `facedetect`, `captioning`); **every** `outputGroups` array is empty — no `EXCLUSIVE` output group exists yet |
 | `dynamicPorts: true` | `llm`, `script`, `vlm` |
 
 **Descriptor fields the editor reads:** `kind`, `name`, `description`, `category`, `inputPorts`,
@@ -238,13 +247,20 @@ cp loom/doc/src/main/generated/node-descriptors.json \
   `NodeDescriptorProvider` found via `ServiceLoader`) and encoding goes through Vert.x `Json`, so
   field names match the live endpoint byte-for-byte. **A new node kind therefore needs its
   `NodeDescriptorProvider` registration in
-  `loom-shared/node-model/src/main/resources/META-INF/services/…` before it can appear here.**
+  `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`
+  before it can appear here** — 26 providers are registered today, and a Cortex node without one
+  (the `loom` sink) is simply invisible to this page, to the palette and to the live endpoint.
 
 `NodeDescriptorGeneratorTest` (in `loom/doc`) fails the build when the snapshot misses a kind the SPI
 provides, and pins the port-model field names (`inputPorts`/`outputPorts`/`contentType`/`cardinality`,
 and a source's output port being named `media`). The editor itself degrades gracefully on an unknown
 kind or content type, so a temporarily stale snapshot never breaks the page — but it silently shrinks
 the palette, which no check catches.
+
+> ⚠️ **The guard only covers kinds the SPI *provides*.** A Cortex node with no
+> `NodeDescriptorProvider` is not "missing" as far as the test is concerned — it never existed. That
+> is exactly how the `loom` sink fell out of the catalogue while the demos kept referencing it, with
+> a green build on both sides.
 
 ## The type engine mirror
 
@@ -478,18 +494,27 @@ textarea **and** a file picker, reporting parse errors inline (`.pe-modal-err`).
 
 `DEMOS` holds three graphs; `loadDemo(0)` runs at boot so the canvas is never empty.
 
-| # | Name | Teaches |
-|---|---|---|
-| 0 | **Basic — hash & sync** | `filesystem-source → sha512 → loom`: one asset, three nodes, the `hash/sha512` → `loom.sha512` port binding |
-| 1 | **Complex — faces (fan-out & gather)** | `filter-mimetype` `PASS` branch feeding two routes; `facedetect` `MANY detections` fanning out into `facedescription`'s gather; 3 asset groups |
-| 2 | **Use-case — transcribe & sentiment** | `whisper → sentiment` on the audio route, `md5 → loom` on the identity route; 3 asset groups |
+| # | Name | Teaches | Sink |
+|---|---|---|---|
+| 0 | **Basic — hash & sync** | `filesystem-source → sha512 → loom`: one asset, three nodes, the `hash/sha512` → `loom.sha512` port binding | `loom` |
+| 1 | **Complex — faces (fan-out & gather)** | `filter-mimetype` `PASS` branch feeding two routes; `facedetect` `MANY detections` fanning out into `facedescription`'s gather; 3 asset groups | `loom` |
+| 2 | **Use-case — transcribe & sentiment** | `whisper → sentiment` on the audio route, `md5 → loom` on the identity route; 3 asset groups | `loom` |
 
 > Every kind and port id a demo names must exist in the snapshot, or the demo loads with an
-> `unknownKind` error and the page's first impression is a red error list. Verified for the current
-> snapshot: `filesystem-source.media`, `sha512.media/hash`, `md5.media/hash`, `loom.sha512`,
-> `loom.md5`, `filter-mimetype.media`, `facedetect.image/detections`, `facedescription.detections`,
-> `whisper.audio/transcript`, `sentiment.text`. **Re-verify after any descriptor rename** — nothing
-> automated does.
+> `unknownKind` error and the page's first impression is a red error list. **Re-verify after any
+> descriptor rename — nothing automated does.**
+>
+> 🔴 **This is currently failing.** Verified against the staged snapshot at this revision:
+> `filesystem-source.media`, `sha512.media`/`hash`, `md5.media`/`hash`, `filter-mimetype.media`,
+> `facedetect.image`/`detections`, `facedescription.detections`, `whisper.audio`/`transcript` and
+> `sentiment.text` all resolve — but **`loom` does not exist**, so `loom.sha512` and `loom.md5` are
+> dangling and every demo boots into an `unknownKind` error with **Play** disabled.
+> Two ways out, pick one and do it in the same change:
+> 1. register a `LoomDescriptorProvider` in
+>    `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`,
+>    regenerate the snapshot and re-stage it (the honest fix — the sink is a real node); or
+> 2. repoint the demos at a sink that *is* in the catalogue (`s3-sink`) and drop the `loom.*` port
+>    references.
 
 ## Configuration knobs
 
@@ -531,8 +556,8 @@ cd website
 ```
 
 Prerequisites are the site's: Hugo **extended ≥ 0.158**, Node, `asciidoctor`
-(see [WEBSITE.md](WEBSITE.md) § Building; note the system Hugo may be too old — fetch a newer one
-into the scratchpad).
+(see [WEBSITE.md](WEBSITE.md) § Building). **The system `hugo` is 0.131 and cannot build the site** —
+fetch an extended ≥ 0.158 binary into the scratchpad and invoke it explicitly.
 
 Because `data-descriptors` is not among the attributes `build.sh` and `check-links.mjs` scan, **the
 build cannot tell you the snapshot path is wrong**. Verify it by hand once per structural change:
@@ -546,6 +571,9 @@ grep -o 'data-descriptors="[^"]*"' website/dist/pipeline-editor/index.html
 
 1. **Boot** — demo 0 loads, palette shows all five category groups, *"✓ No design errors"*, **Play**
    enabled. The browser console must be silent.
+   🔴 *Currently fails*: the demo's `loom` sink is not in the snapshot, so boot shows a `(?)` node
+   and an `unknownKind` error with **Play** disabled. This step is the acceptance criterion for the
+   fix, not a description of today's behaviour.
 2. **Type checking** — drag from `sha512.hash` and confirm `loom.sha512` highlights as a candidate
    while, say, `whisper.audio` is marked incompatible; release on the incompatible port and read the
    toast.
@@ -613,7 +641,12 @@ cd loom-ui && npx vitest run src/features/pipeline/contentTypes.test.ts
 * **`icon`, `parameters` and `events` are present in the snapshot but unrendered.** Do not delete them
   from the generator to "save bytes" — the snapshot's contract is *the endpoint's shape*.
 * **Regenerating the snapshot is two commands plus a copy, and nothing does it for you.** The same
-  staleness trap as the OpenAPI and GraphQL documents.
+  staleness trap as the OpenAPI and GraphQL documents
+  ([WEBSITE.md](WEBSITE.md) § Staged generated artefacts).
+* **A Cortex node without a `NodeDescriptorProvider` does not exist here.** The palette, the
+  validator, `GET /api/v1/pipeline/node-descriptors` and `NodeDescriptorGeneratorTest` all key off
+  the SPI, not off `cortex/nodes/`. Before naming a kind in a demo or in docs prose, confirm it is
+  in the service file.
 * Simulator output is **seeded**, not random: `hashStr` + `mulberry32` over a seed string. Do not
   introduce `Math.random()` — it would make screenshots and bug reports irreproducible.
 
@@ -641,7 +674,18 @@ cd loom-ui && npx vitest run src/features/pipeline/contentTypes.test.ts
 <a id="progress-assessment"></a>
 ## Progress Assessment
 
-The page is **built and shipping**. Everything unchecked below is a known gap, not a regression.
+The page is **built and shipping**. Everything unchecked below is a known gap, not a regression —
+**except the first item, which is a live defect.**
+
+### 🔴 Live defect — the demos name a kind that is not in the catalogue
+
+- [ ] All three `DEMOS` wire a `type: "loom"` sink; `loom` has no `NodeDescriptorProvider`, so it is
+      absent from the snapshot. `loadDemo(0)` runs on boot → `(?)` node, `unknownKind` error,
+      **Play** disabled on first paint. Fix by registering `LoomDescriptorProvider` and regenerating
+      the snapshot, **or** by repointing the demos at `s3-sink`. Then re-run acceptance step 1.
+- [ ] Nothing would have caught this: `NodeDescriptorGeneratorTest` only checks SPI-provided kinds,
+      and no test loads the demos. A cheap guard is a `loom/doc` (or Node) assertion that every
+      `type` and port id named in `DEMOS` resolves against the staged snapshot.
 
 ### Page and wiring
 
@@ -656,7 +700,10 @@ The page is **built and shipping**. Everything unchecked below is a known gap, n
 
 - [x] `NodeDescriptorGenerator` writes the endpoint-shaped snapshot; `ExampleGenerator` drives it
 - [x] `NodeDescriptorGeneratorTest` pins kind coverage and the port-model field names
-- [x] 41 kinds / 39 content types staged; graceful degradation on an unknown kind or type
+- [x] 41 kinds / 39 content types (8 families) staged; graceful degradation on an unknown kind or type
+- [ ] The Loom write-back sink (`cortex/nodes/loom/`) has no descriptor provider, so the palette has
+      no way to end a pipeline at Loom — the only `OUTPUT` kinds are `s3-sink` and the three dedup
+      nodes
 - [ ] Staging is a manual `cp` — the snapshot can go stale against `loom/doc`'s generated copy with
       nothing failing. A `build.sh` freshness check (or a Maven step that copies it) would close this
 - [ ] `dynamicPorts` kinds (`llm`, `script`, `vlm`) show only their static ports; the
@@ -706,5 +753,5 @@ The page is **built and shipping**. Everything unchecked below is a known gap, n
 
 ---
 
-*GIT HEAD REVISION: `3b566b98a2280c0e60af97138db71b47cd8e5a32` (branch `master`)*
-*Last updated: 2026-07-30 12:06 UTC*
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (re-verified the snapshot counts and found the live defect: all three demos wire a `loom` sink that is not in the catalogue)_

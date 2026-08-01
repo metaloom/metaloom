@@ -1,870 +1,358 @@
-# Script Node — Design & Implementation Plan
+# Script Node — Status & Open Work
 
-> Design document for a new Cortex pipeline node (`script`) that executes
-> **user-supplied script code inside a Loom pipeline**. It reads the media handle plus
-> any number of upstream node outputs, and emits **many outputs across many data
-> types** — a single text in, a list of timeframes / several images / several texts out.
+> **Status: shipped.** Kind `script`, module `cortex/nodes/script`, GraalJS 25.0.0, dynamic typed
+> output ports resolved from the node's own `outputs` option, 50 unit tests + 2 integration tests +
+> the seam and resolver tests listed in §1.
 >
-> Read alongside [NODES.md](NODES.md) (the node system) and
-> [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) (the engine that dispatches it).
-> The source of truth is the code under `cortex/`; this is a plan, not a record.
+> This file is a **status page**: §1 says where everything lives; §2 onwards carry only what is still
+> open or still non-obvious. It does not restate node lifecycle or persistence
+> ([NODES.md](NODES.md) §2), the port/content-type model
+> ([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)), the engine
+> ([../pipeline/PIPELINE.md](../pipeline/PIPELINE.md)) or the new-node checklist
+> ([../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md)).
 >
-> **Status: implemented and run.** Node kind `script`; code in
-> [cortex/nodes/script](../../../cortex/nodes/script). 51 node tests, 4 parser-regression tests,
-> 6 configurable-seam tests and 2 integration tests against a real Loom + pooled Postgres all pass.
-> The blockers in §4 were real — three of them, one found only during implementation — and are
-> fixed. §17 records what landed, what changed against this design once it met the code, and what
-> is still open.
+> **The code is the source of truth** — where they disagree, fix this file in the same change
+> ([../../guidelines/CODING.md](../../guidelines/CODING.md)).
+
+**What it is for.** The node catalogue is a closed set of compiled kinds; anything smaller than a
+Maven module — glue between two nodes, a threshold, chapter marks from a transcript, reshaping an LLM
+answer — had no home. `script` runs user-supplied JavaScript inside a pipeline, reads the media handle
+and its wired inputs, and emits **many outputs across many data types** from one item.
+
+**Non-goals, settled and unchanged:** true item fan-out (one media item → *N* downstream pipeline
+items) is a `PipelineRunEngine` / `RunStateStore` change and belongs in
+[../pipeline/PIPELINE.md](../pipeline/PIPELINE.md), not here; a general plugin system (a node needing
+a model, native library or GPU stays a Java node with a sidecar); and untrusted multi-tenant
+execution (§5).
 
 ---
 
-## 1. Motivation
+## 1. Already implemented
 
-The Cortex node catalogue ([NODES.md](NODES.md) §3) is a closed set of ~24 compiled
-kinds. Everything a pipeline author might want that is not in that list — glue between
-two nodes, a custom threshold, deriving chapter marks from a transcript, reshaping an
-LLM answer into tags, emitting one image per detected scene — currently requires a new
-Maven module, a Dagger binding, a descriptor, and a Cortex release.
-
-There is today **no way to express a small piece of custom logic inside a pipeline.**
-`examples/cortex-custom-node/` shows how to write a node in Java and ship your own
-worker image; that is the right answer for a heavyweight, reusable capability and the
-wrong answer for six lines of mapping code.
-
-The `script` node closes that gap:
-
-| Without a script node | With a script node |
+| Item | Where it lives in code |
 |---|---|
-| Map `whisper_result` → chapter timeframes | new Java module + release | inline JS, 8 lines |
-| Threshold `blurriness` into a tag | new filter node | inline JS, 2 lines |
-| Fan several LLM answers into one JSON blob | new Java module | inline JS |
-| Prototype a node before committing to Java | not possible | write it as a script first, port later |
-
-### Non-goals
-
-- **True item fan-out** — one media item producing *N* downstream pipeline items (1 video
-  → N frame items each running the rest of the DAG). That is a `PipelineRunEngine` /
-  `RunStateStore` / WebSocket-protocol change and is explicitly **out of scope**. §7
-  explains what is delivered instead and why it covers the stated use cases.
-- **A general plugin system.** The script node runs *logic*, not new I/O backends. A node
-  that needs a model, a native library or a GPU is still a Java node with a sidecar.
-- **Untrusted multi-tenant script execution.** See §9: the trust boundary is
-  "whoever may edit a pipeline may run code on a worker", and the sandbox is
-  defence-in-depth, not a security boundary you should bet a tenancy on.
-
----
-
-## 2. Decisions
-
-> **Status: agreed.** These four choices were settled before the design; the rest of the
-> document follows from them.
-
-| Question | Decision | Rationale |
-|---|---|---|
-| **Engine** | **GraalJS**, behind a pluggable engine SPI | GraalJS is the only candidate with a real in-process isolation story on JDK 25 (§5). It is the only engine planned; the SPI exists so that choice stays reversible rather than to stage a queue of languages |
-| **Trust model** | **Trusted by default**, per-node-instance opt-in sandbox | Scripts are authored by pipeline admins. Timeouts and output caps are always on; the sandbox is opt-in hardening (§9) |
-| **"Many outputs"** | **Multi-valued outputs inside one `NodeResult`** | Satisfies every stated use case with zero change to the Loom pipeline engine (§7) |
-| **Script location** | **Inline in the pipeline node options** | Versioned with the pipeline definition, editable in the pipeline editor, self-contained. A Loom-stored versioned script entity is a possible future, not phase 1 |
-
----
-
-## 3. What already exists (verified against code at `29cadb66`)
-
-> **Status: verified.** Every row below was read in this checkout.
-
-| Concern | Reference | Notes |
-|---|---|---|
-| Node base class | [AbstractMediaNode](../../../cortex/common/src/main/java/io/metaloom/cortex/common/node/AbstractMediaNode.java) | `process()` → enabled → exists → `isProcessable()` → `loadAsset(sha512)` → `compute(ctx, asset)`. Supplies `recordNodeResult(...)` and `resultRef(table, uuids...)` |
-| **Reading upstream outputs** | [SentimentNode.resolveText()](../../../cortex/nodes/sentiment/core/src/main/java/io/metaloom/cortex/node/sentiment/SentimentNode.java) | `ctx.upstreamOutput(nodeId, outputKey)`; `isProcessable()` false when absent. The exact pattern the script bindings wrap |
-| Typed output keys | [NodeOutputKey](../../../cortex/api/src/main/java/io/metaloom/cortex/api/node/NodeOutputKey.java) | `NodeOutputKey.of(key, Class)`. Equality is **key-only**, so dynamically built keys are safe |
-| Untyped output escape hatch | [NodeContext.output(String, Object)](../../../cortex/api/src/main/java/io/metaloom/cortex/api/node/context/NodeContext.java) | Already present — a script node does not need a new context API |
-| JSON-comp persistence | [OCRNode.persist()](../../../cortex/nodes/ocr/core/src/main/java/io/metaloom/cortex/node/ocr/OCRNode.java) | `JsonCompCreateRequest{nodeKind, schemaType, variant, data}` → upsert on `(asset, node_kind, schema_type, variant)` |
-| `variant` as a discriminator | [LLMNode.persist()](../../../cortex/nodes/llm/core/src/main/java/io/metaloom/cortex/node/llm/LLMNode.java) · [SentimentNode.persist()](../../../cortex/nodes/sentiment/core/src/main/java/io/metaloom/cortex/node/sentiment/SentimentNode.java) | One row per prompt / per text source. The script node reuses it as one row per **node id** |
-| Timeframe persistence | [SegmentCompCreateRequest](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/segmentcomp/SegmentCompCreateRequest.java) · `createAssetSegmentComps` | `(asset, node_kind, segment_type)` **whole-set replace** — surplus rows from a shorter re-run are deleted. Exactly the semantics a re-run of a script needs |
-| Produced-binary precedent | [TtsNode](../../../cortex/nodes/tts/core/src/main/java/io/metaloom/cortex/node/tts/TtsNode.java) · [ImageGenNode](../../../cortex/nodes/image-generation/core/src/main/java/io/metaloom/cortex/node/imagegen/ImageGenNode.java) | Bytes go to `metaPath/<name>_bin/…`, only the ledger reaches Loom — there is no byte-ingest endpoint for produced media yet |
-| Ledger | `AbstractMediaNode.recordNodeResult(asset, ctx, state, reason, producerVersion, resultRef)` | Best-effort, no-op offline. Use **this** helper, not the private duplicate in `WhisperNode` |
-| In-heap skip cache | [LocalResultCache](../../../cortex/common/src/main/java/io/metaloom/cortex/common/cache/LocalResultCache.java) | Keyed by `media.absolutePath()`. ⚠️ Insufficient for this node — see §11 |
-| Kind registration | [SentimentNodeModule](../../../cortex/nodes/sentiment/core/src/main/java/io/metaloom/cortex/node/sentiment/SentimentNodeModule.java) | `@Binds @IntoSet` **and** `@Binds @IntoMap @StringKey("<kind>")` — the map binding is what makes the kind executable |
-| Kind → node wiring | [RegistryNodeRegistrar](../../../cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/RegistryNodeRegistrar.java) | Producers registered at bootstrap; `Provider` keeps nodes lazy |
-| Per-task instantiation | [NodeTaskRunner.run()](../../../cortex/node-runtime/src/main/java/io/metaloom/cortex/runtime/NodeTaskRunner.java) | Calls `NodeFactory.createNode(nodeDef)` **per task** and flattens `task.getOptions()` onto the definition |
-| UI descriptor SPI | [SentimentDescriptorProvider](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/SentimentDescriptorProvider.java) + `META-INF/services/…NodeDescriptorProvider` | 21 providers registered — the palette, the edit form and pipeline validation all read this |
-| Content-type vocabulary | [ContentTypes](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/ContentTypes.java) | `data/string`, `data/text`, `data/scene`, `data/thumbnail`, `media/*`, … — already rich enough for the script value types (§7) |
-| Integration-test base | `integration-test/.../node/AbstractNodeIntegrationTest.java` | Boots a real in-process Loom + pooled Postgres, hands the test a real `LoomHttpClient` |
-
-### Four constraints that shape the design
-
-1. **No migration needed.** Per the promotion policy in [DATABASE_TASKS.md](../db/DATABASE_TASKS.md),
-   a new node kind starts in `asset_json_comp` and graduates to a typed table only when a
-   query must filter on a field inside it. Timeframes have an existing typed table.
-   **No Flyway change → no jOOQ regen → `./setup-pool.sh` is only the normal pre-test step.**
-2. **`SecurityManager` is gone.** The reactor compiles with `<release>25</release>`
-   ([pom.xml](../../../pom.xml)). `System.setSecurityManager` throws on JDK 24+, so the
-   classic "run scripts under a restrictive policy" approach is unavailable to *every*
-   JVM-native engine. This is the single biggest reason GraalJS leads (§5).
-3. **`timeoutMs` is parsed but never enforced.** `PipelineNode.timeoutMs()` is read from
-   the node definition by `RegistryNodeRegistrar.adapt()` and stored on
-   `AbstractPipelineNode` — and nothing calls it. The in-Cortex DAG executor that used to
-   apply it no longer exists (only `NodeTaskRunner` remains). The script node must
-   therefore enforce **its own** wall clock; it cannot inherit one. This matches the open
-   item "No per-node timeout" in [NODES.md](NODES.md) §10.
-4. **Per-node-instance options do not currently reach any Cortex node.** This is the
-   blocker. See §4.
-
----
-
-## 4. 🔴 Blockers — the node-options path was broken end to end
-
-> **Status: fixed.** All three were real, and all three were pre-existing bugs affecting every
-> node's per-instance configuration, not just this one — no node parameter set in the pipeline
-> editor had ever reached a worker, in either direction. B5 surfaced only during implementation.
-> Each is covered by a regression test.
-
-```
- pipeline editor            Loom                          Cortex worker
- ─────────────────────────  ────────────────────────────  ───────────────────────────
- getGraphJson()             PipelineGraphParser           RegistryNodeRegistrar.adapt()
-   emits  "config": {…}  ──✗──> reads  "options"  ──✓──>    reads only id/mode/blocking/
-        (B1)                    PipelineGraphNode           concurrency/syncToLoom/
-                                   .getOptions()            timeoutMs  ──✗── (B2)
-                                       │                          │
-                                 PipelineRunEngine                └─> node options come from
-                                   → NodeTask.getOptions()            worker YAML instead
-                                       │
-                                 NodeTaskRunner
-                                   .toNodeDefinition()  ✓ flattens onto the node def
-```
-
-### B1 — the editor writes `config`, the parser reads `options`
-
-[`PipelineEditor.getGraphJson()`](../../../loom-ui/src/features/pipeline/PipelineEditor.tsx)
-serialises every non-reserved node data key into a nested `config` object:
-
-```ts
-...(configEntries.length > 0 ? { config: Object.fromEntries(configEntries) } : {}),
-```
-
-[`PipelineGraphParser`](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java)
-reads `node.getJsonObject("options")`. The string `"config"` appears in **no** Java
-parser in the reactor (only in an unrelated test fixture and `LoomEnv`). Parameters
-edited in the UI are therefore silently dropped at the Loom boundary.
-
-**Fix**: emit `options` from `getGraphJson()`; have `PipelineGraphParser` accept `config`
-as a **legacy alias** (`options` wins if both are present) so pipelines already saved
-with `config` keep working.
-
-### B2 — `adapt()` discards per-instance options for Cortex nodes
-
-[`RegistryNodeRegistrar.adapt()`](../../../cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/RegistryNodeRegistrar.java)
-reads `id`, `mode`, `blocking`, `concurrency`, `syncToLoom`, `timeoutMs` off the node
-definition and nothing else. The wrapped node's options object comes from worker-level
-YAML: `cortexOptions.getNodes().get(wrapped.name())`. Only `filesystem-source` and
-`asset-source` — which have hand-written producers — read their own options off the
-definition.
-
-**Fix**: a narrow, opt-in seam in `cortex/pipeline-api`:
-
-```java
-/**
- * Implemented by nodes whose configuration is per pipeline-node-instance rather than
- * per worker. RegistryNodeRegistrar.adapt() calls configure(nodeDef) before wrapping.
- */
-public interface PipelineConfigurable {
-    void configure(JsonObject nodeDef);
-}
-```
-
-`adapt()` calls it only when `wrapped instanceof PipelineConfigurable`, so **no existing
-node changes behaviour**. `ScriptNode` implements it and rebuilds its `ScriptNodeOptions`
-from the definition, layering over the YAML defaults.
-
-**Safety of mutating a node instance**: `NodeTaskRunner.run()` calls
-`NodeFactory.createNode(nodeDef)` per task, the kind map holds
-`Provider<FilesystemNode<?,?>>`, and node classes carry no `@Singleton` — so
-`provider.get()` yields a fresh instance per task. This must become an **explicit,
-tested contract** for `ScriptNode`: adding `@Singleton` to it would make two concurrent
-script nodes overwrite each other's script.
-
-### B3 — no multiline/code parameter type
-
-[`ParameterType`](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/ParameterType.java)
-is `STRING, INTEGER, NUMBER, BOOLEAN, ENUM, ENUM_SET`. A script body in a single-line
-`TextField` is unusable.
-
-**Fix**: add `CODE` (multiline, monospace, `language` hint) and `JSON` (for the `outputs`
-and `params` bags); render both in the editor's parameter loop.
-
-⚠️ While doing so, note the **pre-existing drift**: the UI's TS parameter types use
-`FLOAT`, `STRING_LIST` and `allowedValues`; the Java enum has `NUMBER`, `ENUM_SET` and
-`values`. Do not widen the drift. Reconciling it is worth a separate task.
-
-### B5 — sidebar parameter edits were discarded on save (found during implementation)
-
-Parameter edits went into `selected.definition`, but `handleSave` serialises `graphJson`, which
-`getGraphJson()` builds from the **React Flow canvas** node data — so an edit made in the node
-sidebar never reached the saved definition. Fixed with a `nodeParameters` channel mirroring edits
-onto the canvas, alongside the existing display-name and affinity channels. The same effect
-recomputes a script node's output connectors as its `outputs` declaration is edited.
-
-Reading was broken symmetrically: `toRFNodes` spread `n.data`, so a definition stored with
-`options` came back with no parameters at all. All definition-node reads now go through
-`pipelineNodeOptions(node)`, which resolves `options ?? config ?? data`.
-
-### B4 — output connectors are static per kind
-
-`descriptorConnectors(desc)` in the editor derives handles from `NodeDescriptor.outputs`.
-A script node's outputs are declared per instance, so the editor must prefer the node's
-own `outputs` option when present and fall back to the descriptor otherwise.
-
----
-
-## 5. Execution options — the engine survey
-
-> **Status: survey complete, GraalJS selected — and the only engine planned.** This is the
-> "multiple options for executing scripts" the design was asked to lay out. Everything below other
-> than GraalJS was considered and **is not planned**; the SPI in §6 keeps any of them reachable
-> later without a rewrite, but none is scheduled.
-
-| Option | Language | Isolation on JDK 25 | Cold start | Throughput | Dependency weight | Verdict |
-|---|---|---|---|---|---|---|
-| **GraalJS (polyglot)** | JavaScript / ECMAScript | **Real**: `HostAccess` allow-list, `allowIO(false)`, `allowCreateThread(false)`, `ResourceLimits.statementLimit`, `Context.close(true)` from a watchdog | ~100–300 ms first context, then cheap per-execution | Interpreted on a stock JDK (no Graal JIT); fine for glue logic, poor for tight numeric loops | Large — `polyglot` + `js-community` add tens of MB to the shaded jar and the container image | ✅ **Phase 1.** The only candidate that can be meaningfully restricted in-process |
-| **GraalPy** | Python | Same controls as GraalJS | Very high (seconds) and memory-hungry | Poor for CPython-shaped code | Very large | ❌ Startup cost and memory are wrong for a per-item node |
-| **Expression languages** (JEXL, MVEL, CEL) | expression DSL | Good — small surface by construction | Negligible | Excellent | Tiny | ❌ Cannot express the multi-output model. Worth revisiting for a future lightweight `expression` **filter** node |
-| **In-memory Java** (`javax.tools`, JShell) | Java | **None** — compiled code is ordinary host code | Slow first compile (~1 s) | Native | None (JDK built-in) | ❌ No isolation whatsoever, and `examples/cortex-custom-node/` already serves "I want Java" |
-| **WASM** (GraalWasm, Chicory) | anything compiling to WASM | **Strongest in-process** — memory-sandboxed by construction | Low | Good | Moderate | ❌ Ergonomics are wrong for six lines of glue. Revisit if untrusted execution ever becomes a requirement |
-
-### Why GraalJS
-
-A JVM-native scripting language would be the more natural fit for this codebase, and was the
-starting suggestion. It loses on exactly one point: **on JDK 25 there is no way to constrain what
-a JVM-native script may do beyond an AST allow-list.** `SecurityManager` was removed in JDK 24, and
-AST allow-lists have a long history of bypasses (string-based dispatch, metaclass tricks, dynamic
-class loading). GraalJS's `Context.Builder` gives an actual capability model instead: the script
-sees only the host objects it is explicitly handed.
-
-That is what makes the sandbox mode in §9 a real control rather than a label — and it is why one
-engine is enough. Adding a second whose sandbox does not hold would mean shipping a `trusted`
-switch that silently means different things depending on the engine.
-
-### Costs to accept openly
-
-- **Artifact size.** `org.graalvm.polyglot:polyglot` + `js-community` is the largest
-  dependency the cortex worker would take on. Measure the shaded `cortex/cli` jar and the
-  container image before and after, and record both in the implementation report.
-- **Interpreted execution.** Without the Graal JIT, GraalJS runs in Truffle's fallback
-  interpreter. Adequate for glue; document it so nobody ships a per-frame image filter as
-  a script.
-- **Version pinning.** Pin an explicit GraalVM polyglot version and verify it on JDK 25 in
-  phase 1 — do not float the version.
-
----
-
-## 6. Node design
-
-> **Status: built.** Module shape follows `cortex/nodes/sentiment` exactly.
-
-```
-cortex/nodes/script/
-├── pom.xml                       # artifactId cortex-script, packaging pom, <module>core</module>
-└── core/
-    ├── pom.xml                   # artifactId cortex-script-node
-    └── src/main/java/io/metaloom/cortex/node/script/
-        ├── ScriptNode.java            # extends AbstractMediaNode<ScriptNodeOptions>
-        │                              #   implements PipelineConfigurable
-        ├── ScriptNodeOptions.java
-        ├── ScriptNodeModule.java      # @IntoSet + @IntoMap @StringKey("script")
-        ├── ScriptOutputSpec.java      # record(key, ScriptValueType)
-        ├── ScriptValueType.java       # enum, see §7
-        └── engine/
-            ├── ScriptEngine.java      # SPI
-            ├── CompiledScript.java
-            ├── ScriptBindings.java    # the script-facing façade
-            ├── ScriptLimits.java
-            ├── ScriptException.java
-            └── js/GraalJsScriptEngine.java
-```
-
-### Engine SPI
-
-```java
-public interface ScriptEngine {
-    /** Stable id used by ScriptNodeOptions.engine — "js". */
-    String id();
-
-    /** Compile once per (script, limits); the result is reused for every media item. */
-    CompiledScript compile(String source, ScriptLimits limits) throws ScriptException;
-}
-
-public interface CompiledScript extends AutoCloseable {
-    void execute(ScriptBindings bindings) throws ScriptException;
-}
-```
-
-Engines are contributed by Dagger **exactly like node kinds are**:
-
-```java
-@Binds @IntoMap @StringKey("js")
-abstract ScriptEngine bindJsEngine(GraalJsScriptEngine engine);
-```
-
-`ScriptNode` injects `Map<String, Provider<ScriptEngine>>`. Adding an engine is a one-line
-binding in its own module — never an edit to `ScriptNode`. An unknown `engine` value fails
-in `configure(...)` / `validate()`, not on the first media item.
-
-### The script-facing binding contract
-
-This table is the **public API of the node** — it is what pipeline authors write against,
-so it must be documented on the website and changed only additively.
-
-| Binding | Shape | Notes |
-|---|---|---|
-| `media` | `{ path, absolutePath, size, sha512, isVideo, isImage, isAudio, isDocument, mimeType }` | Read-only façade over [LoomMedia](../../../cortex/api/src/main/java/io/metaloom/cortex/api/media/LoomMedia.java). **Not** the `LoomMedia` object itself — handing out the real handle would leak `file()`/`open()` past the sandbox |
-| `upstream` | `upstream["whisper"]["whisper_result"]` | Straight from `ctx.upstreamOutputs()`. Missing node or key → `undefined` (never throws) |
-| `params` | free-form JSON object from `ScriptNodeOptions.params` | Lets one script be reused across node instances with different constants |
-| `out` | `out.text(k,v)` `out.number(k,v)` `out.integer(k,v)` `out.bool(k,v)` `out.json(k,v)` `out.list(k,[…])` `out.timeframes(k,[…])` `out.image(k, bytes\|path)` `out.set(k,v)` | The **only** way to produce results |
-| `log` | `log.info/warn/error(msg)` | Routed to the node logger, prefixed `[<nodeId>]`, capped at `maxLogLines` |
-| `ctx` | `ctx.skip(reason)` · `ctx.fail(msg)` | Map to `SKIPPED` / `FAILED` `NodeResult`. Both stop the script |
-| `http` | `http.get(url)` / `http.postJson(url, body)` | Present **only** when `allowNetwork` is true |
-| `fs` | `fs.readText(path)` / `fs.readBytes(path)` | Present **only** when `allowFilesystem` is true. Read-only by design — a script that needs to write produces an `IMAGE`/`PATH` output instead |
-
-### Node lifecycle
-
-`ScriptNode` slots into the standard `AbstractMediaNode` lifecycle:
-
-- `isProcessable(ctx)` — `enabled`, the engine resolves, the script compiled, and every
-  `requiredInput` (an optional `nodeId:outputKey` list, mirroring
-  `SentimentNodeOptions.textSources`) is present. Absent required input → `SKIPPED`, not
-  `FAILED`: a script downstream of an optional branch must not redden the run.
-- `compute(ctx, asset)` — cache lookup (§11) → `bindings.execute()` → coerce and validate
-  declared outputs → `ctx.output(...)` per key → persist (§8) → `recordNodeResult(...)`.
-- Compilation happens **once** per `(script, limits)` in `configure(...)`, not per media
-  item.
-
-### Example — transcript to chapter timeframes
-
-```json
-{
-  "id": "chapter-marks",
-  "type": "script",
-  "options": {
-    "engine": "js",
-    "timeoutMs": 5000,
-    "requiredInputs": ["whisper:whisper_result"],
-    "params": { "pattern": "chapter|intro|outro" },
-    "outputs": [
-      { "key": "chapter_frames", "type": "TIMEFRAMES" },
-      { "key": "chapter_count",  "type": "INTEGER" },
-      { "key": "chapter_titles", "type": "TEXT_LIST" }
-    ],
-    "script": "…"
-  }
-}
-```
-
-```js
-const re = new RegExp(params.pattern, "i");
-const transcript = JSON.parse(upstream["whisper"]["whisper_result"]);
-
-const frames = transcript.segments
-  .filter(s => re.test(s.text))
-  .map(s => ({ startMs: Math.round(s.start * 1000),
-               endMs:   Math.round(s.end   * 1000),
-               label:   s.text.trim() }));
-
-if (frames.length === 0) {
-  ctx.skip("no chapter markers in transcript");
-}
-
-out.timeframes("chapter_frames", frames);
-out.integer("chapter_count", frames.length);
-out.list("chapter_titles", frames.map(f => f.label));
-log.info(`derived ${frames.length} chapter marks`);
-```
-
-One media item in; three outputs out, two of them multi-valued — a list of timeframes and
-a list of texts. `chapter_frames` lands in `asset_segment_comp` as a real timeline;
-the rest land in one `asset_json_comp` row.
-
----
-
-## 7. Outputs — "many outputs, all data types"
-
-> **Status: built.** This is the core of the request and the part that deliberately
-> stops short of a pipeline-engine change.
-
-### Declared, not discovered
-
-Output keys and types are **configuration**; their values are **runtime**. This is not a
-compromise, it is a requirement: the pipeline editor must draw output handles, and
-downstream nodes must be connectable to them, long before the script has ever run. A
-fully dynamic output set would make a script node unconnectable in the graph.
-
-So `outputs` is a declared list of `{key, type}`. At the end of execution:
-
-- declared **and** set → coerced, validated, emitted;
-- declared **and not** set → omitted (a downstream node sees `undefined` — normal);
-- **not** declared but set → **hard failure**. This catches typos and stops the graph from
-  quietly diverging from the declaration the editor drew.
-
-### `ScriptValueType`
-
-| Type | `NodeResult` value | `ContentTypes` | Persistence |
+| Maven module | `cortex/nodes/script/` (parent + `core`, artifactId `cortex-script-node`); GraalVM polyglot **25.0.0** pinned in `core/pom.xml` (`polyglot` + `js-community`) |
+| Node | `.../script/ScriptNode.java` — `KIND = "script"`, `SCHEMA_TYPE = "script"`, `BIN_DIR = "script_bin"`; `AbstractMediaNode<ScriptNodeOptions>` + `PipelineConfigurable` |
+| Kind registration | `ScriptNodeModule` — `@Binds @IntoSet` + `@Binds @IntoMap @StringKey(ScriptNode.KIND)`; included from `cortex/cli/.../dagger/NodeCollectionModule.java`. **Not** `@Singleton` (fresh instance per task) |
+| Input ports (static) | `IN_MEDIA` (`media/*`, ONE), `IN_DATA` (`struct/json`, ONE), `IN_TEXT` (`text/*`, ONE) |
+| Output ports (dynamic) | Built from `ScriptOutputSpec.port()` — `OutputPort.many(...)` for list types, `OutputPort.one(...)` otherwise; MANY values fan out via `ctx.outputElement(port, …)` |
+| Output type model | `ScriptValueType` (cortex side: contentType + cardinality + `binary` flag, `parse()`, `isList/isBinary/isJsonPayload`), `ScriptOutputSpec` (`record(key, type, segmentType)`) |
+| Engine SPI | `ScriptEngine` / `CompiledScript` (+ `ScriptException`, `ScriptOutputException`); `GraalJsScriptEngine` (`ID = "js"`, `@Singleton`) + `GraalJsCompiledScript`. Bound `@Binds @IntoMap @StringKey(GraalJsScriptEngine.ID)` into `Map<String, ScriptEngine>`; `ScriptNode` injects `Map<String, Provider<ScriptEngine>>` and fails in `resolveEngine` listing the available ids |
+| Script bindings | `ScriptBindings`, `ScriptOutputCollector`, `ScriptLogger`, `ScriptSignal`, `ScriptLimits` — installed bindings are **`media`, `data`, `params`, `out`, `log`, `ctx`** |
+| Per-instance config seam | `io.metaloom.cortex.common.node.PipelineConfigurable`, invoked from `RegistryNodeRegistrar.adapt()` (`wrapped instanceof PipelineConfigurable`). Implementors: `ScriptNode`, `S3SinkNode` |
+| Loom-side options | `PipelineGraphParser` reads `options`, falling back to `config` as a legacy alias |
+| Editor parameter types | `ParameterType` = `STRING, INTEGER, NUMBER, BOOLEAN, ENUM, ENUM_SET, CODE, JSON`; `NodeParameter.language` / `.rows` |
+| Port resolution (Java) | `NodePortResolver` SPI in `loom-shared/node-model`; `ScriptPortResolver` (`KIND = "script"`, reads the `outputs` option, never throws) registered via ServiceLoader alongside `LlmPortResolver`, `VlmPortResolver` |
+| Port resolution (TS mirror) | `loom-ui/src/features/pipeline/portResolvers.ts` — `SCRIPT_OUTPUT_TYPES`, `hasPortResolver`, `resolveOutputPorts`/`resolveInputPorts`; consumed by `PipelineEditor.tsx` (handles `port-in-<id>-<port>` / `port-out-<id>-<port>`) |
+| Descriptor | `ScriptDescriptorProvider` — `setOutputPorts(List.of())` + `setDynamicPorts(true)`, three optional inputs matching the node |
+| Persistence | one `asset_json_comp` (`schemaType=script`, `variant=<nodeId>`); `createAssetSegmentComps` per `TIMEFRAMES` output under `nodeKind = "script:<nodeId>"`; `IMAGE`/`IMAGE_LIST` bytes → `metaPath/script_bin/…`; ledger `producerVersion = "<engineId>:<sha256(script)[0:12]>"` |
+| Cache | `LocalResultCache<String>` (10 000 entries) keyed `absolutePath + "\|" + scriptHash` |
+| Tests | `ScriptNodeTest` (23), `ScriptOptionsValidationTest` (15), `ScriptNodePipelineTest` (7), `ScriptNodePersistenceTest` (5); `integration-test/.../node/ScriptNodeIntegrationTest` (2); `cortex/cli/.../PipelineConfigurableTest` (~9, incl. `testScriptKindIsExecutable`, `testTwoScriptNodesGetIndependentInstances`); `loom-shared/node-model/.../NodePortResolverTest` (10, 4 script-specific); `loom-ui/src/features/pipeline/portResolvers.test.ts` (vitest); `loom-ui/e2e/pipeline-ports-mocked.spec.ts` (dynamic handles + option round-trip) |
+| Docs & demo | `website/content/english/docs/nodes/script/index.adoc`; `DemoDatabaseInitializer` pipeline **"Reading Time (Script)"** (`filesystem-source → tika → script`), whose seeded script is itself executed by `ScriptNodeTest.shouldRunTheDemoReadingTimeScript` |
+
+### Declared output types
+
+Declared in the `outputs` option, resolved into ports before the script ever runs — the editor must be
+able to draw handles and validate edges up front. Values are runtime; keys and types are configuration.
+
+| Type | Content type | Cardinality | Persistence |
 |---|---|---|---|
-| `STRING` | `String` | `data/string` | JSON-comp field |
-| `TEXT` | `String` | `data/text` | JSON-comp field |
-| `INTEGER` | `Long` | `data/integer` | JSON-comp field |
-| `NUMBER` | `Double` | `data/number` | JSON-comp field |
-| `BOOLEAN` | `Boolean` | `data/boolean` | JSON-comp field |
-| `JSON` | `JsonObject` | `data/text` | JSON-comp field |
-| `TEXT_LIST` | `List<String>` | `data/text` | JSON-comp field |
-| `TIMEFRAMES` | `List<JsonObject{startMs,endMs,label,data}>` | `data/scene` | `createAssetSegmentComps`, `segmentType` = the output's **declared** segment type (§17.2) |
-| `IMAGE` | `String` (path) | `data/thumbnail` | bytes → `script_bin`, ledger only |
-| `IMAGE_LIST` | `List<String>` (paths) | `data/thumbnail` | bytes → `script_bin`, ledger only |
-| `PATH` | `String` | `data/path` | JSON-comp field |
+| `STRING` | `scalar/string` | ONE | JSON-comp field |
+| `TEXT` | `text/plain` | ONE | JSON-comp field |
+| `INTEGER` | `scalar/integer` | ONE | JSON-comp field |
+| `NUMBER` | `scalar/number` | ONE | JSON-comp field |
+| `BOOLEAN` | `scalar/boolean` | ONE | JSON-comp field |
+| `JSON` | `struct/json` | ONE | JSON-comp field |
+| **`TEXT_LIST`** | `text/plain` | **MANY** | JSON-comp field |
+| `TIMEFRAMES` | `struct/segments` | ONE | `createAssetSegmentComps` under the output's declared `segmentType` |
+| `IMAGE` | `artifact/image` | ONE (binary) | bytes → `script_bin`, ledger only |
+| **`IMAGE_LIST`** | `artifact/image` | **MANY** (binary) | bytes → `script_bin`, ledger only |
+| `PATH` | `artifact/file` | ONE | JSON-comp field |
 
-The content-type column feeds `NodeDescriptor.outputs`-shaped connector metadata so the
-editor can colour and type-check edges using the machinery it already has
-(`toConnectorDataType`).
+Declared **and** set → coerced, validated, emitted. Declared and **not** set → omitted (downstream sees
+nothing — normal). **Not** declared but set → **hard failure**, so a typo cannot make the drawn graph
+lie about what flows down an edge.
 
-### Why this covers the ask without item fan-out
+⚠️ **This table exists three times** — `ScriptValueType` (cortex), `ScriptPortResolver.ScriptOutputType`
+(node-model, package-private) and `SCRIPT_OUTPUT_TYPES` (TypeScript). Nothing mechanically compares
+them; see §3.
 
-> "input a single text and output a stream of timeframes or images or multiple texts"
+### Script-facing binding contract
 
-Each of those is a **multi-valued output on one item**, not a multiplication of items:
+This is the **public API of the node** — pipeline authors write against it, so change it only additively.
 
-- *stream of timeframes* → one `TIMEFRAMES` output, `N` entries, persisted as `N` rows in
-  `asset_segment_comp` — a genuine timeline on the asset, queryable and rendered by the UI.
-- *multiple texts* → one `TEXT_LIST` output. A downstream node reads the list.
-- *images* → one `IMAGE_LIST` output; the bytes land in `script_bin` and the paths flow
-  downstream, exactly as `ThumbnailNode` / `ImageGenNode` already do.
-
-What this **cannot** do is make the rest of the DAG execute once per emitted element. If
-that is ever needed — "one item per detected scene, each running facedetect" — it is a
-`PipelineRunEngine` / `RunStateStore` / item-accounting change of its own, and it should be
-specified in [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md), not smuggled in behind a
-script node. Recorded as an open item in §14.
+| Binding | Shape |
+|---|---|
+| `media` | `{ path, absolutePath, size, sha512, isVideo, isImage, isAudio, isDocument, mimeType }` — a read-only façade, **not** the `LoomMedia` handle (which would leak `file()`/`open()` past the sandbox) |
+| `data` | the wired `IN_DATA` / `IN_TEXT` payload |
+| `params` | free-form JSON object from `ScriptNodeOptions.params`, so one script serves several node instances |
+| `out` | `out.text(k,v)` `out.number` `out.integer` `out.bool` `out.json` `out.list` `out.timeframes` `out.image(k, bytes\|path)` `out.set` — the **only** way to produce results |
+| `log` | `log.info/warn/error(msg)` → node logger, prefixed `[<nodeId>]`, capped at `maxLogLines` |
+| `ctx` | `ctx.skip(reason)` · `ctx.fail(msg)` → `SKIPPED` / `FAILED`; both stop the script |
 
 ---
 
-## 8. Persistence
+## 2. Options and environment
 
-> **Status: built. No migration required** — confirmed by running the integration test against a
-> pooled database. See §17.2 for the two details the schema forced.
+`ScriptNodeOptions`, config key `script`, set **per pipeline-node instance** (not per worker).
+
+| Field | Default | Purpose |
+|---|---|---|
+| `engine` | `js` | Engine id; must exist in the engine map |
+| `script` | — | The script body. **Required** |
+| `outputs` | `[]` | Declared `{key, type, segmentType?}` list. Keys must match `^[a-z0-9][a-z0-9_]{0,62}$` |
+| `params` | `{}` | Constants handed to the script as `params` |
+| `requiredInputs` | `[]` | `nodeId:outputKey` entries; all must be present or the node **skips** |
+| `trusted` | `true` | Sandbox off/on (§5) |
+| `allowNetwork` | `false` | *Intended* to expose an `http` binding — **inert today** (§3) |
+| `allowFilesystem` | `false` | *Intended* to expose a read-only `fs` binding — **inert today** (§3) |
+| `timeoutMs` | `10000` | Wall-clock budget per media item. Inherited from `AbstractNodeOptions` (which defaults to `0` = no timeout); `ScriptNodeOptions` re-defaults it and **rejects `0`** |
+| `statementLimit` | `10_000_000` | Runaway-loop guard |
+| `maxOutputBytes` | `1048576` | Cap on the encoded output bag |
+| `maxLogLines` | `200` | Cap on `log.*` calls |
+| `enabled` / `processIncomplete` / `retryFailed` | inherited | `AbstractNodeOptions` |
+
+`validate()` rejects: blank `script`, unknown `engine`, empty/duplicate/malformed `outputs`, a
+`segmentType` on a non-`TIMEFRAMES` output, two `TIMEFRAMES` outputs sharing a segment type, malformed
+`requiredInputs`, and non-positive `timeoutMs` / `maxOutputBytes` / `maxLogLines`.
+
+No dedicated environment variables. Relevant existing ones:
+
+| Variable | Default | Relevance to `script` |
+|---|---|---|
+| `CORTEX_META_PATH` | — | Parent of `script_bin/`, where `IMAGE` outputs are written |
+| `CORTEX_NODE_BLACKLIST` | — | `script` refuses the kind on a worker — **the operational kill switch** (§5); blacklist beats whitelist |
+| `CORTEX_NODE_WHITELIST` | all registered kinds | Omit `script` to confine scripting to dedicated workers |
+| `CORTEX_CONF_FILENAME` | `cortex.yml` | A `nodes.script` block gives worker-level defaults a node instance layers over. ⚠️ The YAML layer is **not read on the server path** — see [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
+
+---
+
+## 3. Progress Assessment
+
+### Done
+
+- [x] Module, node, options + validation, Dagger `@StringKey("script")`, non-singleton proven by test
+- [x] Engine SPI + `@IntoMap @StringKey("js")` engine registry; GraalJS 25.0.0 pinned and verified on stock JDK 25
+- [x] Bindings `media` / `data` / `params` / `out` / `log` / `ctx`; compile-once-per-`(script, limits)` in `configure(...)`
+- [x] Declared-output coercion; undeclared key = hard failure
+- [x] Static input ports + **dynamic output ports** from the `outputs` option, with `TEXT_LIST` / `IMAGE_LIST` → MANY
+- [x] `NodePortResolver` SPI + `ScriptPortResolver` + the TypeScript mirror and its vitest contract test
+- [x] Persistence: `asset_json_comp` (`variant = nodeId`), `asset_segment_comp` per `TIMEFRAMES`, `script_bin` bytes, ledger with the script-digest producer version
+- [x] `LocalResultCache` keyed by path **+ script hash**
+- [x] Sandbox `trusted=false`: `HostAccess.EXPLICIT`, no host class lookup, no IO, no threads
+- [x] Watchdog (`Context.close(true)`) + `ResourceLimits.statementLimit`, both verified on the Truffle fallback interpreter
+- [x] Node-options path fixed end to end: editor emits `options`, `PipelineGraphParser` accepts `config` as a legacy alias, `PipelineConfigurable` seam invoked from `RegistryNodeRegistrar.adapt()`, `ParameterType.CODE` + `JSON` rendered, per-node connector override, sidebar edits mirrored onto the canvas
+- [x] [NODES.md](NODES.md) updated (§2/§3/§5/§5.1/§10/§12); website page; "Reading Time (Script)" demo pipeline, executed by a test
+
+### Open
+
+- [ ] **`script` is not actually port-conformance tested.** `NodePortConformanceTest.DYNAMIC_KINDS =
+      Set.of("script", "llm", "vlm")` exempts *outputs* from comparison — but the test's `NODE_KINDS`
+      map (23 classes) contains no `ScriptNode` entry at all, so the loop never reaches the node and
+      its **inputs are unchecked too**. Either add `ScriptNode` to `NODE_KINDS` (the exemption then
+      does its job) or delete the dead exemption.
+- [ ] **Nothing keeps the three copies of the output-type table in step.** `ScriptValueType`,
+      `ScriptPortResolver.ScriptOutputType` and `portResolvers.ts`'s `SCRIPT_OUTPUT_TYPES` are
+      hand-mirrored, and `portResolvers.test.ts` explicitly re-states the Java expectations by hand
+      rather than consuming a generated fixture. The javadoc on `ScriptValueType` and
+      `ScriptPortResolver` claims `NodePortConformanceTest` "keeps them in step" — it does not.
+      Generate the TS table from the Java enum, or add a test that diffs all three.
+- [ ] **`http` / `fs` bindings are specified but not implemented.** `allowNetwork` / `allowFilesystem`
+      are carried on `ScriptNodeOptions`, validated, threaded into `ScriptLimits` and shown as
+      descriptor parameters — but `GraalJsCompiledScript.install()` installs only `media`, `data`,
+      `params`, `out`, `log`, `ctx`, and `newContext()` never reads either flag. A script asking for
+      `http` gets `undefined`, and a *trusted* script gets `allowAllAccess(true)` regardless.
+- [ ] **The documented `upstream` binding does not exist.** Both
+      `website/content/english/docs/nodes/script/index.adoc` and
+      `ScriptDescriptorProvider.DEFAULT_SCRIPT` — the body **every new script node is created with** —
+      still show `upstream['whisper']['transcript']`. The runtime bindings are `media`/`data`/`params`/
+      `out`/`log`/`ctx`. Fix both; the default script is the higher-priority half.
+- [ ] **Memory is unbounded.** Heap and CPU-time `ResourceLimits` need the optimized Truffle runtime,
+      which a stock JDK does not provide. `statementLimit` and the wall-clock watchdog are the only
+      guards. **Do not claim a memory bound.**
+- [ ] **Stale javadoc:** `ScriptNode` and `ScriptNodeModule` both point at a `ScriptNodeSingletonTest`
+      that does not exist — the real guard is `PipelineConfigurableTest.testTwoScriptNodesGetIndependentInstances`.
+- [ ] **No metrics.** `ScriptNode` makes no `CortexMetrics` call; its cache hits and execution times
+      are invisible. (`ImageGenNode` / `WhisperNode` are the instrumentation pattern.)
+- [ ] **No e2e coverage of the `CODE` parameter field.** Dynamic connectors *are* covered by
+      `loom-ui/e2e/pipeline-ports-mocked.spec.ts`, but nothing exercises the script-body editor, and
+      the parameter inputs in `PipelineEditor.tsx` carry no `data-testid` to hook onto.
+- [ ] **The polyglot artifact-size cost was never measured.** `polyglot` + `js-community` is the
+      largest dependency the worker takes on; record the shaded `cortex/cli` jar and container image
+      delta.
+- [ ] **`ParameterType` drift between Java and TS persists.** The UI branches on `FLOAT` and
+      `STRING_LIST`, which the Java enum does not define (it has `NUMBER` and `ENUM_SET`). Worth a
+      separate reconciliation task — do not widen it.
+
+### Deliberately not built
+
+- [ ] ~~True item fan-out~~ — a `PipelineRunEngine` / `RunStateStore` change; specify it in
+      [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md), never smuggled in behind a node.
+- [ ] ~~Loom-stored versioned script entity~~ — inline-in-the-definition was chosen so the script is
+      versioned with the pipeline. Revisit if reuse across pipelines becomes real; the
+      `skill` / `skill_version` pair is the model to copy.
+- [ ] ~~A second engine~~ — GraalPy (startup + memory), expression languages (cannot express the
+      output model), in-memory Java (no isolation, and `examples/cortex-custom-node/` already covers
+      "I want Java") and WASM (wrong ergonomics for six lines of glue) were all surveyed and rejected.
+      The SPI is insurance, not a queue. **Why GraalJS:** on JDK 25 `SecurityManager` is gone, so no
+      JVM-native engine can be constrained beyond an AST allow-list; GraalJS's `Context.Builder` is an
+      actual capability model. A second engine whose sandbox did not hold would make the `trusted`
+      switch mean different things per engine.
+
+---
+
+## 4. Persistence
 
 ```mermaid
 graph LR
     S["ScriptNode.compute()"] --> J["asset_json_comp<br/>schemaType=script<br/>variant=&lt;nodeId&gt;"]
-    S --> G["asset_segment_comp<br/>segmentType=&lt;outputKey&gt;<br/>(whole-set replace)"]
+    S --> G["asset_segment_comp<br/>nodeKind=script:&lt;nodeId&gt;<br/>segmentType=declared (whole-set replace)"]
     S --> B["metaPath/script_bin/…<br/>(bytes stay local)"]
     S --> L["asset_node_result<br/>producerVersion=&lt;engine&gt;:&lt;scriptHash&gt;"]
 ```
 
-1. **Scalar / list / JSON outputs** → one `asset_json_comp` row via `createAssetJsonComp`
-   with `nodeKind = "script"`, `schemaType = "script"`, and **`variant = nodeId`**. The
-   natural key is `(asset, node_kind, schema_type, variant)`, so several script nodes in
-   one pipeline coexist on one asset without collision — the same trick `LLMNode` uses per
-   prompt and `SentimentNode` per text source.
-2. **`TIMEFRAMES` outputs** → one `createAssetSegmentComps` call per output, under the output's
-   declared `segmentType` and scoped to `nodeKind = "script:<nodeId>"`. Whole-set replace means a
-   re-run producing fewer segments correctly deletes the surplus. ⚠️ Both details are forced by the
-   schema rather than chosen — see §17.2.
-3. **`IMAGE` / `IMAGE_LIST`** → bytes written to
-   `metaPath/script_bin/<nodeId>/<sha512-segment>/<key>-<n>.png`; the output value is the
-   path. Ledger only — there is no byte-ingest endpoint for produced media
-   ([NODES.md](NODES.md) §2).
-4. **Always** `recordNodeResult(asset, ctx, state, reason, producerVersion, resultRef)`
-   with
+Everything is guarded by `asset != null && client() != null`, so offline mode is a clean no-op, and
+everything is best-effort: a persistence failure is logged and recorded in the ledger, never thrown.
+The script-digest producer version gives this node the per-script versioning
+[NODES.md](NODES.md) §10 lists as missing everywhere else.
 
-   ```
-   producerVersion = "<engineId>:" + sha256(script).substring(0, 12)
-   ```
+Three things the schema forced on the design, and they are load-bearing:
 
-   which gives this node the per-node versioning that [NODES.md](NODES.md) §10 lists as
-   missing everywhere else: the ledger records *which script* produced a result, so a
-   changed script is visibly a different producer.
+1. **`segmentType` cannot be the output key.** `asset_segment_comp` CHECK-constrains `segment_type` to
+   `SCENE | SILENCE | SHOT | CHAPTER` (migration `V2.42`) — an arbitrary key is rejected by the
+   database as a 500, not at compile time. A `TIMEFRAMES` output therefore declares its own
+   `segmentType` (default `CHAPTER`), validated up front, and two timeframe outputs on one node must
+   use different ones.
+2. **Segment rows are scoped `script:<nodeId>`.** The replace-set key is
+   `(asset, node_kind, segment_type)`; under a plain `script` kind a second script node writing
+   CHAPTER marks would delete the first node's. The ledger and the JSON component still use the plain
+   `script` kind — only the segment rows carry the scoped one. (Segment `producerVersion` is
+   `<engine>:<hash>;unit=ms`.)
+3. **`timeoutMs` is the inherited option, not a new one** — re-defaulted to 10 s and `0` rejected,
+   because a script node must never run unbounded. The inherited setter returns `void` and does not chain.
 
-All of it is guarded by `asset != null && client() != null`, so offline mode is a clean
-no-op, and all of it is best-effort: a persistence failure is logged and recorded in the
-ledger, never thrown.
+**No Flyway migration was needed**, so `./setup-pool.sh` is only the normal pre-test step.
 
 ---
 
-## 9. Trust, sandbox and limits
+## 5. Trust, sandbox and limits
 
-> **Status: built, and the open verification is resolved** — see the note at the end of this
-> section. Memory remains unbounded.
+**Permission to edit a pipeline is permission to execute code on a worker.** That is the honest
+statement of the model and it appears in the website documentation. Existing mitigations to point at
+rather than reinvent:
 
-### The trust boundary
-
-**Permission to edit a pipeline is permission to execute code on a worker.** That is the
-honest statement of the model and it must appear in the website documentation. A script
-node in a pipeline definition is arbitrary code that a Cortex worker will run with the
-worker's privileges.
-
-Mitigations that already exist and should be pointed at rather than reinvented:
-
-- `MANAGE_PIPELINE` permission gates who can author definitions
-  ([../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md)).
-- `CORTEX_NODE_BLACKLIST=script` disables the kind on a worker outright, and blacklist
-  beats whitelist ([NODES.md](NODES.md) §11). **This is the operational kill switch** —
-  document it prominently.
-- Loom rejects a run with **503** when no online worker accepts a kind in the graph, so a
-  fleet-wide blacklist produces a clear error rather than a stalled run.
-
-### Two modes
+- `MANAGE_PIPELINE` gates who may author definitions ([../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md)).
+- `CORTEX_NODE_BLACKLIST=script` disables the kind on a worker outright — **the kill switch**.
+- Loom rejects a run with **503** when no online worker accepts a kind in the graph, so a fleet-wide
+  blacklist produces a clear error rather than a stalled run.
 
 | | `trusted = true` (default) | `trusted = false` |
 |---|---|---|
 | Host access | `allowAllAccess(true)` | `HostAccess.EXPLICIT`, restricted to the binding façade classes |
 | Class lookup | unrestricted | `allowHostClassLookup(c -> false)` |
-| I/O | unrestricted | `allowIO(false)`; `fs` binding absent unless `allowFilesystem` |
+| I/O | unrestricted | `allowIO(false)` |
 | Threads | allowed | `allowCreateThread(false)` |
-| Network | allowed | `http` binding absent unless `allowNetwork` |
 
-### Always on, in both modes
-
-- **Wall-clock timeout.** `timeoutMs` (default 10 000), enforced by a watchdog that calls
-  `Context.close(true)` on the executing context. This must be the node's own watchdog —
-  `PipelineNode.timeoutMs()` is parsed and stored but **never enforced** by anything in the
-  tree today (§3, constraint 3).
-- **Statement limit.** `ResourceLimits.newBuilder().statementLimit(n, null)` bounds
-  runaway loops portably, including on the fallback interpreter. ✅ Verified on JDK 25 with the
-  stock (non-GraalVM) runtime.
-- **Output cap.** `maxOutputBytes` (default 1 MiB) over the encoded output bag; exceeding
-  it fails the node rather than shipping an unbounded payload to Loom.
-- **Log cap.** `maxLogLines` (default 200).
-
-✅ **Resolved.** The statement limit, the `close(true)` watchdog and the `HostAccess.EXPLICIT` +
-`allowHostClassLookup(false)` sandbox were all verified working on GraalJS 25.0.0 running on this
-stock JDK 25 — a spinning script is cancelled by either guard, and a sandboxed script cannot reach
-`java.lang.System`. **Memory remains unbounded**: heap and CPU-time `ResourceLimits` need the
-optimized Truffle runtime, which a stock JDK does not provide. Do not claim a memory bound.
+Always on in both modes: the wall-clock `timeoutMs` watchdog (`Context.close(true)`), the
+`statementLimit`, `maxOutputBytes` over the encoded bag, and `maxLogLines`. Verified by running, not
+by reading: `statementLimit` cancels a spinning script on the fallback runtime; the watchdog cancels
+what the statement counter would not; `HostAccess.EXPLICIT` + `allowHostClassLookup(false)` blocks
+`Java.type('java.lang.System')` while the trusted path still reaches it. **Memory is not bounded.**
 
 ---
 
-## 10. Configuration
-
-### Node options (`ScriptNodeOptions`, config key `script`)
-
-| Field | Type | Default | Purpose |
-|---|---|---|---|
-| `engine` | String | `js` | Engine id — must exist in the engine map |
-| `script` | String | — | The script body. **Required** |
-| `outputs` | List&lt;{key,type}&gt; | `[]` | Declared outputs (§7). Keys must match `^[a-z0-9][a-z0-9_]{0,62}$` |
-| `params` | JSON object | `{}` | Constants handed to the script as `params` |
-| `requiredInputs` | List&lt;String&gt; | `[]` | `nodeId:outputKey` entries; all must be present or the node skips |
-| `trusted` | boolean | `true` | Sandbox off/on (§9) |
-| `allowNetwork` | boolean | `false` | Expose the `http` binding |
-| `allowFilesystem` | boolean | `false` | Expose the read-only `fs` binding |
-| `timeoutMs` | long | `10000` | Wall-clock budget per media item |
-| `statementLimit` | long | `10_000_000` | Runaway-loop guard |
-| `maxOutputBytes` | int | `1048576` | Cap on the encoded output bag |
-| `maxLogLines` | int | `200` | Cap on `log.*` calls |
-| `enabled` / `processIncomplete` / `retryFailed` | boolean | inherited | From `AbstractNodeOptions` |
-
-`validate()` must reject: blank `script`, unknown `engine`, empty or malformed `outputs`,
-duplicate output keys, malformed `requiredInputs` (`nodeId:outputKey` shape — reuse the
-check in `SentimentNodeOptions.validate()`), and non-positive `timeoutMs` /
-`maxOutputBytes` / `maxLogLines`.
-
-### Environment variables
-
-The script node is configured **per pipeline node instance**, so it introduces no
-dedicated environment variables. These existing ones affect it:
-
-| Variable | Default | Relevance to `script` |
-|---|---|---|
-| `CORTEX_META_PATH` | — | Parent of `script_bin/`, where `IMAGE` outputs are written |
-| `CORTEX_NODE_BLACKLIST` | — | Set to `script` to refuse the kind on a worker — **the kill switch** (§9) |
-| `CORTEX_NODE_WHITELIST` | all registered kinds | Omit `script` to restrict scripting to dedicated workers |
-| `CORTEX_CONF_FILENAME` | — | `cortex.yml`; a `nodes.script` block supplies worker-level defaults that a node instance layers over. ⚠️ See [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) — the YAML layer is **not read on the server path** |
-
-### UI descriptor
-
-`ScriptDescriptorProvider` (registered in
-`loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`):
-
-- `kind = "script"`, `category = TRANSFORM`, `icon = "code"`, `defaultBlocking = true`.
-- `inputs`: one optional `media/*` plus one optional `data/*` — the real dependency set is
-  whatever edges the author draws.
-- `outputs`: **empty** in the descriptor. The editor overrides connectors from the node's
-  own `outputs` option (B4).
-- `parameters`: `script` as `CODE` (language hint from `engine`), `outputs` and `params` as
-  `JSON`, the rest as `STRING`/`BOOLEAN`/`INTEGER`, plus the three common ones.
-
----
-
-## 11. Conventions and Gotchas
+## 6. Conventions and Gotchas
 
 | Area | Gotcha |
 |---|---|
-| **Cache key must include the script** | Every other node keys `LocalResultCache` by `media.absolutePath()`. `ScriptNode` **must** key by `absolutePath + "\|" + scriptHash` — otherwise editing a script silently re-emits stale results for the worker's lifetime, with no way to invalidate short of a restart |
-| **`ScriptNode` must not be `@Singleton`** | Per-instance configuration mutates the node. `NodeTaskRunner` creates one per task via `Provider.get()`; adding `@Singleton` would let two concurrent script nodes overwrite each other's script. Assert this in a test |
-| **`timeoutMs` on `PipelineNode` does nothing** | It is parsed by `adapt()` and stored on `AbstractPipelineNode`, and nothing enforces it. Do not rely on it — the node owns its watchdog (§9) |
-| **Editor parameters are dropped today** | `config` vs `options` (B1). Any node-parameter work must fix this first, or it will appear to work in the editor and silently do nothing at runtime |
-| **Compile once, execute many** | Compile in `configure(...)`, not in `compute(...)`. A per-item compile turns a 2 ms script into a 200 ms one |
-| **Undeclared output = failure** | Deliberate. A silently-dropped typo would make the graph lie about what flows down an edge |
-| **`out.image` bytes stay local** | There is no byte-ingest endpoint for produced media. Downstream consumers get a **path on that worker** — meaningful only to nodes on the same worker (use an `affinity` group) |
-| **Segment outputs are whole-set replace** | Correct for re-runs, but it means two script nodes must not share a `segmentType`: the second would wipe the first. Since `segmentType = outputKey`, keep output keys unique across script nodes in a pipeline |
-| **`SecurityManager` is unavailable** | JDK 25. Never propose a policy-file sandbox for any JVM engine (§3) |
-| **GraalJS is interpreted here** | No Graal JIT on a stock JDK. Glue logic only; do not ship per-frame processing as a script |
-| **Descriptor registry claim in NODES.md is stale** | §10 says "no nodes register descriptors" — 21 providers are registered. Fix it in this change ([CONTEXT.md](../../CONTEXT.md) §0.4: the code wins, and you fix the spec in the same change) |
+| **Cache key must include the script** | Every other node keys `LocalResultCache` by `media.absolutePath()`. `ScriptNode` keys `absolutePath + "\|" + scriptHash`; without it, editing a script silently re-emits stale results for the worker's lifetime with no invalidation short of a restart |
+| **`ScriptNode` must never be `@Singleton`** | Per-instance configuration mutates the node. `NodeTaskRunner` creates one per task via `Provider.get()`; `@Singleton` would let two concurrent script nodes overwrite each other's script |
+| **`PipelineNode.timeoutMs()` is enforced by nothing** | It is parsed by `adapt()`, stored on `AbstractPipelineNode`, and never read back — the executor that applied it no longer exists. The node owns its own wall clock |
+| **`ctx.failure(cause).next()` returns SUCCESS** | Only `abort()` yields `FAILED`. Every failure test written against `.next()` passes while asserting the wrong thing. `ScriptNode` uses `.abort()`; eleven other nodes still do not ([NODES.md](NODES.md) §10) |
+| **Compile once, execute many** | Compile in `configure(...)`, never in `compute(...)` — a per-item compile turns a 2 ms script into a 200 ms one |
+| **Undeclared output = failure** | Deliberate: a silently-dropped typo would make the graph lie about what flows down an edge |
+| **`out.image` bytes stay local** | There is no Loom byte-ingest endpoint for produced media. Downstream consumers get a **path on that worker** — meaningful only to nodes on the same worker (use an `affinity` group) or to `S3SinkNode`. Cross-node gap, tracked in [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| **Segment outputs are whole-set replace** | Correct for re-runs (a shorter re-run deletes the surplus), but two `TIMEFRAMES` outputs must not share a `segmentType` — the second would wipe the first |
+| **`SecurityManager` is unavailable** | JDK 25. Never propose a policy-file sandbox for any JVM engine |
+| **GraalJS is interpreted here** | No Graal JIT on a stock JDK — Truffle fallback interpreter (warning suppressed). Glue logic only; do not ship per-frame processing as a script |
+| **`ScriptPortResolver` must never throw** | It runs inside the editor's port resolution on half-typed JSON. Malformed entries are skipped, not fatal — the TS mirror does the same, and `parseOption` also tolerates the option being raw JSON *text*, which is how the parameter editor holds it |
+| **`PipelineEditor.tsx` contains NUL bytes** | Plain `grep` finds nothing in it; use `grep -a` |
 
 ---
 
-## 12. Implementation phases
-
-> **Status: all three phases built.** Each was independently shippable and independently testable;
-> §17 records the outcome.
-
-### Phase 0 — unblock the node-options path (§4)
-
-| Change | File |
-|---|---|
-| Emit `options` instead of `config` | [PipelineEditor.tsx](../../../loom-ui/src/features/pipeline/PipelineEditor.tsx) `getGraphJson()` |
-| Accept `config` as a legacy alias (`options` wins) | [PipelineGraphParser.java](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java) |
-| Add `PipelineConfigurable` | `cortex/common/.../node/PipelineConfigurable.java` — it takes a `JsonObject` and the nodes that implement it live below `cortex/common`, so `pipeline-api` (which has no Vert.x dependency) was the wrong home |
-| Call it from `adapt()` when implemented | [RegistryNodeRegistrar.java](../../../cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/RegistryNodeRegistrar.java) |
-| Add `ParameterType.CODE` and `JSON` | [ParameterType.java](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/ParameterType.java) |
-| Render `CODE` (multiline monospace) and `JSON` | `PipelineEditor.tsx` parameter loop |
-| Per-node connector override | `PipelineEditor.tsx` `descriptorConnectors` call sites |
-
-Phase 0 is valuable on its own: it is the difference between "node parameters in the
-editor work" and "node parameters in the editor have never worked".
-
-### Phase 1 — the node with GraalJS
-
-Module skeleton, `ScriptNodeOptions` + validation, engine SPI, `GraalJsScriptEngine`,
-`ScriptBindings`, declared-output coercion, `asset_json_comp` persistence, ledger with the
-script-hash producer version, `ScriptDescriptorProvider`, Dagger bindings, unit +
-options + pipeline + persistence tests.
-
-### Phase 2 — the richer output types
-
-`TIMEFRAMES` → `createAssetSegmentComps`; `IMAGE`/`IMAGE_LIST` → `script_bin`; sandbox
-mode (`trusted=false`) with the `HostAccess` allow-list and the `http`/`fs` gates;
-statement limit and watchdog verification (§9's open item).
-
-### Definition-of-done (from [../../guidelines/CODING.md](../../guidelines/CODING.md) + [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md))
-
-- [ ] `script` documented in [NODES.md](NODES.md) §3 (node table), §5 (options), §8 (Dagger), §12 (capability matrix)
-- [ ] Stale "descriptor registry is not populated" claim in NODES.md §10 corrected
-- [ ] Customer-facing page under `website/content/english/docs` — the binding contract (§6), the output types (§7), and the trust statement (§9), written for customers with no spec references
-- [ ] A demo script pipeline in `DemoDatabaseInitializer` (`loom/core/.../boot/`)
-- [ ] This file updated with what actually landed, per [../../SPEC_RULES.md](../../SPEC_RULES.md)
-
----
-
-## 13. Test setup
-
-> **Status: built and passing.** Follows the four-test shape the `sentiment` node established.
-> **No Flyway change**, so `./setup-pool.sh` is only the normal pre-test step.
-
-| Test | Location | Asserts |
-|---|---|---|
-| `ScriptNodeTest` | `cortex/nodes/script/core/src/test/…` | Runs the **real** GraalJS engine against a temp file, no Loom: declared outputs emitted with correct types; `TIMEFRAMES` and `TEXT_LIST` round-trip multi-valued; an undeclared key fails the node; `ctx.skip()` → `SKIPPED` and `ctx.fail()` → `FAILED`; an infinite loop is killed by `timeoutMs`; a `trusted=false` script cannot reach `java.lang.System`; `params` and `upstream` arrive intact |
-| `ScriptOptionsValidationTest` | same | Blank script, unknown engine, empty/duplicate/malformed `outputs`, malformed `requiredInputs`, non-positive limits |
-| `ScriptNodePipelineTest` | same | The node inside a DAG with a mocked upstream, reading via `ctx.upstreamOutput(...)`; missing required input → `SKIPPED` |
-| `ScriptNodePersistenceTest` | same | With a `LoomClientMock`: one `asset_json_comp` with `variant = nodeId`, segment comps per `TIMEFRAMES` key, ledger with `producerVersion = "js:<hash>"`. ⚠️ Do **not** pass a null client — that skips all write-back coverage |
-| `ScriptNodeIntegrationTest` | `integration-test/.../node/` | Real in-process Loom + pooled Postgres + real `LoomHttpClient`: the JSON comp and the segment comps land and read back over REST |
-| **Phase 0 regression** | `loom/pipeline` + `cortex/cli` tests | Node options survive editor JSON → `PipelineGraphParser` → `NodeTask` → `PipelineConfigurable.configure(...)`. Include a `config`-shaped legacy definition to prove the alias |
-| **Cache-key test** | `ScriptNodeTest` | Same media, changed script → recomputed, **not** a `LOCAL` cache hit (§11) |
-| **Not-a-singleton test** | `ScriptNodeTest` | Two instances from the provider carry independent scripts |
-| UI | `loom-ui/e2e/*-mocked.spec.ts` | The `CODE` parameter renders multiline; output handles follow the `outputs` option |
+## 7. Test setup
 
 ```bash
-mvn -T 8 test -pl cortex/nodes/script -am          # node tests
-./setup-pool.sh && mvn verify -pl integration-test # integration
-cd loom-ui && npm run test:e2e                     # editor
+mvn -T 8 test -pl cortex/nodes/script -am            # 50 node tests, real GraalJS, no Loom
+mvn test -pl cortex/cli -Dtest=PipelineConfigurableTest
+mvn test -pl loom-shared/node-model -Dtest=NodePortResolverTest
+./setup-pool.sh && mvn verify -pl integration-test   # ScriptNodeIntegrationTest
+cd loom-ui && npx vitest run src/features/pipeline/portResolvers.test.ts
+cd loom-ui && npm run test:e2e -- pipeline-ports-mocked
 ```
 
-**Manual E2E** (the step this design cannot substitute for): `./start-demo.sh`, build a
-`filesystem-source` → `whisper` → `script` pipeline in the editor with the §6 example
-script, run it, and confirm the chapter timeframes appear on the asset and the JSON
-component carries the counts.
+| Test | Asserts |
+|---|---|
+| `ScriptNodeTest` | Real GraalJS against a temp file: declared outputs and their types; `TIMEFRAMES` / `TEXT_LIST` multi-value round-trip; undeclared key fails; `ctx.skip()` → SKIPPED, `ctx.fail()` → FAILED; an infinite loop is killed by `timeoutMs`; `trusted=false` cannot reach `java.lang.System`; changed script misses the cache; the script digest is the producer version; the demo "Reading Time" script runs |
+| `ScriptOptionsValidationTest` | Blank script, unknown engine, empty/duplicate/malformed `outputs`, segment-type rules, malformed `requiredInputs`, non-positive limits |
+| `ScriptNodePipelineTest` | The node inside a DAG with mocked upstreams; missing required input → SKIPPED |
+| `ScriptNodePersistenceTest` | With a `LoomClientMock`: json comp `variant = nodeId`, segment comps per `TIMEFRAMES` key, ledger `producerVersion = "js:<hash>"`. ⚠️ Do **not** pass a null client — that silently skips all write-back coverage |
+| `PipelineConfigurableTest` | Options survive editor JSON → `PipelineGraphParser` (incl. the `config` legacy alias) → `NodeTask` → `PipelineConfigurable.configure`; `script` is executable; two instances carry independent scripts |
+| `NodePortResolverTest` / `portResolvers.test.ts` | Java and TS resolvers agree on the 11 output types, the MANY cardinalities, raw-JSON options, case-insensitivity and graceful degradation |
+| `ScriptNodeIntegrationTest` | Real in-process Loom + pooled Postgres: the JSON comp and the segment comps land and read back over REST |
+| `pipeline-ports-mocked.spec.ts` | A script's handles come from its `outputs` option (`data-cardinality=MANY` for `TEXT_LIST`) and the option survives a save |
+
+**Manual E2E** (nothing substitutes for it): `./start-demo.sh`, build a `filesystem-source → tika →
+script` pipeline in the editor, run it, confirm the outputs land on the asset.
 
 ---
 
-## 14. Key Classes Reference
-
-Classes marked ✨ are **new**; the rest exist and are reused or modified.
+## 8. Key Classes Reference
 
 | Class | Package / path | Purpose |
 |---|---|---|
-| ✨ `ScriptNode` | `io.metaloom.cortex.node.script` | The node. `AbstractMediaNode<ScriptNodeOptions>` + `PipelineConfigurable` |
-| ✨ `ScriptNodeOptions` | same | Options + validation (§10) |
-| ✨ `ScriptNodeModule` | same | Dagger: `@IntoSet`, `@IntoMap @StringKey("script")`, option deserializer info |
-| ✨ `ScriptValueType` / `ScriptOutputSpec` | same | Declared output model (§7) |
-| ✨ `ScriptEngine` / `CompiledScript` | `…node.script.engine` | Engine SPI |
-| ✨ `ScriptBindings` / `ScriptLimits` | same | The script-facing façade and its caps |
-| ✨ `GraalJsScriptEngine` | `…node.script.engine.js` | GraalJS implementation |
-| ✨ `PipelineConfigurable` | `io.metaloom.cortex.common.node` | Per-instance configuration seam (B2) |
-| ✨ `ScriptDescriptorProvider` | `io.metaloom.loom.nodes.spec` | UI palette + edit form + validation |
-| `AbstractMediaNode` | `io.metaloom.cortex.common.node` | Lifecycle, `recordNodeResult`, `resultRef` |
-| `NodeContext` | `io.metaloom.cortex.api.node.context` | `output()`, `upstreamOutput()`, `skipped()`, `failure()` |
-| `LocalResultCache` | `io.metaloom.cortex.common.cache` | In-heap skip cache — key must be extended (§11) |
-| `RegistryNodeRegistrar` | `io.metaloom.cortex.cli.dagger` | `adapt()` — where the config seam is invoked |
-| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | kind → producer registry |
-| `NodeTaskRunner` | `io.metaloom.cortex.runtime` | Per-task node instantiation and execution |
-| `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | Reads `options` off node definitions (B1) |
-| `ParameterType` | `io.metaloom.loom.nodes.spec` | Needs `CODE` and `JSON` (B3) |
-| `SegmentCompCreateRequest` | `io.metaloom.loom.rest.model.segmentcomp` | Timeframe persistence |
-| `JsonCompCreateRequest` | `io.metaloom.loom.rest.model.jsoncomp` | Scalar/list/JSON persistence |
+| `ScriptNode` | `io.metaloom.cortex.node.script` (cortex/nodes/script) | The node; `AbstractMediaNode<ScriptNodeOptions>` + `PipelineConfigurable`; `KIND`, input ports, cache key, persistence |
+| `ScriptNodeOptions` | same | Options + `validate()` (§2) |
+| `ScriptNodeModule` | same | Dagger: `@IntoSet`, `@IntoMap @StringKey(ScriptNode.KIND)`, engine binding, option deserializer info |
+| `ScriptValueType` / `ScriptOutputSpec` | same | Declared output model: content type, cardinality, binary flag, `segmentType` |
+| `ScriptEngine` / `CompiledScript` | `…node.script.engine` | Engine SPI |
+| `ScriptBindings` / `ScriptOutputCollector` / `ScriptLogger` / `ScriptSignal` / `ScriptLimits` | same | The script-facing façade, output bag, log cap, skip/fail signals, limits record |
+| `GraalJsScriptEngine` / `GraalJsCompiledScript` | `…node.script.engine.js` | GraalJS implementation; `ID = "js"`; context construction, sandbox, watchdog, binding installation |
+| `PipelineConfigurable` | `io.metaloom.cortex.common.node` | Per-pipeline-node-instance configuration seam |
+| `RegistryNodeRegistrar` | `io.metaloom.cortex.cli.dagger` | `adapt()` — where the seam is invoked |
+| `NodeTaskRunner` | `io.metaloom.cortex.runtime` | Per-task node instantiation (`Provider.get()`) and option flattening |
+| `NodePortResolver` / `ScriptPortResolver` | `io.metaloom.loom.nodes.spec` (loom-shared/node-model) | Dynamic output-port resolution from the `outputs` option |
+| `ScriptDescriptorProvider` | same | UI palette + edit form; `dynamicPorts = true`, empty static outputs |
+| `ParameterType` / `NodeParameter` | same | `CODE` + `JSON`, `language`, `rows` |
+| `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | Reads `options`, `config` as a legacy alias |
+| `portResolvers.ts` | `loom-ui/src/features/pipeline` | The TypeScript mirror the editor draws handles from |
+| `SegmentCompCreateRequest` / `JsonCompCreateRequest` | `io.metaloom.loom.rest.model.*` | Timeframe and scalar/list/JSON persistence |
 
 ---
 
-## 15. Where do I find …?
+## 9. Where do I find …?
 
 | Need | Path |
 |---|---|
-| The node system as a whole | [NODES.md](NODES.md) |
-| A reference node to copy | `cortex/nodes/sentiment/` (options + upstream text + JSON comp + variant) |
-| A node that writes timeframes | `cortex/nodes/scene-detection/` |
-| A node that writes produced bytes | `cortex/nodes/tts/`, `cortex/nodes/image-generation/` |
-| Where kinds become executable | `cortex/cli/.../dagger/RegistryNodeRegistrar.java` + each node's module |
+| The node and its input ports | `cortex/nodes/script/core/src/main/java/io/metaloom/cortex/node/script/ScriptNode.java` |
+| The output type table (cortex) | `.../script/ScriptValueType.java` + `ScriptOutputSpec.java` |
+| The GraalJS context, sandbox and watchdog | `.../script/engine/js/GraalJsCompiledScript.java` |
+| The installed script bindings | `.../script/engine/ScriptBindings.java` (and `install()` in `GraalJsCompiledScript`) |
+| The output type table (Java, editor side) | `loom-shared/node-model/.../spec/ScriptPortResolver.java` |
+| The output type table (TypeScript) | `loom-ui/src/features/pipeline/portResolvers.ts` + `portResolvers.test.ts` |
+| Where kinds become executable | each `*NodeModule` (`@StringKey`) + `cortex/cli/.../dagger/NodeCollectionModule.java` |
+| Where per-instance options reach the node | `RegistryNodeRegistrar.adapt()` → `PipelineConfigurable.configure(...)` |
 | Where node options are parsed on the Loom side | `loom/pipeline/.../graph/PipelineGraphParser.java` |
-| Where node options are dispatched | `loom/pipeline/.../engine/PipelineRunEngine.java` → `loom-shared/pipeline-model/.../NodeTask.java` |
-| Where node options reach the node | `cortex/node-runtime/.../NodeTaskRunner.toNodeDefinition()` |
-| UI palette / edit form source | `loom-shared/node-model/.../spec/*DescriptorProvider.java` + the ServiceLoader file |
-| The pipeline editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
-| Worker kind restriction (kill switch) | [NODES.md](NODES.md) §11, `CORTEX_NODE_BLACKLIST` |
-| Per-node integration-test base | `integration-test/.../node/AbstractNodeIntegrationTest.java` |
+| The pipeline editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` (⚠️ `grep -a`) |
+| Port-vs-descriptor conformance (and its `DYNAMIC_KINDS` gap) | `integration-test/.../node/NodePortConformanceTest.java` |
+| The kill switch | [NODES.md](NODES.md) §11, `CORTEX_NODE_BLACKLIST` |
+| A reference node to copy | `cortex/nodes/sentiment/` (options + JSON comp + `variant`) |
+| A node that writes timeframes / produced bytes | `cortex/nodes/scene-detection/` · `cortex/nodes/tts/`, `cortex/nodes/image-generation/` |
+| The demo pipeline and its script | `loom/core/.../boot/DemoDatabaseInitializer.java` (`DEMO_PIPELINE_SCRIPT`, `scriptDefinition()`) |
+| Customer-facing docs | `website/content/english/docs/nodes/script/index.adoc` (⚠️ stale `upstream` binding — §3) |
+| The produced-bytes ingest gap | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 
 ---
 
-## 16. Progress Assessment
-
-### Blockers (phase 0) ✅
-
-- [x] **B1** — `PipelineEditor.getGraphJson()` emits `config`; `PipelineGraphParser` reads `options`. Editor-set node parameters have never reached a worker
-- [x] **B1b** — `PipelineGraphParser` accepts `config` as a legacy alias, `options` wins
-- [x] **B2** — `PipelineConfigurable` seam added and invoked from `RegistryNodeRegistrar.adapt()`
-- [x] **B3** — `ParameterType.CODE` + `JSON` added and rendered in the editor
-- [x] **B4** — per-node dynamic output connectors in the editor
-- [x] Regression test proving options survive editor → parser → `NodeTask` → node
-
-### Phase 1 — GraalJS script node ✅
-
-- [x] `cortex/nodes/script` module skeleton (parent pom + `core`)
-- [x] GraalVM polyglot version pinned and verified on JDK 25; jar/image size delta measured
-- [x] Engine SPI + Dagger `@IntoMap @StringKey` engine registry
-- [x] `GraalJsScriptEngine` with compile-once semantics
-- [x] `ScriptBindings` — `media`, `upstream`, `params`, `out`, `log`, `ctx`
-- [x] Declared-output coercion + undeclared-key failure
-- [x] `asset_json_comp` persistence with `variant = nodeId`
-- [x] Ledger with `producerVersion = "<engine>:<scriptHash>"`
-- [x] `LocalResultCache` keyed by path **+ script hash**
-- [x] `ScriptNode` proven non-singleton by test
-- [x] `ScriptDescriptorProvider` + ServiceLoader registration
-- [x] `ScriptNodeTest`, `ScriptOptionsValidationTest`, `ScriptNodePipelineTest`, `ScriptNodePersistenceTest`
-- [x] `ScriptNodeIntegrationTest`
-
-### Phase 2 — richer outputs and sandbox ✅
-
-- [x] `TIMEFRAMES` → `createAssetSegmentComps` per output key
-- [x] `IMAGE` / `IMAGE_LIST` → `metaPath/script_bin/…`
-- [x] `trusted=false` sandbox: `HostAccess.EXPLICIT`, no class lookup, no IO, no threads
-- [ ] `http` / `fs` bindings gated by `allowNetwork` / `allowFilesystem` — **not implemented**;
-      the flags are carried and validated but no binding is installed yet (§17.4)
-- [x] Watchdog timeout + `statementLimit` verified
-- [x] Confirmed: CPU/heap `ResourceLimits` need the optimized Truffle runtime and are **not**
-      available on a stock JDK 25. `statementLimit` and the watchdog are; memory stays unbounded (§9)
-
-### Documentation and demo ✅
-
-- [x] [NODES.md](NODES.md) §2/§3/§5/§5.1/§12 updated for the `script` kind
-- [x] [NODES.md](NODES.md) §10 stale "descriptor registry is not populated" claim corrected
-- [x] [NODES.md](NODES.md) §10 gains two defects found here: unenforced `PipelineNode.timeoutMs()`
-      and `ctx.failure(...).next()` reporting SUCCESS in eleven nodes
-- [x] Customer-facing page under `website/content/english/docs`
-- [x] Demo script pipeline in `DemoDatabaseInitializer`
-- [x] This file updated to record what landed
-
-### Deliberately not built
-
-- [ ] ~~True item fan-out~~ — out of scope (§1, §7). If it is ever needed, specify it in [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) as an engine change, not as a node feature
-- [ ] ~~Loom-stored versioned script entity~~ — inline-in-definition was chosen (§2). Revisit if script reuse across pipelines becomes a real need; the `skill` / `skill_version` pair is the model to copy
-- [ ] ~~Expression-language engine~~ — cannot express the output model (§5). Possibly a future lightweight `expression` **filter** node instead
-
----
-
-## 17. Build record — what actually landed
-
-> Everything this document plans is built and tested.
-
-### 17.1 What was built
-
-| Area | Landed |
-|---|---|
-| Node | `cortex/nodes/script` → `ScriptNode`, `ScriptNodeOptions`, `ScriptNodeModule`, `ScriptValueType`, `ScriptOutputSpec` |
-| Engine | `ScriptEngine` / `CompiledScript` SPI + `GraalJsScriptEngine`, GraalVM polyglot **25.0.0** pinned |
-| Bindings | `ScriptBindings`, `ScriptOutputCollector`, `ScriptLogger`, `ScriptSignal` — `media`, `upstream`, `params`, `out`, `log`, `ctx` |
-| Config seam | `io.metaloom.cortex.common.node.PipelineConfigurable`, invoked from `RegistryNodeRegistrar.adapt()` |
-| Loom | `PipelineGraphParser` accepts `config` as a legacy alias for `options` |
-| Descriptor | `ScriptDescriptorProvider`; `ParameterType.CODE` + `JSON`; `NodeParameter.language` / `.rows` |
-| UI | `getGraphJson()` emits `options`; `pipelineNodeOptions()` helper; `CODE`/`JSON` fields; `nodeConnectors()` derives a script node's handles from its declared outputs; `nodeParameters` channel |
-| Docs | [NODES.md](NODES.md) §2/§3/§5/§5.1/§10/§12, `website/content/english/docs/nodes/script/`, a "Reading Time (Script)" demo pipeline in `DemoDatabaseInitializer` |
-
-**Tests** — 51 in the node module, 4 parser-regression, 6 configurable-seam, 2 integration against a
-real in-process Loom + pooled Postgres, plus the descriptor ServiceLoader guard (19 providers / 32
-kinds). The demo pipeline's seeded script is itself executed by a test, because demo data that does
-not run is worse than none.
-
-### 17.2 Where the code changed the design
-
-Three things did not survive contact with the codebase. Each is a case of the design being
-plausible and the code disagreeing — which, per [CONTEXT.md](../../CONTEXT.md) §0.4, the code wins.
-
-1. **`segmentType` cannot be the output key.** `asset_segment_comp` CHECK-constrains `segment_type`
-   to `SCENE | SILENCE | SHOT | CHAPTER` (migration `V2.42`), so writing timeframes under an
-   arbitrary output key is rejected by the database — this surfaced as a 500 in the integration
-   test, not at compile time. A `TIMEFRAMES` output therefore declares its own `segmentType`
-   (default `CHAPTER`), validated up front. Two timeframe outputs on one node must use different
-   segment types, because a segment write replaces the whole set for its type.
-2. **Segment rows are scoped `script:<nodeId>`.** The replace-set key is
-   `(asset, node_kind, segment_type)`. With a plain `script` kind, a second script node writing
-   CHAPTER marks would delete the first node's. The ledger and the JSON component still use the
-   plain `script` kind; only the segment rows carry the scoped one.
-3. **`timeoutMs` is the inherited option, not a new one.** `AbstractNodeOptions` already has
-   `timeoutMs` (defaulting to `0` = "no timeout"). `ScriptNodeOptions` reuses it but defaults it to
-   10 s and rejects `0`, because a script node must never run unbounded. Note the inherited setter
-   returns `void` and therefore does not chain.
-
-Two further things the design got wrong about the surrounding code:
-
-- **`PipelineNode.timeoutMs()` is enforced by nothing.** The design assumed the node could lean on
-  it and only add a watchdog. It is parsed, stored on `AbstractPipelineNode`, and never read back —
-  the executor that used to apply it no longer exists. `ScriptNode` owns its wall clock entirely.
-- **`ctx.failure(cause).next()` returns SUCCESS.** Only `abort()` yields `FAILED`. Every failure
-  test written against `.next()` passed while asserting the wrong thing. `ScriptNode` uses
-  `.abort()`. Eleven other nodes still use `.next()` on their failure paths — recorded as a defect
-  in [NODES.md](NODES.md) §10, deliberately not fixed here.
-
-### 17.3 Verified by running, not by reading
-
-- GraalJS 25.0.0 runs on this stock JDK 25 (Truffle fallback interpreter, warning suppressed).
-- `ResourceLimits.statementLimit` cancels a spinning script on the fallback runtime.
-- The `close(true)` watchdog cancels a script the statement counter would not catch.
-- `HostAccess.EXPLICIT` + `allowHostClassLookup(false)` blocks `Java.type('java.lang.System')`,
-  while the trusted path still reaches it.
-- The full round trip — editor-shaped definition JSON → `PipelineGraphParser` → `NodeTask` →
-  `PipelineConfigurable.configure` → script → `asset_json_comp` + `asset_segment_comp` + ledger →
-  REST read-back — passes against a real Loom and Postgres.
-
-### 17.4 Still open
-
-- The `http` and `fs` bindings are **specified but not implemented**: `allowNetwork` /
-  `allowFilesystem` are carried through `ScriptLimits` and validated, and no binding is installed
-  yet. A script asking for `http` today gets `undefined`.
-- Memory is unbounded (§9).
-- The artifact-size cost of the polyglot dependency was not measured.
-- No Playwright spec covers the `CODE` parameter field or the dynamic connectors; the UI changes
-  are covered only by `tsc`.
-
----
-
-_Git HEAD revision: `29cadb66`_
-_Last updated: 2026-07-28 (Groovy and the `exec` external-process engine removed from the plan —
-GraalJS is now the only engine, the SPI stays as insurance rather than a queue of languages. Earlier
-the same day: implemented the `script` node on GraalJS 25.0.0, declared multi-valued outputs,
-trusted-by-default execution with a verified opt-in sandbox, and fixed the three node-options
-defects in §4. §17 records what landed and where the code overruled the design)_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (cut from 870 lines to a status page — implemented work collapsed into one table, the resolved blockers and engine survey compressed to their conclusions, and the dynamic-port model, three-copy type-table drift, dead `DYNAMIC_KINDS` exemption and stale `upstream` binding recorded as the open items)_

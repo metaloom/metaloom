@@ -1,400 +1,302 @@
-# Video Captioning Node — Design & Implementation Plan
+# Video Captioning — Status & Remaining Work
 
-> Companion design document for a new Cortex pipeline node that produces
-> natural-language **descriptions of video** (motion / events over time), not
-> just a description of a single still frame. Read alongside
-> [NODES.md](NODES.md) — the source of truth is the code under `cortex/`.
+> ## 🟢 SHIPPED — as a `videoStrategy` option on the existing `captioning` node
 >
-> Status: **implemented and merged.** The three variants explored here were
-> implemented and then **merged into the existing `captioning` node** as a
-> `videoStrategy` option (`WHOLE` / `SCENE` / `NATIVE`) rather than shipping as
-> separate `video-captioning-*` node kinds. The standalone
-> `cortex/nodes/video-captioning` module has been removed; the code now lives in
-> `cortex/nodes/captioning` (`CaptioningNode`, `VideoCaptioner`, `VideoVLMClient`,
-> `FrameSampler`). See [NODES.md](NODES.md) §"CaptioningNode video support" for
-> the current shape. This document is kept as the design rationale.
+> There is **no `video-captioning` node kind and no `cortex/nodes/video-captioning` module.**
+> The three variants this plan explored were built, benchmarked (see
+> [NODE_VIDEO_CAPTIONING_REPORT.md](NODE_VIDEO_CAPTIONING_REPORT.md)) and then **merged into
+> the existing `captioning` node** as one option:
+> `videoStrategy` ∈ `WHOLE` (default) | `SCENE` | `NATIVE`.
+>
+> Kind `captioning` is bound with `@Binds @IntoMap @StringKey("captioning")`; the node declares
+> a `xor` input group of `image` | `video` and one `caption` output. Video results land in
+> `asset_json_comp` with `schemaType="video-caption"` (images keep `schemaType="caption"`).
+>
+> **The `CAPTION` `segment_type` migration was never written** — Option B of this plan did not
+> ship in its original form. Per-scene captions are carried as a `scenes` array **inside the
+> JSON component**, not as `asset_segment_comp` rows. That is the main open item (§3).
+>
+> Measured latency/quality numbers are in the benchmark report, not here.
+> Source of truth is the code under `cortex/`. Node reference: [NODES.md](NODES.md).
 
 ---
 
-## 1. Motivation
+## 1. Already implemented
 
-The existing `CaptioningNode` captions **images** via a small vision model
-(SmolVLM) and explicitly bails on video —
-[CaptioningNode.java](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/CaptioningNode.java)
-returns `ctx.skipped("not implemented")` for `media.isVideo()`. NODES.md §10
-tracks "CaptioningNode video support" as open work.
+| Item | Where it lives |
+|---|---|
+| Node (image **and** video) | [`CaptioningNode`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/CaptioningNode.java) — `name()="captioning"`, `initialize()` calls `Video4j.init()`, `isProcessable` = `isVideo() \|\| isImage()` |
+| Strategy enum | [`VideoCaptioningStrategy`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioningStrategy.java) — `WHOLE` / `SCENE` / `NATIVE` |
+| Strategy implementation | [`VideoCaptioner`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioner.java) — `captionWhole` / `captionScene` (drives `OpticalFlowSceneDetector`) / `captionNative` |
+| Frame sampling | [`FrameSampler`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/FrameSampler.java) — video4j `seekToFrame` + `ImageUtils.toBase64JPG` |
+| Video model client | [`VideoVLMClient`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoVLMClient.java) — OpenAI `POST /v1/chat/completions`, multi-image **and** `video_url` parts, bearer token, HTTP/1.1 |
+| Image model client | [`SmolVLMClient`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/SmolVLMClient.java) — unchanged bespoke `POST /caption` |
+| Result records | [`VideoCaptionOutput`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptionOutput.java) (`caption`, `scenes`, `modelLatencyMs`, `frameCount`) with nested `SceneCaption(seq, fromFrame, toFrame, caption)`; `CaptionResult`, `MultiModalCaption` |
+| Typed ports | `IN_IMAGE` (`image`, `MEDIA_IMAGE`) **xor** `IN_VIDEO` (`video`, `MEDIA_VIDEO`) → `OUT_CAPTION` (`caption`, `TEXT_CAPTION`) |
+| Options | [`CaptioningNodeOptions`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/CaptioningNodeOptions.java) — see §4 |
+| Dagger bindings | [`CaptioningNodeModule`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/CaptioningNodeModule.java) — `@IntoSet`, `@IntoMap @StringKey("captioning")`, `optionInfo()`, both client providers |
+| UI descriptor | [`CaptioningDescriptorProvider`](../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/CaptioningDescriptorProvider.java) — `xor("media_alt")` input group ⚠️ **exposes no video parameters, see §3** |
+| Persistence — image | `asset_json_comp`, `nodeKind="captioning"`, `schemaType="caption"`, `variant=""` |
+| Persistence — video | `asset_json_comp`, `schemaType="video-caption"`, `variant=""`, `data = {caption, variant:<strategy>, model, frameCount, scenes?[]}` + ledger row |
+| Skip cache | `LocalResultCache<String>` (10 000) keyed by media path, shared by the image and video paths; hit ⇒ `ResultOrigin.LOCAL`, no re-persist |
+| Metrics | `recordAiCall("smolvlm", …)` for images, `recordAiCall("video-vlm", …)` for video |
+| Unit tests | [`CaptioningNodeTest`](../../../cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/CaptioningNodeTest.java) — image, image cache, `testCaptionsVideoWholeStrategy`, `…NativeStrategy`, `…SceneStrategy`, skips audio/document, disabled |
+| Options tests | `CaptioningNodeOptionsValidationTest`, `SmolVLMClientTest`, AssertJ helpers |
+| Comparison harness | [`VideoCaptioningComparisonIT`](../../../cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/VideoCaptioningComparisonIT.java) — env-gated, drives all three strategies against live endpoints |
+| Integration test | [`CaptioningNodeIntegrationTest`](../../../integration-test/src/test/java/io/metaloom/loom/test/integration/node/CaptioningNodeIntegrationTest.java) — image path against a mock SmolVLM server, video path (`WHOLE`) driving the real frame sampler against the genai `MockLLMServer`; both read back via REST |
+| Scene detector fixes | `AbstractSceneDetector` records boundaries with a `minSceneLength` debounce and closes the trailing scene; `OpticalFlowSceneDetector` uses a Canny-enhanced normalized mean frame difference; `SceneBoundaryIT` guards it (details in the benchmark report §6) |
+| Customer docs | `website/content/english/docs/nodes/captioning/index.adoc` — documents all three strategies and the video options |
+| Spec entries | [NODES.md](NODES.md) §2/§3/§5, [spec/CONTEXT.md](../../CONTEXT.md) |
 
-We want a node that:
-
-- Understands **temporal dynamics** (what happens across the clip), using a model
-  **dedicated to video processing** rather than an image VLM fed hand-sampled
-  frames.
-- Persists its result into the Loom backend using the same typed-component +
-  ledger pattern every other node follows (NODES.md §2).
-- Optionally produces a **caption timeline** (per-scene / timestamped captions),
-  reusing the existing `scene-detection` node.
-
----
-
-## 2. What already exists (verified against code)
-
-| Concern | Reference | Notes |
-|---|---|---|
-| Image captioning node | `CaptioningNode` | `AbstractMediaNode<CaptioningNodeOptions>`; `name()="captioning"`; `isProcessable` already admits video |
-| Image model client | `SmolVLMClient` | Custom FastAPI `POST /caption`, body `{image_data:<base64 jpg>}`, HTTP/1.1, **single image only**, not OpenAI-compatible |
-| Node base class | `AbstractMediaNode` | `process() → isProcessable() → fetchAsset() → compute()`; helpers `recordNodeResult(...)`, `resultRef(table, uuids)` |
-| Frame extraction | video4j `VideoFile` / `Videos` | `Videos.open(path)`, `seekToFrame(long)`, `seekToFrameRatio(double)`, `length()`, `fps()`, `frame().toImage()` |
-| Frame → base64 | `video4j` `ImageUtils.toBase64JPG(BufferedImage)` | Already used to ship face crops to a detection server |
-| Windowed sampling reference | `VideoFaceScanner` | `seekToFrame(n) → video.frame() → process` loop over windows |
-| Per-scene persistence reference | `SceneDetectionNode` | `createAssetSegmentComps` — **whole-set replace** on `(asset, node_kind, segment_type)` |
-| Segment payload | `SegmentEntry` | `seq`, `timeFrom`(ms), `timeTo`(ms), **`title`** (free text → caption), `score` |
-| JSON payload | `JsonCompCreateRequest` | `nodeKind`, `schemaType`, `variant`, `data`; upsert on `(asset, node_kind, schema_type, variant)` |
-| Upstream output access | `ctx.upstreamOutput("scene-detection", …)` | Cortex nodes read upstream node outputs (Thumbnail reads `consistency.is_complete`) |
-| UI descriptor | `CaptioningDescriptorProvider` | kind `captioning`, category ANALYSIS, input `MEDIA_IMAGE`, output `DATA_CAPTION`; `ContentTypes` already defines `MEDIA_VIDEO` + `DATA_CAPTION` |
-| genai LLM abstraction | `VLLMLLMProvider` / `LLMContext` | **text-only today — no image/vision content parts** |
-
-### Two constraints that shape the design
-
-1. **`asset_segment_comp.segment_type` is a CHECK constraint** limited to
-   `SCENE, SILENCE, SHOT, CHAPTER` (migration `V2.42`). Storing per-scene captions
-   there needs a **new Flyway migration** adding `CAPTION` (and a test-pool
-   re-init — see [.claude/CLAUDE.md](../../../.claude/CLAUDE.md)). Storing in
-   `asset_json_comp` needs **no** schema change.
-2. **No OpenAI-compatible vision client exists in the codebase.** `SmolVLMClient`
-   is single-image + bespoke; the `genai` LLM abstraction is text-only. A dedicated
-   video model — which takes a whole video (`video_url`) or a frame list over an
-   OpenAI-compatible API — needs a **new client**.
-
----
-
-## 3. Model options — dedicated video-processing models
-
-Selection favors models that ingest video **natively** (temporal token modeling,
-dynamic-FPS, time-aware position encoding) and can be self-hosted behind an
-**OpenAI-compatible HTTP endpoint**, so they slot in next to the existing
-SmolVLM and Whisper HTTP clients.
-
-| Model | Size | License | Video-native mechanism | Timestamped output | Serving |
-|---|---|---|---|---|---|
-| **Qwen2.5-VL-7B** ⭐ | 3 / 7 / 32 / 72B | Apache-2.0 (≤32B) | Dynamic-FPS + absolute-time MRoPE → second-level localization | Via prompt | **vLLM native `video_url`** (OpenAI-compatible) |
-| **Qwen3-VL-8B** | 2 / 4 / 8 / 32B | Apache-2.0 | Interleaved MRoPE + **timestamp tokens**, dense-caption trained; 256K→1M ctx | **Native** | vLLM `video_url` (needs `vllm ≥ 0.11`) |
-| **Tarsier2-7B / -Recap-7B** | 7B | Apache-2.0 (Qwen2-VL) | Purpose-built video **captioner**; DREAM-1K SOTA (> GPT-4o) | No (whole clip) | **vLLM loaded as Qwen2-VL arch** |
-| **VideoLLaMA3** | 2B / 7B | Apache-2.0 (research) | Any-resolution tokenization + Differential Frame Pruner; audio-visual lineage | No | HF Transformers + FastAPI (no first-class vLLM yet) |
-| **MiniCPM-V 2.6 / -o 2.6** | 8B | Custom (free commercial after registration) | Dense spatio-temporal captions; `-o` adds streaming video+audio | Partial | vLLM / SGLang / **Ollama** / llama.cpp |
-| **VideoChat-Flash-7B** | 7B | Check repo | Hierarchical compression → 16 tokens/frame, ~3h video | Partial | HF / lmdeploy |
-| **Grounded-VideoLLM / VTG-LLM** | 7B | Research | Discrete temporal tokens — dense-captioning specialists | **Native dense** | Custom FastAPI only |
-
-### Recommendation
-
-- **Primary — Qwen2.5-VL-7B on vLLM.** Apache-2.0, genuinely temporal (dynamic-FPS
-  + absolute-time encoding), and first-class OpenAI-compatible `video_url` serving
-  — it drops in beside SmolVLM/Whisper with **no custom serving code**. Upgrade to
-  **Qwen3-VL-8B** when native per-event **timestamps** are wanted.
-- **Max-detail drop-in — Tarsier2-7B.** Best open pure video *captioner*
-  (DREAM-1K SOTA). It *is* a Qwen2-VL checkpoint, so it serves through the same
-  vLLM path — a **model-id swap**, not new code.
-- **Lightweight / portable — MiniCPM-V 2.6** via Ollama/llama.cpp when GPU is scarce.
-- **Dedicated dense/timestamped specialist** (only if Qwen3-VL prompting is
-  insufficient) — Grounded-VideoLLM or VTG-LLM, wrapped in a custom FastAPI.
-
-Because all recommended models speak the same OpenAI-compatible API, **the node
-is written model-agnostic**: `endpointUrl` + `model` are configuration, so
-Qwen2.5-VL ↔ Qwen3-VL ↔ Tarsier2 is a config change.
-
-### Example serving recipe (Qwen2.5-VL on vLLM)
-
-```bash
-python -m vllm.entrypoints.openai.api_server \
-  --model Qwen/Qwen2.5-VL-7B-Instruct \
-  --allowed-local-media-path / \
-  --media-io-kwargs '{"video": {"num_frames": -1}}'
-```
-
-```jsonc
-// POST /v1/chat/completions
-{ "model": "Qwen/Qwen2.5-VL-7B-Instruct",
-  "messages": [{ "role": "user", "content": [
-    { "type": "video_url", "video_url": { "url": "file:///clip.mp4" } },
-    { "type": "text", "text": "Describe what happens, with timestamps." }
-  ]}],
-  "mm_processor_kwargs": { "fps": 2, "do_sample_frames": true } }
-```
-
-The node may equally send a **multi-image** message (frames it sampled itself
-via video4j) — universally supported and keeps frame selection in Java.
-
----
-
-## 4. Hardware sizing — quantized self-hosting
-
-The node targets an external OpenAI-compatible endpoint, so the serving host is a
-deployment concern, not a code concern. This section sizes concrete quantized
-setups. Worked example: a workstation with **1× RTX 4090 (24 GB, Ada) + 1× RTX
-3060 (12 GB, Ampere) = 36 GB**, which is a *heterogeneous* pair — and that
-changes the runtime choice.
-
-### Heterogeneous multi-GPU: which runtime uses both cards
-
-| Runtime | Both cards? | Why |
-|---|---|---|
-| **llama.cpp** ✅ | Yes — full ~36 GB | `--split-mode layer` assigns whole layers per GPU; different arch + different VRAM are fine (each card runs its own layers/kernels, only layer-boundary activations cross PCIe). Weight the split with `--tensor-split 24,12` (2:1 toward the 4090); vision projector on `--main-gpu 0`. |
-| **vLLM** ⚠️ | No — effectively caps at ~24 GB | `--tensor-parallel-size 2` allocates a **uniform per-GPU memory fraction**, so the 12 GB 3060 caps each shard (~12 GB × 2) and half the 4090 is wasted. TP also needs head-count divisibility and discourages mixed Ada+Ampere. **For vLLM, run on the single 4090 and ignore the 3060.** |
-
-> Takeaway: **vLLM → 4090 alone; both cards → llama.cpp.**
-
-### Video-token memory caveat
-
-Video captioning sends many frames → many multimodal tokens → large prefill
-activations + KV cache. **Headroom beats parameter count:** a quantized 7B with
-~15 GB free for frames out-captions a 32B-AWQ that leaves ~2 GB and forces you
-down to 4–8 frames. For Qwen2.5-VL, a moderate 512×384 frame is ~250–350 visual
-tokens; sampling 16–32 frames is ~4k–8k tokens of context *before* the prompt, so
-budget `--max-model-len`/KV accordingly. Rule of thumb: pick a quant leaving
-**≥10 GB free** after weights for 16–32 frames.
-
-### Options that fit — single RTX 4090 (24 GB) via vLLM
-
-| Model | HF repo | Weights | Fits 24 GB + frame headroom? |
-|---|---|---|---|
-| **Qwen2.5-VL-7B-Instruct AWQ** ⭐ | `Qwen/Qwen2.5-VL-7B-Instruct-AWQ` | ~6–7 GB | **Yes, comfortably** — ~16 GB left for frames/KV. Apache-2.0. Best video headroom. |
-| Qwen2.5-VL-7B GPTQ-Int4 | `Qwen/Qwen2.5-VL-7B-Instruct-GPTQ-Int4` | ~6–7 GB | Yes. Apache-2.0. |
-| Qwen3-VL-30B-A3B AWQ (MoE) | `QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ` | ~17–18 GB | Fits with modest headroom; MoE (~3B active) = fast. Needs recent vLLM. Apache-2.0. |
-| MiniCPM-V-2.6 int4 | `openbmb/MiniCPM-V-2_6-int4` | ~7–9 GB | Yes. License: free commercial after registration. |
-| Qwen2.5-VL-32B-Instruct AWQ | `Qwen/Qwen2.5-VL-32B-Instruct-AWQ` | ~19–20 GB | Technically yes but **starved for video** (needs fp8 KV, `max_model_len≈4–5k`, OOM-prone). Not recommended here. |
-| Tarsier2-7B (SOTA captioner) | `omni-research/Tarsier2-7b-0115` | ~16 GB fp16 (**no official quant**) | Fits fp16 but little frame room; would need self-quantization (llmcompressor). |
-
-### Options that fit — both cards (~36 GB) via llama.cpp
-
-Each needs the LLM GGUF **plus** a separate `mmproj-*.gguf` vision projector.
-llama.cpp does **not** decode a video file (except SmolVLM2) — the node samples
-frames and sends them as multiple images, which is exactly the design here.
-
-| Model | GGUF repo | Quant (weights) | Fits ~36 GB |
-|---|---|---|---|
-| **Qwen3-VL-30B-A3B (MoE)** ⭐ | `Qwen/Qwen3-VL-30B-A3B-Instruct-GGUF` | Q4_K_M ~18 GB (Q6 ~24, Q8 ~31) | **Yes** — MoE = fast; best use of both cards. Apache-2.0. |
-| Qwen2.5-VL-32B | `unsloth/Qwen2.5-VL-32B-Instruct-GGUF` | Q4_K_M ~19–20 GB | Yes — ~14 GB left for frames. Apache-2.0. |
-| Qwen2.5-VL-7B | `ggml-org/Qwen2.5-VL-7B-Instruct-GGUF` | Q4_K_M ~4.7 GB / Q8 ~8 GB | Yes, huge headroom. Apache-2.0. |
-| MiniCPM-V-2.6 | `openbmb/MiniCPM-V-2_6-gguf` | Q4_K_M ~5 GB | Yes. |
-| SmolVLM2 (native video decode) | `ggml-org/SmolVLM2-2.2B-Instruct-GGUF` | Q4 ~1.5 GB | Yes — only llama.cpp family that decodes video files itself, but caption quality is far below Qwen; lightweight tagging only. |
-
-> Note: **Llama-3.2-Vision is unsupported in llama.cpp** (cross-attention arch not
-> implemented) — avoid.
-
-### Recommendation for this box
-
-1. **Primary — Qwen2.5-VL-7B-Instruct-AWQ on the 4090 via vLLM** (Apache-2.0,
-   native temporal path, most frame headroom). Ignore the 3060 for this path.
-   ```bash
-   vllm serve Qwen/Qwen2.5-VL-7B-Instruct-AWQ \
-     --quantization awq_marlin \
-     --max-model-len 16384 --gpu-memory-utilization 0.92 \
-     --limit-mm-per-prompt image=32 \
-     --mm-processor-kwargs '{"min_pixels":50176,"max_pixels":200704}'
-   ```
-2. **Both-cards / more capability — Qwen3-VL-30B-A3B-Instruct Q4_K_M via
-   llama.cpp** (MoE, fast, better captions):
-   ```bash
-   llama-server -hf Qwen/Qwen3-VL-30B-A3B-Instruct-GGUF \
-     --mmproj <mmproj-f16.gguf> \
-     --split-mode layer --tensor-split 24,12 --main-gpu 0 \
-     -c 16384 -ngl 99
-   ```
-
-Either endpoint is reached through the same model-agnostic `VideoVLMClient`
-(§7), so switching between them is a config change (`endpointUrl` + `model`).
-
----
-
-## 5. Architecture options
-
-### Option A — Whole-video single caption (simplest, no migration)
-
-Sample N frames across the video (or hand the whole file to the model via
-`video_url`), obtain **one description**, persist to `asset_json_comp`
-(`schemaType="caption"`, reusing the image path's payload shape). Ships fastest.
-
-### Option B — Per-scene timestamped captions (richest, needs migration) ⭐
-
-Read upstream `scene-detection` `SCENE` segments (fallback: fixed-interval
-windows), caption each scene, persist one `SegmentEntry` per scene with
-`timeFrom/timeTo` and the caption in `title`, via `createAssetSegmentComps`
-(whole-set replace). Requires the `CAPTION` `segment_type` migration. Produces a
-searchable caption **timeline**.
-
-### Option C — Both, phased ⭐ (recommended rollout)
-
-Ship **A** first (no migration, fast win), then add **B** as a second phase.
-
-### Node placement
-
-- **Extend `CaptioningNode`** — one node kind, but mixes single-image (SmolVLM)
-  and video (vLLM) backends plus two persistence shapes in one class.
-- **New `VideoCaptioningNode`** (kind `video-captioning`) ⭐ — clean separation,
-  own options / descriptor / backend, independent enable & concurrency; mirrors
-  how `facedetect` and `facedescription` are split. **Recommended.**
-
-```mermaid
-flowchart TD
-    A[Video media] --> B{Granularity?}
-    B -->|Whole video| C[Sample N frames / video_url]
-    B -->|Per scene| D[Read upstream scene-detection segments]
-    C --> E[Video VLM<br/>Qwen2.5-VL / Tarsier2 via vLLM]
-    D --> F[Caption each scene window] --> E
-    E --> G{Persistence}
-    G -->|Whole video| H[(asset_json_comp<br/>schemaType=caption)]
-    G -->|Per scene| I[(asset_segment_comp<br/>segment_type=CAPTION)]
-    H --> J[recordNodeResult ledger]
-    I --> J
-```
-
-**Chosen direction:** new `VideoCaptioningNode`, phased A→B, model-agnostic
-OpenAI-compatible vLLM client.
-
----
-
-## 6. Node data flow
+### Shipped data flow
 
 ```mermaid
 sequenceDiagram
     participant P as Pipeline
-    participant N as VideoCaptioningNode
+    participant N as CaptioningNode
     participant V as video4j (VideoFile)
-    participant M as vLLM (Qwen2.5-VL)
+    participant M as OpenAI-compatible VLM<br/>(vLLM / llama.cpp)
     participant L as LoomClient
 
     P->>N: process(ctx[video])
-    N->>N: isProcessable → isVideo()
-    N->>N: LocalResultCache.get(path) — hit? re-emit LOCAL, skip persist
-    N->>V: Videos.open(path); seekToFrame / sample frames
-    V-->>N: BufferedImage frames → base64 JPG
-    opt Per-scene (Option B)
-        N->>N: read ctx.upstreamOutput("scene-detection")
+    N->>N: isProcessable → isVideo() || isImage()
+    N->>N: LocalResultCache.get(path) — hit? re-emit, LOCAL, skip persist
+    N->>V: Videos.open(path)
+    alt WHOLE
+        N->>V: FrameSampler — frameCount frames evenly across the clip
+        N->>M: /v1/chat/completions, multi-image parts
+    else SCENE
+        N->>N: OpticalFlowSceneDetector.detect(video) → scenes
+        loop per scene (≤ maxScenes)
+            N->>M: /v1/chat/completions, frames of that scene
+        end
+    else NATIVE
+        N->>M: /v1/chat/completions, video_url part (server samples)
     end
-    N->>M: POST /v1/chat/completions (video_url or multi-image)
-    M-->>N: caption text (+ per-scene captions)
-    N->>N: ctx.output(OUTPUT_CAPTION); cache.put(path, caption)
-    alt whole-video
-        N->>L: createAssetJsonComp(schemaType=caption)
-    else per-scene
-        N->>L: createAssetSegmentComps(segment_type=CAPTION)
-    end
-    N->>L: recordNodeResult(SUCCESS, resultRef)
-```
-
-Example pipeline placement (depends on hashing for asset identity, and optionally
-on `scene-detection` for per-scene mode):
-
-```mermaid
-flowchart LR
-    FS[filesystem-source] --> SHA[sha512]
-    SHA --> CON[consistency]
-    CON --> SD[scene-detection]
-    SD --> VC[video-captioning]
-    SHA --> VC
-    VC -.persists.-> LOOM[(Loom backend)]
+    M-->>N: caption text
+    N->>N: ctx.output(OUT_CAPTION); cache.put(path, caption)
+    N->>L: createAssetJsonComp(schemaType="video-caption", data{caption, variant, model, frameCount, scenes?})
+    N->>L: recordNodeResult(SUCCESS, resultRef("asset_json_comp", uuid))
 ```
 
 ---
 
-## 7. Implementation outline
+## 2. Model & serving choices (decided)
 
-New module mirroring `cortex/nodes/captioning`.
+Decided by measurement — see [NODE_VIDEO_CAPTIONING_REPORT.md](NODE_VIDEO_CAPTIONING_REPORT.md)
+for the runs behind these.
 
-1. **`VideoCaptioningNode extends AbstractMediaNode<VideoCaptioningNodeOptions>`**
-   - `name() = "video-captioning"`; `initialize() → Video4j.init()`;
-     `isProcessable → ctx.media().isVideo()`.
-   - `LocalResultCache<String>` keyed by `media.absolutePath()` (mirror
-     `CaptioningNode`'s cache: on hit re-emit output + `ResultOrigin.LOCAL`, skip
-     re-persist — the durable copy already lives in Loom).
-   - `compute()`: cache check → `Videos.open(path)` → sample frames (`seekToFrame`
-     loop, reuse the `VideoFaceScanner` idiom) → `ImageUtils.toBase64JPG` → call
-     the video VLM client → `ctx.output(OUTPUT_CAPTION, …)` → `persist(...)` →
-     `recordNodeResult(...)`.
-   - `OUTPUT_CAPTION = NodeOutputKey.of("video_caption_result", String.class)`.
+- **Default: Qwen2.5-VL-7B-Instruct-AWQ on vLLM**, `videoStrategy=WHOLE`. Apache-2.0, genuinely
+  temporal (dynamic-FPS + absolute-time MRoPE), fixed frame budget so it works on any clip length.
+- **Portable fallback: Qwen2.5-VL-7B GGUF Q4_K_M on llama.cpp** — same node, different
+  `videoEndpointUrl`; ~2.8× slower and more repetitive in wording, but no Python and fits 12 GB.
+- **`NATIVE` is opt-in for short clips only** — vLLM-only (llama.cpp returns HTTP 400 for
+  `video_url`) and it overruns small context windows.
+- **Upgrade path: Qwen3-VL** for native per-event timestamp tokens and a much larger context;
+  **Tarsier2-7B** for max caption detail — both are Qwen2-VL-arch checkpoints, so both are a
+  `videoModel` id swap, not code. `MiniCPM-V 2.6` is the low-VRAM alternative.
+- **Avoid Llama-3.2-Vision** — its cross-attention architecture is unsupported in llama.cpp.
 
-2. **`VideoVLMClient`** — new OpenAI-compatible client:
-   `POST {baseUrl}/v1/chat/completions` with either multi-image `image_url` parts
-   (data URIs) or a `video_url` part; configurable `model`, `fps`, `maxFrames`,
-   `prompt`. (No reusable vision client exists — `genai` is text-only,
-   `SmolVLMClient` is single-image bespoke.)
+### Hardware sizing (reference)
 
-3. **`VideoCaptioningNodeOptions extends AbstractNodeOptions`** — `endpointUrl`,
-   `model`, `frameSampleCount` / `fps`, `maxFrames`, `prompt`, `perScene`
-   (boolean), `targetFrameSize`; implement `validate()`.
-
-4. **`VideoCaptioningNodeModule extends AbstractNodeModule`** —
-   `@Binds @IntoSet FilesystemNode`, `optionInfo()`
-   (`CortexNodeOptionDeserializerInfo(..., "video-captioning")`), `options(...)`,
-   `@Provides VideoVLMClient`. Register the module in the Cortex Dagger component.
-
-5. **Persistence**
-   - **Option A:** `createAssetJsonComp` with `schemaType="caption"`,
-     `nodeKind=name()`, `data={caption, frameCount, model}`; ledger
-     `resultRef("asset_json_comp", compUuid)`.
-   - **Option B:** new migration `V2.xx__add_caption_segment_type.sql` adding
-     `CAPTION` to the `asset_segment_comp` CHECK constraint; then
-     `createAssetSegmentComps(segmentType="CAPTION", entries[title=caption, timeFrom, timeTo])`.
-     After the migration: re-run `./setup-pool.sh` and the jOOQ codegen
-     (`loom/db/jooq/generate.sh`).
-
-6. **UI descriptor** — add `VideoCaptioningDescriptorProvider` (kind
-   `video-captioning`, category ANALYSIS, input `MEDIA_VIDEO`, output
-   `DATA_CAPTION`) and register it in the `NodeDescriptorProvider` ServiceLoader
-   file (`loom-shared/node-model/.../META-INF/services/...NodeDescriptorProvider`).
-
-7. **NODES.md** — add the node to the node tables (§3, §12) and tick the
-   CaptioningNode video-support item in §10.
-
-Representative paths (the options / module / descriptor siblings follow the same
-`captioning` layout):
-
-```
-cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/VideoCaptioningNode.java
-cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/VideoVLMClient.java
-cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/VideoCaptioningNodeOptions.java
-cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/VideoCaptioningNodeModule.java
-loom-shared/node-model/.../nodes/spec/VideoCaptioningDescriptorProvider.java
-loom/db/flyway/src/main/resources/db/migration/V2.xx__add_caption_segment_type.sql   # Option B only
-```
+The node targets an external OpenAI-compatible endpoint, so serving is a deployment concern.
+On a heterogeneous 4090 (24 GB) + 3060 (12 GB) box: **vLLM cannot tensor-parallel across them**
+(uniform per-GPU memory fraction caps at the smaller card) — pin vLLM to the 4090; llama.cpp
+*can* use both via `--split-mode layer --tensor-split 24,12`. Video captioning is
+**headroom-bound, not parameter-bound**: a 512×384 frame is ~250–350 visual tokens for
+Qwen2.5-VL, so 16–32 frames is ~4k–8k tokens before the prompt. Rule of thumb: pick a quant that
+leaves **≥10 GB free** after weights. Serve commands actually used are in the report §9.
 
 ---
 
-## 8. Testing & verification
+## 3. Open work
 
-- **Unit test** — mirror `CaptioningNodeTest` / `AbstractBasicNodeTest`; inject a
-  stub `VideoVLMClient` returning a canned caption; assert
-  `result.hasOutput(OUTPUT_CAPTION)`. Guard native video decode with
-  `assumeVideo4j()`.
-- **Integration test** in `integration-test` — mirror
-  `CaptioningNodeIntegrationTest`: drive against the `genai` `MockLLMServer`
-  (OpenAI-compatible), run the real frame-sample + persist path against a real
-  short video, then read the caption back via REST (`listAssetJsonComps` for A;
-  the segment list for B). Boots a real in-process Loom (REST + pooled DB).
-- **DB** — after any migration: `./setup-pool.sh` + jOOQ regen, else tests fail
-  with "Pool not found".
-- **Manual E2E** — `vllm serve Qwen/Qwen2.5-VL-7B-Instruct --allowed-local-media-path /`,
-  point `endpointUrl` at it, run the node on a sample clip, confirm the caption /
-  segments land in Loom and are readable via REST.
+### 3.1 Per-scene captions are not in `asset_segment_comp`
+
+Option B of the original plan — persisting one `SegmentEntry` per captioned scene with
+`segment_type=CAPTION` — **was never implemented.** Verified: `grep -rn CAPTION` over
+`loom/db/flyway/src/main/resources/db/migration/` returns nothing, so the CHECK constraint on
+`asset_segment_comp.segment_type` is still `SCENE, SILENCE, SHOT, CHAPTER`. `SCENE` captions are
+instead carried as a `scenes` array inside the `video-caption` JSON component, using **frame
+indices** (`fromFrame`/`toFrame`), not milliseconds.
+
+To finish it:
+
+1. New migration `loom/db/flyway/src/main/resources/db/migration/V2.xx__add_caption_segment_type.sql`
+   adding `CAPTION` to the CHECK constraint.
+2. Re-run `./setup-pool.sh` **and** `loom/db/jooq/generate.sh` — a Flyway change without both
+   leaves the pooled test databases stale and the suite fails (see [.claude/CLAUDE.md](../../../.claude/CLAUDE.md)).
+   Install `loom/db/flyway` first, or `setup-pool.sh` prints "Pool Created" while silently skipping
+   the new migration.
+3. `createAssetSegmentComps(segmentType="CAPTION", entries[title=caption, timeFrom, timeTo])` —
+   whole-set replace on `(asset, node_kind, segment_type)`, mirroring `SceneDetectionNode`.
+   Decide first whether to store frames or milliseconds: `SceneDetectionNode` stores **frame
+   indices** and carries the source fps in `producerVersion` (e.g. `"fps=25.0"`); a caption timeline
+   should be consistent with that choice.
+4. Extend `CaptioningNodeIntegrationTest` with a `SCENE`-strategy case that reads the segments back
+   via REST.
+
+### 3.2 The descriptor exposes none of the video options
+
+`CaptioningDescriptorProvider` declares only `enabled`, `processIncomplete` and `retryFailed`.
+None of `videoStrategy`, `videoEndpointUrl`, `videoModel`, `videoApiKey`, `frameCount`,
+`targetFrameSize`, `maxScenes`, `maxTokens`, `temperature`, `videoPrompt` is a `NodeParameter`,
+so **the UI cannot configure video captioning at all** — it can only be set in the Cortex options
+file. The website page already documents these options, which makes the gap a visible
+inconsistency. Adding them is descriptor-only work; ports are unaffected, so
+`NodePortConformanceTest` is not at risk.
+
+### 3.3 Smaller items
+
+- **`NATIVE` needs token capping.** It fails with `Input length (12461) exceeds model's maximum
+  context length (8192)` on anything past a few seconds. Either expose `fps` / `max_frames`
+  `mm_processor_kwargs` through the options, or document a required `--max-model-len`.
+- **`compute()` swallows failures.** The video/image dispatch catches `Exception`, calls
+  `e.printStackTrace()` and returns `NodeResult.failed()` without a ledger row — unlike
+  `persistVideo`, which does record a FAILED ledger entry. Worth aligning with the rest of the tree.
+- **`SCENE` degenerates to whole-video on single-shot content** (correctly — the detector yields
+  one scene), so it is only worth enabling for edited/multi-shot material.
+- **Audio fusion (not started).** Feed an upstream Whisper transcript into the caption prompt for
+  audio-aware descriptions. With the typed-port model this is a new `text` input port on the node
+  plus a prompt template change.
+- **Node kind naming.** `captioning`'s display name in the descriptor is still *"Image Captioning"*
+  even though it captions video too.
 
 ---
 
-## 9. Open decisions (team)
+## 4. Options (the `captioning` block)
 
-- **Granularity:** A vs B vs C — recommendation is **C (A first, then B)**.
-- **Model tier:** Qwen2.5-VL-7B (default) vs Qwen3-VL-8B (native timestamps) vs
-  Tarsier2-7B (max caption detail) — all model-id swaps on the same endpoint.
-- **Audio fusion (future):** feed the upstream Whisper transcript into the caption
-  prompt for audio-aware descriptions — noted as a follow-up enhancement.
+| Option | Default | Applies to | Meaning |
+|---|---|---|---|
+| `enabled` / `processIncomplete` / `retryFailed` | `true` / `false` / `false` | both | Standard `AbstractNodeOptions` flags |
+| `smolVLMHost` | `localhost` | image | SmolVLM captioning service host |
+| `smolVLMPort` | `8000` | image | SmolVLM captioning service port |
+| `videoStrategy` | `WHOLE` | video | `WHOLE` \| `SCENE` \| `NATIVE` |
+| `videoEndpointUrl` | `http://localhost:8000` | video | Base URL of the OpenAI-compatible VLM endpoint |
+| `videoModel` | `qwen25vl-awq` | video | Model id served at that endpoint |
+| `videoApiKey` | `""` | video | Optional bearer token |
+| `frameCount` | `8` | video | Frames sampled for `WHOLE`; per scene for `SCENE` |
+| `targetFrameSize` | `512` | both | Longest edge of the encoded frame in px |
+| `maxScenes` | `32` | video (`SCENE`) | Upper bound on captioned scenes |
+| `maxTokens` | `256` | video | Generation limit |
+| `temperature` | `0.2` | video | Sampling temperature |
+| `videoPrompt` | *"Describe what happens in this video in two or three sentences. Focus on actions, subjects and setting."* | video | Prompt sent with the frames |
+
+The node itself reads **no environment variables**; the backends do (see the report §9 for the
+`vllm serve` / `llama-server` invocations used).
 
 ---
 
-## 10. References
+## 5. Key Classes Reference
 
-- Tarsier2 — <https://github.com/bytedance/tarsier> · <https://arxiv.org/abs/2501.07888>
+| Class | Package / module | Purpose |
+|---|---|---|
+| `CaptioningNode` | `io.metaloom.cortex.node.captioning` (`cortex/nodes/captioning/core`) | The merged image + video captioning node |
+| `VideoCaptioner` | same | Executes the selected `VideoCaptioningStrategy` |
+| `VideoCaptioningStrategy` | same | `WHOLE` / `SCENE` / `NATIVE` enum |
+| `FrameSampler` | same | video4j frame sampling → base64 JPEG |
+| `VideoVLMClient` | same | OpenAI-compatible `/v1/chat/completions`, multi-image + `video_url` |
+| `SmolVLMClient` | same | Bespoke single-image `/caption` client (image path) |
+| `VideoCaptionOutput` | same | `caption`, `scenes`, `modelLatencyMs`, `frameCount` |
+| `CaptioningNodeOptions` | same | All options in §4 |
+| `CaptioningNodeModule` | same | Dagger bindings incl. `@StringKey("captioning")` |
+| `CaptioningDescriptorProvider` | `io.metaloom.loom.nodes.spec` (`loom-shared/node-model`) | UI descriptor, `xor` media input group |
+| `OpticalFlowSceneDetector` | `io.metaloom.cortex.node.scene.impl` (`cortex/nodes/scene-detection/core`) | Scene segmentation used by the `SCENE` strategy |
+| `AbstractMediaNode` | `io.metaloom.cortex.common.node` (`cortex/common`) | Lifecycle + `recordNodeResult` / `resultRef` |
+| `JsonCompCreateRequest` | `io.metaloom.loom.rest.model.jsoncomp` (`loom-shared/rest-model`) | `asset_json_comp` payload |
+
+---
+
+## 6. Conventions and Gotchas
+
+- **There is no `video-captioning` kind.** Anything referring to `video-captioning-whole/-scene/-native`
+  or `cortex/nodes/video-captioning` predates the merge and is stale.
+- **`image` and `video` are a `xor` port group.** Wire exactly one; wiring both is a validation error.
+- **Image and video share one `LocalResultCache` and one cache key (the media path)**, but persist to
+  *different* `schemaType`s (`caption` vs `video-caption`).
+- **`variant` is `""` on both rows.** The strategy name is stored *inside* the JSON payload as a
+  `variant` field — that is data, not the component's natural-key discriminator.
+- **Scene bounds are frame indices, not milliseconds.** Both here and in `SceneDetectionNode`; the
+  fps needed to convert is carried in `producerVersion`.
+- **llama.cpp cannot serve `NATIVE`** — it does not decode video files and returns HTTP 400 for
+  `video_url` (SmolVLM2 is the sole exception in that family, and its caption quality is far lower).
+- **vLLM cannot tensor-parallel a 4090 + 3060.** Pin it to the larger card.
+- **`Video4j.init()` runs in `initialize()`**, and video tests must be guarded with `assumeVideo4j()`.
+- **A Flyway change means `./setup-pool.sh` *and* `loom/db/jooq/generate.sh`** — relevant the moment
+  §3.1 is picked up.
+- **The code is the source of truth.** Where this document and `cortex/` disagree, the code wins —
+  fix this file in the same change ([SPEC_RULES.md](../../SPEC_RULES.md)).
+
+---
+
+## 7. Where do I find …?
+
+| Concept | Path |
+|---|---|
+| Measured latency / quality numbers | [NODE_VIDEO_CAPTIONING_REPORT.md](NODE_VIDEO_CAPTIONING_REPORT.md) |
+| Raw benchmark data | [video-captioning-results/](video-captioning-results/) |
+| Node system reference | [NODES.md](NODES.md) |
+| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
+| New-node checklist | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Node implementation | `cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/` |
+| Scene detector | `cortex/nodes/scene-detection/core/src/main/java/io/metaloom/cortex/node/scene/` |
+| UI descriptor | `loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/CaptioningDescriptorProvider.java` |
+| Unit tests + comparison harness | `cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/` |
+| Integration test | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/CaptioningNodeIntegrationTest.java` |
+| Flyway migrations | `loom/db/flyway/src/main/resources/db/migration/` |
+| Customer-facing node docs | `website/content/english/docs/nodes/captioning/index.adoc` |
+
+---
+
+## 8. Progress Assessment
+
+**Design decisions — settled**
+
+- [x] Granularity: ship whole-video first, scene second (original Option C)
+- [x] Node placement: **merged into `captioning`** as a `videoStrategy` option, not a separate kind
+- [x] Model tier: Qwen2.5-VL-7B-AWQ on vLLM as default, llama.cpp Q4 as portable fallback
+- [x] Backend is pure config (`videoEndpointUrl` + `videoModel`), so model swaps are not code changes
+
+**Implementation — shipped**
+
+- [x] `VideoCaptioningStrategy` (`WHOLE` / `SCENE` / `NATIVE`) + `VideoCaptioner`
+- [x] `VideoVLMClient` (multi-image **and** `video_url`), `FrameSampler`, `VideoCaptionOutput`
+- [x] `video` input port on `CaptioningNode`, `xor` group with `image`
+- [x] Video options on `CaptioningNodeOptions` (§4)
+- [x] `asset_json_comp` persistence as `schemaType="video-caption"` + ledger row
+- [x] Scene detector defects fixed (boundaries recorded, frame-difference cut signal, tail handling)
+- [x] Website node page documenting all three strategies
+
+**Tests**
+
+- [x] `CaptioningNodeTest` covers all three video strategies + image + skips + disabled
+- [x] `CaptioningNodeIntegrationTest` video path (`WHOLE`) against the mock OpenAI server, read back via REST
+- [x] `VideoCaptioningComparisonIT` env-gated harness across all three strategies
+- [x] `SceneBoundaryIT` guards multi-scene detection
+- [ ] Integration coverage for the `SCENE` strategy's persisted `scenes` array
+
+**Open**
+
+- [ ] **`CAPTION` `segment_type` migration + `createAssetSegmentComps` persistence** (§3.1) — never written
+- [ ] **Expose the video options as `NodeParameter`s in `CaptioningDescriptorProvider`** (§3.2) — the UI cannot configure video captioning today
+- [ ] Cap `NATIVE` token usage via `fps` / `max_frames`, or document a required `--max-model-len` (§3.3)
+- [ ] Record a ledger row when `compute()` fails instead of `printStackTrace()` + `NodeResult.failed()` (§3.3)
+- [ ] Audio fusion — Whisper transcript as an extra text input to the caption prompt (§3.3)
+- [ ] Rename the descriptor's display name away from "Image Captioning" (§3.3)
+
+---
+
+## 9. References
+
 - Qwen2.5-VL — <https://qwenlm.github.io/blog/qwen2.5-vl/> · Qwen3-VL — <https://github.com/QwenLM/Qwen3-VL>
-- VideoLLaMA3 — <https://github.com/DAMO-NLP-SG/VideoLLaMA3>
-- InternVideo2.5 — <https://github.com/OpenGVLab/InternVideo/tree/main/InternVideo2.5>
+- Tarsier2 — <https://github.com/bytedance/tarsier> · <https://arxiv.org/abs/2501.07888>
 - MiniCPM-V — <https://github.com/OpenBMB/MiniCPM-V>
-- VideoChat-Flash — <https://github.com/OpenGVLab/VideoChat-Flash>
+- VideoLLaMA3 — <https://github.com/DAMO-NLP-SG/VideoLLaMA3>
 - Grounded-VideoLLM — <https://github.com/WHB139426/Grounded-Video-LLM> · VTG-LLM — <https://github.com/gyxxyg/VTG-LLM>
 - vLLM multimodal serving — <https://docs.vllm.ai/en/stable/examples/online_serving/openai_chat_completion_client_for_multimodal/>
+
+---
+
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (verified shipped against code; reduced to a status + open-work document — the node is `captioning`'s `videoStrategy`, and the `CAPTION` segment-type migration was never written)_

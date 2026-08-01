@@ -32,7 +32,12 @@ validates it client-side, and persists a pipeline **definition JSON** that
 - [x] Dynamic ports for `script` / `llm` / `vlm` via `portResolvers.ts` mirrors
 - [x] Edges serialise `sourcePort` / `targetPort`; branch serialises as `branch`
 - [x] Per-instance parameters serialise under `options` (`config` accepted as a legacy alias on load)
-- [x] Sidebar parameter/affinity/display-name edits mirrored onto the canvas before `getGraphJson()`
+- [x] Sidebar parameter/affinity edits mirrored onto the canvas before `getGraphJson()`
+- [ ] **`displayName` is never persisted** — it is in `RESERVED` (1823) and is not lifted top-level,
+      so the sidebar edit reaches the canvas, renders, and is then dropped by `getGraphJson()`
+- [ ] **`nodeParameters` / `nodeDisplayNames` leak across pipelines** — `applySelect` (2681) clears
+      only `nodeAffinities`; `handleRestoreVersion` (2495) clears display names and affinities but
+      not parameters
 - [x] Pipeline CRUD: create, clone, update (new version per save), delete, run, cancel run
 - [x] Version history: list, diff (`PipelineVersionDiff.tsx`), restore
 - [x] Run history + run-item drill-down drawer
@@ -89,7 +94,7 @@ discarded on save. See §5.
 ## 3. Key Components Reference
 
 All in `loom-ui/src/features/pipeline/PipelineEditor.tsx` unless noted. Line numbers are indicative
-(HEAD `2e5981cb`, file is 3739 lines).
+(HEAD `499f71f7`, file is 3739 lines).
 
 | Symbol | Line | Purpose |
 |---|---|---|
@@ -192,6 +197,16 @@ consumed by a `useEffect` in `PipelineCanvas`:
 **Adding a fourth thing that is editable outside the canvas means adding a fourth channel** — or the
 edit is silently discarded on save.
 
+Two residual defects in these channels (see §1):
+
+- `displayName` reaches the canvas and renders next to the label (358), but `RESERVED` (1823) strips
+  it from `options` and nothing lifts it to the node top level, so it is lost on the next save.
+  `handleDisplayNameChange` does not write the definition node either. Fixing it means either
+  removing it from `RESERVED` or emitting it as a top-level field the way `affinity` is.
+- The channel maps are keyed by node id only, not by pipeline. `applySelect` (2681) resets
+  `nodeAffinities` alone, so parameter and display-name entries survive a pipeline switch and can
+  reapply themselves to a same-id node in the newly selected pipeline.
+
 ---
 
 ## 6. Ports on the canvas
@@ -209,14 +224,29 @@ The port model itself is specified in
   `contentType` + cardinality, so `TEXT_LIST` renders as `text/plain` ×MANY); `llm`/`vlm` → one
   `result_<promptId>` port per configured prompt, falling back to a single `result`.
   The guard is `desc.dynamicPorts !== false`, so pre-flag fixtures still resolve.
-- Handle colour = `FAMILY_COLORS[family(contentType)]` (eight families) from `contentTypes.ts`.
-  Labels/descriptions come from the served `contentTypes` list — **never hardcoded**.
-- `isProvisional(actual, declared)` (producer emits `family/*`, consumer wants a subtype) renders the
-  handle hollow: allowed, but only resolvable at runtime.
-- MANY ports are suffixed `×N` in the handle caption.
-- `portBlockedReason` greys out siblings of a wired XOR/EXCLUSIVE group member, with the reason in
-  the tooltip. The canvas pushes `wiredInputs`/`wiredOutputs` (port ids carrying an edge) into node
-  data so the renderer can compute this.
+- Handle colour = `contentTypeColor(port.contentType, fallback)` → `FAMILY_COLORS[family(...)]`
+  (eight families) from `contentTypes.ts`. The colour formula is local; the **vocabulary** (which
+  types exist, their labels and descriptions) always comes from the server-served `contentTypes`
+  list — **never hardcoded**. There is no `ConnectorDataType` enum and no `DATA_TYPE_COLOR` map.
+- Each `<Handle>` carries a fixed DOM contract, which is what the e2e specs assert against:
+
+  | Attribute | Value |
+  |---|---|
+  | `id` | the port id (`PortSpec.id`) — this becomes `sourcePort`/`targetPort` |
+  | `data-testid` | `port-in-<nodeId>-<portId>` / `port-out-<nodeId>-<portId>` |
+  | `data-content-type` | `port.contentType` |
+  | `data-cardinality` | `ONE` \| `MANY` |
+  | `data-port-blocked` | `"true"` when `portBlockedReason` returns a reason |
+
+- Visual encoding, all in `PipelineNodeComponent` (374 / 436): `isWildcard(contentType)` → **hollow**
+  handle (filled with the surface colour, coloured border) because a `family/*` producer's real type
+  is only known at runtime; `cardinality === "MANY"` → **squared off** (`borderRadius: 2`) plus a
+  doubled `boxShadow`; blocked → `opacity: 0.3` **and `isConnectable={false}`**.
+- MANY ports are suffixed `×N` in the hover caption.
+- `portBlockedReason` blocks siblings of a wired XOR/EXCLUSIVE group member, with the reason appended
+  to the handle `title`. The canvas pushes `wiredInputs`/`wiredOutputs` (port ids carrying an edge)
+  into node data so the renderer can compute this.
+- Handles are laid out down the node edge at `30% + idx*40/(n-1)`, or dead centre for a single port.
 
 ---
 
@@ -294,7 +324,10 @@ history; `NODE_STARTED` adds to `activeNodeIds` (pulsing node), `NODE_COMPLETED`
 
 | Variable | Default | Effect |
 |---|---|---|
-| `VITE_API_BASE_URL` | `/api/v1` (trailing slashes stripped) | REST base; the WebSocket URL is derived from it by swapping `http`→`ws` |
+| `VITE_API_BASE_URL` | `http://localhost:8092/api/v1` (trailing slashes stripped) | REST base, resolved once in `src/api/config.ts`; the WebSocket URL is derived from it by swapping `http`→`ws` |
+
+The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vite dev server on
+5173 talks to Loom on 8092 directly. A deployment behind one origin must set the variable.
 
 ---
 
@@ -311,6 +344,7 @@ history; `NODE_STARTED` adds to `activeNodeIds` (pulsing node), `NODE_COMPLETED`
 | Node detail sidebar | 280px; tabs Config / Log (mock) / JSON. Parameter editors by `ParameterType`: `ENUM`→select, `BOOLEAN`→switch, `INTEGER`/`NUMBER`(+`FLOAT`)→numeric field, `ENUM_SET`(+`STRING_LIST`)→comma-separated, `CODE`/`JSON`→multiline with per-parameter parse-error flag, else text |
 | Dirty tracking | Any canvas change, parameter/affinity/edge edit, node add/delete → `dirty`. Switching pipelines while dirty opens a discard-confirm (`pipeline-switch-confirm`). Leaving the route does not. |
 | i18n | All user-visible strings under the `pipeline.*` namespace in `loom-ui/src/i18n/locales/{en,de}.json` |
+| **Not implemented** | No autosave (saving is always the explicit button), no undo/redo, no node copy/paste or multi-select, no drag-and-drop from the palette — nodes are added by click/Enter and land at a computed position |
 
 ---
 
@@ -328,9 +362,21 @@ history; `NODE_STARTED` adds to `activeNodeIds` (pulsing node), `NODE_COMPLETED`
   ports would silently re-point existing edges.
 - **`grep` treats `PipelineEditor.tsx` as binary** (very long lines) and prints nothing. Use `rg`, or
   `grep -a`.
-- **`loom-ui/src/Pipeline/PipelineArea.tsx` and `loom-ui/src/Dashboard/` are dead code** — an older
-  prototype. `main.tsx` mounts only `layout/AppShell.tsx`, which routes `/pipelines` to
-  `features/pipeline/PipelineEditor.tsx`. Editing the prototype changes nothing at runtime.
+- **React Flow is the `reactflow` v11 package**, not `@xyflow/react` v12. Imports are
+  `from "reactflow"` plus `reactflow/dist/style.css`. Do not mix the two package names.
+- **Exactly one node type is registered** (`pipelineNode`) and **no `edgeTypes` at all** — edges are
+  built-in React Flow edges styled through `EDGE_TYPE_STYLE`. Adding a custom edge component means
+  introducing an `edgeTypes` map that does not exist yet.
+- **Auto-arrange is hand-rolled**, a Kahn topological pass over the edge list building columns
+  (`autoArrange`, 1434). There is no `dagre` and no `elk` dependency; do not assume one.
+- **`NodeDetailPanel` (785) is dead code** — a second, older detail panel that is defined, typed and
+  never rendered. The live one is `NodeDetailSidebar` (1083). Edit the wrong one and nothing moves.
+- **`loom-ui/src/Pipeline/PipelineArea.tsx` is a separate, older read-only "Pipeline Monitor"**, not
+  an earlier draft of this editor: it renders live per-node run state from the WS feed and ignores
+  ports, `branch` and serialisation entirely. It is reachable only through `src/Dashboard/Dashboard.tsx`,
+  mounted by `src/index.js` — and `index.html` boots `src/main.tsx`, which mounts only
+  `layout/AppShell.tsx`. So the whole `src/index.js` → `Dashboard/` → `Pipeline/` prototype tree is
+  unreachable at runtime. Do not "fix ports" there and do not conflate it with this spec.
 - **`contentTypes.ts` doc comment names `GET /api/v1/node-descriptors`**; the actual client path is
   `/pipeline/node-descriptors`.
 - The `ParameterType`s `FLOAT` and `STRING_LIST` are deprecated aliases for `NUMBER` / `ENUM_SET`;
@@ -362,6 +408,12 @@ yarn playwright test e2e/pipeline-crud-mocked.spec.ts
 | `e2e/pipeline-events-mocked.spec.ts` | Node pulsing / last-result tinting from WS frames |
 | `e2e/pipeline-affinity-mocked.spec.ts` | Affinity editing, badge, serialisation |
 | `e2e/pipeline-backend.spec.ts`, `pipeline-loading.spec.ts` | Live backend smoke: descriptors load, palette, node add |
+| `e2e/chat-pipeline-graph-mocked.spec.ts` | Pipeline graph rendered inside the chat workspace |
+
+Thirteen `pipeline*` e2e specs exist in `loom-ui/e2e/`; all but `pipeline-backend.spec.ts`,
+`pipeline-loading.spec.ts` and `pipeline-diff-backend.spec.ts` are fully mocked. The two vitest
+files run in the **node** environment (`vitest.config`, `environment: "node"`) — they are pure logic
+mirrors with no DOM; component behaviour is covered by Playwright, not by RTL/jsdom.
 
 Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / `data-result` /
 `data-affinity`), `pipeline-connection-error`, `pipeline-create-button|dialog|name|confirm`,
@@ -395,5 +447,5 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Rewrote against the typed-port editor: `options`/`sourcePort`/`targetPort`/`branch` serialisation, sidebar→canvas mirror channels, and cut duplicated port-model prose.)_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (Verified against the 3739-line editor: fixed the `VITE_API_BASE_URL` default, documented the handle DOM contract, and recorded the residual `displayName` and mirror-state-leak defects.)_

@@ -1,61 +1,39 @@
 # MetaLoom Pipeline System — Technical Specification
 
-> **Audience: AI coding agents.** This is the single technical reference for
-> the MetaLoom pipeline feature. It covers the Cortex execution engine *and*
-> the Loom-side persistence, REST, and event bridge.
->
-> **Source of truth is the code**, not this document. Everything here was
-> verified against the tree on 2026-07-18. If you find a contradiction, the
-> code wins — and fix this file in the same change.
->
-> **Companions:** [PIPELINE_REQUIREMENTS.md](PIPELINE_REQUIREMENTS.md)
-> (non-technical requirements + gap status) and
-> [PIPELINE_TASKS.md](PIPELINE_TASKS.md) (actionable work items).
-> The Cortex *node* system (lifecycle, MetaStorage, per-node reference) is
-> specified separately in [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md).
+> **Audience: AI coding agents.** This is the reference for how a pipeline is
+> **defined, validated, dispatched, executed and recorded**. Source of truth is the
+> code; when it disagrees with this file, the code wins — fix this file in the same
+> change ([SPEC_RULES.md](../../SPEC_RULES.md)).
+
+**Scope split — do not duplicate these here:**
+
+| Topic | Spec |
+|---|---|
+| Port model, content types, cardinality, fan-out/gather, coercion, per-kind port tables | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
+| Individual nodes: lifecycle, options, MetaStorage, per-node reference, node restriction | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) |
+| WebSocket framing, auth, reconnect, message-by-message reference | [../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md) |
+| Worker topology, registration, placement, leases, metrics | [../../cortex/METALOOM_ARCHITECTURE.md](../../cortex/METALOOM_ARCHITECTURE.md) |
+| Non-technical requirements / actionable tasks | [PIPELINE_REQUIREMENTS.md](PIPELINE_REQUIREMENTS.md) · [PIPELINE_TASKS.md](PIPELINE_TASKS.md) |
 
 ---
 
-## 1. TL;DR
+## 1. TL;DR — the five things to know
 
-- A **pipeline** is a directed acyclic graph (DAG) of **PipelineNode**s that
-  Cortex runs against a stream of `LoomMedia` items.
-- Everything is built on **RxJava 3** (`Flowable`, `Single`). Backpressure and
-  per-node concurrency are first-class. There is no `CompletableFuture`
-  executor — if you find a reference to `DAGPipelineExecutor`, it is stale.
-- Each pipeline has **exactly one source node**; other nodes are discovered by
-  walking the connection graph.
-- Definitions are **authored in the Loom UI**, **stored on Loom** as immutable
-  **versions**, **pulled by Cortex**, and **executed on Cortex**.
-- Cortex emits **tracking events** back to Loom over the processor WebSocket;
-  Loom re-broadcasts them to UI clients.
-- Two independent node hierarchies exist and are bridged by
-  `CortexNodeAdapter` — see §7. Do not mix them without the adapter.
-
-### The one thing to know before touching this feature
-
-🔴 **Data between nodes is addressed by *port*, never by node id, and the graph is
-type-checked before it runs.** Every node declares typed `inputPorts`/`outputPorts` with a
-`family/subtype` content type and a `ONE`/`MANY` cardinality; every edge names
-`sourcePort` and `targetPort`; `PortGraphAnalyzer` checks assignability, required inputs, XOR
-groups and fan-out shape at save time *and* at run start. A `MANY` output makes every downstream
-node with a `ONE` input run **once per element**, and the barrier that recombines those elements
-is `NodeExecState.isSettled()` — not a merge node the author has to place.
-
-Read [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) before adding or wiring a node.
-
-⚠️ **The refactor is in the working tree and only half-landed.** `loom-shared/*` and
-`loom/pipeline` are complete and compiling; `loom/services/rest`, the `cortex/nodes/*` sweep and
-the React Flow editor are not. In particular the editor still writes `sourceHandle`/`targetHandle`
-instead of `sourcePort`/`targetPort`, so **a graph saved from the current UI is rejected by the
-parser**. [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §11 is the authoritative status table.
-
-> **Historic, now resolved:** Loom and Cortex used to disagree on the definition JSON schema —
-> Loom wrote `edges[]`, `LoomPipelineLoader` read `nodes[].dependencies[]` and a UI-authored
-> pipeline collapsed to its source node. Under Variant C there is one parser,
-> `PipelineGraphParser`, and `LoomPipelineLoader` is deleted. **Run completion was fixed on
-> 2026-07-18** (Task 2): runs transition out of `RUNNING` with real durations and counters, see
-> §12.3.1.
+1. **Loom owns the graph, Cortex owns one node at a time.** There is no DAG executor
+   in Cortex any more. `PipelineRunEngine` (in `loom/pipeline`) decides what runs
+   next and dispatches a single `NODE_TASK` (or one `SEGMENT_TASK` per affinity
+   group); the worker answers and forgets.
+2. **Data is addressed by *port*, never by node id.** Every edge carries
+   `sourcePort` + `targetPort`; `PortGraphAnalyzer` type-checks the whole graph at
+   save time *and* at run start. See [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md).
+3. **`nodes[].dependencies[]` is rejected.** `PipelineGraphParser` throws on it. There
+   is no fallback, no positional inference, no legacy alias.
+4. **A definition is parsed before a `pipeline_run` row exists.** A graph that cannot
+   run as drawn is a `400`; a graph with a kind no online worker accepts is a `503`.
+   Neither leaves a row behind.
+5. **There is exactly one definition parser** (`PipelineGraphParser`) and exactly one
+   result-state mapping (`NodeResultMapper.toWireState`). Both were duplicated once;
+   both broke; do not re-fork them.
 
 ---
 
@@ -64,733 +42,496 @@ parser**. [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §11 is the authoritative sta
 ```mermaid
 graph TB
     subgraph UI["Loom UI"]
-        ED[PipelineEditor.tsx<br/>author + run + versions]
-        AR[PipelineArea.tsx<br/>read-only live monitor]
+        ED[PipelineEditor.tsx<br/>author · run · versions]
+        AR[PipelineArea.tsx<br/>read-only monitor]
     end
 
     subgraph LOOM["Loom Backend"]
         REST[PipelineEndpoint<br/>/api/v1/pipelines]
+        SVC[PipelineEndpointService<br/>CRUD · versions · dispatchRun]
         VAL[PipelineValidationService]
-        DB[(pipeline<br/>pipeline_version<br/>pipeline_run)]
-        PROC[ProcessorEndpoint<br/>/api/v1/processors/ws]
-        BC[PipelineEventBroadcaster]
-        EVW[PipelineEventEndpoint<br/>/api/v1/pipelines/events/ws]
-        REG[ProcessorRegistry]
+        PAR[PipelineGraphParser<br/>+ PortGraphAnalyzer<br/>+ PipelineSegmenter]
         ENG[PipelineRunEngine<br/>owns the DAG]
+        REG[PipelineRunRegistry<br/>live engines]
+        STO[DaoRunStateStore<br/>DaoAssetSink]
+        TRK[PipelineRunTracker]
         DSP[WebSocketNodeDispatcher]
+        PROC[ProcessorEndpoint<br/>/api/v1/processors/ws]
+        PREG[ProcessorRegistry]
+        AGG[RunStatsAggregator]
+        BC[PipelineEventBroadcaster]
+        EVW[/api/v1/pipelines/events/ws]
+        DB[(pipeline · pipeline_version<br/>pipeline_run · pipeline_run_item<br/>pipeline_node_task)]
     end
 
-    subgraph CORTEX["Cortex Processor"]
+    subgraph CORTEX["Cortex Worker"]
         LCC[LoomControlChannel]
         PTH[PipelineTaskHandler]
-        LPL[LoomPipelineLoader<br/>+ RegistryNodeFactory]
-        PM[PipelineManager]
-        EX[ReactivePipelineExecutor]
-        BUS[PipelineEventBus]
-        SYNC[LoomBulkSyncCollector]
+        NF[RegistryNodeFactory<br/>+ RegistryNodeRegistrar]
+        STR[SourceTaskRunner]
+        NTR[NodeTaskRunner]
+        SGR[SegmentTaskRunner]
+        RB[ResultBatcher]
     end
 
-    ED -->|REST CRUD| REST
-    REST --> VAL
-    REST --> DB
-    ED -->|POST /run| REST
-    REST -->|select processor| REG
-    REST -->|SOURCE_TASK dispatch| PROC
-    REST --> ENG
-    ENG -->|NODE_TASK| DSP
-    DSP --> PROC
-    PROC <-->|WebSocket| LCC
-    LCC --> PTH
-    PTH --> EX
-    LPL -->|GET /api/v1/pipelines| REST
-    LPL --> PM
-    PM --> EX
-    EX --> BUS
-    BUS -->|tracking events| LCC
-    LCC -->|PIPELINE_EVENT| PROC
-    PROC --> BC
-    BC --> EVW
-    EVW --> AR
+    ED -->|REST CRUD| REST --> SVC --> VAL --> PAR
+    SVC --> DB
+    SVC --> PAR
+    SVC --> ENG
+    ENG --> REG
+    ENG --> STO --> DB
+    ENG --> TRK --> DB
+    ENG --> DSP --> PROC
+    SVC -->|select worker| PREG --> PROC
+    PROC <-->|WebSocket| LCC --> PTH
+    PTH --> NF
+    PTH --> STR
+    PTH --> NTR
+    PTH --> SGR
+    NTR --> RB --> LCC
+    ENG --> AGG --> BC --> EVW --> AR
     EVW --> ED
-    EX --> SYNC
-    SYNC -->|bulkUpdateAssets REST| REST
 ```
 
-**Two data paths back to Loom, do not confuse them:**
+**Two paths back to Loom, do not confuse them:**
 
 | Path | Transport | Carries |
 |---|---|---|
-| Live progress | Processor WebSocket → broadcaster → UI WebSocket | `PipelineEventMessage` (scalars only) |
-| Result data | REST `bulkUpdateAssets` | Node outputs for `syncToLoom=true` nodes, as asset metadata |
+| Results | `NODE_TASK_RESULT` / `NODE_TASK_RESULT_BATCH` / `SEGMENT_TASK_RESULT` | Port payloads; persisted to `pipeline_node_task.outputs`, and to the asset when the node is `syncToLoom` |
+| Live progress | `RunStatsAggregator` → `PipelineEventBroadcaster` → UI WS | Aggregated per-node counters on a 1 s timer, plus individual failures |
 
 ---
 
-## 3. Module Map
-
-### Cortex
-
-| Module | Role |
-|---|---|
-| `cortex/pipeline-api` | SPI: `Pipeline`, `PipelineNode`, `PipelineExecutor`, `PipelineManager`, `NodeResult`, `NodeState`, `NodeMode`, `MediaContext`, `PartitionedFlowable`, event/cache/sync interfaces |
-| `cortex/pipeline-core` | `DefaultPipeline`, `DefaultPipelineManager`, `ReactivePipelineExecutor`, `AbstractPipelineNode`, `AbstractFilterNode` + 8 filters, `AssetSourceNode`, `LoomFetchNode`, `CortexNodeAdapter`, JSON serde |
-| `cortex/pipeline-common` | `DefaultPipelineEventBus`, cache impls, `DefaultLoomBulkSyncCollector` |
-| `cortex/common/…/node` | Legacy base classes: `AbstractCortexNode`, `AbstractFilesystemNode`, `AbstractMediaNode` |
-| `cortex/nodes/` | Concrete processing nodes + `common-api`/`filter-api`/`source-api` descriptor providers |
-| `cortex/core` | Runtime wiring, `LoomPipelineLoader`, `RegistryNodeFactory`, `LoomControlChannel`, `PipelineTaskHandler` |
-| `cortex/cli` | `PipelineNodeFactoryModule` (node type registration), `NodeCollectionModule` |
+## 3. Module map
 
 ### Loom
 
 | Module | Role |
 |---|---|
-| `loom/db/api` | `Pipeline`, `PipelineVersion`, `PipelineRun` models + DAO interfaces |
-| `loom/db/jooq` | jOOQ DAO implementations |
-| `loom/db/flyway` | `V2.19__add_pipeline.sql`, `V2.29__add_pipeline_run.sql`, `V2.30__add_pipeline_version.sql` |
-| `loom/pipeline` | `PipelineRunEngine` (owns the DAG, drives `NODE_TASK` dispatch), run state store |
-| `loom/services/rest` | `PipelineEndpoint`, `PipelineEventEndpoint`, `ProcessorEndpoint`, `PipelineEndpointService`, `PipelineEventBroadcaster`, `PipelineValidationService`, `ProcessorRegistry`, `WebSocketNodeDispatcher`, `PipelineRunTracker` |
+| `loom/pipeline` | The whole execution model: `graph/` (parser, analyzer, segmenter, bindings) and `engine/` (`PipelineRunEngine`, `ItemState`, `NodeExecState`, circuit breaker, retry, `PortPayloads`). **No dependency on Loom internals** — dispatch, state and asset persistence are injected as interfaces (`NodeDispatcher`, `RunStateStore`, `AssetSink`), which is what makes the engine testable without a database |
+| `loom/services/rest` | `PipelineEndpoint`, `PipelineEndpointService`, `PipelineValidationService`, `PipelineRunTracker`, `PipelineRunRegistry`, `PipelineRunRecovery`, `RunStatsAggregator`, `SourceOptionsResolver`, `DaoRunStateStore`, `DaoAssetSink`, `WebSocketNodeDispatcher`, `ProcessorEndpoint`, `ProcessorRegistry`, `PipelineEventBroadcaster` |
+| `loom/db/{api,jooq,flyway}` | `Pipeline`, `PipelineVersion`, `PipelineRun`, `PipelineRunItem`, `PipelineNodeTask` models + DAOs + migrations |
+| `loom-shared/pipeline-model` | The wire contract: `NodeTask`, `NodeTaskResult`, `NodeTaskResultBatch`, `SegmentTask(Result)`, `SegmentNode`, `MediaRef`, `PortPayload`, `DataElement`, `Origin`, `NodeState`, `FilterBranch` |
+| `loom-shared/node-model` | `NodeDescriptor` + port model + `NodeDescriptorRegistry` (see [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md)) |
 | `loom-shared/rest-model` | `PipelineModel` + request/response DTOs, event DTOs, `PipelineModelValidator` |
-| `loom-client/rest` | `PipelineMethods` (incomplete — see §12) |
-| `loom-ui/src/features/pipeline` | `PipelineEditor.tsx` — the real editor |
-| `loom-ui/src/Pipeline` | `PipelineArea.tsx` — read-only live monitor |
+| `loom-ui/src/features/pipeline` | `PipelineEditor.tsx` (author), `portResolvers.ts`, `contentTypes.ts`, `pipelineDiff.ts` |
 
-⚠️ **`loom/db/memory` has no pipeline DAOs at all.** Anything running on the
-in-memory backend cannot serve pipelines.
+⚠️ **`loom/db/memory` has no pipeline DAOs.** Pipelines require the jOOQ backend.
 
----
+### Cortex
 
-## 4. Cortex Core API (`pipeline-api`)
-
-Package root: `io.metaloom.cortex.pipeline.api`.
-
-### 4.1 `Pipeline`
-
-```java
-String name(); String description(); int priority();
-boolean isEnabled(); boolean isDryRun();
-PipelineNode sourceNode();
-List<PipelineNode> nodes();        // topological order, immutable
-PipelineNode node(String id);
-```
-
-Built via
-`DefaultPipeline.builder(name).description(…).priority(…).enabled(…).dryRun(…).source(node).build()`.
-
-- **Node discovery**: BFS from `sourceNode` following `children()`.
-- **Node id validation**: `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$`, unique per
-  pipeline (`DefaultPipeline.NODE_ID_PATTERN`).
-- **Cycle detection**: `topologicalSort()` throws `IllegalStateException`
-  (`"Pipeline '…' has a dependency cycle"`).
-
-### 4.2 `PipelineNode`
-
-Identity: `id()`, `name()`, `isSource()`
-Execution config: `mode()` (`SEQUENTIAL|PARALLEL`), `isBlocking()`,
-`concurrency()`, `syncToLoom()`, **`timeoutMs()`** (default method, `0` = no timeout)
-Graph: `dependencies()`, `conditionalDependencies()`, `children()`,
-`connectTo(downstream[, FilterBranch])`
-Work: `process(LoomMedia, Map<String,NodeResult> upstreamResults): NodeResult`
-Reactive: `apply(Flowable<MediaContext>)`, `isPartitioning()`, `partition(…)`
-Config/lifecycle: `options()`, `cacheProvider()`, `initialize()`, `shutdown()`
-Constant: `PipelineNode.FILTER_PASSED = "passed"` — the filter port id. ⚠️ `FilterBranch.FILTER_PASSED`
-in `loom-shared` is still the old `"filter_passed"`; the two have not been reconciled, but neither is
-read for routing any more (see `NodeTaskResult.getFilterPassed()` below).
-
-### 4.3 `NodeResult` / `NodeState`
-
-`NodeState` = `PENDING | RUNNING | COMPLETED | FAILED | SKIPPED`
-
-Fields: `nodeId`, `state`, `durationMs`, `message`, **`outputs: Map<String, PortOutput>`** — keyed by
-**output port id**, each value a `PortOutput(OutputPort<?> port, List<Object> values)`.
-
-Factories: `success(nodeId, durationMs[, outputs])`,
-`failed(nodeId, durationMs, message[, outputs])`, `skipped(nodeId, reason[, outputs])`,
-plus `withNode(nodeId, durationMs)` for the adapter to re-stamp a wrapped node's result.
-
-Accessors are **typed by port**, not by string key: `<T> T get(OutputPort<T> port)`,
-`<T> List<T> elements(OutputPort<T> port)` for a `MANY` port, and `boolean has(OutputPort<?> port)`.
-`NodeOutputKey` is deleted.
-
-There are no longer "common output keys" — every port id is declared on the node's `OutputPort`
-constants and mirrored by its `NodeDescriptor`. The full per-kind port table is in
-[NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §4.
-
-⚠️ **Outputs now survive a non-success result.** `NodeContextImpl.next()` on the SKIPPED branch and
-`abort()` both carry `outputs()` through, so diagnostics are no longer thrown away by a skip.
-
-### 4.4 `PipelineResult`
-
-`pipelineName`, `media`, `nodeResults: Map<String,NodeResult>`,
-`totalDurationMs`, `dryRun`. `isSuccess()` iff every node is `COMPLETED` or
-`SKIPPED`.
-
-### 4.5 `PipelineExecutor`
-
-```java
-PipelineResult execute(Pipeline, LoomMedia);                    // blocking convenience
-Flowable<PipelineResult> execute(Pipeline, Flowable<LoomMedia>);// reactive
-List<PipelineResult> executeBatch(Pipeline, List<LoomMedia>);   // converts + flushSync()
-int flushSync();
-void shutdown();
-```
-
-### 4.6 `PipelineManager`
-
-`register`, `unregister`, `pipelines()` (priority DESC), `pipeline(name)`,
-`resolve(LoomMedia)`.
-
-⚠️ `DefaultPipelineManager.resolve(LoomMedia)` **ignores its argument entirely**
-and returns the first enabled pipeline by priority — contradicting the
-interface javadoc, which promises "the highest-priority enabled pipeline whose
-filter matches". It has **zero callers** in the repo. Media-based selection is
-expected to happen via filter nodes inside the pipeline; do not add filter logic
-back into `resolve`.
-
-### 4.7 `FilterBranch`
-
-`ANY` (always execute — default for regular deps) · `PASS` (only if upstream
-`filter_passed == true`) · `REJECT` (only if `false`). Branch mismatch produces
-`NodeResult.skipped(...)`.
-
-### 4.8 `MediaContext` / `PartitionedFlowable` — ⚠️ DEAD CODE
-
-`MediaContext` (immutable): `getMedia()`, `getUpstreamResults()`,
-`withResult(id, result)`, `merge(other)`.
-`PartitionedFlowable<T>`: `pass()` / `reject()`.
-
-🔴 **These types, and the whole reactive-operator node API around them, are
-unreachable at runtime.** `ReactivePipelineExecutor` calls **only**
-`PipelineNode.process(…)`. It never calls `apply()`, `isPartitioning()`, or
-`partition()`. The sole implementation of `partition()` is
-`AbstractFilterNode`, whose only caller is itself.
-
-Two parallel execution designs coexist in the codebase — the `Single`-DAG one
-(live) and the `Flowable`-operator one (dead). Filter branching at runtime is
-done by the executor consulting `conditionalDependencies()` and reading
-`filter_passed` from the upstream result map, **not** by stream partitioning.
-Do not add logic to `apply()`/`partition()` expecting it to run.
-
-### 4.9 Events
-
-Two channels on `PipelineEventBus`:
-
-1. **Node completion** — `NodeCompletionEvent(nodeId, LoomMedia, NodeResult, timestamp)`.
-   Full fidelity, internal. `subscribe(nodeId, …)` / `subscribeAll(…)`.
-2. **Tracking** — `PipelineTrackingEvent`, scalar-only, designed for WebSocket
-   forwarding: `(type, pipelineName, nodeId, mediaPath, timestamp, durationMs, message)`.
-   `subscribeTracking(…)`.
-
-`PipelineTrackingEvent.Type`:
-`PIPELINE_STARTED, PIPELINE_COMPLETED, NODE_STARTED, NODE_COMPLETED, NODE_FAILED, NODE_SKIPPED, NODE_BUFFERED, NODE_STATS`
-
-This enum is **name-aligned** with Loom's `PipelineEventType` because
-`LoomControlChannel` maps them via `valueOf(name())`. Adding a value on one
-side without the other breaks the bridge at runtime, not compile time.
-
-⚠️ The event bus is **synchronous** — listeners run on the publisher thread.
-Never block in a listener.
-
-### 4.10 Caching
-
-`NodeCacheProvider`: `get`, `put`, `invalidate`, `clear`, keyed by
-`(nodeId, LoomMedia)`. Cache key is
-`nodeId + ":" + (sha512 != null ? sha512 : absolutePath)` — so a hash node must
-run upstream for content-addressed caching, otherwise it degrades to path-based.
-
-| Impl | Notes |
+| Module | Role |
 |---|---|
-| `NoOpNodeCache.INSTANCE` | Default when `cacheProvider()` returns `null` |
-| `HeapNodeCache` | Caffeine, default maxSize 10 000, TTL 60 min |
-| `XAttrNodeCache` | Linux xattr `loom_cache_{nodeId}`. Line-based `key=value` — **fragile** for values containing `=` or newlines, and **every value comes back as a `String`**. `invalidate` writes `""` instead of removing. `clear()` is a warn-only stub |
-| `SidecarFileNodeCache` | `{basePath}/node-cache/{nodeId}/…/{sha512}.cache`; requires a non-null SHA-512. Reuses `XAttrNodeCache`'s serializer, so it inherits the same type loss. `clear()` unimplemented; no eviction |
-| `LayeredNodeCache` | Chained providers, read-through with back-fill |
+| `cortex/node-runtime` | `NodeTaskRunner`, `SegmentTaskRunner`, `SourceTaskRunner`, `ResultBatcher`, `NodeResultMapper`. This is the entire execution surface |
+| `cortex/core` | `LoomControlChannel`, `PipelineTaskHandler`, `RegistryNodeFactory`, `LoomBulkSyncWriterImpl`, Dagger wiring |
+| `cortex/cli` | `PipelineNodeFactoryModule`, `RegistryNodeRegistrar` — where a kind becomes runnable |
+| `cortex/pipeline-api` | `PipelineNode`, `MediaSourceNode`, `NodeMode`, `PipelineResult`, `FilterBranch`, cache/sync/event SPIs |
+| `cortex/pipeline-core` | `AbstractPipelineNode`, `AbstractFilterNode` + 8 filters, `AssetSourceNode`, `LoomFetchNode`, `CortexNodeAdapter`; test-jar `AbstractNodeChainTest` |
+| `cortex/pipeline-common` | 5 `NodeCacheProvider` impls, `DefaultPipelineEventBus`, `DefaultLoomBulkSyncCollector` |
+| `cortex/nodes/*` | Concrete nodes — see [NODES.md](../pipeline-nodes/NODES.md) |
 
-⚠️ **Cached results do not round-trip their types.** Both persistent caches
-stringify everything, so a cached `filter_passed` comes back as the `String`
-`"true"`, not a `boolean`. Any code doing `getOutput(FILTER_PASSED)` on a cache
-hit gets a `String`. Treat the persistent caches as unsafe for non-String
-outputs until fixed.
-
-⚠️ Nothing wires a cache provider by default. `AbstractPipelineNode.cacheProvider`
-is `null` unless `setCacheProvider` is called, and **no production code calls
-it** — there is no Dagger provider for any `NodeCacheProvider`. Caching is
-currently test-only.
-
-⚠️ `pipeline-common` has **no test directory at all** — zero coverage for every
-cache, the event bus, and the sync collector.
-
-### 4.11 Bulk Sync
-
-`LoomBulkSyncCollector`: `collect(media, nodeId, result)`, `flush(): int`, `pending(): int`.
-
-`DefaultLoomBulkSyncCollector` buffers `SyncEntry` tuples, auto-flushes at
-`batchSize` (default 100), delegates the write to a `BulkSyncWriter`, and
-**re-adds the batch to the buffer on failure** for retry on the next flush.
-
-Only nodes with `syncToLoom() == true` are collected, and only when the node
-reports `COMPLETED`.
+🔴 **Deleted — every one of these is gone; do not reintroduce or reference them:**
+`Pipeline`, `PipelineExecutor`, `ReactivePipelineExecutor`, `DefaultPipeline`,
+`DefaultPipelineManager`, `PipelineManager`, `MediaContext`, `PartitionedFlowable`,
+`LoomPipelineLoader`, `StubPipelineNode`, `NodeOutputKey`, `PipelineSerializer`,
+`PipelineDeserializer`, `PipelineExecutorTest`, `AbstractPipelineNodeTest`.
 
 ---
 
-## 5. `AbstractPipelineNode`
+## 4. The definition format
 
-`cortex/pipeline-core/…/node/AbstractPipelineNode.java`
-
-Constructor: `(String id, String name, NodeMode mode, boolean blocking, int concurrency, boolean syncToLoom, long timeoutMs)`
-
-Internal state: `children` (via `connectTo`), `parentIds` (set by upstream's
-`connectTo`), `conditionalDependencies`.
-
-Setters used by the deserializer / loader when reconstructing a graph:
-`setSource`, `setSyncToLoom`, `setCacheProvider`, `setTimeoutMs`,
-`addDependency`, `setConditionalDependency`.
-
-Subclasses implement:
-
-```java
-NodeResult process(LoomMedia media, Map<String, NodeResult> upstreamResults);
-```
-
-### `AbstractFilterNode`
-
-Template method `evaluate(media, upstreamResults): boolean`; optional
-`rejectReason(…)`. Always emits `{ filter_passed: bool, filter_reason: String }`.
-Overrides `isPartitioning() = true` and `partition(…)` to split a
-`Flowable<MediaContext>` via `share()`.
-
-**8 concrete filters** in `…/node/filter/`: `AssetAttributeFilterNode`,
-`BlacklistFilterNode`, `DateFilterNode`, `DuplicateFilterNode`,
-`MimeTypeFilterNode`, `QualityFilterNode`, `SamplingFilterNode`,
-`ThresholdFilterNode`.
-
-> Older spec revisions listed a `SizeFilterNode`. **It does not exist.**
-
-### Other built-in pipeline-core nodes
-
-- `AssetSourceNode` — emits a single pre-configured `LoomMedia` once per run
-  (`AtomicBoolean` guard). Outputs `{ path, source: "asset" }`.
-- `LoomFetchNode` (id `loom-fetch`) — non-blocking, pluggable
-  `LoomMetadataFetcher`; skips silently in offline mode.
-- `CortexNodeAdapter` — the legacy bridge, see §7.
-
----
-
-## 6. `ReactivePipelineExecutor`
-
-`cortex/pipeline-core/…/executor/ReactivePipelineExecutor.java`
-
-```java
-new ReactivePipelineExecutor(int maxConcurrentMedia);
-new ReactivePipelineExecutor(int maxConcurrentMedia, PipelineEventBus eventBus);
-new ReactivePipelineExecutor(int maxConcurrentMedia, PipelineEventBus eventBus,
-                             LoomBulkSyncCollector syncCollector);
-```
-
-Wired in `CortexBindModule` as
-`new ReactivePipelineExecutor(options.getMaxConcurrentMedia(), eventBus, collector)`
-— `CortexOptions.maxConcurrentMedia` defaults to **4**.
-
-### 6.1 Execution model
-
-1. `execute(Pipeline, Flowable<LoomMedia>)` composes
-   `flatMap(media -> executeSingle(…).toFlowable().subscribeOn(Schedulers.io()), maxConcurrentMedia)`.
-2. `executeSingle` builds a per-media DAG of `Single<NodeResult>` in topological
-   order. Each node's `Single` is `.cache()`d so multiple downstream subscribers
-   reuse one execution.
-3. Multi-parent dependencies gather via `Single.zip(depSingles, …)`.
-4. Before executing, each node:
-   - skips if any **blocking** dependency has `state == FAILED`
-     (`"Dependency <id> failed"`);
-   - skips if a conditional dependency's `filter_passed` disagrees with the
-     required `FilterBranch`.
-5. Execution (in `Single.fromCallable`):
-   - emit `NODE_BUFFERED` if the per-node semaphore has 0 permits;
-   - acquire semaphore → emit `NODE_STARTED`;
-   - check cache → return cached result if present;
-   - if `pipeline.isDryRun()` → `NodeResult.skipped(id, "dry-run")`;
-   - call `node.process(media, upstream)`, bounded by `timeoutMs()` when > 0;
-   - on `COMPLETED`: `cache.put(…)`, and `syncCollector.collect(…)` if
-     `syncToLoom()`;
-   - release semaphore.
-6. `.doOnSuccess` publishes `NodeCompletionEvent`, updates counters, and emits
-   the matching tracking event.
-7. `.onErrorReturn` converts exceptions to `NodeResult.failed(…)` + `NODE_FAILED`.
-8. `Single.zip` combines everything into `PipelineResult`.
-
-A periodic **500 ms tick** on a dedicated single daemon thread
-(`"pipeline-stats-emitter"`, a plain `ScheduledExecutorService`, not RxJava)
-emits `NODE_STATS` per node while a run is active.
-
-### 6.2 Concurrency — read this carefully
-
-| Level | Mechanism | Configured by |
-|---|---|---|
-| Media | `flatMap(fn, maxConcurrentMedia)` | `CortexOptions.maxConcurrentMedia` (default 4) |
-| Per-node | `Semaphore(node.concurrency())` | `PipelineNode.concurrency()` |
-| Node mode | `NodeMode.PARALLEL` / `SEQUENTIAL` | `PipelineNode.mode()` |
-| Blocking | downstream waits | `PipelineNode.isBlocking()` |
-
-Everything runs on `Schedulers.io()` — both the per-media subscription and each
-node's `Single`.
-
-⚠️ **Per-node throttling is not reactive.** It is a blocking
-`semaphore.acquire()` inside the callable. A saturated node therefore **parks
-`Schedulers.io()` threads** rather than exerting backpressure. The only real
-backpressure control is the `flatMap` concurrency argument.
-
-⚠️ **Semaphores are executor-scoped**, lazily created and shared across all
-pipelines run on that executor instance, never reset between `execute()` calls.
-Create a fresh executor if you need isolation.
-
-⚠️ **The timeout is applied outside the semaphore-holding callable**
-(`.compose(s -> s.timeout(timeoutMs, MILLISECONDS))`). A timed-out node keeps
-its permit until the blocking body actually returns — so a hung node still
-starves its peers.
-
-### 6.3 Special cases and known lifecycle defects
-
-- Disabled pipeline → empty `PipelineResult` (`nodeResults = Map.of()`) per
-  media item, no node touched.
-- `PIPELINE_STARTED` before subscribing to the source; `PIPELINE_COMPLETED` via
-  `.doOnComplete(…)` on the outer `Flowable`.
-- `shutdown()` calls `eventBus.clear()`; RxJava schedulers are shared and not
-  released.
-
-🔴 **`ReactivePipelineExecutor` instances are effectively single-use.**
-`statsScheduler.scheduleAtFixedRate(…)` is called on *every* `execute(…)`, and
-`statsScheduler.shutdown()` runs on the first `doOnComplete`. A **second
-`execute()` on the same instance throws `RejectedExecutionException`.** Since
-Dagger provides the executor as a singleton, this is a live production hazard.
-
-⚠️ `node.initialize()` is called once per `execute()` call, but
-`node.shutdown()` is **never called anywhere** — not by the executor, and
-`CortexNodeAdapter` does not override it either. Nodes holding native resources
-leak.
-
-⚠️ Other precision losses to be aware of:
-- `onErrorReturn` produces `NodeResult.failed(id, **0**, msg)` — the failed
-  node's actual duration is discarded.
-- Timeout classification is a **string check** (`message.contains("timeout")`)
-  plus an `instanceof TimeoutException`.
-- `NODE_STATS.pending` is **hardcoded to 0** (queue depth is not observable).
-- `NodeState.PENDING` and `RUNNING` are declared but **never assigned** by any
-  code path.
-
-### 6.4 Skip semantics (non-obvious)
-
-- A **blocking** parent in state `FAILED` skips the child. A parent in state
-  `SKIPPED` does **not**.
-- Filter-branch skipping is **not transitive**. A grandchild of a filter has no
-  conditional dependency on that filter, so it runs even when the filter
-  rejected the item — unless it is blocking and a *direct* parent FAILED. Wire
-  a conditional dependency on every node that must respect a branch.
-
----
-
-## 7. Two Node Trees + `CortexNodeAdapter`
-
-**Do not mix them without the adapter. Never make a node extend both bases.**
-
-### 7.1 Pipeline tree
-
-`PipelineNode` → `AbstractPipelineNode` → `AbstractFilterNode` / concrete
-pipeline-core nodes. Returns
-`io.metaloom.cortex.pipeline.api.NodeResult`.
-
-### 7.2 Legacy Cortex tree
-
-`io.metaloom.cortex.api.node.*` + `cortex/common/…/node/`:
-
-- `CortexNode<I, O>` → `AbstractCortexNode` (holds `LoomClient` — may be null in
-  offline mode, `CortexOptions`, node options) → `AbstractFilesystemNode` →
-  `AbstractMediaNode`.
-
-`AbstractMediaNode.process(NodeContext<LoomMedia>)` lifecycle:
-1. `options().isEnabled()` → else `ctx.skipped("Disabled").next()`
-2. `media.exists()` → else `ctx.failure(…).abort()`
-3. `isProcessable(ctx)` → else `ctx.skipped("unprocessable").next()`
-4. fetch `AssetResponse` from Loom (skipped offline)
-5. `compute(ctx, asset)` — write via `ctx.output(key, value)`, return
-   `ctx.origin(COMPUTED).next()`
-
-Outputs use typed **ports** (`OutputPort.one("hash", "hash/md5", String.class)`); downstream reads
-via `ctx.input(PORT)` / `ctx.inputs(PORT)`. The engine resolves which upstream `(node, port)` fills
-each input from the wired edges, so a node never names a neighbour. `NodeOutputKey` and
-`ctx.upstreamOutput(nodeId, key)` are deleted — see [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §3, §7.
-
-⚠️ **The per-node sweep to ports is unfinished.** Most classes under `cortex/nodes/` still declare
-`NodeOutputKey` constants and call `ctx.upstreamOutput(...)`, both of which no longer exist. Status
-table: [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §11.
-
-All concrete nodes under `cortex/nodes/` are on this tree. See
-[../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) for the per-node reference.
-
-### 7.3 The adapter
-
-`CortexNodeAdapter` wraps a legacy `FilesystemNode<?,?>` as an
-`AbstractPipelineNode`:
-
-```java
-new CortexNodeAdapter(FilesystemNode<?,?> node, NodeMode mode, boolean blocking, int concurrency, long timeoutMs);
-new CortexNodeAdapter(String id, FilesystemNode<?,?> node, NodeMode mode, boolean blocking, int concurrency, long timeoutMs);
-```
-
-| Aspect | Behaviour |
-|---|---|
-| id / name | Default: `wrappedNode.name()` for both. The `String id` overload overrides the pipeline id while keeping the wrapped node's `name()` as display name |
-| `isSource()` | `true` iff the wrapped node implements `SourceNode` |
-| Upstream conversion | **None any more.** `process(LoomMedia, NodeInputs)` hands the wrapped node its own **ports** — `NodeInputs(Map<portId, PortPayload>, demandedOutputs, origin)`. The node-id-keyed `Map<String,Map<String,Object>>` view is gone |
-| State / result | Node and pipeline results are the same `NodeResult` type; the adapter stamps its own pipeline id and measured elapsed via `NodeResult.withNode(id, elapsed)`, preserving state, message and outputs |
-| `syncToLoom` | **Not** a constructor arg — hardcoded `false`. Call `setSyncToLoom(true)` after construction |
-| `cacheProvider` | **Not** propagated from the wrapped node — set externally |
-
-**The id-override contract is obsolete.** It existed because `LoomNode` read
-`ctx.upstreamOutput("md5sum", "md5")` while `MD5Node.name()` is `"md5"`, so the MD5 adapter had to be
-built as `new CortexNodeAdapter("md5sum", md5Node, PARALLEL, true, 1, 0)`. Under the port model an
-**edge** says where each input comes from — a node id can no longer affect data delivery at all. The
-`loom` sink that motivated the override has since been deleted outright (see
-[NODES.md](../pipeline-nodes/NODES.md) §2).
-
-The `String id` constructors remain at
-[CortexNodeAdapter.java:38-47](../../../cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/CortexNodeAdapter.java#L38-L47) and `RegistryNodeRegistrar` still calls the override form —
-that is the one legitimate use, giving an adapter a stable pipeline id when several instances of the
-same kind appear in one graph. It can no longer affect what data a node receives.
-
----
-
-## 8. Node Descriptors (UI metadata)
-
-Package `io.metaloom.loom.nodes.spec` in **`loom-shared/node-model`** (the former
-`cortex/nodes/common-api` and per-node `cortex/nodes/*/api/` modules were merged
-there on 2026-07-18).
-
-- `NodeDescriptor` — `kind`, `name`, `description`, `icon`, `category`,
-  **`inputPorts`, `outputPorts`, `inputGroups`, `outputGroups`, `dynamicPorts`**,
-  `parameters`, `defaultConcurrency`, `defaultMode`, `defaultBlocking`, `events`
-- `NodeCategory`, `NodeMode`, `NodeParameter`, `ParameterType`,
-  `PortSpec`, `PortGroup`, `PortGroupMode`, `Cardinality`, `ResolvedPorts`,
-  `ContentType`, `ContentTypeRegistry`, `ContentTypeLattice`, `ValueCoercer`
-  (`NodeInput`, `NodeOutput` and `ContentTypes` are **deleted**)
-- `NodeDescriptorProvider` — SPI returning `List<NodeDescriptor>`, registered in
-  `src/main/resources/META-INF/services/…NodeDescriptorProvider`
-- `NodePortResolver` — second SPI, for kinds whose ports are derived from their options
-  (`script`, `llm`, `vlm`); registered in `…/META-INF/services/…NodePortResolver`
-- `NodeDescriptorRegistry` — LinkedHashMap-backed, populated at startup; loads **both** SPIs and
-  exposes `resolvePorts(kind, options)`. Feeds the UI palette/parameter editor **and** server-side
-  port validation
-
-Marker sub-interfaces `FilterDescriptorProvider` / `SourceDescriptorProvider`
-let the UI categorise providers.
-
-> The port model — the `family/subtype` content-type vocabulary, the assignability lattice,
-> cardinality, XOR/EXCLUSIVE groups, dynamic ports and every kind's declared ports — is specified in
-> [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §2-§4.
-
-⚠️ **Do not confuse** `io.metaloom.loom.nodes.spec.NodeMode` (UI descriptor)
-with `io.metaloom.cortex.pipeline.api.NodeMode` (runtime). Same name, distinct
-types.
-
-⚠️ **25 providers declaring 39 kinds** (was 21/35 before the port refactor; `tts` and `imagegen`
-gained descriptors and are no longer invisible in the palette). All advertise a `NODE_STATS` event
-and a `retryFailed` parameter. `NODE_STATS` is emitted generically by the executor, not per node, and
-**`retryFailed` is never read by anything**.
-
-⚠️ **A descriptor is not a registration.** Adding ports to a descriptor makes a kind visible in the
-palette; running it still needs `@Binds @IntoMap @StringKey("<kind>")` or a `factory.register(...)`.
-The two sets still differ — `hash-dedup` (bound as `sha512-dedup`), `facedescription`, the eight
-`filter-*` kinds and `loom-fetch` have descriptors but no runtime producer. Enumerated in
-[../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §12.
-
-⚠️ **`resolvePorts` is not served over REST.** `NodeDescriptorEndpoint` exposes the *static*
-descriptor only; there is no endpoint taking `kind` + `options`, so the editor mirrors the three
-resolvers in TypeScript instead ([NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §10).
-
----
-
-## 9. Pipeline JSON — two incompatible schemas
-
-🔴 **There are two independent definition formats and two independent parsers.**
-They do not agree. This is the root cause of the top defect in §1.
-
-| | Cortex serde (`pipeline-core/…/serde/`) | Loom (DB + REST + UI) |
-|---|---|---|
-| Parser | `PipelineDeserializer` (Jackson) | `LoomPipelineLoader` (Vert.x `JsonObject`) |
-| Graph edges | `nodes[].dependencies[]` | top-level **`edges[]`** array |
-| Branches | `nodes[].conditionalDependencies` | *not expressible* |
-| Used by | round-trip tests only | the actual runtime path |
-
-### 9.1 Cortex serde format
-
-`PipelineSerializer` (`@Singleton`, `@Inject ObjectMapper`) → `ObjectNode` /
-JSON string. `PipelineDeserializer` reads it back.
-
-```json
-{
-  "name": "video-analysis",
-  "description": "…",
-  "priority": 100,
-  "enabled": true,
-  "dryRun": false,
-  "sourceNode": "filesystem",
-  "nodes": [
-    {
-      "id": "sha512",
-      "name": "SHA-512 Hash",
-      "type": "source|filter|processor",
-      "mode": "PARALLEL|SEQUENTIAL",
-      "blocking": true,
-      "concurrency": 4,
-      "syncToLoom": true,
-      "timeoutMs": 0,
-      "dependencies": ["filesystem"],
-      "conditionalDependencies": { "video-filter": "PASS" },
-      "options": {},
-      "children": ["tika", "fingerprint"]
-    }
-  ],
-  "tree": { "root": "filesystem", "branches": { "filesystem": ["sha512"] } }
-}
-```
-
-`type` is **inferred, not stored**: `isSource()` → `source`; else the class
-hierarchy is walked and string-matched for `getSimpleName().contains("FilterNode")`
-→ `filter`; else `processor`.
-
-On read, `children` and `tree` are **ignored** — the graph is rebuilt purely
-from `dependencies` + `conditionalDependencies`.
-
-Round-trip (`serialize → deserialize → serialize`) yields identical JSON and is
-enforced by `PipelineSerdeRoundTripTest`. Preserved: ids, names, mode, blocking,
-concurrency, syncToLoom, **timeoutMs**, dependencies, conditionalDependencies,
-options. **When you change the JSON shape, add a case to that test.**
-
-⚠️ `PipelineDeserializer.setNodeResolver(…)` stores a `NodeResolver` that is
-**never read**. Every deserialized node is a `DeserializedNode` whose
-`process()` returns success immediately. This class cannot produce an
-executable pipeline — it exists for round-trip fidelity only.
-
-⚠️ `PipelineSerializer`/`PipelineDeserializer` carry `@Singleton`/`@Inject`
-annotations, but `pipeline-core` declares no `javax.inject` dependency and no
-Dagger module provides them. They are constructed manually, in tests only.
-
-### 9.2 Loom format (the one that actually runs)
-
-This is what the UI writes, what `PipelineValidationService` validates, and what
-`DemoDatabaseInitializer` seeds:
+What the UI writes, `PipelineValidationService` validates, `PipelineGraphParser`
+parses, and `DemoDatabaseInitializer` seeds:
 
 ```json
 {
   "version": 1,
+  "resultBatchSize": 1,
+  "reuseResults": false,
   "nodes": [
     { "id": "pn1", "type": "filesystem-source", "name": "File Source", "x": 60,  "y": 160 },
     { "id": "pn2", "type": "filter-mimetype",   "name": "MIME Filter",  "x": 260, "y": 160 },
-    { "id": "pn5", "type": "facedetect",        "name": "Face Detect",  "x": 460, "y": 60  },
-    { "id": "pn6", "type": "facedescription",   "name": "Describe",     "x": 660, "y": 60  }
+    { "id": "pn5", "type": "facedetect",  "blocking": true, "syncToLoom": true,
+      "affinity": "video", "options": { "minScore": 0.6 } },
+    { "id": "pn6", "type": "facedescription" }
   ],
   "edges": [
-    { "id": "pe1", "source": "pn1", "sourcePort": "media",
-      "target": "pn2", "targetPort": "media" },
-    { "id": "pe4", "source": "pn2", "sourcePort": "passed",
-      "target": "pn5", "targetPort": "image",  "branch": "PASS" },
-    { "id": "pe5", "source": "pn5", "sourcePort": "detections",
-      "target": "pn6", "targetPort": "detections" }
+    { "id": "pe1", "source": "pn1", "sourcePort": "media",      "target": "pn2", "targetPort": "media" },
+    { "id": "pe4", "source": "pn2", "sourcePort": "passed",     "target": "pn5", "targetPort": "image",
+      "branch": "PASS" },
+    { "id": "pe5", "source": "pn5", "sourcePort": "detections", "target": "pn6", "targetPort": "detections" }
   ]
 }
 ```
 
-Note the shape: node **`id`** is a synthetic graph id (`pn1`), and **`type`**
-carries the node kind that `RegistryNodeFactory` keys on.
+- Node `id` is a synthetic graph id (`pn1`); **`type`** is the node kind
+  `RegistryNodeFactory` keys on (`kind` is accepted as an alias).
+- Node fields: `source` (default: descriptor category is `SOURCE`), `blocking`
+  (**default `true`** — failing open would hide errors), `syncToLoom` (default
+  `false`), `affinity`, `options`.
+- `options` is the documented shape; **`config` is a legacy alias** the editor used
+  to write, still read so old definitions keep loading
+  ([`readOptions`](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L255-L269)).
+  When both are present `options` wins.
+- `x`/`y` are editor-only and ignored.
+- `resultBatchSize` (default `1`) and `reuseResults` (default `false`) are
+  pipeline-wide.
 
-#### Format version
+### 4.1 Edges are port-to-port
 
-`version` is a top-level integer naming the format the definition is written in.
-`PipelineGraphParser.CURRENT_DEFINITION_VERSION` is the version this Loom writes and the
-highest it reads.
+🔴 **`sourcePort` and `targetPort` are required on every edge.** The parser throws
+`GraphValidationException` without them
+([:297-303](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L297-L303)).
 
-- **Absent means 1.** Every definition stored before the field existed is a version 1
-  definition; rejecting them would strand pipelines that run correctly.
-- **Newer is refused by name**, not half-read — a definition from a newer Loom may use
-  fields whose absence here would parse into a valid but *different* graph. The error names
-  both the version found and the version supported.
-- **Malformed is refused**: non-integer, fractional, or below 1.
-- **Stamped on write.** `PipelineGraphParser.stampVersion` runs on the REST create and update
-  paths and in `DemoDatabaseInitializer`, so the untagged set only shrinks. An existing
-  `version` is left alone: re-stamping would silently relabel a definition that an older Loom
-  round-tripped.
+🔴 **`nodes[].dependencies[]` is rejected outright**
+([:190-197](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L190-L197)).
+There is no inline fallback and no `applyInlineDependencies` method. A connection
+that cannot name its ports cannot be type-checked, so accepting it would mean a
+definition that saves clean and starves every node at run time. *A definition with no
+`edges` at all is still legal — a single-node pipeline is legitimate.*
 
-Bump the version when a change cannot be understood by an older reader — a renamed or removed
-field, or a changed meaning for an existing one. Purely additive optional fields do not need a
-bump; `syncToLoom`, `affinity`, `options` and the filter `branch` were all added that way, and
-an older reader that ignores them still executes the graph as drawn.
+- `branch` — optional, `ANY | PASS | REJECT`
+  ([:305-314](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L305-L314)).
+  **The key is `branch`**; `edgeType` is not read server-side.
+- Dedupe key is the **full port 4-tuple** `(source, sourcePort, target, targetPort)`
+  ([:319](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L319)).
+  Keying on the node pair alone silently dropped one of two edges between the same
+  nodes on different ports.
+- Each edge produces an
+  [`InputBinding(targetPort, sourceNodeId, sourcePort, branch)`](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L322)
+  on the **consumer**. Scheduling `dependencies` are derived: one per distinct
+  `(source, target)` pair, however many ports it feeds
+  ([:326-328](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L326-L328)).
+- `demandedOutputs` is the inverse index: which output ports have at least one
+  outgoing edge. Shipped to the worker so a node can skip a branch nobody asked for.
 
-🔴 **Edges are port-to-port. `sourcePort` and `targetPort` are required on every edge** and
-`PipelineGraphParser` throws `GraphValidationException` without them
-([PipelineGraphParser.java:210-216](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L210-L216)). There is no positional fallback and no legacy alias —
-the refactor deliberately broke stored definitions rather than carrying two shapes.
+### 4.2 Format version
 
-- `branch` is optional, `ANY | PASS | REJECT`, and is only legal on an edge leaving a `FILTER`-category
-  node. **The key is `branch`** — the editor's `edgeType` is not read by anything server-side.
-- Duplicate edges are deduped on the **full port 4-tuple** `(source, sourcePort, target, targetPort)`
-  ([:232](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L232)), so two edges between the same node pair on different ports are
-  now distinguishable. Keying on the node pair alone silently dropped one of them.
-- `dependencies` are **derived**: each distinct `(source, target)` pair contributes one scheduling
-  dependency, however many ports it feeds.
-- `x`/`y` are editor-only and ignored by the parser.
+`version` is a top-level integer.
+[`CURRENT_DEFINITION_VERSION = 1`](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L68)
+is what this Loom writes and the highest it reads.
 
-`PipelineGraphParser` is the single parser for this format (Variant C); the old
-`LoomPipelineLoader`, which read `dependencies[]` and never looked at `edges`, no longer exists.
+| Case | Behaviour ([`readVersion`](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L95-L116)) |
+|---|---|
+| Absent | Treated as **1**. Definitions stored before the field existed run correctly; rejecting them would strand them |
+| Non-integer / fractional / `< 1` | `GraphValidationException` |
+| `> CURRENT` | Refused **by name**, not half-read — a newer writer may use fields whose absence parses into a valid but *different* graph |
 
-⚠️ **The inline fallback survives.** When a definition carries **no `edges` array**, the parser falls
-back to `nodes[].dependencies[]` / `conditionalDependencies`
-([:252-289](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L252-L289)) and produces **no `InputBinding`s at all** — such a graph passes port
-validation vacuously and every node receives empty inputs. `PipelineValidationService` has the same
-hole. Removing this fallback was planned and has not been done.
+[`stampVersion`](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L128-L133)
+runs on REST create/update and in `DemoDatabaseInitializer`, so the untagged set only
+shrinks. An existing `version` is left alone — re-stamping would relabel a definition
+an older Loom round-tripped.
 
-There is **no checked-in pipeline definition JSON resource** anywhere in the
-repo to serve as a reference fixture. The six pipelines seeded by
-`DemoDatabaseInitializer` are the de-facto reference — all of them now port-wired, and its
-"Full Processing" pipeline is the sequence demo: `facedetect` emits one element per detected face and
-`facedescription` declares a **sequence input**, so it gathers the whole set for an image and runs
-once. Nothing in the definition says so; it follows from the two ports' cardinalities. (It previously
-used three kinds that never existed — `resize`, `face-detect`, `s3-output` — because nothing
-validated kinds; the parser now rejects an unknown kind outright.)
+**Bump the version** when a change cannot be understood by an older reader (renamed
+field, removed field, changed meaning). Purely additive optional fields do not need
+one — `syncToLoom`, `affinity`, `options`, `branch`, `resultBatchSize` and
+`reuseResults` were all added that way.
+
+### 4.3 Reference definitions
+
+There is **no checked-in definition JSON fixture**. The six pipelines seeded by
+`DemoDatabaseInitializer` are the de-facto reference, all port-wired; its
+`"Full Processing"` pipeline is the fan-out/gather demo (`facedetect` emits one
+element per face, `facedescription` declares a sequence input and runs once).
+Nothing in the JSON says so — it follows from the two ports' cardinalities.
 
 ---
 
-## 10. Loom Persistence
+## 5. Parsing and validation (`loom/pipeline/graph`)
 
-### 10.1 Schema
+`parse(name, definition, enabled, dryRun, priority)` in three passes: read nodes →
+resolve edges into `dependencies` + `conditional` + `bindings` + `demanded` → build
+`PipelineGraphNode`s. Then `resolveSourceNode`, then
+[`PortGraphAnalyzer.analyze`](../../../loom/pipeline/src/main/java/io/metaloom/loom/pipeline/graph/PipelineGraphParser.java#L246)
+over the topological order.
 
-Migrations, applied in order:
+| Class | What it enforces |
+|---|---|
+| `PipelineGraphParser` | Node ids present + unique; kind present and **known to the registry**; edges reference existing nodes; ports present; edge dedupe; exactly one source |
+| `PortGraphAnalyzer` | Port existence, assignability, required-input satisfaction, XOR/EXCLUSIVE groups, multi-edge only into `MANY`, and `SINGLE`/`PER_ELEMENT` classification + `fanOutDriver`. See [NODE_DATA_TYPES.md §6.3](NODE_DATA_TYPES.md) |
+| `AffinityValidator` | Produces `AffinityWarning`s for affinity groups that cannot help |
+| `PipelineSegmenter` | Splits the graph into maximal **connected** same-affinity segments. The source node is never in one (the engine synthesises its result). A grouping that would create a segment-level cycle is split rather than accepted |
+
+**Source resolution** is deliberately strict: one node with `source: true` wins;
+several is an error; none falls back to the single dependency-free node, and *more
+than one* candidate is an error. Silently picking the first root is exactly how the
+previous loader turned a broken graph into a plausible one-node run.
+
+⚠️ **`new PipelineGraphParser()` disables port checking.** The no-arg constructor
+passes a null registry; `PortGraphAnalyzer.analyze` then returns immediately and
+every node stays `SINGLE`. Convenient in tests, dangerous in production —
+`PipelineRunRecovery` currently uses it.
+
+### 5.1 Validation lives in three places
+
+| Copy | Location | Notes |
+|---|---|---|
+| `PipelineValidationService` | `loom/services/rest/…/validation/` | **The wired one.** Own structural checks (ids, edge refs, Kahn's cycle detection, reachable-from-source, branch-originates-from-filter) and **delegates all port rules to `PipelineGraphParser`** |
+| `PipelineModelValidator` | `loom-shared/rest-model/…/validation/` | Untested, unwired, own copy of Kahn's |
+| `validatePipeline()` | `loom-ui/…/PipelineEditor.tsx:2255` | Own TS implementation, plus live `isValidConnection` port checks while drawing |
+
+**Structural** rules are duplicated three ways and will drift. **Port** rules are
+not — do not add a second copy of those.
+
+---
+
+## 6. The run engine (`loom/pipeline/engine`)
+
+`PipelineRunEngine` owns one run. It is `synchronized` throughout: a single monitor
+over item state, in-flight accounting and dispatch is what makes out-of-order results
+and reclaims safe to reason about.
+
+### 6.1 Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant SVC as PipelineEndpointService
+    participant ENG as PipelineRunEngine
+    participant WS as ProcessorEndpoint
+    participant W as Cortex worker
+
+    SVC->>SVC: parse + analyze graph (400 on failure)
+    SVC->>SVC: unsupportedNodeKinds() (503 on failure)
+    SVC->>SVC: create pipeline_run (RUNNING)
+    SVC->>ENG: new + setAssetSink + onCompletion + start()
+    SVC->>W: SOURCE_TASK (202)
+    loop per batch
+        W->>ENG: SOURCE_ITEMS
+        ENG->>W: SOURCE_ITEMS_ACK (withheld while paused / at capacity)
+    end
+    W->>ENG: SOURCE_COMPLETE
+    loop until drained
+        ENG->>W: NODE_TASK / SEGMENT_TASK
+        W->>ENG: NODE_TASK_RESULT(_BATCH) / SEGMENT_TASK_RESULT
+    end
+    ENG->>SVC: onCompletion(RunSummary) → PipelineRunTracker.complete
+```
+
+### 6.2 Key behaviours
+
+| Concern | How |
+|---|---|
+| Dispatch choke point | `advance(ItemState)` — every path (first dispatch, retry, circuit un-park, capacity release) goes through it, so a single early-return gates them all |
+| Fan-out / gather | `ExecutionMode.PER_ELEMENT` nodes are dispatched once per element with `elementSeq`; the gather barrier is `NodeExecState.isSettled()`, not an author-placed merge node ([NODE_DATA_TYPES.md §8](NODE_DATA_TYPES.md)) |
+| Input assembly | `buildInputs(state, node, seq)` reads the node's `InputBinding`s; nothing is keyed by node id on the wire |
+| Backpressure | `maxInFlight` (default `DEFAULT_MAX_IN_FLIGHT = 256`) plus per-kind bulkheads via `setMaxInFlightForKind`. `whenCapacityAvailable(...)` is how `ProcessorEndpoint` withholds `SOURCE_ITEMS_ACK`, which throttles the **source scan itself** |
+| Retry | `RetryScheduler` + exponential backoff from `DEFAULT_RETRY_BASE_DELAY_MS = 1000` capped at `MAX_RETRY_DELAY_MS = 60000` |
+| Circuit breaking | `NodeKindCircuitBreaker`, **shared across runs** — a kind broken by a missing model file is broken for everyone |
+| Loss / return | `onNodeTaskLost(...)` (lease reclaim) and `onNodeTaskReturned(...)` (worker refused/shed) both unwind the in-flight marker and re-queue |
+| Result reuse | `reuseResults` adopts a previous result as **`COMPLETED` carrying its outputs**, never as a skip — a skip carries nothing and downstream would lose the value |
+| Source port | `SOURCE_MEDIA_PORT` is the literal `"media"`. A source output port named anything else validates at save time and delivers nothing |
+
+### 6.3 `syncToLoom`
+
+`PipelineRunEngine.syncToLoom(state, result)` hands outputs to the injected
+`AssetSink` **only** when the node's result is `COMPLETED`, its outputs are non-empty
+*and* the graph node has `syncToLoom: true`. `DaoAssetSink` writes them onto the
+asset. Failures are logged, never propagated — losing the write is bad, failing the
+run that produced the data is worse.
+
+⚠️ **The Cortex-side `LoomBulkSyncCollector` path is dormant.** It is still wired in
+`CortexBindModule` and flushed at shutdown by `CortexImpl`, but **nothing calls
+`collect(...)`** in main code. Asset write-back happens on the Loom side now.
+
+### 6.4 Pause / resume / cancel
+
+`PipelineRunEngine.pause()` / `unpause()` (named to avoid a clash with
+`resume(boolean)`, which is post-restart recovery). Three gates:
+
+1. `advance(ItemState)` returns early;
+2. `releaseCapacityWaiters()` holds waiters while paused;
+3. `whenCapacityAvailable(...)` parks a waiter **even when capacity is free**.
+
+Gates 2 and 3 are what make a pause real rather than cosmetic — they stop the source
+scan, not just node dispatch. It bites once the in-flight batch drains, so a pause
+takes effect within one source batch.
+
+A paused run whose last outstanding work settles **still completes**: `checkComplete()`
+clears the flag. Stranding a finished run in `PAUSED` would be worse.
+
+`resumeRun` requires a live engine in `PipelineRunRegistry` and returns **409**
+otherwise — flipping a dead row back to `RUNNING` would create a run nothing advances.
+
+### 6.5 Restart recovery
+
+`PipelineRunRegistry` is **in memory** (a Loom restart loses the live engines).
+`PipelineRunRecovery` rebuilds them: it loads `RUNNING` **and `PAUSED`** runs,
+re-parses the definition, replays settled `pipeline_node_task` rows via
+`restoreItem(...)`, and re-applies `engine.pause()` **before** `engine.resume(...)` so
+a restart does not silently un-pause a run by dispatching everything that was ready.
+
+### 6.6 Run completion
+
+1. Engine drains → `onCompletion(RunSummary)` → `PipelineRunTracker.complete(...)`.
+2. Independently, a worker may send `PIPELINE_RUN_COMPLETED`; `ProcessorEndpoint`
+   routes that to the same tracker.
+3. `PipelineRunStatusResolver` derives status: no failures → `SUCCESS`;
+   `failures >= media` → `FAILED`; otherwise `PARTIAL`. Counters are clamped and
+   inconsistent reports fail closed to `FAILED`.
+
+⚠️ **First terminal verdict wins.** The tracker refuses to touch a run already in
+`SUCCESS`/`FAILED`/`PARTIAL`/`CANCELLED`. Both paths funnel through it for exactly
+this reason — never write run status from anywhere else.
+
+`pause`/`resume` go through a private `transition(...)` that changes **only** the
+status, deliberately bypassing `apply(...)` (which stamps `finished` and zeroes all
+four counters — right for a verdict, destructive for a suspension).
+
+⚠️ Use `PipelineRunDao.update()`, **not** `store()`, to modify an existing run.
+`AbstractJooqDao.store()` is INSERT-only and violates the primary key.
+
+---
+
+## 7. The Cortex runtime (`cortex/node-runtime`)
+
+Five classes; that is the whole thing.
+
+| Class | Contract |
+|---|---|
+| `NodeTaskRunner` | One `NodeTask` → one `NodeTaskResult`. Knows nothing about dependencies, ordering, filters or run state. A node that throws — including a `ValueCoercionException` on emit — becomes a `FAILED` result rather than propagating |
+| `SegmentTaskRunner` | Same work with N > 1, one round trip instead of N. Merges each node's outputs **by port id** into the pool the next node reads. Skips a node whose dependency `FAILED` **only if that node is blocking**, matching the engine exactly. Every node is accounted for — a skip is reported, never omitted |
+| `SourceTaskRunner` | Runs a source and streams `MediaRef` batches. **Acks are the backpressure**: send batch → wait for ack (`DEFAULT_ACK_TIMEOUT_MS = 60_000`) → send next. Always terminates with exactly one `sendComplete`. ⚠️ `run(...)` **blocks** — never call it on a Vert.x event loop |
+| `ResultBatcher` | Groups results per run. Size comes from the definition's `resultBatchSize`; `batchSize <= 1` sends immediately. `DEFAULT_MAX_HOLD_MS = 500`, and `PipelineTaskHandler` calls `flushExpired()` every **250 ms** (`BATCH_FLUSH_INTERVAL_MS`). The timer is not an optimisation — without it a run's tail never reaches the size threshold and the run never closes |
+| `NodeResultMapper` | The single type boundary. Coerces every emitted value against its port's declared content type, stamps each element with an `Origin`, and maps state |
+
+### 7.1 State mapping — one enum each side, mapped explicitly
+
+There is **one** Cortex terminal state, `io.metaloom.cortex.api.node.ResultState`
+`{SKIPPED, FAILED, SUCCESS}`, and **one** wire state,
+`io.metaloom.loom.pipeline.model.NodeState` `{PENDING, RUNNING, COMPLETED, FAILED,
+SKIPPED}`. They are deliberately separate — the internal one may grow implementation
+concerns, the wire one is a contract both sides compile against.
+
+`NodeResultMapper.toWireState`:
+
+| `ResultState` | `NodeState` |
+|---|---|
+| `SUCCESS` | `COMPLETED` |
+| `SKIPPED` | `SKIPPED` |
+| `FAILED` | `FAILED` |
+| `null` | `FAILED` (fail closed) |
+
+`PENDING`/`RUNNING` exist on the wire enum for engine-side bookkeeping; a terminal
+result never produces them.
+
+### 7.2 Making a kind runnable
+
+`RegistryNodeRegistrar.registerAll()` populates `RegistryNodeFactory`:
+
+- `filesystem-source` and `asset-source` — always;
+- `s3-source` — **only when `S3Support.isActive()`**. Advertising it unconditionally
+  would let Loom dispatch a source task the worker cannot serve, surfacing as a dead
+  run rather than a missing capability;
+- every kind in the `Map<String, Provider<FilesystemNode>>` `@IntoMap @StringKey`
+  multibinding, wrapped in a `CortexNodeAdapter`. The `Provider` keeps a node
+  uninstantiated until a task of its kind arrives, so booting a worker never
+  constructs native detectors and model processors.
+
+**30 multibinding entries + `filesystem-source` + `asset-source` (+ `s3-source` when
+S3 is configured) = 33 runnable kinds with S3, 32 without.**
+
+🔴 **`RegistryNodeFactory.createNode()` returns `null` for an unknown kind.** There is
+no stub fallback (`StubPipelineNode` is deleted). `NodeTaskRunner` then NPEs on
+`node.process(...)`, catches it, and the **task fails** — loudly, which is the point.
+Its javadoc still says "falling back to a stub"; that comment is stale.
+
+⚠️ `CortexBootstrapInitializer` holds a `@SuppressWarnings("unused") NodeFactory`
+field purely to force Dagger eager instantiation, because
+`PipelineNodeFactoryModule.provideNodeFactory` performs the registrar side effect
+inside a provider method. Deliberate, but fragile: removing that field silently
+disables all real nodes.
+
+### 7.3 The in-process node API — what is still live
+
+`cortex/pipeline-api` + `pipeline-core` survive because a **node** is still a
+`PipelineNode` with `process(LoomMedia, NodeInputs)`. Everything about *composing*
+them is vestigial:
+
+| Member | Status |
+|---|---|
+| `process(LoomMedia, NodeInputs)` | **Live** — the only method the runners call |
+| `id/name/mode/isBlocking/concurrency/syncToLoom/timeoutMs/options` | Live as metadata |
+| `connectTo` / `children` / `dependencies` / `conditionalDependencies` | **Vestigial** — only `AbstractPipelineNode` calls them. Loom owns the graph |
+| `cacheProvider()` / all five `NodeCacheProvider` impls | **Not consulted by any runtime path.** `cortex/pipeline-common` has *no test directory*. Only `FacedetectNode` references a cache impl directly |
+| `initialize()` / `shutdown()` | Never called by the runners |
+| `PipelineEventBus`, `PipelineResult` | Wired in Dagger and used by the test harness; no runner publishes to the bus |
+| `DefaultLoomBulkSyncCollector` | Wired and flushed at shutdown, but nothing calls `collect(...)` — see §6.3 |
+| `apply()` / `isPartitioning()` / `partition()` / `MediaContext` | **Deleted.** Do not reintroduce a reactive-operator node API |
+
+`CortexNodeAdapter` wraps a legacy `FilesystemNode<?,?>` as a `PipelineNode`. It hands
+the wrapped node its own **ports** (`NodeInputs`), re-stamps id + measured elapsed via
+`NodeResult.withNode(...)`, and preserves state, message and outputs. `syncToLoom` and
+`cacheProvider` are **not** constructor args — set them after construction.
+
+> The `String id` overload is *not* about data delivery any more. Under the port model
+> an edge says where each input comes from, so a node id cannot affect what a node
+> receives. `RegistryNodeRegistrar` uses it only to give an adapter a stable pipeline
+> id when several instances of one kind appear in a graph.
+
+---
+
+## 8. Node descriptors
+
+Package `io.metaloom.loom.nodes.spec` in **`loom-shared/node-model`**. The port model
+itself — `PortSpec`, `PortGroup`, `Cardinality`, `ContentTypeRegistry`,
+`ContentTypeLattice`, `ValueCoercer`, `NodePortResolver`, per-kind port tables — is
+specified in [NODE_DATA_TYPES.md §2-§4](NODE_DATA_TYPES.md). Not repeated here.
+
+**Counts, recounted from code at this HEAD:**
+
+| | Count |
+|---|---|
+| `NodeDescriptorProvider` implementations (`META-INF/services`) | **26** |
+| Kinds declared (`setKind(...)`) | **41** |
+| `NodePortResolver` implementations | **3** (`script`, `llm`, `vlm`) |
+| Runnable kinds | **33** with S3, **32** without (§7.2) |
+
+⚠️ **A descriptor is not a registration.** Ten descriptor kinds have no runtime
+producer: `facedescription`, `loom-fetch`, and the eight `filter-*` kinds. Two
+runnable kinds have no descriptor: `asset-source` and `sha512-dedup` (`hash-dedup` has
+the descriptor). Enumerated in [NODES.md §12](../pipeline-nodes/NODES.md).
+
+⚠️ Every descriptor advertises a `NODE_STATS` event and a `retryFailed` parameter.
+`NODE_STATS` is emitted by `RunStatsAggregator`, not per node; **`retryFailed` is
+never read by anything**.
+
+⚠️ **`resolvePorts` is not served over REST.** `NodeDescriptorEndpoint` exposes the
+*static* descriptor only, so the editor mirrors the three resolvers in TypeScript
+([NODE_DATA_TYPES.md §10](NODE_DATA_TYPES.md)).
+
+⚠️ **Do not confuse** `io.metaloom.loom.nodes.spec.NodeMode` (UI descriptor) with
+`io.metaloom.cortex.pipeline.api.NodeMode` (runtime). Same name, distinct types.
+
+---
+
+## 9. Persistence
+
+### 9.1 Migrations
 
 | Migration | Effect |
 |---|---|
-| `V2.19__add_pipeline.sql` | `pipeline` table + `CREATE/READ/UPDATE/DELETE_PIPELINE` permissions |
-| `V2.29__add_pipeline_run.sql` | `pipeline_run` table + `*_PIPELINE_RUN` permissions |
-| `V2.30__add_pipeline_version.sql` | `pipeline_version` table + `CREATE/READ/RESTORE_PIPELINE_VERSION` permissions; **restructures `pipeline`** |
-| `V2.31__add_pipeline_execution_state.sql` | `pipeline_run_item` + `pipeline_node_task` (incl. the `outputs` JSONB column) |
-| `V2.56__pipeline_run_paused_status.sql` | Adds `PAUSED` to the documented `pipeline_run.status` vocabulary (a SQL comment) |
-| **`V2.60__pipeline_node_task_element_seq.sql`** | Adds `pipeline_node_task.element_seq INTEGER NOT NULL DEFAULT 0` and changes the idempotency key to `UNIQUE (item_uuid, node_id, element_seq)` |
+| `V2.19__add_pipeline.sql` | `pipeline` table + `*_PIPELINE` permissions |
+| `V2.29__add_pipeline_run.sql` | `pipeline_run` + `*_PIPELINE_RUN` permissions; documents the status vocabulary as a SQL comment |
+| `V2.30__add_pipeline_version.sql` | `pipeline_version` + `CREATE/READ/RESTORE_PIPELINE_VERSION`; **restructures `pipeline`** |
+| `V2.31__add_pipeline_execution_state.sql` | `pipeline_run_item` + `pipeline_node_task` (incl. `outputs` JSONB) |
+| `V2.32__add_pipeline_run_item_path_index.sql` | Index for per-run item lookup by path |
+| `V2.56__pipeline_run_paused_status.sql` | Adds `PAUSED` to the documented status vocabulary |
+| `V2.60__pipeline_node_task_element_seq.sql` | `element_seq INTEGER NOT NULL DEFAULT 0`; idempotency key becomes `UNIQUE (item_uuid, node_id, element_seq)` |
 
-**`V2.60` is the fan-out migration.** A node downstream of a `MANY` output runs once per element, so
-"one node execution per item" stopped being true and the table's unique key had to grow a third
-column. Existing rows are already correct under the new key (`element_seq = 0`), so **no backfill is
-needed**. It also rewrites the `outputs` column comment: the value is now keyed by output **port
-id**, each a `PortPayload` carrying content type, cardinality and origin-tagged elements
-([NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §7).
+**`V2.60` is the fan-out migration.** "One node execution per item" stopped being true
+once a node downstream of a `MANY` output runs per element. Existing rows are already
+correct under the new key (`element_seq = 0`), so **no backfill is needed**. It also
+rewrites the `outputs` column comment: the value is keyed by output **port id**, each
+a `PortPayload` ([NODE_DATA_TYPES.md §7](NODE_DATA_TYPES.md)).
 
-🔴 **`pipeline_run_item` is deliberately unchanged.** The fan-out happens *inside* one item because
-**the item is the origin** — that is what lets a later node gather the branches back together per
-source asset with no lineage columns, no child items and no second completion model.
+🔴 **`pipeline_run_item` is deliberately unchanged.** The fan-out happens *inside* one
+item because **the item is the origin** — that is what lets a later node gather the
+branches back together per source asset with no lineage columns, no child items and no
+second completion model.
 
-⚠️ **jOOQ has not been regenerated for `V2.60`.** `PipelineNodeTask` has no `getElementSeq()`, which
-is why `PipelineRunRecovery` does not compile. Run `loom/db/jooq/generate.sh` and then
-`./setup-pool.sh`.
-
-**`V2.30` is the important one.** It adds `pipeline.latest_version_uuid`,
-backfills every existing pipeline as version 1, then **drops `name`,
-`description`, `definition`, `enabled`, `priority`, `dry_run` from `pipeline`**.
-
-Post-migration shape:
+**`V2.30` is the disruptive one.** It adds `pipeline.latest_version_uuid`, backfills
+every pipeline as version 1, then **drops `name`, `description`, `definition`,
+`enabled`, `priority`, `dry_run` from `pipeline`**.
 
 ```
 pipeline          (uuid, meta, created, creator_uuid, edited, editor_uuid,
@@ -805,715 +546,440 @@ pipeline_version  (uuid, pipeline_uuid → pipeline, version_number,
 pipeline_run      (uuid, pipeline_uuid → pipeline ON DELETE CASCADE,
                    pipeline_version INT, started, finished, status VARCHAR,
                    media_count, success_count, failure_count, skipped_count,
-                   dry_run, error_message, duration_ms, meta,
-                   created, creator_uuid, edited, editor_uuid)
+                   dry_run, error_message, duration_ms, meta, created, …)
 ```
 
-`pipeline_run.status` vocabulary — `PENDING, RUNNING, PAUSED, SUCCESS, FAILED,
-PARTIAL, CANCELLED` — exists **only as a SQL comment** (`V2.29__add_pipeline_run.sql`,
-amended by `V2.56__pipeline_run_paused_status.sql`). There is no enum anywhere; the
-column, the DAO model, and `PipelineRunRecord` all use free-form `String`.
+`pipeline_run.status` — `PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL,
+CANCELLED` — exists **only as a SQL comment**. There is no enum; the column, the DAO
+model and `PipelineRunRecord` all use free-form `String`.
 
-`PAUSED` is **non-terminal**: a paused run still holds a live engine and can be
-resumed or cancelled. It is deliberately absent from
+`PAUSED` is **non-terminal** and is deliberately absent from
 `PipelineRunStatusResolver.isTerminal`.
 
-### 10.1a Retention of run state — decided, not yet enforced
+### 9.2 Retention — decided, not enforced
 
-A run over 100 000 items across a 10 node graph writes 100 000 `pipeline_run_item` rows and
-around a million `pipeline_node_task` rows. That is not a worst case, it is a normal large
-run, and nothing deletes any of it today. The policy below is the decision; **the sweep that
-enforces it is not built yet** — see the open item in
+A run over 100 000 items across a 10 node graph writes 100 000 `pipeline_run_item`
+rows and ~1 M `pipeline_node_task` rows. Nothing deletes any of it today; the sweep is
+an open item in
 [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../cortex/METALOOM_ARCHITECTURE_TASK.md) §10.
 
 | State | Kept | Why |
 |---|---|---|
-| Run not terminal (`PENDING`, `RUNNING`, `PAUSED`) | Everything, indefinitely | Placement, leases, reclaim and resume all read these rows. A run in flight is not a retention subject at any age |
-| Terminal run, non-failed detail | **7 days** after `finished` | Long enough to answer "what did last night's run actually do?" on Monday; short enough that a week of large runs does not become the biggest thing in the database |
-| Terminal run, `FAILED` / `DEAD_LETTER` items and tasks | **30 days** after `finished` | These are the rows anyone actually opens. They are also a small fraction of a healthy run, so the longer window costs little |
-| `pipeline_run` row | **Forever** | It already carries `media_count`, `success_count`, `failure_count`, `skipped_count` and `duration_ms` |
+| Non-terminal run (`PENDING`/`RUNNING`/`PAUSED`) | Everything, indefinitely | Placement, leases, reclaim and resume all read these rows |
+| Terminal, non-failed detail | **7 days** after `finished` | Enough to answer "what did last night's run do?" on Monday |
+| Terminal, `FAILED`/`DEAD_LETTER` detail | **30 days** | The rows anyone actually opens, and a small fraction of a healthy run |
+| `pipeline_run` row | **Forever** | It already carries all four counters and `duration_ms` |
 
-**The granularity afterwards is the run row.** Once detail is swept, a finished run still
-reports how many items it processed, how many failed, and how long it took — it just can no
-longer name which file. That is the deliberate trade: per-run history is permanent and cheap,
-per-item history is expensive and expires.
+**The granularity afterwards is the run row** — a swept run still reports how many
+items, how many failed and how long; it just cannot name which file. Constraints the
+sweep must respect: batch deletes with a `LIMIT` and loop; `pipeline_run_item` cascades
+to `pipeline_node_task`, but the failure window means tasks outlive their item, so an
+item with retained tasks must not be deleted; **do not touch `asset_node_result`** —
+it is per *asset*, catalog state, outliving every run
+([../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md)).
 
-Constraints the eventual sweep must respect:
+### 9.3 DAOs and versioning
 
-- **Batch it.** Delete with a `LIMIT` per statement and loop, so a run of a million tasks
-  never becomes one long-held lock.
-- **`pipeline_run_item` cascades to `pipeline_node_task`** via the run FK
-  (`V2.31__add_pipeline_execution_state.sql`), so deleting items is enough — but the failure
-  window means tasks outlive their item, and an item whose tasks are still retained must not
-  be deleted with it.
-- **Do not touch `asset_node_result`.** It looks similar and is the opposite kind of thing:
-  per *asset*, catalog state, outliving every run
-  ([../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md) §2).
-
-### 10.2 DAOs
-
-`io.metaloom.loom.db.model.pipeline`: `Pipeline`/`PipelineDao`,
-`PipelineVersion`/`PipelineVersionDao`, `PipelineRun`/`PipelineRunDao`. All
-three exposed on `DaoCollection`. jOOQ impls in
+`io.metaloom.loom.db.model.pipeline`: `Pipeline`, `PipelineVersion`, `PipelineRun`,
+`PipelineRunItem`, `PipelineNodeTask` + DAOs, all on `DaoCollection`; jOOQ impls in
 `loom/db/jooq/…/dao/pipeline/`.
 
-⚠️ **`PipelineDaoImpl.loadWithLatestVersion` does not load the version.** It is
-a plain `selectFrom(PIPELINE).where(uuid)`. Every caller then separately calls
-`pipelineVersionDao.loadLatestByPipeline(…)`. The name lies.
+`PipelineEndpointService` semantics:
 
-⚠️ **`PipelineDaoImpl.createPipeline(UUID userUuid, String name)` ignores
-`name`** — correct post-refactor (name lives on the version) but the parameter
-is dead weight on the interface.
+- **create** — writes `pipeline` + version 1, points `latestVersionUuid` at it.
+- **update** — **never mutates a version.** Creates `latest.versionNumber + 1`,
+  copying unset fields forward, and repoints the pointer.
+- **restore** — copy-forward: creates a *new* version from the old content, **201**.
+- **list** — batches latest-version resolution via `loadByUuids` to avoid N+1.
+- **delete** — deletes versions in a loop before the pipeline, even though the FK is
+  already `ON DELETE CASCADE`.
 
-### 10.3 Versioning semantics (`PipelineEndpointService`)
+⚠️ `PipelineDaoImpl.loadWithLatestVersion` **does not load the version** — it is a
+plain `selectFrom(PIPELINE)`. Every caller then calls
+`pipelineVersionDao.loadLatestByPipeline(...)` separately. The name lies.
 
-- **create** — writes `pipeline` + version 1, then points
-  `latestVersionUuid` at it.
-- **update** — never mutates a version. Computes
-  `nextVersion = latest.versionNumber + 1`, creates a new `pipeline_version`
-  copying unset fields forward from the latest, repoints the pointer.
-- **restore** — copy-forward: creates a *new* version from the old content,
-  responds **201**.
-- **list** — batches latest-version resolution via
-  `pipelineVersionDao.loadByUuids` to avoid N+1.
-- **delete** — deletes versions in a loop before the pipeline, even though the
-  FK is already `ON DELETE CASCADE`.
-
-`PipelineModelBuilder` folds `Pipeline` + `PipelineVersion` into the single
-flat `PipelineResponse`; creator/editor status comes from the **version**.
+⚠️ `PipelineDaoImpl.createPipeline(UUID, String name)` **ignores `name`** — correct
+post-refactor, but the parameter is dead weight on the interface.
 
 ---
 
-## 11. Loom REST API
+## 10. REST API
 
-`PipelineEndpoint`, base path `/api/v1/pipelines`:
+`PipelineEndpoint`, base `/api/v1/pipelines`. Full REST conventions:
+[../../loom/RESTAPI.md](../../loom/RESTAPI.md).
 
-| Method | Path | Request | Response | Permission |
-|---|---|---|---|---|
-| POST | `/api/v1/pipelines` | `PipelineCreateRequest` | `PipelineResponse` | `CREATE_PIPELINE` |
-| GET | `/api/v1/pipelines` | – | `PipelineListResponse` | `READ_PIPELINE` |
-| GET | `/api/v1/pipelines/:uuid` | – | `PipelineResponse` | `READ_PIPELINE` |
-| POST | `/api/v1/pipelines/:uuid` | `PipelineUpdateRequest` | `PipelineResponse` | `UPDATE_PIPELINE` |
-| DELETE | `/api/v1/pipelines/:uuid` | – | `GenericMessageResponse` | `DELETE_PIPELINE` |
-| POST | `/api/v1/pipelines/:uuid/run` | `PipelineRunRequest` | `PipelineRunResponse` (202 / 503) | `READ_PIPELINE` |
-| GET | `/api/v1/pipelines/:uuid/runs` | – | `PipelineRunListResponse` | `READ_PIPELINE` |
-| POST | `/api/v1/pipelines/:uuid/runs/:runUuid/cancel` | – | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
-| POST | `/api/v1/pipelines/:uuid/runs/:runUuid/pause` | – | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
-| POST | `/api/v1/pipelines/:uuid/runs/:runUuid/resume` | – | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
-| GET | `/api/v1/pipelines/:uuid/versions` | – | `PipelineVersionListResponse` | `READ_PIPELINE_VERSION` |
-| GET | `/api/v1/pipelines/:uuid/versions/:version` | – | `PipelineResponse` | `READ_PIPELINE_VERSION` |
-| POST | `/api/v1/pipelines/:uuid/versions/:version/restore` | `PipelineVersionRestoreRequest` | `PipelineResponse` (201) | `RESTORE_PIPELINE_VERSION` |
+| Method | Path | Response | Permission |
+|---|---|---|---|
+| POST | `/` | `PipelineResponse` | `CREATE_PIPELINE` |
+| GET | `/` | `PipelineListResponse` | `READ_PIPELINE` |
+| GET | `/:uuid` | `PipelineResponse` | `READ_PIPELINE` |
+| POST | `/:uuid` | `PipelineResponse` | `UPDATE_PIPELINE` |
+| DELETE | `/:uuid` | `GenericMessageResponse` | `DELETE_PIPELINE` |
+| POST | `/:uuid/run` | `PipelineRunResponse` (202 / 400 / 503) | `READ_PIPELINE` |
+| GET | `/:uuid/runs` | `PipelineRunListResponse` | `READ_PIPELINE` |
+| GET | `/runs/stats` | `PipelineRunStatsResponse` | `READ_PIPELINE_RUN` |
+| GET | `/:uuid/runs/:runUuid` | `PipelineRunRecord` | `READ_PIPELINE_RUN` |
+| GET | `/:uuid/runs/:runUuid/items` | `PipelineRunItemListResponse` | `READ_PIPELINE_RUN` |
+| POST | `/:uuid/runs/:runUuid/cancel` | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
+| POST | `/:uuid/runs/:runUuid/pause` | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
+| POST | `/:uuid/runs/:runUuid/resume` | `GenericMessageResponse` (409 if no live engine) | `UPDATE_PIPELINE_RUN` |
+| GET | `/:uuid/versions` | `PipelineVersionListResponse` | `READ_PIPELINE_VERSION` |
+| GET | `/:uuid/versions/:version` | `PipelineResponse` | `READ_PIPELINE_VERSION` |
+| POST | `/:uuid/versions/:version/restore` | `PipelineResponse` (201) | `RESTORE_PIPELINE_VERSION` |
 
-Notes:
 - Loom uses **POST for both create and update** (not PUT/PATCH).
-- Secured paths are enumerated **individually** rather than by wildcard,
-  specifically so `/api/v1/pipelines/events/ws` escapes the auth chain. If you
-  add an endpoint, add it to that list or it will be unauthenticated.
+- `/runs/stats` is a **literal prefix registered before the `:uuid` wildcard** — order
+  matters; adding a literal route after it will be shadowed.
 - `POST /run` is gated on `READ_PIPELINE`, deliberately — running is not editing.
-- There is **no `POST /api/v1/pipelines/validate`** endpoint.
+- Secured paths are enumerated **individually**, specifically so
+  `/api/v1/pipelines/events/ws` escapes the auth chain. **A new endpoint is
+  unauthenticated until you add it to that list.**
+- There is **no `POST /validate`** endpoint.
 
-### 11.1 DTOs (`loom-shared/rest-model/…/pipeline/`)
+### 10.1 Dispatch (`dispatchRun`)
 
-`PipelineModel<T>` is the flattened pipeline+version view:
-`versionUuid`, `versionNumber`, `name`, `description`, `definition`, `enabled`,
-`dryRun`, `priority`.
+1. Load latest version; resolve `dryRun` (request overrides the version).
+2. `graphParser.parse(...)` — `GraphValidationException` ⇒ `dispatched=false`, **400**,
+   **no `pipeline_run` row**, `metrics.recordRunRejected("invalid_graph")`.
+3. `unsupportedNodeKinds(graph, processorRegistry)` — **every** kind in the graph, not
+   just the source, must have an online CPU-capable worker whose whitelist/blacklist
+   accepts it. Otherwise **503** naming the kinds, and **no row**. (A run whose
+   downstream `whisper` node nobody accepts would otherwise start green and stall.)
+4. Create `pipeline_run` with status `"RUNNING"`.
+5. Build the engine: `DaoRunStateStore`, `DaoAssetSink`, `onCompletion → tracker`,
+   `RunStatsAggregator` on a `STATS_INTERVAL_MS = 1000` Vert.x timer, shared circuit
+   breaker, Vert.x-timer retry scheduler. Register in `PipelineRunRegistry`, `start()`.
+6. Send `SOURCE_TASK` — **202**. If the socket is already gone: unregister and
+   `pipelineRunTracker.fail(...)`, **503**.
 
-`PipelineResponse`, `PipelineCreateRequest`, `PipelineUpdateRequest` (all
-optional), `PipelineRunRequest` (`mediaUuids`, `path`, `pathGlobs`, `dryRun`),
-`PipelineRunResponse` (`runUuid`, `processorNodeId`, `dispatched`,
-`message`), `PipelineRunRecord` (⚠️ `started`/`finished` are **ISO-8601
-Strings**, `status` is a String), `PipelineVersionRestoreRequest`, and the three
-list responses.
+There is **no ack watchdog**: an unavailable processor is caught synchronously.
 
-### 11.2 Validation
+**Run-request selection** (`SourceOptionsResolver`, unit-tested free of DB and
+transport): precedence **`mediaUuids` > `pathGlobs` > `path`**. `path` applies only
+when no globs were given — the two mean different things to a source node
+(`pathGlobs` forces a full re-walk; a bare `path` runs the differential scan against
+the persisted per-root index). A single resolved asset clears inherited `pathGlobs`,
+so running a pipeline for one asset does not re-scan the whole library.
+⚠️ Paths are resolved on the **worker**, so a path the chosen processor cannot see
+yields an empty run rather than an error.
 
-Rules (all copies): non-empty `nodes`; node `id` matches
-`^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`; unique ids; non-blank `type`; edge
-`source`/`target` present and referencing existing nodes; no cycles (Kahn's).
-Errors → `ValidationException`.
+`runForAsset(...)` is the asset-created auto-trigger; it calls `dispatchRun` directly
+with no routing context.
 
-⚠️ **This logic exists in three independent copies:**
+### 10.2 DTOs (`loom-shared/rest-model/…/pipeline/`)
 
-| Copy | Location | Extra |
-|---|---|---|
-| `PipelineModelValidator` | `loom-shared/rest-model/…/validation/` | — (untested) |
-| `PipelineValidationService` | `loom/services/rest/…/validation/` | node-type lookup against `NodeDescriptorRegistry` |
-| `validatePipeline()` | `loom-ui/src/features/pipeline/PipelineEditor.tsx` | own Kahn's implementation |
+`PipelineModel<T>` is the flattened pipeline+version view (`versionUuid`,
+`versionNumber`, `name`, `description`, `definition`, `enabled`, `dryRun`,
+`priority`); `PipelineModelBuilder` folds `Pipeline` + `PipelineVersion` into it, and
+creator/editor status comes from the **version**.
 
-Only the middle one is wired (via `RESTModule`, called from create and update)
-and only it is tested (`PipelineValidationServiceTest`, 24 cases). The three
-will drift.
+⚠️ `PipelineRunRecord.started`/`finished` are **ISO-8601 Strings** and `status` is a
+`String`.
 
 ---
 
-## 12. Loom ↔ Cortex Protocol
+## 11. Loom ↔ Cortex protocol
 
-### 12.1 Processor WebSocket
-
-`GET /api/v1/processors/ws` — not on the normal handler chain; token arrives as
-`?token=<jwt>` and is validated post-upgrade by `WebSocketAuthenticator`.
-Strict mode (reject when no token) is opt-in via env `LOOM_WS_STRICT_AUTH=true`.
-
-Envelope: `ProcessorMessage { ProcessorMessageType type; JsonObject body }`.
+Framing, auth, reconnect and the per-message reference live in
+[../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md); worker registration, placement and
+leases in [../../cortex/METALOOM_ARCHITECTURE.md](../../cortex/METALOOM_ARCHITECTURE.md).
+Only the pipeline-specific parts are here.
 
 `ProcessorMessageType`: `REGISTER, HEARTBEAT, STATUS_UPDATE, STATE_CHANGE,
 PIPELINE_EVENT, PIPELINE_RUN_COMPLETED, SOURCE_ITEMS, SOURCE_COMPLETE,
-NODE_TASK_RESULT, REGISTERED, HEARTBEAT_ACK, SOURCE_TASK, SOURCE_ITEMS_ACK,
-NODE_TASK, SEGMENT_TASK, SEGMENT_TASK_RESULT, NODE_TASK_RESULT_BATCH, ERROR`
-
-Cortex side (`LoomControlChannel`): opens the WS, sends
-`REGISTER(ProcessorRegistration)`, then periodic `HEARTBEAT` (10 s) and
-`STATUS_UPDATE` (20 s); subscribes to the local bus via
-`subscribeTracking(this::forwardPipelineTrackingEvent)` and forwards every
-tracking event as `PIPELINE_EVENT`; sends `PIPELINE_RUN_COMPLETED` on
-`PIPELINE_COMPLETED`.
-
-`ProcessorRegistration` carries the worker's node-kind restriction as
-`nodeWhitelist` (kinds it will run) and `nodeBlacklist` (kinds it refuses).
-On `REGISTER`, `ProcessorRegistry` persists the worker as a durable
-`cortex_instance` row and reconciles this announced restriction against an
-administrator-managed override stored there. See the
-[Node Restriction & Cortex-Instance Persistence](../pipeline-nodes/NODES.md#11-node-restriction--cortex-instance-persistence)
-section in NODES.md for the field rename, the schema, and the
-startup-config-vs-DB-override precedence.
-
-### 12.2 Pipeline events WebSocket
-
-`GET /api/v1/pipelines/events/ws` — registered with `.order(-1000)` so the
-upgrade beats the wildcard auth routes. Read-only from the client. Optional
-`?pipeline=<name>` filter. Invalid token → close code `4401`.
-
-`PipelineEventBroadcaster` (`@Singleton`) keeps a
-`ConcurrentHashMap<ServerWebSocket, Subscriber>`, encodes JSON lazily only when
-a subscriber matches, removes closed sockets inline, and **drops messages when
-`ws.writeQueueFull()`**, counting drops and logging every 100th.
-
-⚠️ `Subscriber` takes a `queueCapacity` constructor arg that is never stored;
-`DEFAULT_QUEUE_CAPACITY = 1024` is dead. Backpressure is purely
-`writeQueueFull()`.
-
-`PipelineEventMessage` fields: `type, pipelineName, nodeId, mediaPath,
-timestamp, durationMs, message, activeCount, pendingCount, processedCount,
-failedCount`.
-
-### 12.3 Pipeline run flow (SOURCE_TASK + engine)
-
-1. `POST /:uuid/run` → `PipelineEndpointService.run` → `dispatchRun`. (The asset
-   auto-trigger calls `dispatchRun` directly, without a routing context.)
-2. `graphParser.parse(...)` turns the latest version's `definition` into an
-   executable `PipelineGraph`. A definition that cannot run as drawn is an error
-   the caller sees now: `GraphValidationException` → `dispatched=false`,
-   HTTP **400**, and **no `pipeline_run` row**.
-3. `processorRegistry.selectProcessorForKinds(ProcessorCapability.CPU,
-   [sourceKind])` — the highest-priority `ONLINE` processor whose node-kind
-   restriction accepts the pipeline's **source-node kind**. ⚠️ Capability is
-   still **hardcoded to `CPU`**; the kind list comes from the parsed graph.
-4. No such processor → `PipelineRunResponse{dispatched=false}`, HTTP **503**, and
-   **no `pipeline_run` row is created**. (This synchronous 503 replaces the old
-   ack watchdog — there is no timeout mechanism anymore.)
-5. Otherwise a `pipeline_run` row is created with status `"RUNNING"` and the
-   response carries the real `runUuid`.
-6. A `PipelineRunEngine` is built over the graph with a `DaoRunStateStore` (run
-   state is persisted to Postgres, so a run is not lost with the process that
-   started it), an asset sink for `syncToLoom` outputs, completion / node-settled
-   hooks, and a shared circuit breaker + retry scheduler. It is registered in
-   `pipelineRunRegistry` and `start()`ed.
-7. The pipeline's **source node** is handed to the chosen worker as a
-   `SOURCE_TASK` (`SourceTaskMessage{ runUuid, nodeId, nodeKind, options }`) via
-   `processorRegistry.send(...)`. HTTP **202**. If the socket is already gone,
-   the run is failed immediately via `pipelineRunTracker.fail(...)` (HTTP 503).
-
-**Streaming, once the source task lands:**
-
-- The worker (cortex `PipelineTaskHandler`) runs the source node and streams
-  discovered items back as `SOURCE_ITEMS` batches, each acked by the engine with
-  `SOURCE_ITEMS_ACK`, ending with `SOURCE_COMPLETE`.
-- For each item the engine (loom-side) owns the DAG and dispatches **individual
-  `NODE_TASK` messages** via `WebSocketNodeDispatcher`. The worker runs each node
-  (`NodeTaskRunner`) and replies with `NODE_TASK_RESULT` /
-  `NODE_TASK_RESULT_BATCH`. Affinity segments go out as `SEGMENT_TASK` and come
-  back as `SEGMENT_TASK_RESULT`.
-- Cortex only ever sees one node (or segment) at a time; the engine decides what
-  runs next.
+NODE_TASK_RESULT, TASK_RETURNED, REGISTERED, HEARTBEAT_ACK, SOURCE_TASK,
+SOURCE_ITEMS_ACK, NODE_TASK, SEGMENT_TASK, SEGMENT_TASK_RESULT,
+NODE_TASK_RESULT_BATCH, ERROR`
 
 **What a `NODE_TASK` carries** (`NodeTask`, `loom-shared/pipeline-model`):
 
 | Field | Meaning |
 |---|---|
-| `taskUuid`, `runUuid`, `itemId`, `nodeId`, `nodeKind` | Identity, unchanged |
-| `media : MediaRef` | The item, ambient — still how the legacy `process(LoomMedia, …)` lifecycle gets a resolvable handle. Now also carries `mediaType` |
-| **`inputs : Map<String, PortPayload>`** | Keyed by **the receiving node's own input port ids**, not by upstream node id. Built by `PipelineRunEngine.buildInputs(state, node, seq)` from the wired `InputBinding`s |
-| **`elementSeq : int`** | Which element of a fanned-out sequence this dispatch covers; `0` for a node that runs once per item. Echoed back on `NodeTaskResult` so the engine can route the result to the right slot |
-| **`demandedOutputs : Set<String>`** | Which of this node's output ports have at least one outgoing edge. Read as `ctx.isDemanded(PORT)` so a node can skip an expensive branch nobody asked for. Emitting an undemanded port stays legal — it is still persisted, which keeps diagnostics useful |
-| `options`, `resultBatchSize` | Unchanged |
+| `taskUuid`, `runUuid`, `itemId`, `nodeId`, `nodeKind` | Identity |
+| `media : MediaRef` | The item, ambient — a locator, never bytes. Carries `mediaType`, size and known sha512 |
+| `inputs : Map<String, PortPayload>` | Keyed by **the receiving node's own input port ids**. Built by `PipelineRunEngine.buildInputs(state, node, seq)` from the wired `InputBinding`s |
+| `elementSeq : int` | Which element of a fanned-out sequence; `0` for a once-per-item node. Echoed back so the engine routes the result to the right slot |
+| `demandedOutputs : Set<String>` | Output ports with at least one outgoing edge. Read as `ctx.isDemanded(PORT)`. Emitting an undemanded port stays legal — it is still persisted, which keeps diagnostics useful |
+| `options`, `resultBatchSize` | Per-instance node options; batch size for `ResultBatcher` |
 
-`NODE_TASK_RESULT` carries `outputs : Map<String, PortPayload>` keyed by **output port id**, plus the
-same `elementSeq`. `SEGMENT_TASK` was migrated in step: `getUpstreamOutputs()` → `getInputs()`.
+`NODE_TASK_RESULT` carries `outputs : Map<String, PortPayload>` keyed by output port id
+plus the same `elementSeq`. `SEGMENT_TASK` carries `getInputs()` and a list of
+`SegmentNode`s.
 
-**Nodes never see a node id again.** The envelope, the coercion rules and the fan-out semantics are
-specified in [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §7-§8.
+⚠️ **`SegmentNode` carries no input bindings**, so a segment-internal edge is matched
+by **port id alone**: a node reading `text` picks up whatever earlier node in the
+segment emitted a port called `text`. Engine-level dispatch has the real bindings and
+does not rely on this — until the segment wire model carries them, do not group nodes
+whose port ids collide with a different meaning.
 
-### 12.3.1 Run completion
+**Nodes never see a node id.** Envelope, coercion rules and fan-out semantics:
+[NODE_DATA_TYPES.md §7-§8](NODE_DATA_TYPES.md).
 
-Runs close out through `PipelineRunTracker` (this tracker path is **unchanged**
-and still valid).
+### 11.1 UI event socket
 
-1. When the DAG drains, the engine's `onCompletion` hook calls
-   `pipelineRunTracker.complete(runUuid, durationMs, mediaCount, success,
-   failure, skipped)`.
-2. Independently, the worker sends `PIPELINE_RUN_COMPLETED`;
-   `ProcessorEndpoint.handlePipelineRunCompleted` parses it and also routes to
-   `PipelineRunTracker.complete(…)`.
-3. The tracker derives the status via `PipelineRunStatusResolver` and writes
-   `status`, `finished`, `duration_ms` and all four counters.
+`GET /api/v1/pipelines/events/ws` — registered `.order(-1000)` so the upgrade beats the
+wildcard auth routes. Read-only; optional `?pipeline=` / `?run=` filters; invalid token
+closes with `4401`.
 
-If the `SOURCE_TASK` cannot be delivered (dead socket), `dispatchRun` fails the
-run at once via `pipelineRunTracker.fail(...)`. There is **no 60 s ack
-watchdog** — an unavailable processor is caught synchronously at dispatch: a
-`503` when `selectProcessorForKinds` returns null, or an immediate `fail(...)`
-when the send does not reach the worker.
+`PipelineEventBroadcaster` keeps a `ConcurrentHashMap<ServerWebSocket, Subscriber>`,
+encodes JSON lazily only when a subscriber matches, removes closed sockets inline, and
+**drops messages when `ws.writeQueueFull()`**, counting drops and logging every 100th.
 
-**Status mapping** (`PipelineRunStatusResolver`, unit-tested in isolation):
-no failures → `SUCCESS`; `failures >= media` → `FAILED`; otherwise → `PARTIAL`.
-Counters are clamped and inconsistent reports fail closed to `FAILED`.
+⚠️ `Subscriber`'s `queueCapacity` constructor arg is never stored;
+`DEFAULT_QUEUE_CAPACITY = 1024` is dead. Backpressure is purely `writeQueueFull()`.
 
-⚠️ **First terminal verdict wins.** `PipelineRunTracker` refuses to touch a run
-already in `SUCCESS`/`FAILED`/`PARTIAL`/`CANCELLED`, so a late `PIPELINE_RUN_COMPLETED`
-cannot overwrite the verdict the engine's `onCompletion` already wrote (or vice
-versa). Both paths funnel through the tracker for exactly this reason — do not
-write run status from anywhere else.
-
-**Pause / resume.** `PipelineRunTracker.pause`/`resume` move a run between
-`RUNNING` and `PAUSED` through a private `transition(...)` that changes **only**
-the status. They deliberately bypass `apply(...)`, which stamps `finished` and
-zeroes all four counters — right for a terminal verdict, destructive for a
-suspension.
-
-The engine side is `PipelineRunEngine.pause()`/`unpause()` (named to avoid a
-clash with `resume(boolean)`, which is post-restart recovery). Three gates:
-
-1. `advance(ItemState)` returns early — the single choke point for all dispatch,
-   so retries and circuit un-parking are covered too.
-2. `releaseCapacityWaiters()` holds waiters while paused.
-3. `whenCapacityAvailable(...)` parks a waiter **even when capacity is free**.
-
-Gates 2 and 3 are what make a pause real rather than cosmetic:
-`ProcessorEndpoint` withholds `SOURCE_ITEMS_ACK` through `whenCapacityAvailable`,
-so holding the waiter stops the **source scan itself**, not just node dispatch.
-It bites once the batch already in flight drains, so a pause takes effect within
-one source batch rather than instantly.
-
-A paused run whose last outstanding work settles **still completes** — pause
-suppresses dispatch, not completion, and stranding a finished run in `PAUSED`
-would be worse. `checkComplete()` clears the flag in that case.
-
-`resumeRun` requires a live engine in `PipelineRunRegistry` and returns 409
-otherwise: flipping a dead row back to `RUNNING` would create a run nothing
-advances. `PipelineRunRecovery` loads `PAUSED` alongside `RUNNING` and re-applies
-`engine.pause()` **before** `engine.resume(...)`, so a restart does not silently
-un-pause a run by dispatching everything that was ready.
-
-⚠️ **Use `PipelineRunDao.update()`, not `store()`,** to modify an existing run.
-`AbstractJooqDao.store()` is INSERT-only and will violate the primary key.
-
-⚠️ An untracked execution (offline Cortex, CLI batch) reports completion with a
-`null` run id. That is normal — the message is ignored for persistence rather
-than treated as an error.
-
-`mediaUuids`, `path` and `pathGlobs` on the run request all feed
-`sourceOptions(...)` — see `SourceOptionsResolver`, which holds the merging logic
-free of DB and transport concerns so the precedence can be unit-tested.
-
-**Precedence, most specific first: `mediaUuids` > `pathGlobs` > `path`.**
-`path` is applied only when no globs were supplied, because the two mean
-different things to the source node: `pathGlobs` forces a full re-walk, whereas a
-bare `path` runs the differential scan against the persisted per-root index.
-A single resolved asset clears any inherited `pathGlobs` (and several clear
-`path`), so running a pipeline for one asset does not re-scan the library its
-definition points at.
-
-`pathGlobs` is passed through as-is, while `mediaUuids` are
-resolved to their stored binary paths (a single asset as `path`/`assetUuid`,
-several as `pathGlobs`). ⚠️ Paths are resolved on the **worker**, so a path the
-chosen processor cannot see yields an empty run rather than an error.
-
-### 12.4 Pipeline loading (Cortex startup)
-
-`LoomPipelineLoader.loadAndRegister()` GETs all pipelines via
-`LoomClient.listPipelines()`, walks each `definition.nodes[]`, and registers the
-result on `PipelineManager`. A pluggable `NodeFactory` (`setNodeFactory(…)`)
-turns each node definition into a real, adapter-wrapped node.
-
-`RegistryNodeFactory` maps a type string → producer, populated by
-`PipelineNodeFactoryModule` and pushed onto the loader by
-`CortexBootstrapInitializer`.
-
-🔴 **See §9.2 — the loader reads `dependencies[]` but Loom writes `edges[]`.**
-This is the highest-priority defect in the feature.
-
-🔴 **Only 6 of 29 descriptor kinds are registered**: `filesystem-source`,
-`sha512`, `sha256`, `md5`, `chunk-hash`, `thumbnail`. Every other type resolves
-to a `StubPipelineNode` that **logs and reports success** — a silent no-op that
-looks like a passing run. The registry's remaining advertised kinds (`whisper`,
-`ocr`, `llm`, `facedetect`, `tika`, all `filter-*`, …) are selectable in the UI
-palette but do nothing.
-
-⚠️ `CortexBootstrapInitializer` holds a `@SuppressWarnings("unused") NodeFactory`
-field purely to force Dagger eager instantiation, because
-`PipelineNodeFactoryModule.provideNodeFactory` performs the
-`pipelineLoader.setNodeFactory(factory)` side effect inside a provider method.
-Deliberate, but fragile — removing that field silently disables all real nodes.
-
-The loader also reads a `filters` object (`mimeTypes`, `pathGlobs`) that it
-**does not use** — filtering moved into filter nodes.
+**Progress is aggregated, not streamed.** `RunStatsAggregator` accumulates per-node
+`completed`/`failed`/`skipped` counters and flushes them on the 1 s timer; only
+**failures** go out immediately, because they are rare, individually actionable, and
+the one thing an operator needs promptly. Forwarding every settle would be millions of
+frames to move a percentage bar.
 
 ---
 
-## 13. Configuration
+## 12. Configuration
+
+### Loom
+
+| Setting | Where | Default |
+|---|---|---|
+| `LOOM_WS_STRICT_AUTH` | env / JVM property, read by `WebSocketAuthenticator` | unset ⇒ lenient (WS upgrade allowed without a token) |
+| `PipelineRunEngine.maxInFlight` | `setMaxInFlight(int)` | `256` (`DEFAULT_MAX_IN_FLIGHT`) |
+| Per-kind bulkhead | `setMaxInFlightForKind(kind, max)` | unbounded |
+| Retry backoff base | `setRetryBaseDelayMs(long)` | `1000`, capped at `MAX_RETRY_DELAY_MS = 60000` |
+| Stats flush interval | `PipelineEndpointService.STATS_INTERVAL_MS` | `1000` ms |
+| `resultBatchSize`, `reuseResults` | pipeline definition JSON | `1`, `false` |
+| Permissions | `*_PIPELINE`, `*_PIPELINE_RUN`, `*_PIPELINE_VERSION` | — |
+
+⚠️ None of the engine tunables is env-configurable — they are code defaults with
+setters, wired in `PipelineEndpointService`.
 
 ### Cortex
 
 | Setting | Where | Default |
 |---|---|---|
-| `maxConcurrentMedia` | `CortexOptions` → `CortexBindModule.providePipelineExecutor()` | `4` |
-| Node concurrency / mode / blocking / `timeoutMs` | `AbstractPipelineNode` constructor or `CortexNodeAdapter` | per node |
-| `syncToLoom` | `AbstractPipelineNode.setSyncToLoom()` | `false` |
-| Cache provider | `AbstractPipelineNode.setCacheProvider()` | `null` → `NoOpNodeCache` |
-| Pipeline `dryRun`/`enabled`/`priority` | JSON definition from Loom, or the builder | from definition |
-| Control-channel endpoint | `LoomControlChannel.resolveEndpoint()` from `LoomClientOptions` | disabled if unset — pipelines still run locally |
+| Source ack timeout | `SourceTaskRunner.DEFAULT_ACK_TIMEOUT_MS` | `60_000` ms |
+| Result batch hold | `ResultBatcher.DEFAULT_MAX_HOLD_MS` | `500` ms |
+| Result flush tick | `PipelineTaskHandler.BATCH_FLUSH_INTERVAL_MS` | `250` ms |
+| Node concurrency / mode / blocking / `timeoutMs` | definition JSON, else `CortexOptions.getDefaultTimeoutMs(kind)` | `PARALLEL`, blocking `true`, concurrency `1`, timeout `0` |
+| Control-channel endpoint | `LoomControlChannel.resolveEndpoint()` from `LoomClientOptions` | unset ⇒ disabled |
+| S3 (gates `s3-source`) | `CORTEX_S3_*` / `--s3-*`; index dir needs `--s3-index-path` or `--meta-path` | inactive |
 
-Per-node options live on the legacy `*NodeOptions` classes, provided by Dagger
-via each `*NodeModule`, and are validated at config-load time.
+Config precedence: CLI flags → env (`EnvDefaultProvider`, picocli) → YAML
+(`~/.config/metaloom/cortex.yml`) → defaults. Details:
+[../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md).
 
-⚠️ Earlier spec revisions documented env vars `CORTEX_PIPELINE_MAX_CONCURRENT`,
-`CORTEX_PIPELINE_DRY_RUN`, and `LOOM_WS_PATH`. **None of these exist in the
-code.** Cortex config precedence is CLI flags → env (via
-`EnvDefaultProvider`, picocli) → YAML (`~/.config/metaloom/cortex.yml`) →
-defaults.
-
-### Loom
-
-| Setting | Notes |
-|---|---|
-| Permissions | `*_PIPELINE`, `*_PIPELINE_RUN`, `*_PIPELINE_VERSION` |
-| `LOOM_WS_STRICT_AUTH` | env; `true` rejects WS upgrades without a token |
+⚠️ **`CortexOptions.maxConcurrentMedia` (default 4) is dead config** — its only caller
+was the deleted `ReactivePipelineExecutor`. `CORTEX_PIPELINE_MAX_CONCURRENT`,
+`CORTEX_PIPELINE_DRY_RUN` and `LOOM_WS_PATH` never existed.
 
 ---
 
-## 14. Testing
+## 13. Test setup
 
-### 14.1 Fast executor unit tests
+**Prerequisite for anything touching the DB:** the shared `testdatabase-provider`
+container must expose a pool named `loom-dev`. Run `./setup-pool.sh` from the repo
+root first (and again after any Flyway change), or tests fail at
+`ProviderExtension.beforeEach` with `Got error from server {Pool not found
+{loom-dev}}`. That is an environment issue, not a code issue.
 
-`cortex/pipeline-core/src/test/…/PipelineExecutorTest.java` covers multi-node
-DAG ordering, per-node concurrency, cache hit/miss, dry-run, disabled pipeline,
-event bus subscription, `syncToLoom` collection, cycle detection, and
-`PipelineManager` priority resolution.
+### 13.1 Where the coverage is
 
-Test doubles: `TestNode` (sleeps, appends to `executionLog`), `OutputTestNode`,
-`StubLoomMedia` (`ofFile`, `ofBytes`).
-
-### 14.2 Node pipeline tests — use the base class
-
-Extend `cortex/pipeline-core/src/test/…/test/AbstractPipelineNodeTest.java`:
-
-- `execute(media, PipelineNode...)` — builds a linear
-  `AssetSourceNode → n1 → n2 → …` and runs it
-- `executeWithSync(media, collector, PipelineNode...)` — fresh executor with a
-  sync collector, flushes after
-- `adapt(FilesystemNode)` / `adapt(node, mode, blocking, concurrency)`
-- `assertCompletionEvent(nodeId)` / `assertTrackingEvent(nodeId, Type)`
-
-Use `CapturingNode` to assert a downstream node saw a specific upstream output
-instead of hand-rolling an anonymous `AbstractPipelineNode`.
-
-```java
-class MyNodePipelineTest extends AbstractPipelineNodeTest {
-    @TempDir File tempDir;
-
-    @Test
-    void testOutputChaining() {
-        LoomMedia media = StubLoomMedia.ofBytes(tempDir, "data.bin", "payload");
-        CortexNodeAdapter node = adapt(new SHA512Node(null, opts, new HashNodeOptions()));
-        CapturingNode capture = new CapturingNode("consumer", "sha512", "sha512");
-
-        PipelineResult result = execute(media, node, capture);
-
-        assertThat(result).isSuccess().hasCompletedNode("sha512");
-        assertThat(capture.capturedValues()).containsExactly(expectedSha512);
-        assertCompletionEvent("sha512");
-        assertTrackingEvent("sha512", PipelineTrackingEvent.Type.NODE_COMPLETED);
-    }
-}
-```
-
-**Rule**: use the AssertJ helpers (`PipelineResultAssert`,
-`PipelineNodeResultAssert`, `PipelineAssertions`) rather than raw `assertEquals`
-on maps and states — they produce useful failure messages. Legacy-tree asserts
-live in `cortex/core-media/src/test/…/assertj/`.
-
-Canonical examples: `MD5NodePipelineTest`, `SHA512NodePipelineTest`,
-`ChunkHashNodePipelineTest`, `FingerprintNodePipelineTest`,
-`ThumbnailNodePipelineTest`, `LLMNodePipelineTest`, `FacedetectNodePipelineTest`,
-`WhisperNodePipelineTest`.
-
-### 14.3 Loom-side tests
-
-| Test | Covers |
+| Area | Tests |
 |---|---|
-| `PipelineValidationServiceTest` | 24 cases — id regex/length/uniqueness, unknown types, edge refs, cycles |
-| `PipelineEventEndpointTest` | 7 cases — connect, forwarding, multi-subscriber, node lifecycle, stats |
-| `ProcessorEndpointTest` | 10 cases — register, heartbeat, status/state, invalid messages |
-| `CombinedEndpointTest` | pipeline CRUD via `LoomHttpClient`; asserts `versionNumber == 1` on create |
-| `PipelineDaoTest` / `PipelineVersionDaoTest` / `PipelineRunDaoTest` | generic CRUD harness only |
-| `PipelinePersistenceIntegrationTest` | one test: full pipeline → per-node `compute()` write-back → REST → DB |
+| Parser / graph | `PipelineGraphParserTest`, `PortGraphAnalyzerTest`, `PipelineSegmenterTest`, `PipelineNodeOptionsParsingTest`, `PipelineAffinitySerdeTest` |
+| Engine | `PipelineRunEngineTest` + `…FanOutTest`, `…RecoveryTest`, `…PauseTest`, `…CancelTest`, `…RetryTest`, `…ReturnTest`, `…ReuseTest`, `…SegmentTest`, `…CircuitTest`, `…BulkheadTest`, `…BackpressureTest`, `…FlowControlTest`, `…PersistenceTest` |
+| Cortex runtime | `NodeTaskRunnerTest`, `SegmentTaskRunnerTest`, `SourceTaskRunnerTest`, `ResultBatcherTest`, `PipelineTaskHandlerDrainTest` |
+| Node registration | `RegistryNodeFactoryTest`, `NodeRegistrarTest`, `PipelineConfigurableTest` |
+| Loom REST | `PipelineValidationServiceTest`, `PipelineRunStatusResolverTest`, `PipelineRunCapabilityTest`, `PipelineRunEndToEndTest`, `PipelineMatcherTest`, `PipelineEventBroadcasterTest`, `SegmentProtocolSerdeTest`, `ProcessorEndpointTest`, `PipelineEventEndpointTest`, `CombinedEndpointTest` |
+| DAO | `PipelineDaoTest`, `PipelineVersionDaoTest`, `PipelineRunDaoTest`, `PipelineNodeTaskDaoTest` |
+| Cross-tree ports | `integration-test/…/NodePortConformanceTest` — reflects over every node's `IN_*`/`OUT_*` constants and holds them against its descriptor |
 
-**Prerequisite for integration tests**: the shared `testdatabase-provider`
-container must expose a pool named `loom-dev`. Run `./setup-pool.sh` from the
-repo root first, or tests fail at `ProviderExtension.beforeEach` with
-`Got error from server {Pool not found {loom-dev}}`. This is an environment
-issue, not a code issue.
+### 13.2 Node tests — use the chain base class
 
-### 14.4 Known test gaps
+Extend **`AbstractNodeChainTest`** (`cortex/pipeline-core` **test-jar**;
+`io.metaloom.cortex.pipeline.test`). It replaced `AbstractPipelineNodeTest`; **19 test
+classes extend it**. It builds a linear chain, feeds each node's outputs into the next
+**by port id**, and exposes `CapturingNode(id, port)`, `StubLoomMedia`, and the
+`PipelineAssertions` / `PipelineResultAssert` / `PipelineNodeResultAssert` AssertJ
+helpers.
 
-**Cortex side — the untested code is exactly where the bugs are:**
+**Rule:** use the AssertJ helpers rather than raw `assertEquals` on output maps — they
+produce failure messages that name the port. Legacy-tree asserts live in
+`cortex/core-media/src/test/…/assertj/`.
 
-- **`pipeline-common` has no test directory at all** — all 5 caches, the event
-  bus, and the sync collector are uncovered.
-- **`LoomPipelineLoader` has no test.** A single loader test would have caught
-  the `edges`/`dependencies` mismatch (§9.2).
-- No test for `RegistryNodeFactory` / `PipelineNodeFactoryModule`,
-  `PipelineTaskHandler`, `LoomControlChannel`, or `CortexNodeAdapter` directly.
-- **None of the 8 concrete filter nodes has a test.**
-- No test calls `execute()` twice on one executor — which would immediately
-  surface the `statsScheduler` defect (§6.3).
-- `PipelineDeserializer` is only exercised via round-trip from a serialized
-  `Pipeline`; nothing parses hand-written or foreign JSON.
-- `cortex/processor`'s `PipelineIntegrationTest` defines its **own local
-  `SizeFilterNode`**, commented *"Kept local because no production
-  SizeFilterNode exists yet"* — even though `filter-size` is an advertised
-  descriptor kind.
+### 13.3 Known gaps
 
-**Loom side:**
-
-- **No Java test touches the versioning REST surface** (`/versions`,
-  `/versions/:version`, `/versions/:version/restore`) — only mocked Playwright
-  specs. Root cause: `PipelineMethods` on the Java client lacks those methods.
-- No test for `POST /:uuid/run` (dispatch, 503-no-processor, payload shape).
-- No test for `GET /:uuid/runs` or `PipelineModelValidator`.
-- No test that `DELETE /:uuid` removes versions and runs.
+- `cortex/pipeline-common` has **no test directory at all** — five caches, the event
+  bus and the sync collector are uncovered (all currently unreachable at runtime).
+- No test for `LoomControlChannel` or `CortexNodeAdapter`'s adapter contract directly.
+- `PipelineModelValidator` (the shared-model copy) is untested.
+- No Java test for `POST /:uuid/run` dispatch shape or `DELETE /:uuid` cascade;
+  versioning REST is covered only by mocked Playwright specs (the Java
+  `PipelineMethods` client lacks the version/run methods).
 - DAO tests never exercise `loadWithLatestVersion`, `loadByUuids`,
-  `loadByPipelineAndVersion`, or `loadLatestByPipeline`.
+  `loadByPipelineAndVersion`, `loadLatestByPipeline`.
+- Missing per [NODE_DATA_TYPES.md §11](NODE_DATA_TYPES.md): `PortPayload` round trip,
+  `ValueCoercer`, Playwright coverage of XOR siblings and `MANY` handle rendering.
 
 ---
 
-## 15. Key Classes Reference
+## 14. Key Classes Reference
 
 | Class | Package | Purpose |
 |---|---|---|
-| `DefaultPipeline` | `io.metaloom.cortex.pipeline.core` | DAG builder, topological sort, id validation |
-| `DefaultPipelineManager` | `io.metaloom.cortex.pipeline.core` | Registry, priority resolution |
-| `ReactivePipelineExecutor` | `…pipeline.core.executor` | RxJava 3 execution engine |
-| `AbstractPipelineNode` | `…pipeline.core.node` | Base pipeline node |
-| `AbstractFilterNode` | `…pipeline.core.node.filter` | Filter base (PASS/REJECT) |
-| `CortexNodeAdapter` | `…pipeline.core.node` | Legacy → pipeline bridge |
-| `AssetSourceNode` | `…pipeline.core.node` | Single-asset source |
-| `PipelineSerializer` / `PipelineDeserializer` | `…pipeline.core.serde` | JSON round-trip |
-| `DefaultPipelineEventBus` | `…pipeline.common.event` | Dual-channel bus |
-| `DefaultLoomBulkSyncCollector` | `…pipeline.common.sync` | Batches sync-eligible results |
-| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Type string → concrete node |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WS client: register, heartbeat, source/node tasks |
-| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` from Loom |
-| `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | The **single** definition parser; port-to-port edges, `InputBinding`, dependency derivation |
-| `PortGraphAnalyzer` | `io.metaloom.loom.pipeline.graph` | Port validation + `SINGLE`/`PER_ELEMENT` classification and `fanOutDriver` |
-| `InputBinding` / `ExecutionMode` | `io.metaloom.loom.pipeline.graph` | One wired edge seen from the consumer; how often a node runs per item |
-| `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` | Loom-side DAG driver; per-element dispatch, `buildInputs`, the gather barrier |
-| `NodeExecState` | `io.metaloom.loom.pipeline.engine` | Per-node, per-element state. `isSettled()` **is** the gather barrier |
-| `PortPayloads` | `io.metaloom.loom.pipeline.engine` | `PortPayload` ⇄ JSONB codec for `pipeline_node_task.outputs` |
-| `WebSocketNodeDispatcher` | `io.metaloom.loom.rest.service.impl` | Sends `NODE_TASK`s to the worker socket |
-| `PipelineRunTracker` | `io.metaloom.loom.rest.service.impl` | Closes runs; derives status, writes counters |
-| `PipelineEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | REST routes |
-| `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | CRUD + versioning + run dispatch |
-| `PipelineValidationService` | `io.metaloom.loom.rest.validation` | Server-side definition validation |
-| `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Fan-out to UI WS subscribers |
-| `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Processor selection + dispatch |
-| `PipelineModelBuilder` | `io.metaloom.loom.rest.builder` | `Pipeline` + `PipelineVersion` → `PipelineResponse` |
+| `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | **The single definition parser.** Version check, port-to-port edges, `InputBinding`, dependency derivation, source resolution |
+| `PortGraphAnalyzer` | `…pipeline.graph` | Port validation + `SINGLE`/`PER_ELEMENT` classification + `fanOutDriver` |
+| `InputBinding` / `ExecutionMode` | `…pipeline.graph` | One wired edge seen from the consumer; how often a node runs per item |
+| `PipelineGraph` / `PipelineGraphNode` | `…pipeline.graph` | Parsed graph + topological order; per-node kind, flags, bindings, demanded outputs |
+| `PipelineSegmenter` / `PipelineSegment` | `…pipeline.graph` | Affinity segmentation (connected, acyclic, source excluded) |
+| `AffinityValidator` / `AffinityWarning` | `…pipeline.graph` | Warns about affinity groups that cannot help |
+| `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` | Loom-side DAG driver: per-element dispatch, `buildInputs`, gather barrier, capacity, retry, pause |
+| `ItemState` / `NodeExecState` | `…pipeline.engine` | Per-item and per-node/per-element state. `isSettled()` **is** the gather barrier |
+| `NodeKindCircuitBreaker` / `RetryScheduler` | `…pipeline.engine` | Cross-run breaker; injected backoff timer |
+| `RunStateStore` / `AssetSink` / `NodeDispatcher` | `…pipeline.engine` | The three injected seams that keep `loom/pipeline` free of Loom internals |
+| `PortPayloads` | `…pipeline.engine` | `PortPayload` ⇄ JSONB codec for `pipeline_node_task.outputs` |
+| `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | CRUD, versioning, `dispatchRun`, run queries, pause/resume/cancel |
+| `PipelineRunTracker` | `…rest.service.impl` | Closes runs; first-terminal-verdict-wins; pause/resume transition |
+| `PipelineRunRegistry` | `…rest.service.impl` | In-memory map of live engines; self-cleaning on completion |
+| `PipelineRunRecovery` | `…rest.service.impl` | Rebuilds engines for `RUNNING`/`PAUSED` runs after a restart |
+| `RunStatsAggregator` | `…rest.service.impl` | Per-node counters on a timer; failures immediate |
+| `SourceOptionsResolver` | `…rest.service.impl` | `mediaUuids` > `pathGlobs` > `path` precedence |
+| `DaoRunStateStore` / `DaoAssetSink` | `…rest.service.impl` | Postgres-backed run state; `syncToLoom` write-back onto assets |
+| `WebSocketNodeDispatcher` | `…rest.service.impl` | Sends `NODE_TASK`/`SEGMENT_TASK` to a worker socket |
+| `PipelineValidationService` | `io.metaloom.loom.rest.validation` | Structural checks + delegates port rules to the parser |
+| `PipelineEventBroadcaster` | `…rest.service.impl` | Fan-out to UI WS subscribers, drop-on-full |
+| `NodeTaskRunner` / `SegmentTaskRunner` / `SourceTaskRunner` / `ResultBatcher` | `io.metaloom.cortex.runtime` | The entire Cortex execution surface |
+| `NodeResultMapper` | `io.metaloom.cortex.runtime` | Emit-side type boundary; `ResultState` ⇄ `NodeState` |
+| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | kind → producer; **returns `null` on unknown** |
+| `RegistryNodeRegistrar` | `io.metaloom.cortex.cli.dagger` | Where kinds become runnable (sources + multibinding) |
+| `PipelineTaskHandler` / `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | Worker-side task dispatch and the WS client |
+| `CortexNodeAdapter` | `io.metaloom.cortex.pipeline.core.node` | Legacy `FilesystemNode` → `PipelineNode` bridge |
+| `AbstractNodeChainTest` | `io.metaloom.cortex.pipeline.test` (test-jar) | Port-keyed node chain harness — 19 subclasses |
 
 ---
 
-## 16. Where do I find …?
+## 15. Where do I find …?
 
 | Need | Path |
 |---|---|
-| Pipeline / node interfaces | `cortex/pipeline-api/src/main/java/io/metaloom/cortex/pipeline/api/` |
-| Executor | `cortex/pipeline-core/…/executor/ReactivePipelineExecutor.java` |
-| Node base classes | `cortex/pipeline-core/…/node/` |
-| Concrete filters | `cortex/pipeline-core/…/node/filter/` |
-| JSON serde | `cortex/pipeline-core/…/serde/` |
-| Caches | `cortex/pipeline-common/…/cache/` |
-| Event bus | `cortex/pipeline-common/…/event/DefaultPipelineEventBus.java` |
-| Bulk sync | `cortex/pipeline-common/…/sync/DefaultLoomBulkSyncCollector.java` |
-| Pipeline loader + node factory | `cortex/core/…/pipeline/loader/` |
-| Node type registration | `cortex/cli/…/dagger/PipelineNodeFactoryModule.java` |
-| Cortex Dagger wiring | `cortex/core/…/cli/dagger/CortexBindModule.java` |
-| Control channel / task handler | `cortex/core/…/impl/loom/` |
-| Run engine (loom-side DAG driver) | `loom/pipeline/…/engine/PipelineRunEngine.java` |
 | Definition parsing (the only parser) | `loom/pipeline/…/graph/PipelineGraphParser.java` |
 | Port validation + fan-out classification | `loom/pipeline/…/graph/PortGraphAnalyzer.java` |
-| Per-element engine state / gather barrier | `loom/pipeline/…/engine/{NodeExecState,ItemState}.java` |
-| Node descriptors + port model | `loom-shared/node-model/…/nodes/spec/` |
-| Content-type vocabulary + lattice | `loom-shared/node-model/…/spec/{ContentTypeRegistry,ContentTypeLattice}.java` |
-| The wire model + element envelope | `loom-shared/pipeline-model/…/pipeline/model/` |
-| REST endpoints | `loom/services/rest/…/endpoint/impl/Pipeline*.java`, `NodeDescriptorEndpoint.java`, `ProcessorEndpoint.java` |
-| REST services | `loom/services/rest/…/service/impl/` |
+| Affinity segmentation | `loom/pipeline/…/graph/PipelineSegmenter.java` |
+| Run engine | `loom/pipeline/…/engine/PipelineRunEngine.java` |
+| Per-element state / gather barrier | `loom/pipeline/…/engine/{ItemState,NodeExecState}.java` |
+| Run dispatch, versioning, run queries | `loom/services/rest/…/service/impl/PipelineEndpointService.java` |
+| Run lifecycle helpers | `loom/services/rest/…/service/impl/PipelineRun{Tracker,Registry,Recovery,StatusResolver}.java` |
 | Server-side validation | `loom/services/rest/…/validation/PipelineValidationService.java` |
+| REST routes | `loom/services/rest/…/endpoint/impl/PipelineEndpoint.java` |
+| Cortex execution | `cortex/node-runtime/…/runtime/` |
+| Worker-side task handling / WS client | `cortex/core/…/impl/loom/{PipelineTaskHandler,LoomControlChannel}.java` |
+| Node kind registration | `cortex/cli/…/dagger/{RegistryNodeRegistrar,PipelineNodeFactoryModule}.java` |
+| Node base classes + filters + adapter | `cortex/pipeline-core/…/node/` |
+| Node test harness | `cortex/pipeline-core/src/test/…/test/AbstractNodeChainTest.java` |
+| Node descriptors + port model | `loom-shared/node-model/…/nodes/spec/` |
+| Wire model | `loom-shared/pipeline-model/…/pipeline/model/` |
 | DAO API / impl | `loom/db/api/…/model/pipeline/`, `loom/db/jooq/…/dao/pipeline/` |
-| SQL migrations | `loom/db/flyway/…/db/migration/V2.19*, V2.29*, V2.30*, V2.31*, V2.60*` |
-| Demo pipeline definitions (de-facto fixtures) | `loom/core/…/boot/DemoDatabaseInitializer.java` |
-| REST + event DTOs | `loom-shared/rest-model/…/model/pipeline/` |
-| Java client methods | `loom-client/common/…/method/PipelineMethods.java` |
-| UI editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
-| MCP tools (chat: list / show a pipeline) | `loom/services/mcp/…/tool/impl/{ListPipelinesTool,GetPipelineTool}.java` — see [MCP.md §5.6–5.7](../../loom/MCP.md) |
-| Compact graph rendering in the chat | `loom-ui/src/features/chat/{PipelineGraphCard.tsx,pipelineGraphLayout.ts}` — see [ui/CHAT.md §6.1](../../loom/ui/CHAT.md) |
-| UI live monitor | `loom-ui/src/Pipeline/PipelineArea.tsx` |
-| UI API clients | `loom-ui/src/api/pipelines.ts`, `pipelineEvents.ts` |
-| Executor tests | `cortex/pipeline-core/src/test/…/PipelineExecutorTest.java` |
-| Node test base | `cortex/pipeline-core/src/test/…/test/AbstractPipelineNodeTest.java` |
-| Integration test | `integration-test/…/PipelinePersistenceIntegrationTest.java` |
+| SQL migrations | `loom/db/flyway/…/db/migration/V2.{19,29,30,31,32,56,60}*` |
+| Demo definitions (de-facto fixtures) | `loom/core/…/boot/DemoDatabaseInitializer.java` |
+| UI editor + port mirrors | `loom-ui/src/features/pipeline/{PipelineEditor,portResolvers,contentTypes}.*` |
+| UI live monitor / API clients | `loom-ui/src/Pipeline/PipelineArea.tsx`, `loom-ui/src/api/{pipelines,pipelineEvents}.ts` |
+| MCP tools (chat: list / show a pipeline) | `loom/services/mcp/…/tool/impl/{ListPipelinesTool,GetPipelineTool}.java` — [MCP.md §5.6–5.7](../../loom/MCP.md) |
+| Compact graph rendering in chat | `loom-ui/src/features/chat/{PipelineGraphCard.tsx,pipelineGraphLayout.ts}` — [ui/CHAT.md §6.1](../../loom/ui/CHAT.md) |
 
 ---
 
-## 17. Conventions and Gotchas
+## 16. Conventions and Gotchas
 
 | Area | Convention / Gotcha |
 |---|---|
-| **RxJava first** | All executor semantics go through `ReactivePipelineExecutor`. `DAGPipelineExecutor` no longer exists |
-| **Two `NodeMode` types** | `cortex.pipeline.api.NodeMode` (runtime) vs `loom.nodes.spec.NodeMode` (UI descriptor) |
-| **One `NodeResult` type** | `io.metaloom.cortex.api.node.NodeResult`, now port-keyed (`Map<String, PortOutput>`); `CortexNodeAdapter` only re-stamps id + elapsed via `withNode(...)` |
-| **Two `NodeState` vocabularies** | Pipeline `PENDING/RUNNING/COMPLETED/FAILED/SKIPPED` vs legacy `SUCCESS/SKIPPED/FAILED` — not unified |
-| **Node ids** | lowercase alphanumeric + hyphens, 1–64 chars, unique per pipeline. **Port ids** are a different shape: `^[a-z0-9][a-z0-9_]{0,62}$` (underscore, not hyphen) |
-| **Exactly one source node** | enforced by `DefaultPipeline` and by `PipelineGraphParser.resolveSourceNode` |
-| **A source's output port must be named `media`** | `PipelineRunEngine.SOURCE_MEDIA_PORT` is the literal `"media"`; any other name validates at save time and delivers nothing at runtime |
-| **Every edge must carry `sourcePort` + `targetPort`** | The parser rejects the definition otherwise. The branch key is `branch`, not `edgeType` |
-| **Filter routing reads the `control/` family** | `NodeTaskResult.getFilterPassed()` finds the first `control/*` payload, so a filter may name its port anything. `AbstractFilterNode` writes it for you — do not overwrite |
+| **Loom owns the graph** | Cortex runs one node (or segment) at a time. Never reintroduce a DAG executor on the worker |
+| **Every edge carries `sourcePort` + `targetPort`** | The parser rejects the definition otherwise. The branch key is `branch`, not `edgeType` |
+| **`nodes[].dependencies[]` throws** | No inline fallback exists. A definition with *no* `edges` is still legal (single-node pipeline) |
 | **A node never names another node** | Data is addressed by port; the engine resolves which upstream `(node, port)` fills each input. Never reintroduce a node-id-keyed lookup |
-| **Port rules live in the parser** | `PipelineValidationService.validatePorts` delegates to `PipelineGraphParser`. Do not add a second copy |
-| **`new PipelineGraphParser()` disables port checking** | The no-arg constructor passes a null registry, and `PortGraphAnalyzer.analyze` then returns immediately, leaving every node `SINGLE`. Convenient in tests, dangerous in production paths — `PipelineRunRecovery` currently uses it |
-| **A definition with no `edges` array skips port validation entirely** | The legacy inline `dependencies[]` fallback produces no bindings, so such a graph is "valid" and starves every node |
-| **`syncToLoom` only fires on `COMPLETED`** | failed/skipped results are never synced |
-| **Blocking dependency failure ⇒ skip downstream** | non-blocking dependencies do not cascade |
-| **Dry-run** | all nodes `SKIPPED` with `"dry-run"`; no cache writes, no sync |
-| **Semaphores are executor-scoped** | shared across runs; not reset between `execute()` calls |
-| **Legacy nodes need `CortexNodeAdapter`** | never extend both `AbstractMediaNode` and `AbstractPipelineNode` |
-| **Adapter drops `syncToLoom` and `cacheProvider`** | set them explicitly after construction |
-| **Tracking event enum sync** | adding a `PipelineTrackingEvent.Type` requires the matching `PipelineEventType`; the bridge uses `valueOf(name())` and fails at runtime |
-| **Event bus is synchronous** | listeners run on the publisher thread — never block |
-| **Cache key prefers SHA-512** | falls back to absolute path; run a hash node upstream for content-addressed caching |
-| **Unregistered node types silently succeed** | `StubPipelineNode` logs and returns success — a "green" run may have done nothing |
-| **There is one definition parser** | `PipelineGraphParser`. The old `LoomPipelineLoader`, which read `dependencies[]` and ignored `edges`, no longer exists. See §9.2 |
-| **The reactive-operator node API is dead** | `apply()`/`partition()`/`MediaContext` are never called by the executor |
-| **Executors are single-use** | a second `execute()` on the same instance throws `RejectedExecutionException` |
-| **`node.shutdown()` is never called** | nodes holding native resources leak |
-| **Persistent caches stringify all values** | a cached `boolean` returns as `String` |
-| **Filter skips are not transitive** | only *direct* conditional dependencies are honoured |
-| **REST uses POST for update** | not PUT/PATCH |
-| **Secured REST paths are enumerated individually** | a new pipeline endpoint is unauthenticated until you add it to that list |
+| **Port rules live in the parser** | `PipelineValidationService.validatePorts` delegates. Do not add a second copy. *Structural* rules are still triplicated (§5.1) |
+| **`new PipelineGraphParser()` disables port checking** | Null registry ⇒ `PortGraphAnalyzer.analyze` returns immediately, every node stays `SINGLE`. `PipelineRunRecovery` uses it |
+| **Exactly one source node** | Declared `source: true` wins; ambiguity is an error, never a guess |
+| **A source's output port must be named `media`** | `PipelineRunEngine.SOURCE_MEDIA_PORT` is the literal `"media"` |
+| **`blocking` defaults to `true`** | A failed dependency stops downstream work unless the author opts out. Failing open would hide errors |
+| **One `ResultState`, one wire `NodeState`, one mapping** | `NodeResultMapper.toWireState`: SUCCESS→COMPLETED, SKIPPED→SKIPPED, FAILED/null→FAILED. Never map states anywhere else |
+| **Two `NodeMode` types** | `cortex.pipeline.api.NodeMode` (runtime) vs `loom.nodes.spec.NodeMode` (UI descriptor) |
+| **Blocking dependency failure ⇒ skip downstream** | Enforced identically by the engine *and* `SegmentTaskRunner`. If the two diverged, moving a node into an affinity group would change what the pipeline does |
+| **`syncToLoom` only fires on `COMPLETED` with non-empty outputs** | And only via `PipelineRunEngine` → `AssetSink`. The Cortex-side collector is dormant |
+| **`createNode` returns `null` for an unknown kind** | The task then fails loudly. There is no stub node; its javadoc still claims otherwise |
+| **A descriptor is not a registration** | Adding ports makes a kind visible in the palette; running it needs `@Binds @IntoMap @StringKey` or `factory.register(...)` |
+| **`SourceTaskRunner.run()` blocks** | Never call it from a Vert.x event loop |
+| **The result-batch timer is correctness, not tuning** | Without `flushExpired()` every batched run's tail is stranded and the run never closes |
+| **`SegmentNode` has no bindings** | Segment-internal wiring is matched by port id alone — do not group nodes whose port ids collide with a different meaning |
+| **Pause must gate capacity, not just dispatch** | Withholding `SOURCE_ITEMS_ACK` is what actually stops the scan |
+| **Use `PipelineRunDao.update()`, not `store()`** | `AbstractJooqDao.store()` is INSERT-only |
+| **First terminal verdict wins** | Only `PipelineRunTracker` writes run status |
 | **Pipeline versions are immutable** | update and restore both copy forward; never mutate a `pipeline_version` row |
-| **Structural validation is still duplicated** | `PipelineValidationService` (server) and `PipelineModelValidator` (shared model) each carry their own node-id pattern, uniqueness checks and a byte-for-byte copy of Kahn's cycle detection. **Port rules are not duplicated** — the service delegates them to the parser |
-| **`loom/db/memory` has no pipeline DAOs** | pipelines require the jOOQ backend |
-| **New DB fields** | need Flyway migration + jOOQ regeneration + `db/api` change + jooq/memory impls + `db/api-test` contract test |
+| **REST uses POST for update** | Not PUT/PATCH. `/runs/stats` must stay registered before the `:uuid` wildcard |
+| **Secured REST paths are enumerated individually** | A new pipeline endpoint is unauthenticated until you add it |
+| **`pipeline_run_item` stays per item** | The item *is* the origin. Do not add child items or lineage columns for fan-out |
+| **`loom/db/memory` has no pipeline DAOs** | Pipelines require the jOOQ backend |
+| **New DB fields** | Flyway migration + `loom/db/jooq/generate.sh` + `db/api` change + jooq/memory impls + `db/api-test` contract test + `./setup-pool.sh` |
+| **Dead but present** | `cacheProvider()` and all five caches; `PipelineEventBus`; `DefaultLoomBulkSyncCollector.collect`; `connectTo`/`children`; `CortexOptions.maxConcurrentMedia`; `retryFailed`; `Subscriber.queueCapacity`. Do not build on them without wiring them first |
 
 ---
 
-## 18. Progress Assessment
+## 17. Progress Assessment
 
 ### Working end-to-end
 
-- [x] Reactive DAG execution with backpressure, per-node semaphores, timeouts
-- [x] Filter nodes with PASS/REJECT branching
-- [x] JSON serde with enforced round-trip
-- [x] Node result caching (heap / xattr / sidecar / layered)
-- [x] Bulk sync of `syncToLoom` outputs to Loom as asset metadata
-- [x] Pipeline CRUD + immutable versioning + restore (REST + DB + UI)
-- [x] Server-side definition validation on create/update
-- [x] Live tracking events Cortex → Loom → UI, with per-pipeline filtering and
-      drop-on-full backpressure
-- [x] WebSocket auth via `?token=<jwt>`, opt-in strict mode
-- [x] `NODE_STATS` emission (500 ms tick), per-run and cancellable
-- [x] Configurable `maxConcurrentMedia`
-- [x] **Run completion tracking** — run id correlated end-to-end, real durations
-      and per-media counters persisted, status derived as
-      SUCCESS/PARTIAL/FAILED via `PipelineRunTracker`; an unreachable processor is
-      caught synchronously at dispatch (503 / immediate fail) (Task 2, done 2026-07-18)
-- [x] **One definition parser** — `PipelineGraphParser` reads `edges[]` on both sides;
-      `LoomPipelineLoader` is deleted, so the two formats cannot drift apart again
+- [x] One definition parser (`PipelineGraphParser`) with a versioned format, port-to-port
+      edges, 4-tuple dedupe and an explicit rejection of `dependencies[]`
+- [x] Whole-graph port type-checking at save time and run start (`PortGraphAnalyzer`)
+- [x] Loom-side DAG execution: per-element dispatch, implicit gather, capacity,
+      per-kind bulkheads, retry with backoff, cross-run circuit breaker
+- [x] Affinity segmentation with engine-identical local skip semantics
+- [x] Durable run state (`pipeline_run_item` / `pipeline_node_task`) and restart
+      recovery, including `PAUSED` runs re-paused before resume
+- [x] Pause / resume / cancel that gate the source scan, not just dispatch
+- [x] `syncToLoom` write-back onto assets via `DaoAssetSink`
+- [x] Run completion with real durations and counters; first-terminal-verdict-wins
+- [x] Synchronous rejection of unrunnable runs: 400 (invalid graph) / 503 (no worker
+      accepts some kind), neither leaving a `pipeline_run` row
+- [x] Cortex reduced to five runtime classes; source ack backpressure; result batching
+      with a correctness timer
+- [x] Aggregated progress events (per-node counters on a 1 s timer, failures immediate)
+- [x] Pipeline CRUD + immutable versioning + restore; run history, single-run and
+      run-item queries; cross-pipeline run stats
+- [x] Editor writes `sourcePort`/`targetPort`/`branch` and validates connections live
+      against the served port model
+- [x] jOOQ regenerated for `V2.60`; `loom/services/rest` compiles
 
-### Typed ports, cardinality and fan-out
-
-Landed on the Loom side; the Cortex node sweep and the editor are mid-migration. The full
-per-item status is [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §17 — do not duplicate it here.
-
-- [x] Edges are port-to-port; `sourcePort`/`targetPort` required; dedupe on the port 4-tuple
-- [x] `PortGraphAnalyzer` — port existence, assignability, required/XOR/EXCLUSIVE satisfaction,
-      multi-edge only into `MANY`, `SINGLE`/`PER_ELEMENT` classification
-- [x] `PipelineValidationService` delegates port checking to the parser rather than copying it
-- [x] `NodeTask.inputs` (port-keyed) + `elementSeq` + `demandedOutputs`; `NodeTaskResult` port outputs
-- [x] Per-element dispatch and the implicit gather barrier (`NodeExecState.isSettled()`)
-- [x] Migration `V2.60`; `pipeline_run_item` deliberately unchanged
-- [x] `DemoDatabaseInitializer`'s six pipelines rewired to ports; the "complex" one is the
-      `facedetect → facedescription` sequence demo (it previously used three kinds that never existed)
-- [ ] 🔴 jOOQ not regenerated for `V2.60`; `DaoRunStateStore` does not carry `elementSeq`;
-      `DaoAssetSink` still implements the old `AssetSink.persist` signature — `loom/services/rest`
-      does not compile
-- [ ] 🔴 The Cortex per-node sweep has not started; `loom-ui` still writes edges the parser rejects
-- [ ] No engine test covers fan-out, gather or the zip; no cross-tree port conformance test
-
-### Broken or missing
-
-**Blocking — the feature does not work end-to-end without this:**
-
-- [ ] **Node type coverage** — only 6 of 29 kinds registered; the rest silently
-      stub out as successes (Task 3)
+### Open
 
 **Serious:**
 
-- [ ] **Executor is single-use** — second `execute()` throws (Task 4)
-- [ ] **`node.shutdown()` never called**; resource leak (Task 4)
-- [ ] **Persistent caches lose value types**; no cache provider wired in
-      production at all (Task 5)
-- [ ] **`pipeline-common` and the Cortex loader/handler have no tests** (Task 6)
-- [ ] **Java client missing run/version methods**, blocking Java tests (Task 7)
-- [ ] **Structural validation still duplicated** between `PipelineValidationService` and
-      `PipelineModelValidator`; no standalone validation endpoint (Task 8). *Port* rules are
-      delegated to the parser and exist once
+- [ ] Node caching is entirely unreachable — `cacheProvider()` has no runtime caller,
+      and `cortex/pipeline-common` has no tests at all
+- [ ] Structural validation is triplicated (`PipelineValidationService`,
+      `PipelineModelValidator`, the editor); no standalone validation endpoint
+- [ ] `PipelineRunRecovery` uses the **no-arg** parser, so recovered runs skip port
+      checking and every node is classified `SINGLE`
+- [ ] Java `PipelineMethods` lacks run/version methods, so those REST surfaces have no
+      Java test
 
 **Known debt:**
 
-- [ ] `loadWithLatestVersion` does not load the version
-- [ ] Run status is an untyped `String`; `PENDING`/`RUNNING` `NodeState` unused
-- [ ] UUID-based media selection ignored; processor capability hardcoded to `CPU`
-- [ ] No per-node stats/result persistence; `NODE_STATS.pending` hardcoded to 0
-- [ ] `retryFailed` advertised by 10 descriptors but never honoured
-- [ ] Reactive-operator node API (`apply`/`partition`/`MediaContext`) is dead code
-- [ ] `PipelineDeserializer.NodeResolver` is dead; serde classes have DI
-      annotations but no DI wiring
-- [ ] Orphaned `PipelineFilter`/`MediaFilter` SPI; `PipelineManager.resolve()`
-      ignores its argument and has no callers
-- [ ] No pipeline DAOs in `loom/db/memory`
-- [ ] No pipeline gRPC surface despite a wired gRPC server
-- [ ] Timeout applied outside the semaphore; failed-node duration discarded
+- [ ] `loadWithLatestVersion` does not load the version; `createPipeline` ignores `name`
+- [ ] Run status is an untyped `String` with the vocabulary only in a SQL comment
+- [ ] Processor capability is hardcoded to `CPU` in `unsupportedNodeKinds`/dispatch
+- [ ] Run-state retention is decided but not enforced (§9.2)
+- [ ] `retryFailed` advertised by every descriptor, read by nothing
+- [ ] 10 descriptor kinds have no runtime producer; `asset-source` and `sha512-dedup`
+      have no descriptor
+- [ ] `SegmentNode` carries no input bindings — segment-internal edges match by port id
+- [ ] Orphaned SPIs: `PipelineFilter`/`MediaFilter`; dormant `LoomBulkSyncCollector`
+- [ ] No pipeline DAOs in `loom/db/memory`; no pipeline gRPC surface
+- [ ] `Subscriber.queueCapacity` / `DEFAULT_QUEUE_CAPACITY` are dead
 
-See [PIPELINE_TASKS.md](PIPELINE_TASKS.md) for the actionable breakdown.
+See [PIPELINE_TASKS.md](PIPELINE_TASKS.md) for the actionable breakdown and
+[NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
 
 ---
 
-_Git HEAD revision: `3ba0a6ff`_
-_Last updated: 2026-07-29 (typed-port refactor. §4.3 `NodeResult` is port-keyed
-`Map<String, PortOutput>` with `OutputPort` accessors; §7.2/§7.3 the adapter hands over `NodeInputs`
-and its id-override contract is obsolete; §8 descriptors carry `inputPorts`/`outputPorts`/groups/
-`dynamicPorts` and a second `NodePortResolver` SPI (25 providers, 39 kinds); §9.2 edges are
-port-to-port with `sourcePort`/`targetPort` required and dedupe on the port 4-tuple, and
-`LoomPipelineLoader` is gone; §10.1 adds migration `V2.60` (`element_seq`, new idempotency key) and
-records that `pipeline_run_item` is deliberately unchanged; §12.3 documents the `inputs` /
-`elementSeq` / `demandedOutputs` dispatch protocol; §15-§18 refreshed. Where the refactor is not
-finished — `loom/services/rest`, the Cortex node sweep, the editor — that is stated rather than
-implied.)_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (rewritten against the Loom-owns-the-graph runtime: deleted the Cortex DAG-executor sections, corrected the `dependencies[]` and parser-anchor claims, unified the state-mapping and kind-count numbers, and cut content now owned by NODE_DATA_TYPES.md, NODES.md, WEBSOCKET.md and METALOOM_ARCHITECTURE.md.)_

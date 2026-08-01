@@ -1,135 +1,148 @@
 # Semantic & Vector Search — Technical Specification
 
-> **Audience: AI coding agents.** Embedding-based similarity search and hybrid lexical+vector
-> ranking. Lexical search — the `search_document` table, the `SearchProvider` SPI, the REST surface —
-> is specified in [SEARCH.md](SEARCH.md); read it first, because this document extends that design
-> rather than standing alone. Build order in [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 3.
+> **Audience: AI coding agents.** Embedding-based similarity search and hybrid lexical+vector ranking.
 >
-> **Status: nothing here is implemented, and there is no data to search.** This document resolves the
-> open decision recorded in the schema itself and specifies the path to a working hybrid search.
+> **Scope split — do not duplicate:**
+> - Lexical search (`search_document`, `SearchProvider` SPI, REST surface, options) → [SEARCH.md](SEARCH.md). **Read it first; it is built.**
+> - Remaining build order and task IDs → [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 3.
+> - Perceptual **fingerprint** k-NN (a different corpus, on Lucene, **built**) → [LUCENE_PLAN.md](LUCENE_PLAN.md).
+> - Table/column reference → [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
+>
+> **Source of truth is the code.** Where a claim here disagrees with the tree, the code wins — fix
+> this file in the same change ([../../guidelines/CODING.md](../../guidelines/CODING.md)).
 
----
+## 0. Status — read this first
 
-## 1. Current state
+🔴 **Vector search is not built. Not one embedding has ever been written, and no ANN index exists.**
 
-### 1.1 The open decision, in the database's own words
+🟡 **But the seams for it are built and tested.** The previous revision of this file opened with
+*"nothing here is implemented"*. That is now too broad and misleads an agent into re-designing API
+surface that already ships. The lexical Phase 1 landed the vector-mode contract along with it:
 
-`V2.43__rework_detection_embedding.sql:124` carries this column comment, mirrored into
-`JooqEmbedding.java`:
+| Seam | State | Where |
+|---|---|---|
+| `SearchMode.{LEXICAL, SEMANTIC, HYBRID}` | ✅ built | `loom-shared/api/…/api/search/SearchMode.java` |
+| `SearchCapability.{SEMANTIC, HYBRID}` | ✅ built | `…/api/search/SearchCapability.java` |
+| `SearchRequest.mode` / `.profile` (names a `vector_config` row) / `.clusterUuid` | ✅ built, reserved | `SearchRequest.java:29,41,65` |
+| `?profile=` query parameter | ✅ built | `SearchQueryParameterKey.PROFILE` |
+| **Honest rejection** — `mode=SEMANTIC` ⇒ **400** naming the provider, never a silent lexical fallback | ✅ built **and tested** | `SearchQueryBehaviourTest:183`, `SearchEndpointTest:253`; `/search/status` omits the capability (`SearchEndpointTest:140`) |
+| `cluster` rows carry a `search_document` row (searching "Alice" finds the cluster) | ✅ built | `V2.59__add_search_triggers.sql:150`; `SearchEntityType.CLUSTER` |
+
+So §6's mode dispatch and §8 item 1 of the previous revision are **done**. What is missing is the
+vector ranker behind the enum value.
+
+### 0.1 What is genuinely absent
+
+| Thing | State |
+|---|---|
+| `embedding` rows | 🔴 **Zero.** No node writes one. `EmbeddingDao` has `createEmbedding`/`upsertEmbedding` and **no nearest-neighbour method** |
+| pgvector / `CREATE EXTENSION vector` / HNSW / IVFFlat / cosine operator anywhere | 🔴 Absent. The only `hnsw` in the tree is Lucene's, in `LuceneSimilarityIndex` ([LUCENE_PLAN.md](LUCENE_PLAN.md)) |
+| `embedding.vector real[]` (`V2.43`) | 🟡 Column exists, indexed on `asset_uuid`/`detection_uuid` **only** — a staging buffer with no ANN index |
+| `vector_config(name, weights jsonb)` (`V2.6`) | 🟡 Table + jOOQ record only. **No DAO, no endpoint, no reader** |
+| `loom/services/qdrant` | 🔴 `pom.xml` + Eclipse metadata, **no `src/`** |
+| GraphQL `search` field | 🔴 Absent from `loom/services/graphql/src/main/resources/loom.graphqls` |
+| loom-ui | 🔴 No `src/api/search.ts`, no search view — lexical *or* semantic |
+
+🔴 **Face embeddings are computed and thrown away.** `VideoFace.getEmbedding()` returns the `float[]`
+and `VideoFaceScanner:86` gates on `hasEmbedding()`, but `FacedetectNode.persist(...)` builds only
+bounding-box `DetectionCreateRequest`s. `FaceStorage.java` is entirely commented out.
+
+⚠️ `EmbeddingType` is a **three-value enum** (`DLIB_FACE_RESNET_v1`, `VIDEO4J_FINGERPRINT_V1/_V2`) on
+`AssetCreateRequest.addEmbedding` — a legacy fingerprint path, not the `embedding` table's free-text
+`type`. Do not conflate the two when adding a `clip` type.
+
+### 0.2 The open decision this document closes
+
+`V2.43__rework_detection_embedding.sql:124` (mirrored into `JooqEmbedding.java`):
 
 > *"Embedding vector as a plain PostgreSQL array. **OPEN DECISION**: similarity search is either
 > pgvector in Postgres or an external index fed via `vector_config`. Until that is decided this column
-> is a staging buffer with no ANN index — see spec/features/DB_SCHEMA_FEEDBACK.md section 4.2."*
+> is a staging buffer with no ANN index."*
 
-[../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.2 and its recommendation #13 ask for the same
-thing. **§3 of this document resolves it.**
+[../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.2 asks the same. **§2 resolves it.** The
+comment itself must be rewritten in the same change as the migration.
 
-### 1.2 What exists
-
-| Thing | Status |
-|---|---|
-| `embedding` table | Exists (`V2.43`). Columns: `asset_uuid`, `detection_uuid`, `node_kind`, `type`, `model`, `dimensions int`, **`vector real[]`**, `frame_number`, `subject_index`, `time_from`/`time_to`, `confidence`, `meta`. `UNIQUE (asset_uuid, node_kind, type, frame_number, subject_index)`. Indexes on `asset_uuid` and `detection_uuid` **only**. |
-| Rows in it | 🔴 **Zero.** No node writes an embedding. |
-| `EmbeddingDao` | `createEmbedding`, `upsertEmbedding` + inherited CRUD. **No similarity or nearest-neighbour method.** |
-| `EmbeddingEndpoint` / `EmbeddingMethods` | Plain CRUD, unused by any node. |
-| `vector_config(name, weights jsonb)` | Table only (`V2.6`). **No DAO, no endpoint, no reader.** |
-| `cluster` / `embedding_cluster` | Plain CRUD. Clustering happens externally; Loom only persists membership. |
-| `loom/services/qdrant` | Empty module — `pom.xml` with **zero dependencies**, no `src/`. |
-| pgvector / ANN / kNN / cosine anywhere in Java | Absent. |
-
-🔴 **Face embeddings are computed and thrown away.** `FacedetectNode` runs InspireFace;
-`VideoFace.getEmbedding()` returns the `float[]` and `VideoFaceScanner` gates on `hasEmbedding()` — but
-`FacedetectNode.persist(...)` builds only bounding-box `DetectionCreateRequest`s. The vector never
-reaches Loom. `FaceStorage.java` is entirely commented out. There is a DBSCAN clustering experiment in
-`VideoFaceScannerTest` with no production path.
-
-### 1.3 Known schema defects (from [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.2)
+### 0.3 Known schema defects (from [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.2)
 
 - No ANN index ⇒ any similarity query is a full scan.
 - **No dimension constraint** — a 512-d InspireFace vector and a 128-d dlib vector can coexist in one
-  column, distinguishable only by the free-text `type`. `dimensions` is stored but not enforced.
-- **No exporter contract** — no `synced_at`, `index_version` or `dirty` column, so nothing can
-  incrementally feed an index.
+  column, distinguishable only by the free-text `type`. `dimensions` is stored, not enforced.
+- **No exporter contract** — no `synced_at`, `index_version` or `dirty`, so nothing can incrementally
+  feed an index.
 
-All three are fixed in §4.
+All three are fixed in §3.
 
 ---
 
-### 1.4 Target architecture
+## 1. Target architecture
 
 ```mermaid
 graph TB
     subgraph cortex["Cortex"]
-        EN["EmbeddingNode (new)<br/>CLIP/SigLIP whole-image"]
-        FD["FacedetectNode<br/>computes vectors, DISCARDS them today"]
+        EN["EmbeddingNode ⬜ new<br/>CLIP/SigLIP whole-image"]
+        FD["FacedetectNode ✅<br/>computes vectors, DISCARDS them"]
     end
     EN -->|"POST /embeddings"| EMB
-    FD -.->|"Phase 3 step 2"| EMB
+    FD -.->|"P3 step 2"| EMB
 
     subgraph pg["Postgres"]
-        EMB[("embedding<br/>vector real[] · staging buffer<br/>+ dirty/synced_at")]
-        VEC[("embedding_vec_768<br/>vector(768) + HNSW<br/>derived · rebuildable")]
-        DOC[("search_document<br/>lexical — see SEARCH.md §5")]
-        EMB -->|"EmbeddingSyncService<br/>(dirty drain)"| VEC
+        EMB[("embedding ✅ table / 🔴 empty<br/>vector real[] · staging buffer<br/>+ dirty/synced_at ⬜")]
+        VEC[("embedding_vec_768 ⬜<br/>vector(768) + HNSW<br/>derived · rebuildable")]
+        DOC[("search_document ✅<br/>lexical — SEARCH.md §5")]
+        EMB -->|"EmbeddingSyncService ⬜<br/>(dirty drain)"| VEC
     end
 
-    Q["user query q"] --> QE["QueryEmbedder"]
+    Q["user query q"] --> QE["QueryEmbedder ⬜"]
     QE --> VEC
     Q --> DOC
-    VEC --> RRF{{"RrfFusion<br/>k=60, scale-free"}}
+    VEC --> RRF{{"RrfFusion ⬜<br/>k=60, scale-free"}}
     DOC --> RRF
-    RRF --> RES["ranked hits"]
+    RRF --> RES["ranked hits<br/>SearchMode.HYBRID ✅ enum / ⬜ impl"]
 
-    VC[("vector_config<br/>named search profiles")] -.->|"weights, model, table"| RRF
+    VC[("vector_config ✅ table / ⬜ no DAO")] -.->|"weights, model, table"| RRF
 ```
 
-🔴 Everything inside the Postgres box below `embedding` is gated on pgvector being available — see
-§3.2 for why that is not a given, and §3.3 for the guard.
+🔴 Everything below `embedding` in the Postgres box is gated on pgvector being available — see §2.2
+for why that is not a given, and §2.3 for the guard.
 
-## 2. What "semantic search" has to mean here
-
-Two different capabilities get conflated. Keep them separate:
+## 1.1 Two capabilities that get conflated — keep them separate
 
 | | **Text → media** | **Media → media** |
 |---|---|---|
 | Query | the user's `q` string | an existing asset, region or face crop |
 | Requires | a **joint text–image** model (CLIP/SigLIP class) | any embedding model |
-| UI | the existing search box | "more like this" / person clustering |
+| UI | the (still unbuilt) search box | "more like this" / person clustering |
 | Composes with lexical search | ✅ yes — hybrid ranking | ❌ no — different query type |
 
-🔴 **Only text→media makes hybrid search meaningful**, because hybrid ranking requires both rankers to
-consume the *same* query. A face embedding cannot consume `q` at all. This is why §5 recommends the
-whole-image node first and face second, even though the face vectors already exist in memory.
+🔴 **Only text→media makes hybrid search meaningful**, because RRF requires both rankers to consume the
+*same* query. A face embedding cannot consume `q` at all. That is why §4 recommends the whole-image
+node **first** and face second, even though the face vectors already exist in memory.
 
 ---
 
-## 3. Decision: pgvector, not Qdrant
+## 2. Decision: pgvector, not Qdrant
 
-> ⚠️ **A second, separate vector workload already exists.** Perceptual **fingerprint** similarity
-> (near-duplicate video detection) is served by a Lucene HNSW index, specified in
-> [LUCENE_PLAN.md](LUCENE_PLAN.md) and **built**. That is a different corpus (one 256-dim fingerprint
-> vector per asset, derived from `asset_fingerprint_comp`) and a different question ("which files are
-> the same recording?" rather than "which files are about this?"). It deliberately avoids pgvector
-> because it must not depend on a Postgres extension — see §3.2, the "nobody can build" constraint.
-> Its `SimilarityIndex` SPI mirrors the `VectorIndex` SPI proposed in §11, so the two can be unified
-> later behind one interface if that ever pays off.
+> ⚠️ **A second vector workload already ships.** Perceptual **fingerprint** similarity (near-duplicate
+> video detection) is served by a Lucene HNSW index — `LuceneSimilarityIndex` in
+> `loom/services/lucene`, **built and verified** ([LUCENE_PLAN.md](LUCENE_PLAN.md)). Different corpus
+> (one 256-dim fingerprint per asset), different question ("same recording?" vs "about this?"). It
+> deliberately avoids pgvector because it must not depend on a Postgres extension — see §2.2. Its
+> `SimilarityIndex` SPI mirrors the `VectorIndex` SPI in §8, so the two can be unified later if that
+> ever pays off. **Do not delete `loom/services/lucene`; it is not a stub.**
 
-### 3.1 Rationale
+### 2.1 Rationale
 
-1. **There are zero embeddings in the system today** (§1.2). Standing up and operating a separate
-   vector database for a feature with no data is premature. Postgres is already deployed, backed up
-   and monitored everywhere.
+1. **Zero embeddings exist today** (§0.1). Operating a separate vector database for a feature with no
+   data is premature. Postgres is already deployed, backed up and monitored everywhere.
 2. **Hybrid ranking is a join problem.** Fusing vector hits with lexical hits *and* mime/library/tag
-   filters is one SQL statement against `search_document ⋈ embedding_vec`. With Qdrant it is two round
-   trips, payload duplication into Qdrant, and a **third** consistency surface layered on top of the
-   Elasticsearch one from [SEARCH.md](SEARCH.md) §3.
-3. **Deletion propagation is free.** `embedding` already has `ON DELETE CASCADE` from both `asset` and
-   `detection`. Qdrant would need its own tombstone pipeline — a second copy of the machinery
-   [SEARCH_PLAN.md](SEARCH_PLAN.md) P2-4 already builds once.
-4. **ACL filtering is free.** `library_uuids && :allowed` in SQL, versus a Qdrant payload filter that
-   must be kept in sync with `library_asset` membership ([SEARCH.md](SEARCH.md) §8.3).
+   filters is one SQL statement against `search_document ⋈ embedding_vec`. Qdrant makes it two round
+   trips, payload duplication, and a **third** consistency surface on top of the Elasticsearch one
+   ([SEARCH.md](SEARCH.md) §3).
+3. **Deletion propagation is free.** `embedding` already cascades from `asset` and `detection`.
+4. **ACL filtering is free.** `library_uuids && :allowed` in SQL versus a Qdrant payload filter that
+   must track `library_asset` membership ([SEARCH.md](SEARCH.md) §8.3).
 
-### 3.2 🔴 The cost, stated plainly
+### 2.2 🔴 The cost, stated plainly
 
 **pgvector is not in the stock `postgres` image.** Every one of these pins a plain image:
 
@@ -138,16 +151,16 @@ whole-image node first and face second, even though the face vectors already exi
 | `start-postgres.sh:6` | `postgres:16.3-bullseye` |
 | `test-database/docker-compose.yaml:5` | `postgres:16.3-bullseye` |
 | `test-database/podman-compose.yml:6` | `postgres:16.3-bullseye` |
-| `loom/db/jooq/pom.xml:109` | 🔴 `postgres:latest` — **jOOQ codegen** |
+| `loom/db/jooq/pom.xml:109` | 🔴 `postgres:latest` — **jOOQ codegen Testcontainer** |
 | `helm/loom/values.yaml` | `postgres:17-alpine` |
 | testdatabase-provider template DB | inherits the above |
 
-An unconditional `CREATE EXTENSION vector` therefore breaks `loom/db/jooq/generate.sh`, breaks
-`./setup-pool.sh`, breaks every developer's local Postgres, and breaks the Helm bundled database. That
-is the single hardest constraint in this document — **it means nobody can build**, not just that
-semantic search is unavailable.
+An unconditional `CREATE EXTENSION vector` breaks `loom/db/jooq/generate.sh`, breaks
+`./setup-pool.sh`, breaks every developer's local Postgres and breaks the Helm bundled database. That
+is the hardest constraint in this document — **it means nobody can build**, not merely that semantic
+search is unavailable.
 
-### 3.3 🔴 Mitigation — the migration must be self-disabling
+### 2.3 🔴 Mitigation — the migration must be self-disabling
 
 ```sql
 DO $$
@@ -162,49 +175,48 @@ BEGIN
 END $$;
 ```
 
-Paired with a boot-time check that flips `SearchOptions.semanticEnabled` to `false` with a warning when
-`embedding_vec_768` is absent, and a `SearchCapability` set that then omits `SEMANTIC`/`HYBRID` so
-`/search/status` reports the truth.
+Paired with a boot-time check that flips `semanticEnabled` to `false` with a warning when
+`embedding_vec_768` is absent, and omits `SEMANTIC`/`HYBRID` from `SearchCapability` so
+`/search/status` reports the truth. **The rejection path this feeds already exists** (§0) — the boot
+check only has to keep the capability set honest.
 
 **The alternative** — switching every image to `pgvector/pgvector:pg17` — is cleaner but is an
-infrastructure decision affecting local dev, CI and Helm simultaneously. The guard is what lets Phase 3
-land without blocking on it. `SEARCH_PLAN.md` P3-2 is the spike that picks one.
+infrastructure decision spanning local dev, CI and Helm. The guard is what lets Phase 3 land without
+blocking on it. [SEARCH_PLAN.md](SEARCH_PLAN.md) P3-2 is the spike that picks one.
 
-### 3.4 When to revisit Qdrant
+### 2.4 When to revisit Qdrant
 
-State the trigger, so the decision is reviewable rather than permanent. Move to an external vector
-store when **any** of these holds:
+Move to an external vector store when **any** of these holds:
 
 - more than ~20M vectors (pgvector HNSW is comfortable to roughly 10M on commodity hardware),
 - p95 ANN latency above 200 ms at the target recall,
 - a requirement for per-tenant collection isolation.
 
-A `VectorIndex` SPI — sibling of `SearchProvider`, same shape, same binding mechanism — makes that a
-module swap rather than a rewrite.
-
-⚠️ `io.metaloom.qdrant:qdrant-java-http-client` appears in the local `.m2`, and a
-`qdrant-java-client` checkout exists in the workspace, but it is referenced by **no** pom in this repo
-and most of those artifacts are `.lastUpdated` markers rather than resolvable jars. Treat availability
-as unverified.
+A `VectorIndex` SPI — sibling of `SearchProvider`, same shape, same Dagger binding — makes that a
+module swap rather than a rewrite. ⚠️ `io.metaloom.qdrant:qdrant-java-http-client` exists in the local
+`.m2` but is referenced by **no** pom here, and most entries are `.lastUpdated` markers. Treat
+availability as unverified.
 
 ---
 
-## 4. Schema changes
+## 3. Schema changes
 
-New migration (version = whatever follows the lexical ones; `V2.60+`), **entirely inside the
-`pg_available_extensions` guard** from §3.3.
+🔴 **New migration is `V2.64` or later.** `V2.60`–`V2.63` landed after the search work
+(`pipeline_node_task_element_seq`, `dedup_group`, `dedup` permission, `library_storage_pool`); the
+previous revision of this file said `V2.60+` and is stale. Check `ls
+loom/db/flyway/src/main/resources/db/migration/ | sort -V | tail -1` before choosing a number. The
+whole migration sits **inside the `pg_available_extensions` guard** from §2.3.
 
-### 4.1 Keep `vector real[]` as the staging column
+### 3.1 Keep `vector real[]` as the staging column
 
-🔴 **Do not convert `embedding.vector`.** It stays the canonical staging buffer, exactly as its comment
-says, so that a later provider swap never loses data. `embedding_vec_*` is a **derived, rebuildable
-index** — droppable and regenerable from `embedding` at any time. Update the column comment to record
-that the open decision is now closed and point here.
+🔴 **Do not convert `embedding.vector`.** It stays the canonical staging buffer so a later provider
+swap never loses data. `embedding_vec_*` is a **derived, rebuildable index** — droppable and
+regenerable from `embedding` at any time. Rewrite the `V2.43` column comment (§0.2) in the same change.
 
-### 4.2 Fix the three defects
+### 3.2 Fix the three defects
 
 ```sql
--- Enforce what `dimensions` already claims (§1.3)
+-- Enforce what `dimensions` already claims (§0.3)
 ALTER TABLE "embedding" ADD CONSTRAINT "embedding_dimensions_check"
   CHECK (array_length("vector", 1) = "dimensions");
 
@@ -214,15 +226,14 @@ ALTER TABLE "embedding" ADD COLUMN "index_version" int     NOT NULL DEFAULT 1;
 ALTER TABLE "embedding" ADD COLUMN "dirty"         boolean NOT NULL DEFAULT true;
 ALTER TABLE "embedding" ADD COLUMN "normalized"    boolean NOT NULL DEFAULT false;
 
--- Required by any exporter, pgvector or Qdrant
 CREATE INDEX "idx_embedding_type_model" ON "embedding" ("type", "model");
 CREATE INDEX "idx_embedding_dirty"      ON "embedding" ("synced_at") WHERE "dirty";
 ```
 
-⚠️ The `CHECK` will fail on pre-existing bad rows — there are none today (§1.2), which makes now the
+⚠️ The `CHECK` would fail on pre-existing bad rows — there are none (§0.1), which makes now the
 cheapest possible moment to add it.
 
-### 4.3 The ANN table
+### 3.3 The ANN table
 
 ```sql
 CREATE TABLE "embedding_vec_768" (
@@ -235,32 +246,27 @@ CREATE INDEX ON "embedding_vec_768" USING hnsw ("vec" vector_cosine_ops);
 CREATE INDEX ON "embedding_vec_768" ("asset_uuid");
 ```
 
-**Dimension handling — one table per (family, dimension), created on demand.**
-
-🔴 pgvector permits an unconstrained `vector` column but **cannot index one**; HNSW and IVFFlat both
-require a fixed dimension. So a single table cannot hold a 768-d SigLIP vector and a 512-d InspireFace
-vector and be indexed.
+**One table per (family, dimension), created on demand.** 🔴 pgvector permits an unconstrained
+`vector` column but **cannot index one** — HNSW and IVFFlat both require a fixed dimension, so a single
+table cannot hold a 768-d SigLIP and a 512-d InspireFace vector and be indexed.
 
 ⚠️ Declarative `PARTITION BY LIST (dimensions)` with per-partition column narrowing is the elegant
-answer, but **it is not confirmed that pgvector allows a partition child to narrow `vector` →
-`vector(768)` below the parent's type.** This is [SEARCH_PLAN.md](SEARCH_PLAN.md) open item 5 — do not
-promote it to fact. The design deliberately routes around it: ship exactly **one** table for the one
-model that exists, and add a second table plus a `vector_config` row naming it when a second model
-arrives. Honest, shippable, and it defers the partitioning question until there is a reason to answer
-it.
+answer, but it is **not confirmed** that pgvector allows a partition child to narrow `vector` →
+`vector(768)`. Do not promote it to fact. Ship exactly **one** table for the one model that exists;
+add a second table plus a `vector_config` row naming it when a second model arrives.
 
-**Cosine vs. inner product:** normalize vectors at write time and record it in `normalized`. With
-normalized vectors, cosine distance and inner product rank identically, so the choice of operator class
-stops mattering — and `normalized` makes the assumption auditable rather than implicit.
+**Cosine vs. inner product:** normalize at write time and record it in `normalized`. With normalized
+vectors the two rank identically, so the operator class stops mattering — and `normalized` makes the
+assumption auditable rather than implicit.
+
+Regenerate jOOQ afterwards: `loom/db/jooq/generate.sh`, then `./setup-pool.sh`.
 
 ---
 
-## 5. Which node writes embeddings first
+## 4. Which node writes embeddings first
 
 **Recommendation: a new `EmbeddingNode` producing CLIP/SigLIP-class whole-image (and sampled-frame)
-embeddings. Not face.** The reasoning is §2: only a joint text–image model makes the user's `q`
-embeddable, so it is the only option that produces a demo-able text→media search and the only one that
-can participate in hybrid ranking.
+embeddings. Not face.** Reason in §1.1: only a joint text–image model makes the user's `q` embeddable.
 
 | Order | Node | `type` | `detection_uuid` | Purpose |
 |---|---|---|---|---|
@@ -270,37 +276,37 @@ can participate in hybrid ranking.
 
 **Node 1** follows the `cortex/nodes/captioning/` module layout: `EmbeddingNode extends
 AbstractMediaNode<EmbeddingNodeOptions>`, `name() = "embedding"`, an HTTP client to the inference host,
-`node_kind='embedding'`, `subject_index=0`, `frame_number` = the sampled frame for video. Persist via
-`client().createEmbedding(...)` **and** record an `asset_node_result` ledger row — the two-step pattern
-`WhisperNode` establishes and [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2 documents.
+`node_kind='embedding'`, `subject_index=0`, `frame_number` = the sampled frame for video. It needs a
+`NodeDescriptor` + `*DescriptorProvider` with real ports and a `NodePortConformanceTest` entry
+([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)). Persist via
+`client().createEmbedding(...)` **and** an `asset_node_result` ledger row — the two-step pattern
+`WhisperNode` establishes ([../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2).
 
-⚠️ **The inference host needs a spike** ([SEARCH_PLAN.md](SEARCH_PLAN.md) P3-1): ONNX Runtime in-process
-versus a Python sidecar under `sidecars/` (the `sidecars/tts` FastAPI service is the precedent, and
-`CaptioningNode → SmolVLMClient → FastAPI` is the node-side precedent). The choice fixes the dimension,
-which fixes the table name in §4.3.
+⚠️ **The inference host needs a spike** ([SEARCH_PLAN.md](SEARCH_PLAN.md) P3-1): ONNX Runtime
+in-process versus a Python sidecar under `sidecars/` (precedent: `sidecars/tts` FastAPI service;
+node-side precedent: `CaptioningNode → SmolVLMClient → FastAPI`). The choice fixes the dimension, which
+fixes the table name in §3.3.
 
 🔴 **Chunk collision for node 3.** `embedding`'s unique key is
-`(asset_uuid, node_kind, type, frame_number, subject_index)` — there is **no chunk discriminator**. Two
-transcript chunks from the same asset would collide and the second would silently overwrite the first.
-Encode the chunk index in `subject_index` and document it at the call site, or change the constraint.
+`(asset_uuid, node_kind, type, frame_number, subject_index)` — **no chunk discriminator**. Two
+transcript chunks from the same asset collide and the second silently overwrites the first. Encode the
+chunk index in `subject_index` and document it at the call site, or change the constraint.
 
 ---
 
-## 6. Hybrid ranking — Reciprocal Rank Fusion
+## 5. Hybrid ranking — Reciprocal Rank Fusion
 
 ```
 score(d) = Σ_r  w_r / (k + rank_r(d))          k = 60
 ```
 
 🔴 **Not a linear blend of scores.** `ts_rank_cd` is unnormalized and corpus-dependent; cosine
-similarity is bounded 0..1. They are not comparable, and any weighting that works today drifts silently
-as the catalog grows. RRF is scale-free, needs zero calibration, degrades gracefully when one ranker
-returns nothing, and is what Elasticsearch 8.9+ and OpenSearch implement natively — so the Phase 2
-provider gets it for free.
+similarity is bounded 0..1. They are not comparable, and any weighting that works today drifts as the
+catalog grows. RRF is scale-free, needs zero calibration, degrades gracefully when one ranker returns
+nothing, and is what Elasticsearch 8.9+/OpenSearch implement natively — so a Phase 2 provider gets it
+for free.
 
 Initial weights: lexical 1.0, vector 1.0, trigram 0.5. Take the top 200 from each ranker before fusing.
-
-Postgres implementation — two CTEs and a full outer join:
 
 ```sql
 WITH lex AS (
@@ -325,21 +331,16 @@ ORDER BY score DESC
 LIMIT :limit OFFSET :offset;
 ```
 
-Facet, ACL and mime filters apply to both CTEs — which is exactly the "one SQL statement" advantage
-from §3.1.
-
-`SearchMode` on `SearchRequest` selects the path: `LEXICAL` (Phase 1, the default), `SEMANTIC`
-(vector only), `HYBRID` (fused). Providers that lack the capability reject the mode with a 400 naming
-the provider rather than silently degrading to lexical — silent degradation makes relevance bugs
-undiagnosable.
+Facet, ACL and mime filters apply to **both** CTEs — the "one SQL statement" advantage from §2.1.
+`SearchRequest.mode` already selects the path and already rejects unsupported modes (§0); implementing
+this means **adding a capability, not adding an enum**.
 
 ---
 
-## 7. `vector_config` — the search-profile registry
+## 6. `vector_config` — the search-profile registry
 
-`vector_config(name unique, weights jsonb)` currently has no DAO and no purpose. Repurpose it as the
-**named search-profile registry**, which is what the `V2.43` comment gestures at ("an external index
-fed via `vector_config`"):
+`vector_config(name unique, weights jsonb)` (`V2.6`) has a jOOQ record and nothing else.
+`SearchRequest.profile` and the `?profile=` query parameter already point at it (§0). Give it meaning:
 
 ```json
 {
@@ -351,34 +352,60 @@ fed via `vector_config`"):
 }
 ```
 
-`SearchRequest.profile` names a row. Consequences worth having: hybrid weights become **data rather
-than env vars**, a model upgrade is a row insert plus a backfill instead of a deploy, and A/B'ing two
-rankings needs no code.
+Consequences worth having: hybrid weights become **data rather than env vars**, a model upgrade is a
+row insert plus a backfill instead of a deploy, and A/B'ing two rankings needs no code.
 
 Work: `VectorConfigDao` + `DaoCollection.vectorConfigDao()`, a `default` profile seeded by the
 migration, and read-only `GET /api/v1/vector-configs` (plural, per
 [../../guidelines/CODING.md](../../guidelines/CODING.md)). Writes can stay migration-only initially.
 
-## 8. `cluster` and `embedding_cluster`
+## 7. `cluster` and `embedding_cluster`
 
-Clusters are the **output** of similarity, not an input to search. Three integration points, in value
-order:
+Clusters are the **output** of similarity, not an input to search.
 
-1. A `cluster` gets a `search_document` row (`entity_type='cluster'`, `title` = its label), so
-   searching "Alice" finds the face cluster. **This needs no vectors at all** and can ship in Phase 1.
-2. `SearchRequest.clusterUuid` filters results to assets containing a member embedding.
-3. The clustering job consumes `embedding_vec` ANN neighbours instead of an O(n²) scan — a follow-up,
-   not part of search.
+1. ✅ **Done** — `cluster` already gets a `search_document` row (`V2.59:150`), so searching a cluster
+   label finds it. No vectors were needed.
+2. ⬜ `SearchRequest.clusterUuid` (field exists) filters results to assets containing a member
+   embedding — needs the provider side.
+3. ⬜ The clustering job consumes `embedding_vec` ANN neighbours instead of an O(n²) scan — a
+   follow-up, not part of search.
 
 ---
 
+## 8. Key Classes Reference
+
+**Existing** (do not recreate):
+
+| Class | Package / module | Relevance |
+|---|---|---|
+| `SearchMode` / `SearchCapability` | `io.metaloom.loom.api.search` (`loom-shared/api`) | `SEMANTIC`/`HYBRID` values already defined; rejection path already tested |
+| `SearchRequest` | same | `mode`, `profile`, `clusterUuid` fields already reserved |
+| `SearchProvider` / `PostgresSearchProvider` | `…/api/search`, `io.metaloom.loom.db.jooq.search` | The SPI a vector-capable provider extends |
+| `SearchOptions` | `io.metaloom.loom.api.options` | Where the `LOOM_SEARCH_*` vars in §9 land |
+| `EmbeddingDao` / `Embedding` | `io.metaloom.loom.db.model.embedding` | CRUD + `upsertEmbedding`; **no kNN method** |
+| `SimilarityIndex` / `LuceneSimilarityIndex` | `io.metaloom.loom.similarity[.lucene]` | The *fingerprint* index — the shape `VectorIndex` should mirror ([LUCENE_PLAN.md](LUCENE_PLAN.md)) |
+| `VideoFace` / `VideoFaceScanner` | `io.metaloom.cortex.node.facedetect.video` | Where the discarded face vectors live |
+
+**To be created** (nothing below exists):
+
+| Class | Package / module | Purpose |
+|---|---|---|
+| `VectorIndex` | `io.metaloom.loom.api.search` | ANN SPI — sibling of `SearchProvider` |
+| `PgVectorIndex` | `io.metaloom.loom.db.jooq.search` | pgvector implementation |
+| `EmbeddingSyncService` | `io.metaloom.loom.db.jooq.search` | `embedding` → `embedding_vec` dirty drain |
+| `RrfFusion` | `io.metaloom.loom.api.search` | Rank fusion, shared by both providers |
+| `QueryEmbedder` | `io.metaloom.loom.db.jooq.search` | Embeds the user's `q` for text→media |
+| `VectorConfigDao` | `io.metaloom.loom.db.model.vector` | Search-profile registry (§6) |
+| `EmbeddingNode` / `EmbeddingNodeOptions` / `EmbeddingClient` | `io.metaloom.cortex.node.embedding` | New Cortex node (§4) |
+
 ## 9. Configuration
 
-Extends the `LOOM_SEARCH_*` table in [SEARCH.md](SEARCH.md) §9.
+**Shipped:** the 10 `LOOM_SEARCH_*` vars on `SearchOptions` — see [SEARCH.md](SEARCH.md) §9. **None of
+the following exist yet**; they extend the same options class.
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `LOOM_SEARCH_SEMANTIC_ENABLED` | `false` | Master switch. 🔴 Force-disabled at boot when pgvector is absent (§3.3) |
+| `LOOM_SEARCH_SEMANTIC_ENABLED` | `false` | Master switch. 🔴 Force-disabled at boot when pgvector is absent (§2.3) |
 | `LOOM_SEARCH_VECTOR_PROVIDER` | `pgvector` | `pgvector` \| `qdrant` \| `none` |
 | `LOOM_SEARCH_VECTOR_TABLE` | `embedding_vec_768` | Overridden per profile by `vector_config` |
 | `LOOM_SEARCH_VECTOR_TYPE` | `clip` | Which `embedding.type` participates in text→media search |
@@ -387,118 +414,126 @@ Extends the `LOOM_SEARCH_*` table in [SEARCH.md](SEARCH.md) §9.
 | `LOOM_SEARCH_RRF_WEIGHT_LEXICAL` | `1.0` | |
 | `LOOM_SEARCH_RRF_WEIGHT_VECTOR` | `1.0` | |
 | `LOOM_SEARCH_HNSW_EF_SEARCH` | `100` | Recall/latency trade-off (`SET LOCAL hnsw.ef_search`) |
-| `LOOM_SEARCH_EMBED_SYNC_INTERVAL_MS` | `5000` | `embedding` → `embedding_vec` drain |
+| `LOOM_SEARCH_EMBED_SYNC_INTERVAL_MS` | `5000` | `embedding` → `embedding_vec` drain interval |
 | `LOOM_SEARCH_EMBED_URL` | `""` | Query-embedding inference host |
 
----
+⚠️ Every new var needs a `@EnvironmentVariable` annotation and a `validate()` branch, matching the ten
+that already exist, or `LoomConfigGenerator` output and the website config docs go stale.
 
 ## 10. Test Setup
 
-🔴 **`./setup-pool.sh` after the migration**, and 🔴 **verify `loom/db/jooq/generate.sh` still
-succeeds** — it re-runs every migration in a `postgres:latest` Testcontainer (§3.2), so the guard from
-§3.3 is what keeps codegen working. Add this as an explicit test step, not an assumption.
+🔴 **After the migration: `loom/db/jooq/generate.sh`, then `./setup-pool.sh`.** Codegen re-runs every
+migration in a `postgres:latest` Testcontainer (§2.2), so the §2.3 guard is what keeps codegen working.
+Make that an explicit test step, not an assumption.
 
 - **`PgVectorIndexTest`** (`loom/db/jooq/src/test/java/.../search/`):
-  - 🔴 **the guard itself** — assert the migration applies cleanly on a Postgres image **without**
-    pgvector and leaves `embedding_vec_768` absent, and that the boot check then reports
-    `semanticEnabled=false`. This is the test that protects everyone's build.
+  - 🔴 **the guard itself** — the migration applies cleanly on a Postgres image **without** pgvector,
+    leaves `embedding_vec_768` absent, and the boot check then reports `semanticEnabled=false`. This is
+    the test that protects everyone's build.
   - dimension `CHECK` rejects a vector whose length disagrees with `dimensions`
-  - kNN returns the nearest neighbour for a known planted vector
+  - kNN returns the nearest neighbour for a planted vector
   - `ON DELETE CASCADE`: deleting an `embedding` removes its `embedding_vec` row; deleting an asset
     removes both — **and nothing else** (CODING.md's cascade rule)
   - `dirty` drain marks rows synced; a rebuild from `embedding` reproduces `embedding_vec` exactly
-- **`HybridRankingTest`** — a fixture where the lexical ranker and the vector ranker disagree; assert
-  the RRF order matches a hand-computed expectation. Assert `k` and the weights actually change the
-  order (a fusion that ignores its parameters is a common silent bug).
-- **Mode rejection** — `SearchMode.HYBRID` against a provider lacking the capability ⇒ 400 naming the
-  provider, never a silent fall back to lexical.
-- **`EmbeddingNode` tests**, per the node conventions in
-  [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md): unit test with a mocked client;
-  a persistence test asserting both the `embedding` row **and** the `asset_node_result` ledger row; an
-  options `validate()` test; and a per-node E2E in `integration-test` extending
-  `AbstractNodeIntegrationTest` with the model client **mocked** — no GPU in CI.
-- **Demo data** — the demo initializer cannot ship real embeddings (no model in CI). Seed a handful of
-  small deterministic synthetic vectors with a documented `type`, so the UI has something to show and
-  the e2e test has something to assert.
+- **`HybridRankingTest`** — a fixture where the lexical and vector rankers disagree; assert the RRF
+  order matches a hand-computed expectation, and that `k` and the weights actually change the order (a
+  fusion that ignores its parameters is a common silent bug).
+- ✅ **Mode rejection is already covered** (`SearchQueryBehaviourTest`, `SearchEndpointTest`). Extend
+  those two rather than writing a third: once the capability is advertised, the assertions invert.
+- **`EmbeddingNode` tests** per [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md): unit test with
+  a mocked client; a persistence test asserting both the `embedding` row **and** the
+  `asset_node_result` ledger row; an options `validate()` test; a `NodePortConformanceTest` entry; and a
+  per-node E2E in `integration-test` extending `AbstractNodeIntegrationTest` with the model client
+  **mocked** — no GPU in CI.
+- **Demo data** — CI has no model, so seed a handful of small deterministic synthetic vectors with a
+  documented `type` in `DemoDatabaseInitializer`, so the UI has something to show and the e2e test
+  something to assert.
 
-## 11. Key Classes Reference
-
-Nothing below exists yet.
-
-| Class | Package / module | Purpose |
-|---|---|---|
-| `VectorIndex` | `io.metaloom.loom.api.search` (`loom-shared/api`) | ANN SPI — sibling of `SearchProvider` |
-| `PgVectorIndex` | `io.metaloom.loom.db.jooq.search` | pgvector implementation |
-| `EmbeddingSyncService` | `io.metaloom.loom.db.jooq.search` | `embedding` → `embedding_vec` drain |
-| `RrfFusion` | `io.metaloom.loom.api.search` | Rank fusion, shared by both providers |
-| `VectorConfigDao` | `io.metaloom.loom.db.model.vector` | Search-profile registry (§7) |
-| `QueryEmbedder` | `io.metaloom.loom.db.jooq.search` | Embeds the user's `q` for text→media |
-| `EmbeddingNode` / `EmbeddingNodeOptions` / `EmbeddingClient` | `io.metaloom.cortex.node.embedding` | New Cortex node (§5) |
-| `SearchMode` | `io.metaloom.loom.api.search` | `LEXICAL` \| `SEMANTIC` \| `HYBRID` |
-
-## 12. Conventions and Gotchas
+## 11. Conventions and Gotchas
 
 | Area | Gotcha |
 |---|---|
-| **pgvector availability** | 🔴 Not in the stock image. An unguarded `CREATE EXTENSION vector` breaks `generate.sh`, `setup-pool.sh`, local Postgres and the Helm DB — i.e. **nobody can build** (§3.2, §3.3). |
-| **ANN needs a fixed dimension** | 🔴 HNSW/IVFFlat cannot index an unconstrained `vector`. One table per (family, dimension) (§4.3). |
-| **Partitioning by dimension** | ⚠️ Unverified that a partition child can narrow `vector` → `vector(768)`. Do not build on it (§4.3). |
-| **Staging column** | 🔴 Never convert `embedding.vector real[]`. `embedding_vec_*` is derived and rebuildable (§4.1). |
-| **Chunk collision** | 🔴 `embedding`'s unique key has no chunk discriminator — transcript chunk 2 overwrites chunk 1 unless encoded in `subject_index` (§5). |
-| **Score fusion** | 🔴 Never linearly blend `ts_rank_cd` with cosine — incomparable scales. Use RRF (§6). |
-| **Silent degradation** | 🔴 A provider lacking `SEMANTIC` must **reject** the mode, not quietly return lexical results. Silent fallback makes relevance bugs undiagnosable. |
-| **Face vs. text** | ⚠️ Face embeddings cannot consume a text query, so they cannot drive hybrid search. Whole-image first (§2, §5). |
-| **Normalization** | ⚠️ Normalize at write time and record it in `normalized`; then cosine and inner product rank identically (§4.3). |
-| **Qdrant client** | ⚠️ Present in `.m2` but referenced by no pom, and mostly `.lastUpdated` markers. Availability unverified (§3.4). |
+| **Status drift** | ⚠️ "Nothing is implemented" is now wrong at the API layer — `SearchMode`, `SearchCapability`, `SearchRequest.{mode,profile,clusterUuid}` and the 400-rejection path ship (§0). Extend them; do not redesign them |
+| **pgvector availability** | 🔴 Not in the stock image. An unguarded `CREATE EXTENSION vector` breaks `generate.sh`, `setup-pool.sh`, local Postgres and the Helm DB — **nobody can build** (§2.2, §2.3) |
+| **Migration numbering** | ⚠️ `V2.60`–`V2.63` are taken. Read the directory; never copy a version number out of a spec file |
+| **ANN needs a fixed dimension** | 🔴 HNSW/IVFFlat cannot index an unconstrained `vector`. One table per (family, dimension) (§3.3) |
+| **Partitioning by dimension** | ⚠️ Unverified that a partition child can narrow `vector` → `vector(768)`. Do not build on it |
+| **Staging column** | 🔴 Never convert `embedding.vector real[]`. `embedding_vec_*` is derived and rebuildable (§3.1) |
+| **Chunk collision** | 🔴 `embedding`'s unique key has no chunk discriminator — transcript chunk 2 overwrites chunk 1 unless encoded in `subject_index` (§4) |
+| **Score fusion** | 🔴 Never linearly blend `ts_rank_cd` with cosine — incomparable scales. Use RRF (§5) |
+| **Silent degradation** | 🔴 A provider lacking `SEMANTIC` must **reject** the mode. Already enforced; keep it that way |
+| **Face vs. text** | ⚠️ Face embeddings cannot consume a text query, so they cannot drive hybrid search. Whole-image first (§1.1, §4) |
+| **Two `EmbeddingType`s** | ⚠️ The `EmbeddingType` enum (3 fingerprint/dlib values) is not the `embedding.type` free-text column. Do not merge them |
+| **Lucene module** | ⚠️ `loom/services/lucene` is **built** (fingerprint k-NN), not a stub. `loom/services/qdrant` and `loom/services/elasticsearch` are the empty ones |
+| **Normalization** | ⚠️ Normalize at write time and record it in `normalized`; then cosine and inner product rank identically |
 
-## 13. Where do I find …?
+## 12. Where do I find …?
 
 | Need | Look here |
 |---|---|
-| Lexical search design (SPI, REST, `search_document`) | [SEARCH.md](SEARCH.md) |
-| Task order and dependencies | [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 3 |
+| Lexical search design (SPI, REST, `search_document`) — **built** | [SEARCH.md](SEARCH.md) |
+| Task order, IDs and dependencies | [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 3 |
+| Fingerprint k-NN (the other vector index) — **built** | [LUCENE_PLAN.md](LUCENE_PLAN.md) |
+| Table/column reference for `embedding`, `cluster`, `vector_config` | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
 | The original open decision | `V2.43__rework_detection_embedding.sql:124`; [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.2 |
-| `embedding` / `cluster` / `vector_config` DDL | `loom/db/flyway/src/main/resources/db/migration/V2.43…`, `V2.12…`, `V2.6…` |
-| Face vectors that are currently discarded | `cortex/nodes/facedetect/core/.../video/VideoFace.java`, `VideoFaceScanner.java` |
+| DDL | `loom/db/flyway/src/main/resources/db/migration/{V2.43,V2.12,V2.6}…` |
+| The mode/capability seams | `loom-shared/api/src/main/java/io/metaloom/loom/api/search/{SearchMode,SearchCapability,SearchRequest}.java` |
+| Face vectors that are currently discarded | `cortex/nodes/facedetect/core/.../video/{VideoFace,VideoFaceScanner}.java` |
 | Node result persistence pattern | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2; `WhisperNode` |
+| Port/descriptor obligations for a new node | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
 | Sidecar precedent for a Python model server | `sidecars/tts/`; `cortex/nodes/captioning/` (`SmolVLMClient`) |
 | Postgres image pins to change or guard | `start-postgres.sh`, `test-database/*.y*ml`, `loom/db/jooq/pom.xml:109`, `helm/loom/values.yaml` |
 
-## 14. Progress Assessment
+## 13. Progress Assessment
 
-Nothing is implemented, and there is no embedding data to search.
+**Already built — do not re-plan** (§0)
+
+- [x] `SearchMode.{SEMANTIC,HYBRID}` and `SearchCapability.{SEMANTIC,HYBRID}`
+- [x] `SearchRequest.{mode, profile, clusterUuid}` and the `?profile=` query parameter
+- [x] Honest 400 rejection of an unsupported mode + `/search/status` capability reporting, with tests
+- [x] `cluster` rows indexed into `search_document` (`V2.59`) — searchable with no vectors at all
+- [x] Fingerprint k-NN on Lucene ([LUCENE_PLAN.md](LUCENE_PLAN.md)) — a separate, working vector path
 
 **Decisions closed by this document**
-- [x] pgvector chosen over an external vector store, with a stated revisit trigger (§3)
-- [x] RRF (k=60) chosen over linear score blending (§6)
-- [x] Whole-image CLIP/SigLIP embeddings before face embeddings (§2, §5)
-- [x] `vector_config` repurposed as the search-profile registry (§7)
-- [ ] The `V2.43` column comment still says "OPEN DECISION" — update it in the same change as the migration
+
+- [x] pgvector over an external vector store, with a stated revisit trigger (§2)
+- [x] RRF (k=60) over linear score blending (§5)
+- [x] Whole-image CLIP/SigLIP embeddings before face embeddings (§1.1, §4)
+- [x] `vector_config` repurposed as the search-profile registry (§6)
+- [ ] The `V2.43` column comment still says "OPEN DECISION" — rewrite it with the migration
 
 **Spikes that gate everything else**
+
 - [ ] P3-1 — embedding model + inference host (ONNX in-process vs. `sidecars/`); fixes the dimension
 - [ ] P3-2 — pgvector availability: change the images, or ship the `pg_available_extensions` guard
 
 **Implementation**
-- [ ] Guarded migration: `embedding_vec_768` + HNSW; `array_length` CHECK; `synced_at`/`dirty`/`index_version`/`normalized`; `(type, model)` and partial-dirty indexes (§4)
-- [ ] Boot check that force-disables semantic search when the table is absent (§3.3)
-- [ ] `VectorConfigDao` + `GET /api/v1/vector-configs` + seeded `default` profile (§7)
-- [ ] `cortex/nodes/embedding` — `EmbeddingNode` + client + options + Dagger wiring + `NodeCollectionModule` registration (§5)
-- [ ] `EmbeddingSyncService` — `embedding` → `embedding_vec` drain (§4.2)
-- [ ] `VectorIndex` SPI + `PgVectorIndex`; `QueryEmbedder`; `SearchMode.SEMANTIC` (§6)
-- [ ] `RrfFusion` + `SearchMode.HYBRID` (§6)
-- [ ] Elasticsearch `dense_vector` population + native `rrf`/`knn` (the field is declared in the Phase 2 mapping, so no reindex is needed)
-- [ ] `FacedetectNode` persists its existing InspireFace vectors; `cluster` gets `search_document` rows (§8)
-- [ ] UI: mode toggle, "more like this", cluster filter
+
+- [ ] Guarded migration (`V2.64+`): `embedding_vec_768` + HNSW; `array_length` CHECK;
+      `synced_at`/`dirty`/`index_version`/`normalized`; `(type, model)` and partial-dirty indexes (§3)
+- [ ] Boot check that force-disables semantic search when the table is absent (§2.3)
+- [ ] `VectorConfigDao` + `GET /api/v1/vector-configs` + seeded `default` profile (§6)
+- [ ] `cortex/nodes/embedding` — node, client, options, descriptor provider, Dagger wiring,
+      `NodeCollectionModule` registration (§4)
+- [ ] `EmbeddingSyncService` — `embedding` → `embedding_vec` drain (§3.2)
+- [ ] `VectorIndex` SPI + `PgVectorIndex`; `QueryEmbedder`; wire `SearchMode.SEMANTIC` (§5)
+- [ ] `RrfFusion` + `SearchMode.HYBRID`; advertise the capabilities (§5)
+- [ ] `SearchRequest.clusterUuid` honoured by the provider (§7 item 2)
+- [ ] Elasticsearch `dense_vector` population + native `rrf`/`knn` (the field is declared in the Phase 2
+      mapping, so no reindex is needed)
+- [ ] `FacedetectNode` persists its existing InspireFace vectors (§4 order 2)
+- [ ] UI: there is **no search UI at all yet** — the mode toggle, "more like this" and cluster filter
+      come after [SEARCH_PLAN.md](SEARCH_PLAN.md)'s loom-ui work, not before it
 - [ ] Tests per §10 — **including the guard test that protects the build**
 - [ ] Website docs + spec sync ([../../guidelines/CODING.md](../../guidelines/CODING.md))
 
 **Known gaps this document does not close**
-- [ ] `embedding`'s unique key has no chunk discriminator (§5)
-- [ ] Whether pgvector supports per-partition dimension narrowing (§4.3)
+
+- [ ] `embedding`'s unique key has no chunk discriminator (§4)
+- [ ] Whether pgvector supports per-partition dimension narrowing (§3.3)
 - [ ] Nothing has ever written an embedding, so all latency and recall figures here are estimates
 
 ---
 
-_Git HEAD: `65e6c4649c639303932384942d4c68d8e9e8360d` (branch `master`)_
-_Last updated: 2026-07-27_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (corrected the status: the mode/capability seams and cluster indexing are built; only the vector ranker is missing)_

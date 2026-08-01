@@ -1,79 +1,72 @@
-# S3 Source Node — Design & Implementation Plan
+# S3 Source Node — Design Record
 
-> Design document for a new Cortex pipeline source node (`s3-source`) that ingests media
-> from **S3-compatible object storage**, picking up only *new or changed* objects on a
-> re-run. It comes with two supporting changes: **lazy, per-worker materialization** of
-> remote media (so distributing work no longer requires shared storage), and an
-> **event-driven** change-detection path so a run need not list the bucket at all.
+> ## 🟢 Status: BUILT and shipped
 >
-> Read alongside [NODES.md](NODES.md) (the node system) and
-> [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) (the engine that dispatches it).
-> The source of truth is the code under `cortex/`; this is a plan, not a record.
+> Kind `s3-source`, flat module `cortex/nodes/s3-source`, package
+> `io.metaloom.cortex.node.source.s3`, plus the shared module `cortex/s3-common`
+> (`io.metaloom.cortex.s3`). 47 node tests, 78 `s3-common` tests, 9 integration tests against a real
+> MinIO container.
 >
-> **Status: implemented.** Node kind `s3-source`; code in
-> [cortex/nodes/s3-source](../../../cortex/nodes/s3-source) and
-> [cortex/s3-common](../../../cortex/s3-common). 46 node tests, 61 s3-common tests and 9 integration
-> tests against a real MinIO container pass. §12 records what landed; §14 records what changed
-> against this design once it met the code.
+> **Corrections to earlier revisions of this file, verified against the code:**
+>
+> 1. 🔴 **The container E2E test never landed.** `S3PipelineContainerExecutionIntegrationTest` does
+>    not exist and `MetaLoomTestContext` has no MinIO service. `MinioContainer` is used by exactly
+>    two per-node ITs. The central claim of decision #3 — *two workers, no shared media volume* —
+>    is therefore **unproven end to end**. See §8.
+> 2. 🔴 **`process()` emits only the `media` port.** The typed port model replaced the old
+>    `uri`/`bucket`/`key`/`source`/`state` output keys; diff state is now read-side only via
+>    `S3SourceNode.lastState(reference)`.
+> 3. The resolver split in two: `MediaReferenceResolver` (`cortex/common`, the composite) and
+>    `S3MediaReferenceResolver` (`cortex/s3-common`, the S3 branch).
+>
+> **This file is now a design record, not a plan.** The code is the source of truth.
+
+Read alongside [NODES.md](NODES.md) (the node system, the capability matrix, kind registration),
+[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) (the port/content-type model),
+[../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) (all `CORTEX_S3_*` flags) and
+[NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) (the egress half, which reuses `cortex/s3-common`).
 
 ---
 
-## 1. Motivation
+## 1. Already implemented
 
-Cortex can only ingest media from a local filesystem.
-[`FilesystemSourceNode`](../../../cortex/nodes/filesystem-source) is the only real
-`MediaSourceNode`, and every layer beneath it assumes a local path:
-
-- `MediaRef` carries `media.absolutePath()` ([SourceTaskRunner](../../../cortex/node-runtime/src/main/java/io/metaloom/cortex/runtime/SourceTaskRunner.java) `toRef`)
-- `NodeTaskRunner` resolves it with `mediaResolver.resolve(Paths.get(task.getMedia().getPath()))`
-- `MediaRef`'s own Javadoc states the consequence — *"shared storage is a prerequisite for
-  distributing work across more than one Cortex instance"*
-
-Meanwhile Loom already **models** S3 without implementing it:
-
-| Where | What exists |
+| Item | Where it lives |
 |---|---|
-| `loom/db/flyway/…/V2.20__add_asset_pool.sql` | `asset_pool.s3_bucket` / `s3_region` / `s3_endpoint` + a XOR `CHECK` against `fs_path` |
-| `loom-shared/rest-model/…/asset/binary/AssetS3Meta.java` | `{bucket, objectPath}` POJO (duplicated under `asset/location/`) |
-| `loom/services/rest/…/AssetBinaryEndpointService.java` | three branches that log *"S3 support has not yet been implemented"* |
-| `loom-ui/src/features/assetPools/AssetPoolsView.tsx` | the full S3 asset-pool form; `AssetPoolType = "filesystem" \| "s3"` |
-| `bom/pom.xml:250-254` | `software.amazon.awssdk:s3` under `${aws.sdk.version}` = 2.29.70, **consumed by nothing** |
-
-So the schema, the REST model, the UI form and the dependency are all in place, and the
-runtime is absent. This node is the first real consumer.
-
-### The two problems it has to solve
-
-1. **Re-runs must not reprocess the bucket.** `filesystem-source` solves the equivalent
-   problem with a persisted Avro index and the `differential-filesystem-scanner`; S3 needs
-   the same idea keyed on `(key, etag, size)` instead of `(st_dev, st_ino, mtime, size)`.
-2. **Objects have to become local files.** Every downstream node reads a `java.nio.file.Path`
-   — `LoomMediaImpl.isVideo()` even delegates to `FilterHelper.isVideo(path())`. Somebody has
-   to download the bytes, and *where* that happens decides whether multi-worker runs need
-   shared storage.
-
-### Non-goals
-
-- **A Loom binary-ingest endpoint.** `AssetBinaryEndpointService`'s S3 stubs stay stubs.
-  This node reads *into* the pipeline; writing produced bytes *out* is [NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) (§11).
-- **Asset-pool linkage.** The node takes bucket/prefix from the pipeline definition, not from
-  an `asset_pool` row. Wiring the two together is deliberate follow-up work (§13).
-- **Watch mode.** Events make a *run* cheap; they do not *start* a run. Loom's scheduler still
-  owns that (§5.4).
-- **Versioned buckets / delete markers.** `versionId` is reserved in the Avro schema and unused.
+| The node — cold `stream()`, `process()`, `lastState()` | `cortex/nodes/s3-source/…/S3SourceNode.java` (`DEFAULT_ID = "s3-source"`, `OUT_MEDIA`) |
+| Options + `validate()` | `…/S3SourceNodeOptions.java` (`KEY = "s3-source"`) |
+| Selection + scan result value types | `…/S3Selection.java`, `…/S3ScanResult.java` |
+| Diff engine: full list / `startAfter` resume / event fast path / reconcile | `…/S3DifferentialScanner.java` |
+| Avro index + persistence | `…/S3ObjectIndex.java`, `…/S3ObjectIndexStore.java`, `src/main/avro/s3-object-index.avsc` |
+| Dagger module + option deserializer info | `…/S3SourceNodeModule.java` |
+| 🔴 **Conditional** kind registration — only when `s3Support.isActive()` | `cortex/cli/…/dagger/RegistryNodeRegistrar.java` (`s3Source(...)` builder) |
+| Dagger module collection | `cortex/cli/…/dagger/NodeCollectionModule.java` |
+| S3 wiring / `S3Support` provider | `cortex/core/…/cli/dagger/S3Module.java` |
+| Worker-level options (16 flags) | `cortex/api/…/option/S3ClientOptions.java`, `…/S3EventOptions.java` |
+| CLI flags + env mapping | `cortex/core/…/cli/CortexCLI.java`, `…/cli/EnvDefaultProvider.java` |
+| Descriptor (7 parameters, icon `cloud`, `SOURCE`, one `media` output) | `loom-shared/node-model/…/spec/SourceDescriptorProvider.java` |
+| Event sources started at boot | `cortex/core/…/impl/boot/CortexBootstrapInitializer.java` |
+| Webhook route `POST /s3-events` on the monitoring router (port 8093) | `cortex/s3-common/…/s3/event/WebhookS3EventSource.java` — see [../ops/MONITORING.md](../ops/MONITORING.md) |
+| Helm secret for `CORTEX_S3_*` | `helm/cortex/templates/s3-secret.yaml` — see [../helm/HELM_CORTEX.md](../helm/HELM_CORTEX.md) |
+| Dev script | `start-minio.sh` |
+| Integration test (9 tests, real MinIO) | `integration-test/…/integration/node/S3SourceNodeIntegrationTest.java` + `…/container/MinioContainer.java` |
+| Demo pipeline using `s3-source` | `loom/core/…/boot/DemoDatabaseInitializer.java` |
+| Customer-facing docs | `website/content/english/docs/nodes/s3-source/index.adoc` |
 
 ---
 
-## 2. Decisions
+## 2. Scope — this file owns `cortex/s3-common`
 
-> **Status: agreed with the user before design.** The rest of the document follows from these.
+No other spec file documents `cortex/s3-common`'s design. `CORTEX.md` and `BUILD.md` list it in
+their module maps, `MONITORING.md` covers the webhook route, `HELM_CORTEX.md` covers the secret, and
+`METALOOM_ARCHITECTURE.md` names `S3MediaMaterializer` — but the cache layout, the URI seam, the
+event buffer semantics and the object-store abstraction are specified **here**. Keep it that way, or
+give the module its own file and cross-reference it.
 
-| # | Decision | Choice | Why |
-|---|---|---|---|
-| 1 | Scope | `s3-source` in full; `s3-sink` deferred | The sink depended on an unanswered question about Loom's binary ingest. Now designed in [NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) |
-| 2 | Change detection | Differential LIST + persisted index **and** S3 event notifications | Index alone is correct but O(N) requests per run; events alone are lossy. Together: fast *and* correct |
-| 3 | Materialization | `s3://` URIs in `MediaRef` + a lazy per-worker `MediaResolver` | Removes the shared-storage prerequisite, which is the main architectural win |
-| 4 | Credentials | Worker-level `CortexOptions`, never in the pipeline definition | NODES.md §5.1; also avoids secrets in Postgres and in the editor, where `ParameterType` has no `SECRET` value |
+> ⚠️ `cortex/s3-common` is Cortex-side only. Loom's own S3 backend (`loom/services/s3`,
+> `S3BinaryStorage`, `asset_pool` + `library.pool_uuid`, `BinaryStorageResolver`) is a **separate
+> implementation** owned by [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md).
+> The two do not share code, deliberately — a `loom-service-s3 → cortex-s3-common` dependency would
+> tie the server's build to the worker's.
 
 ---
 
@@ -81,18 +74,16 @@ runtime is absent. This node is the first real consumer.
 
 ```mermaid
 flowchart TB
-    subgraph S3["S3 / MinIO"]
-        OBJ[(bucket/prefix)]
-    end
+    OBJ[("S3 / MinIO<br/>bucket/prefix")]
 
-    subgraph WA["Worker A — runs s3-source (SOURCE_TASK)"]
+    subgraph WA["Worker A — SOURCE_TASK"]
         SCAN[S3DifferentialScanner]
         IDX[(S3ObjectIndexStore<br/>metaPath/s3-index/*.avro)]
         BUF[S3EventBuffer]
         NODE[S3SourceNode.stream]
     end
 
-    subgraph WB["Worker B — runs sha512 / tika / … (NODE_TASK)"]
+    subgraph WB["Worker B — NODE_TASK (sha512 / tika / …)"]
         RES[MediaReferenceResolver]
         MAT[S3MediaMaterializer]
         CACHE[(metaPath/s3_bin/…)]
@@ -104,7 +95,7 @@ flowchart TB
     BUF --> SCAN
     SCAN <--> IDX
     SCAN --> NODE
-    NODE -- "MediaRef(s3://bucket/key) — no bytes" --> LOOM[Loom<br/>PipelineRunEngine]
+    NODE -- "MediaRef(s3://bucket/key) — no bytes" --> LOOM[Loom PipelineRunEngine]
     LOOM -- "NODE_TASK" --> RES
     RES -- "s3://…" --> MAT
     RES -- "/mnt/… (unchanged)" --> PROC
@@ -112,78 +103,25 @@ flowchart TB
     MAT --> CACHE --> PROC
 ```
 
-Three pieces, each separately useful and separately testable:
-
-1. **Media addressing** (§4) — `MediaRef` learns to carry a URI; a composite resolver
-   materializes it on whichever worker needs it. *Nothing to do with S3 specifically.*
-2. **The node** (§5) — differential listing, index, event fast path.
-3. **Configuration** (§6) — worker-level connection settings.
-
-### Does the whole bucket have to be scanned?
-
-**A LIST is metadata-only.** A full pass costs `ceil(N/1000)` requests and zero bandwidth —
-negligible for thousands of objects, painful for tens of millions. Three tiers, all designed here:
-
-| Tier | Mechanism | Cost per run | Correct alone? |
-|---|---|---|---|
-| Baseline | `ListObjectsV2` paginated, diffed against the local index | `N/1000` requests, no bytes | ✅ yes |
-| Resume | `ListObjectsV2.startAfter(lastSeenKey)` | only the tail | ❌ misses edits to older keys |
-| Push | Bucket notifications → `S3EventBuffer`, then one `HeadObject` per hint | one HEAD per changed object | ❌ notifications can be lost |
-
-The two fast tiers are **accelerators layered over the correct one**. A mandatory periodic
-full reconcile (`reconcileIntervalMs`, default 6h) is what makes the combination correct.
-AWS S3 Inventory would be a fourth tier for genuinely huge buckets; it is AWS-only (MinIO does
-not implement it) and is out of scope.
+Three separable pieces: **media addressing** (§4.1, nothing S3-specific), **the node** (§4.2), and
+**worker configuration** (§5).
 
 ---
 
-## 4. Media addressing: `s3://` references and lazy materialization
+## 4. The decisions worth keeping
 
-### 4.1 The blocker
+### 4.1 `s3://` references and lazy, per-worker materialization
 
-`Paths.get("s3://bucket/key")` yields **`s3:/bucket/key`** — the duplicate slash is collapsed —
-and `toAbsolutePath()` then prepends the CWD. Verified on this JDK. A `java.nio.file.Path`
-therefore **cannot** carry a URI, so `NodeTaskRunner.MediaResolver` must stop taking one.
+`Paths.get("s3://bucket/key")` yields **`s3:/bucket/key`** — the duplicate slash is collapsed — so a
+`java.nio.file.Path` cannot carry a URI. That is why `MediaResolver` takes a `MediaRef` rather than a
+`Path`, why `ProcessableMedia.reference()` exists, and why `SourceTaskRunner.toRef` uses
+`media.reference()` — **which is what stops enumeration from downloading anything**.
 
-### 4.2 Changes to existing code
-
-| File | Change |
-|---|---|
-| `cortex/api/…/media/ProcessableMedia.java` | Add `default String reference() { return absolutePath(); }` — the location-independent identity of the media. Every existing implementation keeps today's behaviour. |
-| `cortex/node-runtime/…/NodeTaskRunner.java` (interface at :61, call at :80) | `MediaResolver.resolve(Path)` → `resolve(MediaRef)`. `MediaRef` is already on this module's classpath (`loom-shared/pipeline-model`) and carries `size` + `sha512`, both useful to a materializer. |
-| `cortex/node-runtime/…/SegmentTaskRunner.java:74` | same call-site change |
-| `cortex/node-runtime/…/SourceTaskRunner.java:168` | `toRef` uses `media.reference()`. **This is what stops enumeration from downloading anything.** |
-| `cortex/core/…/PipelineTaskHandler.java:76,79` | inject a `MediaReferenceResolver` instead of `mediaLoader::load` |
-
-`MediaReferenceResolver` (new, `cortex/common`) composes: `S3Uri.isS3(ref)` → the S3
-materializer; otherwise `LoomMediaLoader.load(Paths.get(ref))`. **When no S3 config is present
-the S3 branch is absent and the resolver is a pure passthrough**, so this step is a no-op
-refactor that can land and be verified on its own.
-
-### 4.3 New module `cortex/s3-common` (artifact `cortex-s3-common`)
-
-A module of its own because both `cortex/core` (the resolver — needed on *every* worker) and
-`cortex/nodes/s3-source` (the listing) depend on it, and `cortex/core` must not depend on a
-node module.
-
-| Class | Responsibility |
-|---|---|
-| `S3Uri` | Parse/format `s3://bucket/key`; `bucket()`, `key()`, `static boolean isS3(String)` |
-| `S3ObjectRef` | `record (bucket, key, etag, size, lastModifiedMillis)` |
-| `S3ObjectStore` | Seam: `S3Listing list(prefix, continuationToken, startAfter)`, `S3ObjectRef head(key)`, `void download(key, Path target)` |
-| `AwsS3ObjectStore` | Implementation over `software.amazon.awssdk.services.s3.S3Client` |
-| `S3ClientOptions` | Worker-level connection + cache config (§6) |
-| `S3MediaMaterializer` | URI → local cache file: caching, atomic writes, size guards |
-| `S3LoomMedia` | `LoomMedia` whose `reference()` is the URI and whose `path()`/`file()`/`open()`/`absolutePath()` materialize on first use |
-
-`S3ObjectStore` follows the injectable-client convention already used by `TtsClient`,
-`SentimentClient`, `SmolVLMClient` and `VlmChatClient` — a narrow seam so unit tests use an
-in-memory fake and only the integration test needs MinIO.
-
-`S3LoomMedia` is used at **both** ends: the source node builds it from a listing entry, and the
+`S3LoomMedia` is a `LoomMedia` whose `reference()` is the URI and whose `path()`/`file()`/`open()`
+materialize on first use. It is used at **both** ends: the node builds it from a listing entry, the
 resolver builds it from a URI. One class, one materialization path.
 
-### 4.4 Cache layout
+Cache layout:
 
 ```
 metaPath/s3_bin/<first 4 hex of sha256(bucket + "/" + key)>/<sha256(bucket+"/"+key)>-<etag>.<ext>
@@ -192,108 +130,83 @@ metaPath/s3_bin/<first 4 hex of sha256(bucket + "/" + key)>/<sha256(bucket+"/"+k
 - **The key's file extension is preserved.** `LoomMediaImpl.isVideo()` delegates to
   `FilterHelper.isVideo(path())` — media-type detection is extension-driven, so an object
   materialized as `.bin` would be invisible to every media node. Non-obvious and load-bearing.
-- **ETag is in the filename**, so a modified object lands at a different path and a stale copy
-  is never served. Strip the surrounding `"` quotes.
-- `HashUtils.segmentPath` (sibling repo `hash-utils`) takes a `SHA512`, which is unknown before
-  download, so the 4-hex sharding is reimplemented over the *key* hash. Shape still matches the
-  `*_bin` convention in `ThumbnailNode` / `TtsNode` / `ImageGenNode` / `ScriptNode`.
-- **Atomic**: download to `<name>.part`, then `Files.move(…, ATOMIC_MOVE)`. Two concurrent node
-  tasks on the same object are safe.
-- **Cache hit** = file exists at the etag-keyed path → zero network calls.
-- Guards: `maxObjectSize` checked against the listed size *before* downloading; `maxCacheBytes`
+- **ETag is in the filename**, so a modified object lands at a different path and a stale copy is
+  never served. Strip the surrounding `"` quotes.
+- `HashUtils.segmentPath` takes a `SHA512`, unknown before download, so the 4-hex sharding is
+  reimplemented over the *key* hash. Shape still matches the `*_bin` convention.
+- **Atomic**: download to `<name>.part`, then `Files.move(…, ATOMIC_MOVE)`.
+- Guards: `maxObjectSize` checked against the **listed** size before downloading; `maxCacheBytes`
   with an mtime-ordered LRU sweep after each materialization.
-- Side benefit: `AbstractFilesystemMedia` caches SHA-512 in the `loom_sha512` xattr on the local
-  file, so a re-materialized object (same etag → same path) keeps its hash for free.
+- `AbstractFilesystemMedia` caches SHA-512 in the `loom_sha512` xattr, so a re-materialized object
+  (same etag → same path) keeps its hash for free.
 
 **This is what removes the shared-storage prerequisite** — each worker's `s3_bin` is its own.
+**Consequence:** *every* worker running a node against S3 media needs S3 credentials, not just the
+one running `s3-source`.
+
+### 4.2 Change detection — three tiers, one of them correct
+
+Index file: `indexBaseDir.resolve(sha256Hex(endpoint + "/" + bucket + "/" + prefix) + ".avro")` under
+`metaPath/s3-index`. Including the endpoint means the same bucket name on two MinIO instances does
+not collide.
+
+| Tier | Mechanism | Cost per run | Correct alone? |
+|---|---|---|---|
+| Baseline | `ListObjectsV2` paginated, diffed against the local index | `N/1000` requests, no bytes | ✅ yes |
+| Resume | `ListObjectsV2.startAfter(lastSeenKey)` | only the tail | ❌ misses edits to older keys |
+| Push | Bucket notifications → `S3EventBuffer`, then one `HeadObject` per hint | one HEAD per changed object | ❌ notifications can be lost |
+
+The two fast tiers are **accelerators over the correct one**; a mandatory periodic full reconcile
+(`reconcileIntervalMs`, default 6h) is what makes the combination correct. Both fast paths are gated
+on a full listing having run within that window. S3 Inventory would be a fourth tier; it is AWS-only
+and out of scope.
+
+States reuse `io.metaloom.fs.FileState` from the `differential-filesystem-scanner` artifact rather
+than a parallel enum, so `emitStates` has an identical shape and shared UI `ENUM_SET` values across
+both source nodes. Default `[NEW, MODIFIED]`.
+
+**`MOVED` is never emitted.** S3 has no inode, so a rename is `DELETED` + `NEW`. It could be inferred
+by matching `(etag, size)`, but ETag collides across genuinely identical objects — very common in
+media archives with duplicate uploads — so the inference invents renames. The value is accepted for
+symmetry and never produced.
+
+### 4.3 Events make a run cheap; they do not start one
+
+Loom's scheduler still starts pipeline runs, so the practical result is "scheduled run whose scan is
+nearly free". A true watch mode is a Loom scheduling feature and remains out of scope.
 
 ---
 
-## 5. The `s3-source` node
+## 5. Configuration
 
-New **flat** module `cortex/nodes/s3-source`, artifact `cortex-s3-source-node`, package
-`io.metaloom.cortex.node.source.s3`. Flat matches `filesystem-source`; the `core` submodule
-split other nodes use is vestigial since the `*-api` modules merged into `loom-shared/node-model`.
+All connection settings are **worker-level**, never in the pipeline definition: a definition is
+stored in Postgres and rendered verbatim in the editor, and `ParameterType` has no `SECRET` value.
+Full flag reference: [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md).
 
-### 5.1 Change detection
+| CLI flag | Env | Default |
+|---|---|---|
+| `--s3-endpoint` | `CORTEX_S3_ENDPOINT` | — (real AWS) |
+| `--s3-region` | `CORTEX_S3_REGION` | `us-east-1` |
+| `--s3-access-key` | `CORTEX_S3_ACCESS_KEY` | — → AWS default chain |
+| `--s3-secret-key` | `CORTEX_S3_SECRET_KEY` | — → AWS default chain |
+| `--s3-path-style` | `CORTEX_S3_PATH_STYLE` | `true` when an endpoint is set (MinIO needs it) |
+| `--s3-cache-path` | `CORTEX_S3_CACHE_PATH` | `<meta-path>/s3_bin` |
+| `--s3-index-path` | `CORTEX_S3_INDEX_PATH` | `<meta-path>/s3-index` |
+| `--s3-max-cache-bytes` | `CORTEX_S3_MAX_CACHE_BYTES` | `53687091200` (50 GiB); `0` disables eviction |
+| `--s3-max-object-size` | `CORTEX_S3_MAX_OBJECT_SIZE` | `0` (unbounded) |
+| `--s3-reconcile-interval-ms` | `CORTEX_S3_RECONCILE_INTERVAL_MS` | `21600000` (6h) |
+| `--s3-events-enabled` | `CORTEX_S3_EVENTS_ENABLED` | `false` |
+| `--s3-events-mode` | `CORTEX_S3_EVENTS_MODE` | `WEBHOOK` \| `SQS` |
+| `--s3-events-webhook-path` | `CORTEX_S3_EVENTS_WEBHOOK_PATH` | `/s3-events` |
+| `--s3-events-webhook-secret` | `CORTEX_S3_EVENTS_WEBHOOK_SECRET` | — (required when enabled; header `X-Cortex-S3-Token`) |
+| `--s3-events-queue-url` | `CORTEX_S3_EVENTS_QUEUE_URL` | — (SQS mode) |
+| `--s3-events-max-buffered-keys` | `CORTEX_S3_EVENTS_MAX_BUFFERED_KEYS` | `50000`; overflow sets `degraded` |
 
-Index file: `indexBaseDir.resolve(sha256Hex(endpoint + "/" + bucket + "/" + prefix) + ".avro")`
-under `metaPath/s3-index` — mirroring `FilesystemSourceNode.indexFileFor(root)`. Including the
-endpoint means the same bucket name on two MinIO instances does not collide.
+**Per-instance options** (`S3SourceNodeOptions`, `KEY = "s3-source"`): `bucket`, `prefix`,
+`suffixes` (e.g. `mp4,mkv,jpg`), `emitStates`, `startAfter`, `useEvents`. The descriptor adds the
+standard `enabled`.
 
-| State | Condition |
-|---|---|
-| `NEW` | key absent from the index |
-| `MODIFIED` | key present, `etag` **or** `size` differs |
-| `PRESENT` | key present, identical |
-| `DELETED` | in the index but absent from the listing (or an `ObjectRemoved` event) |
-| `MOVED` | **never produced** — see below |
-
-**On `MOVED`.** S3 has no inode, so a rename is `DELETED` + `NEW`. It *could* be inferred by
-matching a removed key against a new key sharing `(etag, size)`, but ETag collides across
-genuinely identical objects — very common in media archives with duplicate uploads — so the
-inference produces false renames. The option value is accepted for symmetry with
-`filesystem-source` and never emitted.
-
-**Reuse `io.metaloom.fs.FileState`** (`PRESENT, MOVED, DELETED, MODIFIED, NEW, UNKNOWN`) from the
-`differential-filesystem-scanner` artifact rather than defining a parallel enum: the `emitStates`
-option then has an identical shape, identical validation messages and shared UI `ENUM_SET` values
-across both source nodes. Depending on that artifact for one enum is cheaper than a private copy
-that drifts.
-
-Default `emitStates`: `[NEW, MODIFIED]`.
-
-### 5.2 `stream()` — cold, three paths
-
-```java
-@Override
-public Flowable<LoomMedia> stream() {
-    return Flowable.defer(() -> {
-        lastStates.clear();
-        return Flowable.fromIterable(scanner.scan());   // picks its own path, below
-    }).map(this::toMedia);                              // S3LoomMedia — no bytes fetched
-}
-```
-
-`S3DifferentialScanner.scan()` selects:
-
-1. **Event fast path** — `useEvents`, the buffer for this `(bucket, prefix)` is non-empty and
-   not degraded, *and* a full scan ran within `reconcileIntervalMs`: drain the buffer,
-   `HeadObject` each hinted key, diff, persist. **No LIST at all.**
-2. **Resume path** — `startAfter` enabled and the index records a `lastSeenKey`:
-   `ListObjectsV2.startAfter(lastSeenKey)`. Opt-in; the reconcile interval still forces
-   periodic full passes because this path cannot see edits to older keys.
-3. **Full differential list** — paginated `ListObjectsV2`, diff everything, persist, stamp
-   `lastFullScanAt`.
-
-Every path persists the updated index and clears only the buffer entries it consumed. A crash
-between scan and persist re-emits already-processed objects — at-least-once, which the rest of
-the pipeline already assumes (nodes upsert on natural keys).
-
-`process(media, upstream)` returns outputs `uri`, `bucket`, `key`, `source=s3`, `state`.
-
-> ⚠️ **Inherited limitation, not introduced here.** `lastStates` is an in-JVM map, so when the
-> source node's own NODE_TASK is dispatched to a different worker than the one that ran the
-> SOURCE_TASK, `state` reads `UNKNOWN`. `FilesystemSourceNode` has exactly the same hole. Record
-> it in [NODES.md](NODES.md) §10; do not fix it here.
-
-### 5.3 Event-driven change detection
-
-| Class (in `cortex/s3-common`) | Responsibility |
-|---|---|
-| `S3EventBuffer` | `@Singleton`, worker-scoped. `Map<bucket/prefix, Set<S3ChangeHint>>`, bounded by `maxBufferedKeys` (default 50 000). Overflow sets a `degraded` flag forcing the next run onto the full-list path. |
-| `S3EventSource` | `void start()` / `void stop()` — feeds the buffer |
-| `WebhookS3EventSource` | A Vert.x route on the **existing** monitoring router |
-| `SqsS3EventSource` | Long-polls an SQS queue (AWS: S3 → SQS, or S3 → SNS → SQS) |
-| `S3EventParser` | Parses the S3 event envelope — `Records[].eventName`, `s3.bucket.name`, URL-decoded `s3.object.key`, `s3.object.eTag`, `s3.object.size`. **MinIO and AWS emit the same shape.** |
-
-**Webhook path.** `MonitoringService` already runs a Vert.x `Router` on port 8093 and registers
-`HealthEndpoint` / `MetricsEndpoint` through `register(router)`. `WebhookS3EventSource` follows
-that pattern with `POST /s3-events`, authenticated by a constant-time comparison of an
-`X-Cortex-S3-Token` header. The route is not registered at all when events are disabled, so
-nothing new is exposed by default.
-
-MinIO side:
+MinIO webhook wiring:
 
 ```bash
 mc admin config set local notify_webhook:cortex \
@@ -302,209 +215,123 @@ mc admin service restart local
 mc event add local/media arn:minio:sqs::cortex:webhook --event put,delete
 ```
 
-**SQS path.** Needs `software.amazon.awssdk:sqs` added to `bom/pom.xml` beside the existing `s3`
-entry (same `${aws.sdk.version}`). One daemon thread long-polls with `waitTimeSeconds=20`,
-parses, buffers, and deletes each message only after buffering it.
-
-### 5.4 What events do and do not give you
-
-They make a *run* cheap. They do **not** trigger a run — Loom's scheduler still starts pipeline
-runs, so the practical result is "scheduled run whose scan is nearly free". A true watch mode
-(the worker asking Loom to start a run when objects land) is a Loom scheduling feature and is
-explicitly out of scope; §13 records it.
-
 ---
 
-## 6. Configuration
-
-Per [NODES.md](NODES.md) §5.1: *options describing the worker's environment are per-worker;
-options that **are** the work are per-instance.*
-
-### 6.1 Worker-level — new `S3ClientOptions` on `CortexOptions`, alongside `loom`
-
-| Field | Env | Default |
-|---|---|---|
-| `endpoint` | `CORTEX_S3_ENDPOINT` | null (real AWS) |
-| `region` | `CORTEX_S3_REGION` | `us-east-1` |
-| `accessKey` | `CORTEX_S3_ACCESS_KEY` | null → AWS default chain |
-| `secretKey` | `CORTEX_S3_SECRET_KEY` | null → AWS default chain |
-| `pathStyleAccess` | `CORTEX_S3_PATH_STYLE` | `true` when `endpoint` is set (MinIO needs it) |
-| `cachePath` | `CORTEX_S3_CACHE_PATH` | `metaPath/s3_bin` |
-| `indexPath` | `CORTEX_S3_INDEX_PATH` | `metaPath/s3-index` |
-| `maxCacheBytes` | `CORTEX_S3_MAX_CACHE_BYTES` | 53687091200 (50 GiB) |
-| `maxObjectSize` | `CORTEX_S3_MAX_OBJECT_SIZE` | 0 (unbounded) |
-| `reconcileIntervalMs` | `CORTEX_S3_RECONCILE_INTERVAL_MS` | 21600000 (6h) |
-| `events.enabled` | `CORTEX_S3_EVENTS_ENABLED` | `false` |
-| `events.mode` | `CORTEX_S3_EVENTS_MODE` | `WEBHOOK` (or `SQS`) |
-| `events.webhookPath` | `CORTEX_S3_EVENTS_WEBHOOK_PATH` | `/s3-events` |
-| `events.webhookSecret` | `CORTEX_S3_EVENTS_WEBHOOK_SECRET` | null (required when enabled) |
-| `events.queueUrl` | `CORTEX_S3_EVENTS_QUEUE_URL` | null |
-| `events.maxBufferedKeys` | `CORTEX_S3_EVENTS_MAX_BUFFERED_KEYS` | 50000 |
-
-Credentials: explicit `accessKey`/`secretKey` → `StaticCredentialsProvider`; otherwise
-`DefaultCredentialsProvider` (env, profile, instance role, IRSA). Add the CLI flags to
-`CortexCLI` and the loading to `CortexOptionsLoader`, matching the existing
-`--node-whitelist` / `CORTEX_NODE_WHITELIST` pattern.
-
-### 6.2 Pipeline-node level (`S3SourceNodeOptions`, `KEY = "s3-source"`)
-
-`bucket`, `prefix`, `suffixes` (e.g. `mp4,mkv,jpg`), `emitStates`, `startAfter` (boolean),
-`useEvents` (boolean), `maxObjectSize` (override), `enabled`.
-
-**No credentials in the pipeline definition.** They would be stored in Postgres and rendered in
-the pipeline editor, where `ParameterType` has no `SECRET`/`PASSWORD` value
-(`STRING, INTEGER, NUMBER, BOOLEAN, ENUM, ENUM_SET, CODE, JSON`). This choice means **no new
-`ParameterType` is needed**.
-
-> **Deployment consequence.** Because materialization is lazy, *every* worker running a node
-> against S3 media needs S3 credentials — not just the one running `s3-source`. Document this in
-> the website docs and in `helm/`.
-
-### 6.3 UI descriptor
-
-Added to `SourceDescriptorProvider` (which already carries `filesystem-source` and `loom-fetch`,
-so no new SPI registration): kind `s3-source`, icon `cloud`, category `SOURCE`, no inputs, one
-output `new NodeOutput("media", MEDIA_ANY)`, `defaultConcurrency` 1, `defaultMode` SEQUENTIAL.
-Parameters: `enabled`, `bucket`, `prefix`, `suffixes`, `emitStates` (`ENUM_SET`), `useEvents`,
-`startAfter`.
-
-**Also fix the stale `filesystem-source` descriptor in the same change** — it exposes only
-`enabled` and `path`, missing `pathGlobs`, `emitStates` and `indexPath` that the node has
-supported for a while. Six lines, and the two source descriptors should be symmetric.
-
----
-
-## 7. Key Classes Reference
+## 6. Key Classes Reference
 
 | Class | Package / module | Purpose |
 |---|---|---|
-| `S3SourceNode` | `io.metaloom.cortex.node.source.s3` (`cortex/nodes/s3-source`) | The `MediaSourceNode`; cold `stream()`, `process()` outputs |
+| `S3SourceNode` | `io.metaloom.cortex.node.source.s3` (`cortex/nodes/s3-source`) | `MediaSourceNode`; cold `stream()`, single `OUT_MEDIA` port, `lastState()` |
 | `S3SourceNodeOptions` | same | `KEY = "s3-source"`, `validate()` |
-| `S3SourceNodeModule` | same | Dagger; options + `CortexNodeOptionDeserializerInfo`. **No** `@Binds @IntoSet FilesystemNode` |
-| `S3DifferentialScanner` | same | Diff engine: full-list / resume / event fast path / reconcile |
-| `S3ObjectIndex`, `S3ObjectIndexStore` | same | In-memory index + Avro persistence (`src/main/avro/s3-object-index.avsc`) |
-| `S3Uri`, `S3ObjectRef` | `io.metaloom.cortex.s3` (`cortex/s3-common`) | URI parsing; listing entry record |
-| `S3ObjectStore`, `AwsS3ObjectStore` | same | Client seam + AWS SDK v2 implementation |
+| `S3SourceNodeModule` | same | Dagger; options + `CortexNodeOptionDeserializerInfo` |
+| `S3DifferentialScanner` | same | Full-list / resume / event fast path / reconcile |
+| `S3Selection`, `S3ScanResult` | same | Scan input (bucket/prefix/suffixes/emitStates) and output (objects + states + mode) |
+| `S3ObjectIndex`, `S3ObjectIndexStore` | same | In-memory index + Avro persistence |
+| `S3Uri`, `S3ObjectRef` | `io.metaloom.cortex.s3` (`cortex/s3-common`) | `s3://bucket/key` parsing; listing-entry record |
+| `S3ObjectStore`, `AwsS3ObjectStore` | same | Client seam + AWS SDK v2 implementation (`list`, `head`, `download`, `upload`) |
+| `S3Support` | same | The always-present "is S3 configured" value; `isActive()`, `store()`, `indexBaseDir()` |
 | `S3MediaMaterializer`, `S3LoomMedia` | same | URI → local cache file; lazily-materializing `LoomMedia` |
-| `S3ClientOptions` | same | Worker-level connection/cache config |
-| `S3EventBuffer`, `S3EventSource`, `S3EventParser` | same | Push-path plumbing |
-| `WebhookS3EventSource`, `SqsS3EventSource` | same | Two event transports |
+| `S3MediaReferenceResolver` | same | The `s3://` branch of the composite resolver |
+| `S3ContentTypes` | same | Extension → MIME; also used by `s3-sink` |
+| `S3EventBuffer`, `S3ChangeHint`, `S3EventParser`, `S3EventSource` | `io.metaloom.cortex.s3.event` | Push-path plumbing; the buffer is `@Singleton` and worker-scoped |
+| `WebhookS3EventSource`, `SqsS3EventSource` | same | The two event transports |
 | `MediaReferenceResolver` | `io.metaloom.cortex.common.media` (`cortex/common`) | Composite: `s3://` → materializer, else `LoomMediaLoader` |
-| `MinioContainer` | `io.metaloom.loom.test.container` (`integration-test`, test scope) | Hand-rolled MinIO testcontainer |
-
-Registration points that each need an `s3-source` twin:
-
-| File | What to add |
-|---|---|
-| `cortex/nodes/pom.xml` | `<module>s3-source</module>` |
-| `cortex/cli/…/dagger/NodeCollectionModule.java` | the Dagger module |
-| `cortex/cli/…/dagger/RegistryNodeRegistrar.java:78` | `factory.register("s3-source", …)` + a private builder mirroring `filesystemSource(...)` at :99-129 |
-| `cortex/cli/…/dagger/PipelineNodeFactoryModule.java` | constructor plumbing |
-| `cortex/cli/src/test/…/NodeRegistrarTest.java` | the registered-kind assertion |
-| `loom-shared/node-model/…/SourceDescriptorProvider.java` | the descriptor |
-| `integration-test/pom.xml` | `cortex-s3-source-node`, `cortex-s3-common` |
+| `S3ClientOptions`, `S3EventOptions` | `io.metaloom.cortex.api.option` (`cortex/api`) | Worker-level config; **must** live in `api`, not `s3-common` (§7) |
+| `S3Module` | `io.metaloom.cortex.cli.dagger` (`cortex/core`) | Provides `S3Support` and the event source |
+| `MinioContainer` | `io.metaloom.loom.test.container` (`integration-test`) | Hand-rolled MinIO testcontainer |
 
 ---
 
-## 8. Test Setup
+## 7. Conventions and Gotchas
 
-### 8.1 Unit (no containers)
+🔴 **Shading silently breaks the AWS SDK.** AWS SDK v2 picks its HTTP implementation via
+`ServiceLoader` on `META-INF/services/software.amazon.awssdk.http.SdkHttpService`. Without a
+`ServicesResourceTransformer` in the shade config those files overwrite each other last-wins and the
+client dies at runtime with *"Unable to load an HTTP implementation from any provider in the
+chain"*. Fixed in `cortex/cli/pom.xml`, and `url-connection-client` is pinned so Netty stays out of
+the shaded jar. **This passes every unit and in-process integration test** and fails only in the
+shaded container — which is exactly the test that does not exist (§8). `cli/pom.xml`,
+`loom/containers/demo/pom.xml` and `loom/containers/server/pom.xml` still share the missing
+transformer; latent, not exercised.
 
-Drive `S3SourceNode` through an in-memory `FakeS3ObjectStore`, mirroring the 22 assertions in
-`FilesystemSourceNodeTest`:
+| Gotcha | Detail |
+|---|---|
+| `Paths.get("s3://b/k")` → `s3:/b/k` | Duplicate slashes are collapsed. A `Path` cannot carry a URI — this is why `MediaResolver` takes a `MediaRef` |
+| Media type is extension-driven | The materialized cache file **must** keep the object key's extension, or `isVideo()` is false |
+| ETag is not a content hash | Multipart ETags are `<md5-of-md5s>-<partcount>`. Opaque change token only — never MD5, never dedup |
+| Event keys are URL-encoded | `s3.object.key` must be URL-decoded. MinIO and AWS emit the same envelope shape |
+| MinIO needs path-style access | `pathStyleAccess` defaults to `true` whenever `endpoint` is set |
+| `S3ClientOptions` lives in `cortex-api` | `CortexOptions` references it and `s3-common` depends on `api`; putting it in `s3-common` inverts the dependency |
+| "S3 not configured" is a value, not `null` | Dagger rejects a `null` from `@Provides` without `@Nullable`. `S3Support.isActive()` is the honest shape |
+| The kind is capability-gated | `RegistryNodeRegistrar` advertises `s3-source` **only** when `s3Support.isActive()` — announcing a kind the worker cannot serve turns a missing capability into a dead run. `NodeRegistrarTest` pins both directions |
+| Source nodes get no `@Binds @IntoSet FilesystemNode` | They are pipeline-level, matching `FilesystemSourceNodeModule` |
+| The index store is `new`-ed, not injected | `FilesystemSourceNode` does the same with `AvroFileIndexStore` |
+| `lastStates` is per-JVM | When the source's own NODE_TASK lands on another worker, `lastState()` reads `UNKNOWN`. Pre-existing in `filesystem-source`; recorded in [NODES.md](NODES.md) |
+| A crash between scan and persist re-emits | At-least-once, which the rest of the pipeline already assumes (nodes upsert on natural keys) |
+| `setup-pool.sh` before any IT | And again after any Flyway change — see [../../../.claude/CLAUDE.md](../../../.claude/CLAUDE.md) |
 
-- first scan emits everything as `NEW`; unchanged re-run emits nothing
-- added object → only that one; changed ETag → `MODIFIED`; removed object → `DELETED`, and only
-  when `DELETED` is in `emitStates`
-- `emitStates` including `PRESENT` keeps everything flowing every run
-- the stream is **cold** — an object put after `stream()` but before subscription is still seen
-- `startAfter` resume skips history; an expired `reconcileIntervalMs` forces a full pass
-- validation rejections: blank bucket, unknown state name, missing index dir
-- `process()` reports `uri` / `bucket` / `key` / `source=s3` / `state`
+---
 
-Plus `S3UriTest`, `S3ObjectIndexStoreTest` (round-trip; missing file → empty index, so a first
-run sees everything as NEW), `S3MediaMaterializerTest` (cache miss downloads, cache hit does not,
-ETag change re-downloads, no `.part` left behind, extension preserved, `maxObjectSize` rejects
-before transfer), `S3EventParserTest` (real MinIO **and** AWS payloads, URL-decoded keys),
-`S3EventBufferTest` (overflow → degraded), `S3SourceNodeOptionsTest`.
+## 8. Progress Assessment
 
-Also: update the `MediaResolver` tests in `cortex/node-runtime` for the new signature, and add
-`MediaReferenceResolverTest` (passthrough with no S3 configured; dispatch on `s3://`).
+### Done
 
-### 8.2 MinIO container
+- [x] `cortex/s3-common` — `S3Uri`, `S3ObjectRef`, `S3ObjectStore`/`AwsS3ObjectStore`, `S3Support`,
+      `S3MediaMaterializer`, `S3LoomMedia`, `S3MediaReferenceResolver`, `S3ContentTypes` (78 tests)
+- [x] Shade fix — `ServicesResourceTransformer` + pinned `url-connection-client` in `cortex/cli`
+- [x] Media-addressing seam — `ProcessableMedia.reference()`, `MediaResolver.resolve(MediaRef)`,
+      `SourceTaskRunner.toRef`, `MediaReferenceResolver`. No behaviour change when S3 is unconfigured
+- [x] `CortexOptions.getS3()` + `S3ClientOptions`/`S3EventOptions` + 16 CLI flags and env vars
+- [x] The node — Avro schema, index store, differential scanner, options, Dagger module (47 tests)
+- [x] Conditional kind registration + `NodeRegistrarTest` pinning both directions
+- [x] Descriptor in `SourceDescriptorProvider` (+ the `filesystem-source` descriptor fix), SPI test
+- [x] Event path — buffer, parser, webhook route on the monitoring router, SQS poller, and the
+      fast-path + reconcile branch in the scanner
+- [x] `MinioContainer`, `start-minio.sh`, `S3SourceNodeIntegrationTest` (9 tests)
+- [x] Docs & demo — `website/content/english/docs/nodes/s3-source/`, a demo pipeline in
+      `DemoDatabaseInitializer`, [NODES.md](NODES.md), Helm `s3-secret.yaml`
 
-Testcontainers is pinned at **1.17.6** — four inline literals in `bom/pom.xml`, one more in
-`loom-test-env/pom.xml` — which predates `MinIOContainer`. **Do not bump it in this change**: the
-bump also reaches `e2e-test`, `cortex/core`, `cortex/cli`, `loom-client` and the jOOQ codegen
-plugin's own `PostgreSQLContainer`, i.e. unrelated blast radius for a node change. Hand-roll one
-instead, exactly as `LoomContainer` and `CortexContainer` already are:
+### Open
 
-```java
-public class MinioContainer extends GenericContainer<MinioContainer> {
-    public static final String IMAGE = System.getProperty("minio.image",
-        "minio/minio:RELEASE.2025-04-22T22-12-26Z");
-    public static final int PORT = 9000;
+- [ ] 🔴 **No container E2E.** `S3PipelineContainerExecutionIntegrationTest` was designed and never
+      written, and `MetaLoomTestContext` has no MinIO service. Two workers with **no shared media
+      volume** (`Set.of("s3-source")` and `Set.of("sha512")`) is the only test that proves the
+      lazy-materialization architecture *and* the only test that would catch a shading regression in
+      the `metaloom/cortex-server` image. Model it on `PipelineContainerExecutionIntegrationTest`.
+- [ ] **`asset_pool.s3_*` stays unused by this node.** Bucket and prefix come from the pipeline
+      definition. Linking to a configured pool row is follow-up work, and it interacts with
+      [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md)'s `library.pool_uuid` model
+      and with the sink's identical question ([NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md)).
+- [ ] **Watch mode.** Events make a run cheap but do not *start* one. A worker-initiated run trigger
+      is a Loom scheduling feature.
+- [ ] **`MOVED` is never emitted** (§4.2) and **`lastStates` is per-JVM** — both by design, both
+      inherited by/from `filesystem-source`.
+- [ ] **Versioned buckets / delete markers.** `versionId` is reserved in the Avro schema and unused.
+- [ ] **No per-instance `maxObjectSize` override.** The worker-level guard is the only one.
+- [ ] **`cortex/s3-common` has no spec file of its own** — it is documented here by convention (§2).
 
-    public MinioContainer(Network network) {
-        super(DockerImageName.parse(IMAGE));
-        withNetwork(network).withNetworkAliases("minio")
-            .withEnv("MINIO_ROOT_USER", "minioadmin")
-            .withEnv("MINIO_ROOT_PASSWORD", "minioadmin")
-            .withCommand("server", "/data", "--console-address", ":9001")
-            .withExposedPorts(PORT)
-            .waitingFor(Wait.forHttp("/minio/health/live").forPort(PORT)
-                .withStartupTimeout(Duration.ofMinutes(2)));
-    }
+---
 
-    public String endpoint() { return "http://" + getHost() + ":" + getMappedPort(PORT); }
-    public String internalEndpoint() { return "http://minio:" + PORT; }
-}
-```
-
-### 8.3 Integration — `S3SourceNodeIntegrationTest`
-
-In `integration-test/src/test/java/io/metaloom/loom/test/integration/node/`, extending
-`AbstractNodeIntegrationTest` (in-process Loom + pooled Postgres, no Loom container) with a
-`MinioContainer`. Put real fixture media in a bucket via the SDK, then assert:
-
-1. run 1 emits all objects as `NEW`
-2. run 2 emits nothing
-3. after one more `putObject`, run 3 emits exactly that one
-4. materializing an item and driving a real `SHA512Node` with a real `LoomHttpClient` puts the
-   hash on the `asset` row and reads back over REST — the shape every other `*NodeIntegrationTest` uses
-5. `isVideo()` is true for the materialized `.mp4`, proving the extension survived
-
-### 8.4 Container E2E — the test that proves the architecture
-
-Extend `MetaLoomTestContext` with an optional MinIO service on the shared `Network`, and add
-`S3PipelineContainerExecutionIntegrationTest` modelled on
-`PipelineContainerExecutionIntegrationTest`: two workers with **no shared media volume** —
-`it-cortex-s3-source` (`Set.of("s3-source")`) and `it-cortex-hash` (`Set.of("sha512")`) — asserting
-the run completes with hashes persisted.
-
-Without this test the central claim of decision #3 is unverified, so it is not optional.
-
-### 8.5 Dev convenience
-
-`start-minio.sh` at the repo root, beside `start-postgres.sh`:
-
-```bash
-docker run -d --name minio-dev -p 9000:9000 -p 9001:9001 \
-  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-  minio/minio:RELEASE.2025-04-22T22-12-26Z server /data --console-address ":9001"
-```
-
-plus `mc` commands to create a `media` bucket, upload fixtures and optionally wire the webhook.
-
-### 8.6 Commands
+## 9. Test Setup
 
 ```bash
 mvn -q -pl cortex/s3-common,cortex/nodes/s3-source,cortex/node-runtime,cortex/core,cortex/cli -am test
-mvn -q -pl loom-shared/node-model test
+mvn -q -pl loom-shared/node-model test          # descriptors: 26 providers / 41 kinds
 
-./setup-pool.sh                                   # mandatory before any IT — see ../../../.claude/CLAUDE.md
-./it.sh                                           # or: mvn verify -pl integration-test -Dtest='S3*IntegrationTest'
+./setup-pool.sh                                  # mandatory before any IT
+mvn verify -pl integration-test -Dtest='S3*IntegrationTest'
 ```
+
+| Test | What it guards against |
+|---|---|
+| `S3SourceNodeTest` | First scan not emitting everything as `NEW`; an unchanged re-run emitting anything; a changed ETag not reading `MODIFIED`; `DELETED` leaking when it is not in `emitStates`; the stream not being cold |
+| `S3DifferentialScannerTest` | `startAfter` resume skipping too much; an expired `reconcileIntervalMs` not forcing a full pass; the event fast path running without a recent full listing |
+| `S3SourceNodeOptionsTest` | A blank bucket or unknown state name surfacing per-item instead of at pipeline start |
+| `S3UriTest`, `S3ObjectRefTest` | URI round-trips; a missing index file not being treated as empty (a first run must see everything as `NEW`) |
+| `S3MediaMaterializerTest` | A cache hit downloading; an ETag change not re-downloading; a leftover `.part`; **a lost file extension**; `maxObjectSize` not rejecting before transfer |
+| `S3LoomMediaTest`, `S3MediaReferenceResolverTest` | Enumeration accidentally fetching bytes; the resolver not being a pure passthrough when S3 is unconfigured |
+| `S3EventParserTest`, `S3EventBufferTest` | Real MinIO **and** AWS payloads; URL-decoded keys; overflow not setting `degraded` |
+| `S3SourceNodeIntegrationTest` | The full loop against real MinIO: `NEW` → nothing → exactly one; a materialized `.mp4` reading `isVideo()`; the SHA-512 reaching the `asset` row over REST |
 
 Manual smoke test:
 
@@ -514,62 +341,14 @@ mc alias set dev http://localhost:9000 minioadmin minioadmin
 mc mb dev/media && mc cp /path/to/sample.mp4 dev/media/2026/07/
 
 export CORTEX_S3_ENDPOINT=http://localhost:9000 CORTEX_S3_REGION=us-east-1 \
-       CORTEX_S3_ACCESS_KEY=minioadmin CORTEX_S3_SECRET_KEY=minioadmin \
-       CORTEX_S3_PATH_STYLE=true
+       CORTEX_S3_ACCESS_KEY=minioadmin CORTEX_S3_SECRET_KEY=minioadmin CORTEX_S3_PATH_STYLE=true
 ./start-server.sh & ./start-cortex.sh &
 ```
 
-In the pipeline editor build `s3-source(bucket=media, prefix=2026/) → sha512 → tika`, run it, and check:
-
-- run 1 processes the object and the `asset` row carries the SHA-512
-- run 2 emits nothing (index hit) — a zero-item source in the run view
-- `mc cp another.mp4 dev/media/2026/07/` → run 3 processes exactly one item
-- `~/.cache/metaloom/cortex/meta/s3_bin/**` holds the materialized file **with its `.mp4` extension**
-- `~/.cache/metaloom/cortex/meta/s3-index/*.avro` holds the persisted index
-- with `useEvents=true` and the webhook wired, a fresh `mc cp` makes the next run process it
-  without a LIST (visible in the worker log)
-
----
-
-## 9. Conventions and Gotchas
-
-### 🔴 Shading silently breaks the AWS SDK
-
-`cortex/cli/pom.xml:91-116` shades with a `ManifestResourceTransformer` and **no
-`ServicesResourceTransformer`**. AWS SDK v2 picks its HTTP implementation via `ServiceLoader` on
-`META-INF/services/software.amazon.awssdk.http.SdkHttpService`; without the services transformer
-those files overwrite each other last-wins and the client dies at runtime with
-`SdkClientException: Unable to load an HTTP implementation from any provider in the chain`.
-
-This passes every unit test and every in-process integration test — they run on a normal
-classpath — and fails **only** in the shaded `metaloom/cortex-server` container, i.e. exactly in
-§8.4. Fix it in the first implementation step:
-
-```xml
-<transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
-```
-
-and pin one HTTP client rather than relying on the chain: `software.amazon.awssdk:url-connection-client`
-with `S3Client.builder().httpClientBuilder(UrlConnectionHttpClient.builder())`. It keeps Netty out
-of the shaded jar entirely, and the workload is a few large sequential transfers rather than
-high-concurrency small requests. Exclude the SDK's bundled `apache-client` / `netty-nio-client`
-transitives to keep the jar honest.
-
-`cli/pom.xml`, `loom/containers/demo/pom.xml` and `loom/containers/server/pom.xml` share the same
-missing transformer. Only `cortex/cli` matters here, but the latent defect is worth recording.
-
-### Other gotchas
-
-| Gotcha | Detail |
-|---|---|
-| `Paths.get("s3://b/k")` → `s3:/b/k` | Duplicate slashes are collapsed. A `Path` cannot carry a URI — this is why `MediaResolver` changes signature (§4.1). |
-| Media type is extension-driven | `LoomMediaImpl.isVideo()` → `FilterHelper.isVideo(path())`. The materialized cache file **must** keep the object key's extension. |
-| ETag is not a content hash | Multipart ETags are `<md5-of-md5s>-<partcount>`. Use it strictly as an opaque change token — never as MD5, never for dedup. |
-| Event keys are URL-encoded | `s3.object.key` in the event envelope must be URL-decoded before use. |
-| MinIO needs path-style access | `pathStyleAccess` defaults to `true` whenever `endpoint` is set. |
-| Source nodes get no `@Binds @IntoSet FilesystemNode` | They are pipeline-level, not `FilesystemNode`s — matching `FilesystemSourceNodeModule`. |
-| The index store is `new`-ed, not injected | `FilesystemSourceNode` does the same with `AvroFileIndexStore`; keep the symmetry. |
-| `setup-pool.sh` before any IT | And again after any Flyway change — see [../../../.claude/CLAUDE.md](../../../.claude/CLAUDE.md). |
+Build `s3-source(bucket=media, prefix=2026/) → sha512 → tika` and check: run 1 processes the object;
+run 2 emits nothing; a fresh `mc cp` makes run 3 process exactly one item;
+`~/.cache/metaloom/cortex/meta/s3_bin/**` holds the file **with its `.mp4` extension**; and
+`…/meta/s3-index/*.avro` holds the persisted index.
 
 ---
 
@@ -577,131 +356,23 @@ missing transformer. Only `cortex/cli` matters here, but the latent defect is wo
 
 | Concept | Path |
 |---|---|
-| The template source node | `cortex/nodes/filesystem-source/src/main/java/io/metaloom/cortex/node/source/fs/FilesystemSourceNode.java` |
-| Its differential scan | same file, `differentialScan()` / `indexFileFor()` |
-| The Avro index precedent | `differential-filesystem-scanner` (sibling repo), `linux/impl/AvroFileIndexStore.java` + `src/main/avro/linux-file-index.avsc` |
-| Kind registration | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/RegistryNodeRegistrar.java:78` |
-| SOURCE_TASK dispatch | `cortex/core/…/loom/PipelineTaskHandler.java` `resolveSourceStream()` |
-| Source batching + ACK | `cortex/node-runtime/…/SourceTaskRunner.java` |
-| NODE_TASK media resolution | `cortex/node-runtime/…/NodeTaskRunner.java:80` |
-| UI descriptors | `loom-shared/node-model/…/spec/SourceDescriptorProvider.java` |
-| Parameter types | `loom-shared/node-model/…/spec/ParameterType.java` |
-| Worker options | `cortex/api/…/option/CortexOptions.java`; loading in `cortex/common/…/option/CortexOptionsLoader.java` |
-| Monitoring HTTP router (webhook host) | `cortex/core/…/monitoring/MonitoringService.java` |
-| Local `*_bin` cache precedent | `cortex/nodes/thumbnail/core/…/ThumbnailNode.java:116-122` |
-| Container test harness | `integration-test/src/test/java/io/metaloom/loom/test/container/MetaLoomTestContext.java` |
-| Per-node IT base | `integration-test/…/integration/node/AbstractNodeIntegrationTest.java` |
-| AWS SDK version | `bom/pom.xml:26` (`aws.sdk.version`), entry at `:250-254` |
-| Loom's S3 asset-pool columns | `loom/db/flyway/…/V2.20__add_asset_pool.sql` |
+| The node | `cortex/nodes/s3-source/src/main/java/io/metaloom/cortex/node/source/s3/S3SourceNode.java` |
+| The diff engine | `…/source/s3/S3DifferentialScanner.java` |
+| The Avro schema | `cortex/nodes/s3-source/src/main/avro/s3-object-index.avsc` |
+| Everything shared with `s3-sink` | `cortex/s3-common/src/main/java/io/metaloom/cortex/s3/` |
+| The `s3://` cache layout | `…/s3/S3MediaMaterializer.java` |
+| Conditional kind registration | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/RegistryNodeRegistrar.java` |
+| `S3Support` provisioning | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/S3Module.java` |
+| Worker options + env mapping | `cortex/api/…/option/S3ClientOptions.java`, `cortex/core/…/cli/EnvDefaultProvider.java` |
+| The webhook route | `cortex/s3-common/…/s3/event/WebhookS3EventSource.java` |
+| UI descriptor | `loom-shared/node-model/…/spec/SourceDescriptorProvider.java` |
+| The template source node | `cortex/nodes/filesystem-source/…/FilesystemSourceNode.java` |
+| MinIO testcontainer | `integration-test/src/test/java/io/metaloom/loom/test/container/MinioContainer.java` |
+| Helm secret | `helm/cortex/templates/s3-secret.yaml` |
+| Loom's *own* S3 backend (unrelated code) | `loom/services/s3/…/S3BinaryStorage.java`, `loom/services/rest/…/BinaryStorageResolver.java` |
+| All `CORTEX_S3_*` flags in one table | [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
 
 ---
 
-## 11. `s3-sink` — now planned separately
-
-The gap this sketch described — `ThumbnailNode`, `DepthmapNode`, `TtsNode`, `ImageGenNode` and
-`ScriptNode` produce bytes that stay in worker-local `*_bin` caches with a ledger-only
-`asset_node_result` row — is now designed in full in
-**[NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md)**.
-
-Two things changed against the sketch this section used to hold, once the Loom side was checked:
-
-- The sink **creates assets in Loom** for the uploaded artifacts, rather than only writing an
-  `asset_json_comp`. An artifact that is not an asset is not retrievable, which was the point.
-- It also accepts the **media item itself** as an input, so `filesystem-source → s3-sink` archives
-  originals to a bucket.
-
-The open question this section raised — whether Loom should grow the real binary-ingest endpoint
-that `AssetBinaryEndpointService` stubs out — is answered there as a phased yes: phase 1 needs no
-Loom change, phases 2 and 3 wire `asset_location.pool_uuid` and the `attachment` derivation edge.
-
----
-
-## 12. Progress Assessment
-
-- [x] **`cortex/s3-common` module** — `S3Uri`, `S3ObjectRef`, `S3ObjectStore`, `AwsS3ObjectStore`,
-      `S3ClientOptions`, `S3MediaMaterializer`, `S3LoomMedia` + unit tests. Add
-      `software.amazon.awssdk:sqs` and `:url-connection-client` to `bom/pom.xml`; register the
-      module in `cortex/pom.xml`.
-- [x] **Fix the shade config** — add `ServicesResourceTransformer` to `cortex/cli/pom.xml` and pin
-      `url-connection-client`. Do this in the same step; see §9.
-- [x] **Media-addressing seam** — `ProcessableMedia.reference()`,
-      `MediaResolver.resolve(MediaRef)`, `NodeTaskRunner`, `SegmentTaskRunner`,
-      `SourceTaskRunner.toRef`, `PipelineTaskHandler`, `MediaReferenceResolver` + tests.
-      *No behaviour change when S3 is unconfigured.*
-- [x] **`CortexOptions.s3`** + `CortexOptionsLoader` + `CortexCLI` flags and env vars (§6.1)
-- [x] **`cortex/nodes/s3-source`** — Avro schema, `S3ObjectIndexStore`, `S3DifferentialScanner`
-      (full-list + `startAfter` only at this stage), `S3SourceNode`, options, Dagger module, unit tests
-- [x] **Kind registration** — `cortex/nodes/pom.xml`, `NodeCollectionModule`,
-      `RegistryNodeRegistrar`, `PipelineNodeFactoryModule`, `NodeRegistrarTest`
-- [x] **UI descriptor** — `SourceDescriptorProvider` (+ the stale `filesystem-source` fix),
-      i18n keys, `NodeDescriptorServiceLoaderTest`
-- [x] **Event path** — `S3EventBuffer`, `S3EventSource`, `S3EventParser`, `WebhookS3EventSource`
-      on the `MonitoringService` router, `SqsS3EventSource`, and the fast-path + reconcile branch
-      in `S3DifferentialScanner`
-- [x] **MinIO** — `MinioContainer`, `start-minio.sh`, `S3SourceNodeIntegrationTest`,
-      `S3PipelineContainerExecutionIntegrationTest`, `integration-test/pom.xml`
-- [x] **Docs & demo** (per [../../guidelines/CODING.md](../../guidelines/CODING.md)) —
-      `website/content/english/docs/nodes/s3-source/` (customer-facing, SVG not ASCII art;
-      the `filesystem-source` page is the template), a meaningful `s3-source` pipeline in
-      `DemoDatabaseInitializer`, and [NODES.md](NODES.md) updated: §3 pipeline-only-nodes table,
-      §4 source-node prose, §5 options table, §12 capability matrix, the §10 note about
-      `lastStates` being per-JVM, and the footer revision/date
-
----
-
-## 13. Risks and Open Questions
-
-| Risk | Assessment |
-|---|---|
-| **SHA-512 requires the bytes** | Asset identity is SHA-512, so every object is downloaded at least once per worker. Unavoidable; the etag-keyed cache and the `loom_sha512` xattr keep it to exactly once. |
-| **Shading breaks the SDK** | §9. Highest-risk item because it fails late and only in the container build. |
-| **ETag is not a content hash** | Multipart ETags are `<md5-of-md5s>-<parts>`. Used strictly as an opaque change token. |
-| **Event loss / duplicates** | At-least-once with possible loss. The mandatory `reconcileIntervalMs` full scan is the correctness backstop; the buffer's `degraded` flag forces a full scan on overflow. |
-| **`startAfter` misses old modifications** | Correct only for append-only, lexicographically-ordered keys. Opt-in, and reconcile still runs. |
-| **Credentials needed on every worker** | Consequence of lazy materialization. Document in the website docs and `helm/`. |
-| **Worker cache growth** | `maxCacheBytes` + mtime LRU sweep. No cross-process coordination, but bounded. |
-| **`lastStates` is per-JVM** | Pre-existing in `filesystem-source`; `state` reads `UNKNOWN` when the source's NODE_TASK lands on another worker. Documented, not fixed here. |
-| **Versioned buckets / delete markers** | Out of scope. `versionId` reserved in the Avro schema, unused. |
-| **`asset_pool` S3 columns stay unused** | The node reads bucket/prefix from the pipeline definition. Linking to a configured `asset_pool` row is follow-up work. |
-| **Watch mode** | Events do not start runs. A worker-initiated run trigger is a Loom scheduling feature; not designed here. |
-
----
-
-## 14. What changed against this design
-
-Recorded because the code is the source of truth and three things here were wrong or incomplete:
-
-1. **`aws.sdk.version` 2.29.70 does not exist.** The BOM had carried it since the S3 dependency was
-   added; nothing consumed the dependency, so the broken version was never resolved and never
-   noticed. Bumped to 2.49.4.
-
-2. **`S3ClientOptions` had to live in `cortex-api`, not `cortex-s3-common`.** It is referenced by
-   `CortexOptions`, and `s3-common` depends on `api` — putting it in `s3-common` would have inverted
-   the dependency. `S3EventOptions` moved with it.
-
-3. **"S3 not configured" is modelled explicitly rather than as null.** Dagger rejects a null from
-   `@Provides` without a `@Nullable` binding, so the plan's nullable-collaborator shape would not
-   have compiled. `S3Support` is a single always-present value that answers `isActive()`, which is
-   also honest about the one question callers actually have.
-
-4. **The `s3-source` kind is capability-gated.** Not in the plan: `RegistryNodeRegistrar` registers
-   it only when the worker has S3 configuration, for the same reason the stub nodes are not
-   advertised — announcing a kind the worker cannot serve turns a missing capability into a dead run.
-   `NodeRegistrarTest` pins both directions.
-
-5. **The webhook route hangs off `MonitoringService` directly.** The plan worried about keeping the
-   AWS SDK out of `cortex/core`; in fact `cortex/core` already depends on `s3-common` transitively
-   (`core → processor → s3-source-node → s3-common`), so no new coupling was introduced and no SPI
-   indirection was needed.
-
-Still open, as designed: `MOVED` is never emitted; `lastStates` remains per-JVM (inherited from
-`filesystem-source`); watch mode (events *starting* a run) is a Loom scheduling feature; and the
-`asset_pool.s3_*` columns remain unused by this node.
-
----
-
-_Git HEAD revision: `5ac79b6d`_
-_Last updated: 2026-07-28 (implemented — `s3-source` node with differential listing + event-driven
-change detection, lazy per-worker materialization of `s3://` media references, and worker-level
-S3 credentials; `s3-sink` sketched in §11 and still open. §14 records the four places the design
-changed on contact with the code.)_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (reduced to a design record — shipped work collapsed into one table, `process()` corrected to the single typed `media` port, and the never-written container E2E moved from a ticked box to the headline open item.)_

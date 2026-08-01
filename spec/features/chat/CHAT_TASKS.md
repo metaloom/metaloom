@@ -1,53 +1,234 @@
-# CHAT_TASKS — Chat Agent & Skills (Backend)
+# CHAT_TASKS — Chat Agent & Skills (Backend) — Task List
 
-Backend implementation tasks for the chat feature. **All planned tasks (B1–B9) are
-implemented** — this file now records the outcome and the remaining follow-ups.
-Design rationale and protocol definitions live in [CHAT.md](../../loom/ui/CHAT.md);
-UI counterpart: [TASK_UI_CHAT.md](../../loom/ui/TASK_UI_CHAT.md). Task format for
-new entries: [../../TASKS.template.md](../../TASKS.template.md).
+> Build record for the backend chat feature. **Tasks B1–B9 are all done** and re-verified against
+> the code on 2026-08-01; they are kept as one-line outcome records because other specs cite the
+> numbers. Remaining work lives in "Open Follow-ups" below, in template form.
+> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+>
+> **Context:** [CHAT.md](../../loom/ui/CHAT.md) (design rationale, event protocol, tool inventory) ·
+> [CHAT_SESSIONS_CONCEPT.md](CHAT_SESSIONS_CONCEPT.md) (publishable sessions) ·
+> [CHAT_MEMORY_PLAN.md](CHAT_MEMORY_PLAN.md) (memory bank) ·
+> [TASK_UI_CHAT.md](../../loom/ui/TASK_UI_CHAT.md) (UI counterpart U1–U8)
+>
+> Nothing here blocks anything else — F1 gates F2 (both concern the streaming path); F3–F5 are
+> independent and unscheduled.
 
-## Implementation Status (2026-07-22)
+## Progress Assessment
 
-| Task | Status | Notes |
-|---|---|---|
-| B1 migration + permissions | ✅ done | `V2.36__add_skill.sql`, `CREATE/READ/UPDATE/DELETE_SKILL`, jOOQ codegen regenerated |
-| B2 Skill DAO stack | ✅ done | + `loadByName` helper; `SkillDaoTest` (9 tests) |
-| B3 Skill REST + client | ✅ done | Owner-scoped service; `SkillEndpointTest` incl. cross-user isolation |
-| B4 sharing (publish/library/install) | ✅ done | Copy + `origin_skill_uuid` provenance, name-collision suffix, derived `updateAvailable`; re-install yields a fresh suffixed copy |
-| B5 genai-utils streaming | ✅ done (Ollama) | `generateStreamWithTools` + thinking-flag fix in `generateStream` |
-| B6 MCP reference envelopes | ✅ done | `MCPToolResults` helper; 4 of 5 tools populate references; `MCPToolReferencesTest` |
-| B7 `loom/agent/chat` loop | ✅ done | `AgentLoop`/`AgentService`/`SkillPromptBuilder`/`ReferenceExtractor`/`load_skill`; `AiOptions` (`LOOM_AI_*`); `AgentLoopTest` (9 tests, fake streamer) |
-| B8 SSE stream endpoint | ✅ done | `POST/DELETE /chats/:uuid/stream` in the ai module (avoids rest↔mcp dependency cycle); `ChatStreamEndpointTest` (sequence, 404, 400, 409+cancel) |
-| B9 streaming swap-in + auto-title | ✅ done | `StreamingTurnStreamer` opt-in via `LOOM_AI_STREAMING=true` (default: turn-granular blocking); auto-title after first exchange |
+- [x] B1–B9 — the full backend chat/skills stack (see the table)
+- [ ] F1 vLLM `generateStreamWithTools` (blocks `LOOM_AI_STREAMING=true` on vLLM)
+- [ ] F2 mid-turn abort on the streaming path
+- [ ] F3 transcript normalization (`chat_message` table) — deferred, revisit on pain
+- [ ] F4 group-scoped skill library — deferred
+- [ ] F5 live-LLM smoke coverage in CI — deferred
 
-Notable deviations from the original task text:
-- The stream endpoint lives in `loom/agent/chat` (not `loom-service-rest`) because
-  the MCP module depends on the rest module — the endpoint is contributed to the
-  REST endpoint set via `AiEndpointModule`.
-- `ReferenceExtractor` only consumes the structured `references` field (all loom
-  tools now provide it); the name→type fallback heuristic was dropped as fragile.
-- Bug fixed along the way: `chat.messages` (jsonb → `JsonArray`) had no jOOQ
-  converter, so loading any chat row failed with a Jackson `MappingException` —
-  added `JsonArrayConverter` + forcedType `chat\.messages` and regenerated codegen.
-- The `user_permission` table's single-permission-per-user PK (see
-  [PERMISSIONS.md](../permissions/PERMISSIONS.md) §3.2) forced the endpoint tests
-  to grant the second fixture user skill permissions via a group + role.
+```mermaid
+flowchart LR
+  B1[B1 migration<br/>V2.36 + perms] --> B2[B2 SkillDao] --> B3[B3 Skill REST] --> B4[B4 publish/library/install]
+  B5[B5 genai-utils<br/>stream+tools] --> B7[B7 AgentLoop]
+  B6[B6 MCP reference<br/>envelopes] --> B7
+  B3 --> B7 --> B8[B8 SSE endpoint] --> B9[B9 streaming swap-in<br/>+ auto-title]
+  B5 -. Ollama only .-> F1[F1 vLLM tools]
+  B9 -. blockingForEach .-> F2[F2 mid-turn abort]
+```
+
+## Implementation Status (verified 2026-08-01 @ `499f71f7`)
+
+| Task | Outcome (one line) |
+|---|---|
+| B1 migration + permissions | ✅ `V2.36__add_skill.sql` (+ `V2.37__add_skill_version.sql`), `CREATE/READ/UPDATE/DELETE_SKILL`, jOOQ codegen regenerated. |
+| B2 Skill DAO stack | ✅ `SkillDao`/`SkillDaoImpl` + `loadByName`; covered by `SkillDaoTest`. |
+| B3 Skill REST + client | ✅ `SkillEndpoint` + owner-scoped service; `SkillEndpointTest` incl. cross-user isolation. |
+| B4 sharing (publish/library/install) | ✅ `GET /skills/library`, `POST /skills/:uuid/install` — copy + `origin_skill_uuid` provenance, name-collision suffix, derived `updateAvailable`; re-install yields a fresh suffixed copy. |
+| B5 genai-utils streaming | ✅ **Ollama only** — `LLMProvider.generateStreamWithTools` default throws; `OllamaLLMProvider` implements it (+ `generateStream` thinking-flag fix). See F1. |
+| B6 MCP reference envelopes | ✅ `MCPToolResults` helper; loom tools populate `references`; `MCPToolReferencesTest`. |
+| B7 `loom/agent/chat` loop | ✅ `AgentLoop`/`AgentService`/`SkillPromptBuilder`/`ReferenceExtractor`/`load_skill`; `AiOptions` (`LOOM_AI_*`); `AgentLoopTest` with a fake streamer. |
+| B8 SSE stream endpoint | ✅ `ChatStreamEndpoint` (`POST/DELETE /chats/:uuid/stream`) contributed from `loom/agent/chat` via the AI endpoint module; `ChatStreamEndpointTest`. |
+| B9 streaming swap-in + auto-title | ✅ `StreamingTurnStreamer` opt-in via `LOOM_AI_STREAMING=true` (default: `BlockingTurnStreamer`); auto-title after the first exchange — since extended to also generate a description and capture a `chat_session`. |
+
+**Deviations from the original task text** (still true):
+`ChatStreamEndpoint` lives in `loom/agent/chat`, not `loom-service-rest`, because the MCP module
+depends on the rest module · `ReferenceExtractor` consumes only the structured `references` field
+(the name→type heuristic was dropped as fragile) · a missing jOOQ converter for `chat.messages`
+(jsonb → `JsonArray`) was fixed with `JsonArrayConverter` + a `chat\.messages` forcedType ·
+`user_permission`'s single-permission-per-user PK ([PERMISSIONS.md](../permissions/PERMISSIONS.md)
+§3.2) forces endpoint tests to grant the second fixture user permissions via a group + role.
+
+---
 
 ## Open Follow-ups
 
-- **vLLM streaming with tools** — `generateStreamWithTools` is Ollama-only; the vLLM
-  provider inherits the throwing default and must run with `LOOM_AI_STREAMING=false`
-  (turn-granular `BlockingTurnStreamer`). Implement via openai-java streamed
-  `delta.tool_calls` accumulation in `genai-utils/.../vllm/VLLMLLMProvider.java`.
-- **Mid-turn abort for the streaming path** — `StreamingTurnStreamer.blockingForEach`
-  cannot be disposed externally; an abort takes effect only after the current turn
-  finishes. Wire the loop's cancel flag to a `Disposable`.
-- **Transcript normalization** (CHAT.md §8 R4/R5) — `chat.messages` is a single jsonb
-  array rewritten per exchange, and replay reconstructs tool results from ≤2 KB
-  summaries. Revisit with a normalized `chat_message` table if fidelity or row
-  growth hurts.
-- **Group-scoped skill library** (CHAT.md §7.4) — optional `skill_group` join to
-  scope library visibility to RBAC groups; layers on `published` without schema
-  conflict.
-- **Live-LLM smoke coverage** — `MCPServerToolCallTest`/`MCPDirectToolCallTest`
-  require a local Ollama (`gpt-oss:20b`); consider a scheduled/optional CI job.
+### Task F1: Implement `generateStreamWithTools` for the vLLM provider
+
+**Argumentation Summary:** `LLMProvider.generateStreamWithTools` has a throwing default and only
+`OllamaLLMProvider` overrides it. `StreamingTurnStreamer` calls it unconditionally, so a vLLM
+deployment with `LOOM_AI_STREAMING=true` fails the run terminally and must stay on the turn-granular
+`BlockingTurnStreamer` — token-level streaming is effectively Ollama-only.
+
+**Improvement Summary:** Implement streamed tool-call accumulation in the vLLM provider so the
+streaming path works on both backends.
+
+```
+1. In genai-utils `.../llm/vllm/VLLMLLMProvider.java`, override generateStreamWithTools(LLMContext).
+2. Use the openai-java streaming API; accumulate `delta.tool_calls` fragments per index
+   (id/name arrive once, arguments arrive in fragments) until finish_reason.
+3. Emit the same StreamEvent vocabulary as OllamaLLMProvider (text delta, reasoning delta,
+   tool-call complete, done) — see .../llm/ollama/OllamaLLMProvider.java as the reference.
+4. Do not change TurnStreamer/StreamingTurnStreamer; the contract is already provider-agnostic.
+```
+
+**References:** [CHAT.md §4](../../loom/ui/CHAT.md) · `genai-utils/core/src/main/java/io/metaloom/ai/genai/llm/LLMProvider.java` · B5, B9
+**Test Requirements:** A vLLM-provider streaming unit test in genai-utils asserting fragmented
+argument accumulation, plus `mvn -q test -pl loom/agent/chat -Dtest=StreamingTurnStreamerTest` still
+green.
+
+---
+
+### Task F2: Make aborts take effect mid-turn on the streaming path
+
+**Argumentation Summary:** `StreamingTurnStreamer.streamTurn` consumes the provider flowable with
+`blockingForEach`, which cannot be disposed from outside. `AgentLoop` only checks its `cancelled`
+flag between turns, so `DELETE /chats/:uuid/stream` does not stop generation until the current turn
+finishes — a long tool-heavy turn keeps burning tokens after the user pressed stop.
+
+**Improvement Summary:** Subscribe with a retained `Disposable` and wire the loop's cancel flag to
+it so an abort interrupts the in-flight turn.
+
+```
+1. In loom/agent/chat/.../loop/StreamingTurnStreamer.java replace blockingForEach with an
+   explicit subscribe(...) that retains the io.reactivex.rxjava3.disposables.Disposable, and
+   block on a CountDownLatch released by onComplete/onError.
+2. Expose a cancel()/close() on TurnStreamer (default no-op so BlockingTurnStreamer is unaffected)
+   that disposes the subscription and releases the latch.
+3. In AgentLoop, call turnStreamer.cancel() where the cancelled flag is set, and keep the existing
+   post-turn `if (cancelled.get()) return "aborted"` guard as the fallback.
+```
+
+**References:** [CHAT.md §4.1](../../loom/ui/CHAT.md) · B8, B9
+**Test Requirements:** Extend `StreamingTurnStreamerTest` with a cancel-mid-stream case (assert the
+upstream is disposed and no further deltas are emitted); `ChatStreamEndpointTest`'s 409+cancel case
+must stay green. `mvn -q test -pl loom/agent/chat`.
+
+---
+
+### Task F3: Normalize the chat transcript into a `chat_message` table — deferred
+
+**Argumentation Summary:** `chat.messages` is one jsonb array rewritten in full per exchange, and
+replay reconstructs tool results from ≤2 KB summaries ([CHAT.md §4.3](../../loom/ui/CHAT.md) R4/R5).
+Row-size growth and lossy replay are the risks; neither has bitten yet.
+
+**Improvement Summary:** Move to a normalized `chat_message` table with per-message rows and full
+tool payloads, behind a migration + DAO change.
+
+```
+Revisit only when fidelity or row growth actually hurts. Sketch: new migration adding
+chat_message(uuid, chat_uuid, ordinal, role, content, tool_calls jsonb, created); ChatDao gains
+append/loadMessages; AgentLoop appends instead of rewriting; keep chat.messages as a read fallback
+for one release.
+```
+
+**References:** [CHAT.md §4.3](../../loom/ui/CHAT.md)
+**Test Requirements:** `ChatDaoTest` message append/ordering/cascade cases; `AgentLoopTest` replay
+fidelity case. Requires `./setup-pool.sh` after the migration.
+
+---
+
+### Task F4: Group-scoped skill library — deferred
+
+**Argumentation Summary:** Library visibility is a single global `published` flag; there is no way to
+share a skill with one RBAC group only ([CHAT.md §7](../../loom/ui/CHAT.md)). No `skill_group`
+table exists.
+
+**Improvement Summary:** Optional `skill_group` join layered on `published` — no schema conflict with
+today's behaviour.
+
+```
+Add migration creating skill_group(skill_uuid, group_uuid); extend SkillDao.findLibrary to also
+match skills shared with any group the caller belongs to; keep published=true as "everyone".
+```
+
+**References:** [CHAT.md §7](../../loom/ui/CHAT.md) · [PERMISSIONS.md](../permissions/PERMISSIONS.md) · B4
+**Test Requirements:** `SkillDaoTest` group-visibility cases and a `SkillEndpointTest` case proving a
+non-member cannot see a group-scoped skill.
+
+---
+
+### Task F5: Live-LLM smoke coverage in CI — deferred
+
+**Argumentation Summary:** `MCPServerToolCallTest` / `MCPDirectToolCallTest` need a local Ollama with
+`gpt-oss:20b`, so they never run in CI and real tool-calling regressions are caught only by hand.
+
+**Improvement Summary:** A scheduled/optional CI job with an Ollama service that runs just these
+tests.
+
+```
+Add an opt-in profile or tag for the live-LLM tests and a scheduled workflow that pulls the model
+and runs only that tag; keep them excluded from the default build.
+```
+
+**References:** [CHAT.md §10](../../loom/ui/CHAT.md) · B6
+**Test Requirements:** The two tests pass in the scheduled job; the default `mvn test` remains green
+without Ollama.
+
+---
+
+## Key Classes Reference
+
+| Class | Package | Purpose |
+|---|---|---|
+| `AgentLoop` | `io.metaloom.loom.agent.chat.loop` | The agentic loop: turns, tools, title/description, session capture |
+| `AgentService` | `io.metaloom.loom.agent.chat` | Entry point; selects the turn streamer from `AiOptions` |
+| `TurnStreamer` / `BlockingTurnStreamer` / `StreamingTurnStreamer` | `io.metaloom.loom.agent.chat.loop` | Turn-granular vs token-level streaming strategies |
+| `ChatStreamEndpoint(Service)` | `io.metaloom.loom.agent.chat.rest` | `POST/DELETE /api/v1/chats/:uuid/stream` (SSE) |
+| `SkillPromptBuilder` | `io.metaloom.loom.agent.chat.skill` | Injects active skills into the system prompt |
+| `ReferenceExtractor` | `io.metaloom.loom.agent.chat.ref` | Turns tool `references` envelopes into UI chips |
+| `AiOptions` | `io.metaloom.loom.api.options` | `LOOM_AI_*` configuration incl. `LOOM_AI_STREAMING` |
+| `MCPToolResults` | `io.metaloom.loom.mcp.tool` | Builds the structured tool-result + references envelope |
+| `SkillEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | Skill CRUD + `/library` + `/:uuid/install` |
+| `LLMProvider` / `OllamaLLMProvider` | `io.metaloom.ai.genai.llm[.ollama]` (genai-utils) | Streaming-with-tools contract and its only implementation |
+
+## Test Setup
+
+```bash
+./setup-pool.sh                                              # required before any DB-backed test
+mvn -q test -pl loom/agent/chat                              # AgentLoopTest, StreamingTurnStreamerTest
+mvn -q test -pl loom/core -Dtest=SkillEndpointTest,ChatStreamEndpointTest
+mvn -q test -pl loom/db/jooq -Dtest=SkillDaoTest
+mvn -q test -pl loom/core -Dtest=MCPToolReferencesTest
+```
+
+`MCPServerToolCallTest` / `MCPDirectToolCallTest` need a local Ollama (`gpt-oss:20b`) — see F5.
+
+## Conventions & Gotchas
+
+- The chat endpoints live in **`loom/agent/chat`**, not `loom-service-rest` — the MCP module depends
+  on the rest module, so putting them there would create a cycle. They are contributed via the AI
+  endpoint module.
+- `LOOM_AI_STREAMING=true` requires a provider that implements `generateStreamWithTools`. On vLLM
+  this fails the run terminally (F1) — leave it `false` there.
+- Abort is currently **turn-granular** on the streaming path (F2).
+- jsonb columns need an explicit jOOQ `forcedType` + converter, or loading the row blows up with a
+  Jackson `MappingException` — the `chat.messages` fix is the cautionary example. After any Flyway
+  change: `./setup-pool.sh`, then `loom/db/jooq/generate.sh`.
+- `user_permission` allows **one direct grant per user** — grant additional test permissions via a
+  group + role, as `SkillEndpointTest` does.
+- Register literal sub-paths (`/library`, `/publish`, `/context`) **before** `/:uuid` or they are
+  consumed as a UUID path param.
+
+## Where do I find …?
+
+| I want … | Look at |
+|---|---|
+| The loop, tools, turn handling | `loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/loop/AgentLoop.java` |
+| SSE endpoint + event protocol | `loom/agent/chat/.../rest/ChatStreamEndpoint{,Service}.java`, [CHAT.md §4](../../loom/ui/CHAT.md) |
+| Streaming strategy selection | `loom/agent/chat/.../AgentService.java`, `loom-shared/api/.../options/AiOptions.java` |
+| Skill CRUD / library / install | `loom/services/rest/.../endpoint/impl/SkillEndpoint.java` |
+| Skill schema | `loom/db/flyway/src/main/resources/db/migration/V2.36__add_skill.sql`, `V2.37__add_skill_version.sql` |
+| Tool reference envelopes | `loom/services/mcp/.../tool/MCPToolResults.java` |
+| Provider streaming contract | `genai-utils/core/src/main/java/io/metaloom/ai/genai/llm/LLMProvider.java` |
+| Chat session capture / publishing | [CHAT_SESSIONS_CONCEPT.md](CHAT_SESSIONS_CONCEPT.md) |
+| Agent memory bank | [CHAT_MEMORY_PLAN.md](CHAT_MEMORY_PLAN.md) |
+| UI-side task record | [TASK_UI_CHAT.md](../../loom/ui/TASK_UI_CHAT.md) |
+
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (collapsed B1–B9 to verified one-line outcome records and reformatted the five open follow-ups as F1–F5 template tasks)_

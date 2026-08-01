@@ -1,29 +1,40 @@
-# Video Captioning — Implementation & Benchmark Report
+# Video Captioning — Benchmark Report
 
-> **Update:** the three variants benchmarked below were subsequently **merged into
-> the `captioning` node** as a `videoStrategy` option (`WHOLE` / `SCENE` /
-> `NATIVE`); the standalone `video-captioning` module and its `video-captioning-*`
-> node kinds no longer exist. The benchmark numbers and findings still stand — the
-> code just moved into `cortex/nodes/captioning`. See
-> [NODES.md](NODES.md) for the current shape.
+> ## 📊 This is a benchmark record, not a plan
 >
-> Empirical companion to [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md).
-> Three node variants were implemented and run end-to-end against two locally
-> self-hosted, **quantized** Qwen2.5-VL-7B backends (vLLM **AWQ** on the RTX 4090,
-> llama.cpp **GGUF Q4_K_M** on the RTX 3060) over real video clips. All numbers
-> below come from actual runs on this workstation — nothing is estimated.
+> **Benchmark run: 2026-07-24** (environment captured 23:00 UTC — see
+> [video-captioning-results/RUN_ENV.txt](video-captioning-results/RUN_ENV.txt)).
+> **Model: Qwen2.5-VL-7B-Instruct**, in two quantizations on two cards of one workstation:
+> **AWQ on vLLM 0.25.1 / RTX 4090 (24 GB)** and **GGUF Q4_K_M on llama.cpp / RTX 3060 (12 GB)**.
+> **Every number below comes from an actual run — nothing is estimated.**
 >
-> Raw results: [video-captioning-results/](video-captioning-results/)
-> (`results-set-a/b/c*.json`, `RUN_ENV.txt`).
+> Raw data: [video-captioning-results/](video-captioning-results/) —
+> `results-set-a-shortclips.json`, `results-set-b-cinematic.json`,
+> `results-set-c-synthetic-3cuts.json`, `RUN_ENV.txt`.
+>
+> **Naming note (verified 2026-08-01):** the three node classes benchmarked here no longer exist
+> as separate kinds. They were merged into the existing `captioning` node as a `videoStrategy`
+> option, and `cortex/nodes/video-captioning` was deleted. The measurements are unaffected —
+> the same code paths run today under different names:
+>
+> | Benchmarked as | Today | Class that runs it |
+> |---|---|---|
+> | `WholeVideoCaptioningNode` / kind `video-captioning-whole` | `videoStrategy = WHOLE` (default) | `VideoCaptioner.captionWhole` |
+> | `SceneVideoCaptioningNode` / kind `video-captioning-scene` | `videoStrategy = SCENE` | `VideoCaptioner.captionScene` |
+> | `NativeVideoCaptioningNode` / kind `video-captioning-native` | `videoStrategy = NATIVE` | `VideoCaptioner.captionNative` |
+>
+> Design rationale and remaining work: [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md).
+> Node reference: [NODES.md](NODES.md).
 
 ---
 
 ## 1. TL;DR / Recommendation
 
-- **Ship the whole-video multi-image variant (`WholeVideoCaptioningNode`) served by
+- **Ship the whole-video multi-image variant (today `videoStrategy=WHOLE`) served by
   Qwen2.5-VL-7B-AWQ on vLLM.** It was the best quality/latency/reliability balance:
   coherent captions at **~0.5 s** model time, works on clips of any length (fixed
   frame budget), and runs on a single 24 GB GPU. **Composite score 82/100.**
+  *(Adopted — `WHOLE` is the shipped default.)*
 - **llama.cpp GGUF Q4_K_M is a valid fallback** (runs on the 12 GB 3060, no Python),
   but was **~2.8× slower** and noticeably **more repetitive** in wording. Score 63/100.
 - **Native-video (`video_url`) is the highest-quality path *when the clip fits the
@@ -38,27 +49,35 @@
 
 ---
 
-## 2. What was implemented
+## 2. What was benchmarked (and where that code lives now)
 
-A new module `cortex/nodes/video-captioning` (registered in
-[cortex/nodes/pom.xml](../../../cortex/nodes/pom.xml)) with a shared, backend-agnostic
-OpenAI-compatible client and **three interchangeable node variants** (all extend the
-existing `AbstractMediaNode` lifecycle, mirroring the image `CaptioningNode`):
+At benchmark time this was a standalone module `cortex/nodes/video-captioning` with a shared,
+backend-agnostic OpenAI-compatible client and **three interchangeable node variants**, all
+extending the `AbstractMediaNode` lifecycle and mirroring the image `CaptioningNode`.
 
-| Class | Kind | Strategy |
-|---|---|---|
-| [`WholeVideoCaptioningNode`](../../../cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/WholeVideoCaptioningNode.java) | `video-captioning-whole` | Sample N frames evenly across the clip → one multi-image prompt → single caption |
-| [`SceneVideoCaptioningNode`](../../../cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/SceneVideoCaptioningNode.java) | `video-captioning-scene` | **Scene-segment upfront** (`OpticalFlowSceneDetector`) → caption each scene → per-scene timeline |
-| [`NativeVideoCaptioningNode`](../../../cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/NativeVideoCaptioningNode.java) | `video-captioning-native` | Hand the whole file to the server via `video_url`; server does its own temporal sampling |
+It has since been folded into [cortex/nodes/captioning](../../../cortex/nodes/captioning) —
+one node kind, three strategies:
 
-Supporting classes: [`VideoVLMClient`](../../../cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/VideoVLMClient.java)
-(OpenAI `/v1/chat/completions`, multi-image **and** `video_url`),
-[`FrameSampler`](../../../cortex/nodes/video-captioning/core/src/main/java/io/metaloom/cortex/node/videocaptioning/FrameSampler.java)
-(video4j `seekToFrame` sampling), `VideoCaptioningNodeOptions`, and the env-gated
-harness [`VideoCaptioningComparisonIT`](../../../cortex/nodes/video-captioning/core/src/test/java/io/metaloom/cortex/node/videocaptioning/VideoCaptioningComparisonIT.java).
-Persistence reuses the `asset_json_comp` + node-result-ledger pattern (skipped here
-since the harness runs with a null Loom client). The backend is pure config
-(`endpointUrl` + `model`), so vLLM ↔ llama.cpp is a config swap, not a code change.
+| Strategy | Behaviour as benchmarked |
+|---|---|
+| `WHOLE` | Sample N frames evenly across the clip → one multi-image prompt → single caption |
+| `SCENE` | **Scene-segment upfront** (`OpticalFlowSceneDetector`) → caption each scene → per-scene timeline |
+| `NATIVE` | Hand the whole file to the server via `video_url`; server does its own temporal sampling |
+
+Supporting classes, at their current paths:
+
+- [`VideoVLMClient`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoVLMClient.java)
+  — OpenAI `/v1/chat/completions`, multi-image **and** `video_url`
+- [`FrameSampler`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/FrameSampler.java)
+  — video4j `seekToFrame` sampling
+- [`VideoCaptioner`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioner.java)
+  and [`VideoCaptioningStrategy`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioningStrategy.java)
+- `CaptioningNodeOptions` (was `VideoCaptioningNodeOptions`)
+- the env-gated harness [`VideoCaptioningComparisonIT`](../../../cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/VideoCaptioningComparisonIT.java)
+
+Persistence reuses the `asset_json_comp` + node-result-ledger pattern (skipped during the
+benchmark, since the harness runs with a null Loom client). The backend is pure config
+(`videoEndpointUrl` + `videoModel`), so vLLM ↔ llama.cpp is a config swap, not a code change.
 
 ```mermaid
 flowchart LR
@@ -75,6 +94,7 @@ flowchart LR
 
 | | |
 |---|---|
+| Date | **2026-07-24**, 23:00 UTC |
 | GPUs | RTX 4090 (24 GB, Ada) + RTX 3060 (12 GB, Ampere), driver 595.71.05 |
 | vLLM | 0.25.1, torch 2.11.0+cu130, Python 3.13 — **installed and ran cleanly** |
 | llama.cpp | built from source (CUDA, commit `555881e`) — `llama-server` + libmtmd |
@@ -135,10 +155,15 @@ frame budget → bounded tokens → works on any length). Native is an opt-in fo
 clips, or needs a much larger context window (Qwen3-VL / higher `max-model-len`) plus
 `fps` / `max_frames` capping.
 
+> Still true today: `VideoCaptioningStrategy.NATIVE` exposes no `fps` / `max_frames` cap,
+> so the failure mode above is unchanged — see
+> [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) §3.3.
+
 ## 6. Scene-first variant: scene detector fixed
 
 Initially the scene-first variant produced **exactly one scene on every clip — even
-the synthetic 3-hard-cut video.** Three defects in the scene detector, now fixed:
+the synthetic 3-hard-cut video.** Three defects in the scene detector, now fixed
+(all three fixes verified still present in the code as of 2026-08-01):
 
 1. **Boundaries were never recorded.**
    [`AbstractSceneDetector.detect()`](../../../cortex/nodes/scene-detection/core/src/main/java/io/metaloom/cortex/node/scene/AbstractSceneDetector.java)
@@ -202,20 +227,26 @@ its latency and quality now scale with scene count — on the 3-cut clip it prod
 
 ## 8. Recommendation & next steps
 
-1. **Adopt `WholeVideoCaptioningNode` + vLLM Qwen2.5-VL-7B-AWQ (4090)** as the default
+1. **Adopt the whole-video variant + vLLM Qwen2.5-VL-7B-AWQ (4090)** as the default
    production path. Keep the **llama.cpp Q4 on the 3060** config as a portable fallback
-   (no Python, smaller GPU) — same node, different `endpointUrl`.
+   (no Python, smaller GPU) — same node, different `videoEndpointUrl`.
+   ✅ **Done** — `videoStrategy` defaults to `WHOLE`, `videoModel` defaults to `qwen25vl-awq`.
 2. **Scene detector is fixed** (§6) — the scene-first variant now yields a real
    per-scene timeline and is the right choice for multi-shot / edited content. Next
    step is to persist the per-scene captions to `asset_segment_comp` (per the plan);
    for single-shot content it degenerates to whole-video, so gate it on expected content.
+   ⏳ **Partly done** — scenes are persisted, but as a `scenes` array inside the
+   `video-caption` JSON component. The `CAPTION` `segment_type` migration was never written
+   (plan §3.1).
 3. **Native video**: keep as opt-in for short clips, or move to Qwen3-VL with a large
    `--max-model-len` and explicit `fps` / `max_frames` caps to bound tokens.
+   ⏳ **Open** — `NATIVE` ships, the caps do not.
 4. **Delete the losing variant later:** once (2) lands, whole-video and scene are the
-   keepers; native stays only if the short-clip / large-context case matters. All three
-   are isolated in one module for easy pruning.
+   keepers; native stays only if the short-clip / large-context case matters.
+   ✅ **Superseded** — all three became strategies on one node, so pruning is now deleting an
+   enum constant plus its `VideoCaptioner` branch.
 5. Reproduce anytime: start the two servers, then
-   `mvn -pl cortex/nodes/video-captioning/core -Dtest=VideoCaptioningComparisonIT -DfailIfNoTests=false test`
+   `mvn -pl cortex/nodes/captioning/core -Dtest=VideoCaptioningComparisonIT -DfailIfNoTests=false test`
    (env: `LLAMACPP_URL`, `VLLM_URL`, `TEST_VIDEOS`, `RESULTS_FILE`).
 
 ## 9. Serve commands used (reproducible)
@@ -234,3 +265,105 @@ CUDA_VISIBLE_DEVICES=1 llama-server \
   --mmproj mmproj-Qwen2.5-VL-7B-Instruct-f16.gguf \
   -ngl 99 -c 8192 --port 8081
 ```
+
+---
+
+## 10. Harness environment variables
+
+The comparison harness is **env-gated** — it is a no-op unless these are set, so it never
+breaks a normal build.
+
+| Variable | Meaning |
+|---|---|
+| `VLLM_URL` | Base URL of the vLLM endpoint (e.g. `http://localhost:8000`) |
+| `LLAMACPP_URL` | Base URL of the llama.cpp endpoint (e.g. `http://localhost:8081`) |
+| `TEST_VIDEOS` | Comma-separated paths of the clips to caption |
+| `RESULTS_FILE` | Where to write the JSON result set (the files in `video-captioning-results/`) |
+| `CUDA_HOME` | Must point at a CUDA install that actually has `nvcc` (see §3) |
+| `SCENE_TEST_VIDEO` / `SCENE_MIN_SCENES` | Gate + expectation for `SceneBoundaryIT` (§6) |
+
+Node-side options used during the runs (`frameCount=8`, `targetFrameSize=512`,
+`maxTokens=256`, `videoModel`, `videoEndpointUrl`) are documented in
+[NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) §4.
+
+---
+
+## 11. Key Classes Reference
+
+| Class | Package / module | Role in this benchmark |
+|---|---|---|
+| `VideoCaptioningComparisonIT` | `io.metaloom.cortex.node.captioning` (`cortex/nodes/captioning/core`, test) | The harness that produced every number here |
+| `VideoCaptioner` | `io.metaloom.cortex.node.captioning` (`cortex/nodes/captioning/core`) | Runs `captionWhole` / `captionScene` / `captionNative` |
+| `VideoCaptioningStrategy` | same | The enum the three benchmarked variants collapsed into |
+| `VideoVLMClient` | same | Both request shapes measured: multi-image and `video_url` |
+| `FrameSampler` | same | The fixed frame budget that makes `WHOLE` length-independent |
+| `VideoCaptionOutput` | same | Carries `modelLatencyMs` and `frameCount` — the raw timing source |
+| `CaptioningNode` | same | Host node; `captionVideo(media)` is public so the harness can drive it without Loom |
+| `AbstractSceneDetector` | `io.metaloom.cortex.node.scene` (`cortex/nodes/scene-detection/core`) | Boundary accumulation + `minSceneLength` debounce (§6.1) |
+| `OpticalFlowSceneDetector` | `io.metaloom.cortex.node.scene.impl` | Canny-enhanced frame-difference cut signal (§6.2) |
+| `SceneBoundaryIT` | `io.metaloom.cortex.node.scene` (test) | Guards multi-scene detection |
+| `SceneDetectionNodeIntegrationTest` | `io.metaloom.loom.test.integration.node` (`integration-test`) | Proves per-scene segment persistence end-to-end (§6) |
+
+---
+
+## 12. Conventions and Gotchas
+
+- **These numbers are a snapshot of 2026-07-24 on one workstation.** Re-measure before
+  quoting them for different hardware, a different quantization or a newer vLLM.
+- **The class names in §1–§9 are historical.** Map them through the table at the top of this
+  file; `cortex/nodes/video-captioning` no longer exists.
+- **`video_url` is vLLM-only.** llama.cpp returns HTTP 400 — it does not decode video files.
+- **Quantization changes prose style, not just speed.** Q4_K_M was measurably more repetitive
+  than AWQ at the same model and frame count — visible in §4.2, not in any latency figure.
+- **vLLM's per-GPU memory fraction is uniform**, so a 4090+3060 pair caps at the smaller card.
+  Pin each runtime to one GPU and run them side by side, as done here.
+- **Scene bounds in the raw results are frame indices**, not milliseconds; divide by the fps
+  recorded in `producerVersion`.
+- **Do not "clean up" the measurements.** This file is a record — correct stale paths and add
+  outcome annotations, but never restate a number that was not measured
+  ([SPEC_RULES.md](../../SPEC_RULES.md)).
+
+---
+
+## 13. Where do I find …?
+
+| Concept | Path |
+|---|---|
+| Raw result sets + captured environment | [video-captioning-results/](video-captioning-results/) |
+| Design rationale, options and open work | [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) |
+| Node system reference | [NODES.md](NODES.md) |
+| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
+| New-node checklist | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| The harness | `cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/VideoCaptioningComparisonIT.java` |
+| Strategy implementations | `cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioner.java` |
+| Scene detector | `cortex/nodes/scene-detection/core/src/main/java/io/metaloom/cortex/node/scene/` |
+| Customer-facing node docs | `website/content/english/docs/nodes/captioning/index.adoc` |
+
+---
+
+## 14. Progress Assessment
+
+**Benchmark itself — complete, not to be redone unless the hardware or model changes**
+
+- [x] Three variants implemented and run end-to-end against two real quantized backends
+- [x] Latency measured over 5 runs per backend/variant (§4.1)
+- [x] Quality compared on real captions (§4.2) and scored into a composite (§7)
+- [x] Native-video context-window failure characterized with the real error (§5)
+- [x] Scene-detector defects found, fixed and verified on a synthetic 3-cut clip (§6)
+- [x] Raw results and run environment archived under `video-captioning-results/`
+- [x] Serve commands recorded for reproduction (§9)
+
+**Acted on since**
+
+- [x] `WHOLE` + vLLM AWQ adopted as the shipped default (`videoStrategy`, `videoModel`)
+- [x] Three variants merged into the `captioning` node; standalone module deleted
+- [x] Scene-detector fixes landed with `SceneBoundaryIT` + `SceneDetectionNodeIntegrationTest`
+- [ ] Per-scene captions persisted to `asset_segment_comp` (`CAPTION` migration never written)
+- [ ] `fps` / `max_frames` caps for `NATIVE`, or a documented `--max-model-len` floor
+- [ ] Re-measure against Qwen3-VL (native timestamp tokens, larger context)
+- [ ] Re-measure the `SCENE` strategy post-fix — §7's scene rows are pre-fix single-scene runs
+
+---
+
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (measurements preserved; historical `video-captioning` class names and paths remapped to the merged `captioning` node, outcome annotations and spec-required sections added)_

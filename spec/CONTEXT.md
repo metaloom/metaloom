@@ -158,6 +158,9 @@ spec/
 │   │   └── PERMISSIONS.md             # Authorization: RBAC model, taxonomy, enforcement points
 │   ├── pipeline/
 │   │   ├── PIPELINE.md                # Technical spec: engine, persistence, protocol, schemas
+│   │   ├── PIPELINE_FLOW.md           # Conceptual: WHAT travels between nodes — item vs ambient media
+│   │   │                              #   reference vs per-port payload; why nothing accumulates on the
+│   │   │                              #   wire; why the edge (not the node) resolves ambiguity
 │   │   ├── NODE_DATA_TYPES.md         # The typed-port model: family/subtype vocabulary + lattice,
 │   │   │                              #   ports with ONE/MANY cardinality and XOR groups, port-to-port
 │   │   │                              #   edges, origin-tagged elements, fan-out and the implicit gather
@@ -247,6 +250,7 @@ spec/
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | A Cortex processing node | [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) |
 | Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) — the reference for the built model. [features/pipeline/NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md) keeps the design rationale and the design-vs-implementation divergences |
+| "What actually travels between nodes?" — the mental model, before the mechanics | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) — item vs ambient media reference vs per-port payload; nothing accumulates on the wire, the accumulating record is the Loom asset + its components |
 | Per-node schema files (validating a pipeline outside the JVM, briefing an agent on a node) | [features/pipeline/NODE_SCHEMA_CONCEPT.md](features/pipeline/NODE_SCHEMA_CONCEPT.md) — **exploration only, nothing built**; four competing concepts plus the construction procedure |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
 | Uploading / downloading binary data, asset binaries, storage layout, S3 vs. filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) — byte routes vs. JSON metadata routes, how a library picks its backend, and the remaining gaps |

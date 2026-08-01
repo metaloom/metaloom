@@ -48,7 +48,8 @@
 - [x] UI: streaming transcript, markdown, hidden reasoning, action rows, chips, skills panel, greeting, split workspace
 - [x] UI views: `SkillManagementView`, `ChatSessionsView` / `ChatSessionDetail`, `MemoryView`
 - [x] Tests: `AgentLoopTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest`, `ChatStreamEndpointTest`, mocked + backend Playwright specs
-- [ ] **`ChatStreamRequest.think` is parsed but never forwarded** — `AgentRequest` has no `think` field, so the loop always uses `LOOM_AI_THINK_ENABLED` (§4.1)
+- [ ] **`think` is dead on both ends** — the UI type declares it and `streamChatMessage` forwards it, but no caller ever sets it, and server-side `ChatStreamRequest.think` never reaches `AgentRequest`. The loop always uses `LOOM_AI_THINK_ENABLED` (§4.1, R1)
+- [ ] **`AiOptions.validate()` runs unconditionally** — `providerType`/`url`/`modelId` must be non-blank even with `LOOM_AI_ENABLED=false` (§9, R9)
 - [ ] No endpoint tests for `ChatSessionEndpoint` / `SessionFsEndpoint`
 - [ ] No live-LLM integration test (backend Playwright specs assert CRUD only)
 - [ ] vLLM has no true-streaming path — `LOOM_AI_STREAMING=true` degrades to the blocking streamer behaviour there
@@ -152,6 +153,7 @@ sets an `AtomicBoolean` that is checked between turns and between tool calls.
 | Turn limit reached | Non-fatal `error {code: TURN_LIMIT, terminal: false}`, then the run finishes as **`completed`** with whatever text accumulated. |
 | Memory write budget exceeded | Error tool result telling the model to stop writing (never aborts the run). |
 | Chat not found | `error {code: NOT_FOUND, terminal: true}` → `agent_end{status:"error"}`. |
+| Abort (client disconnect or `DELETE`) | Status `aborted` — but the partial assistant message **is** still persisted and `message_end` **is** still emitted. Only `"error"` suppresses both. |
 | Concurrent run on same chat | HTTP `409` before the stream opens. |
 
 ## 3. Tool inventory
@@ -189,9 +191,11 @@ mirrors `MCPService` (`text/event-stream`, `Cache-Control: no-cache`,
   "think": true }
 ```
 
-> ⚠️ `think` is deserialized into `ChatStreamRequest` but **never reaches the loop** —
-> `AgentRequest` carries only `(chatUuid, userUuid, user, message, skillUuids)` and
-> `AgentLoop` reads `AiOptions.isThinkEnabled()`. Either wire it through or drop the field.
+> ⚠️ `think` is **dead on both ends**. Client side `AgentStreamRequest.think` exists in
+> `api/agent.ts` and is forwarded when set, but no caller in `ChatWorkspace` ever sets it.
+> Server side it deserializes into `ChatStreamRequest` and stops there — `AgentRequest`
+> carries only `(chatUuid, userUuid, user, message, skillUuids)` and `AgentLoop` reads
+> `AiOptions.isThinkEnabled()`. Wire it through all three layers or delete it from all three.
 
 **`DELETE /api/v1/chats/:uuid/stream`** — idempotent cancel, `204` (also `UPDATE_CHAT` + ownership).
 
@@ -334,13 +338,20 @@ history (`skill_version`, `activeVersionNumber`).
   caller's own copy, so an edited or deleted original can never silently change another
   user's agent behaviour; `ON DELETE SET NULL` keeps copies intact and provenance drives the
   *"update available"* hint.
-- Backend surface: `SkillEndpoint` (`loom/services/rest`) `/api/v1/skills` CRUD + `/library`
-  + `/:uuid/install` + version routes; permissions `CREATE/READ/UPDATE/DELETE_SKILL`.
+- Backend surface: `SkillEndpoint` (`loom/services/rest`) — `/api/v1/skills` CRUD,
+  `GET /library`, `POST /:uuid/install`, `GET /:uuid/versions`, `GET /:uuid/versions/:version`,
+  `POST /:uuid/versions/:version/restore` (deletes all newer versions and re-points the active
+  one). Permissions `CREATE/READ/UPDATE/DELETE_SKILL`. `/library` and `/versions` are
+  registered **before** `/:uuid` so the literals are not consumed as a uuid.
 
-`SystemPromptBuilder` composes the final system prompt as
-`SkillPromptBuilder.build(activeSkills)` + `MemoryPromptBuilder.build(...)` (appended only
-when the memory bank is enabled). Both halves follow the same progressive-disclosure rule —
-skills expose name+description, memory exposes a header-only index.
+`SystemPromptBuilder.build(activeSkills, memoryService, scopes, index, sandboxEnabled)`
+composes the final system prompt as `SkillPromptBuilder.build(activeSkills)` +
+`MemoryPromptBuilder.build(...)` — the memory half is appended only when the memory bank is
+enabled, and the `sandboxEnabled` flag only controls whether the prompt mentions the
+read-only memory folder inside the Session Runner. Both halves follow the same
+progressive-disclosure rule: skills expose name+description, memory exposes a header-only
+index. The base prompt itself is `SkillPromptBuilder.BASE_PROMPT` ("You are the Loom
+assistant… you MUST use the provided tools… do NOT invent assets").
 
 ## 8. Adjacent surfaces owned by other specs
 
@@ -349,7 +360,7 @@ Listed here only so an agent knows they exist and where they live.
 | Surface | Routes | Spec |
 |---|---|---|
 | Chat sessions | `GET|POST /api/v1/chat-sessions`, `GET|POST|DELETE /:uuid`, `POST /:uuid/publish|unpublish`, `GET|PUT /:uuid/context` — permissions `CREATE/READ/UPDATE/DELETE_CHAT_SESSION` | [CHAT_SESSIONS_CONCEPT.md](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
-| Session filesystem | `GET /api/v1/sessions/:uuid/files|download|preview` (keyed by **chat** uuid, `READ_CHAT`, preview served under `CSP: sandbox`) | [CHAT_SESSIONS_CONCEPT.md §6](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
+| Session filesystem | `GET /api/v1/sessions/:uuid/files\|download\|preview?path=` (keyed by the **chat** uuid = sandbox session key, `READ_CHAT`; preview sets `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms` so agent-generated pages cannot act as a confused deputy). Depth comes from the `path` query param, not wildcard routing. | [CHAT_SESSIONS_CONCEPT.md §6](../../features/chat/CHAT_SESSIONS_CONCEPT.md) |
 | Memory bank | `/api/v1/memory*`, `/api/v1/memory-deny-rules*` | [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
 | Session Runner / sandbox | no public REST; `LOOM_AGENT_SANDBOX_*` | [CHAT_MEMORY_PLAN.md §4](../../features/chat/CHAT_MEMORY_PLAN.md) |
 
@@ -376,10 +387,14 @@ reachable as `LoomOptions.getAi()`.
 | `LOOM_AI_STREAMING` | `false` | `true` → `StreamingTurnStreamer` (true token/reasoning deltas); `false` → `BlockingTurnStreamer` (turn-granular) |
 | `LOOM_AI_TITLE_GENERATION` | `true` | Auto title + description + session capture after the first exchange |
 
-`validate()` requires `providerType`, `url` and `modelId` to be non-blank.
-Related but owned elsewhere: `LOOM_AGENT_SANDBOX_*` (`SandboxOptions` — gates the coding
-tools) and the memory options (`MemoryOptions`, incl. `maxWritesPerRun` and
-`promptMaxEntries`).
+> ⚠️ `AiOptions.validate()` requires `providerType`, `url` and `modelId` to be non-blank
+> **unconditionally** — it does not short-circuit on `enabled == false`. Blanking any of them
+> to "turn the agent off" fails startup validation; use `LOOM_AI_ENABLED=false` and leave the
+> defaults in place (R9).
+
+Related but owned elsewhere: `LOOM_AGENT_SANDBOX_*` (`SandboxOptions` — `_ENABLED` gates the
+coding tools, plus backend/image/TTL/quota knobs) and `LOOM_AGENT_MEMORY_*` (`MemoryOptions`,
+incl. `_MAX_WRITES_PER_RUN` and `_PROMPT_MAX_ENTRIES`).
 
 ## 10. Test setup
 
@@ -387,9 +402,10 @@ tools) and the memory options (`MemoryOptions`, incl. `maxWritesPerRun` and
 |---|---|
 | Loop (no DB, no LLM) | `AgentLoopTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest` — all in `loom/agent/chat/src/test` |
 | Endpoint (pooled DB) | `ChatEndpointTest`, `ChatStreamEndpointTest`, `SkillEndpointTest`, `MemoryEndpointTest`, `MemoryDenyRuleEndpointTest` in `loom/core/src/test` |
+| GraphQL (pooled DB) | `SkillGraphQLTest`, `MemoryGraphQLTest` in `loom/core/src/test/.../graphql` |
 | DAO | `ChatSessionDaoTest`, `SkillDaoTest`, `SkillVersionDaoTest`, `MemoryEntryDaoTest`, `MemoryDenyRuleDaoTest` in `loom/db/jooq/src/test` |
 | MCP | `MCPToolReferencesTest`, `PipelineToolTest` in `loom/services/mcp` |
-| UI unit | `api/agent.test.ts`, `api/chatMessageMapper.test.ts`, `api/skills.test.ts`, `features/chat/pipelineGraphLayout.test.ts` |
+| UI unit | `api/agent.test.ts`, `api/chat.test.ts`, `api/chatMessageMapper.test.ts`, `api/skills.test.ts`, `features/chat/pipelineGraphLayout.test.ts` |
 | E2E mocked | `chat-mocked.spec.ts`, `chat-split-mocked.spec.ts`, `chat-pipeline-graph-mocked.spec.ts`, `chat-sessions-mocked.spec.ts`, `skills-mocked.spec.ts`, `skills-version-mocked.spec.ts`, `empty-states-mocked.spec.ts` |
 | E2E backend | `chat-backend.spec.ts`, `skills-backend.spec.ts` — CRUD only, no live-LLM assertions |
 
@@ -412,7 +428,16 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 - **`TURN_LIMIT` ends as `completed`,** not `error` — the emitted `error` frame is
   `terminal:false` and `message_end` still arrives.
 - **Terminal error ⇒ only the user message is persisted** (plus `meta.lastError`), so a retry
-  starts from a consistent transcript.
+  starts from a consistent transcript. `aborted` is *not* an error: the partial assistant
+  message is persisted and `message_end` is emitted normally.
+- **The busy guard is checked twice.** `ChatStreamEndpointService` pre-checks
+  `agentService.isBusy()` (→ thrown `409`) and `AgentService.run()` re-checks atomically via
+  `putIfAbsent` (→ failed future carrying `AgentBusyException`, mapped to `409` only while
+  `!sink.headersSent()`). Keep both — the pre-check is the friendly path, `putIfAbsent` closes
+  the race.
+- **Every write path in the loop that touches another subsystem is best-effort.** Title,
+  description, session capture, group resolution and memory loading all log-and-swallow; none
+  of them may fail a run.
 - **Everything blocking runs on a worker thread.** `AgentLoop.run()` must never be invoked
   from the event loop; SSE writes hop back via the captured `Context`.
 - **Streaming is opt-in and provider-dependent.** vLLM has no true streaming path — the
@@ -454,7 +479,7 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | `think` from the request body is silently ignored (§4.1). | Add `think` to `AgentRequest` and let it override `AiOptions.isThinkEnabled()`, or remove the field from `ChatStreamRequest`. |
+| R1 | `think` is plumbed nowhere: unset by the UI, dropped by the endpoint service (§4.1). | Add `think` to `AgentRequest` + a UI toggle so it overrides `AiOptions.isThinkEnabled()`, or delete it from `api/agent.ts` **and** `ChatStreamRequest`. |
 | R2 | Reverse proxies may buffer SSE. | `X-Accel-Buffering: no` + chunked responses; document `proxy_buffering off` for nginx. |
 | R3 | vLLM has no true streaming path; `LOOM_AI_STREAMING=true` silently behaves turn-granular there. | `TurnStreamer` seam already isolates it; extend `genai-utils` when vLLM streaming lands. |
 | R4 | Transcript replay uses ≤2 KB tool-result summaries → context fidelity loss on follow-ups. | Documented trade-off; revisit with a normalized `chat_message` table if it hurts. |
@@ -462,6 +487,8 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | R6 | `ChatSessionEndpoint` / `SessionFsEndpoint` have no endpoint tests — the session-fs routes serve files out of a container. | Add endpoint + permission tests per [CODING.md](../../guidelines/CODING.md). |
 | R7 | Small local models may ignore `load_skill` progressive disclosure. | Require action-complete descriptions; `meta.injectFull` escape hatch. |
 | R8 | Persisted `reasoning` is neither redacted nor size-capped. | Consider a cap analogous to `RESULT_SUMMARY_MAX_LENGTH`. |
+| R9 | `AiOptions.validate()` demands provider/url/model even when `ai.enabled=false` (§9). | Short-circuit `validate()` on `!enabled`, so a Loom deployment without an LLM needs no dummy provider config. |
+| R10 | This file lives under `spec/loom/ui/` but is ~80% server-side (loop, REST, config, DB). | Move to `spec/features/chat/CHAT.md` next to its sibling chat specs and fix the relative links; `TASK_UI_CHAT.md` stays the UI-side document. |
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (rewrote against `loom/agent/chat` — removed stale `loom/services/ai` claims, added memory/sandbox/session surfaces, verified env vars and tool inventory)_
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (re-verified against `loom/agent/chat`; flagged `think` dead end-to-end, unconditional `AiOptions.validate()`, abort-persists semantics and the new `SystemPromptBuilder` signature)_

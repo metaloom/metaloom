@@ -1,343 +1,213 @@
 # TASK_UI_ASSETS_MEDIA — Assets & Media
 
-Gap-analysis tasks between the Loom REST API and the Loom UI for the Assets & Media
-entities (Asset, Asset Location, Asset Pool, Asset Component, Asset Remix, Attachment,
-Blacklist, Annotation). Follows [../../TASKS.template.md](../../TASKS.template.md).
-
-Authoritative REST routes were read from the endpoint registrations under
-[loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/).
-UI status was verified against [loom-ui/src/api/](../../../loom-ui/src/api/) and
-[loom-ui/src/features/](../../../loom-ui/src/features/).
-
-## Coverage Matrix
-
-| Entity | REST Operation (path · method) | UI Status | Where / Gap |
-|--------|-------------------------------|-----------|-------------|
-| Asset | `/api/v1/assets` · POST (create) | Implemented | `createAsset` in [api/assets.ts](../../../loom-ui/src/api/assets.ts) |
-| Asset | `/api/v1/assets` · GET (list) | Implemented | `listAssets` in api/assets.ts; [features/assets/AssetBrowser.tsx](../../../loom-ui/src/features/assets/AssetBrowser.tsx) |
-| Asset | `/api/v1/assets/bulk/create` · POST | Implemented | `bulkCreateAssets` in api/assets.ts |
-| Asset | `/api/v1/assets/bulk/update` · POST | Implemented | `bulkUpdateAssets` in api/assets.ts |
-| Asset | `/api/v1/assets/upload` · POST | Implemented | `uploadAsset` in api/assets.ts |
-| Asset | `/api/v1/assets/sha512/:sha512` · GET | **Missing** | No sha512 lookup fn in api/assets.ts |
-| Asset | `/api/v1/assets/sha512/:sha512` · POST (update) | **Missing** | No sha512 fn |
-| Asset | `/api/v1/assets/sha512/:sha512` · PATCH | **Missing** | No sha512 fn |
-| Asset | `/api/v1/assets/sha512/:sha512` · PUT | **Missing** | No sha512 fn |
-| Asset | `/api/v1/assets/sha512/:sha512` · DELETE | **Missing** | No sha512 fn |
-| Asset | `/api/v1/assets/:uuid` · GET | Implemented | `loadAsset` in api/assets.ts |
-| Asset | `/api/v1/assets/:uuid` · POST (update) | Implemented | `updateAsset` in api/assets.ts |
-| Asset | `/api/v1/assets/:uuid` · PATCH (partial) | **Missing** | UI only calls POST; no PATCH helper |
-| Asset | `/api/v1/assets/:uuid` · PUT (replace) | **Missing** | UI only calls POST; no PUT helper |
-| Asset | `/api/v1/assets/:uuid` · DELETE | Implemented | `deleteAsset` in api/assets.ts |
-| Asset→Tags | `/api/v1/assets/:uuid/tags` · POST | Implemented | `tagAsset` in [api/tags.ts](../../../loom-ui/src/api/tags.ts) |
-| Asset→Tags | `/api/v1/assets/:uuid/tags/:tagUuid` · DELETE | Implemented | `untagAsset` in api/tags.ts |
-| Asset→Reactions | `/api/v1/assets/:uuid/reactions` · POST | Implemented | `createAssetReaction` in [api/reactions.ts](../../../loom-ui/src/api/reactions.ts) |
-| Asset→Reactions | `/api/v1/assets/:uuid/reactions/:reactionUuid` · DELETE | Implemented | `deleteAssetReaction` in api/reactions.ts |
-| Asset→Reactions | `/api/v1/assets/:uuid/reactions` · GET | Implemented | `listAssetReactions` in api/reactions.ts |
-| Asset→Reactions | `/api/v1/assets/:uuid/reactions/:reactionUuid` · GET | Implemented | `loadAssetReaction` in api/reactions.ts |
-| Asset→Reactions | `/api/v1/assets/:uuid/reactions/:reactionUuid` · POST (update) | Implemented | `updateAssetReaction` in api/reactions.ts |
-| Asset→Comments | `/api/v1/assets/:uuid/comments` · POST | Implemented | `createCommentForAsset` in [api/comments.ts](../../../loom-ui/src/api/comments.ts) |
-| Asset→Comments | `/api/v1/assets/:uuid/comments` · GET | Implemented | `listCommentsForAsset` in api/comments.ts |
-| Asset→Detections | `/api/v1/assets/:uuid/detections` · POST | Implemented | `createDetection` in [api/detections.ts](../../../loom-ui/src/api/detections.ts) |
-| Asset→Detections | `/api/v1/assets/:uuid/detections/bulk` · POST | Implemented | `bulkCreateDetections` in api/detections.ts |
-| Asset→Detections | `/api/v1/assets/:uuid/detections/:detectionUuid` · DELETE | Implemented | `deleteDetection` in api/detections.ts |
-| Asset→Detections | `/api/v1/assets/:uuid/detections` · GET | Implemented | `listAssetDetections` in api/detections.ts |
-| Asset→Detections | `/api/v1/assets/:uuid/detections/:detectionUuid` · GET | Implemented | `loadDetection` in api/detections.ts |
-| Asset→Detections | `/api/v1/assets/:uuid/detections/:detectionUuid` · POST (update) | Implemented | `updateDetection` in api/detections.ts |
-| Asset→Transcripts | `/api/v1/assets/:uuid/transcripts` · POST | **Missing** | Only `listAssetTranscripts` in [api/transcripts.ts](../../../loom-ui/src/api/transcripts.ts) |
-| Asset→Transcripts | `/api/v1/assets/:uuid/transcripts` · GET | Implemented | `listAssetTranscripts` in api/transcripts.ts |
-| Asset→Transcripts | `/api/v1/assets/:uuid/transcripts/:transcriptUuid` · GET | **Missing** | No load-single fn |
-| Asset→Transcripts | `/api/v1/assets/:uuid/transcripts/:transcriptUuid` · POST (update) | **Missing** | No update fn |
-| Asset→Transcripts | `/api/v1/assets/:uuid/transcripts/:transcriptUuid` · DELETE | **Missing** | No delete fn |
-| Asset→Binary | `/api/v1/assets/:uuid/binary` · POST (create meta) | **Missing** | UI only posts `/binary/data`; no meta-create fn |
-| Asset→Binary | `/api/v1/assets/:uuid/binary` · GET | Implemented | `loadAssetBinaryMeta` in [api/binaries.ts](../../../loom-ui/src/api/binaries.ts) |
-| Asset→Binary | `/api/v1/assets/:uuid/binary` · DELETE | Implemented | `deleteAssetBinary` in api/binaries.ts |
-| Asset→Binary | `/api/v1/assets/:uuid/binary/data` · POST | Implemented | `uploadAssetBinary` in api/binaries.ts |
-| Asset→Binary | `/api/v1/assets/:uuid/binary/data` · GET | Implemented | `fetchAssetBinaryBlob`/`downloadAssetBinary` in api/binaries.ts |
-| Asset Component | `/api/v1/assets/:assetUuid/components` · GET (list) | **Missing** | No api module, no feature |
-| Asset Component | `/api/v1/assets/:assetUuid/components` · POST (create) | **Missing** | No api module |
-| Asset Component | `/api/v1/assets/:assetUuid/components/:compUuid` · GET | **Missing** | No api module |
-| Asset Component | `/api/v1/assets/:assetUuid/components/:compUuid` · POST (update) | **Missing** | No api module |
-| Asset Component | `/api/v1/assets/:assetUuid/components/:compUuid` · DELETE | **Missing** | No api module |
-| Asset Pool | `/api/v1/pools` · POST (create) | Implemented | `createPool` in [api/pools.ts](../../../loom-ui/src/api/pools.ts); [features/assetPools/AssetPoolsView.tsx](../../../loom-ui/src/features/assetPools/AssetPoolsView.tsx) |
-| Asset Pool | `/api/v1/pools/:uuid` · POST (update) | Implemented | `updatePool` in api/pools.ts |
-| Asset Pool | `/api/v1/pools/:uuid` · DELETE | Implemented | `deletePool` in api/pools.ts |
-| Asset Pool | `/api/v1/pools` · GET (list) | Implemented | `listPools` in api/pools.ts |
-| Asset Pool | `/api/v1/pools/:uuid` · GET | Implemented | `loadPool` in api/pools.ts |
-| Attachment | `/api/v1/attachments` · POST (create) | **Missing** | No api module, no feature |
-| Attachment | `/api/v1/attachments/:uuid` · POST (update) | **Missing** | No api module |
-| Attachment | `/api/v1/attachments/:uuid` · DELETE | **Missing** | No api module |
-| Attachment | `/api/v1/attachments` · GET (list) | **Missing** | No api module |
-| Attachment | `/api/v1/attachments/:uuid` · GET | **Missing** | No api module |
-| Blacklist | `/api/v1/blacklists` · POST (create) | Implemented | `createBlacklist` in [api/blacklist.ts](../../../loom-ui/src/api/blacklist.ts); [features/admin/AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) `BlacklistAdmin` |
-| Blacklist | `/api/v1/blacklists/:uuid` · POST (update) | **Partial** | `updateBlacklist` exists in api but no edit UI wired in `BlacklistAdmin` |
-| Blacklist | `/api/v1/blacklists/:uuid` · DELETE | Implemented | `deleteBlacklist` in api/blacklist.ts |
-| Blacklist | `/api/v1/blacklists` · GET (list) | Implemented | `listBlacklists` in api/blacklist.ts |
-| Blacklist | `/api/v1/blacklists/:uuid` · GET | **Missing** | No `loadBlacklist` wiring (used table lists all) |
-| Annotation | `/api/v1/annotations` · POST (create) | **Missing** | Only `listAnnotations`/`loadAnnotation` in [api/annotations.ts](../../../loom-ui/src/api/annotations.ts) |
-| Annotation | `/api/v1/annotations/:uuid` · POST (update) | **Missing** | No update fn |
-| Annotation | `/api/v1/annotations/:uuid` · DELETE | **Missing** | No delete fn |
-| Annotation | `/api/v1/annotations` · GET (list) | Implemented | `listAnnotations` in api/annotations.ts |
-| Annotation | `/api/v1/annotations/:uuid` · GET | Implemented | `loadAnnotation` in api/annotations.ts |
-| Annotation→Reactions | `/api/v1/annotations/:annotationUuid/reactions` · POST | **Missing** | api/reactions.ts covers asset/task/comment only |
-| Annotation→Reactions | `/api/v1/annotations/:annotationUuid/reactions/:reactionUuid` · DELETE | **Missing** | No annotation-reaction fn |
-| Annotation→Reactions | `/api/v1/annotations/:annotationUuid/reactions` · GET | **Missing** | No annotation-reaction fn |
-| Annotation→Reactions | `/api/v1/annotations/:annotationUuid/reactions/:reactionUuid` · GET | **Missing** | No annotation-reaction fn |
-| Annotation→Reactions | `/api/v1/annotations/:annotationUuid/reactions/:reactionUuid` · POST (update) | **Missing** | No annotation-reaction fn |
-| Asset Binary (standalone) | `/api/v1/binaries` · POST (create) | **Missing** | UI uses only asset sub-resource; likely internal |
-| Asset Binary (standalone) | `/api/v1/binaries/:uuid` · POST (update) | **Missing** | No `/binaries` fn |
-| Asset Binary (standalone) | `/api/v1/binaries/:uuid` · DELETE | **Missing** | No `/binaries` fn |
-| Asset Binary (standalone) | `/api/v1/binaries` · GET (list) | **Missing** | No `/binaries` fn |
-| Asset Binary (standalone) | `/api/v1/binaries/:uuid` · GET | **Missing** | No `/binaries` fn |
-| Asset Location | *(no dedicated REST endpoint — embedded in `AssetResponse`)* | Read-only | `AssetLocationInfo` displayed in [features/assetDetail/AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx); no REST surface for write/lock |
-| Asset Remix | *(no REST endpoint, no UI, no UI domain type)* | No REST surface | `asset_remix` table exists in [DOMAIN.md](../DOMAIN.md) group 2 but no endpoint is registered |
-
-**Totals:** 77 REST operations enumerated (75 addressable + 2 no-surface entities noted).
-34 gaps (Missing/Partial) across 9 tasks below.
-
----
----
-
+> Open UI work items for the Assets & Media entities (Asset, Asset Component, Attachment,
+> Asset Binary, Annotation, Transcript, Blacklist, Asset Pool), derived from a code audit of
+> `loom-ui/` and `loom/services/rest/.../endpoint/impl/` on 2026-08-01.
+> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+>
+> **Context:** [LOOM_UI.md](LOOM_UI.md) (UI spec — routes, api-client shape, test setup) ·
+> [../RESTAPI.md](../RESTAPI.md) · [../DOMAIN.md](../DOMAIN.md) group 2
+>
+> **Ordering:** nothing here blocks anything else. Task 1 and Task 2 are the two real feature
+> gaps and are independent. Tasks 3–5 are small/decision-shaped.
+>
+> **Owned elsewhere — do not duplicate here:**
+> * **Search UI** (`/api/v1/search/{results,assets,suggestions,status}` is built; `loom-ui` has
+>   no `src/api/search.ts`, no `/search` route, no search bar) →
+>   [../../features/search/SEARCH_PLAN.md](../../features/search/SEARCH_PLAN.md) **P1-16…P1-20**,
+>   plus **P0-5** which deletes the unreachable `src/{Admin,Asset,Content,Dashboard,User}` trees.
+>   `AssetBrowser`/`LibraryView` server-side paging is **P1-18/P1-19** there.
+> * **Dedup-group review UI** (`/api/v1/dedup-groups`, `/api/v1/assets/:uuid/dedup-groups`) →
+>   [TASK_UI_AI_ML.md](TASK_UI_AI_ML.md) Task 4, per
+>   [../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../features/pipeline-nodes/NODE_DEDUP_PLAN.md) §"Review UI".
+> * **Reactions on assets/annotations** → [TASK_UI_COLLABORATION.md](TASK_UI_COLLABORATION.md).
 
 ---
 
-## Task: Add an Asset Component (per-modality metadata) API module and viewer
+## Closed — outcome records
 
-**Argumentation Summary:** The Asset Component endpoint (`/api/v1/assets/:assetUuid/components`,
-5 routes) exposes the per-modality extracted metadata (`asset_*_comp` — geo, doc, image, video,
-audio, transcript, json; produced by Cortex nodes per [DOMAIN.md](../DOMAIN.md)). The UI has no
-api module and no feature that lists or displays these components; users cannot see or manage the
-extracted metadata attached to an asset.
-
-**Improvement Summary:** Surface the extracted per-modality metadata on the asset detail view and
-allow authorized users to manage components.
-
-```
-Endpoints (AssetComponentEndpoint.java, basePath /api/v1/assets/:assetUuid/components):
-  GET    /api/v1/assets/:assetUuid/components               -> listComponents
-  POST   /api/v1/assets/:assetUuid/components               -> createComponent
-  GET    /api/v1/assets/:assetUuid/components/:compUuid     -> loadComponent
-  POST   /api/v1/assets/:assetUuid/components/:compUuid     -> updateComponent
-  DELETE /api/v1/assets/:assetUuid/components/:compUuid     -> deleteComponent
-
-UI work:
-  - New loom-ui/src/api/assetComponents.ts with the 5 fns + response types (component `source`
-    tag and per-modality payload).
-  - New "Components / Metadata" panel in loom-ui/src/features/assetDetail/AssetDetail.tsx listing
-    components grouped by modality/source, with view (and, gated by permissions, edit/delete).
-
-Edge cases:
-  - Heterogeneous payloads per component kind (geo vs. json vs. transcript).
-  - Multiple components of the same kind distinguished by `source`.
-  - Read-heavy: most components are Cortex-produced; confirm whether create/update should be
-    exposed in UI or read-only.
-```
-
-**References:**
-- [loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetComponentEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetComponentEndpoint.java)
-- [spec/loom/DOMAIN.md](../DOMAIN.md) (group 2, Asset Component)
-- [loom-ui/src/features/assetDetail/AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx)
-
-**Test Requirements:**
-- api unit tests for the 5 component fns.
-- Component test: components panel renders a list grouped by source/modality.
-- Component test (if write exposed): delete removes a component and re-fetches.
+| Task (as originally filed) | Outcome — where it landed |
+|---|---|
+| Annotation create/update/delete missing | ✅ DONE — `createAnnotation`/`updateAnnotation`/`deleteAnnotation` in `loom-ui/src/api/annotations.ts`, wired in `features/assetDetail/AssetDetail.tsx` + `AnnotationItem.tsx`; covered by `api/annotations.test.ts`, `e2e/annotations-mocked.spec.ts`, `e2e/annotations-backend.spec.ts` |
+| Transcript create/load/update/delete missing | ✅ DONE — `loom-ui/src/api/transcripts.ts` (all 5 fns), UI in `features/assetDetail/TranscriptPanel.tsx`; `api/transcripts.test.ts`, `e2e/transcripts-mocked.spec.ts` |
+| Binary metadata create (`POST /assets/:uuid/binary`) missing | ✅ DONE — `createAssetBinaryMeta` in `loom-ui/src/api/binaries.ts`, called from `AssetDetail.tsx`; `api/binaries.test.ts`, `e2e/binaries-mocked.spec.ts` |
+| Annotation→reaction routes unreachable | ✅ DONE — five `*AnnotationReaction` fns in `loom-ui/src/api/reactions.ts` + `features/assetDetail/AnnotationReactionBar.tsx` |
+| Asset↔task link fabricated from mock data | ✅ DONE — `/assets/:uuid/tasks` now exists; `listAssetTasks`/`assignTaskToAsset` in `api/tasks.ts` drive the AssetDetail task panel; `e2e/asset-tasks-mocked.spec.ts` |
+| Asset PATCH/PUT helpers missing | ✅ CLOSED as a non-gap — `AssetEndpoint` routes POST, PATCH and PUT `/assets/:uuid` to the same `service.update`; PUT only adds a required-field precondition via `replaceHandler`. `updateAsset` (POST) is functionally complete. Same holds for the `sha512` POST/PATCH/PUT trio. |
+| Asset Location read-only | ✅ CLOSED as a backend gap, not a UI gap — see "No REST surface" below; `e2e/asset-location-mocked.spec.ts` covers the read-only render |
 
 ---
 
-## Task: Add an Attachment API module and management UI
+## Task 1: Add an Asset Component API module and an AssetDetail components panel
 
-**Argumentation Summary:** The Attachment endpoint (`/api/v1/attachments`, 5 CRUD routes) manages
-auxiliary binaries (asset thumbnails, embedding attachments per [DOMAIN.md](../DOMAIN.md)). The UI
-has no api module for it; `Attachment` appears only as a permission-label string in
-[AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx). No listing, upload, or deletion
-of attachments is possible.
+**Argumentation Summary:** `AssetComponentEndpoint` exposes five routes at
+`/api/v1/assets/:assetUuid/components` carrying the per-modality extracted metadata
+(`AssetComponentType` = GEO, IMAGE, VIDEO, AUDIO, DOC, TRANSCRIPT, JSON — produced by Cortex
+nodes). `loom-ui/src/api/` has **no** `assetComponents.ts` and no feature renders them, so the
+single richest output of the whole Cortex pipeline is invisible in the product. The REST surface
+is already exercised end-to-end by `loom-ui/e2e/components-backend.spec.ts`, which drives the raw
+`fetch` calls from `page.evaluate` — i.e. the contract is proven, only the UI is absent.
 
-**Improvement Summary:** Provide attachment CRUD so users/admins can view and manage asset
-thumbnails and other auxiliary binaries.
+**Improvement Summary:** Ship `api/assetComponents.ts` and a "Metadata / Components" tab on the
+asset detail view that groups components by modality and `source`.
 
 ```
-Endpoints (AttachmentEndpoint.java, basePath /api/v1/attachments):
-  POST   /api/v1/attachments               -> createAttachment
-  GET    /api/v1/attachments               -> listAttachments (paged)
-  GET    /api/v1/attachments/:uuid         -> loadAttachment
-  POST   /api/v1/attachments/:uuid         -> updateAttachment
-  DELETE /api/v1/attachments/:uuid         -> deleteAttachment
+Routes (loom/services/rest/.../endpoint/impl/AssetComponentEndpoint.java):
+  GET    /api/v1/assets/:assetUuid/components            -> list
+  POST   /api/v1/assets/:assetUuid/components            -> create
+  GET    /api/v1/assets/:assetUuid/components/:compUuid  -> load
+  POST   /api/v1/assets/:assetUuid/components/:compUuid  -> update
+  DELETE /api/v1/assets/:assetUuid/components/:compUuid  -> delete
 
-UI work:
-  - New loom-ui/src/api/attachments.ts with 5 fns + response types.
-  - Surface attachments where relevant: an attachments list/section on the asset detail view
-    and/or an admin table (mirror the existing BlacklistAdmin pattern in AdminArea.tsx).
-  - Gate with CREATE/READ/UPDATE/DELETE_ATTACHMENT permissions (already referenced in AdminArea).
+1. New loom-ui/src/api/assetComponents.ts following the api-module shape in LOOM_UI.md §5
+   (API_BASE_URL + authHeaders + handleResponse<T>). Model the response as a discriminated
+   union on the component type; `source` is editable on every modality.
+2. New panel in loom-ui/src/features/assetDetail/ (own file — AssetDetail.tsx is already
+   ~1.7k lines; add a tab that mounts <ComponentsPanel assetUuid=... />, do not inline it).
+   Group by type, then by `source`; render payloads read-only except `source`.
+3. Transcript components are already surfaced by TranscriptPanel.tsx via /transcripts —
+   do not render them twice; link across instead.
+4. Treat create as admin/debug only (components are Cortex output): expose delete + source
+   edit; gate writes on the *_ASSET permissions the rest of AssetDetail uses.
 
-Edge cases:
-  - Binary payload upload (attachment_binary) vs. metadata-only update.
-  - Attachment linked to Asset vs. Embedding target.
+Edge cases: heterogeneous payloads per type; several components of the same type separated
+only by `source`; an asset with zero components must render the shared EmptyState (§7.5).
 ```
 
-**References:**
-- [loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AttachmentEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AttachmentEndpoint.java)
-- [spec/loom/DOMAIN.md](../DOMAIN.md) (group 2, Attachment)
-- [loom-ui/src/features/admin/AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx)
+**References:** [AssetComponentEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetComponentEndpoint.java) ·
+[../DOMAIN.md](../DOMAIN.md) group 2 · [LOOM_UI.md](LOOM_UI.md) §5, §10 ·
+[loom-ui/e2e/components-backend.spec.ts](../../../loom-ui/e2e/components-backend.spec.ts)
 
-**Test Requirements:**
-- api unit tests for the 5 attachment fns.
-- Component test: list renders, create uploads, delete removes an attachment.
-- Permission gating test.
+**Test Requirements:** `loom-ui/src/api/assetComponents.test.ts` (node-env vitest) for the five
+fns; `loom-ui/e2e/components-mocked.spec.ts` (Playwright with routed mocks — this repo has no
+RTL/jsdom, see [LOOM_UI.md](LOOM_UI.md) §8) asserting grouped render + delete round-trip.
+Run: `cd loom-ui && yarn test` and `yarn e2e --grep components`.
 
 ---
 
-## Task: Add SHA-512 hash-based asset operations to the UI
+## Task 2: Add an Attachment API module and management UI
 
-**Argumentation Summary:** The asset endpoint exposes a full hash-addressed operation set at
-`/api/v1/assets/sha512/:sha512` (GET, POST, PATCH, PUT, DELETE — 5 routes; content-addressed
-lookup is a defining feature of the Asset entity per [RESTAPI.md](../RESTAPI.md) §3.3). The UI
-references `sha512` only as a response/request field ([api/assets.ts](../../../loom-ui/src/api/assets.ts))
-and has no function to look up, update, or delete an asset by its hash — preventing dedup checks
-and hash-based navigation.
+**Argumentation Summary:** `AttachmentEndpoint` registers five routes at `/api/v1/attachments`;
+create is a **multipart upload** from which the backend derives filename, size, mimeType and a
+content-addressed `sha512sum` (see the header of `e2e/attachments-backend.spec.ts`). `loom-ui`
+has no `api/attachments.ts`; "Attachment" appears in the UI only as a permission label in
+`features/admin/AdminArea.tsx` `PERMISSION_GROUPS`. Attachments therefore cannot be listed,
+uploaded or deleted from the product at all.
 
-**Improvement Summary:** Enable hash-based lookup (e.g. "does this file already exist?" during
-upload) and hash-addressed load/update/delete.
+**Improvement Summary:** Provide attachment CRUD plus an admin table, so auxiliary binaries are
+manageable.
 
 ```
-Endpoints (AssetEndpoint.java, basePath /api/v1/assets):
-  GET    /api/v1/assets/sha512/:sha512      -> loadAssetBySha512
-  POST   /api/v1/assets/sha512/:sha512      -> updateAssetBySha512
-  PATCH  /api/v1/assets/sha512/:sha512      -> patchAssetBySha512
-  PUT    /api/v1/assets/sha512/:sha512      -> replaceAssetBySha512
-  DELETE /api/v1/assets/sha512/:sha512      -> deleteAssetBySha512
+Routes (AttachmentEndpoint.java): POST/GET /api/v1/attachments ;
+                                  GET/POST/DELETE /api/v1/attachments/:uuid
 
-UI work:
-  - Add the 5 fns to loom-ui/src/api/assets.ts alongside the existing uuid-based fns.
-  - Use loadAssetBySha512 for a pre-upload duplicate check in the upload flow
-    (features/assets/ upload path / AssetBrowser) — the uploadAsset comment already notes sha512
-    is required for create.
+1. New loom-ui/src/api/attachments.ts. createAttachment sends FormData and MUST NOT set
+   Content-Type (the browser writes the multipart boundary) — mirror uploadAssetBinary in
+   api/binaries.ts. Response carries filename/size/mimeType/sha512sum; there is no thumbnail
+   field, so render previews from sha512sum + mimeType.
+2. Surface as an AdminArea tab following the BlacklistAdmin pattern (list + upload + delete),
+   registered in the AdminArea nested <Routes> and the ACL sub-group in layout/Sidebar.tsx.
+3. Optionally link an attachment back to its owning asset/embedding.
 
-Edge cases:
-  - 404 (hash not found) as the "not a duplicate" signal.
-  - Hash normalization (case, length) before request.
+Edge cases: multipart create vs. JSON metadata update on the same resource; large uploads need
+progress or at least a disabled button; delete must refetch the list.
 ```
 
-**References:**
-- [loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (sha512 routes ~121-158)
-- [spec/loom/RESTAPI.md](../RESTAPI.md) (Asset SHA-512 row, §3.3)
-- [loom-ui/src/api/assets.ts](../../../loom-ui/src/api/assets.ts)
+**References:** [AttachmentEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AttachmentEndpoint.java) ·
+[../DOMAIN.md](../DOMAIN.md) group 2 · [LOOM_UI.md](LOOM_UI.md) §4.3 (sidebar ACL sub-group gotcha) ·
+[loom-ui/e2e/attachments-backend.spec.ts](../../../loom-ui/e2e/attachments-backend.spec.ts)
 
-**Test Requirements:**
-- api unit tests for the 5 sha512 fns.
-- Test: pre-upload lookup returns existing asset on hash match and treats 404 as new.
+**Test Requirements:** `loom-ui/src/api/attachments.test.ts` asserting the multipart create omits
+a Content-Type header; `loom-ui/e2e/attachments-mocked.spec.ts` for list → upload → delete.
+Run: `cd loom-ui && yarn test && yarn e2e --grep attachments`.
 
 ---
 
-## Task: Support PATCH (partial update) and PUT (replace) semantics for assets
+## Task 3: Finish the Blacklist admin screen (edit + single load)
 
-**Argumentation Summary:** `/api/v1/assets/:uuid` supports POST, PATCH (partial — only fields
-present are modified), and PUT (replace — all replaceable fields required). The UI only calls POST
-via `updateAsset` ([api/assets.ts](../../../loom-ui/src/api/assets.ts)); PATCH and PUT are
-unavailable, so the UI cannot do a true partial merge or a full replace where those differ from
-the POST update semantics.
+**Argumentation Summary:** `BlacklistAdmin` in `features/admin/AdminArea.tsx` imports only
+`listBlacklists`, `createBlacklist` and `deleteBlacklist`, although `api/blacklist.ts` already
+exports `updateBlacklist` and `loadBlacklist`. A blacklist entry can be created and deleted but
+never corrected — the name/assetUuid must be retyped from scratch.
 
-**Improvement Summary:** Expose partial-update and replace helpers so edit flows can pick the
-correct semantics (e.g. single-field inline edits via PATCH).
+**Improvement Summary:** Wire the existing `updateBlacklist`/`loadBlacklist` client functions into
+an edit dialog on the blacklist table.
 
 ```
-Endpoints (AssetEndpoint.java):
-  PATCH  /api/v1/assets/:uuid   -> patchAsset (only present fields modified)
-  PUT    /api/v1/assets/:uuid   -> replaceAsset (all replaceable fields required)
-
-UI work:
-  - Add patchAsset and replaceAsset to loom-ui/src/api/assets.ts (reuse AssetUpdateRequest;
-    PATCH may take a Partial<>).
-  - Use PATCH for inline single-field edits in AssetDetail/AssetMetadata to avoid clobbering.
-
-Edge cases:
-  - PUT requires all replaceable fields — validate before sending.
-  - Confirm server-side difference between POST-update and PATCH before choosing per edit.
+1. In features/admin/AdminArea.tsx BlacklistAdmin (~line 1144): add an edit action per row that
+   opens a dialog prefilled from loadBlacklist(token, uuid) and submits updateBlacklist.
+2. Reuse the rename-dialog shape already present in ApiKeysAdmin in the same file.
 ```
 
-**References:**
-- [loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (~184-193)
-- [loom-ui/src/api/assets.ts](../../../loom-ui/src/api/assets.ts)
+**References:** [loom-ui/src/api/blacklist.ts](../../../loom-ui/src/api/blacklist.ts) ·
+[loom-ui/src/features/admin/AdminArea.tsx](../../../loom-ui/src/features/admin/AdminArea.tsx) ·
+[BlacklistEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/BlacklistEndpoint.java)
 
-**Test Requirements:**
-- api unit tests for patchAsset and replaceAsset.
-- Test: PATCH sends only changed fields; PUT rejects when a required field is missing.
+**Test Requirements:** extend `loom-ui/e2e/blacklist-backend.spec.ts` with an edit step, and add
+the mocked equivalent. Run: `cd loom-ui && yarn e2e --grep blacklist`.
 
 ---
 
----
+## Task 4: Add hash-addressed asset lookup to the api client
 
-## Task: Support explicit binary-metadata creation (POST /assets/:uuid/binary)
+**Argumentation Summary:** `/api/v1/assets/sha512/:sha512` supports GET/POST/PATCH/PUT/DELETE;
+`loom-ui/src/api/assets.ts` treats `sha512` purely as a payload field and offers no hash-addressed
+function. Note the value is **navigation, not upload dedup**: `POST /assets/upload` already
+answers 200 (instead of 201) when an asset with the same SHA-512 exists, so the upload flow needs
+no pre-check. The remaining use is "open the asset for this hash" — e.g. from a Cortex log, a
+dedup group member or an external tool.
 
-**Argumentation Summary:** The binary sub-resource has a distinct route to create the binary
-*metadata* record — POST `/api/v1/assets/:uuid/binary` — separate from POST `/binary/data`
-(raw-bytes upload). The UI ([api/binaries.ts](../../../loom-ui/src/api/binaries.ts)) implements
-`/binary/data`, GET `/binary`, and DELETE `/binary`, but not the metadata-create route, so a
-workflow that registers binary metadata (filesystem path / S3 pointer) without streaming bytes has
-no UI path.
-
-**Improvement Summary:** Add a helper to create/register binary metadata directly (e.g. pointing an
-asset at an already-present filesystem/S3 object).
+**Improvement Summary:** Add `loadAssetBySha512` (and, only if a caller appears,
+`deleteAssetBySha512`) plus a hash-resolving route.
 
 ```
-Endpoint (AssetEndpoint.java): POST /api/v1/assets/:uuid/binary -> createBinaryMeta
-UI work:
-  - Add createAssetBinaryMeta to loom-ui/src/api/binaries.ts (payload: filesystem/S3 location).
-  - Optional UI: "register existing binary" action in AssetDetail binary section.
-Edge cases:
-  - Asset that already has a binary (replace vs. reject).
-  - libraryUuid requirement when no binary exists yet (mirrors /binary/data contract).
+1. Add loadAssetBySha512(token, sha512) to loom-ui/src/api/assets.ts; lowercase/trim the hash
+   and treat 404 as "no such asset" rather than an error.
+2. Optional: an /assets/by-hash/:sha512 route in layout/AppShell.tsx that resolves and
+   <Navigate>s to /assets/:uuid.
+Do NOT add patch/replace variants — they hit the same service.update as POST (see Closed table).
 ```
 
-**References:**
-- [loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (~360)
-- [loom-ui/src/api/binaries.ts](../../../loom-ui/src/api/binaries.ts)
+**References:** [AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (sha512 block) ·
+[loom-ui/src/api/assets.ts](../../../loom-ui/src/api/assets.ts) · [../RESTAPI.md](../RESTAPI.md)
 
-**Test Requirements:**
-- api unit test for createAssetBinaryMeta.
+**Test Requirements:** unit test in `loom-ui/src/api/assets.test.ts` (create the file) that the
+hash is URL-encoded and 404 resolves to `null`. Run: `cd loom-ui && yarn test`.
 
 ---
 
-## Task: Decide on / expose the standalone Asset Binary endpoint (`/api/v1/binaries`)
+## Task 5: Decide the audience of the standalone `/api/v1/binaries` endpoint
 
-**Argumentation Summary:** A standalone [AssetBinaryEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetBinaryEndpoint.java)
-registers 5 routes at `/api/v1/binaries` (create, list, load, update, delete) that are entirely
-separate from the asset `:uuid/binary` sub-resource the UI uses. No UI code references `/binaries`.
-This is likely an internal/administrative surface, but it is a real, unaddressed REST surface and
-should be either exposed or explicitly documented as internal.
+**Argumentation Summary:** `AssetBinaryEndpoint` registers five routes at `/api/v1/binaries`
+entirely separate from the `/assets/:uuid/binary` sub-resource the UI uses. No `loom-ui` code
+references `/binaries`. It is probably internal, but the ambiguity keeps re-surfacing in every
+gap audit.
 
-**Improvement Summary:** Either add a thin admin listing over `/api/v1/binaries` (browse orphaned /
-all binary records) or record it as an intentionally internal endpoint so the gap is closed by
-decision.
+**Improvement Summary:** Record the decision once — either a thin admin listing, or an explicit
+"no UI by design" note in the REST spec.
 
 ```
-Endpoints (AssetBinaryEndpoint.java, basePath /api/v1/binaries):
-  POST /api/v1/binaries ; GET /api/v1/binaries ; GET/POST/DELETE /api/v1/binaries/:uuid
-
-Action:
-  - Confirm intended audience with backend owners.
-  - If user-facing: new loom-ui/src/api/binariesAdmin.ts + admin table.
-  - If internal-only: note in spec (RESTAPI.md / LOOM_UI.md) as "no UI by design".
+1. Confirm the intended audience with the backend owner.
+2. If user-facing: api/assetBinaries.ts + an AdminArea table (orphaned-binary browse/delete).
+3. If internal: add "no UI by design" to ../RESTAPI.md next to the /binaries rows and delete
+   this task. No code change.
 ```
 
-**References:**
-- [loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetBinaryEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetBinaryEndpoint.java)
-- [spec/loom/RESTAPI.md](../RESTAPI.md)
+**References:** [AssetBinaryEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetBinaryEndpoint.java) ·
+[../RESTAPI.md](../RESTAPI.md)
 
-**Test Requirements:**
-- If exposed: api unit tests for the 5 `/binaries` fns and a listing component test.
-- If internal: spec note added; no UI test.
+**Test Requirements:** if exposed, api-client tests for the five fns plus a mocked listing spec;
+if internal, spec note only and no test.
 
 ---
 
-## Notes on no-REST-surface entities
+## No REST surface — backend prerequisites, not UI gaps
 
-- **Asset Location** (`asset_location`): no dedicated REST endpoint is registered; the location
-  data (path, filekey, pool, lock, state) is embedded in `AssetResponse` and rendered read-only via
-  `AssetLocationInfo` in [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx).
-  The response carries a `lockedBy` field but there is no lock/unlock or relocate operation on either
-  side. If lock management or relocation becomes a requirement, it needs a backend endpoint first —
-  record as a backend gap, not a UI gap.
-- **Asset Remix** (`asset_remix`, "derivation/relation link between two assets" per
-  [DOMAIN.md](../DOMAIN.md)): no REST endpoint and no UI type exist. If asset-to-asset
-  derivation/relation browsing is desired, it requires a backend endpoint first. No UI gap can be
-  written against a non-existent surface — flagged here for product/backend decision.
+* **Asset Location** — no endpoint; path/filekey/pool/`lockedBy` are embedded read-only in
+  `AssetResponse` and rendered by `AssetLocationInfo` in `AssetDetail.tsx`. Lock/unlock or
+  relocate needs a backend route first.
+* **Asset Remix** — the `asset_remix` table exists ([../DOMAIN.md](../DOMAIN.md) group 2) but no
+  endpoint and no UI type. Asset-to-asset derivation browsing is a backend task.
+
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (collapsed the delivered annotation/transcript/binary-meta/asset-task work to outcome records and kept only the five open items)_

@@ -1,179 +1,187 @@
 # TASK_UI_COLLABORATION — Collaboration / Social
 
-Gap-analysis tasks between the Loom REST API and the Loom UI for the Collaboration
-entities (Task, Comment, Reaction). Follows [../../TASKS.template.md](../../TASKS.template.md).
-
-Scope note: the coverage matrix below is driven by the **REST routes as registered**
-(the authoritative source per
-[loom/services/rest/.../endpoint/impl/TaskEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TaskEndpoint.java),
-[CommentEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/CommentEndpoint.java),
-[ReactionEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ReactionEndpoint.java),
-[AnnotationEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AnnotationEndpoint.java),
-[AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java)).
-
-Several attributes that [DOMAIN.md](../DOMAIN.md) group 6 lists for these entities are **not
-exposed by the REST layer** and therefore cannot be UI gaps against the REST API:
-
-- **Task status** (`PENDING/REJECTED/ACCEPTED/REVIEW`), **due date**, and the
-  `asset_task` / `annotation_task` links are in the DB/domain but absent from
-  `Task` ([Task.java](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/task/Task.java)),
-  `TaskCreateRequest`, `TaskUpdateRequest`, and `TaskResponse`
-  ([rest-model/task](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/task/)).
-  The REST task model carries only `title`, `description`, `priority` (`LOW/MEDIUM/HIGH/CRITICAL`), `meta`, `comments`.
-- **Comment threading** (self-parent replies) is in the domain but `Comment`
-  ([Comment.java](../../../loom/db/api/src/main/java/io/metaloom/loom/db/model/comment/Comment.java))
-  and the comment REST models expose no `parentUuid`; comments link only to a task or asset.
-
-These are flagged in the matrix as "N/A (not in REST)" and are addressed only where the UI
-**fabricates** them from mock data (see Task 4).
-
-## Coverage Matrix
-
-| Entity | REST Operation (path · method) | UI Status | Where / Gap |
-|--------|-------------------------------|-----------|-------------|
-| Task | `/tasks` · POST (create) | Implemented | `createTask` in [tasks.ts](../../../loom-ui/src/api/tasks.ts); create dialog in [TasksView.tsx](../../../loom-ui/src/features/tasks/TasksView.tsx) |
-| Task | `/tasks/:uuid` · POST (update) | Implemented | `updateTask`; edit drawer in TasksView (title/description/priority) |
-| Task | `/tasks/:uuid` · DELETE | Implemented | `deleteTask`; delete dialog in TasksView |
-| Task | `/tasks` · GET (list) | Implemented | `listTasks`; TasksView table |
-| Task | `/tasks/:uuid` · GET (load) | Partial | `loadTask` defined in tasks.ts but never called; drawer reuses the list row object |
-| Task | `/tasks/:taskUuid/reactions` · POST | Implemented | `createTaskReaction`; ReactionsPanel `onAdd` in TasksView drawer |
-| Task | `/tasks/:taskUuid/reactions` · GET (list) | Implemented | `listTaskReactions`; TasksView drawer |
-| Task | `/tasks/:taskUuid/reactions/:reactionUuid` · DELETE | Implemented | `deleteTaskReaction`; ReactionsPanel `onDelete` |
-| Task | `/tasks/:taskUuid/reactions/:reactionUuid` · GET (load) | Missing | No `loadTaskReaction` in [reactions.ts](../../../loom-ui/src/api/reactions.ts) (low impact — list returns items) |
-| Task | `/tasks/:taskUuid/reactions/:reactionUuid` · POST (update) | Partial | `updateTaskReaction` exists in reactions.ts but is **never called**; ReactionsPanel only adds/deletes → **Task 3** |
-| Task | `/tasks/:taskUuid/comments` · POST (create) | Implemented | `createCommentForTask`; TasksView drawer composer |
-| Task | `/tasks/:taskUuid/comments` · GET (list) | Implemented | `listCommentsForTask`; TasksView drawer |
-| Comment | `/comments` · POST (create) | Partial | `createComment` in [comments.ts](../../../loom-ui/src/api/comments.ts) exists but unused (comments always created via task/asset sub-route) |
-| Comment | `/comments/:uuid` · POST (update) | Partial | `updateComment` wired in [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) (asset comments) but **not** for task comments in TasksView → **Task 2** |
-| Comment | `/comments/:uuid` · DELETE | Partial | `deleteComment` wired in AssetDetail only; task comments not deletable → **Task 2** |
-| Comment | `/comments` · GET (list) | Partial | `listComments` exists in comments.ts but unused (no global comment view) |
-| Comment | `/comments/:uuid` · GET (load) | Partial | `loadComment` exists but unused |
-| Comment | `/comments/:commentUuid/reactions` · POST | Implemented | `createCommentReaction`; [CommentReactionBar.tsx](../../../loom-ui/src/features/assetDetail/CommentReactionBar.tsx) |
-| Comment | `/comments/:commentUuid/reactions` · GET (list) | Implemented | `listCommentReactions`; CommentReactionBar |
-| Comment | `/comments/:commentUuid/reactions/:reactionUuid` · DELETE | Implemented | `deleteCommentReaction`; CommentReactionBar toggle |
-| Comment | `/comments/:commentUuid/reactions/:reactionUuid` · GET (load) | Missing | No `loadCommentReaction` in reactions.ts (low impact) |
-| Comment | `/comments/:commentUuid/reactions/:reactionUuid` · POST (update) | Partial | `updateCommentReaction` exists but never called; CommentReactionBar only toggles THUMBSUP/THUMBSDOWN create/delete → **Task 3** |
-| Comment (asset sub-resource) | `/assets/:uuid/comments` · POST | Implemented | `createCommentForAsset`; AssetDetail comment composer |
-| Comment (asset sub-resource) | `/assets/:uuid/comments` · GET (list) | Implemented | `listCommentsForAsset`; AssetDetail |
-| Reaction | `/reactions` · GET (list all) | Missing | No `listReactions` in reactions.ts; no global/admin reaction view → **Task 5** |
-| Reaction | `/reactions/:uuid` · GET (load) | Missing | Not in reactions.ts → **Task 5** |
-| Reaction | `/reactions/:uuid` · DELETE | Missing | Not in reactions.ts → **Task 5** |
-| Reaction (asset, ReactionEndpoint) | `/reactions/assets/:assetUuid` · POST | N/A (alt path) | UI uses the asset-scoped path `/assets/:uuid/reactions` instead; this duplicate route is unused |
-| Reaction (asset, ReactionEndpoint) | `/reactions/assets/:assetUuid` · GET (list) | N/A (alt path) | Same — covered functionally by the asset-scoped path |
-| Reaction (asset sub-resource) | `/assets/:uuid/reactions` · POST | Implemented | `createAssetReaction`; AssetDetail + workflow rating |
-| Reaction (asset sub-resource) | `/assets/:uuid/reactions` · GET (list) | Implemented | `listAssetReactions`; AssetDetail + [ratingPersistence.ts](../../../loom-ui/src/features/workflow/ratingPersistence.ts) |
-| Reaction (asset sub-resource) | `/assets/:uuid/reactions/:reactionUuid` · DELETE | Implemented | `deleteAssetReaction`; AssetDetail |
-| Reaction (asset sub-resource) | `/assets/:uuid/reactions/:reactionUuid` · GET (load) | Partial | `loadAssetReaction` exists but unused |
-| Reaction (asset sub-resource) | `/assets/:uuid/reactions/:reactionUuid` · POST (update) | Implemented | `updateAssetReaction`; workflow star-rating persistence |
-| Reaction (annotation sub-resource) | `/annotations/:annotationUuid/reactions` · POST | Missing | No annotation-reaction function in reactions.ts; [AnnotationItem.tsx](../../../loom-ui/src/features/assetDetail/AnnotationItem.tsx) shows no reactions → **Task 1** |
-| Reaction (annotation sub-resource) | `/annotations/:annotationUuid/reactions` · GET (list) | Missing | → **Task 1** |
-| Reaction (annotation sub-resource) | `/annotations/:annotationUuid/reactions/:reactionUuid` · DELETE | Missing | → **Task 1** |
-| Reaction (annotation sub-resource) | `/annotations/:annotationUuid/reactions/:reactionUuid` · GET (load) | Missing | → **Task 1** |
-| Reaction (annotation sub-resource) | `/annotations/:annotationUuid/reactions/:reactionUuid` · POST (update) | Missing | → **Task 1** |
-| Task↔Asset / Task↔Annotation link | — | N/A (not in REST) | AssetDetail fabricates asset tasks from mock data → **Task 4** |
-| Comment thread (self-parent reply) | — | N/A (not in REST) | No REST support; not a UI gap |
+> Open UI work items for the Collaboration entities (Task, Comment, Reaction), derived from a code
+> audit of `loom-ui/` and `loom/services/rest/.../endpoint/impl/` on 2026-08-01.
+> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+>
+> **Context:** [LOOM_UI.md](LOOM_UI.md) (UI spec) · [../RESTAPI.md](../RESTAPI.md) ·
+> [../DOMAIN.md](../DOMAIN.md) group 6
+>
+> **Ordering:** Task 1 first — the `/tasks` screen drops two fields the REST model and the api
+> client already carry, so tasks created there are invisible to the asset-side task UI that renders
+> them. Tasks 2–4 are independent and non-blocking.
 
 ---
 
+## Closed — outcome records
+
+| Task (as originally filed) | Outcome — where it landed |
+|---|---|
+| Annotation reactions unreachable (5 routes) | ✅ DONE — `listAnnotationReactions`/`load`/`create`/`update`/`deleteAnnotationReaction` in `loom-ui/src/api/reactions.ts` + `features/assetDetail/AnnotationReactionBar.tsx`; covered by `api/reactions.test.ts` |
+| Task comments cannot be edited or deleted | ✅ DONE — `features/tasks/TasksView.tsx` imports `updateComment`/`deleteComment` (~lines 132, 143) and reuses the shared `CommentItem`; `e2e/tasks-comments-mocked.spec.ts` |
+| Asset tasks fabricated from mock data | ✅ DONE — `AssetEndpoint` now registers `GET /assets/:uuid/tasks` and `POST/DELETE /assets/:uuid/tasks/:taskUuid`; `listAssetTasks`/`assignTaskToAsset` in `api/tasks.ts` drive the AssetDetail task panel via `features/assetDetail/TaskItem.tsx`; `api/tasks.test.ts`, `e2e/asset-tasks-mocked.spec.ts` |
+| "Task status, due date and `asset_task` are not exposed by REST" | ✅ OBSOLETE — that premise is false at this HEAD. `TaskModel` exposes `getTaskStatus()` and `getDueDate()`, `api/tasks.ts` types carry `taskStatus`/`dueDate`, and `TaskItem.tsx` renders both (including an overdue highlight). What remains is the `/tasks` screen not writing them — Task 1 |
+| `loadTask` / `loadComment` / `loadAssetReaction` have no caller | ✅ CLOSED as non-gaps — the list payloads are complete; a single-load call would be a redundant round-trip. Do not file these again |
+| `POST /reactions/assets/:assetUuid` (ReactionEndpoint) unused | ✅ CLOSED as a non-gap — a duplicate of the asset sub-resource path the UI already uses |
 
 ---
 
+## Task 1: Let the Tasks screen edit `taskStatus` and `dueDate`
+
+**Argumentation Summary:** `TaskCreateRequest`/`TaskUpdateRequest` in
+[api/tasks.ts](../../../loom-ui/src/api/tasks.ts) both declare `taskStatus`
+(`PENDING|REJECTED|ACCEPTED|REVIEW`) and `dueDate`, matching
+[TaskModel.java](../../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/task/TaskModel.java).
+`features/tasks/TasksView.tsx` never references either field: `createTask` (~line 403) and
+`updateTask` (~line 419) send only `{ title, description, priority }`, and the table/drawer show
+only a priority chip. Meanwhile `features/assetDetail/TaskItem.tsx` **does** render `taskStatus`
+and an overdue `dueDate`, so a task created on `/tasks` always shows up status-less and
+never-due on the asset it is attached to. The workflow status that the whole task entity exists
+for is unreachable from the task manager.
+
+**Improvement Summary:** Add status and due-date controls to the task create dialog, edit drawer
+and table so the `/tasks` screen writes the full REST task model.
+
+```
+File: loom-ui/src/features/tasks/TasksView.tsx
+
+1. Mirror the existing PrioritySelect component (~line 42) with a StatusSelect over
+   PENDING | REJECTED | ACCEPTED | REVIEW, i18n keys tasks.status.* (add to
+   src/i18n/locales/{en,de}.json — both files, or the German build shows raw keys).
+2. Add a date input for dueDate; send an ISO-8601 instant string (the backend field is
+   java.time.Instant) and treat empty as omitted, not as "".
+3. Include taskStatus and dueDate in the createTask (~line 403) and updateTask (~line 419)
+   payloads, and hydrate the edit drawer state from selectedTask (~line 390).
+4. Table: add a status chip and a due-date cell; reuse taskStatusColor exported from
+   features/assetDetail/TaskItem.tsx rather than defining a second colour map.
+5. Optional: filter/sort the table by status — do it client-side; there is no server-side
+   task filter route.
+
+Edge cases: a task loaded without taskStatus (legacy rows) must not default-write a status on
+an unrelated edit; timezone — render the due date in local time but transmit UTC.
+```
+
+**References:** [TasksView.tsx](../../../loom-ui/src/features/tasks/TasksView.tsx) ·
+[api/tasks.ts](../../../loom-ui/src/api/tasks.ts) ·
+[TaskItem.tsx](../../../loom-ui/src/features/assetDetail/TaskItem.tsx) (`taskStatusColor`, overdue rule) ·
+[TaskEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/TaskEndpoint.java)
+
+**Test Requirements:** extend `loom-ui/e2e/tasks-backend.spec.ts` — create a task with a status and
+due date, reload, assert both persist. Add a mocked spec asserting the create/update request bodies
+contain `taskStatus` and an ISO `dueDate`. Run: `cd loom-ui && yarn e2e --grep tasks`.
 
 ---
 
-## Task: Support "change my reaction" via the reaction update endpoint
+## Task 2: Allow detaching a task from an asset
+
+**Argumentation Summary:** `unassignTaskFromAsset` exists in
+[api/tasks.ts](../../../loom-ui/src/api/tasks.ts) and is covered by `api/tasks.test.ts`, but the
+only caller anywhere is that test — `features/assetDetail/AssetDetail.tsx` imports
+`listAssetTasks`, `assignTaskToAsset` and `createTask` and nothing else. A task attached to an
+asset by mistake can never be detached from the UI; the only escape is deleting the task outright.
+
+**Improvement Summary:** Add a detach action to the asset task panel that calls the existing
+`DELETE /assets/:uuid/tasks/:taskUuid` client function.
+
+```
+1. In features/assetDetail/TaskItem.tsx add an optional onDetach callback rendered as a row
+   action (confirm first — detaching is not deleting, say so in the copy).
+2. In AssetDetail.tsx import unassignTaskFromAsset, call it, then refetch via listAssetTasks
+   (~line 226 already holds the refetch shape used after assign at ~line 271).
+3. i18n keys in both src/i18n/locales/en.json and de.json.
+```
+
+**References:** [api/tasks.ts](../../../loom-ui/src/api/tasks.ts) ·
+[AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx) ·
+[TaskItem.tsx](../../../loom-ui/src/features/assetDetail/TaskItem.tsx) ·
+[AssetEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/AssetEndpoint.java) (`/:uuid/tasks/:taskUuid` DELETE)
+
+**Test Requirements:** extend `loom-ui/e2e/asset-tasks-mocked.spec.ts` with a detach step that
+asserts the DELETE and the subsequent list refetch. Run: `cd loom-ui && yarn e2e --grep asset-tasks`.
+
+---
+
+## Task 3: Use the reaction update route instead of piling up reactions
 
 **Argumentation Summary:** Every reaction target exposes an update route
-(`POST /{tasks|comments|assets}/:uuid/reactions/:reactionUuid`, and annotations after Task 1),
-and the UI already ships `updateTaskReaction`, `updateCommentReaction`, `updateAssetReaction`
-in [reactions.ts](../../../loom-ui/src/api/reactions.ts) (all covered by `reactions.test.ts`).
-Yet only the workflow star-rating path
-([ratingPersistence.ts](../../../loom-ui/src/features/workflow/ratingPersistence.ts)) calls an
-update. The interactive reaction UIs do not: [ReactionsPanel.tsx](../../../loom-ui/src/features/reactions/ReactionsPanel.tsx)
-(used by tasks and asset reactions) only supports add + delete, so a user re-reacting with a
-different type creates a **second** reaction instead of changing theirs; and
-[CommentReactionBar.tsx](../../../loom-ui/src/features/assetDetail/CommentReactionBar.tsx)
-toggles delete-then-create rather than a single update. This under-uses the update endpoint and
-produces duplicate/piled-up reactions per user.
+(`POST /{tasks|comments|assets|annotations}/:uuid/reactions/:reactionUuid`), and all four
+`update*Reaction` client functions exist and are unit-tested in `api/reactions.test.ts`. Only
+`features/workflow/ratingPersistence.ts` (~line 34) actually calls one. The interactive surfaces do
+not: [ReactionsPanel.tsx](../../../loom-ui/src/features/reactions/ReactionsPanel.tsx) declares only
+`onAdd`/`onDelete` (lines 21-22), so re-reacting with a different type creates a **second**
+reaction for the same user; `CommentReactionBar.tsx` and `AnnotationReactionBar.tsx` both do
+delete-then-create (~lines 57-61 in each). The result is duplicate reactions per user and two
+network round-trips where one would do.
 
-**Improvement Summary:** When a user already has a reaction on a target and changes its type
-(or rating), call the update endpoint on their existing reaction instead of creating a new one.
+**Improvement Summary:** When the current user already owns a reaction on a target, update it
+in place rather than creating a new one.
 
 ```
-Files: loom-ui/src/features/reactions/ReactionsPanel.tsx and the callers in
-       TasksView.tsx (task reactions) and AssetDetail.tsx (asset reactions);
-       optionally CommentReactionBar.tsx.
+1. ReactionsPanel.tsx: add an optional onUpdate(reactionUuid, type) alongside onAdd/onDelete
+   (or a single onSelect(type) the container resolves to create-vs-update).
+2. Containers (TasksView.tsx task reactions, AssetDetail.tsx asset reactions): before creating,
+   find the reaction whose status.creator.uuid === currentUserUuid. If it exists and the type
+   differs, call update{Task|Asset}Reaction and replace it in local state; create only when the
+   user has none.
+3. CommentReactionBar.tsx / AnnotationReactionBar.tsx: switching THUMBSUP↔THUMBSDOWN becomes a
+   single update{Comment|Annotation}Reaction instead of delete + create.
+4. Apply one product rule consistently: one reaction per user per target (this is what the
+   update routes and ratingPersistence.ts already assume).
 
-1. Give ReactionsPanel an optional onUpdate(reactionUuid, type) callback (or an
-   onSelect(type) that the container resolves to create-vs-update).
-2. In the container, before adding: find the current user's existing reaction
-   (status.creator.uuid === currentUserUuid). If present and the type differs, call
-   update{Task|Asset}Reaction(token, targetUuid, existing.uuid, { type }) and replace it in
-   local state; only create when the user has none.
-3. CommentReactionBar: when switching from THUMBSUP to THUMBSDOWN for the same user, prefer a
-   single updateCommentReaction over delete+create.
-
-Edge cases:
-  - Decide the product rule: one reaction per user per target (update-in-place) vs. many. The
-    update endpoints and the workflow "no duplicates" comment imply one-per-user — apply that
-    consistently.
-  - Preserve `rating` when only `type` changes and vice-versa (ReactionUpdateRequest patches
-    each field independently server-side).
-  - Guard against unauthenticated (no token) and non-owned reactions (cannot update another
-    user's reaction).
+Edge cases: preserve `rating` when only `type` changes and vice-versa (the server patches each
+field independently); never attempt to update another user's reaction; no token → no-op.
 ```
 
-**References:**
-- [ReactionsPanel.tsx](../../../loom-ui/src/features/reactions/ReactionsPanel.tsx), [CommentReactionBar.tsx](../../../loom-ui/src/features/assetDetail/CommentReactionBar.tsx)
-- [ratingPersistence.ts](../../../loom-ui/src/features/workflow/ratingPersistence.ts) (existing create-vs-update precedent)
-- [ReactionEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/ReactionEndpointService.java) (`update(...)`)
+**References:** [ReactionsPanel.tsx](../../../loom-ui/src/features/reactions/ReactionsPanel.tsx) ·
+[CommentReactionBar.tsx](../../../loom-ui/src/features/assetDetail/CommentReactionBar.tsx) ·
+[AnnotationReactionBar.tsx](../../../loom-ui/src/features/assetDetail/AnnotationReactionBar.tsx) ·
+[ratingPersistence.ts](../../../loom-ui/src/features/workflow/ratingPersistence.ts) (existing precedent) ·
+[ReactionEndpointService.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/ReactionEndpointService.java)
 
-**Test Requirements:**
-- Test that changing an existing owned reaction's type calls `update{Task|Asset|Comment}Reaction`
-  (POST to the reaction-uuid route) and does not call the create endpoint.
-- Test that a first reaction still calls create, and that the local list holds at most one
-  reaction per user per target.
+**Test Requirements:** mocked e2e (extend `e2e/comment-reactions-mocked.spec.ts` and
+`e2e/asset-reactions-backend.spec.ts`): changing an owned reaction's type issues the
+reaction-uuid POST and **no** create; a first reaction still creates; the list never holds two
+reactions from one user for one target. Run: `cd loom-ui && yarn e2e --grep reaction`.
 
 ---
 
+## Task 4: Expose the global reaction routes for moderation
+
+**Argumentation Summary:** `ReactionEndpoint` registers three cross-target operations —
+`GET /api/v1/reactions` (paged), `GET /api/v1/reactions/:uuid`, `DELETE /api/v1/reactions/:uuid`.
+`loom-ui/src/api/reactions.ts` covers only the asset/task/comment/annotation sub-resources, so
+there is no way to review or remove reactions independently of their target. Lowest priority here:
+the per-target UIs cover every normal user flow, but this is a real unimplemented capability.
+
+**Improvement Summary:** Add the three global client functions and, optionally, a small
+moderation table.
+
+```
+1. Add listReactions(token, params?), loadReaction(token, uuid), deleteReaction(token, uuid) to
+   loom-ui/src/api/reactions.ts, reusing ReactionListResponse / ReactionResponseItem.
+2. Optional: a moderation table following the AdminArea list-view pattern, gated on
+   DELETE_REACTION and registered in the AdminArea nested routes.
+Edge cases: paging params must match the other list clients; delete optimistically removes the
+row and refetches.
+```
+
+**References:** [ReactionEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ReactionEndpoint.java) ·
+[api/reactions.ts](../../../loom-ui/src/api/reactions.ts) · [LOOM_UI.md](LOOM_UI.md) §5
+
+**Test Requirements:** add cases to `loom-ui/src/api/reactions.test.ts` for the three routes with a
+URL-encoded uuid; if a view is added, a mocked spec that renders returned reactions and calls
+`deleteReaction` on remove. Run: `cd loom-ui && yarn test`.
+
 ---
 
-## Task: Expose the global reaction endpoints (list / load / delete) for moderation
+## No REST surface — backend prerequisites, not UI gaps
 
-**Argumentation Summary:** The `ReactionEndpoint` registers three top-level operations —
-`GET /reactions` (paged list), `GET /reactions/:uuid`, `DELETE /reactions/:uuid` — for
-cross-target reaction browsing/moderation. The UI has no client functions for any of them
-([reactions.ts](../../../loom-ui/src/api/reactions.ts) only covers the asset/task/comment
-sub-resources), so there is no way to review or moderate reactions globally. Lower impact than
-Tasks 1–4 (the per-target UIs already cover normal user flows), but it is a genuine unimplemented
-REST capability.
+* **Comment threading** — `CommentModel` exposes only `title` and `text`; there is no `parentUuid`
+  on the comment REST models, so self-parent replies described in [../DOMAIN.md](../DOMAIN.md)
+  group 6 cannot be built in the UI.
+* **`createComment` / `listComments`** in [api/comments.ts](../../../loom-ui/src/api/comments.ts)
+  are unused by design — comments are always created through the task or asset sub-route, and
+  there is no global comment view. Not a gap; do not file it again.
 
-**Improvement Summary:** Add API client functions for the global reaction endpoints (and,
-optionally, a small admin/moderation list view) so reactions can be listed, loaded, and deleted
-independent of their target.
-
-```
-Endpoints (ReactionEndpoint.java):
-  GET    /api/v1/reactions            (paged list — supports paging/filter/sort params)
-  GET    /api/v1/reactions/:uuid      (load)
-  DELETE /api/v1/reactions/:uuid      (delete)
-
-1. Add listReactions(token, params?), loadReaction(token, uuid), deleteReaction(token, uuid)
-   to loom-ui/src/api/reactions.ts, reusing ReactionListResponse / ReactionResponseItem.
-2. Optional: a moderation table (reuse the existing admin list-view pattern) that lists
-   reactions and allows delete. Gate behind the DELETE_REACTION permission if the UI surfaces
-   permission checks elsewhere.
-
-Edge cases:
-  - Paging: mirror how other list clients pass paging params (from/limit) if a paged view is built.
-  - Deleting a reaction must refresh/optimistically remove the row.
-```
-
-**References:**
-- [ReactionEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/ReactionEndpoint.java)
-- [reactions.ts](../../../loom-ui/src/api/reactions.ts)
-
-**Test Requirements:**
-- API-client tests: `listReactions` GETs `/reactions`, `loadReaction` GETs `/reactions/:uuid`,
-  `deleteReaction` DELETEs `/reactions/:uuid` (uuid URL-encoded).
-- If a view is added: test it renders returned reactions and calls `deleteReaction` on remove.
+_Git HEAD revision: `499f71f7`_
+_Last updated: 2026-08-01 (closed annotation reactions, task-comment editing and the asset-task link, retired the obsolete "status/dueDate not in REST" premise, and filed the TasksView status/dueDate gap)_
