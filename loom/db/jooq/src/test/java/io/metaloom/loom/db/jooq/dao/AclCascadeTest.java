@@ -46,6 +46,18 @@ public class AclCascadeTest extends AbstractJooqTest {
 		return false;
 	}
 
+	/**
+	 * Probe by permission alone - the correct probe for role grants, which carry no resource since V2.64.
+	 */
+	private boolean hasPermission(UUID userUuid, Permission perm) {
+		for (ResourcePermission rp : permissionDao().loadPermissionsForUser(userUuid)) {
+			if (perm.name().equals(rp.getPermission())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private Role storeRole(String name) {
 		Role role = roleDao().createRole(creator().getUuid(), name);
 		roleDao().store(role);
@@ -69,19 +81,16 @@ public class AclCascadeTest extends AbstractJooqTest {
 	 */
 	@Test
 	public void testDeletingARoleCascadesGrantsAndGroupLinks() {
-		String resource = "res-role";
 		Role role = storeRole("cascade_role");
 		Group group = storeGroup("group_holding_cascade_role");
 		groupDao().addRoleToGroup(group, role);
-		// grantRolePermission uses the "all" resource by default; use the explicit form so the
-		// probe can match on a known (permission, resource) pair.
-		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET, resource);
+		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET);
 
 		// A member of the group reaches the permission only through this role.
 		User member = storeUser("role_cascade_member");
 		groupDao().addUserToGroup(group, member);
 
-		assertTrue(hasPermission(member.getUuid(), Permission.READ_ASSET, resource),
+		assertTrue(hasPermission(member.getUuid(), Permission.READ_ASSET),
 			"The member should reach the role's permission before the role is deleted");
 		assertEquals(1, groupDao().loadRoles(group).size(), "The role is linked to the group");
 
@@ -89,7 +98,7 @@ public class AclCascadeTest extends AbstractJooqTest {
 
 		assertNotNull(groupDao().load(group.getUuid()), "The group must survive deletion of its role");
 		assertEquals(0, groupDao().loadRoles(group).size(), "The role_group link must have cascaded");
-		assertFalse(hasPermission(member.getUuid(), Permission.READ_ASSET, resource),
+		assertFalse(hasPermission(member.getUuid(), Permission.READ_ASSET),
 			"The role_permission grant must have cascaded, so the member no longer reaches it");
 	}
 
@@ -98,15 +107,14 @@ public class AclCascadeTest extends AbstractJooqTest {
 	 */
 	@Test
 	public void testDeletingAGroupCascadesMembershipsAndRoleLinks() {
-		String resource = "res-group";
 		Role role = storeRole("role_for_cascade_group");
-		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET, resource);
+		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET);
 		User member = storeUser("group_cascade_member");
 		Group group = storeGroup("cascade_group");
 		groupDao().addUserToGroup(group, member);
 		groupDao().addRoleToGroup(group, role);
 
-		assertTrue(hasPermission(member.getUuid(), Permission.READ_ASSET, resource),
+		assertTrue(hasPermission(member.getUuid(), Permission.READ_ASSET),
 			"The member should reach the role's permission through the group before deletion");
 
 		// A missing cascade would make this DELETE fail with a foreign-key violation.
@@ -115,7 +123,7 @@ public class AclCascadeTest extends AbstractJooqTest {
 		assertNull(groupDao().load(group.getUuid()), "The group is gone");
 		assertNotNull(userDao().load(member.getUuid()), "The member must survive deletion of the group");
 		assertNotNull(roleDao().load(role.getUuid()), "The role must survive deletion of the group");
-		assertFalse(hasPermission(member.getUuid(), Permission.READ_ASSET, resource),
+		assertFalse(hasPermission(member.getUuid(), Permission.READ_ASSET),
 			"The user_group membership must have cascaded, so the member no longer reaches the role's permission");
 	}
 

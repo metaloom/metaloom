@@ -274,7 +274,6 @@ and `KUBERNETES_SERVICE_PORT` (`443`) directly in `KubernetesBackend` — they a
 |----------|------------------|---------|
 | `LOOM_CONF_FILENAME` | `helm/loom/templates/deployment.yaml`, `helm/loom/values.yaml`, [../CONTEXT.md](../CONTEXT.md) §4.4 | `LoomEnv.LOOM_CONF_FILENAME` is a **compile-time constant** (`"loom.yml"`). Nothing calls `getenv` for it. Mount the file at one of the §2 paths instead |
 | `LOOM_AUTH_KEYSTORE_PATH` | `helm/loom/templates/deployment.yaml` | No option field. The keystore is always `baseConfigFolder/keystore.jceks` |
-| `LOOM_DB_USER` | `helm/loom/templates/deployment.yaml` | The code reads `LOOM_DB_USERNAME`. A Helm install therefore silently runs as `postgres` |
 | `LOOM_HOST`, `LOOM_PORT`, `LOOM_TOKEN` | Helm chart, `CortexContainer` | Read by **Cortex/CLI**, not by the Loom server — see [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
 
 ### 4.14 Read in code but undocumented outside this file
@@ -450,7 +449,6 @@ therefore yields an invalid tree.
 
 | Issue | Impact |
 |-------|--------|
-| **Helm sets `LOOM_DB_USER`, code reads `LOOM_DB_USERNAME`** | A chart install silently connects as `postgres`. Override via `.Values.extraEnv` until the chart is fixed |
 | **`LOOM_CONF_FILENAME` and `LOOM_AUTH_KEYSTORE_PATH` are never read** | Mounting a config file only works at the §2 paths; the keystore is always `baseConfigFolder/keystore.jceks` |
 | **`baseConfigFolder` is `null` for classpath configs** | `AuthModule.jwtAuthProvider` calls `basePath.toPath()` → NPE. A `/loom.yml` bundled on the classpath boots only if nothing needs the keystore |
 | **`ai.*` is validated even when `ai.enabled=false`** | Blanking `LOOM_AI_URL` to "disable" the agent fails startup; set `LOOM_AI_ENABLED=false` and leave the rest at defaults |
@@ -568,7 +566,8 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 - [x] `--validate-config` and exit codes 0 / 1 / 11
 - [x] Architecture diagram, Key Classes Reference, Conventions and Gotchas, "Where do I find…?"
 - [x] Test setup: `envLookup` stubbing, validation baseline, new-section checklist
-- [ ] Fix `LOOM_DB_USER` → `LOOM_DB_USERNAME` in `helm/loom/templates/deployment.yaml`
+- [x] Fix `LOOM_DB_USER` → `LOOM_DB_USERNAME` in `helm/loom/templates/deployment.yaml` and both
+      `loom/containers/server/Containerfile{,.native}` (2026-08-02)
 - [ ] Drop or implement `LOOM_CONF_FILENAME` and `LOOM_AUTH_KEYSTORE_PATH` (chart sets both; nothing reads them)
 - [ ] Guard `AuthModule` against a `null` `baseConfigFolder` (classpath-loaded config NPEs)
 - [ ] Move `ai.*` validation behind `ai.enabled`, or validate `providerType` against the known set
@@ -597,5 +596,5 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Rewrote against the code: all ten option sections, exhaustive env-var table, real validation rules, and the Helm variables nothing reads.)_
+_Git HEAD revision: `d930e222`_
+_Last updated: 2026-08-02 (dropped the `LOOM_DB_USER` mismatch — the chart and both Containerfiles now emit `LOOM_DB_USERNAME`)_

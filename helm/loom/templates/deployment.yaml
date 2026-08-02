@@ -56,14 +56,14 @@ spec:
               value: "5432"
             - name: LOOM_DB_NAME
               value: {{ .Values.postgresql.auth.database | quote }}
-            - name: LOOM_DB_USER
+            - name: LOOM_DB_USERNAME
               value: {{ .Values.postgresql.auth.username | quote }}
             {{- else }}
             - name: LOOM_DB_PORT
               value: {{ .Values.database.port | quote }}
             - name: LOOM_DB_NAME
               value: {{ .Values.database.name | quote }}
-            - name: LOOM_DB_USER
+            - name: LOOM_DB_USERNAME
               value: {{ .Values.database.user | quote }}
             {{- end }}
             - name: LOOM_DB_PASSWORD

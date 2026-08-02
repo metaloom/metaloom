@@ -65,6 +65,19 @@ public class PermissionDaoTest extends AbstractJooqTest {
 		return false;
 	}
 
+	/**
+	 * Probe by permission alone. This is the correct probe for role grants: {@code role_permission} has no {@code resource} column (V2.64), so those
+	 * rows load with a null resource - and no authorization decision ever reads it.
+	 */
+	private boolean hasPermission(UUID userUuid, Permission perm) {
+		for (ResourcePermission rp : permissionDao().loadPermissionsForUser(userUuid)) {
+			if (perm.name().equals(rp.getPermission())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private int permCount(UUID userUuid) {
 		return permissionDao().loadPermissionsForUser(userUuid).size();
 	}
@@ -95,17 +108,35 @@ public class PermissionDaoTest extends AbstractJooqTest {
 	 */
 	@Test
 	public void testUserInheritsRolePermissionViaGroup() {
-		String resource = "role-res";
 		Role role = storeRole("perm_role");
 		Group group = storeGroup("perm_group");
 		User user = storeUser("perm_role_member");
 
-		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET, resource);
+		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET);
 		groupDao().addRoleToGroup(group, role);
 		groupDao().addUserToGroup(group, user);
 
-		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET, resource),
+		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET),
 			"The member must inherit the role's permission via the group");
+	}
+
+	/**
+	 * Re-granting a permission the role already holds is a no-op, not a primary key violation. {@code RoleDao.setPermissions} relies on this to keep
+	 * surviving grants in place while it inserts the new ones.
+	 */
+	@Test
+	public void testGrantRolePermissionIsIdempotent() {
+		Role role = storeRole("perm_role_idempotent");
+		Group group = storeGroup("perm_group_idempotent");
+		User user = storeUser("perm_role_idempotent_member");
+		groupDao().addRoleToGroup(group, role);
+		groupDao().addUserToGroup(group, user);
+
+		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET);
+		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET);
+
+		assertTrue(hasPermission(user.getUuid(), Permission.READ_ASSET), "The grant must still be in place");
+		assertEquals(1, permCount(user.getUuid()), "The second grant must not have added a second row");
 	}
 
 	/**
@@ -113,14 +144,13 @@ public class PermissionDaoTest extends AbstractJooqTest {
 	 */
 	@Test
 	public void testRolePermissionInvisibleWithoutGroupMembership() {
-		String resource = "detached-role-res";
 		Role role = storeRole("detached_role");
-		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET, resource);
+		permissionDao().grantRolePermission(role.getUuid(), Permission.READ_ASSET);
 
 		// The role's grant exists, but nothing links it to this user.
 		User outsider = storeUser("perm_outsider");
 
-		assertFalse(hasPermission(outsider.getUuid(), Permission.READ_ASSET, resource),
+		assertFalse(hasPermission(outsider.getUuid(), Permission.READ_ASSET),
 			"A role grant must not reach a user with no group linking that role");
 		assertEquals(0, permCount(outsider.getUuid()), "The outsider holds no effective permissions");
 	}

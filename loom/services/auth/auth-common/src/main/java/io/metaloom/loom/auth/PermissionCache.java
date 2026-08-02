@@ -32,4 +32,27 @@ public class PermissionCache {
 		return cache.get(userUuid, mapper);
 	}
 
+	/**
+	 * Drop the cached permission set of a single user, so the next authorization check reloads it.
+	 *
+	 * @param userUuid
+	 */
+	public void invalidate(UUID userUuid) {
+		cache.invalidate(userUuid);
+	}
+
+	/**
+	 * Drop every cached permission set.
+	 *
+	 * <p>
+	 * The cache has no expiry, so a grant which is written to the database is invisible to already-authenticated sessions until their entry is
+	 * dropped. Any write that changes who holds which permission must call this. Per-user invalidation is not usable for role edits: resolving "which
+	 * users does this role reach" means traversing <code>role_group</code> and <code>user_group</code> backwards, and neither index supports that
+	 * direction. Role and group edits are rare administrative actions, so dropping the whole cache is the cheaper trade.
+	 * </p>
+	 */
+	public void invalidateAll() {
+		cache.invalidateAll();
+	}
+
 }

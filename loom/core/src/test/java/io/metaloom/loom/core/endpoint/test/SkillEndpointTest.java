@@ -52,7 +52,7 @@ public class SkillEndpointTest extends AbstractCRUDEndpointTest {
 		daos.roleDao().store(role);
 		for (Permission perm : List.of(Permission.CREATE_SKILL, Permission.READ_SKILL, Permission.UPDATE_SKILL, Permission.DELETE_SKILL,
 			Permission.READ_SKILL_VERSION, Permission.RESTORE_SKILL_VERSION)) {
-			daos.permissionDao().grantRolePermission(role.getUuid(), perm, "test");
+			daos.permissionDao().grantRolePermission(role.getUuid(), perm);
 		}
 		Group group = daos.groupDao().create(joedoe, "skill-test-group");
 		daos.groupDao().store(group);

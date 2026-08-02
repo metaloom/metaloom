@@ -84,7 +84,7 @@ public class DedupGroupEndpointTest extends AbstractEndpointTest {
 		Role role = daos.roleDao().createRole(ADMIN_UUID, roleName);
 		daos.roleDao().store(role);
 		for (Permission permission : permissions) {
-			daos.permissionDao().grantRolePermission(role.getUuid(), permission, "test");
+			daos.permissionDao().grantRolePermission(role.getUuid(), permission);
 		}
 		Group group = daos.groupDao().create(joedoe, roleName + "-group");
 		daos.groupDao().store(group);

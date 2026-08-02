@@ -196,6 +196,18 @@ without cross-referencing the API. Roles are assigned to users through groups.
 
 image::acl-roles.png[Role and permission (ACL) management,role=img-fluid]
 
+Three things are worth knowing when you assemble a role:
+
+* *A tick is the whole story.* The matrix always saves the role's complete permission set, so
+  unticking a box revokes that permission — it is not merely omitted from the update.
+* *Changes apply immediately.* Members of the role gain or lose the access on their very next
+  request; nobody has to sign out and back in.
+* *Permissions are account-wide, not per-object.* Granting *Read asset* lets the role read every
+  asset in the instance. To keep a set of media apart, separate it by instance rather than by role.
+
+A role only reaches people once it is attached to a group they belong to. A role with permissions
+but no group grants nothing.
+
 *API Keys* generates and revokes long-lived API tokens for programmatic access — see
 link:../loom/authentication/[Authentication].
 

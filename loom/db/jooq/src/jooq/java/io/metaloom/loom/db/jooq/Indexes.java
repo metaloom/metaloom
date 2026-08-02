@@ -41,7 +41,6 @@ import io.metaloom.loom.db.jooq.tables.JooqPipelineRunItem;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineVersion;
 import io.metaloom.loom.db.jooq.tables.JooqReaction;
 import io.metaloom.loom.db.jooq.tables.JooqRole;
-import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocument;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocumentDeleted;
 import io.metaloom.loom.db.jooq.tables.JooqSkillVersion;
@@ -144,7 +143,6 @@ public class Indexes {
     public static final Index REACTION_CREATOR_UUID_TYPE_ASSET_UUID_IDX = Internal.createIndex(DSL.name("reaction_creator_uuid_type_asset_uuid_idx"), JooqReaction.REACTION, new OrderField[] { JooqReaction.REACTION.CREATOR_UUID, JooqReaction.REACTION.TYPE, JooqReaction.REACTION.ASSET_UUID }, true);
     public static final Index REACTION_CREATOR_UUID_TYPE_COMMENT_UUID_IDX = Internal.createIndex(DSL.name("reaction_creator_uuid_type_comment_uuid_idx"), JooqReaction.REACTION, new OrderField[] { JooqReaction.REACTION.CREATOR_UUID, JooqReaction.REACTION.TYPE, JooqReaction.REACTION.COMMENT_UUID }, true);
     public static final Index ROLE_NAME_IDX = Internal.createIndex(DSL.name("role_name_idx"), JooqRole.ROLE, new OrderField[] { JooqRole.ROLE.NAME }, true);
-    public static final Index ROLE_PERMISSION_ROLE_UUID_RESOURCE_PERMISSION_IDX = Internal.createIndex(DSL.name("role_permission_role_uuid_resource_permission_idx"), JooqRolePermission.ROLE_PERMISSION, new OrderField[] { JooqRolePermission.ROLE_PERMISSION.ROLE_UUID, JooqRolePermission.ROLE_PERMISSION.RESOURCE, JooqRolePermission.ROLE_PERMISSION.PERMISSION }, true);
     public static final Index TAG_NAME_COLLECTION_IDX = Internal.createIndex(DSL.name("tag_name_collection_idx"), JooqTag.TAG, new OrderField[] { JooqTag.TAG.NAME, JooqTag.TAG.COLLECTION }, true);
     public static final Index TOKEN_CREATOR_UUID_IDX = Internal.createIndex(DSL.name("token_creator_uuid_idx"), JooqToken.TOKEN, new OrderField[] { JooqToken.TOKEN.CREATOR_UUID }, false);
     public static final Index TOKEN_CREATOR_UUID_NAME_IDX = Internal.createIndex(DSL.name("token_creator_uuid_name_idx"), JooqToken.TOKEN, new OrderField[] { JooqToken.TOKEN.CREATOR_UUID, JooqToken.TOKEN.NAME }, true);

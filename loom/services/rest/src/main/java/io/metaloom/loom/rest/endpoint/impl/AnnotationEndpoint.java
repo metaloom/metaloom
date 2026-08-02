@@ -14,6 +14,7 @@ import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.service.impl.AnnotationEndpointService;
+import io.metaloom.loom.rest.service.impl.CommentEndpointService;
 import io.metaloom.loom.rest.service.impl.ReactionEndpointService;
 import io.metaloom.loom.rest.service.impl.TaskEndpointService;
 
@@ -25,16 +26,19 @@ public class AnnotationEndpoint extends AbstractEndpoint {
 
 	private final AnnotationEndpointService service;
 	private final TaskEndpointService taskService;
+	private final CommentEndpointService commentService;
 	private final ModelExamples examples;
 
 	@Inject
 	public AnnotationEndpoint(AnnotationEndpointService service, ReactionEndpointService reactionService, TaskEndpointService taskService,
+		CommentEndpointService commentService,
 		EndpointDependencies deps,
 		ModelExamples examples) {
 		super(deps);
 		this.service = service;
 		this.reactionService = reactionService;
 		this.taskService = taskService;
+		this.commentService = commentService;
 		this.examples = examples;
 	}
 
@@ -119,6 +123,24 @@ public class AnnotationEndpoint extends AbstractEndpoint {
 		addRoute(basePath() + "/:annotationUuid/reactions/:reactionUuid", POST, "Update the reaction on the annotation", lrc -> {
 			reactionService.updateAnnotationReaction(lrc, lrc.pathParamUUID("annotationUuid"), lrc.pathParamUUID("reactionUuid"));
 		});
+
+		// COMMENT
+
+		addRoute(basePath() + "/:annotationUuid/comments", POST,
+			"Create a new comment on an annotation",
+			examples.commentCreateRequestExample(),
+			examples.commentResponseExample(),
+			lrc -> {
+				commentService.createForAnnotation(lrc, lrc.pathParamUUID("annotationUuid"));
+			});
+
+		addRoute(basePath() + "/:annotationUuid/comments", GET,
+			"List the comments on an annotation",
+			null,
+			examples.commentListResponseExample(),
+			lrc -> {
+				commentService.listForAnnotation(lrc, lrc.pathParamUUID("annotationUuid"));
+			});
 
 		// TASK
 

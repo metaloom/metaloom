@@ -43,20 +43,25 @@ Facts that contradict the schema's appearance:
 - **`token_permission` is dead.** `loadPermissionsForToken` is not on the `PermissionDao`
   interface, has zero call sites and its body is broken. API keys resolve to their owning user and
   therefore inherit that user's **full** authority; tokens cannot be attenuated.
-- **The `resource` column is stored but never read** in the decision path (§3). `"all"` is not a
-  wildcard, just the default string written by the 2-arg `grantRolePermission`.
+- **The `resource` column is stored but never read** in the decision path (§3), so it was dropped
+  from `role_permission` by `V2.64`. `user_permission` and `token_permission` still carry it, and
+  `"all"` there is not a wildcard.
 - **There is no superuser flag.** `user` has `enabled` / `deleted` / `sso`, no `admin` column, and
   `requirePerm` has no bypass. Admin power is purely the `admin-role` grants.
 
-All seven tables are created in `V2.1__add_acl.sql`; **no later migration alters them** — later
-migrations only `ALTER TYPE "loom_permission" ADD VALUE`.
+All seven tables are created in `V2.1__add_acl.sql`. The only later migration that alters their
+structure is `V2.64__fix_role_permission_key.sql` (drops `role_permission.resource` and its
+redundant unique index); the rest only `ALTER TYPE "loom_permission" ADD VALUE`.
 
 **Effective permissions** = `PermissionDaoImpl.loadPermissionsForUser(userUuid)`, the union of
 `ROLE_PERMISSION ⨝ ROLE_GROUP ⨝ USER_GROUP` plus the direct `USER_PERMISSION` rows, returned as a
 `ResourcePermissionSet`.
 
 **Caching.** `PermissionCache` is a Caffeine cache (`maximumSize = 10_000`) keyed by user UUID.
-It exposes only `get` — **no TTL, no invalidation**. `LoomAuthorizationProvider.getAuthorizations`
+It has **no TTL**; `invalidate(userUuid)` / `invalidateAll()` exist and `RoleEndpointService` calls
+`invalidateAll()` after every write to `role_permission` — without it a grant would persist and
+still change nothing for an already-authenticated session. Any future write that changes who holds
+which permission (notably group-membership routes) has the same obligation. `LoomAuthorizationProvider.getAuthorizations`
 reads the `uuid` claim, loads the (cached) set and converts each entry into a Vert.x
 `PermissionBasedAuthorization` on `user.authorizations()`.
 
@@ -172,7 +177,7 @@ User joedoe = daos.userDao().load(USER_UUID);
 Role role = daos.roleDao().createRole(ADMIN_UUID, "test-role");
 daos.roleDao().store(role);
 for (Permission perm : List.of(Permission.CREATE_SKILL, Permission.READ_SKILL /* … */)) {
-    daos.permissionDao().grantRolePermission(role.getUuid(), perm, "test");   // 3-arg only!
+    daos.permissionDao().grantRolePermission(role.getUuid(), perm);   // idempotent, no resource
 }
 Group group = daos.groupDao().createGroup(ADMIN_UUID, "test-group");
 daos.groupDao().store(group);
@@ -214,13 +219,15 @@ Role, Skill, User) implement the security contract.
 
 - **Grant via role + group.** One direct `user_permission` row per user, full stop.
 - **`grantUserPermission(uuid, perm)` (2-arg) always throws NPE** — it delegates with
-  `resource = null` into a `requireNonNull`. Use the 3-arg form. The 2-arg *role* overload is fine
-  (defaults `resource` to `"all"`).
-- **No revoke, no upsert.** Removing a grant means raw SQL or deleting the role; re-granting an
-  existing pair is a PK violation.
+  `resource = null` into a `requireNonNull`. Use the 3-arg form. `grantRolePermission` takes no
+  resource at all and is idempotent.
+- **Role grants have a revoke path; user grants do not.** `RoleDao.setPermissions(roleUuid, set)`
+  replaces a role's grants wholesale. Removing a *direct user* grant still means raw SQL, and
+  re-granting the same user pair is still a PK violation.
 - **`resource` scopes nothing.** Do not build features assuming per-object grants.
-- **The permission cache never invalidates.** Grants made after a user has been cached take effect
-  only after eviction under size pressure or a restart — this silently masks membership tests.
+- **The permission cache has no TTL.** It is invalidated explicitly on role-permission writes; a
+  write that changes effective permissions by any other route (e.g. group membership) still takes
+  effect only after eviction or a restart.
 - **403 is overloaded.** `checkPerm`'s `onFailure` turns *any* failure (including a DB outage) into
   403 `MISSING_PERM`; an in-place `TODO` acknowledges it. It also `throw`s from inside a
   `Future` callback, which only reaches the router because permission loading is synchronous
@@ -316,32 +323,35 @@ Permission enforcement itself has no configuration switches.
 
 - [ ] `user_permission` PK is `(user_uuid)` — should be `(user_uuid, resource, permission)`
 - [ ] `token_permission` PK is `(token_uuid)`, and its FK lacks `ON DELETE CASCADE`
-- [ ] `role_permission` PK omits `resource`
-- [ ] Redundant unique indexes on all three permission tables
+- [x] `role_permission` PK vs `resource` — resolved by `V2.64` (column and index dropped)
+- [ ] Redundant unique indexes on `user_permission` and `token_permission`
 - [ ] No reverse index on `user_group` / `role_group` for membership-admin queries
 
 ### 9.3 Enforcement gaps (re-verified @ `499f71f7`)
 
-- [ ] `resource` is persisted but discarded — **no object-level enforcement** (`LoomAuthorizationProvider`)
+- [ ] `resource` is persisted but discarded on `user_permission` / `token_permission` — **no
+      object-level enforcement** (`LoomAuthorizationProvider`); `role_permission` no longer has it
 - [ ] gRPC authenticates but performs **no** permission check
 - [ ] WebSocket authenticates post-upgrade, lenient by default, and performs **no** permission check
 - [ ] MCP dispatches tools with **no** permission check when the user is null (default config)
 - [ ] MCP required permissions are free-form strings, not the `Permission` enum
 - [ ] `NodeDescriptorEndpoint` (incl. `/api/v1/pipeline/content-types`) and `PipelineEventEndpoint` are not `secure(...)`d
-- [ ] Permission cache has no TTL and no invalidation API
+- [ ] Permission cache has no TTL; invalidation exists but is only wired to role-permission writes
 - [ ] 403 conflates "lacks permission" with "lookup failed"; the throw-from-callback breaks if persistence goes async
 - [ ] `user.enabled` / `user.deleted` are never re-checked; JWTs self-renew, no revocation
 - [ ] New `Permission` constants are not granted to an existing `admin-role` (§1.1)
 - [ ] `token_permission` unwired — API keys inherit the owner's full authority
-- [ ] 2-arg `grantUserPermission` always NPEs; no revoke; no idempotent grant
+- [ ] 2-arg `grantUserPermission` always NPEs; user grants have no revoke and are not idempotent
+      (role grants have both)
 
 ### 9.4 Missing functionality
 
-- [ ] No REST/GraphQL/gRPC surface for granting or revoking permissions
-- [ ] `RoleCreateRequest`/`RoleUpdateRequest.permissions` are accepted and **silently dropped**;
-      `RoleResponse.permissions` is never populated — the admin ACL matrix in
-      `loom-ui/src/features/admin/AdminArea.tsx` calls `updateRole({ permissions })` into a no-op
-- [ ] The REST `RolePermission` enum has 4 values against 129 domain permissions
+- [x] Role permissions are administrable over REST — `RoleCreateRequest`/`RoleUpdateRequest.permissions`
+      are persisted to `role_permission`, `RoleResponse.permissions` is populated, and the admin ACL
+      matrix in `loom-ui/src/features/admin/AdminArea.tsx` drives it. See PERMISSIONS.md §4.4.
+- [x] The REST `RolePermission` enum mirrors all 129 domain permissions, guarded by
+      `RolePermissionParityTest`
+- [ ] No REST/GraphQL/gRPC surface for granting or revoking **user or token** permissions
 - [ ] No group-membership routes (`GroupEndpoint` is plain CRUD; `GroupDao.addUserToGroup` /
       `addRoleToGroup` are reachable only from Java)
 - [ ] 5 DB-only enum values (4 of them webhook residue) are unreachable vocabulary
@@ -354,8 +364,8 @@ Permission enforcement itself has no configuration switches.
 - [ ] `MemoryDenyRuleEndpointTest`'s permission case asserts unauthenticated access, not permission
       separation
 - [ ] No test asserts that removing a user from a group revokes the derived permissions (masked by
-      the non-invalidating cache)
-- [ ] `PermissionDaoTest` asserts only non-nullity of the resolved set; `RoleDaoTest` is empty
+      the cache being invalidated only on role-permission writes)
+- [ ] `PermissionDaoTest` asserts only non-nullity of the resolved set for the seeded admin
 
 ### 9.6 Documentation
 
@@ -364,5 +374,5 @@ Permission enforcement itself has no configuration switches.
       claims the pipeline-run endpoints are unguarded — both are stale). **Recommendation: merge
       them into `spec/features/permissions/PERMISSIONS.md` and leave RBAC.md as a stub redirect.**
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified the RBAC chain, enum counts and every enforcement gap against the code; corrected the MCP/doc-link claims and the test-coverage numbers)_
+_Git HEAD revision: `d930e222`_
+_Last updated: 2026-08-02 (role permissions are administrable over REST; `V2.64` dropped `role_permission.resource`; permission cache gained an invalidation API)_

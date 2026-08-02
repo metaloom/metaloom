@@ -10,7 +10,8 @@
         "name" : "creatorEditor"
       }
     },
-    "name" : "the_role_name"
+    "name" : "the_role_name",
+    "permissions" : [ ]
   }, {
     "status" : {
       "creator" : {
@@ -22,7 +23,8 @@
         "name" : "creatorEditor"
       }
     },
-    "name" : "the_role_name"
+    "name" : "the_role_name",
+    "permissions" : [ ]
   } ],
   "_metainfo" : {
     "perPage" : 25,

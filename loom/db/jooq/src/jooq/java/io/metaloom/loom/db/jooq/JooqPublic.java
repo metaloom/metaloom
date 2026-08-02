@@ -471,7 +471,11 @@ public class JooqPublic extends SchemaImpl {
     public final JooqRoleGroup ROLE_GROUP = JooqRoleGroup.ROLE_GROUP;
 
     /**
-     * The table <code>public.role_permission</code>.
+     * Permissions granted by a role. The grain is (role_uuid, permission) -
+     * grants are global, not
+     * scoped to an object. A user receives these through group membership: user
+     * -&gt; user_group -&gt;
+     * group -&gt; role_group -&gt; role. Rows cascade when the role is deleted.
      */
     public final JooqRolePermission ROLE_PERMISSION = JooqRolePermission.ROLE_PERMISSION;
 

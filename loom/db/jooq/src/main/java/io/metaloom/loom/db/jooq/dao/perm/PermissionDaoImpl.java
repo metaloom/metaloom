@@ -33,8 +33,11 @@ public class PermissionDaoImpl implements PermissionDao {
 
 	@Override
 	public ResourcePermissionSet loadPermissionsForUser(UUID userUuid) {
-		// Fetch permissions for effective roles which belong to the user
-		List<ResourcePermission> rolePerms = ctx.select()
+		// Fetch permissions for effective roles which belong to the user.
+		// role_permission has no resource column (V2.64), so these grants carry a null resource.
+		// That changes nothing for authorization: LoomAuthorizationProvider only ever reads
+		// getPermission(). Probe role grants by permission alone.
+		List<ResourcePermission> rolePerms = ctx.select(ROLE_PERMISSION.PERMISSION)
 			.from(ROLE_PERMISSION)
 			.leftJoin(ROLE_GROUP)
 			.on(ROLE_PERMISSION.ROLE_UUID.eq(ROLE_GROUP.ROLE_UUID))
@@ -68,14 +71,14 @@ public class PermissionDaoImpl implements PermissionDao {
 
 	@Override
 	public void grantRolePermission(UUID roleUuid, Permission perm) {
-		grantRolePermission(roleUuid, perm, "all");
-	}
-
-	@Override
-	public void grantRolePermission(UUID roleUuid, Permission perm, String resource) {
-		Objects.requireNonNull(resource, "A valid resource must be specified to grant a permission");
-		ctx.insertInto(ROLE_PERMISSION, ROLE_PERMISSION.ROLE_UUID, ROLE_PERMISSION.RESOURCE, ROLE_PERMISSION.PERMISSION)
-			.values(roleUuid, resource, JooqLoomPermission.valueOf(perm.name()))
+		Objects.requireNonNull(roleUuid, "A valid role uuid must be specified to grant a permission");
+		Objects.requireNonNull(perm, "A valid permission must be specified");
+		// The grain of role_permission is (role_uuid, permission) - see V2.64. Re-granting an
+		// existing permission is idempotent rather than a primary key violation.
+		ctx.insertInto(ROLE_PERMISSION, ROLE_PERMISSION.ROLE_UUID, ROLE_PERMISSION.PERMISSION)
+			.values(roleUuid, JooqLoomPermission.valueOf(perm.name()))
+			.onConflict(ROLE_PERMISSION.ROLE_UUID, ROLE_PERMISSION.PERMISSION)
+			.doNothing()
 			.execute();
 	}
 

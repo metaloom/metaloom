@@ -39,7 +39,9 @@ public class FacedetectNodeTest extends AbstractFacedetectMediaTest {
 		assertThat(result).hasOutput(FacedetectNode.OUT_FACE_COUNT);
 		// scalar/integer is widened to Long at the port boundary.
 		Long faceCount = result.get(FacedetectNode.OUT_FACE_COUNT);
-		assertTrue(faceCount > 10, "There should be at least 10 detections. Found: " + faceCount);
+		// VideoFaceScanner#processFaces caps its output at 10, so "at least 10" cannot be a strict
+		// greater-than — that asserted a count the scanner is built never to return.
+		assertTrue(faceCount >= 10, "There should be at least 10 detections. Found: " + faceCount);
 		// The count is derived from the element sequence, so the two can never disagree.
 		assertThat(result).hasElementCount(FacedetectNode.OUT_DETECTIONS, faceCount.intValue());
 	}

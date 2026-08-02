@@ -66,7 +66,7 @@ public class MemoryDenyRuleEndpointTest implements TestValues {
 	private void grant(Permission... perms) {
 		DaoCollection daos = loom.internal().daos();
 		for (Permission perm : perms) {
-			daos.permissionDao().grantRolePermission(role.getUuid(), perm, "test");
+			daos.permissionDao().grantRolePermission(role.getUuid(), perm);
 		}
 	}
 
@@ -145,7 +145,7 @@ public class MemoryDenyRuleEndpointTest implements TestValues {
 		Role noteOnly = daos.roleDao().createRole(ADMIN_UUID, "note-only-role");
 		daos.roleDao().store(noteOnly);
 		for (Permission perm : List.of(Permission.CREATE_MEMORY, Permission.READ_MEMORY, Permission.UPDATE_MEMORY, Permission.DELETE_MEMORY)) {
-			daos.permissionDao().grantRolePermission(noteOnly.getUuid(), perm, "test");
+			daos.permissionDao().grantRolePermission(noteOnly.getUuid(), perm);
 		}
 		Group group = daos.groupDao().createGroup(ADMIN_UUID, "note-only-group");
 		daos.groupDao().store(group);

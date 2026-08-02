@@ -194,7 +194,7 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | Path | Class | Deviations / extras |
 |------|-------|---------------------|
 | `/users` | `UserEndpoint` | + `PATCH`, `PUT` on `/:uuid` |
-| `/roles` | `RoleEndpoint` | — |
+| `/roles` | `RoleEndpoint` | Create/update carry `permissions` — absent = leave unchanged, `[]` = revoke all, non-empty = replace. See [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) §4.4 |
 | `/groups` | `GroupEndpoint` | + `PATCH`, `PUT` on `/:uuid`; list uses `addRoute`, **not** `addListRoute` (no query-param docs) |
 | `/persons` | `PersonEndpoint` | — |
 | `/spaces` | `SpaceEndpoint` | — |
@@ -209,7 +209,7 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/tags` | `TagEndpoint` | + `/:uuid/rating` — POST, GET, DELETE (per-user tag rating) |
 | `/tasks` | `TaskEndpoint` | + `/:taskUuid/reactions` (POST, GET) and `/:taskUuid/reactions/:reactionUuid` (GET, POST, DELETE); + `/:taskUuid/comments` (POST, GET) |
 | `/comments` | `CommentEndpoint` | + `/:commentUuid/reactions` (POST, GET) and `/:commentUuid/reactions/:reactionUuid` (GET, POST, DELETE) |
-| `/annotations` | `AnnotationEndpoint` | + reactions like above under `/:annotationUuid/reactions`; + `/:annotationUuid/tasks` (GET) and `/:annotationUuid/tasks/:taskUuid` (POST assign, DELETE unassign) |
+| `/annotations` | `AnnotationEndpoint` | + reactions like above under `/:annotationUuid/reactions`; + `/:annotationUuid/comments` (POST, GET); + `/:annotationUuid/tasks` (GET) and `/:annotationUuid/tasks/:taskUuid` (POST assign, DELETE unassign) |
 | `/embeddings` | `EmbeddingEndpoint` | + `/:embeddingUuid/attachments` (POST, GET) — simplified `addRoute`, no examples |
 | `/memory-deny-rules` | `agent/` `MemoryDenyRuleEndpoint` | Admin CRUD for the memory denylist; own `*_MEMORY_DENY_RULE` permissions |
 
@@ -610,8 +610,10 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 - [x] Pipeline run, run control (pause/resume/cancel) and versions; `restInfo()`, `me()`,
       `Builder.setPathPrefix` (added with the `cli/` module)
 - [x] Search, similarity, dedup group, GraphQL, health and info method interfaces
-- [ ] `listCommentsForAnnotation` requests `annotation/:uuid/comments` — singular **and** a path the
-      server does not register at all (`LoomHttpClientImpl:1055`)
+- [x] `listCommentsForAnnotation` — was requesting `annotation/:uuid/comments` (singular, and a path
+      the server never registered). Fixed 2026-08-02: the client now calls
+      `annotations/:uuid/comments`, `AnnotationEndpoint` registers `GET` + `POST` for it, and
+      `createAnnotationComment` was added to `CommentMethods`
 - [ ] No methods for processor listing/loading or processor restrictions
 - [ ] No methods for node descriptors / content types
 - [ ] No methods for OAuth2 login/callback/logout
@@ -679,5 +681,5 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Rebuilt the endpoint inventory against the code and added the missing search, dedup, similarity, me, health, skill-version, run-control and asset sub-resource routes.)_
+_Git HEAD revision: `d930e222`_
+_Last updated: 2026-08-02 (annotation comment sub-resource shipped: `GET`/`POST /annotations/:annotationUuid/comments` registered, client path corrected; role `permissions` is now persisted and returned)_

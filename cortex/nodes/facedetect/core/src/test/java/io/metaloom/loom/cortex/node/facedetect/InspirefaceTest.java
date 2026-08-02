@@ -12,6 +12,7 @@ import io.metaloom.inspireface4j.Detection;
 import io.metaloom.inspireface4j.FaceAttributes;
 import io.metaloom.inspireface4j.InspirefaceLib;
 import io.metaloom.inspireface4j.InspirefaceSession;
+import io.metaloom.inspireface4j.SessionFeature;
 import io.metaloom.inspireface4j.data.FaceDetections;
 import io.metaloom.video4j.Video4j;
 import io.metaloom.video4j.VideoFile;
@@ -44,7 +45,10 @@ public class InspirefaceTest extends AbstractFacedetectMediaTest {
 
 		int detectedFaces = 0;
 
-		try (InspirefaceSession session = InspirefaceLib.session(DEFAULT_PACK, 640)) {
+		// The features have to be requested up front: a session opened without them still detects
+		// faces, but embedding() and attributes() come back empty.
+		try (InspirefaceSession session = InspirefaceLib.session(DEFAULT_PACK, 640,
+			SessionFeature.ENABLE_FACE_RECOGNITION, SessionFeature.ENABLE_FACE_ATTRIBUTE, SessionFeature.ENABLE_FACE_POSE)) {
 
 			// Open the video using Video4j
 			try (VideoFile video = VideoFile.open(video2().path().toString())) {

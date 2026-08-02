@@ -313,7 +313,7 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		roleDao().store(role);
 		groupDao().addRoleToGroup(group, role);
 		for (Permission perm : Permission.values()) {
-			permissionDao().grantRolePermission(role.getUuid(), perm, "test");
+			permissionDao().grantRolePermission(role.getUuid(), perm);
 		}
 
 		// Second user

@@ -1,11 +1,11 @@
 # MetaLoom — Project Context for AI Coding Agents
 
-This document is the **entry point** for AI coding agents working on MetaLoom. It catalogues
-**every** file under `spec/`, tells you which one to open for a given task, and carries the
-project-wide conventions, cheat sheets and gotchas.
+This document is the **entry point** for AI coding agents working on MetaLoom. It is an **index and
+router**, not a second copy of the specs: it catalogues every file under `spec/`, tells you which
+one to open, and carries the project-wide cheat sheet and gotchas. Everything else lives in the file
+it belongs to.
 
-> **Project Root**: `/home/defaultuser/workspaces/metaloom/metaloom`
-> **Spec root**: [spec/](.) — you are here.
+> **Project root**: `/home/defaultuser/workspaces/metaloom/metaloom` — **spec root**: [spec/](.)
 
 ---
 
@@ -13,208 +13,228 @@ project-wide conventions, cheat sheets and gotchas.
 
 ### 0.1 Mandatory rules
 
-Two files are **rules, not background**. Read them before you write code or edit a spec.
+Three files are **rules, not background**.
 
 | File | What it binds you to |
 |------|----------------------|
-| [guidelines/CODING.md](guidelines/CODING.md) | **Definition of done for a code change.** REST path naming + endpoint & permission tests, DAO tests incl. delete-cascade, customer-facing website docs, demo data, and the spec-sync obligation. Summarised in §0.2 — the file is the authority. |
-| [SPEC_RULES.md](SPEC_RULES.md) | **Definition of done for a spec change.** Every spec file must carry progress checkboxes, a Key Classes Reference table, cross-references, diagrams, env-var tables, a Conventions & Gotchas section, a "Where do I find…?" cheat sheet, and a footer with the git HEAD revision and date. |
+| [guidelines/CODING.md](guidelines/CODING.md) | **Definition of done for a code change** — REST path naming, endpoint + permission tests, DAO and delete-cascade tests, website docs, demo data, spec sync. Summarised in §0.2; the file is the authority. |
+| [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) | **Definition of done for a new Cortex node** — module layout, ports, the `@Binds @IntoMap @StringKey` binding, descriptor, tests, docs. Read it *before* creating anything under `cortex/nodes/`. |
+| [SPEC_RULES.md](SPEC_RULES.md) | **Definition of done for a spec change** — progress checkboxes, Key Classes table, cross-references, diagrams, env-var tables, Conventions & Gotchas, "Where do I find…?" cheat sheet, git-HEAD footer. |
 
 ### 0.2 `guidelines/CODING.md` in one table
 
-These apply to *every* change, in addition to whatever the feature spec says.
-
 | Area | Rule | Practical consequence |
 |------|------|-----------------------|
-| **REST** | Paths with methods are always **plural** (`/chat-sessions`, `/sessions`, `/node-results`) | Renaming a path is a breaking change — also update `loom-client/`, `loom-ui/src/api/`, and the OpenAPI docs |
-| **REST** | Every endpoint implementation is covered by a `*EndpointTest` (e.g. `UserEndpointTest`) | A new endpoint without an endpoint test is unfinished |
-| **REST** | Add **permission test cases** asserting fine-grained permission handling | See [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md); grant test permissions via group+role, not direct user grants |
-| **DAO** | Every DAO implementation is covered by tests | Contract tests live in `loom/db/api-test`, impl tests in `loom/db/jooq/src/test/` |
-| **DAO** | `delete` must have **delete-cascade tests** asserting only the targeted elements are removed | A cascade that over-deletes is the failure mode these tests exist to catch |
-| **Docs** | New **customer-facing** features go into `website/content/english/docs` — no spec-file mentions, no internal coding references, customer-facing tone | See [website/WEBSITE.md](website/WEBSITE.md) |
-| **Demo** | New features need meaningful default demo data | `DemoDatabaseInitializer` (`loom/core/.../boot/`) |
-| **Spec** | Changing a feature **must** update the corresponding spec file | Keeps these guides in sync; the code always wins on conflict |
+| **REST** | Method-carrying paths are always **plural** (`/chat-sessions`, `/node-results`) | Renaming a path is breaking — also update `loom-client/`, `loom-ui/src/api/`, OpenAPI docs |
+| **REST** | Every endpoint has a `*EndpointTest` | An endpoint without one is unfinished |
+| **REST** | Add **fine-grained permission** test cases | See [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md); grant test perms via group+role, never direct user grants |
+| **DAO** | Every DAO impl is covered by tests | Contract tests in `loom/db/api-test`, impl tests in `loom/db/jooq/src/test/` |
+| **DAO** | `delete` needs **delete-cascade tests** | Over-deleting cascades are exactly what these catch |
+| **Docs** | Customer-facing features get a page under `website/content/english/docs` | Customer tone, no spec references, no class names — [website/WEBSITE.md](website/WEBSITE.md) |
+| **Demo** | New features need meaningful demo data | `DemoDatabaseInitializer` (`loom/core/.../boot/`) |
+| **Spec** | A feature change **must** update its spec file | The code always wins on conflict — fix the spec in the same change |
 
 ### 0.3 Reading order for a new task
 
 ```
 CONTEXT.md (this file)
-   ├─ guidelines/CODING.md ......... rules that apply to the change itself
-   ├─ METALOOM.md .................. big-picture module layout
-   ├─ cortex/METALOOM_ARCHITECTURE.md ... plain-language Loom↔Cortex model
-   └─ the feature spec for your area (§2)
+   ├─ guidelines/CODING.md ............ rules for the change itself
+   ├─ guidelines/NEW_NODE.md .......... additionally, if you are adding a Cortex node
+   ├─ METALOOM.md ..................... big-picture module layout
+   ├─ cortex/METALOOM_ARCHITECTURE.md . plain-language Loom↔Cortex model
+   └─ the feature spec for your area (§2 / §2.1)
           └─ the component spec it references (loom/… or cortex/…)
                  └─ the *_TASKS.md file if you are picking up queued work
 ```
 
 ### 0.4 The one standing rule
 
-**The code is the source of truth.** Where a spec and the code disagree, the code wins — and you
-fix the spec in the same change (`guidelines/CODING.md` § Spec). Specs in this tree carry a
-verification date in their footer; treat anything older than the last relevant commit as a claim
-to re-check, not a fact.
+**The code is the source of truth.** Where a spec and the code disagree, the code wins — and you fix
+the spec in the same change. Every spec carries a verification date in its footer; treat anything
+older than the last relevant commit as a claim to re-check, not a fact.
 
 ---
 
 ## 1. Project Overview
 
-MetaLoom is a **Digital Asset Management (DAM) platform**: point it at media and it works out what
-is in it — hashes, faces, transcripts, thumbnails, text, quality metrics — then stores, indexes and
-exposes that.
+MetaLoom is a **Digital Asset Management platform**: point it at media and it works out what is in
+it — hashes, faces, transcripts, thumbnails, text, depth, quality — then stores, indexes and exposes
+that.
 
 | Component | Role | Location |
 |-----------|------|----------|
-| **Loom** | Backend service: REST/gRPC/GraphQL API, DB, auth, storage, MCP, pipeline engine, AI agent | `loom/` |
-| **Cortex** | Worker process: executes node tasks dispatched by Loom (hashing, fingerprint, facedetect, ASR, LLM, …) | `cortex/` |
+| **Loom** | Backend: REST/gRPC/GraphQL/MCP API, DB, auth, storage, pipeline engine, AI agent, search | `loom/` |
+| **Cortex** | Worker process executing node tasks dispatched by Loom | `cortex/` |
 | **CLI** | PicoCLI + Dagger client for Loom, shipped as a GraalVM native image | `cli/` |
-| **loom-ui** | React/Vite/MUI web front end | `loom-ui/` |
-| **loom-app** | Electron desktop wrapper around the UI | `loom-app/` |
-| **website** | Hugo-based marketing + customer documentation site | `website/` |
+| **loom-ui** | React / Vite / MUI web front end | `loom-ui/` |
+| **loom-app** | Electron desktop wrapper — experiment, in no build ([loom-app/LOOM_APP.md](loom-app/LOOM_APP.md)) | `loom-app/` |
+| **website** | Hugo marketing + customer documentation site | `website/` |
+| **sidecars** | Python HTTP model servers ([sidecars/SIDECARS.md](sidecars/SIDECARS.md)) — none deployable yet | `sidecars/` |
 
-### 1.1 Top-level reactor modules (`pom.xml`)
-
-```
-bom, loom-test-env, loom-shared, loom-client, cortex, loom,
-cli, examples, integration-test, e2e-test, website
-```
-
-### 1.2 How the pieces talk
+Top-level reactor modules: `bom, loom-test-env, loom-shared, loom-client, cortex, loom, cli,
+examples, integration-test, e2e-test, website`.
 
 ```mermaid
 graph TB
     UI["loom-ui (React)"] -->|REST + WS| REST
     CLI["cli/ (PicoCLI native)"] -->|REST| REST
-    subgraph LOOM["Loom (one central server)"]
+    subgraph LOOM["Loom (single-writer server)"]
         REST["REST / WebSocket / gRPC / GraphQL / MCP"]
         ENG["loom/pipeline: PipelineRunEngine<br/>owns the DAG, dispatches tasks"]
         DB[("PostgreSQL<br/>jOOQ + Flyway")]
         AG["loom/agent: chat, memory, sandbox"]
+        SR["search: PostgresSearchProvider<br/>similarity: LuceneSimilarityIndex"]
         REST --- ENG
         REST --- AG
+        REST --- SR
         ENG --- DB
         REST --- DB
+        SR --- DB
     end
     ENG -->|processor WebSocket<br/>SOURCE_TASK / NODE_TASK / SEGMENT_TASK| CX
     subgraph CX["Cortex worker(s)"]
         RT["cortex/node-runtime<br/>NodeTaskRunner"]
-        ND["cortex/nodes/*<br/>hash, facedetect, whisper, ocr, …"]
+        ND["cortex/nodes/* (26 modules)<br/>hash, facedetect, whisper, ocr, depthmap, …"]
         RT --- ND
     end
+    ND -->|HTTP| SC["sidecars/* (Python model servers)"]
     CX -->|results: REST write-back + WS task results| REST
 ```
 
 **Execution model (Variant C, built).** Loom owns the pipeline graph, persists run state, and
 dispatches individual source/node/segment tasks to registered Cortex workers over the processor
-WebSocket. Cortex holds no database and runs one task at a time per slot. See
-[cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) and
-[cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md).
+WebSocket. Cortex holds no database and runs one task at a time per slot. Nodes exchange
+`io.metaloom.cortex.api.node.payload.*` values over **typed ports**. See
+[cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md).
 
-### 1.3 Key technologies
-
-- **Backend**: Vert.x 5, Dagger 2, jOOQ, Flyway, PostgreSQL, RxJava 3
-- **CLI**: PicoCLI, Dagger 2, GraalVM native image
-- **Processing**: OpenCV, InspireFace, whisper.cpp, Tesseract, Apache Tika, Ollama, vLLM/llama.cpp
-- **Frontend**: React 18, Vite, TypeScript, MUI v5, React Flow, Recharts, i18next
-- **Build**: Maven, Docker/Podman, Hugo (website)
-- **Testing**: JUnit 5, Testcontainers, AssertJ (domain-specific asserts), Playwright (UI E2E)
+**Key technologies** — Backend: Vert.x 5, Dagger 2, jOOQ, Flyway, PostgreSQL, RxJava 3. Processing:
+OpenCV, InspireFace, whisper.cpp, Tesseract, Tika, Ollama, vLLM/llama.cpp, Lucene. Frontend: React
+18, Vite, TypeScript, MUI v5, React Flow, i18next. Testing: JUnit 5, Testcontainers, AssertJ,
+Playwright.
 
 ---
 
 ## 2. Specification Index — Every File Under `spec/`
 
-> ⚠️ **Two specs moved out of this repo.** Commercial and hosted-service planning now lives in the
-> sibling **`metaloom-saas`** project — see §2.2. Nothing under `spec/` covers monetisation, pricing
-> or running MetaLoom as a service any more.
+> ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
+> Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
+
+80 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
-├── AGENTS.md                          # One-liner: "read CONTEXT.md first"
-├── CONTEXT.md                         # ← THIS FILE — entry point for AI agents
+├── CONTEXT.md                         # ← THIS FILE — entry point and router
 ├── METALOOM.md                        # Big-picture module layout & framework map
-├── CLUSTERING.md                      # Multi-instance/replica constraints — Loom is single-writer
-│                                      #   (replicaCount 1); per-process state & clustering blockers
+├── METALOOM_NOTES.md                  # Scratch backlog: raw ideas without a spec file yet
+├── CLUSTERING.md                      # 🔴 Loom is single-writer (replicaCount 1); clustering blockers
 ├── SPEC_RULES.md                      # RULES for writing spec files
-├── TASKS.md                           # Scratch task note (unstructured)
 ├── TASKS.template.md                  # Required format for every *_TASKS.md file
 ├── guidelines/
-│   └── CODING.md                      # RULES for writing code (REST/DAO/Docs/Demo/Spec)
+│   ├── CODING.md                      # RULES for code changes (REST/DAO/Docs/Demo/Spec)
+│   └── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
+├── plans/
+│   ├── TASKS.md                       # Captured, not-yet-scheduled work (TASKS.template.md format)
+│   └── imagegen-node.md               # ⚠️ superseded draft — NODE_IMAGEGEN_PLAN.md is authoritative
 ├── features/                          # Cross-cutting features (span Loom + Cortex + UI)
 │   ├── DB_SCHEMA_FEEDBACK.md          # Schema audit vs. node results; resolved items marked in place
 │   ├── chat/
-│   │   ├── CHAT_MEMORY_PLAN.md        # Agent memory bank (markdown notes) — implemented
-│   │   ├── CHAT_SESSIONS_CONCEPT.md   # Publishable chat sessions & context composition — concept
-│   │   └── CHAT_TASKS.md              # Backend chat tasks B1–B9 — all done, records outcomes
+│   │   ├── CHAT_MEMORY_PLAN.md        # 🟢 Agent memory bank (scoped markdown notes)
+│   │   ├── CHAT_SESSIONS_CONCEPT.md   # 🟡 Sessions shipped (V2.52 + DAO + endpoints + UI);
+│   │   │                              #   filesystem snapshot & run-time context assembly are not built
+│   │   └── CHAT_TASKS.md              # 🟡 B1–B9 done; F1 (vLLM tool streaming throws) and
+│   │                                  #   F2 (turn-granular abort) are open defects
 │   ├── cli/
-│   │   └── CLI_PLAN.md                # The `cli/` module — implemented 2026-07-26 (see §14 there)
+│   │   └── CLI_PLAN.md                # 🟢 The top-level cli/ module (native image)
 │   ├── db/
 │   │   └── DATABASE_TASKS.md          # Schema work for node-result persistence (V2.38–V2.50)
 │   ├── helm/
-│   │   ├── HELM_LOOM.md               # Loom Helm chart (helm/loom) — structure, values, gotchas
-│   │   └── HELM_CORTEX.md             # Cortex Helm chart (helm/cortex) — custom-image override, StatefulSet id
+│   │   ├── HELM_LOOM.md               # Loom chart (helm/loom) — 🔴 two live env-var bugs, see §6
+│   │   └── HELM_CORTEX.md             # Cortex chart (helm/cortex) — custom-image override, StatefulSet id
+│   ├── nodes/
+│   │   └── facedetect/
+│   │       └── FACEDETECTION_OVERVIEW.md  # 🟢 Reference: face model landscape — InsightFace/
+│   │                                  #   InspireFace licensing (🔴 default pack is non-commercial),
+│   │                                  #   reverse-engineered pack format, permissive alternatives
+│   │                                  #   (YuNet/SFace), de-facto standard pipeline
 │   ├── ops/
-│   │   ├── METRICS.md                 # Prometheus /metrics on both components — implemented
-│   │   └── MONITORING.md              # Health & readiness endpoints
+│   │   ├── METRICS.md                 # 🟢 Prometheus /metrics on both components
+│   │   └── MONITORING.md              # 🟢 Health & readiness endpoints
 │   ├── permissions/
-│   │   └── PERMISSIONS.md             # Authorization: RBAC model, taxonomy, enforcement points
+│   │   └── PERMISSIONS.md             # Authorization: model, taxonomy, enforcement points
 │   ├── pipeline/
-│   │   ├── PIPELINE.md                # Technical spec: engine, persistence, protocol, schemas
+│   │   ├── PIPELINE.md                # 🟢 Technical spec: engine, persistence, protocol, schemas
 │   │   ├── PIPELINE_FLOW.md           # Conceptual: WHAT travels between nodes — item vs ambient media
-│   │   │                              #   reference vs per-port payload; why nothing accumulates on the
-│   │   │                              #   wire; why the edge (not the node) resolves ambiguity
-│   │   ├── NODE_DATA_TYPES.md         # The typed-port model: family/subtype vocabulary + lattice,
-│   │   │                              #   ports with ONE/MANY cardinality and XOR groups, port-to-port
-│   │   │                              #   edges, origin-tagged elements, fan-out and the implicit gather
-│   │   ├── NODE_DATA_TYPES_PLAN.md    # The design behind it + recorded design-vs-implementation
-│   │   │                              #   divergences and the phase assessment
-│   │   ├── NODE_SCHEMA_CONCEPT.md     # EXPLORATION, nothing built: four concepts for a per-node
-│   │   │                              #   schema file (validator payload + agent guidance) and the
-│   │   │                              #   construction procedure for all node kinds
+│   │   │                              #   reference vs per-port payload; why nothing accumulates
+│   │   ├── NODE_DATA_TYPES.md         # 🟢 The typed-port model: family/subtype lattice, ONE/MANY
+│   │   │                              #   cardinality, XOR groups, port-to-port edges, fan-out/gather
+│   │   ├── NODE_DATA_TYPES_PLAN.md    # Design rationale + design-vs-implementation divergences
+│   │   ├── NODE_SCHEMA_CONCEPT.md     # 🟡 Descriptors shipped (NodeDescriptor, /node-descriptors,
+│   │   │                              #   generated snapshot, conformance test); the prose "node card"
+│   │   │                              #   and a REST-served resolvePorts remain unbuilt
 │   │   ├── PIPELINE_REQUIREMENTS.md   # Non-technical requirements + gap status
 │   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
 │   ├── pipeline-nodes/
-│   │   ├── NODES.md                   # Cortex node system + per-node reference
-│   │   ├── NODE_DEDUP_PLAN.md               # Fingerprint dedup nodes (discovery + apply, human review) — NOT built
-│   │   ├── NODE_DEPTHMAP_PLAN.md            # Depth map node design (monocular depth, sidecar) — NOT built
-│   │   ├── NODE_DOMINANT_COLOR_PLAN.md      # Dominant colour node design (CIELAB k-means, EN/DE naming) — implemented
-│   │   ├── NODE_IMAGEGEN_PLAN.md            # Image generation node design — implemented
-│   │   ├── NODE_SCENE_LAYOUT_PLAN.md        # Scene layout node design (depth + boxes → spatial relations) — NOT built
-│   │   ├── NODE_SCRIPT_PLAN.md              # Script node design (GraalJS, declared multi-valued outputs) — implemented
-│   │   ├── NODE_SENTIMENT_PLAN.md           # Sentiment node design (EN/DE, commercial-license models)
-│   │   ├── NODE_VIDEO_CAPTIONING_PLAN.md    # Video captioning node design
-│   │   ├── NODE_VIDEO_CAPTIONING_REPORT.md  # Benchmark report (real runs, Qwen2.5-VL-7B)
-│   │   └── video-captioning-results/        # Raw benchmark data (JSON + RUN_ENV.txt)
+│   │   ├── NODES.md                   # 🟢 Cortex node system + per-node reference
+│   │   ├── SERVICE_IMAGE.md           # ⚪ loom/services/image — empty stub, zero consumers
+│   │   ├── SERVICE_LOGGER.md          # ⚪ loom/services/logger — stub; real logging is loom/common
+│   │   ├── SERVICE_PLUGINS.md         # ⚪ loom/services/plugins — marker interface only, no loader
+│   │   ├── SERVICE_TIKA.md            # 🔴 loom/services/tika is a stub; the real node is
+│   │   │                              #   cortex/nodes/tika — whose parser always returns null
+│   │   ├── SERVICE_VIDEO.md           # ⚪ loom/services/video — empty stub, zero consumers
+│   │   ├── NODE_DEDUP_PLAN.md         # 🟡 BUILT: V2.61/V2.62, 4 DEDUP permissions, DedupGroupDao,
+│   │   │                              #   6 REST routes, 3 nodes, 3 descriptors. Review UI still a mock
+│   │   ├── NODE_DEPTHMAP_PLAN.md      # 🟢 BUILT end to end incl. sidecars/depth (:9120)
+│   │   ├── NODE_DOMINANT_COLOR_PLAN.md# 🟢 BUILT (CIELAB k-means, EN/DE naming)
+│   │   ├── NODE_IMAGEGEN_PLAN.md      # 🟢 BUILT — authoritative over plans/imagegen-node.md
+│   │   ├── NODE_S3SINK_PLAN.md        # 🟢 BUILT (phase 1) — kind s3-sink
+│   │   ├── NODE_S3SOURCE_PLAN.md      # 🟢 BUILT — kind s3-source + the shared cortex/s3-common module
+│   │   ├── NODE_SCENE_LAYOUT_PLAN.md  # 🟡 BUILT (12 spatial-relation predicates); objectdetect is
+│   │   │                              #   still faces-only
+│   │   ├── NODE_SCRIPT_PLAN.md        # 🟢 BUILT (GraalJS, declared multi-valued outputs)
+│   │   ├── NODE_SENTIMENT_PLAN.md     # 🟢 BUILT (EN/DE, commercial-license models, sidecar)
+│   │   ├── NODE_VIDEO_CAPTIONING_PLAN.md   # 🟢 BUILT — not a kind of its own: it is captioning's
+│   │   │                                   #   videoStrategy
+│   │   ├── NODE_VIDEO_CAPTIONING_REPORT.md # Benchmark report (real runs, Qwen2.5-VL-7B)
+│   │   ├── NODE_WATERMARK_PLAN.md     # 🟢 BUILT — kind watermark
+│   │   └── video-captioning-results/  # Raw benchmark data (JSON + RUN_ENV.txt)
 │   ├── rbac/
-│   │   └── RBAC.md                    # RBAC reference incl. known enforcement gaps
+│   │   └── RBAC.md                    # RBAC reference incl. known enforcement gaps (overlaps
+│   │                                  #   PERMISSIONS.md — see §7)
 │   ├── rest/
-│   │   ├── REST_BINARY_HANDLING.md    # Binary bytes over REST: the byte-carrying routes, the
-│   │   │                              #   content-addressed layout, filesystem/S3 backends selected
-│   │   │                              #   per library via asset_pool, Range downloads, reference-
-│   │   │                              #   counted reclaim — implemented
+│   │   ├── REST_BINARY_HANDLING.md    # 🟢 Binary bytes over REST: byte-carrying routes, content-
+│   │   │                              #   addressed layout, filesystem/S3 per asset_pool, Range
+│   │   │                              #   downloads, reference-counted reclaim
 │   │   └── REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md
-│   │                                  # PLAN, not built: how Cortex nodes push produced artefacts
-│   │                                  #   (thumbnails, depth maps, TTS) and their metadata into
-│   │                                  #   Loom. Loom-side counterpart of NODE_S3SINK_PLAN phases 2+3
+│   │                                  # 🔵 PLAN: how Cortex pushes produced artefacts + metadata
+│   │                                  #   into Loom. Loom-side counterpart of NODE_S3SINK phases 2+3
 │   └── search/
-│       ├── SEARCH.md                  # Lexical search: current state (none), SPI, search_document, REST — NOT built
-│       ├── SEARCH_PLAN.md             # Phased build order: P0 prereqs → P1 Postgres → P2 Elasticsearch
-│       ├── SEMANTIC_SEARCH.md         # Vector/hybrid search: pgvector decision, embeddings, RRF — NOT built
-│       └── LUCENE_PLAN.md             # Fingerprint similarity index (Lucene HNSW via video4j), SimilarityIndex SPI — NOT built
+│       ├── SEARCH.md                  # 🟡 Lexical search SHIPPED: V2.57–V2.59 search_document +
+│       │                              #   triggers, PostgresSearchProvider, SearchEndpoint,
+│       │                              #   10 LOOM_SEARCH_* options. Consumers are the gap: no UI,
+│       │                              #   no GraphQL field, MCP tools still bypass it
+│       ├── SEARCH_PLAN.md             # Build order: P0 prereqs ✅ → P1 Postgres ✅ → P2 Elasticsearch 🔵
+│       ├── SEMANTIC_SEARCH.md         # 🔵 Vector search NOT built (no pgvector/HNSW, embedding has
+│       │                              #   zero producers, qdrant is pom-only) — but the seams shipped:
+│       │                              #   SearchMode.SEMANTIC/HYBRID, SearchCapability, honest 400
+│       └── LUCENE_PLAN.md             # 🟢 BUILT: loom/services/lucene LuceneSimilarityIndex,
+│                                      #   SimilarityModule, LOOM_SIMILARITY_* (default off),
+│                                      #   /similarity-index/rebuild, /assets/:uuid/similar-assets
 ├── cortex/
 │   ├── BUILD.md                       # Maven modules, container image, native deps
 │   ├── CONFIGURATION.md               # YAML config, CLI flags, env vars, per-node options
 │   ├── CORTEX.md                      # Architecture, module map, startup lifecycle, CLI
 │   ├── METALOOM_ARCHITECTURE.md       # Plain-language Loom↔Cortex interaction (as built)
 │   ├── METALOOM_ARCHITECTURE_TASK.md  # Open architecture tasks (+ explicitly dropped ideas)
-│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md  # Variant C build record — COMPLETE
+│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md  # Variant C build record — COMPLETE (merge candidate, §7)
 ├── loom/
 │   ├── BUILD.md                       # Loom build pipeline
 │   ├── CONFIGURATION.md               # LoomOptions, config file, env vars, validation
 │   ├── DOMAIN.md                      # Domain entities by group, derived from migrations
 │   ├── EVENTBUS.md                    # Pipeline events, Vert.x EventBus, WS fan-out
-│   ├── GRAPHQL.md                     # GraphQL API
+│   ├── GRAPHQL.md                     # 🟢 GraphQL API — registered and reachable (/api/v1/graphql)
 │   ├── GRPC.md                        # gRPC API (asset, health, reflection)
 │   ├── LOOM.md                        # Main entry point: architecture, modules, lifecycle, DI
-│   ├── MCP.md                         # Model Context Protocol server (AI tool integration)
+│   ├── MCP.md                         # Model Context Protocol server
 │   ├── PERSISTENCE.md                 # DAO layer, jOOQ, Flyway, test infrastructure
 │   ├── PERSISTENCE_TASKS.md           # Open persistence-layer gaps
 │   ├── RESTAPI.md                     # REST endpoints, auth, clients, OpenAPI
@@ -222,8 +242,9 @@ spec/
 │   ├── WEBSOCKET.md                   # Processor WS + pipeline-events WS protocols
 │   └── ui/
 │       ├── CHAT.md                    # Chat / Loom Agent: agentic loop, streaming, skills
+│       │                              #   (~80% server-side — move candidate, §7)
 │       ├── LOOM_UI.md                 # Loom UI specification
-│       ├── PIPELINE_EDITOR.md         # Pipeline editor: React Flow canvas, CRUD, validation
+│       ├── PIPELINE_EDITOR.md         # Product pipeline editor: React Flow canvas, CRUD, validation
 │       ├── TASK_UI_AI_ML.md           # UI gap tasks: embeddings, clusters, detections, persons
 │       ├── TASK_UI_ASSETS_MEDIA.md    # UI gap tasks: assets, locations, pools, attachments
 │       ├── TASK_UI_CHAT.md            # UI chat tasks U1–U8 — all done, records outcomes
@@ -232,13 +253,21 @@ spec/
 │       ├── TASK_UI_ORGANIZATION.md    # UI gap tasks: collections, libraries, spaces, tags
 │       ├── TASK_UI_PIPELINE.md        # UI gap tasks: pipelines, runs, node tasks, editor
 │       └── TASK_UI_SYSTEM.md          # UI gap tasks: system info, monitoring, health
-├── tasks/
-│   └── TASKS.md                       # Queue of captured tasks (TASKS.template.md format)
+├── loom-app/
+│   └── LOOM_APP.md                    # ⚪ Electron desktop shell — experiment, not in any build;
+│                                      #   app:// scheme serves a copied loom-ui build
+├── sidecars/                          # Python HTTP model servers. NONE is containerised, in Helm,
+│   │                                  #   or covered by a Python test — see SIDECARS.md
+│   ├── SIDECARS.md                    # Index: ports, consumers, deployment status
+│   ├── DEPTH_SIDECAR.md               # :9120 — Depth-Anything-V2 / ZoeDepth → NEARNESS map
+│   ├── IDEOGRAM_SIDECAR.md            # :9200 — SDXL-Turbo / Ideogram-4 nf4 image generation
+│   ├── LTX2_SIDECAR.md                # :9220 — LTX-2 video+audio generation (dual nf4, 24 GB)
+│   ├── MAGE_FLOW_SIDECAR.md           # :9210 — Mage-Flow 4B, MIT weights; imagegen's other backend
+│   ├── SENTIMENT_SIDECAR.md           # :9110 — DE/EN/multilingual 3-class sentiment
+│   └── TTS_SIDECAR.md                 # :9100 — Orpheus (DE) / Kokoro (EN) text-to-speech
 └── website/
-    ├── WEBSITE.md                     # Hugo site: content, build, publish flow
-    │                                  #   (incl. /tour/ and /studio/, the two design-led scrollers)
-    └── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — the backend-free in-browser editor
-                                       #   + simulator and its generated node-descriptor snapshot
+    ├── WEBSITE.md                     # Hugo site: content, build, publish (incl. /tour/, /studio/)
+    └── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — backend-free in-browser editor + simulator
 ```
 
 ### 2.1 Which file do I open?
@@ -246,43 +275,41 @@ spec/
 | I am working on… | Start with |
 |------------------|------------|
 | Anything at all | [guidelines/CODING.md](guidelines/CODING.md), then this file |
-| Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) |
+| **Adding a Cortex node** | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) (rules) + [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) (system) |
+| Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md), then [METALOOM.md](METALOOM.md) |
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
-| A Cortex processing node | [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) |
-| Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) — the reference for the built model. [features/pipeline/NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md) keeps the design rationale and the design-vs-implementation divergences |
-| "What actually travels between nodes?" — the mental model, before the mechanics | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) — item vs ambient media reference vs per-port payload; nothing accumulates on the wire, the accumulating record is the Loom asset + its components |
-| Per-node schema files (validating a pipeline outside the JVM, briefing an agent on a node) | [features/pipeline/NODE_SCHEMA_CONCEPT.md](features/pipeline/NODE_SCHEMA_CONCEPT.md) — **exploration only, nothing built**; four competing concepts plus the construction procedure |
+| "What actually travels between nodes?" — the mental model | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) |
+| Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) (built model); [NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md) for rationale and divergences |
+| Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA_CONCEPT.md](features/pipeline/NODE_SCHEMA_CONCEPT.md) — descriptors are built; the "node card" prose format is not |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
-| Uploading / downloading binary data, asset binaries, storage layout, S3 vs. filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) — byte routes vs. JSON metadata routes, how a library picks its backend, and the remaining gaps |
-| Getting Cortex-produced artefacts (thumbnails, depth maps, TTS audio) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan, not built**; the endpoints it needs exist |
+| Binary upload/download, storage layout, S3 vs filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
+| Getting Cortex-produced artefacts (thumbnails, depth maps, TTS) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan**; the endpoints it needs exist |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
-| Chat / AI agent / skills / memory | [loom/ui/CHAT.md](loom/ui/CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md) |
+| Chat / AI agent / skills / memory | [loom/ui/CHAT.md](loom/ui/CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [features/chat/CHAT_TASKS.md](features/chat/CHAT_TASKS.md) |
 | The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
-| Search / full-text / indexing | [features/search/SEARCH.md](features/search/SEARCH.md) — **nothing is implemented**; build order in [features/search/SEARCH_PLAN.md](features/search/SEARCH_PLAN.md) |
-| Embeddings / similarity / vector search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — closes the `embedding.vector` "OPEN DECISION" in favour of pgvector |
-| Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) — Lucene HNSW index (reuses video4j) behind a `SimilarityIndex` SPI; distinct from lexical/embedding search |
-| Deduplication nodes (find + review + apply duplicates) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md) — discovery + apply nodes with human-in-the-loop review |
-| Running more than one Loom instance / anything holding per-process state | [CLUSTERING.md](CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`); read before adding a `@Singleton` that caches, locks or caps |
+| **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
+| **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](features/search/SEARCH_PLAN.md) |
+| Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — **not built**; the API seams exist and reject with 400 |
+| Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) — **built**, off by default |
+| Deduplication (discover, review, apply) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md) — nodes + REST built, review UI is a mock |
+| S3 as a source or sink | [NODE_S3SOURCE_PLAN.md](features/pipeline-nodes/NODE_S3SOURCE_PLAN.md), [NODE_S3SINK_PLAN.md](features/pipeline-nodes/NODE_S3SINK_PLAN.md) — also the only home of the `cortex/s3-common` design |
+| Running more than one Loom instance / per-process state | [CLUSTERING.md](CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`) |
+| Helm deployment | [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
-| The website's in-browser pipeline editor + simulator (`/pipeline-editor/`) | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
-| The commercial edition / what is paid vs. open | ➜ **sibling project** — [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md). See §2.2 |
-| Running MetaLoom as a hosted/multi-customer service | ➜ **sibling project** — [metaloom-saas/spec/README.md](../../metaloom-saas/spec/README.md). See §2.2 |
-| Making Loom safe to expose to paying strangers (`LOOM_HOSTED`, object storage, WS auth) | ➜ **sibling project** — [metaloom-saas/spec/LOOM_HOSTED_MODE.md](../../metaloom-saas/spec/LOOM_HOSTED_MODE.md). This is the one SaaS spec that changes **this** repo's source: requirements `B1`–`B11`, `N1`–`N7`. See §2.2 |
-| Picking up queued work | any `*_TASKS.md`, format per [TASKS.template.md](TASKS.template.md) |
+| The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
+| The commercial edition / hosted service | ➜ **sibling repo** `metaloom-saas` — see §2.2 |
+| Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](TASKS.template.md) |
+| Dumping a half-formed idea | [METALOOM_NOTES.md](METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
 ### 2.2 The `metaloom-saas` sibling project
-
-Commercial and hosted-service planning was moved out of this repo into a dedicated project. It is
-**not** a subdirectory here — it is a sibling checkout:
 
 ```
 workspaces/metaloom/
 ├── metaloom/          ← this repo (the product)
-└── metaloom-saas/     ← the SaaS/commercial project
-    └── spec/          ← 15 spec files, ~14 400 lines
+└── metaloom-saas/     ← the SaaS/commercial project (~15 spec files)
 ```
 
 | Moved from | Now at |
@@ -290,398 +317,93 @@ workspaces/metaloom/
 | `spec/METALOOM_STUDIO_PLAN.md` | [`../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md`](../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) |
 | `spec/saas/*.md` (13 files) | [`../../metaloom-saas/spec/`](../../metaloom-saas/spec/) — start at [README.md](../../metaloom-saas/spec/README.md) |
 
-⚠️ **The relative links above only resolve when both repos are checked out side by side** under a
-common parent. That is the assumed layout; if you clone `metaloom` alone, these links dangle and
-that is expected.
+⚠️ Those relative links only resolve when both repos sit side by side under a common parent.
 
-**Which repo does a task belong to?**
-
-- Changing Loom, Cortex, the UI, the charts under `helm/`, or the website → **this repo**.
-- Pricing, tenants, provisioning, billing, the control plane, the customer portal, the admin
-  console, Terraform, cluster operations → **`metaloom-saas`**.
-- The one genuine overlap is
-  [LOOM_HOSTED_MODE.md](../../metaloom-saas/spec/LOOM_HOSTED_MODE.md): it specifies changes to
-  **this** repo's source (`B1`–`B11`, `N1`–`N7`) that hosting requires. Several are plain bugs that
-  affect self-hosted users today — the `LOOM_BINARY_DIR` / `LOOM_DB_USER` chart mismatches and the
-  silent result loss in node `persist(...)`. Those get fixed here regardless of whether the SaaS is
-  ever built.
+**Which repo does a task belong to?** Loom, Cortex, the UI, `helm/`, the website → **this repo**.
+Pricing, tenants, provisioning, billing, control plane, portal, Terraform → **`metaloom-saas`**.
+The one genuine overlap is
+[LOOM_HOSTED_MODE.md](../../metaloom-saas/spec/LOOM_HOSTED_MODE.md), which specifies changes to
+**this** repo's source (`B1`–`B11`, `N1`–`N7`). Several are plain bugs that hurt self-hosted users
+today (the Helm env-var mismatches in §6) and get fixed here regardless.
 
 ### 2.3 Feature specs vs. component specs
 
-- **`features/`** — a capability spanning more than one component. Read these first when working
-  on that capability end to end.
-- **`loom/` and `cortex/`** — component-scoped architecture, configuration and build.
+- **`features/`** — a capability spanning more than one component. Read first when working on that
+  capability end to end.
+- **`loom/`, `cortex/`** — component-scoped architecture, configuration and build.
 - **`guidelines/`** — rules that apply regardless of component.
 - **`*_TASKS.md`** — actionable work items only; they follow [TASKS.template.md](TASKS.template.md)
-  and record outcomes once done, so a task file is also a change log.
+  and record outcomes once done, so a task file doubles as a change log.
 
-⚠️ The pipeline feature was previously spread over five overlapping files
-(`cortex/PIPELINE.md`, `loom/PIPELINE.md`, `common/LOOM_PIPELINE.md`,
-`features/pipeline/CORTEX_PIPELINE.md`, `features/pipeline/LOOM_PIPELINE.md`). They were merged and
+⚠️ The pipeline feature was previously spread over five overlapping files. They were merged and
 deleted on 2026-07-18; `features/pipeline/` is the only source. Do not restore them.
 
 ---
 
-## 3. Sub-Component Reference Guide
+## 3. Components — Pointers, Not Recaps
 
-### 3.1 Loom Backend Service (`loom/`)
+Module layouts, lifecycles and per-class detail live in the component specs. This section only says
+where to go and what to run.
 
-**Purpose**: central backend — assets, users, permissions, pipelines, chat agent, and Cortex worker
-coordination. Owns the only database.
+| Component | Read | Notes |
+|-----------|------|-------|
+| **Loom** (`loom/`) | [loom/LOOM.md](loom/LOOM.md) — architecture, module layout, lifecycle, Dagger DI | Pipeline execution is in [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md); authorization in [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) — **not** in the component files |
+| **Cortex** (`cortex/`) | [cortex/CORTEX.md](cortex/CORTEX.md) — module map, startup, CLI, online/offline | Online when `LOOM_HOST`+`LOOM_PORT` are set (registers over the processor WS); offline is CLI-driven via `cortex process run` |
+| **CLI** (`cli/`) | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) | Replaced the dead `loom/cli` stub. ⚠️ `./build.sh` does **not** invoke `cli/build-native.sh` — build the native image yourself |
+| **loom-ui** (`loom-ui/`) | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + `TASK_UI_*.md` | Component tests are Playwright **mocked** e2e specs; pure logic uses node-env vitest. No RTL/jsdom |
+| **website** (`website/`) | [website/WEBSITE.md](website/WEBSITE.md) | 🔴 New customer-facing features **must** get a page under `website/content/english/docs` |
+| **integration-test/** | `AbstractIntegrationTest` + per-node Cortex E2E tests | Runs against the **packaged** shaded `cortex/cli` JAR and image — rebuild both after a Cortex change |
+| **e2e-test/** | `E2ETest` against a packaged container deployment | `mvn test -Dloom.external=true -pl e2e-test` targets an already-running container |
+| **examples/** | `cortex-custom/`, `cortex-custom-node/` | Extending Cortex with custom code and custom nodes |
 
-#### Key specifications
+**Cortex module set** (`cortex/`): `api`, `common`, `core`, `core-media` (value types
+`WhisperResult`/`Scene` + AssertJ helpers only), `cli`, `container`, `fs` (empty shell — the scanner
+is the external `io.metaloom.fs` artifact), `node-runtime`, `nodes/` (**26 modules**), `pipeline-api`,
+`pipeline-common`, `pipeline-core`, `processor`, `s3-common`.
 
-| Spec File | Description |
-|-----------|-------------|
-| [LOOM.md](loom/LOOM.md) | **Main entry point** — architecture, module layout, server lifecycle, Dagger DI, Loom↔Cortex relationship |
-| [DOMAIN.md](loom/DOMAIN.md) | Domain entities grouped by area, derived from the Flyway migrations |
-| [RESTAPI.md](loom/RESTAPI.md) | REST endpoints, authentication (JWT/OAuth2), CRUD patterns, OpenAPI generation |
-| [WEBSOCKET.md](loom/WEBSOCKET.md) | Processor WS (`/api/v1/processors/ws`) and pipeline-events WS (`/api/v1/pipelines/events/ws`) |
-| [PERSISTENCE.md](loom/PERSISTENCE.md) | jOOQ DAOs, Flyway migrations, DAO hierarchy, test infrastructure |
-| [PERSISTENCE_TASKS.md](loom/PERSISTENCE_TASKS.md) | Open persistence gaps (asset-component coverage closed by V2.38–V2.50) |
-| [EVENTBUS.md](loom/EVENTBUS.md) | Cortex PipelineEventBus, Vert.x EventBus (MCP only), WebSocket fan-out |
-| [MCP.md](loom/MCP.md) | MCP server — JSON-RPC 2.0 over HTTP+SSE/WebSocket, tool registry via Vert.x EventBus |
-| [GRPC.md](loom/GRPC.md) | gRPC API — asset, health, reflection (no pipeline surface) |
-| [GRAPHQL.md](loom/GRAPHQL.md) | GraphQL API |
-| [SERVER.md](loom/SERVER.md) | Server startup / lifecycle |
-| [CONFIGURATION.md](loom/CONFIGURATION.md) | Configuration system, `LoomOptions` validation |
-| [BUILD.md](loom/BUILD.md) | Loom build pipeline |
-| [ui/CHAT.md](loom/ui/CHAT.md) | Chat / Loom Agent — server-side agentic loop, SSE streaming, skills |
-| [ui/LOOM_UI.md](loom/ui/LOOM_UI.md) | Loom UI specification |
-| [ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) | Pipeline editor — React Flow canvas, CRUD, validation |
-
-> Pipeline **execution and persistence** are specified in
-> [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md); **authorization** in
-> [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) — not in the files above.
-
-#### Module layout (`loom/`)
-
-```
-loom/
-├── common/          # Shared utilities, Vert.x setup, Dagger modules, LoomOptionsLoader
-├── pipeline/        # ⭐ Loom-side pipeline engine (Variant C)
-│   ├── engine/      #   PipelineRunEngine, NodeDispatcher, RunStateStore, RetryScheduler,
-│   │                #   NodeKindCircuitBreaker, AssetSink, ItemState, RunSummary
-│   └── graph/       #   PipelineGraphParser, PipelineGraph(Node), PipelineSegmenter,
-│                    #   PipelineSegment, AffinityValidator, GraphValidationException
-├── db/              # Database layer (parent)
-│   ├── api/         #   DAO/model interfaces, Element/CRUDDao abstractions
-│   ├── api-test/    #   Shared contract test infrastructure (CRUDDaoTestcases, DatabaseTest)
-│   ├── jooq/        #   jOOQ-based DAO implementations (+ generate.sh)
-│   ├── jooq-gen/    #   jOOQ codegen strategy (prefixes generated types with "Jooq")
-│   ├── flyway/      #   SQL migrations (V1__, V2.*__)
-│   └── memory/      #   In-memory DAO impl for fast tests (⚠️ no pipeline DAOs)
-├── services/        # Service layer (parent)
-│   ├── api/         #   Service-layer interfaces
-│   ├── rest/        #   REST API, WebSocket endpoints, dispatcher, pipeline event broadcaster
-│   ├── grpc/        #   gRPC service
-│   ├── graphql/     #   GraphQL service
-│   ├── mcp/         #   MCP server for AI agent integration
-│   ├── auth/        #   Auth providers (JWT, Keycloak, Auth0, Okta, common)
-│   ├── image/       #   Image processing
-│   ├── video/       #   Video processing
-│   ├── elasticsearch/, lucene/, qdrant/   # Search & vector integrations
-│   ├── tika/        #   Apache Tika metadata extraction
-│   ├── monitoring/  #   Health, readiness, Prometheus metrics
-│   ├── logger/      #   Logging service
-│   ├── plugins/     #   Plugin system
-│   ├── fs/          #   Filesystem service
-│   └── eventbus/    #   Placeholder
-├── agent/           # AI agent subsystem (package io.metaloom.loom.agent.*)
-│   ├── chat/        #   Agentic loop, ChatStreamEndpoint (SSE), AgentService, skills prompts,
-│   │                #   ChatSessionEndpoint, SessionFsEndpoint
-│   ├── memory/      #   Scoped markdown memory bank (MemoryService, MemoryEndpoint, memory tools)
-│   ├── sandbox/     #   Coding sandbox orchestrator + podman/kubernetes backends, coding tools
-│   ├── session-runner/ # Per-chat Session Runner image (runnerd.py) — metaloom/loom-session-runner
-│   └── deploy/      #   Sandbox deployment reference (k8s pod template, RBAC notes)
-├── core/            # Bootstrap, server lifecycle, LoomImpl, BootstrapInitializer,
-│                    #   DatabaseInitializer, DemoDatabaseInitializer
-├── fixture/         # Test fixtures, PoolSetupRunner, TestDBPoolManager
-├── containers/      # Dockerfiles + build-containers.sh (metaloom/loom-server, metaloom/loom-demo)
-├── helm/            # ⚠️ placeholder README only — the real charts live in the top-level `helm/` (helm/loom, helm/cortex)
-├── design/          # Design artefacts incl. DB/dbdiagram.yaml
-└── doc/             # AsciiDoc documentation source + OpenAPI generator
-```
-
-> `loom/cli` **no longer exists** — the CLI moved to the top-level [cli/](../cli/) module. See
-> [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md).
-
-#### Shared modules (outside `loom/`)
-
-| Module | Purpose |
-|--------|---------|
-| `loom-shared/api` | Core interfaces: `Loom`, `LoomOptions`, `ServerOptions`, `DatabaseOptions`, `AuthenticationOptions` |
-| `loom-shared/node-model` | Node/result model shared by Loom and Cortex |
-| `loom-shared/pipeline-model` | `NodeTask`, `NodeTaskResult` and the dispatch protocol model |
-| `loom-shared/rest-model` | REST DTOs, request/response models, validation models |
-| `loom-shared/rest-model-test` | Custom AssertJ assertions for the REST model |
-| `loom-shared/proto` | Protobuf/gRPC model definitions |
-| `loom-client/common` | Shared client interfaces (`ClientMethods`, `PipelineMethods`) |
-| `loom-client/rest` | Java HTTP client (`LoomHttpClient`) |
-| `loom-client/report` | Client-side reporting helpers |
-| `loom-test-env` | Test environment: DB pool leasing, JUnit 5 extensions |
-
-#### Key classes reference (Loom)
+### 3.1 Key classes reference
 
 | Class | Package | Purpose |
 |-------|---------|---------|
-| `LoomImpl` | `io.metaloom.loom.core` | Entry point; builds Dagger component, runs bootstrap |
-| `BootstrapInitializer` | `io.metaloom.loom.core.boot` | Orchestrates startup/shutdown sequence |
-| `DatabaseInitializer` | `io.metaloom.loom.core.boot` | Creates initial admin user, roles, permissions |
+| `LoomImpl` | `io.metaloom.loom.core` | Entry point; builds the Dagger component, runs bootstrap |
+| `BootstrapInitializer` | `io.metaloom.loom.core.boot` | Startup/shutdown sequence (🔴 no JVM shutdown hook — see §6) |
 | `DemoDatabaseInitializer` | `io.metaloom.loom.core.boot` | Demo data — **extend when adding a feature** (CODING.md) |
-| `LoomCoreComponent` | `io.metaloom.loom.core.dagger` | Dagger component wiring all services |
-| `RESTService` | `io.metaloom.loom.rest` | REST API service (router, endpoints, auth) |
+| `LoomCoreComponent` | `io.metaloom.loom.core.dagger` | Dagger component wiring all services, incl. `SearchModule`, `SimilarityModule` |
+| `RESTService` | `io.metaloom.loom.rest` | REST router; endpoints injected via `EndpointModule` |
 | `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` | Owns run state; walks the graph, dispatches tasks |
-| `NodeDispatcher` | `io.metaloom.loom.pipeline.engine` | Sends node/segment tasks to a worker |
-| `RunStateStore` | `io.metaloom.loom.pipeline.engine` | Durable run/item state — survives restart |
-| `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | Parses definition JSON into a `PipelineGraph` |
+| `NodeDispatcher` / `RunStateStore` | `io.metaloom.loom.pipeline.engine` | Task dispatch to workers / durable run+item state |
+| `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | Parses definition JSON into a `PipelineGraph`; rejects `dependencies[]` |
 | `PipelineSegmenter` | `io.metaloom.loom.pipeline.graph` | Groups nodes into affinity segments |
-| `PipelineValidationService` | `io.metaloom.loom.rest.validation` | Validates definitions (node types, edges) |
-| `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Fans out pipeline events to UI WebSocket clients |
-| `MCPService` | `io.metaloom.loom.mcp` | MCP server |
+| `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` | Lexical search over `search_document` (tsvector + pg_trgm) |
+| `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` | Fingerprint HNSW index behind the `SimilarityIndex` SPI |
+| `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **26 providers, 41 kinds**, ServiceLoader-discovered |
 | `MemoryService` | `io.metaloom.loom.agent.memory` | Scoped markdown memory bank for the chat agent |
+| `CortexImpl` | `io.metaloom.cortex.impl` | Cortex lifecycle; **registers a shutdown hook** that drains in-flight work |
+| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom: registration, heartbeat, tasks, reconnect |
+| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` |
+| `RegistryNodeRegistrar` | `io.metaloom.cortex.cli.dagger` | Fills the node registry at bootstrap from the `@StringKey` map + the source producers |
+| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Maps a JSON node `type` to a node; **unknown → `null`, the task fails** |
+| `NodeTaskRunner` | `io.metaloom.cortex.runtime` | Executes one node task; exceptions become `FAILED` results |
+| `NodeResultMapper` | `io.metaloom.cortex.runtime` | `toWireState`: SUCCESS→COMPLETED, SKIPPED→SKIPPED, FAILED/null→FAILED |
 
-#### Build & run commands
+### 3.2 Build & run commands
 
 ```bash
-./build.sh              # Full build (Maven + UI + containers)
+./build.sh              # Full build (Maven + UI + containers) — does NOT build the CLI native image
 mvn -T 8 test-compile -q -DskipTests   # Fast compile check
 ./setup-pool.sh         # (RE)INITIALIZE THE TEST DB POOL — required before tests
-./it.sh                 # Integration tests
-./e2e.sh                # End-to-end tests
-./start-postgres.sh     # Local Postgres
-./start-server.sh       # Loom server
-./start-cortex.sh       # Cortex worker
+./it.sh                 # Integration tests          ./e2e.sh   # End-to-end tests
+./start-postgres.sh     # Local Postgres             ./ui.sh    # UI dev server
+./start-server.sh       # Loom server                ./start-cortex.sh  # Cortex worker
 ./start-demo.sh         # Demo stack (Postgres + Loom + Cortex)
-./ui.sh                 # UI dev server
+
+mvn -T 8 clean package -DskipTests -pl cortex -am        # All Cortex modules
+mvn -T 8 clean package -DskipTests -pl cortex/cli -am    # Shaded CLI/daemon JAR
+cortex/container/build-container.sh                      # Cortex container image
 ```
 
 🔴 **`./setup-pool.sh` is mandatory** before running tests, and again after **any** Flyway migration
-change — otherwise the pooled databases are stale and tests fail with confusing errors.
-
----
-
-### 3.2 Cortex Processing Node (`cortex/`)
-
-**Purpose**: worker process that executes node tasks dispatched by Loom (and, offline, runs
-pipelines from the CLI). It holds no database.
-
-#### Key specifications
-
-| Spec File | Description |
-|-----------|-------------|
-| [CORTEX.md](cortex/CORTEX.md) | **Main entry point** — architecture, module map, startup lifecycle, CLI commands, online/offline modes |
-| [METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) | **How Loom and Cortex actually interact** — registration, REST vs WebSocket, dispatch, results, failure handling, monitoring, daemonization. Plain language, code-verified |
-| [METALOOM_ARCHITECTURE_TASK.md](cortex/METALOOM_ARCHITECTURE_TASK.md) | Open architecture work items — plus the ideas explicitly **dropped** with the rejected variants |
-| [METALOOM_ARCHITECTURE_V2_PLAN_C.md](cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) | Variant C build record — **COMPLETE**. Decisions, phase order, and the refinements deliberately not built |
-| [CONFIGURATION.md](cortex/CONFIGURATION.md) | YAML config, CLI flags, env vars, per-node options. ⚠️ documented YAML precedence does not work — see METALOOM_ARCHITECTURE.md §8 |
-| [BUILD.md](cortex/BUILD.md) | Maven modules, container image, native dependencies, fast-compile recipes |
-| [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) | Node system — lifecycle, MetaStorage, two-level hierarchy, per-node reference |
-| [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) | Pipeline model, definition JSON, dispatch protocol, Loom bridge |
-
-#### Module layout (`cortex/`)
-
-```
-cortex/
-├── api/                 # Public interfaces: Cortex, CortexOptions, CortexNode, LoomMedia,
-│                        #   NodeResult, ResultState, MetaStorage
-├── common/              # Shared impls: MetaStorageImpl, CortexOptionsLoader, LoomMediaLoader
-├── fs/                  # Filesystem scanner (Linux xattr support)
-├── core-media/          # Media decorator types (HashMedia, FacedetectMedia, …) + AssertJ helpers
-├── nodes/               # Concrete processing nodes (parent POM)
-│   ├── common-api/, filter-api/, source-api/   # Node APIs & descriptors
-│   ├── filesystem-source/  # Filesystem source node + FilesystemMediaScanner
-│   ├── hash/            #   SHA-512, SHA-256, MD5, chunk-hash
-│   ├── fingerprint/     #   Video fingerprinting
-│   ├── facedetect/      #   Face detection + embeddings (InspireFace)
-│   ├── thumbnail/       #   Contact-sheet thumbnail generation
-│   ├── consistency/     #   Zero-chunk detection
-│   ├── dedup/           #   SHA-512 / fingerprint deduplication
-│   ├── quality/         #   Resolution, blurriness, bitrate metrics
-│   ├── scene-detection/ #   Optical-flow scene boundary detection (incl. frame boundaries)
-│   ├── ocr/             #   Text extraction (Tesseract)
-│   ├── tika/            #   Apache Tika metadata extraction
-│   ├── whisper/         #   Speech-to-text (whisper.cpp) — reference for Loom write-back
-│   ├── llm/             #   Metadata extraction (Ollama LLM)
-│   ├── captioning/      #   Image & video captioning (SmolVLM, Qwen2.5-VL)
-│   └── loom/            #   Loom sync node
-├── processor/           # MediaProcessor + FilesystemProcessor (CLI-driven batch)
-├── core/                # Runtime wiring: CortexImpl, CLI commands, Dagger modules,
-│                        #   LoomControlChannel, PipelineTaskHandler, RegistryNodeFactory
-├── cli/                 # CLI entry point (CortexCLIMain), Dagger component, shade plugin,
-│                        #   PipelineNodeFactoryModule (node-type registry)
-├── container/           # Containerfile + build-container.sh for the OCI image
-├── pipeline-api/        # Pipeline, PipelineNode, PipelineExecutor, events, cache SPIs
-├── pipeline-core/       # DefaultPipeline, ReactivePipelineExecutor, AbstractPipelineNode, filters
-├── pipeline-common/     # DefaultPipelineEventBus, cache impls, DefaultLoomBulkSyncCollector
-└── node-runtime/        # Task runners for Loom-dispatched work: NodeTaskRunner, SourceTaskRunner,
-                         #   SegmentTaskRunner, ResultBatcher, NodeResultMapper
-```
-
-#### Key classes reference (Cortex)
-
-| Class | Package | Purpose |
-|-------|---------|---------|
-| `Cortex` / `CortexImpl` | `io.metaloom.cortex` / `.impl` | Top-level interface & implementation; lifecycle |
-| `CortexCLIMain` | `io.metaloom.cortex.cli` | `main()`; builds Dagger component, runs CLI |
-| `CortexComponent` | `io.metaloom.cortex.cli.dagger` | Dagger component wiring all modules |
-| `PipelineNodeFactoryModule` | `io.metaloom.cortex.cli.dagger` | **Registers executable pipeline node types** — see §6 gotcha |
-| `NodeCollectionModule` | `io.metaloom.cortex.cli.dagger` | Provides every concrete Cortex node to DI |
-| `CortexBootstrapInitializer` | `io.metaloom.cortex.impl.boot` | Starts monitoring HTTP + Loom control channel |
-| `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom: registration, heartbeat, tasks |
-| `PipelineTaskHandler` | `io.metaloom.cortex.impl.loom` | Runs `SOURCE_TASK` / `NODE_TASK` / `SEGMENT_TASK` |
-| `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` | Maps a JSON node `type` to a concrete node; unknown → stub |
-| `NodeTaskRunner` | `io.metaloom.cortex.runtime` | Executes one node task; exceptions become `FAILED` results |
-| `NodeResultMapper` | `io.metaloom.cortex.runtime` | Maps Cortex `ResultState` → wire `NodeTaskResult` state |
-
-#### Online vs offline mode
-
-| Mode | Condition | Behaviour |
-|------|-----------|-----------|
-| **Online (primary)** | `LOOM_HOST` + `LOOM_PORT` configured | Registers over the processor WebSocket, receives source/node/segment tasks, writes results back |
-| **Offline** | No Loom host configured | Standalone; driven by the `cortex process run` CLI command |
-
-#### Build commands
-
-```bash
-mvn -T 8 clean package -DskipTests -pl cortex -am        # All cortex modules
-mvn -T 8 clean package -DskipTests -pl cortex/cli -am    # CLI/daemon shaded JAR
-mvn -T 8 test -pl cortex                                 # Tests
-cortex/container/build-container.sh                      # Container image
-```
-
----
-
-### 3.3 MetaLoom CLI (`cli/`)
-
-**Purpose**: PicoCLI + Dagger 2 client for Loom, shipped as a GraalVM native image. Replaced the
-dead `loom/cli` stub.
-
-| Item | Value |
-|------|-------|
-| Spec | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) — status: implemented 2026-07-26, §14 records what landed and what did not |
-| Layout | `cli/pom.xml`, `cli/src/`, `cli/build-native.sh`, `cli/README.md` |
-| Talks to | Loom REST (`loom-client/rest`) and the pipeline run lifecycle (`PipelineRunRequest`, `PipelineMethods`) |
-
-Read the plan before touching `PipelineRunRequest`, `PipelineMethods`, or the run pause/resume
-surface — the CLI commands depend on those server-side capabilities.
-
----
-
-### 3.4 Loom UI (`loom-ui/`)
-
-**Purpose**: React/Vite/TypeScript/MUI web front end.
-
-Specs: [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md), [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md),
-[loom/ui/CHAT.md](loom/ui/CHAT.md), plus the eight `TASK_UI_*.md` gap-analysis files listed in §2.
-
-#### Source layout (`loom-ui/src/`)
-
-```
-src/
-├── Admin/, Asset/, Content/, Dashboard/, Login/, Pipeline/, User/, Welcome/   # Views
-├── components/      # Shared UI components
-├── features/        # Feature-specific components (incl. features/pipeline/PipelineEditor.tsx)
-├── context/         # React context providers
-├── api/             # API client layer (chatSessions.ts, …)
-├── layout/          # Layout components
-├── theme/           # MUI theme configuration
-├── i18n/            # Internationalization
-├── mock/            # Mock data for development and mocked e2e tests
-├── img/, types/     # Static images, TypeScript types
-└── main.tsx         # Application entry point
-```
-
-#### Commands & test tooling
-
-```bash
-npm run dev          # Dev server
-npm run build        # Production build
-npm run test:e2e     # Playwright E2E (also used for component tests, against mocked APIs)
-```
-
-> **Testing convention**: component-level tests are Playwright *mocked* e2e specs (e.g.
-> `e2e/chat-sessions-mocked.spec.ts`) — there is no RTL/jsdom setup. Pure logic is tested with
-> node-environment vitest.
-
-Config files: `package.json`, `vite.config.ts`, `tsconfig.json`, `playwright.config.ts`.
-
----
-
-### 3.5 Website (`website/`)
-
-**Purpose**: Hugo static site — marketing landing page, blog, and **customer-facing product
-documentation**. Spec: [website/WEBSITE.md](website/WEBSITE.md).
-
-```
-website/
-├── config.toml      # Hugo config (baseURL https://metaloom.io, theme meghna-hugo, publishDir dist)
-├── content/         # Main content — customer docs live in content/english/docs
-├── content-off/     # Disabled/archived content
-├── data/, i18n/, static/, themes/, resources/
-├── dist/            # Build output
-├── build.sh, watch.sh
-└── pom.xml          # Maven wrapper (CI)
-```
-
-🔴 Per [guidelines/CODING.md](guidelines/CODING.md): new customer-facing features **must** get a
-page under `website/content/english/docs`, written for customers — no spec-file references, no
-internal class names.
-
----
-
-### 3.6 Integration Testing (`integration-test/`)
-
-Cross-module tests that boot the Loom stack and drive it via `LoomHttpClient`, plus per-node
-end-to-end Cortex tests.
-
-```
-integration-test/
-├── pom.xml
-└── src/test/java/io/metaloom/loom/test/integration/
-    ├── AbstractIntegrationTest.java            # Base class with LoomHttpClient setup
-    ├── BasicIntegrationTest.java
-    ├── LoomExtensionHelper.java
-    └── PipelinePersistenceIntegrationTest.java
-```
-
-Key dependencies: `loom-container-server`, `loom-client-rest`, `cortex-cli`,
-`cortex-pipeline-core`, `loom-test-env`, `loom-fixture`.
-
-```bash
-./it.sh                        # Convenience script (pool setup + tests)
-mvn verify -pl integration-test
-```
-
-> Cortex node E2E tests live here too. When they fail after a Cortex change, rebuild the shaded
-> `cortex/cli` JAR and the container image — the tests run against the packaged artifact, not the
-> reactor classes.
-
----
-
-### 3.7 End-to-End Testing (`e2e-test/`)
-
-Full end-to-end tests against a packaged container deployment.
-
-```
-e2e-test/
-├── pom.xml, run-e2e.sh, config/
-└── src/test/java/io/metaloom/loom/studio/test/E2ETest.java
-```
-
-```bash
-./e2e.sh
-mvn test -Dloom.external=true -pl e2e-test   # Against an already-running container
-```
-
----
-
-### 3.8 Examples (`examples/`)
-
-| Example | Description |
-|---------|-------------|
-| `cortex-custom/` | Extending Cortex with custom code (includes its own `PipelineNodeFactoryModule`) |
-| `cortex-custom-node/` | Implementing a custom Cortex processing node |
+change — otherwise the pooled databases are stale and failures are misleading.
 
 ---
 
@@ -689,25 +411,25 @@ mvn test -Dloom.external=true -pl e2e-test   # Against an already-running contai
 
 ### 4.1 Authentication & authorization
 
-| Component | Mechanism |
-|-----------|-----------|
+| Surface | Mechanism |
+|---------|-----------|
 | REST API | JWT bearer tokens (HMAC-signed), `__Host-loom_token` cookie |
-| WebSocket | `?token=<jwt>` query parameter (browsers cannot set headers on WS upgrade), strict/lenient mode |
+| WebSocket | `?token=<jwt>` query parameter (browsers cannot set headers on WS upgrade); strict vs lenient via `LOOM_WS_STRICT_AUTH` |
 | OAuth2 | BFF pattern with PKCE (Keycloak, Auth0, Okta) |
 | API tokens | CRUD at `/api/v1/tokens`, with scoped permissions |
-| Permissions | Vert.x `PermissionBasedAuthorization` (e.g. `CREATE_USER`, `READ_ASSET`, `CREATE_SKILL`) |
+| Permissions | Vert.x `PermissionBasedAuthorization` (`CREATE_USER`, `READ_ASSET`, `READ_DEDUP`, `READ_SEARCH`, …) |
 
-Details: [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) (model +
-enforcement) and [features/rbac/RBAC.md](features/rbac/RBAC.md) (taxonomy + known gaps).
+Details: [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) and
+[features/rbac/RBAC.md](features/rbac/RBAC.md).
 
 ### 4.2 Database & persistence
 
 | Layer | Technology |
 |-------|------------|
 | Primary DB | PostgreSQL |
-| ORM | jOOQ (code-generated into `loom/db/jooq/src/jooq/java`) |
+| ORM | jOOQ (generated into `loom/db/jooq/src/jooq/java`) |
 | Migrations | Flyway — `loom/db/flyway/src/main/resources/db/migration/` |
-| DAO pattern | Interface in `loom/db/api`, impls in `loom/db/jooq` (production) and `loom/db/memory` (tests) |
+| DAO pattern | Interface in `loom/db/api`, impls in `loom/db/jooq` (prod) and `loom/db/memory` (tests, ⚠️ no pipeline DAOs) |
 | Test DB | Leased from the external `testdatabase-provider` service via `loom-test-env` |
 
 ### 4.3 Event systems
@@ -715,59 +437,72 @@ enforcement) and [features/rbac/RBAC.md](features/rbac/RBAC.md) (taxonomy + know
 | System | Scope | Transport | Purpose |
 |--------|-------|-----------|---------|
 | Cortex PipelineEventBus | In-process (Cortex) | Java pub/sub | Internal node coordination, caching |
-| Vert.x EventBus | Vert.x instance (Loom) | Vert.x EventBus | MCP tool dispatch only (`mcp.tool.<name>`) |
+| Vert.x EventBus | Loom | Vert.x EventBus | MCP tool dispatch only (`mcp.tool.<name>`) |
 | Processor WebSocket | Loom ↔ Cortex | Raw `ServerWebSocket` | Registration, heartbeat, task dispatch & results |
 | Pipeline-events WebSocket | Loom → UI | Raw `ServerWebSocket` | Fan-out of run/node events to browsers |
 
-### 4.4 Environment variables (most used)
+### 4.4 Loom environment variables
 
-Loom — see [loom/CONFIGURATION.md](loom/CONFIGURATION.md) for the full list:
+Full list: [loom/CONFIGURATION.md](loom/CONFIGURATION.md). Declared via `@EnvironmentVariable` on the
+options classes in `loom-shared/api/.../options/`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `LOOM_CONF_FILENAME` | — | Path to the Loom YAML config file |
 | `LOOM_NAME` | — | Instance name |
 | `LOOM_SERVER_REST_PORT` | `8092` | REST/WebSocket port |
 | `LOOM_SERVER_GRPC_PORT` / `_BIND_ADDRESS` | `8091` | gRPC listener |
 | `LOOM_SERVER_MON_PORT` | `8989` | Monitoring/health/metrics port |
 | `LOOM_SERVER_MCP_PORT` | `4041` | MCP server port |
-| `LOOM_DB_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | `5432` for port | PostgreSQL connection |
+| `LOOM_DB_HOST` / `_PORT` / `_NAME` / `_USERNAME` / `_PASSWORD` | `5432` (port) | PostgreSQL connection — 🔴 note the Helm bug in §6 |
 | `LOOM_DB_MIN_POOL_SIZE` / `_MAX_POOL_SIZE` | — | Connection pool sizing |
 | `LOOM_INITIAL_PASSWORD` | — | Bootstrap admin password |
 | `LOOM_TOKEN_EXPIRATION_TIME` | — | JWT lifetime |
 | `LOOM_STORAGE_UPLOAD_DIR` | — | Upload storage directory |
 | `LOOM_OAUTH*` | — | OAuth2 provider settings (Keycloak/Auth0/Okta) |
+| `LOOM_WS_STRICT_AUTH` | lenient | Reject unauthenticated WebSocket upgrades (read directly via `System.getenv`) |
 | `LOOM_MCP_AUTH_ENABLED` / `_STRICT_MODE` / `_ALLOWED_ORIGINS` | — | MCP authentication |
 | `LOOM_AI_ENABLED` / `_PROVIDER_TYPE` / `_URL` / `_MODEL_ID` | — | Chat agent LLM provider |
 | `LOOM_AI_STREAMING` / `_THINK_ENABLED` / `_MAX_TURNS` / `_CONTEXT_WINDOW` / `_TOOL_TIMEOUT_MS` / `_TITLE_GENERATION` | — | Agentic loop tuning |
 | `LOOM_AGENT_MEMORY_MOUNT_PATH` / `_MAX_SCOPE_BYTES` | — | Agent memory bank |
 | `LOOM_AGENT_SANDBOX_*` | — | Coding sandbox (namespace, limits, timeouts, workspace size) |
+| `LOOM_SEARCH_ENABLED` / `_PROVIDER` | off / — | Master switch; backend: `postgres`, `elasticsearch`, `none`. Off ⇒ search routes answer 503 |
+| `LOOM_SEARCH_DEFAULT_LIMIT` / `_MAX_LIMIT` / `_MAX_OFFSET` | — | Paging and deep-paging guard (over `_MAX_OFFSET` ⇒ 400) |
+| `LOOM_SEARCH_HIGHLIGHT_ENABLED` / `_TS_CONFIG` / `_BODY_MAX_BYTES` | — | `ts_headline` snippets, text-search config, indexed-body cap (tsvector limit is 1 MB) |
+| `LOOM_SEARCH_TRIGRAM_THRESHOLD` / `_TRIGRAM_WEIGHT` | — | pg_trgm fuzzy-match cutoff and its weight in the blended score |
+| `LOOM_SIMILARITY_ENABLED` / `_INDEX_PATH` / `_ALGORITHM` / `_TOPK` / `_SCORE_THRESHOLD` | off | Lucene fingerprint index; failure to open falls back to `NoopSimilarityIndex`, never blocks boot |
 
-Cortex — see [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md):
+> `LOOM_CONF_FILENAME` is **not** an environment variable. `LoomEnv.LOOM_CONF_FILENAME` is a
+> compile-time constant (`"loom.yml"`) used to build the classpath/`/etc`/`~/.config`/`config`
+> probe paths. Nothing reads an env var of that name. `LOOM_UI_DIR` exists only in `e2e-test`.
+
+### 4.5 Cortex environment variables
+
+Full list: [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md). CLI flags map to env vars in
+`EnvDefaultProvider`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `LOOM_HOST` | — | Loom host; **its presence selects online mode** |
 | `LOOM_PORT` | `8092` | Loom REST/WebSocket port |
 | `LOOM_TOKEN` | — | API token used to register and write results |
-| `CORTEX_CONF_FILENAME` | — | Path to `cortex.yml` |
+| `CORTEX_CONF_FILENAME` | — | Path to `cortex.yml` (🔴 never read on the CLI/server path — §6) |
 | `CORTEX_NODE_ID` | — | Worker identity reported at registration |
 | `CORTEX_META_PATH` | — | Local metadata/index directory |
 | `CORTEX_MONITORING_PORT` | `8093` | Health/readiness/metrics port |
 | `CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST` | — | Enable/disable node kinds on this worker |
+| `CORTEX_DRAIN_TIMEOUT_MS` | `30000` | Shutdown-hook budget for flushing and draining in-flight work |
+| `CORTEX_S3_ENDPOINT` / `_REGION` / `_ACCESS_KEY` / `_SECRET_KEY` / `_PATH_STYLE` | — | S3 connection; without these the `s3-source` kind is not advertised |
+| `CORTEX_S3_INDEX_PATH` / `_CACHE_PATH` / `_MAX_CACHE_BYTES` / `_MAX_OBJECT_SIZE` | — | Differential-scan index and local object cache |
+| `CORTEX_S3_EVENTS_ENABLED` / `_MODE` / `_QUEUE_URL` / `_WEBHOOK_PATH` / `_WEBHOOK_SECRET` / `_MAX_BUFFERED_KEYS` / `CORTEX_S3_RECONCILE_INTERVAL_MS` | — | Event-driven S3 ingestion (24 `CORTEX_S3_*` mappings in total) |
 
-### 4.5 Configuration priority (Cortex)
-
-1. **CLI flags** (highest) → 2. **environment variables** → 3. **YAML config file**
-(`~/.config/metaloom/cortex.yml`) → 4. **code defaults**.
-⚠️ The YAML layer is not read on the server path — see [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md).
+**Configuration priority (Cortex)**: CLI flags → environment variables → YAML file → code defaults.
+⚠️ The YAML layer is dead on this path — see §6.
 
 ### 4.6 Dagger dependency injection
 
-Both Loom and Cortex use **Dagger 2**:
-- Generated components under `target/generated-sources/annotations`
-- Multibindings for extensibility (`Set<MCPTool>`, `Set<LoomMetaTypeHandler>`, node collections)
-- Subcomponents for request-scoped DI (`RestComponent` per REST request)
+Both components use **Dagger 2**: generated components under `target/generated-sources/annotations`,
+multibindings for extensibility (`Set<MCPTool>`, node collections, `@IntoMap @StringKey` node kinds),
+and subcomponents for request scope (`RestComponent` per REST request).
 
 ---
 
@@ -776,15 +511,15 @@ Both Loom and Cortex use **Dagger 2**:
 | Need | Look Here |
 |------|-----------|
 | Coding rules for any change | [guidelines/CODING.md](guidelines/CODING.md) |
-| Rules for writing a spec | [SPEC_RULES.md](SPEC_RULES.md), format for task files: [TASKS.template.md](TASKS.template.md) |
+| Rules for a new Cortex node | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) |
+| Rules for writing a spec / task file | [SPEC_RULES.md](SPEC_RULES.md), [TASKS.template.md](TASKS.template.md) |
 | REST endpoint implementations | `loom/services/rest/.../endpoint/impl/` |
 | REST request/response DTOs | `loom-shared/rest-model/` |
 | Java REST client | `loom-client/rest/` (`LoomHttpClient`) |
-| Custom AssertJ assertions | `loom-shared/rest-model-test/.../assertj/` and `cortex/**/test/**/assertj/` |
+| Custom AssertJ assertions | `loom-shared/rest-model-test/.../assertj/`, `cortex/core-media/src/test/.../assertj/` |
 | JWT / login / OAuth2 | `loom/services/auth/` |
-| Permission enum & enforcement | `loom/db/api` (permission model), `loom/services/rest/.../endpoint/` |
-| DAO interfaces | `loom/db/api/` |
-| jOOQ DAO implementations | `loom/db/jooq/` |
+| Permission enum | `loom/db/api/.../model/perm/Permission.java` |
+| DAO interfaces / jOOQ impls | `loom/db/api/` · `loom/db/jooq/` |
 | Generated jOOQ tables | `loom/db/jooq/src/jooq/java/…` (regenerate with `loom/db/jooq/generate.sh`) |
 | SQL migrations | `loom/db/flyway/src/main/resources/db/migration/` |
 | Test DB pool setup | `./setup-pool.sh`, `loom-test-env/`, `loom/fixture/`, `loom/DEVELOPMENT.md` |
@@ -792,27 +527,30 @@ Both Loom and Cortex use **Dagger 2**:
 | **Loom-side pipeline engine & graph** | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/{engine,graph}/` |
 | Pipeline REST endpoints & services | `loom/services/rest/.../endpoint/impl/Pipeline*.java`, `.../service/impl/` |
 | Pipeline dispatch protocol model | `loom-shared/pipeline-model/` (`NodeTask`, `NodeTaskResult`) |
+| **Node descriptors** (kinds, ports, parameters) | `loom-shared/node-model/.../nodes/spec/` + its `META-INF/services/` provider list |
+| Generated descriptor snapshots | `loom/doc/src/main/generated/node-descriptors.json`, `website/static/pipeline-editor/node-descriptors.json` |
+| Descriptor↔node port conformance test | `integration-test/.../node/NodePortConformanceTest.java` |
 | Cortex task runners | `cortex/node-runtime/src/main/java/io/metaloom/cortex/runtime/` |
 | Loom↔Cortex control channel & task handler | `cortex/core/.../impl/loom/` |
-| Pipeline node type registration | `cortex/cli/.../dagger/PipelineNodeFactoryModule.java` |
-| Cortex processing nodes | `cortex/nodes/` |
-| Cortex pipeline engine (legacy in-Cortex DAG) | `cortex/pipeline-api/`, `cortex/pipeline-core/`, `cortex/pipeline-common/` |
-| Pipeline DB migrations | `loom/db/flyway/.../V2.19__add_pipeline.sql`, `V2.29__add_pipeline_run.sql`, `V2.30__add_pipeline_version.sql` |
+| Node kind registration | the node's own module (`@Binds @IntoMap @StringKey`) + `cortex/cli/.../dagger/RegistryNodeRegistrar.java` |
+| Cortex processing nodes | `cortex/nodes/` (26 modules) |
+| Shared S3 support for nodes | `cortex/s3-common/` (design currently only in `NODE_S3SOURCE_PLAN.md`) |
+| Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
+| **Lexical search** | `loom/db/jooq/.../search/PostgresSearchProvider.java`, `loom/core/.../dagger/SearchModule.java`, `loom/services/rest/.../endpoint/impl/SearchEndpoint.java` |
+| Search schema | `V2.57__add_search_permission.sql`, `V2.58__add_search_document.sql`, `V2.59__add_search_triggers.sql` |
+| **Fingerprint similarity** | `loom/services/lucene/.../similarity/`, `loom/core/.../dagger/SimilarityModule.java`, `SimilarityIndexEndpoint` |
+| Dedup | `V2.61__add_dedup_group.sql`, `V2.62__add_dedup_permission.sql`, `loom/db/api/.../model/dedup/`, `cortex/nodes/dedup/` |
+| Pipeline DB migrations | `V2.19__add_pipeline.sql`, `V2.29__add_pipeline_run.sql`, `V2.30__add_pipeline_version.sql`, `V2.56__pipeline_run_paused_status.sql`, `V2.60__pipeline_node_task_element_seq.sql` |
 | Chat / agent DB migrations | `V2.28__add_chat`, `V2.36__add_skill`, `V2.37__add_skill_version`, `V2.52__add_chat_session`, `V2.53__add_agent_memory`, `V2.54` (memory deny rules) |
 | Node result persistence | `V2.45__add_asset_node_result`, `AssetEndpoint` `/api/v1/assets/:uuid/node-results` |
-| Search (spec only — **not implemented**) | [features/search/SEARCH.md](features/search/SEARCH.md), [features/search/SEARCH_PLAN.md](features/search/SEARCH_PLAN.md); empty stub modules `loom/services/{lucene,elasticsearch,qdrant}/` (pom-only, no `src/`) |
-| Embeddings / vector search (spec only) | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md); `V2.43__rework_detection_embedding.sql` (`embedding.vector real[]`, no ANN index, zero rows) |
 | Chat / agent code | `loom/agent/{chat,memory,sandbox}/` |
-| Pipeline UI editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
-| UI API client layer | `loom-ui/src/api/` |
+| Pipeline UI editor / UI API client | `loom-ui/src/features/pipeline/PipelineEditor.tsx` · `loom-ui/src/api/` |
 | Documentation source (AsciiDoc) | `loom/doc/src/main/docs/` |
 | Customer-facing docs | `website/content/english/docs/` |
 | Container builds | `loom/containers/`, `cortex/container/` |
-| Helm charts | `helm/loom/`, `helm/cortex/` (specs: [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md)); custom worker images: `examples/cortex-custom/`, `examples/cortex-python/` |
+| Helm charts | `helm/loom/`, `helm/cortex/` |
 | DB diagram | `loom/design/DB/dbdiagram.yaml` |
-| Integration tests | `integration-test/src/test/java/io/metaloom/loom/test/integration/` |
-| E2E tests | `e2e-test/src/test/java/io/metaloom/loom/studio/test/` |
-| Examples | `examples/cortex-custom/`, `examples/cortex-custom-node/` |
+| Integration / E2E tests | `integration-test/src/test/java/…` · `e2e-test/src/test/java/…` |
 
 ---
 
@@ -822,32 +560,35 @@ Both Loom and Cortex use **Dagger 2**:
 |------|---------------------|
 | **Test DB pool** | 🔴 Run `./setup-pool.sh` before tests **and after every Flyway change** — otherwise pooled DBs are stale and failures are misleading (`Pool not found {loom-dev}`) |
 | **Java packages** | Backend `io.metaloom.loom.*`; processing `io.metaloom.cortex.*` — do not mix |
-| **Dagger** | After changing generic types on nodes/services, or an endpoint constructor, do a **clean rebuild** of `loom/core` — stale generated code surfaces as `NoSuchMethodError` during setup-pool/tests |
-| **jOOQ generated sources** | Live in `src/jooq/java`; never edit by hand — rerun `loom/db/jooq/generate.sh` after schema changes; converters are configured via `forcedTypes` in that pom |
-| **New DB fields** | Need (a) Flyway `V*.sql`, (b) jOOQ regeneration, (c) DAO API change in `loom/db/api`, (d) impl updates in `loom/db/jooq` **and** `loom/db/memory`, (e) contract tests in `loom/db/api-test` |
-| **Delete DAOs** | Must have delete-cascade tests proving only the intended rows disappear (CODING.md § DAO) |
-| **`user_permission` PK** | Only one direct grant per user — grant test permissions via group+role instead (`SkillEndpointTest` is the pattern) |
-| **REST paths** | Always plural for method-carrying paths (CODING.md § REST) |
-| **REST updates** | `POST` creates **and** updates on all endpoints (backwards compatibility). User/Group/Asset also support `PATCH` (partial) and `PUT` (full replace — 400 if a replaceable field is missing). See [RESTAPI.md](loom/RESTAPI.md) §1.2 |
-| **REST tests** | Endpoint test + fine-grained permission cases are part of "done", not follow-up work |
-| **WebSocket auth** | Token via `?token=<jwt>` query param |
+| **Dagger** | After changing generic types on nodes/services, or an endpoint constructor, **clean-rebuild `loom/core`** — stale generated code surfaces as `NoSuchMethodError` during setup-pool/tests |
+| **jOOQ generated sources** | Live in `src/jooq/java`; never edit by hand — rerun `loom/db/jooq/generate.sh`; converters via `forcedTypes` in that pom |
+| **New DB fields** | Need (a) Flyway `V*.sql`, (b) jOOQ regeneration, (c) DAO API change in `loom/db/api`, (d) impls in `loom/db/jooq` **and** `loom/db/memory`, (e) contract tests in `loom/db/api-test` |
+| **Delete DAOs** | Must have delete-cascade tests proving only the intended rows disappear |
+| **`user_permission` PK** | Only one direct grant per user — grant test permissions via group+role (`SkillEndpointTest` is the pattern) |
+| **REST paths** | Always plural for method-carrying paths |
+| **REST updates** | `POST` creates **and** updates everywhere (backwards compatibility). User/Group/Asset also support `PATCH` (partial) and `PUT` (full replace — 400 if a replaceable field is missing). [RESTAPI.md](loom/RESTAPI.md) §1.2 |
 | **Test assertions** | Use the domain-specific `AbstractAssert` subclasses — do not hand-roll equality checks |
-| **Cortex node hierarchies** | Two of them: Cortex-level (CLI/processor) and Pipeline-level (DAG), bridged by `CortexNodeAdapter`. Never extend both bases |
-| **Pipeline graph rules** | Exactly one source node; node IDs must match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
-| **Definition JSON** | ✅ Loom's `PipelineGraphParser` resolves the top-level `edges[]` array, falling back to `nodes[].dependencies[]` when no edges are present; when both exist **`edges` wins**. Older notes claiming edges are ignored describe the deleted Cortex-side `LoomPipelineLoader` and are stale |
-| **Executable node kinds** | ✅ The executable-kind set is now **derived from the node collection**, not hand-maintained. Each node module declares its kind with a one-line `@Binds @IntoMap @StringKey("<kind>") FilesystemNode` binding; `NodeRegistrar` (impl `RegistryNodeRegistrar`) populates the `RegistryNodeFactory` registry at Cortex bootstrap (before the control channel registers), so the announced `nodeWhitelist` reflects every wired node (whisper, ocr, tika, quality, scene-detection, facedetect, llm, consistency, fingerprint, captioning, loom, sha512-dedup, …), plus the `filesystem-source`/`asset-source` producers. To add a kind, add the map binding in that node's module — **not** in `PipelineNodeFactoryModule`. Deliberate exclusions: `fingerprint-dedup` (stub) and `facedescription` (unwired). Registration is lazy (`Provider`), so advertising a kind never constructs the node |
-| **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph (not just the source) against `ProcessorRegistry`; if any kind has no online worker that accepts it, the run is rejected with **503** naming the kinds (`PipelineEndpointService.unsupportedNodeKinds`). Previously only the source kind was checked and an unsupported downstream kind started a run that stalled mid-flight |
-| **Per-instance node options** | ✅ Node parameters from the pipeline definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); `RegistryNodeRegistrar.adapt()` otherwise reads only the structural fields and takes options from the worker's YAML. Two defects that meant editor-set parameters had **never** reached a worker are fixed: the editor emitted `config` where `PipelineGraphParser` reads `options` (the alias is still accepted), and sidebar edits were discarded on save because `getGraphJson()` serialises the canvas. See [NODES.md](features/pipeline-nodes/NODES.md) §5.1 |
-| **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Eleven nodes use `.next()` on their failure paths and therefore report success. Use `ctx.failure(msg).abort()` in new nodes |
-| **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation; copy its shape for a new node |
-| **Node data is addressed by port** | A node declares typed `InputPort`/`OutputPort` constants and reads `ctx.input(PORT)` / `ctx.inputs(PORT)`; the **edge** says where the data comes from. `NodeOutputKey` and `ctx.upstreamOutput(nodeId, key)` are deleted — **never reintroduce a node-id-keyed lookup or a `"nodeId:outputKey"` option**. Content types are `family/subtype` ids from `ContentTypeRegistry`, checked by `ContentTypeLattice.isAssignable` at save time and at run start; `ValueCoercer` runs at both wire boundaries, so `scalar/integer` is always `Long` and the old narrowing is gone. See [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
-| **Cardinality drives fan-out** | A `MANY` output port makes every downstream node with a `ONE` input run **once per element**; a `MANY` input **gathers** the whole branch and runs once. Nothing in the definition JSON declares this — it falls out of the declared ports. The gather barrier is `NodeExecState.isSettled()`, not a merge node |
-| **Every edge carries ports** | `sourcePort` + `targetPort` are required; the branch key is `branch` (not `edgeType`). A definition with no `edges` array falls back to inline `dependencies[]` and then skips port validation entirely — a known hole |
-| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; running it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. 25 providers declare 39 kinds. `tts` and `imagegen` gained descriptors in the port refactor; still visible-but-not-runnable: `hash-dedup` (bound as `sha512-dedup`), `facedescription`, the eight `filter-*` kinds and `loom-fetch`. **The descriptor's ports are now an enforced contract**, and they must equal the node's `InputPort`/`OutputPort` constants — nothing checks that yet |
-| **Cortex `cortex.yml`** | 🔴 Not read on the server path, despite [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md) |
-| **Cortex shutdown** | 🔴 No shutdown hook — `SIGTERM` abandons in-flight work and loses buffered results |
-| **Pipeline validation** | *Structural* rules (node ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a copy |
-| **MCP tools** | Registered via Dagger multibinding (`Set<MCPTool>`), dispatched over the Vert.x EventBus (`mcp.tool.<name>`) |
+| **Node data is addressed by port** | A node declares typed `InputPort`/`OutputPort` constants and reads `ctx.input(PORT)` / `ctx.inputs(PORT)`; the **edge** says where data comes from. `NodeOutputKey` and `ctx.upstreamOutput(nodeId, key)` are deleted — **never reintroduce a node-id-keyed lookup**. Content types are `family/subtype` ids checked by `ContentTypeLattice.isAssignable`; `ValueCoercer` runs at both wire boundaries. See [NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) |
+| **Cardinality drives fan-out** | A `MANY` output makes every downstream `ONE` input run **once per element**; a `MANY` input **gathers** the branch and runs once. Nothing in the JSON declares this — it falls out of the ports. The gather barrier is `NodeExecState.isSettled()`, not a merge node |
+| **Every edge carries ports** | `sourcePort` + `targetPort` are **required**; the branch key is `branch` (not `edgeType`). `nodes[].dependencies[]` is **rejected outright** by `PipelineGraphParser` — the old "inline fallback" behaviour is gone |
+| **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
+| **Pipeline validation** | *Structural* rules (ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a third copy |
+| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **26 providers declare 41 kinds; 33 kinds are runnable with S3 configured, 32 without** (30 `@StringKey` bindings + `filesystem-source` + `asset-source` + conditional `s3-source`). Visible but not runnable: `facedescription`, `loom-fetch` and the eight `filter-*` kinds. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
+| **🔴 No `filter-*` kind is runnable** | The eight filter classes have no `@StringKey` binding, so the 503 precheck (which consults the worker registry) does not reject a filter graph up front — the run dispatches and then **fails at the worker**. Wire the binding before advertising filters |
+| **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
+| **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
+| **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/pipeline-nodes/NODES.md) §5.1 |
+| **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Several nodes still report success on their failure paths. Use `ctx.failure(msg).abort()` in new nodes |
+| **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation |
+| **Two `NodeState` vocabularies** | They *are* reconciled: `NodeResultMapper.toWireState()` maps SUCCESS→COMPLETED, SKIPPED→SKIPPED, FAILED/null→FAILED. The wire enum's extra `PENDING`/`RUNNING` are never produced by a terminal result |
+| **Cortex `cortex.yml`** | 🔴 Genuinely never read on the CLI/server path — `CortexOptionsLoader.load()` has no caller. Worse, the container/Helm config path is `/config` while the loader would probe `${user.home}/.config/metaloom/` — the two disagree even if the caller were restored |
+| **Cortex shutdown** | ✅ `CortexImpl.registerShutdownHook()` → `syncCollector.flush()` → `drain()`, bounded by `CORTEX_DRAIN_TIMEOUT_MS` (default 30 s). SIGTERM does **not** abandon buffered results |
+| **Loom shutdown** | 🔴 Loom has **no JVM shutdown hook** — SIGTERM skips `deinit()`. Only Cortex drains |
+| **Reconnect backoff** | Cortex is **linear**: `min(RECONNECT_BASE_DELAY_MS × attempt, 30 000)` in `LoomControlChannel`. Only the *UI* uses exponential backoff with jitter. Any spec calling the worker backoff exponential is wrong |
+| **🔴 Helm `LOOM_AUTH_KEYSTORE_PATH`** | Set by the chart, read by nothing: `AuthModule` resolves `keystore.jceks` under `baseConfigFolder()`. Mount the keystore there instead |
+| **Search is a capability, not a dependency** | `SearchModule`/`SimilarityModule` never fail boot: an unusable backend binds a Noop impl and the routes answer 503 (search) or reject (similarity). `/api/v1/search/status` answers 200 even when search is unavailable |
+| **Semantic search seams** | `SearchMode.SEMANTIC`/`HYBRID` and `SearchRequest.{mode,profile,clusterUuid}` exist and return an honest **400** — the vector backend does not. Do not read the enum as evidence of an implementation |
+| **MCP tools** | Registered via Dagger multibinding (`Set<MCPTool>`), dispatched over the Vert.x EventBus (`mcp.tool.<name>`). They still query the DB directly rather than going through the search provider |
 | **UI tests** | Component tests are Playwright *mocked* e2e specs; pure logic uses node-env vitest. No RTL/jsdom |
 | **Cortex node E2E tests** | Live in `integration-test/`; rebuild the shaded `cortex/cli` JAR and container before running them |
 | **Spec ↔ code drift** | Spec footers carry a verification date. If a claim predates the code you are reading, verify before believing — and fix the spec in your change |
@@ -856,62 +597,76 @@ Both Loom and Cortex use **Dagger 2**:
 
 ## 7. Progress Assessment
 
-- [x] Every file under `spec/` catalogued with a description (§2)
-- [x] `guidelines/CODING.md` surfaced as a mandatory pre-read with a summary table (§0)
-- [x] `SPEC_RULES.md` surfaced as the rule set for spec edits (§0)
-- [x] Reading order and "which file do I open?" routing added (§0.3, §2.1)
-- [x] Loom module layout updated for `loom/pipeline` (engine + graph) and the full `services/` list
-- [x] Top-level `cli/` module documented; dead `loom/cli` references removed
-- [x] `loom-shared` / `loom-client` module lists corrected (`node-model`, `pipeline-model`, `report`)
-- [x] Cortex module layout updated for `node-runtime`
-- [x] Architecture diagram reflects Variant C (Loom owns the DAG)
-- [x] Environment variable tables added for Loom and Cortex (§4.4)
-- [x] Stale "edges are ignored" claim corrected against `PipelineGraphParser`
-- [x] Duplicate `METALOOM_ARCHITECTURE_V2_PLAN_C.md` entry removed; `METALOOM_ARCHITECTURE_TASK.md` added
-- [x] Cheat sheet extended with pipeline engine, agent, node-result and Helm paths
-- [ ] `spec/AGENTS.md` is a one-line stub — decide whether it should carry agent-specific rules or be deleted
-- [ ] `spec/TASKS.md` (root) is an unstructured note; fold it into [tasks/TASKS.md](tasks/TASKS.md) in the template format
-- [x] Executable node kinds are now derived dynamically from the node collection (each module contributes an
-      `@IntoMap @StringKey` binding; `NodeRegistrar` fills the registry at bootstrap) rather than a hand-maintained
-      list of 8; runs with an unschedulable kind are rejected with 503 up front — see §6
-- [ ] `cortex/CONFIGURATION.md` still documents a YAML precedence chain that does not work;
-      `cortex/CORTEX.md` still describes the reconnect backoff as exponential (it is linear)
-- [x] Search extracted into [features/search/](features/search/) (SEARCH, SEARCH_PLAN, SEMANTIC_SEARCH) —
-      note these specify a feature that **does not exist yet**; no search of any kind is implemented
+### This file
+
+- [x] All 80 files under `spec/` catalogued and matched against `find spec -name "*.md"` (§2)
+- [x] Non-existent entries removed (`AGENTS.md`, root `TASKS.md`, `tasks/TASKS.md`)
+- [x] Missing entries added: `METALOOM_NOTES.md`, `plans/`, `guidelines/NEW_NODE.md`,
+      `PIPELINE_FLOW.md`, the S3/watermark node plans
+- [x] `guidelines/NEW_NODE.md` promoted to a mandatory pre-read (§0.1, §0.3)
+- [x] Build status per file corrected — search, Lucene, dedup, depthmap, scene layout, imagegen,
+      script, dominant colour, sentiment, video captioning, S3 and watermark are all built
+- [x] §3 per-component recaps replaced with pointers to `LOOM.md` / `CORTEX.md` / `METALOOM.md`
+- [x] Deleted Cortex types purged (`MetaStorage`, media decorators, `ReactivePipelineExecutor`,
+      `DefaultPipeline`, `PipelineExecutor`, `PipelineManager`, `LoomPipelineLoader`,
+      `StubPipelineNode`) — all verified absent from the tree
+- [x] Env-var tables extended: `LOOM_SEARCH_*`, `LOOM_SIMILARITY_*`, `LOOM_WS_STRICT_AUTH`,
+      `CORTEX_DRAIN_TIMEOUT_MS`, `CORTEX_S3_*`; `LOOM_CONF_FILENAME` marked dead
+- [x] Gotchas corrected: shutdown hook exists, backoff is linear, `dependencies[]` is rejected,
+      `NodeState` vocabularies are unified, unknown kind → `null`
+- [x] Counts re-derived from source: 26 providers / 41 kinds; 33 runnable kinds (32 without S3)
+
+### Open items in the tree
+
+- [ ] 🔴 No `filter-*` kind is runnable — either wire the eight `@StringKey` bindings or drop the
+      filter descriptors so the palette stops advertising them
+- [ ] 🔴 Helm: the unread `LOOM_AUTH_KEYSTORE_PATH` (the `LOOM_DB_USER` mismatch was fixed 2026-08-02)
+- [ ] 🔴 Loom has no JVM shutdown hook — SIGTERM skips `deinit()`
+- [ ] `cortex/CONFIGURATION.md` documents a YAML precedence chain that does not work
+      (`CortexOptionsLoader.load()` has no caller); the container path `/config` and the loader's
+      `${user.home}/.config/metaloom/` probe disagree as well
+- [ ] Search has **no consumers**: no UI surface, no GraphQL field, and the MCP tools still query
+      the DB directly instead of the search provider
+- [ ] Semantic/vector search is unbuilt behind shipped API seams (§6)
+- [ ] Dedup review UI is still a mock ([NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md))
+- [ ] Chat defects F1 (vLLM tool streaming throws) and F2 (turn-granular abort) are open
+      ([CHAT_TASKS.md](features/chat/CHAT_TASKS.md)); the session filesystem snapshot and run-time
+      context assembly in [CHAT_SESSIONS_CONCEPT.md](features/chat/CHAT_SESSIONS_CONCEPT.md) are vapour
+- [ ] `objectdetect` is faces-only, which limits
+      [NODE_SCENE_LAYOUT_PLAN.md](features/pipeline-nodes/NODE_SCENE_LAYOUT_PLAN.md)
 - [ ] Assets and auth are still documented per component rather than extracted into `features/`
-- [ ] `loom/GRAPHQL.md` describes a service that is implemented but not registered — confirm and reconcile
+- [ ] `./build.sh` does not invoke `cli/build-native.sh` — the native CLI is not part of a full build
+
+### Recommended spec-tree restructuring (recorded, not yet done)
+
+- [ ] Merge `cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md` away, then delete it. Only ~40 lines are
+      unique and live: the Q1/Q4/Q5 decision rationale (→ `METALOOM_ARCHITECTURE.md`, after §14) and
+      the deferred-refinement set (→ `METALOOM_ARCHITECTURE_TASK.md` as a new section). The rest is a
+      build record. Referrers to repoint: this file, `METALOOM.md`, `plans/TASKS.md`,
+      `METALOOM_ARCHITECTURE_TASK.md`
+- [ ] Delete `plans/imagegen-node.md` — superseded draft;
+      [NODE_IMAGEGEN_PLAN.md](features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md) has absorbed its three
+      unique items
+- [ ] Fold `features/rbac/RBAC.md` into `features/permissions/PERMISSIONS.md`, leaving a stub
+      redirect — one subsystem, two drifting files
+- [ ] Move `loom/ui/CHAT.md` → `features/chat/CHAT.md`; it is ~80% server-side. `TASK_UI_CHAT.md`
+      stays as the UI document
+- [ ] Rename now-shipped plans: `CHAT_MEMORY_PLAN.md` → `CHAT_MEMORY.md`, `CLI_PLAN.md` → `CLI.md`,
+      `NODE_DOMINANT_COLOR_PLAN.md` → `NODE_DOMINANT_COLOR.md`
+- [ ] `cortex/s3-common` and `cortex/node-runtime` have **no spec owner** — the S3 design lives only
+      inside `NODE_S3SOURCE_PLAN.md`. Both are candidates for their own file
 
 ---
 
 ## 8. Related Notes
 
-⚠️ Earlier revisions of this file listed living notes under `/memories/repo/`. **That directory does
-not exist in this checkout.** Those cross-references were removed on 2026-07-18; everything that
-mattered is either in the `spec/` tree or must be re-derived from the code.
+Earlier revisions referenced living notes under `/memories/repo/`. **That directory does not exist in
+this checkout**; everything that mattered is in the `spec/` tree or must be re-derived from code.
 
-The authoritative specs are the ones catalogued in §2. When a spec and the code disagree,
-**the code wins** — and fix the spec in the same change.
-
----
-
-*This document is the primary entry point for AI coding agents. When in doubt, start here and
-follow the cross-references.*
+The authoritative specs are the ones catalogued in §2. When a spec and the code disagree, **the code
+wins** — and fix the spec in the same change.
 
 ---
 
-_Git HEAD revision: `3ba0a6ff`_
-_Last updated: 2026-07-29 (pipeline **typed-port refactor**: node data is now addressed by port, not by
-node id. Updated the spec-tree entries and routing for
-[features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) — no longer "the three type
-systems" but the reference for the built model — and for
-[features/pipeline/NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md), which is no longer
-"NOT built". Replaced the "Node output types" cheat-sheet row (`NodeOutputKey<T>` advisory, `Long` narrows,
-`contentType` unchecked — all now false) with three rows: ports and the content-type lattice, cardinality
-driving fan-out, and edges carrying ports. Corrected the descriptor-≠-registration and pipeline-validation
-rows. Previously: added [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) —
-the per-node input/output type reference: the three independent type systems (descriptor `contentType`,
-`NodeOutputKey<T>`, runtime `Map<String,Object>`), how a value is carried hop by hop and what each hop
-loses, and a full type-safety audit. Two §6 gotchas added for it. Previously: added `features/search/` —
-SEARCH.md, SEARCH_PLAN.md, SEMANTIC_SEARCH.md; these specify a feature that is **not implemented**: there is
-no search endpoint, no `q` parameter, no `LIKE` in any DAO, and `loom/services/{lucene,elasticsearch,qdrant}`
-are pom-only stubs)_
+_Git HEAD revision: `d930e222`_
+_Last updated: 2026-08-02 (registered 12 new specs: six sidecars + SIDECARS.md, five loom/services stubs, loom-app; Helm `LOOM_DB_USER` gotcha removed — fixed)_

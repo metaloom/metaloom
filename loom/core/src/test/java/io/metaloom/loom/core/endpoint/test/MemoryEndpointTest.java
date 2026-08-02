@@ -53,7 +53,7 @@ public class MemoryEndpointTest implements TestValues {
 		Role role = daos.roleDao().createRole(ADMIN_UUID, "memory-test-role");
 		daos.roleDao().store(role);
 		for (Permission perm : List.of(Permission.CREATE_MEMORY, Permission.READ_MEMORY, Permission.UPDATE_MEMORY, Permission.DELETE_MEMORY)) {
-			daos.permissionDao().grantRolePermission(role.getUuid(), perm, "test");
+			daos.permissionDao().grantRolePermission(role.getUuid(), perm);
 		}
 		Group group = daos.groupDao().createGroup(ADMIN_UUID, "memory-test-group");
 		daos.groupDao().store(group);

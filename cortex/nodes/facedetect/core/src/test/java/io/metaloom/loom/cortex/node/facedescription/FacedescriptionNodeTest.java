@@ -35,6 +35,7 @@ public class FacedescriptionNodeTest extends AbstractFacedetectMediaTest {
 
 	@Test
 	public void testProcessImage() throws IOException, LoomClientException {
+		OllamaVisionAvailability.assumeRunning();
 		BufferedImage image = ImageUtils.loadResource("/images/face_occluded.jpg");
 		for (int i = 0; i < 10; i++) {
 			FaceDescription result = mockNode().processFace(image);

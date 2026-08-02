@@ -914,7 +914,9 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   User: ["CREATE_USER", "READ_USER", "DELETE_USER", "UPDATE_USER"],
   Role: ["CREATE_ROLE", "READ_ROLE", "DELETE_ROLE", "UPDATE_ROLE"],
   Group: ["CREATE_GROUP", "READ_GROUP", "DELETE_GROUP", "UPDATE_GROUP"],
-  Project: ["CREATE_PROJECT", "READ_PROJECT", "DELETE_PROJECT", "UPDATE_PROJECT"],
+  // Renamed from Project to Space server-side; the old PROJECT constants no longer exist and a
+  // request carrying one is rejected outright, which would take the whole matrix down with it.
+  Space: ["CREATE_SPACE", "READ_SPACE", "DELETE_SPACE", "UPDATE_SPACE"],
   Cluster: ["CREATE_CLUSTER", "READ_CLUSTER", "DELETE_CLUSTER", "UPDATE_CLUSTER"],
   Collection: ["CREATE_COLLECTION", "READ_COLLECTION", "DELETE_COLLECTION", "UPDATE_COLLECTION"],
   Comment: ["CREATE_COMMENT", "READ_COMMENT", "DELETE_COMMENT", "UPDATE_COMMENT"],

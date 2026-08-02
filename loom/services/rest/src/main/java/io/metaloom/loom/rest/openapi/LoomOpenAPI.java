@@ -216,7 +216,7 @@ public class LoomOpenAPI {
 	private static Set<RESTEndpoint> endpoints(EndpointDependencies deps) {
 		ModelExamples examples = new ModelExamples();
 		Set<RESTEndpoint> endpoints = new LinkedHashSet<>();
-		endpoints.add(new AnnotationEndpoint(null, null, null, deps, examples));
+		endpoints.add(new AnnotationEndpoint(null, null, null, null, deps, examples));
 		endpoints.add(new AssetBinaryEndpoint(null, deps, examples));
 		endpoints.add(new AssetComponentEndpoint(null, deps, examples));
 		endpoints.add(new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps, examples));

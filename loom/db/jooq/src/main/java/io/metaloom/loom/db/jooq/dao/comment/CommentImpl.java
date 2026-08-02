@@ -15,6 +15,8 @@ public class CommentImpl extends AbstractEditableElement<Comment> implements Com
 
 	private UUID assetUuid;
 
+	private UUID annotationUuid;
+
 	private UUID parentUuid;
 
 	@Override
@@ -58,6 +60,17 @@ public class CommentImpl extends AbstractEditableElement<Comment> implements Com
 	@Override
 	public Comment setAssetUuid(UUID assetUuid) {
 		this.assetUuid = assetUuid;
+		return this;
+	}
+
+	@Override
+	public UUID getAnnotationUuid() {
+		return annotationUuid;
+	}
+
+	@Override
+	public Comment setAnnotationUuid(UUID annotationUuid) {
+		this.annotationUuid = annotationUuid;
 		return this;
 	}
 

@@ -1052,7 +1052,12 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 	@Override
 	public LoomClientHttpRequest<CommentListResponse> listCommentsForAnnotation(UUID annotationUuid) {
-		return getRequest("annotation/" + annotationUuid + "/comments", CommentListResponse.class);
+		return getRequest("annotations/" + annotationUuid + "/comments", CommentListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<CommentResponse> createAnnotationComment(UUID annotationUuid, CommentCreateRequest request) {
+		return postRequest("annotations/" + annotationUuid + "/comments", request, CommentResponse.class);
 	}
 
 	@Override

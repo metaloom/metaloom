@@ -88,6 +88,31 @@ public class CommentEndpointService extends AbstractCRUDEndpointService<CommentD
 		});
 	}
 
+	public void createForAnnotation(LoomRoutingContext lrc, UUID annotationUuid) {
+		create(lrc, CREATE_COMMENT, () -> {
+			CommentCreateRequest request = lrc.requestBody(CommentCreateRequest.class);
+			validator.validate(request);
+
+			UUID userUuid = lrc.userUuid();
+			String title = request.getTitle();
+			String text = request.getText();
+			Comment comment = dao().createCommentForAnnotation(userUuid, annotationUuid, title, text);
+			update(request, comment);
+			return comment;
+		}, modelBuilder::toResponse);
+	}
+
+	public void listForAnnotation(LoomRoutingContext lrc, UUID annotationUuid) {
+		checkPerm(lrc, READ_COMMENT, () -> {
+			List<Comment> comments = dao().loadForAnnotation(annotationUuid);
+			CommentListResponse response = new CommentListResponse();
+			for (Comment comment : comments) {
+				response.add(modelBuilder.toResponse(comment));
+			}
+			lrc.send(response);
+		});
+	}
+
 	public void createForTask(LoomRoutingContext lrc, UUID taskUuid) {
 		create(lrc, CREATE_COMMENT, () -> {
 			CommentCreateRequest request = lrc.requestBody(CommentCreateRequest.class);

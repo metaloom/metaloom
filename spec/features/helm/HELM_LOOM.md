@@ -14,12 +14,12 @@ single-writer rule lives in [`../../CLUSTERING.md`](../../CLUSTERING.md). Neithe
 
 ## 🔴 Known chart bugs (verified at this revision)
 
-Three env vars the chart sets are **not the names the process reads**. All three are chart-side
+Two env vars the chart sets are **not the names the process reads**. Both are chart-side
 one-liners; the Java side is correct. Fix them here, not in `loom-shared/api`.
 
 | # | Chart sets | Code actually reads | Effect | Workaround until fixed |
 |---|---|---|---|---|
-| **B1** | `LOOM_DB_USER` — `templates/deployment.yaml:59,66` | `LOOM_DB_USERNAME` — `DatabaseOptions.java:29,143` | 🔴 **Every Helm install silently connects as the default `postgres` user.** `database.user` / `postgresql.auth.username` are inert; the value falls back to `DatabaseOptions` default. Only visible as a permission/ownership error, or not at all when the bundled PG superuser happens to work. | `--set extraEnv[0].name=LOOM_DB_USERNAME --set extraEnv[0].value=loom` |
+| **B1** | ✅ **FIXED (2026-08-02)** — the chart now emits `LOOM_DB_USERNAME` | `LOOM_DB_USERNAME` — `DatabaseOptions.java:29,143` | Was: every Helm install silently connected as the default `postgres` user because `database.user` / `postgresql.auth.username` were inert. `templates/deployment.yaml:59,66` were renamed, as were `ENV LOOM_DB_USER` in `loom/containers/server/Containerfile:9` and `Containerfile.native:19`. | — |
 | **B2** | `LOOM_AUTH_KEYSTORE_PATH` — `templates/deployment.yaml:79` from `auth.keystorePath: /keystore/keystore.jks` | **nothing.** `AuthModule.java:32-33` always resolves `AuthenticationOptions.DEFAULT_KEYSTORE_FILENAME` (`keystore.jceks`) under `optionsLookup.baseConfigFolder()` | 🔴 The `persistence.keystore` PVC is mounted at `/keystore` where **nothing ever writes** — it stays empty. See the nuance below: the key is not lost, but `values.yaml` documents the wrong volume, and disabling `persistence.config` (documented as merely "configuration") destroys the JWT signing key. | Keep `persistence.config.enabled: true`. `persistence.keystore` may be set to `enabled: false` with no loss. |
 | **B3** | `LOOM_CONF_FILENAME=/etc/loom/loom.yml` — `templates/deployment.yaml:91`, ConfigMap mounted at `/etc/loom` | **nothing.** `LoomEnv.LOOM_CONF_FILENAME` (`LoomEnv.java:10`) is a compile-time constant `"loom.yml"`, never an env lookup | 🔴 **`.Values.config` is entirely inert.** Two independent reasons: the env var is not read, *and* the mount path is wrong — the loader (`LoomOptionsLoader#loadLoomOptions`) probes `/etc/metaloom/loom.yml`, `$HOME/.config/metaloom/loom.yml`, `config/loom.yml` — never `/etc/loom`. | Express settings as `extraEnv`, or mount the ConfigMap at `/etc/metaloom`. |
 
@@ -32,8 +32,8 @@ volume, not the keystore volume. The keystore **password** is generated into the
 config and keystore must never be split across volumes. `values.yaml:25-27` and `:58-65` describe the
 opposite arrangement and are wrong.
 
-The image's own `ENV LOOM_AUTH_KEYSTORE_PATH` / `ENV LOOM_DB_USER` (Containerfile) are dead for the
-same reasons. ✅ *Already fixed:* the old `LOOM_BINARY_DIR`-only mismatch — the chart now emits
+The image's own `ENV LOOM_AUTH_KEYSTORE_PATH` (Containerfile) is dead for the same reason.
+✅ *Already fixed:* the old `LOOM_BINARY_DIR`-only mismatch — the chart now emits
 `LOOM_STORAGE_UPLOAD_DIR` (canonical) **and** `LOOM_BINARY_DIR` (accepted as an alias by
 `StorageOptions#overrideWithEnv`, canonical wins).
 
@@ -86,7 +86,7 @@ Defaults below are the **chart** defaults. ✅ = a reader exists in `loom-shared
 | `LOOM_SERVER_REST_PORT` / `_GRPC_PORT` / `_MON_PORT` | `service.restPort` / `grpcPort` / `monitoringPort` | `8092` / `8091` / `8989` | ✅ `ServerOptions` |
 | `LOOM_DB_HOST` | `loom.database.host` helper (bundled PG Service, else `database.host`) | `""` | ✅ `DatabaseOptions` |
 | `LOOM_DB_PORT` / `LOOM_DB_NAME` | `database.*` or `postgresql.auth.*` | `5432` / `loom` | ✅ `DatabaseOptions` |
-| `LOOM_DB_USER` | `database.user` / `postgresql.auth.username` | `loom` | 🔴 **B1** — code reads `LOOM_DB_USERNAME` |
+| `LOOM_DB_USERNAME` | `database.user` / `postgresql.auth.username` | `loom` | ✅ `DatabaseOptions` (was `LOOM_DB_USER` — **B1**, fixed 2026-08-02) |
 | `LOOM_DB_PASSWORD` | Secret ref (`loom.database.secretName`/`secretKey`) | — | ✅ `DatabaseOptions` |
 | `LOOM_INITIAL_PASSWORD` | auth Secret key `initial-password` | `changeme` | ✅ `AuthenticationOptions` |
 | `LOOM_AUTH_KEYSTORE_PATH` | `auth.keystorePath` | `/keystore/keystore.jks` | 🔴 **B2** — no reader |
@@ -183,7 +183,8 @@ There is **no CI gate** for any of this yet, and no `helm unittest` suite.
 - [x] `helm lint` clean; `helm template` renders across the value matrix
 - [x] Customer-facing docs page + de-placeholdered `loom/helm-chart` and k8s playbook
 - [x] `LOOM_STORAGE_UPLOAD_DIR` emitted (old `LOOM_BINARY_DIR`-only mismatch fixed)
-- [ ] 🔴 **B1** — rename `LOOM_DB_USER` → `LOOM_DB_USERNAME` in `templates/deployment.yaml:59,66`
+- [x] 🔴 **B1** — renamed `LOOM_DB_USER` → `LOOM_DB_USERNAME` in `templates/deployment.yaml:59,66`
+      and in both `loom/containers/server/Containerfile{,.native}`
 - [ ] 🔴 **B2** — either make `AuthModule` honour a keystore-path option, or drop `auth.keystorePath` +
       the `/keystore` PVC and re-document `persistence.config` as the key-bearing volume
 - [ ] 🔴 **B3** — mount the ConfigMap at `/etc/metaloom/loom.yml` (and drop `LOOM_CONF_FILENAME`), or
@@ -195,5 +196,5 @@ There is **no CI gate** for any of this yet, and no `helm unittest` suite.
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (documented the three dead env vars — `LOOM_DB_USER`, `LOOM_AUTH_KEYSTORE_PATH`, `LOOM_CONF_FILENAME` — and re-verified every template against the code)_
+_Git HEAD revision: `d930e222`_
+_Last updated: 2026-08-02 (B1 fixed — chart and both Containerfiles now emit `LOOM_DB_USERNAME`; B2 `LOOM_AUTH_KEYSTORE_PATH` and B3 `LOOM_CONF_FILENAME` remain open)_

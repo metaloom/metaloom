@@ -38,7 +38,23 @@ public class VideoFaceScanner {
 
 	public static final int WINDOW_STEPS = 15;
 
-	private static final double BLUR_THRESHOLD = 10f;
+	/**
+	 * Minimum acceptable sharpness (mean absolute Laplacian) of a padded face crop.
+	 *
+	 * <p>
+	 * Was 10, which nothing can reach since the move to OpenCV 5: real faces in the test video
+	 * measure 2.71–4.24 (median 3.43), so every face was rejected. That is worse than it sounds —
+	 * {@link #scanWindow} stops scanning a window as soon as one frame yields no faces, so an
+	 * unreachable threshold truncates the scan after a single frame rather than merely filtering.
+	 * 2.0 keeps a floor against degenerate crops while passing genuine faces.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Needs calibration.</strong> This value is derived from one video on the new OpenCV;
+	 * the sharpest-first sort plus the cap in {@link #processFaces} is what actually selects quality.
+	 * </p>
+	 */
+	private static final double BLUR_THRESHOLD = 2f;
 
 	private final InspireFacedetector inspireface;
 	//private SimpleImageViewer viewer = new SimpleImageViewer();
@@ -82,10 +98,13 @@ public class VideoFaceScanner {
 		// }
 		List<VideoFace> output = new ArrayList<>();
 		for (VideoFace face : faces) {
-			// processFace(face);
-			if (face.hasEmbedding()) {
-				output.add(face);
-			}
+			// Keep the sharpest faces. This used to also require face.hasEmbedding(), which no face
+			// could satisfy: embeddings were attached by processFace() via a remote InsightFace HTTP
+			// service, and that call is commented out just above. Nothing replaced it, so the filter
+			// silently discarded every face and the video path always reported zero — however many
+			// were actually detected. FacedetectNode consumes only the box and frame index, so
+			// requiring an embedding gated the pipeline on data no consumer reads.
+			output.add(face);
 			if (output.size() >= 10) {
 				break;
 			}

@@ -86,38 +86,44 @@ Mostly cleared 2026-08-01 — what was written off as environmental noise was la
   [../loom-test-env/llamacpp](../loom-test-env/llamacpp) and *skip* rather than fail when it is
   not up, matching the `OllamaAvailability` pattern in `loom/core`.
 
-Still genuinely environmental: `xattr` unsupported on some test filesystems, and the SmolVLM
-endpoint (`SmolVLMClientTest`).
+- **No local SmolVLM endpoint** — `SmolVLMClientTest` now skips via `SmolVLMAvailability` instead of
+  failing, and asserts a non-blank caption rather than printing one. Override with
+  `-Dloom.test.smolvlm.host` / `-Dloom.test.smolvlm.port`.
 
-### ⛔ facedetect is broken by an OpenCV ABI split (open)
+Still genuinely environmental: `xattr` unsupported on some test filesystems.
 
-Not test noise — a production defect, surfaced once video decoding started working again.
+### ✅ facedetect — resolved 2026-08-02, and it was hiding three separate bugs
 
-`inspireface4j` ships `libjinspireface.so` linked against Debian's **OpenCV 4.10**
-(`libopencv_core.so.410`, `libopencv_imgproc.so.410`), while `video4j` → `opencv-ffm 5.0.0` loads
-the locally built **OpenCV 5.1**. Both end up in one JVM, so the `cv::Mat*` that
-`InspirefaceLib.detect()` hands across the boundary is read with the wrong struct layout:
+The module crashed its forked JVM (exit 134) rather than failing tests: `inspireface4j` shipped a
+`libjinspireface.so` linked against Debian's **OpenCV 4.10** while `video4j` → `opencv-ffm` loads
+the locally built **OpenCV 5.1**, so the `cv::Mat*` crossing `InspirefaceLib.detect()` was read
+with the wrong struct layout (`SIGSEGV in cv::Mat::Mat(cv::Mat const&)`). Fixed upstream by
+`inspireface4j@7f13a09` "Bump to inspireface 1.2.3 and OpenCV5" — **remember to `mvn install`
+inspireface4j**, the stale jar in `~/.m2` keeps the old native and the crash with it.
 
-```
-SIGSEGV … C  [libopencv_core.so.410+0x18f200]  cv::Mat::Mat(cv::Mat const&)+0x60
-             io.metaloom.inspireface4j.InspirefaceLib.detect(…)
-```
+Removing the crash exposed two real defects underneath, both of which had made the video face
+path return **zero faces no matter what it detected**:
 
-This crashes the forked JVM (exit 134) and takes `FacedetectNodeTest`, `InspirefaceTest` and
-`VideoFaceScannerTest` with it — `FacedetectNodeTest` is the node's own test, so the production
-face-detection path is affected too, not just the tests. It was previously masked: the tests died
-earlier on `UnsatisfiedLinkError: libavcodec.so.61`.
+- **`processFaces()` required `face.hasEmbedding()`.** Embeddings were attached by `processFace()`
+  through a remote InsightFace HTTP service; that call sits commented out a few lines above and
+  nothing replaced it, so no face could ever satisfy the filter. `FacedetectNode` reads only the
+  box and the frame index, so the gate tested for data no consumer wants. Removed.
+- **`BLUR_THRESHOLD` was 10 and unreachable under OpenCV 5.** Real faces in the test video measure
+  2.71–4.24 (median 3.43) mean-absolute-Laplacian. Worse than a filter: `scanWindow()` stops
+  scanning a window the moment one frame yields no faces, so an unreachable threshold truncated the
+  scan after a single frame. Now 2.0 — **derived from one video and still wants calibration**; the
+  sharpest-first sort plus the 10-face cap in `processFaces()` is what actually selects quality.
 
-It could not be fixed here. Rebuilding `jinspirelib` against OpenCV 5 configures correctly
-(`cmake -DOpenCV_DIR=…/opencv/build -DCMAKE_POLICY_VERSION_MINIMUM=3.5`, finds 5.1.0) but cannot
-compile: `inspireface4j/inspireface-linux-x86-ubuntu18-1.2.1` is a **broken symlink** to
-`/home/jotschi/build/…`, so the InspireFace SDK headers are absent on this machine.
+Two test expectations were wrong as well: `FacedetectNodeTest.testVideo` asserted `faceCount > 10`
+against a scanner hard-capped at 10, and the `InspirefaceTest` session asked for attributes and
+embeddings without enabling `ENABLE_FACE_ATTRIBUTE` / `ENABLE_FACE_RECOGNITION` (a session opened
+without them still detects faces, but returns empty attributes).
 
-Two ways out, both a deliberate call:
+`FacedescriptionNodeTest.testProcessImage` needs a local Ollama vision model
+(`gemma3:27b-q8` at 11434) and now skips via `OllamaVisionAvailability` instead of failing on the
+`null` that `processFace()` returns after three failed calls.
 
-1. Restore the InspireFace 1.2.1 SDK and rebuild `libjinspireface.so` against OpenCV 5.1 — the
-   whole rest of the stack has moved to OpenCV 5.
-2. Pin `video4j`/`opencv-ffm` back to 4.10 so both halves agree again.
+Module result: 45 tests, 0 failures, 1 skipped.
 
 ---
 
