@@ -23,8 +23,9 @@ import java.util.Objects;
  * </pre>
  *
  * <p>
- * The {@code type} is checked on the way out, so a collision between two unrelated artifacts that happen to share an id fails with a
- * {@link ClassCastException} naming both rather than handing one node the other's object.
+ * The {@code type} is part of the key's identity, not decoration. Two keys with the same id and different types are two different artifacts: each
+ * node builds and gets its own, which is the safe outcome — nobody is handed an object of a type they did not ask for. What the type cannot save you
+ * from is two artifacts of the <em>same</em> type differing only in how they were produced, which is why the parameters belong in the id.
  * </p>
  *
  * @param <T>
@@ -53,8 +54,13 @@ public record ArtifactKey<T>(String id, Class<T> type) {
 	/**
 	 * Cast a cached value back to this key's type.
 	 *
+	 * <p>
+	 * Unreachable through a scope keyed by whole {@code ArtifactKey}s, which is the point: this is the invariant that lets the scope hand back a typed
+	 * {@code T} without an unchecked cast, and it fails loudly rather than silently should a future implementation key by id alone.
+	 * </p>
+	 *
 	 * @throws ClassCastException
-	 *             when two different artifacts were published under the same id
+	 *             when the cached value is not of this key's type
 	 */
 	public T cast(Object value) {
 		if (value != null && !type.isInstance(value)) {

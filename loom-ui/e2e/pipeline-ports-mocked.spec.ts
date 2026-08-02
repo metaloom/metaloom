@@ -66,6 +66,17 @@ const DESCRIPTORS = [
     outputPorts: [],
     inputGroups: [], outputGroups: [], dynamicPorts: true,
   },
+  {
+    // Dynamic ports again, but the ports *are* the branches: one per configured bucket, edited
+    // through the PORT_LIST widget rather than a JSON blob.
+    kind: "filter", name: "Filter", category: "FILTER",
+    inputPorts: [port("media", "media/*"), port("text", "text/*", { required: false })],
+    outputPorts: [],
+    inputGroups: [], outputGroups: [], dynamicPorts: true,
+    parameters: [
+      { key: "buckets", type: "PORT_LIST", label: "Buckets", description: "One output port per bucket", defaultValue: [] },
+    ],
+  },
 ].map(d => ({
   description: "", icon: "", dynamicPorts: false, parameters: [],
   defaultConcurrency: 1, defaultMode: "PARALLEL", defaultBlocking: false, events: [],
@@ -114,6 +125,28 @@ const SCRIPT_GRAPH = {
   ],
   edges: [
     { id: "e1", source: "src", sourcePort: "media", target: "script", targetPort: "media", branch: "ANY" },
+  ],
+};
+
+/**
+ * A `filter` whose two buckets are already wired downstream, so removing one has an edge to take
+ * with it.
+ */
+const FILTER_GRAPH = {
+  nodes: [
+    { id: "src", type: "filesystem-source", label: "Source", position: { x: 0, y: 0 } },
+    {
+      id: "flt", type: "filter", label: "Filter", position: { x: 300, y: 0 },
+      options: { buckets: [{ id: "de", label: "German" }, { id: "en", label: "English" }] },
+    },
+    // The English branch feeds a `script`, whose media input is optional — so removing that bucket
+    // prunes the edge without also stranding a required input, which would refuse the save for an
+    // unrelated reason and hide what this fixture is here to show.
+    { id: "sink", type: "script", label: "Script", position: { x: 600, y: 0 } },
+  ],
+  edges: [
+    { id: "e1", source: "src", sourcePort: "media", target: "flt", targetPort: "media", branch: "ANY" },
+    { id: "e2", source: "flt", sourcePort: "en", target: "sink", targetPort: "media", branch: "ANY" },
   ],
 };
 
@@ -319,6 +352,55 @@ test.describe("Pipeline typed ports – mocked", () => {
       { key: "paragraphs", type: "TEXT_LIST" },
       { key: "summary", type: "TEXT" },
     ]);
+  });
+
+  test("a filter's handles are its buckets, and 'other' is always there", async ({ page }) => {
+    await mockBackend(page, FILTER_GRAPH);
+    await login(page);
+
+    await expect(page.getByTestId("port-out-flt-de")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("port-out-flt-en")).toBeVisible();
+    // The catch-all exists whatever the configuration, so the graph is never a dead end.
+    await expect(page.getByTestId("port-out-flt-other")).toBeVisible();
+
+    // A bucket port is a branch: it carries the items routed to it and nothing else.
+    await expect(page.getByTestId("port-out-flt-de")).toHaveAttribute("data-port-selective", "true");
+    await expect(page.getByTestId("port-out-flt-other")).toHaveAttribute("data-port-selective", "true");
+    // The decision ports fire for every item, so a node wired to them must never be skipped.
+    await expect(page.getByTestId("port-out-flt-passed")).toHaveAttribute("data-port-selective", "false");
+    await expect(page.getByTestId("port-out-flt-bucket")).toHaveAttribute("data-port-selective", "false");
+  });
+
+  test("adding a bucket grows a handle and removing one takes its edge with it", async ({ page }) => {
+    const state = await mockBackend(page, FILTER_GRAPH);
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2, { timeout: 10_000 });
+
+    await page.getByTestId("pipeline-node-flt").click();
+    await expect(page.getByTestId("bucket-list-editor")).toBeVisible();
+
+    // Add: a third row, and the handle appears without a save or a reload.
+    await page.getByTestId("bucket-add").click();
+    await page.getByTestId("bucket-id-2").fill("Brazilian Portuguese");
+    // The id is slugified as it is typed, so what the author types is always a legal port id.
+    await expect(page.getByTestId("port-out-flt-brazilian_portuguese")).toBeVisible({ timeout: 10_000 });
+
+    // Remove the bucket that has an edge hanging off it. Both the handle and the edge must go —
+    // leaving the edge would be invisible until save, where it surfaces as an unknown-port error
+    // the author then has to hunt down by hand.
+    await page.getByTestId("bucket-remove-1").click();
+    await expect(page.getByTestId("port-out-flt-en")).toHaveCount(0);
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(1);
+
+    await page.getByText("Save", { exact: true }).click();
+    await expect.poll(() => state.saved.length, { timeout: 10_000 }).toBe(1);
+
+    const saved = state.saved[0].definition;
+    const filter = saved.nodes.find((n: any) => n.id === "flt");
+    expect(filter.options.buckets.map((b: any) => b.id)).toEqual(["de", "brazilian_portuguese"]);
+    expect(saved.edges.some((e: any) => e.sourcePort === "en")).toBe(false);
   });
 
   test("save → reload → save preserves the exact ports and the branch", async ({ page }) => {

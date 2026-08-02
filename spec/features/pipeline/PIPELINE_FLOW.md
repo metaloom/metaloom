@@ -335,7 +335,7 @@ gaps are in coverage and ergonomics.
 1. 🔴 **Give `llm` a text input port.** `optionalOne("text", TEXT_ANY)` plus a prompt template
    variable for it, so `whisper.transcript → llm.text` is drawable. Today the canonical
    "transcribe, then reason over the transcript" pipeline **cannot be expressed**, which is very
-   likely what made the whole flow feel wrong. `sentiment`, `tts` and `filter-blacklist` already
+   likely what made the whole flow feel wrong. `sentiment`, `tts` and `filter` already
    accept `text/*`; `llm` is the outlier. Keep `media` optional alongside it so the filename-only
    behaviour still works.
 

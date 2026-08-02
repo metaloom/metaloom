@@ -89,19 +89,59 @@ public class PortGraphAnalyzer {
 		}
 		validateExclusiveOutputs(graphName, nodes, ports);
 
-		// Stamp each binding with its target port's cardinality so the engine can build a task's
-		// inputs from the graph alone, without resolving descriptors on every dispatch.
-		for (PipelineGraphNode node : nodes.values()) {
-			ResolvedPorts own = ports.get(node.getId());
-			List<InputBinding> enriched = new ArrayList<>();
-			for (InputBinding binding : node.getInputBindings()) {
-				PortSpec target = own.input(binding.targetPortId());
-				enriched.add(binding.withTargetCardinality(target != null && target.isMany()));
-			}
-			node.setInputBindings(enriched);
-		}
+		stampBindings(nodes, order, ports);
 
 		computeExecutionModes(graphName, nodes, order, ports);
+	}
+
+	/**
+	 * Stamp each binding with everything the engine needs to act on it without re-resolving
+	 * descriptors on every dispatch: its target port's cardinality, and whether it carries branch
+	 * routing.
+	 *
+	 * <p>
+	 * This walks {@code order} rather than the node map because {@code routed} is <strong>inherited
+	 * </strong>: a node is on a routed path if one of its own bindings is routed, so a producer has
+	 * to be classified before any of its consumers. See {@link InputBinding#routed()} for why a
+	 * one-hop rule is not enough.
+	 * </p>
+	 *
+	 * <p>
+	 * Note that {@code analyze} returns early when there is no descriptor registry, so a graph parsed
+	 * without one stamps nothing and behaves exactly as it did before port routing existed.
+	 * </p>
+	 */
+	private void stampBindings(Map<String, PipelineGraphNode> nodes, List<String> order, Map<String, ResolvedPorts> ports) {
+		Set<String> routedNodes = new LinkedHashSet<>();
+
+		for (String nodeId : order) {
+			PipelineGraphNode node = nodes.get(nodeId);
+			if (node == null) {
+				continue;
+			}
+			ResolvedPorts own = ports.get(nodeId);
+			List<InputBinding> enriched = new ArrayList<>();
+			boolean onRoutedPath = false;
+
+			for (InputBinding binding : node.getInputBindings()) {
+				PortSpec target = own.input(binding.targetPortId());
+				ResolvedPorts producer = ports.get(binding.sourceNodeId());
+				PortSpec source = producer == null ? null : producer.output(binding.sourcePortId());
+
+				boolean selective = source != null && source.isSelective();
+				boolean routed = selective || routedNodes.contains(binding.sourceNodeId());
+				onRoutedPath |= routed;
+
+				enriched.add(binding
+					.withTargetCardinality(target != null && target.isMany())
+					.withRouting(selective, routed));
+			}
+
+			node.setInputBindings(enriched);
+			if (onRoutedPath) {
+				routedNodes.add(nodeId);
+			}
+		}
 	}
 
 	/**

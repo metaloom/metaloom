@@ -2,6 +2,7 @@ package io.metaloom.loom.rest.service.impl;
 
 import static io.metaloom.loom.db.model.perm.Permission.CREATE_ASSET;
 import static io.metaloom.loom.db.model.perm.Permission.CREATE_ASSET_BINARY;
+import static io.metaloom.loom.db.model.perm.Permission.READ_ASSET_POOL;
 
 import java.nio.file.Paths;
 import java.time.Instant;
@@ -19,6 +20,7 @@ import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetBinary;
+import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.asset.AssetCreateRequest;
@@ -71,10 +73,23 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 
 	/**
 	 * Create an asset from a multipart file upload. Expects exactly one file part and a {@code libraryUuid} form field. Optional form fields:
-	 * {@code origin} (defaults to {@code upload}).
+	 * {@code origin} (defaults to {@code upload}) and {@code poolUuid}.
+	 *
+	 * <p>
+	 * The target pool is normally dictated by the library ({@code library.pool_uuid}). Naming {@code poolUuid} explicitly overrides that for this one
+	 * upload, which is an operator action — it writes bytes into a storage backend the caller picked rather than the one the library configures — so it
+	 * additionally requires {@link io.metaloom.loom.db.model.perm.Permission#READ_ASSET_POOL}. That keeps pools an admin-facing concept while leaving
+	 * plain uploading open to anyone holding {@link io.metaloom.loom.db.model.perm.Permission#CREATE_ASSET}.
+	 * </p>
 	 */
 	public void upload(LoomRoutingContext lrc) {
-		checkPerm(lrc, CREATE_ASSET, () -> {
+		// Read before the permission check so the required permission set can depend on it.
+		UUID explicitPool = optionalUuid(lrc, "poolUuid");
+		Permission[] required = explicitPool == null
+			? new Permission[] { CREATE_ASSET }
+			: new Permission[] { CREATE_ASSET, READ_ASSET_POOL };
+
+		checkPerms(lrc, () -> {
 			FileUpload upload = singleUpload(lrc);
 			UUID userUuid = lrc.userUuid();
 			UUID libraryUuid = requiredLibraryUuid(lrc);
@@ -84,7 +99,8 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 			long size = upload.size();
 			String mimeType = upload.contentType();
 
-			UUID poolUuid = storageResolver.poolUuidOfLibrary(libraryUuid);
+			UUID poolUuid = explicitPool != null ? explicitPool : storageResolver.poolUuidOfLibrary(libraryUuid);
+			// Resolving an unknown pool is a 404 here rather than a silent fallback to local disk.
 			BinaryStorage storage = storageResolver.forPool(poolUuid);
 			checkCapacity(storage, size);
 
@@ -146,7 +162,7 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 			log.info("{} asset {} ({} bytes, {}) stored at {} [{}]", created ? "Uploaded" : "Reused existing", asset.getUuid(), size, mimeType,
 				locator, storage.describe());
 			lrc.send(modelBuilder.toResponse(asset), created ? 201 : 200);
-		});
+		}, required);
 	}
 
 	/**
@@ -202,7 +218,7 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 	private AssetBinary resolveTarget(LoomRoutingContext lrc, UUID assetUuid) {
 		String libraryValue = lrc.routingContext().request().getFormAttribute("libraryUuid");
 		if (libraryValue != null && !libraryValue.isBlank()) {
-			return daos.assetBinaryDao().loadByAssetAndLibrary(assetUuid, parseUuid(libraryValue));
+			return daos.assetBinaryDao().loadByAssetAndLibrary(assetUuid, parseUuid(libraryValue, "libraryUuid"));
 		}
 		var existing = daos.assetBinaryDao().loadAllByAssetUuid(assetUuid);
 		if (existing.isEmpty()) {
@@ -265,14 +281,26 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 		if (value == null || value.isBlank()) {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The 'libraryUuid' form field is required for uploads.");
 		}
-		return parseUuid(value);
+		return parseUuid(value, "libraryUuid");
 	}
 
-	private UUID parseUuid(String value) {
+	/**
+	 * An optional uuid-valued form field. Absent and blank both mean "not given"; a non-blank value that is not a uuid is a 400 rather than a silent
+	 * fall-back, so a typo cannot quietly route bytes somewhere else.
+	 */
+	private UUID optionalUuid(LoomRoutingContext lrc, String field) {
+		String value = lrc.routingContext().request().getFormAttribute(field);
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		return parseUuid(value, field);
+	}
+
+	private UUID parseUuid(String value, String field) {
 		try {
 			return UUID.fromString(value.trim());
 		} catch (IllegalArgumentException e) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The 'libraryUuid' form field is not a valid UUID.");
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The '" + field + "' form field is not a valid UUID.");
 		}
 	}
 

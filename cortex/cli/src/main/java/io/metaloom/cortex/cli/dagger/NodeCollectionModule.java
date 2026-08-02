@@ -18,19 +18,23 @@ import io.metaloom.cortex.node.color.DominantColorNodeModule;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNodeModule;
 import io.metaloom.cortex.node.script.ScriptNodeModule;
 import io.metaloom.cortex.node.sentiment.SentimentNodeModule;
+import io.metaloom.cortex.node.source.cloud.CloudSourceNodeModule;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeModule;
 import io.metaloom.cortex.node.sink.s3.S3SinkNodeModule;
 import io.metaloom.cortex.node.source.s3.S3SourceNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
+import io.metaloom.cortex.node.translate.TranslateNodeModule;
 import io.metaloom.cortex.node.tts.TtsNodeModule;
 import io.metaloom.cortex.node.vlm.VlmNodeModule;
+import io.metaloom.cortex.node.filter.FilterNodeModule;
 import io.metaloom.cortex.node.watermark.WatermarkNodeModule;
 import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 
 @Module(includes = {
 	FilesystemSourceNodeModule.class,
 	S3SourceNodeModule.class,
+	CloudSourceNodeModule.class,
 	S3SinkNodeModule.class,
 	HashNodeModule.class,
 	ThumbnailNodeModule.class,
@@ -54,7 +58,9 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	DepthmapNodeModule.class,
 	SceneLayoutNodeModule.class,
 	DominantColorNodeModule.class,
-	WatermarkNodeModule.class })
+	WatermarkNodeModule.class,
+	FilterNodeModule.class,
+	TranslateNodeModule.class })
 public interface NodeCollectionModule {
 
 }

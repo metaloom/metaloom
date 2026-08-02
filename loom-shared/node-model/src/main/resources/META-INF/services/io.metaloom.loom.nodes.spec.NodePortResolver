@@ -1,6 +1,7 @@
 # Dynamic port resolvers, discovered via ServiceLoader.
 # A kind whose descriptor sets dynamicPorts=true MUST have a resolver listed here -
 # without one the editor draws no output handles and the node cannot be wired up.
+io.metaloom.loom.nodes.spec.FilterPortResolver
 io.metaloom.loom.nodes.spec.LlmPortResolver
 io.metaloom.loom.nodes.spec.ScriptPortResolver
 io.metaloom.loom.nodes.spec.VlmPortResolver

@@ -25,6 +25,21 @@ public class CortexOptions {
 	 */
 	private S3ClientOptions s3 = new S3ClientOptions();
 
+	/**
+	 * Google Drive credentials, connection and cache settings.
+	 *
+	 * <p>Worker-level for the same reason as {@link #s3}, with one extra edge: {@code ParameterType}
+	 * has no {@code SECRET} value, so an OAuth client secret or a service-account key placed on a
+	 * node definition would be persisted in Postgres and rendered as plain text in the editor.</p>
+	 */
+	private GDriveClientOptions gdrive = new GDriveClientOptions();
+
+	/**
+	 * OneDrive / SharePoint credentials, connection and cache settings. Worker-level, see
+	 * {@link #gdrive}.
+	 */
+	private OneDriveClientOptions onedrive = new OneDriveClientOptions();
+
 	private boolean dryrun;
 
 	private Path metaPath;
@@ -93,6 +108,8 @@ public class CortexOptions {
 		map.put("whisper", 600000L);
 		map.put("llm", 600000L);
 		map.put("vlm", 600000L);
+		// A chunked transcript is several sequential model calls, so it needs the LLM budget, not a short one.
+		map.put("translate", 600000L);
 		map.put("captioning", 300000L);
 		map.put("scene-detection", 300000L);
 		map.put("quality", 60000L);
@@ -129,6 +146,24 @@ public class CortexOptions {
 
 	public CortexOptions setS3(S3ClientOptions s3) {
 		this.s3 = s3 == null ? new S3ClientOptions() : s3;
+		return this;
+	}
+
+	public GDriveClientOptions getGdrive() {
+		return gdrive;
+	}
+
+	public CortexOptions setGdrive(GDriveClientOptions gdrive) {
+		this.gdrive = gdrive == null ? new GDriveClientOptions() : gdrive;
+		return this;
+	}
+
+	public OneDriveClientOptions getOnedrive() {
+		return onedrive;
+	}
+
+	public CortexOptions setOnedrive(OneDriveClientOptions onedrive) {
+		this.onedrive = onedrive == null ? new OneDriveClientOptions() : onedrive;
 		return this;
 	}
 

@@ -298,24 +298,131 @@ export async function deleteAsset(
  *
  * Note: no `Content-Type` header is set — the browser sets the multipart boundary.
  */
-export async function uploadAsset(
-  token: string,
-  file: File,
-  libraryUuid: string,
-  opts?: { origin?: string }
-): Promise<AssetResponse> {
+export interface UploadOptions {
+  origin?: string;
+  /**
+   * Storage pool to write into, overriding the target library's pool. Requires the READ_ASSET_POOL
+   * permission server-side; omit to let the library decide.
+   */
+  poolUuid?: string;
+}
+
+/**
+ * Build the multipart body for an upload. Extracted so both transports share one definition of the
+ * wire format, and so the field shaping is testable without a network.
+ */
+export function buildUploadForm(file: File, libraryUuid: string, opts?: UploadOptions): FormData {
   const form = new FormData();
   form.append("file", file, file.name);
   form.append("libraryUuid", libraryUuid);
   if (opts?.origin) {
     form.append("origin", opts.origin);
   }
+  // Only sent when explicitly chosen: an empty value would still be a field the server has to
+  // interpret, and "" means "library's pool" only because the backend treats blank as absent.
+  if (opts?.poolUuid) {
+    form.append("poolUuid", opts.poolUuid);
+  }
+  return form;
+}
+
+export async function uploadAsset(
+  token: string,
+  file: File,
+  libraryUuid: string,
+  opts?: UploadOptions
+): Promise<AssetResponse> {
   const res = await fetch(`${API_BASE_URL}/assets/upload`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
-    body: form,
+    body: buildUploadForm(file, libraryUuid, opts),
   });
   return handleResponse<AssetResponse>(res);
+}
+
+/** What an in-flight upload reports back while the bytes are still going out. */
+export interface UploadProgress {
+  /** Bytes handed to the socket so far. */
+  loaded: number;
+  /** Total bytes of the request body, or 0 while the length is still unknown. */
+  total: number;
+}
+
+export interface UploadResult {
+  asset: AssetResponse;
+  /**
+   * False when the server answered 200 instead of 201, meaning an asset with these bytes already
+   * existed and was reused. Worth surfacing — the file was not rejected, but nothing new was made.
+   */
+  created: boolean;
+}
+
+export interface UploadHandle {
+  /** Resolves with the created (or already-known) asset; rejects on HTTP error or abort. */
+  promise: Promise<UploadResult>;
+  /** Stop the transfer. The promise rejects with an {@link UploadAbortedError}. */
+  abort: () => void;
+}
+
+/** Thrown when an upload is cancelled by the user, so callers can tell it apart from a real failure. */
+export class UploadAbortedError extends Error {
+  constructor() {
+    super("Upload aborted");
+    this.name = "UploadAbortedError";
+  }
+}
+
+/**
+ * Upload a file with progress reporting and cancellation.
+ *
+ * Uses XMLHttpRequest rather than fetch deliberately: fetch exposes no upload-progress event, and
+ * request-body streams are not supported widely enough to substitute. Everything else in the API
+ * layer stays on fetch.
+ */
+export function uploadAssetWithProgress(
+  token: string,
+  file: File,
+  libraryUuid: string,
+  opts?: UploadOptions & { onProgress?: (progress: UploadProgress) => void }
+): UploadHandle {
+  const xhr = new XMLHttpRequest();
+  let aborted = false;
+
+  const promise = new Promise<UploadResult>((resolve, reject) => {
+    xhr.open("POST", `${API_BASE_URL}/assets/upload`);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    // No Content-Type: the browser has to set the multipart boundary itself.
+
+    xhr.upload.onprogress = (event) => {
+      opts?.onProgress?.({ loaded: event.loaded, total: event.lengthComputable ? event.total : 0 });
+    };
+
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`API error ${xhr.status}: ${xhr.responseText ?? ""}`));
+        return;
+      }
+      try {
+        resolve({ asset: JSON.parse(xhr.responseText) as AssetResponse, created: xhr.status === 201 });
+      } catch {
+        reject(new Error("Upload succeeded but the response could not be parsed"));
+      }
+    };
+
+    // A cancelled transfer fires both onabort and onerror in some browsers; the flag keeps the
+    // first (correct) rejection and makes the second a no-op.
+    xhr.onabort = () => {
+      aborted = true;
+      reject(new UploadAbortedError());
+    };
+    xhr.onerror = () => {
+      if (!aborted) reject(new Error("Upload failed: the request could not be completed"));
+    };
+
+    xhr.send(buildUploadForm(file, libraryUuid, opts));
+  });
+
+  return { promise, abort: () => xhr.abort() };
 }
 
 // ── Bulk API ──────────────────────────────────────────────────────────

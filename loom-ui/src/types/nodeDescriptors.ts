@@ -18,6 +18,16 @@ export type ParameterType =
   | "ENUM_SET"
   | "CODE"
   | "JSON"
+  /**
+   * A list of rows whose `id`s become the node's output ports, edited as repeatable rows with an
+   * add button rather than as raw JSON.
+   *
+   * The distinction from `JSON` is behavioural, not cosmetic: a `JSON` parameter commits its raw
+   * text on every keystroke, so a half-typed value parses to nothing and every derived handle
+   * momentarily disappears. A parameter that *defines ports* cannot behave that way, so its editor
+   * always emits a structurally valid array.
+   */
+  | "PORT_LIST"
   /** @deprecated use NUMBER */
   | "FLOAT"
   /** @deprecated use ENUM_SET */
@@ -45,6 +55,12 @@ export interface PortSpec {
   /** Id of the {@link PortGroup} this port belongs to, if any. The group then owns `required`. */
   group?: string;
   description?: string;
+  /**
+   * Output side only: this port carries data for some items and not others, so the engine skips a
+   * node wired to it for the items where nothing was emitted. Drawn as a dashed handle — the edge
+   * exists, but it does not carry every item.
+   */
+  selective?: boolean;
 }
 
 /**

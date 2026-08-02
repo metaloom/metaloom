@@ -95,7 +95,7 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | JDK digest algorithms and byte-level checks
 | ✅ Yes
 
-| link:../../nodes/filesystem-source/[Filesystem Source] · link:../../nodes/filters/[Filters]
+| link:../../nodes/filesystem-source/[Filesystem Source] · link:../../nodes/filter/[Filter]
 | Pipeline plumbing — no media model
 | ✅ Yes
 

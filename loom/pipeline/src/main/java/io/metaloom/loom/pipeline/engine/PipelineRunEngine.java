@@ -938,8 +938,48 @@ public class PipelineRunEngine {
 						"Filter branch " + branch + " not taken on dependency " + dep);
 				}
 			}
+
+			// Port routing: the port is the branch. A consumer wired only to ports this dependency did
+			// not write for this item is not on the path the item took.
+			//
+			// Deliberately not applied when the dependency FAILED: a blocking consumer was already
+			// skipped above, and a non-blocking one is meant to run and see the failure in its inputs -
+			// skipping it here would quietly break blocking:false.
+			if (depOutcome != NodeState.FAILED && !routedDependencyDelivered(node, dep, depState, seq)) {
+				return NodeTaskResult.skipped(node.getId(), seq,
+					"No routed output of dependency " + dep + " carried data"
+						+ (node.getExecutionMode() == ExecutionMode.PER_ELEMENT ? " for element " + seq : ""));
+			}
 		}
 		return null;
+	}
+
+	/**
+	 * Whether any routed edge from {@code dep} carried data to this node for this execution.
+	 *
+	 * <p>
+	 * The test is an <em>or</em> across the dependency's routed bindings, not an <em>and</em>: a node
+	 * fed by two ports of the same producer — {@code watermark}'s {@code image} and {@code video}, say
+	 * — runs when either delivers. Across <em>different</em> dependencies the loop in
+	 * {@link #evaluateSkip} ands them, which matches how {@link FilterBranch} already behaves.
+	 * </p>
+	 *
+	 * @return true when the node should run: some routed binding delivered, or there is no routed
+	 *         binding from this dependency at all and the rule simply does not apply
+	 */
+	private boolean routedDependencyDelivered(PipelineGraphNode node, String dep, NodeExecState depState, int seq) {
+		boolean anyRouted = false;
+		for (InputBinding binding : node.getInputBindings()) {
+			if (!binding.sourceNodeId().equals(dep) || !binding.routed()) {
+				continue;
+			}
+			anyRouted = true;
+			Collected collected = collect(depState, binding, seq);
+			if (collected != null && !collected.elements().isEmpty()) {
+				return true;
+			}
+		}
+		return !anyRouted;
 	}
 
 	/**
@@ -1022,8 +1062,33 @@ public class PipelineRunEngine {
 			if (branch != FilterBranch.ANY && !branch.admits(depResult.getFilterPassed())) {
 				return true;
 			}
+			// The port-routing mirror of the branch check above. PipelineSegmenter never puts a
+			// selective edge inside a segment, so a routed dependency is always external and always
+			// settled by the time we get here - which is why the rolled-up result is enough and no
+			// per-element walk is needed.
+			if (depResult.getState() != NodeState.FAILED && !routedDependencyDelivered(node, dep, depResult)) {
+				return true;
+			}
 		}
 		return false;
+	}
+
+	/**
+	 * The {@link #routedDependencyDelivered(PipelineGraphNode, String, NodeExecState, int)} test
+	 * against a single settled result.
+	 */
+	private boolean routedDependencyDelivered(PipelineGraphNode node, String dep, NodeTaskResult depResult) {
+		boolean anyRouted = false;
+		for (InputBinding binding : node.getInputBindings()) {
+			if (!binding.sourceNodeId().equals(dep) || !binding.routed()) {
+				continue;
+			}
+			anyRouted = true;
+			if (depResult.output(binding.sourcePortId()) != null) {
+				return true;
+			}
+		}
+		return !anyRouted;
 	}
 
 	/**
@@ -1256,46 +1321,15 @@ public class PipelineRunEngine {
 			if (producer == null) {
 				continue;
 			}
-			List<DataElement> elements = new ArrayList<>();
-			String contentType = null;
-			// Walk the producer's elements in sequence order so a gathered payload is stable and a
-			// zip can address it by index.
-			for (Integer producerSeq : producer.getElementResults().keySet().stream().sorted().toList()) {
-				NodeTaskResult result = producer.getElementResults().get(producerSeq);
-				PortPayload payload = result.output(binding.sourcePortId());
-				if (payload == null) {
-					continue;
-				}
-				contentType = payload.getContentType();
-				elements.addAll(payload.getElements());
-			}
-			if (contentType == null) {
+			Collected collected = collect(producer, binding, seq);
+			if (collected == null) {
 				continue;
 			}
 
 			String targetPort = binding.targetPortId();
-			contentTypes.putIfAbsent(targetPort, contentType);
-			boolean targetIsMany = binding.targetIsMany();
-			many.put(targetPort, targetIsMany);
-
-			if (targetIsMany) {
-				gathered.computeIfAbsent(targetPort, k -> new ArrayList<>()).addAll(elements);
-			} else if (elements.size() <= 1) {
-				gathered.computeIfAbsent(targetPort, k -> new ArrayList<>()).addAll(elements);
-			} else {
-				// The producer fanned out and this input takes one element: pick the element that
-				// belongs to this execution.
-				DataElement match = null;
-				for (DataElement element : elements) {
-					if (element.getOrigin().getSeq() == seq) {
-						match = element;
-						break;
-					}
-				}
-				if (match != null) {
-					gathered.computeIfAbsent(targetPort, k -> new ArrayList<>()).add(match);
-				}
-			}
+			contentTypes.putIfAbsent(targetPort, collected.contentType());
+			many.put(targetPort, binding.targetIsMany());
+			gathered.computeIfAbsent(targetPort, k -> new ArrayList<>()).addAll(collected.elements());
 		}
 
 		Map<String, PortPayload> inputs = new LinkedHashMap<>();
@@ -1305,6 +1339,63 @@ public class PipelineRunEngine {
 			inputs.put(portId, new PortPayload(contentTypes.get(portId), isMany ? "MANY" : "ONE", entry.getValue()));
 		}
 		return inputs;
+	}
+
+	/**
+	 * What one binding contributes to its target port for one execution.
+	 *
+	 * @param contentType
+	 *            the producing port's content type
+	 * @param elements
+	 *            the elements this binding delivers; never null, may be empty when the producer
+	 *            fanned out and no element belongs to this execution
+	 */
+	private record Collected(String contentType, List<DataElement> elements) {
+	}
+
+	/**
+	 * Read one binding's contribution out of its producer's results.
+	 *
+	 * <p>
+	 * Extracted so {@link #buildInputs} and {@link #routedDependencyDelivered} answer "did this edge
+	 * deliver anything?" with <em>the same</em> code. Deriving that twice is how the two drift, and
+	 * the failure mode is silent in both directions: a node dispatched with an empty required input,
+	 * or a node skipped while its data was sitting there.
+	 * </p>
+	 *
+	 * @return {@code null} when the producer wrote nothing at all on that port
+	 */
+	private Collected collect(NodeExecState producer, InputBinding binding, int seq) {
+		List<DataElement> elements = new ArrayList<>();
+		String contentType = null;
+		// Walk the producer's elements in sequence order so a gathered payload is stable and a
+		// zip can address it by index.
+		for (Integer producerSeq : producer.getElementResults().keySet().stream().sorted().toList()) {
+			NodeTaskResult result = producer.getElementResults().get(producerSeq);
+			PortPayload payload = result.output(binding.sourcePortId());
+			if (payload == null) {
+				continue;
+			}
+			contentType = payload.getContentType();
+			elements.addAll(payload.getElements());
+		}
+		if (contentType == null) {
+			return null;
+		}
+
+		if (binding.targetIsMany() || elements.size() <= 1) {
+			return new Collected(contentType, elements);
+		}
+
+		// The producer fanned out and this input takes one element: pick the element that belongs to
+		// this execution. Matching on origin.seq rather than list position means a gap left by a
+		// failed sibling cannot silently shift the alignment.
+		for (DataElement element : elements) {
+			if (element.getOrigin().getSeq() == seq) {
+				return new Collected(contentType, List.of(element));
+			}
+		}
+		return new Collected(contentType, List.of());
 	}
 
 	/**

@@ -19,6 +19,12 @@
             <artifactId>genai-utils</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+        <!-- The shared @Provides LLMProvider. See LLMProviderModule for why it is not declared here. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-llm-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
 </project>

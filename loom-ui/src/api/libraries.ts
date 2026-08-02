@@ -3,6 +3,10 @@ import { API_BASE_URL } from "./config";
 export interface LibraryResponse {
   uuid: string;
   name: string;
+  /** Storage pool binaries uploaded into this library land in. Absent means the server's local upload directory. */
+  poolUuid?: string;
+  /** Backend kind behind {@link poolUuid} — "filesystem" or "s3". The server never returns null. */
+  storageType?: string;
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name?: string };
@@ -24,11 +28,13 @@ export interface LibraryListResponse {
 
 export interface LibraryCreateRequest {
   name: string;
+  poolUuid?: string;
   meta?: Record<string, unknown>;
 }
 
 export interface LibraryUpdateRequest {
   name?: string;
+  poolUuid?: string;
   meta?: Record<string, unknown>;
 }
 

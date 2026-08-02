@@ -83,6 +83,28 @@ Name of the secret holding the S3 credentials and the webhook shared secret.
 {{- end }}
 
 {{/*
+Secret holding the Google Drive credentials.
+*/}}
+{{- define "cortex.gdriveSecretName" -}}
+{{- if .Values.gdrive.existingSecret }}
+{{- .Values.gdrive.existingSecret }}
+{{- else }}
+{{- printf "%s-gdrive" (include "cortex.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Secret holding the OneDrive credentials.
+*/}}
+{{- define "cortex.onedriveSecretName" -}}
+{{- if .Values.onedrive.existingSecret }}
+{{- .Values.onedrive.existingSecret }}
+{{- else }}
+{{- printf "%s-onedrive" (include "cortex.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
 Image reference (repository:tag), tag defaulting to the chart appVersion.
 */}}
 {{- define "cortex.image" -}}

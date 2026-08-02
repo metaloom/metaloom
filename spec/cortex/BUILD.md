@@ -64,6 +64,7 @@ produces `cortex-<name>-node`. Depend on the `-node` artifact, never the parent.
 |---|---|---|
 | `filesystem-source` *(flat)* | `cortex-filesystem-source-node` | `differential-filesystem-scanner` |
 | `s3-source` *(flat)* | `cortex-s3-source-node` | `differential-filesystem-scanner`, Avro |
+| `cloud-source` *(flat)* | `cortex-cloud-source-node` | `cortex-cloud-common`, `differential-filesystem-scanner`, Avro |
 | `s3-sink` | `cortex-s3-sink-node` | `cortex-s3-common` |
 | `hash` | `cortex-hash-node` | — (pure Java) |
 | `dedup` | `cortex-dedup-node` | `io.metaloom:utils` |
@@ -255,10 +256,12 @@ database — run `./setup-pool.sh` first (or use `./it.sh`, which does it).
   Cortex reactor, or `-pl cortex/<module> -am` for a slice.
 - **Node artifact naming**: the module directory is `cortex/nodes/<name>`, the
   parent artifact is `cortex-<name>` (packaging `pom`), the jar is
-  `cortex-<name>-node` in `<name>/core`. `filesystem-source` and `s3-source`
-  are flat — no `core/` submodule.
+  `cortex-<name>-node` in `<name>/core`. `filesystem-source`, `s3-source` and
+  `cloud-source` are flat — no `core/` submodule.
 - **`ServicesResourceTransformer` must stay in the shade config.** Removing it
-  breaks the S3 nodes only in the shaded JAR (see §5).
+  breaks the S3 nodes only in the shaded JAR (see §5). The cloud nodes are
+  immune: their clients are hand-rolled `java.net.http` with no `ServiceLoader`
+  and no `META-INF/services` of their own.
 - **OpenCV 5.1, not 4.10** — see §6.
 - **Rebuild both `cortex-cli` and `cortex-container`** after touching the shade
   config; the container module resolves the `combined` classifier from the repo.
@@ -319,4 +322,4 @@ database — run `./setup-pool.sh` first (or use `./it.sh`, which does it).
 ---
 
 _Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Rewrote against the actual POMs, Containerfile and build scripts: corrected the module list, OpenCV 5.1 staging, shade transformers and build commands.)_
+_Last updated: 2026-08-02 (added cortex/cloud-common and the flat cortex/nodes/cloud-source module; noted that the hand-rolled cloud clients carry no ServiceLoader shading hazard)_

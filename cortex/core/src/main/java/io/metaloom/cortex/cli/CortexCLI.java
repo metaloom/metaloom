@@ -9,7 +9,9 @@ import javax.inject.Singleton;
 
 import ch.qos.logback.classic.Level;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.api.option.GDriveClientOptions;
 import io.metaloom.cortex.api.option.LoomClientOptions;
+import io.metaloom.cortex.api.option.OneDriveClientOptions;
 import io.metaloom.cortex.api.option.S3ClientOptions;
 import io.metaloom.cortex.api.option.S3EventOptions;
 import picocli.CommandLine.Command;
@@ -57,6 +59,16 @@ public class CortexCLI implements Runnable {
 	 * the editor's parameter model has no secret type.</p>
 	 */
 	private final S3ClientOptions s3 = new S3ClientOptions();
+
+	/**
+	 * Google Drive credentials, connection and cache settings. Flags rather than pipeline-node
+	 * parameters for the same reason as {@link #s3}: a service-account key placed on a node would
+	 * be stored in Postgres and rendered in the editor, which has no secret parameter type.
+	 */
+	private final GDriveClientOptions gdrive = new GDriveClientOptions();
+
+	/** OneDrive / SharePoint credentials, connection and cache settings. See {@link #gdrive}. */
+	private final OneDriveClientOptions onedrive = new OneDriveClientOptions();
 
 	@Spec
 	CommandSpec spec;
@@ -263,6 +275,215 @@ public class CortexCLI implements Runnable {
 		s3.getEvents().setMaxBufferedKeys(maxBufferedKeys);
 	}
 
+	// --- Google Drive -------------------------------------------------------------------
+
+	public GDriveClientOptions getGdrive() {
+		return gdrive;
+	}
+
+	@Option(names = { "--gdrive-service-account-json" }, description = "Google service account key as inline JSON. "
+		+ "The production credential: it does not expire and needs no interactive consent. "
+		+ "Env: CORTEX_GDRIVE_SERVICE_ACCOUNT_JSON", scope = ScopeType.INHERIT)
+	public void setGdriveServiceAccountJson(String json) {
+		gdrive.setServiceAccountJson(json);
+	}
+
+	@Option(names = { "--gdrive-service-account-file" }, description = "Path to a Google service account key file. "
+		+ "An alternative to the inline form, not a fallback for it. Env: CORTEX_GDRIVE_SERVICE_ACCOUNT_FILE", scope = ScopeType.INHERIT)
+	public void setGdriveServiceAccountFile(String file) {
+		gdrive.setServiceAccountFile(file);
+	}
+
+	@Option(names = { "--gdrive-impersonate-subject" }, description = "User to impersonate through domain-wide "
+		+ "delegation, e.g. archive@example.com. Required to read a specific person's My Drive rather than the "
+		+ "service account's own. Env: CORTEX_GDRIVE_IMPERSONATE_SUBJECT", scope = ScopeType.INHERIT)
+	public void setGdriveImpersonateSubject(String subject) {
+		gdrive.setImpersonateSubject(subject);
+	}
+
+	@Option(names = { "--gdrive-client-id" }, description = "OAuth client id, for refresh-token authentication. "
+		+ "A development convenience - prefer a service account. Env: CORTEX_GDRIVE_CLIENT_ID", scope = ScopeType.INHERIT)
+	public void setGdriveClientId(String clientId) {
+		gdrive.setClientId(clientId);
+	}
+
+	@Option(names = { "--gdrive-client-secret" }, description = "OAuth client secret. Env: CORTEX_GDRIVE_CLIENT_SECRET", scope = ScopeType.INHERIT)
+	public void setGdriveClientSecret(String clientSecret) {
+		gdrive.setClientSecret(clientSecret);
+	}
+
+	@Option(names = { "--gdrive-refresh-token" }, description = "OAuth refresh token. Note that tokens issued by an "
+		+ "app in Google's 'Testing' publishing status expire after seven days and cannot be renewed unattended. "
+		+ "Env: CORTEX_GDRIVE_REFRESH_TOKEN", scope = ScopeType.INHERIT)
+	public void setGdriveRefreshToken(String refreshToken) {
+		gdrive.setRefreshToken(refreshToken);
+	}
+
+	@Option(names = { "--gdrive-scopes" }, description = "Space separated OAuth scopes. Env: CORTEX_GDRIVE_SCOPES", scope = ScopeType.INHERIT)
+	public void setGdriveScopes(String scopes) {
+		gdrive.setScopes(scopes);
+	}
+
+	@Option(names = { "--gdrive-api-base-url" }, description = "Google API base URL. Overridable so the client can be "
+		+ "pointed at a stub server in tests. Env: CORTEX_GDRIVE_API_BASE_URL", scope = ScopeType.INHERIT)
+	public void setGdriveApiBaseUrl(String url) {
+		gdrive.setApiBaseUrl(url);
+	}
+
+	@Option(names = { "--gdrive-token-url" }, description = "Google OAuth token endpoint. Env: CORTEX_GDRIVE_TOKEN_URL", scope = ScopeType.INHERIT)
+	public void setGdriveTokenUrl(String url) {
+		gdrive.setTokenUrl(url);
+	}
+
+	@Option(names = { "--gdrive-default-drive-id" }, description = "Shared drive used when a node names none. "
+		+ "Leave unset for the credential's own My Drive. Env: CORTEX_GDRIVE_DEFAULT_DRIVE_ID", scope = ScopeType.INHERIT)
+	public void setGdriveDefaultDriveId(String driveId) {
+		gdrive.setDefaultDriveId(driveId);
+	}
+
+	@Option(names = { "--gdrive-cache-path" }, description = "Directory for materialized Google Drive files. "
+		+ "Defaults to <meta-path>/gdrive_bin. Env: CORTEX_GDRIVE_CACHE_PATH", scope = ScopeType.INHERIT)
+	public void setGdriveCachePath(String cachePath) {
+		gdrive.setCachePath(cachePath);
+	}
+
+	@Option(names = { "--gdrive-index-path" }, description = "Directory for persisted scan indexes. "
+		+ "Defaults to <meta-path>/gdrive-index. Env: CORTEX_GDRIVE_INDEX_PATH", scope = ScopeType.INHERIT)
+	public void setGdriveIndexPath(String indexPath) {
+		gdrive.setIndexPath(indexPath);
+	}
+
+	@Option(names = { "--gdrive-max-cache-bytes" }, description = "Cache budget in bytes; 0 disables eviction. "
+		+ "Env: CORTEX_GDRIVE_MAX_CACHE_BYTES", scope = ScopeType.INHERIT)
+	public void setGdriveMaxCacheBytes(long maxCacheBytes) {
+		gdrive.setMaxCacheBytes(maxCacheBytes);
+	}
+
+	@Option(names = { "--gdrive-max-object-size" }, description = "Largest file to materialize in bytes; 0 is "
+		+ "unbounded. Env: CORTEX_GDRIVE_MAX_OBJECT_SIZE", scope = ScopeType.INHERIT)
+	public void setGdriveMaxObjectSize(long maxObjectSize) {
+		gdrive.setMaxObjectSize(maxObjectSize);
+	}
+
+	@Option(names = { "--gdrive-reconcile-interval-ms" }, description = "How long the change feed may be trusted "
+		+ "before a full folder walk is forced. Env: CORTEX_GDRIVE_RECONCILE_INTERVAL_MS", scope = ScopeType.INHERIT)
+	public void setGdriveReconcileIntervalMs(long intervalMs) {
+		gdrive.setReconcileIntervalMs(intervalMs);
+	}
+
+	@Option(names = { "--gdrive-request-timeout-ms" }, description = "Per-request timeout. Env: CORTEX_GDRIVE_REQUEST_TIMEOUT_MS", scope = ScopeType.INHERIT)
+	public void setGdriveRequestTimeoutMs(long timeoutMs) {
+		gdrive.setRequestTimeoutMs(timeoutMs);
+	}
+
+	@Option(names = { "--gdrive-max-retries" }, description = "How often a throttled request is retried. "
+		+ "Env: CORTEX_GDRIVE_MAX_RETRIES", scope = ScopeType.INHERIT)
+	public void setGdriveMaxRetries(int maxRetries) {
+		gdrive.setMaxRetries(maxRetries);
+	}
+
+	@Option(names = { "--gdrive-export-native-docs" }, description = "Export Google Docs, Sheets and Slides instead "
+		+ "of skipping them. Off by default: exporting is lossy and capped at 10 MB. "
+		+ "Env: CORTEX_GDRIVE_EXPORT_NATIVE_DOCS", scope = ScopeType.INHERIT)
+	public void setGdriveExportNativeDocs(boolean exportNativeDocs) {
+		gdrive.setExportNativeDocs(exportNativeDocs);
+	}
+
+	// --- OneDrive / SharePoint ----------------------------------------------------------
+
+	public OneDriveClientOptions getOnedrive() {
+		return onedrive;
+	}
+
+	@Option(names = { "--onedrive-tenant-id" }, description = "Microsoft Entra tenant id. Required for app-only "
+		+ "access; 'common' only works with a delegated refresh token. Env: CORTEX_ONEDRIVE_TENANT_ID", scope = ScopeType.INHERIT)
+	public void setOnedriveTenantId(String tenantId) {
+		onedrive.setTenantId(tenantId);
+	}
+
+	@Option(names = { "--onedrive-client-id" }, description = "Application (client) id. Env: CORTEX_ONEDRIVE_CLIENT_ID", scope = ScopeType.INHERIT)
+	public void setOnedriveClientId(String clientId) {
+		onedrive.setClientId(clientId);
+	}
+
+	@Option(names = { "--onedrive-client-secret" }, description = "Application client secret. Env: CORTEX_ONEDRIVE_CLIENT_SECRET", scope = ScopeType.INHERIT)
+	public void setOnedriveClientSecret(String clientSecret) {
+		onedrive.setClientSecret(clientSecret);
+	}
+
+	@Option(names = { "--onedrive-refresh-token" }, description = "Delegated OAuth refresh token. A development "
+		+ "convenience: Microsoft rotates it on every use and this worker cannot persist the replacement. "
+		+ "Env: CORTEX_ONEDRIVE_REFRESH_TOKEN", scope = ScopeType.INHERIT)
+	public void setOnedriveRefreshToken(String refreshToken) {
+		onedrive.setRefreshToken(refreshToken);
+	}
+
+	@Option(names = { "--onedrive-scopes" }, description = "Space separated OAuth scopes. Defaults per "
+		+ "authentication mode. Env: CORTEX_ONEDRIVE_SCOPES", scope = ScopeType.INHERIT)
+	public void setOnedriveScopes(String scopes) {
+		onedrive.setScopes(scopes);
+	}
+
+	@Option(names = { "--onedrive-api-base-url" }, description = "Microsoft Graph base URL. Overridable so the client "
+		+ "can be pointed at a stub server in tests. Env: CORTEX_ONEDRIVE_API_BASE_URL", scope = ScopeType.INHERIT)
+	public void setOnedriveApiBaseUrl(String url) {
+		onedrive.setApiBaseUrl(url);
+	}
+
+	@Option(names = { "--onedrive-authority-url" }, description = "Microsoft identity platform base URL. "
+		+ "Env: CORTEX_ONEDRIVE_AUTHORITY_URL", scope = ScopeType.INHERIT)
+	public void setOnedriveAuthorityUrl(String url) {
+		onedrive.setAuthorityUrl(url);
+	}
+
+	@Option(names = { "--onedrive-default-drive-id" }, description = "Drive used when a node names none. Effectively "
+		+ "required for app-only access, which has no /me to fall back on. Env: CORTEX_ONEDRIVE_DEFAULT_DRIVE_ID", scope = ScopeType.INHERIT)
+	public void setOnedriveDefaultDriveId(String driveId) {
+		onedrive.setDefaultDriveId(driveId);
+	}
+
+	@Option(names = { "--onedrive-cache-path" }, description = "Directory for materialized OneDrive files. "
+		+ "Defaults to <meta-path>/onedrive_bin. Env: CORTEX_ONEDRIVE_CACHE_PATH", scope = ScopeType.INHERIT)
+	public void setOnedriveCachePath(String cachePath) {
+		onedrive.setCachePath(cachePath);
+	}
+
+	@Option(names = { "--onedrive-index-path" }, description = "Directory for persisted scan indexes. "
+		+ "Defaults to <meta-path>/onedrive-index. Env: CORTEX_ONEDRIVE_INDEX_PATH", scope = ScopeType.INHERIT)
+	public void setOnedriveIndexPath(String indexPath) {
+		onedrive.setIndexPath(indexPath);
+	}
+
+	@Option(names = { "--onedrive-max-cache-bytes" }, description = "Cache budget in bytes; 0 disables eviction. "
+		+ "Env: CORTEX_ONEDRIVE_MAX_CACHE_BYTES", scope = ScopeType.INHERIT)
+	public void setOnedriveMaxCacheBytes(long maxCacheBytes) {
+		onedrive.setMaxCacheBytes(maxCacheBytes);
+	}
+
+	@Option(names = { "--onedrive-max-object-size" }, description = "Largest file to materialize in bytes; 0 is "
+		+ "unbounded. Env: CORTEX_ONEDRIVE_MAX_OBJECT_SIZE", scope = ScopeType.INHERIT)
+	public void setOnedriveMaxObjectSize(long maxObjectSize) {
+		onedrive.setMaxObjectSize(maxObjectSize);
+	}
+
+	@Option(names = { "--onedrive-reconcile-interval-ms" }, description = "How long the change feed may be trusted "
+		+ "before a full folder walk is forced. Env: CORTEX_ONEDRIVE_RECONCILE_INTERVAL_MS", scope = ScopeType.INHERIT)
+	public void setOnedriveReconcileIntervalMs(long intervalMs) {
+		onedrive.setReconcileIntervalMs(intervalMs);
+	}
+
+	@Option(names = { "--onedrive-request-timeout-ms" }, description = "Per-request timeout. "
+		+ "Env: CORTEX_ONEDRIVE_REQUEST_TIMEOUT_MS", scope = ScopeType.INHERIT)
+	public void setOnedriveRequestTimeoutMs(long timeoutMs) {
+		onedrive.setRequestTimeoutMs(timeoutMs);
+	}
+
+	@Option(names = { "--onedrive-max-retries" }, description = "How often a throttled request is retried. "
+		+ "Env: CORTEX_ONEDRIVE_MAX_RETRIES", scope = ScopeType.INHERIT)
+	public void setOnedriveMaxRetries(int maxRetries) {
+		onedrive.setMaxRetries(maxRetries);
+	}
+
 	/**
 	 * Build {@link CortexOptions} from the parsed CLI values.
 	 */
@@ -281,6 +502,8 @@ public class CortexCLI implements Runnable {
 		options.setNodeWhitelist(nodeWhitelist);
 		options.setNodeBlacklist(nodeBlacklist);
 		options.setS3(s3);
+		options.setGdrive(gdrive);
+		options.setOnedrive(onedrive);
 		return options;
 	}
 

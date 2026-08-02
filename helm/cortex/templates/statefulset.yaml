@@ -136,6 +136,96 @@ spec:
             {{- end }}
             {{- end }}
             {{- end }}
+            # Cloud drive access. Same deployment note as S3 above: needed by EVERY worker
+            # that touches gdrive:// or onedrive:// media. A provider whose credentials are
+            # absent is simply not advertised as a runnable kind.
+            {{- if .Values.gdrive.enabled }}
+            {{- if or .Values.gdrive.serviceAccountJson .Values.gdrive.existingSecret }}
+            - name: CORTEX_GDRIVE_SERVICE_ACCOUNT_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cortex.gdriveSecretName" . }}
+                  key: serviceAccountJson
+            {{- end }}
+            {{- if .Values.gdrive.impersonateSubject }}
+            - name: CORTEX_GDRIVE_IMPERSONATE_SUBJECT
+              value: {{ .Values.gdrive.impersonateSubject | quote }}
+            {{- end }}
+            {{- if .Values.gdrive.clientId }}
+            - name: CORTEX_GDRIVE_CLIENT_ID
+              value: {{ .Values.gdrive.clientId | quote }}
+            - name: CORTEX_GDRIVE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cortex.gdriveSecretName" . }}
+                  key: clientSecret
+            - name: CORTEX_GDRIVE_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cortex.gdriveSecretName" . }}
+                  key: refreshToken
+            {{- end }}
+            {{- if .Values.gdrive.defaultDriveId }}
+            - name: CORTEX_GDRIVE_DEFAULT_DRIVE_ID
+              value: {{ .Values.gdrive.defaultDriveId | quote }}
+            {{- end }}
+            {{- if .Values.gdrive.cachePath }}
+            - name: CORTEX_GDRIVE_CACHE_PATH
+              value: {{ .Values.gdrive.cachePath | quote }}
+            {{- end }}
+            {{- if .Values.gdrive.maxCacheBytes }}
+            - name: CORTEX_GDRIVE_MAX_CACHE_BYTES
+              value: {{ .Values.gdrive.maxCacheBytes | quote }}
+            {{- end }}
+            {{- if .Values.gdrive.reconcileIntervalMs }}
+            - name: CORTEX_GDRIVE_RECONCILE_INTERVAL_MS
+              value: {{ .Values.gdrive.reconcileIntervalMs | quote }}
+            {{- end }}
+            {{- if .Values.gdrive.exportNativeDocs }}
+            - name: CORTEX_GDRIVE_EXPORT_NATIVE_DOCS
+              value: "true"
+            {{- end }}
+            {{- end }}
+            {{- if .Values.onedrive.enabled }}
+            {{- if .Values.onedrive.tenantId }}
+            - name: CORTEX_ONEDRIVE_TENANT_ID
+              value: {{ .Values.onedrive.tenantId | quote }}
+            {{- end }}
+            {{- if .Values.onedrive.clientId }}
+            - name: CORTEX_ONEDRIVE_CLIENT_ID
+              value: {{ .Values.onedrive.clientId | quote }}
+            {{- end }}
+            {{- if or .Values.onedrive.clientSecret .Values.onedrive.existingSecret }}
+            - name: CORTEX_ONEDRIVE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cortex.onedriveSecretName" . }}
+                  key: clientSecret
+            {{- end }}
+            {{- if .Values.onedrive.refreshToken }}
+            - name: CORTEX_ONEDRIVE_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cortex.onedriveSecretName" . }}
+                  key: refreshToken
+            {{- end }}
+            {{- if .Values.onedrive.defaultDriveId }}
+            - name: CORTEX_ONEDRIVE_DEFAULT_DRIVE_ID
+              value: {{ .Values.onedrive.defaultDriveId | quote }}
+            {{- end }}
+            {{- if .Values.onedrive.cachePath }}
+            - name: CORTEX_ONEDRIVE_CACHE_PATH
+              value: {{ .Values.onedrive.cachePath | quote }}
+            {{- end }}
+            {{- if .Values.onedrive.maxCacheBytes }}
+            - name: CORTEX_ONEDRIVE_MAX_CACHE_BYTES
+              value: {{ .Values.onedrive.maxCacheBytes | quote }}
+            {{- end }}
+            {{- if .Values.onedrive.reconcileIntervalMs }}
+            - name: CORTEX_ONEDRIVE_RECONCILE_INTERVAL_MS
+              value: {{ .Values.onedrive.reconcileIntervalMs | quote }}
+            {{- end }}
+            {{- end }}
             {{- if or .Values.loom.token .Values.loom.existingSecret }}
             - name: LOOM_TOKEN
               valueFrom:

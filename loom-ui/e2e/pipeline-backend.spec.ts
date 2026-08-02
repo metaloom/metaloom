@@ -49,7 +49,7 @@ test.describe("Pipeline Editor – backend e2e", () => {
     expect(kinds).toContain("filesystem-source");
     expect(kinds).toContain("sha256");
     expect(kinds).toContain("fingerprint");
-    expect(kinds).toContain("filter-mimetype");
+    expect(kinds).toContain("filter");
     expect(kinds).toContain("thumbnail");
   });
 
@@ -67,7 +67,7 @@ test.describe("Pipeline Editor – backend e2e", () => {
     await expect(page.getByTestId("pipeline-node-item-filesystem-source")).toBeVisible();
     await expect(page.getByTestId("pipeline-node-item-sha256")).toBeVisible();
     await expect(page.getByTestId("pipeline-node-item-fingerprint")).toBeVisible();
-    await expect(page.getByTestId("pipeline-node-item-filter-mimetype")).toBeVisible();
+    await expect(page.getByTestId("pipeline-node-item-filter")).toBeVisible();
     await expect(page.getByTestId("pipeline-node-item-loom")).toBeVisible();
 
     // Close the menu
@@ -93,8 +93,9 @@ test.describe("Pipeline Editor – backend e2e", () => {
 
     // Click "Filter" category chip
     await page.getByTestId("pipeline-category-chip-filter").click();
-    await expect(page.getByTestId("pipeline-node-item-filter-mimetype")).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId("pipeline-node-item-filter-size")).toBeVisible();
+    // One entry, not eight: the filter-* kinds collapsed into a single `filter` node whose
+    // buckets are configured per instance.
+    await expect(page.getByTestId("pipeline-node-item-filter")).toBeVisible({ timeout: 5_000 });
     // SOURCE nodes should NOT be visible in filter category
     await expect(page.getByTestId("pipeline-node-item-filesystem-source")).not.toBeVisible();
 
@@ -131,7 +132,7 @@ test.describe("Pipeline Editor – backend e2e", () => {
 
     // Add a filter node: Filter Mimetype
     await page.getByTestId("pipeline-add-node-button").click();
-    await page.getByTestId("pipeline-node-item-filter-mimetype").click();
+    await page.getByTestId("pipeline-node-item-filter").click();
     await expect(canvas.locator(".react-flow__node").filter({ hasText: "MIME Type Filter" })).toBeVisible({ timeout: 5_000 });
 
     // Add an output node: Loom Output

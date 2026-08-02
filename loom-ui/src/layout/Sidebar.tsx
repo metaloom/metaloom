@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box, List, ListItemButton, ListItemIcon, ListItemText, Typography,
   Avatar, Menu, MenuItem, Divider, Tooltip, IconButton, Badge, Collapse,
+  LinearProgress,
 } from "@mui/material";
 import {
   PsychologyOutlined,
@@ -14,10 +15,11 @@ import {
   LocalOfferOutlined, DnsOutlined, GroupsOutlined,
   SecurityOutlined, VpnKeyOutlined, BlockOutlined, ShieldOutlined,
   SpeedOutlined, VisibilityOutlined, StorageOutlined, AutoFixHighOutlined,
-  HistoryOutlined,
+  HistoryOutlined, CloudUploadOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
 import { useAuth } from "../context/AuthContext";
+import { useUploads } from "../features/uploads/UploadContext";
 import { useTranslation } from "react-i18next";
 
 interface NavItem {
@@ -56,11 +58,22 @@ function aiNavItems(t: (k: string) => string): NavItem[] {
   ];
 }
 
-/** The media the agent works on. */
-function contentNavItems(t: (k: string) => string): NavItem[] {
+/**
+ * The media the agent works on.
+ *
+ * @param activeUploads badge count for the upload entry; uploads run in the background, so this is
+ *   the only place their progress is visible once the user has navigated away
+ */
+function contentNavItems(t: (k: string) => string, activeUploads: number): NavItem[] {
   return [
     { label: t("sidebar.nav.library"), path: "/library", icon: <LibraryBooksOutlined fontSize="small" /> },
     { label: t("sidebar.nav.assets"), path: "/assets", icon: <PhotoLibraryOutlined fontSize="small" /> },
+    {
+      label: t("sidebar.nav.uploads"),
+      path: "/uploads",
+      icon: <CloudUploadOutlined fontSize="small" />,
+      badge: activeUploads > 0 ? activeUploads : undefined,
+    },
     { label: t("sidebar.nav.collections"), path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
     { label: t("sidebar.nav.tasks"), path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
     { label: t("sidebar.nav.detection"), path: "/detection", icon: <VisibilityOutlined fontSize="small" /> },
@@ -91,10 +104,10 @@ function aclNavItems(t: (k: string) => string): NavItem[] {
   ];
 }
 
-function navSections(t: (k: string) => string): NavSection[] {
+function navSections(t: (k: string) => string, activeUploads: number): NavSection[] {
   return [
     { key: "ai", label: t("sidebar.divider.ai"), items: aiNavItems(t) },
-    { key: "content", label: t("sidebar.divider.content"), items: contentNavItems(t) },
+    { key: "content", label: t("sidebar.divider.content"), items: contentNavItems(t, activeUploads) },
     {
       key: "management",
       label: t("sidebar.divider.management"),
@@ -116,9 +129,10 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
   const location = useLocation();
   const { username, logout } = useAuth();
   const { t } = useTranslation();
+  const uploads = useUploads();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
 
-  const SECTIONS = navSections(t);
+  const SECTIONS = navSections(t, uploads.activeCount);
 
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
@@ -129,8 +143,31 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
   const isGroupOpen = (group: NavSubGroup) =>
     openGroups[group.key] ?? group.items.some((i) => isActive(i.path));
 
+  /**
+   * The upload entry carries a thin progress bar while a batch is running. It is the only ambient
+   * signal that background work is happening once the user has left the upload screen.
+   */
+  const renderUploadProgress = () =>
+    uploads.isActive ? (
+      <Box sx={{ px: collapsed ? 0.5 : 1.5, pb: 0.5 }} data-testid="sidebar-upload-progress">
+        <LinearProgress
+          variant="determinate"
+          value={uploads.percent}
+          sx={{ height: 3, borderRadius: tokens.radius.full, bgcolor: tokens.bg.overlay }}
+        />
+      </Box>
+    ) : null;
+
   const renderNavItem = (item: NavItem, indent = false) => (
-    <Tooltip key={item.path} title={collapsed ? item.label : ""} placement="right">
+    <Tooltip
+      key={item.path}
+      title={collapsed
+        ? (item.path === "/uploads" && uploads.isActive
+          ? `${item.label} — ${uploads.percent}%`
+          : item.label)
+        : ""}
+      placement="right"
+    >
       <ListItemButton
         data-testid={`sidebar-item-${item.path}`}
         selected={isActive(item.path)}
@@ -289,7 +326,12 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
               )
               : renderSectionLabel(section.label)}
             <List dense disablePadding sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-              {section.items.map((i) => renderNavItem(i))}
+              {section.items.map((i) => (
+                <React.Fragment key={i.path}>
+                  {renderNavItem(i)}
+                  {i.path === "/uploads" && renderUploadProgress()}
+                </React.Fragment>
+              ))}
               {section.subGroups?.map(renderSubGroup)}
             </List>
           </React.Fragment>

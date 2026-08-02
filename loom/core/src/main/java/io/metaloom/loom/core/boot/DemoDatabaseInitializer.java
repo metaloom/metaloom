@@ -1274,7 +1274,7 @@ public class DemoDatabaseInitializer {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "File Source", "Watch ingest folder", 60, 160))
-					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept video and image types", 260, 160))
+					.add(node("pn2", "filter", "MIME Filter", "Accept video and image types", 260, 160))
 					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
 					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260)))
 				.put("edges", new JsonArray()
@@ -1287,7 +1287,7 @@ public class DemoDatabaseInitializer {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "File Source", "Watch production folder", 60, 200))
-					.add(node("pn2", "filter-mimetype", "MIME Filter", "Accept media types", 240, 200))
+					.add(node("pn2", "filter", "MIME Filter", "Accept media types", 240, 200))
 					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute SHA-256", 440, 40))
 					.add(node("pn4", "fingerprint", "Fingerprint", "Video fingerprint", 440, 150))
 					.add(node("pn5", "facedetect", "Face Detection", "Detect faces with InspireFace", 440, 270))
@@ -1336,26 +1336,36 @@ public class DemoDatabaseInitializer {
 	}
 
 	/**
-	 * Speech to text: only audio and video reach Whisper, whose transcript is then scored for sentiment.
+	 * Speech to text: only audio and video reach Whisper, whose transcript is then scored for sentiment
+	 * and translated into English.
 	 *
 	 * <p>
 	 * The MIME filter is what makes this safe to point at a mixed folder — {@code whisper} declares an
 	 * XOR over its audio and video inputs, so a still image arriving on the media port would have
 	 * nothing to bind to.
 	 * </p>
+	 *
+	 * <p>
+	 * Both consumers hang off the same {@code transcript} port. That is what typing it {@code text/*}
+	 * buys: nothing about the transcript says who reads it, so scoring it and translating it are two
+	 * edges rather than two options on one node.
+	 * </p>
 	 */
 	static JsonObject transcriptionDefinition() {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "Media Source", "Watch the recordings folder", 60, 160))
-					.add(node("pn2", "filter-mimetype", "Audio/Video Filter", "Accept audio and video only", 260, 160,
+					.add(node("pn2", "filter", "Audio/Video Filter", "Accept audio and video only", 260, 160,
 						new JsonObject().put("mimeTypes", "audio/*,video/*")))
 					.add(node("pn3", "whisper", "Transcribe", "Speech to text with Whisper", 480, 160))
-					.add(node("pn4", "sentiment", "Transcript Sentiment", "Score the tone of the transcript", 700, 160)))
+					.add(node("pn4", "sentiment", "Transcript Sentiment", "Score the tone of the transcript", 700, 80))
+					.add(node("pn5", "translate", "Translate to English", "Translate the transcript into English", 700, 240,
+						new JsonObject().put("targetLanguage", "en"))))
 				.put("edges", new JsonArray()
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
 					.add(edge("pe2", "pn2", "media", "pn3", "video"))
-					.add(edge("pe3", "pn3", "transcript", "pn4", "text")));
+					.add(edge("pe3", "pn3", "transcript", "pn4", "text"))
+					.add(edge("pe4", "pn3", "transcript", "pn5", "text")));
 	}
 
 	static JsonObject scriptDefinition() {

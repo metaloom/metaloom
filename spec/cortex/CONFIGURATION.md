@@ -93,7 +93,58 @@ Worker-level rather than pipeline-node parameters, so credentials never enter th
 | `--s3-events-queue-url` | `CORTEX_S3_EVENTS_QUEUE_URL` | — | SQS queue URL fed by S3 notifications |
 | `--s3-events-max-buffered-keys` | `CORTEX_S3_EVENTS_MAX_BUFFERED_KEYS` | `50000` | Buffer ceiling; on overflow the next run falls back to a full listing |
 
-### 2.3 Environment variables with no CLI flag
+### 2.3 Google Drive flags
+
+Worker-level for the same reason as the S3 flags, with one sharper edge: `ParameterType` has no `SECRET`, so a service-account key placed on a node definition would be stored in Postgres and rendered as plain text in the pipeline editor. Needed by **every** worker that touches `gdrive://` media — not only the one running `gdrive-source`.
+
+Google is considered configured when **either** a service-account key **or** a complete `clientId`+`clientSecret`+`refreshToken` set is present. A partially filled set is a hard failure at boot naming the missing flag, not a silent "not configured": turning a typo into a missing capability produces a dead run rather than a startup error.
+
+| CLI Flag | Env Var | Default | Description |
+|---|---|---|---|
+| `--gdrive-service-account-json` | `CORTEX_GDRIVE_SERVICE_ACCOUNT_JSON` | — | Service-account key as inline JSON. **The production credential**: it does not expire and needs no interactive consent |
+| `--gdrive-service-account-file` | `CORTEX_GDRIVE_SERVICE_ACCOUNT_FILE` | — | Path to the same key. An alternative to the inline form, not a fallback for it |
+| `--gdrive-impersonate-subject` | `CORTEX_GDRIVE_IMPERSONATE_SUBJECT` | — | User to impersonate through domain-wide delegation; required to read a specific person's My Drive |
+| `--gdrive-client-id` | `CORTEX_GDRIVE_CLIENT_ID` | — | OAuth client id, for refresh-token auth |
+| `--gdrive-client-secret` | `CORTEX_GDRIVE_CLIENT_SECRET` | — | OAuth client secret |
+| `--gdrive-refresh-token` | `CORTEX_GDRIVE_REFRESH_TOKEN` | — | 🔴 **Development only.** Tokens from an app in Google's "Testing" publishing status expire after 7 days and cannot be renewed unattended |
+| `--gdrive-scopes` | `CORTEX_GDRIVE_SCOPES` | `https://www.googleapis.com/auth/drive.readonly` | Space-separated OAuth scopes |
+| `--gdrive-api-base-url` | `CORTEX_GDRIVE_API_BASE_URL` | `https://www.googleapis.com` | Overridable so the client can be pointed at a stub server in tests |
+| `--gdrive-token-url` | `CORTEX_GDRIVE_TOKEN_URL` | `https://oauth2.googleapis.com/token` | OAuth token endpoint |
+| `--gdrive-default-drive-id` | `CORTEX_GDRIVE_DEFAULT_DRIVE_ID` | — | Shared drive used when a node names none; unset = the credential's My Drive |
+| `--gdrive-cache-path` | `CORTEX_GDRIVE_CACHE_PATH` | `<meta-path>/gdrive_bin` | Directory for materialized files |
+| `--gdrive-index-path` | `CORTEX_GDRIVE_INDEX_PATH` | `<meta-path>/gdrive-index` | Directory for persisted scan indexes |
+| `--gdrive-max-cache-bytes` | `CORTEX_GDRIVE_MAX_CACHE_BYTES` | `53687091200` (50 GiB) | Cache budget; `0` disables eviction |
+| `--gdrive-max-object-size` | `CORTEX_GDRIVE_MAX_OBJECT_SIZE` | `0` | Largest file to materialize, in bytes. `0` = unbounded |
+| `--gdrive-reconcile-interval-ms` | `CORTEX_GDRIVE_RECONCILE_INTERVAL_MS` | `86400000` (24 h) | How long the change feed may be trusted before a full folder walk is forced. Longer than S3's 6 h because a delta feed is a provider guarantee, not a notification that can be lost |
+| `--gdrive-request-timeout-ms` | `CORTEX_GDRIVE_REQUEST_TIMEOUT_MS` | `60000` | Per-request timeout |
+| `--gdrive-max-retries` | `CORTEX_GDRIVE_MAX_RETRIES` | `5` | Retries for a throttled or 5xx request |
+| `--gdrive-export-native-docs` | `CORTEX_GDRIVE_EXPORT_NATIVE_DOCS` | `false` | Worker default for the node option. Google Docs/Sheets/Slides have no bytes; exporting them is lossy and capped at 10 MB |
+
+### 2.4 OneDrive flags
+
+OneDrive and SharePoint document libraries, over Microsoft Graph v1.0. Microsoft is considered configured when **either** app-only credentials (a concrete `tenantId` plus `clientId`+`clientSecret`) **or** a delegated `clientId`+`clientSecret`+`refreshToken` set is present.
+
+⚠️ An app-only token has no `/me`, so there is no implicit drive: either `--onedrive-default-drive-id` or the node's `driveId` must be set. `resolveDriveId` fails fast naming the flag rather than letting Graph answer 400 three calls later.
+
+| CLI Flag | Env Var | Default | Description |
+|---|---|---|---|
+| `--onedrive-tenant-id` | `CORTEX_ONEDRIVE_TENANT_ID` | `common` | Entra tenant. Required for app-only access; `common` only works with a delegated refresh token |
+| `--onedrive-client-id` | `CORTEX_ONEDRIVE_CLIENT_ID` | — | Application (client) id |
+| `--onedrive-client-secret` | `CORTEX_ONEDRIVE_CLIENT_SECRET` | — | Application client secret |
+| `--onedrive-refresh-token` | `CORTEX_ONEDRIVE_REFRESH_TOKEN` | — | 🔴 **Development only.** Microsoft rotates the token on every use and expects the caller to persist the replacement, which a stateless worker cannot |
+| `--onedrive-scopes` | `CORTEX_ONEDRIVE_SCOPES` | `…/.default` app-only; `offline_access …/Files.Read.All` delegated | Space-separated OAuth scopes |
+| `--onedrive-api-base-url` | `CORTEX_ONEDRIVE_API_BASE_URL` | `https://graph.microsoft.com/v1.0` | Overridable for tests |
+| `--onedrive-authority-url` | `CORTEX_ONEDRIVE_AUTHORITY_URL` | `https://login.microsoftonline.com` | Identity platform base URL |
+| `--onedrive-default-drive-id` | `CORTEX_ONEDRIVE_DEFAULT_DRIVE_ID` | — | Drive used when a node names none. Effectively required for app-only access |
+| `--onedrive-cache-path` | `CORTEX_ONEDRIVE_CACHE_PATH` | `<meta-path>/onedrive_bin` | Directory for materialized files |
+| `--onedrive-index-path` | `CORTEX_ONEDRIVE_INDEX_PATH` | `<meta-path>/onedrive-index` | Directory for persisted scan indexes |
+| `--onedrive-max-cache-bytes` | `CORTEX_ONEDRIVE_MAX_CACHE_BYTES` | `53687091200` (50 GiB) | Cache budget; `0` disables eviction |
+| `--onedrive-max-object-size` | `CORTEX_ONEDRIVE_MAX_OBJECT_SIZE` | `0` | Largest file to materialize, in bytes. `0` = unbounded |
+| `--onedrive-reconcile-interval-ms` | `CORTEX_ONEDRIVE_RECONCILE_INTERVAL_MS` | `86400000` (24 h) | How long the change feed may be trusted before a full folder walk is forced |
+| `--onedrive-request-timeout-ms` | `CORTEX_ONEDRIVE_REQUEST_TIMEOUT_MS` | `60000` | Per-request timeout |
+| `--onedrive-max-retries` | `CORTEX_ONEDRIVE_MAX_RETRIES` | `5` | Retries for a throttled or 5xx request |
+
+### 2.5 Environment variables with no CLI flag
 
 | Env Var | Read by | Description |
 |---|---|---|
@@ -101,9 +152,9 @@ Worker-level rather than pipeline-node parameters, so credentials never enter th
 | `HOME` | JVM → `user.home` | Resolves the default meta path and the (unused) config path |
 | `JAVA_TOOL_OPTIONS` | JVM | Heap/JVM options; set in the container image |
 
-There are exactly two `System.getenv` call sites in `cortex/`: `EnvDefaultProvider` (the table in §2.1/§2.2) and `LoomControlChannel` (`LOOM_TOKEN`). Any other `CORTEX_*` name found in docs or charts is not read by the code.
+There are exactly two `System.getenv` call sites in `cortex/`: `EnvDefaultProvider` (the tables in §2.1–§2.4) and `LoomControlChannel` (`LOOM_TOKEN`). Any other `CORTEX_*` name found in docs or charts is not read by the code.
 
-### 2.4 Subcommands
+### 2.6 Subcommands
 
 | Command | Alias | Description |
 |---|---|---|
@@ -127,6 +178,8 @@ There are exactly two `System.getenv` call sites in `cortex/`: `EnvDefaultProvid
 | `nodes` | `Map<String, CortexNodeOptions>` | empty map | YAML only → **always empty**, see §1.1 |
 | `loom` | `LoomClientOptions` | new instance | `--hostname` / `--port` |
 | `s3` | `S3ClientOptions` | new instance | `--s3-*` flags |
+| `gdrive` | `GDriveClientOptions` | new instance | `--gdrive-*` flags |
+| `onedrive` | `OneDriveClientOptions` | new instance | `--onedrive-*` flags |
 | `dryrun` | `boolean` | `false` | no flag, no env — programmatic only |
 | `metaPath` | `Path` | `null` (CLI supplies `~/.cache/metaloom/cortex/meta`) | `--meta-path` |
 | `monitoringPort` | `int` | `8093` | `--monitoring-port` |
@@ -149,7 +202,7 @@ There are exactly two `System.getenv` call sites in `cortex/`: `EnvDefaultProvid
 
 A type absent from the map yields `0` = no timeout.
 
-### 3.2 LoomClientOptions / S3ClientOptions / S3EventOptions
+### 3.2 LoomClientOptions / S3ClientOptions / S3EventOptions / Cloud options
 
 | Class | Fields |
 |---|---|
@@ -157,7 +210,13 @@ A type absent from the map yields `0` = no timeout.
 | `S3ClientOptions` | `endpoint`, `region`, `accessKey`, `secretKey`, `pathStyleAccess` (`Boolean`, null = derive from endpoint), `cachePath`, `indexPath`, `maxCacheBytes`, `maxObjectSize`, `reconcileIntervalMs`, `events` — defaults per §2.2 |
 | `S3EventOptions` | `enabled`, `mode` (`WEBHOOK`/`SQS`), `webhookPath`, `webhookSecret`, `queueUrl`, `maxBufferedKeys` — setters coerce null/non-positive back to the defaults |
 
-`S3ClientOptions.isConfigured()` is true when *any* of endpoint / accessKey / region is set — and `region` defaults to `us-east-1`, so it is effectively always true.
+| `CloudClientOptions<T>` (abstract) | `cachePath`, `indexPath`, `maxCacheBytes`, `maxObjectSize`, `reconcileIntervalMs`, `requestTimeoutMs`, `maxRetries`, `defaultDriveId` — defaults per §2.3 |
+| `GDriveClientOptions` | adds `serviceAccountJson`, `serviceAccountFile`, `impersonateSubject`, `clientId`, `clientSecret`, `refreshToken`, `scopes`, `apiBaseUrl`, `tokenUrl`, `exportNativeDocs` |
+| `OneDriveClientOptions` | adds `tenantId`, `clientId`, `clientSecret`, `refreshToken`, `scopes`, `apiBaseUrl`, `authorityUrl`; `tokenUrl()` is derived from the authority and tenant |
+
+`S3ClientOptions.isConfigured()` is true when *any* of endpoint / accessKey / region is set — and `region` defaults to `us-east-1`, so it is effectively always true. The gate that actually decides whether `s3-source` is advertised is `S3Module.isConfigured()` (endpoint **or** access key).
+
+The cloud options are stricter, and deliberately so: `isConfigured()` requires a *complete* credential set, and `partialConfigurationReason()` returns a message naming the missing flag for a half-filled one. `CloudModule` turns that into a boot failure rather than a silent "not configured", because a missing capability surfaces much later and much less clearly than a startup error.
 
 ---
 
@@ -200,6 +259,8 @@ Every node module contributes a `CortexNodeOptionDeserializerInfo(optionsClass, 
 | `quality` | `QualityNodeOptions` | `nodes/quality` |
 | `s3-sink` | `S3SinkNodeOptions` | `nodes/s3-sink` |
 | `s3-source` | `S3SourceNodeOptions` | `nodes/s3-source` |
+| `gdrive-source` | `GDriveSourceNodeOptions` | `nodes/cloud-source` |
+| `onedrive-source` | `OneDriveSourceNodeOptions` | `nodes/cloud-source` |
 | `scene-detector` | `SceneDetectionOptions` | `nodes/scene-detection` |
 | `scene-layout` | `SceneLayoutNodeOptions` | `nodes/scene-layout` |
 | `script` | `ScriptNodeOptions` | `nodes/script` |
@@ -238,6 +299,8 @@ Spot-check values; the authoritative per-field tables live in [NODES.md](../feat
 | `llm` | `ollamaUrl` `http://127.0.0.1:11434`, `providerType` `OLLAMA`, `prompts` map |
 | `vlm` | `endpointUrl`, `apiKey`, `prompts` (`VlmNodePrompt`) |
 | `s3-source` | `bucket`, `prefix`, `suffixes`, `emitStates`, `startAfter`, `useEvents` |
+| `gdrive-source` | `driveId`, `folderId`, `recursive` (true), `maxDepth` (0 = unlimited), `suffixes`, `mimeTypes`, `emitStates` (`NEW, MODIFIED, MOVED`), `useDelta` (true), `includeTrashed` (false), `exportNativeDocs` (false) |
+| `onedrive-source` | the same minus `exportNativeDocs`, which is Google-only and is a validation error here |
 | `s3-sink` | `bucket`, `keyTemplate`, `includeSource`, `createAssets` (true), `overwrite` `IF_DIFFERENT`, `deleteAfterUpload`, `maxArtifacts`, `maxArtifactBytes`, `failOnPartial` (true) |
 | `script` | `engine`, `script`, `outputs`, `params`, `trusted` (true), `allowNetwork`/`allowFilesystem` (false), `statementLimit`, `maxOutputBytes`, `maxLogLines` |
 | `tika`, `consistency`, `fingerprint`, `scene-detector` | no fields beyond §5.1 |
@@ -284,7 +347,7 @@ Read from the pipeline definition JSON by `RegistryNodeRegistrar.adapt()`.
 | `type` | — | node `name()` | Keys the default-timeout lookup |
 | *(remaining keys)* | `options()` | empty map | Delivered via `PipelineConfigurable.configure(nodeDef)` |
 | — | `conditionalDependencies()` | empty map | Filter-branch dependencies |
-| — | `cacheProvider()` | `null` | Optional `NodeCacheProvider` |
+| — | `artifacts()` on `NodeInputs`/`NodeContext` | `ArtifactCache.noop()` | Segment-scoped artifact cache; not configurable per node — the runner opens it. See [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §7.4 |
 
 ### 6.1 Source node selection (`filesystem-source`)
 
@@ -300,6 +363,20 @@ A run request may override the selection via `pathGlobs` in the `SOURCE_TASK` op
 Root (`path`) mode performs a **differential** scan against a persisted per-root index and emits only files whose `FileState` is in `emitStates`; glob mode always re-walks and emits every match.
 
 See [PIPELINE.md](../features/pipeline/PIPELINE.md) and [NODES.md](../features/pipeline-nodes/NODES.md) §4 (`MediaSourceNode`).
+
+### 6.2 Cloud source selection (`gdrive-source`, `onedrive-source`)
+
+```json
+{ "id": "gdrive-source", "type": "gdrive-source",
+  "driveId": "0AH...", "folderId": "1BxY...",
+  "suffixes": "mp4,mkv", "emitStates": ["NEW", "MODIFIED", "MOVED"] }
+```
+
+Only the *selection* comes from the definition. Credentials are worker-level (§2.3, §2.4) — a definition is stored in Postgres and rendered in the editor, and `ParameterType` has no `SECRET`.
+
+`driveId` resolves definition → configured node defaults → `--<provider>-default-drive-id`. Google treats an unresolved drive as My Drive; Microsoft app-only has no `/me` and fails with a message naming the flag.
+
+Both kinds are advertised **only when that provider's credentials are configured**, which is the reason they are two kinds rather than one with a `provider` parameter — see [NODE_CLOUDSOURCE_PLAN.md](../features/pipeline-nodes/NODE_CLOUDSOURCE_PLAN.md).
 
 ---
 
@@ -428,4 +505,4 @@ Env-var behaviour is not covered by a test; `EnvDefaultProvider` reads `System.g
 ---
 
 _Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Rewritten against the code: YAML loader gap documented, S3 flags added, node key table completed.)_
+_Last updated: 2026-08-02 (added the Google Drive and OneDrive flag tables (§2.3, §2.4), the two cloud option classes, their node keys and the cloud source selection in §6.2)_

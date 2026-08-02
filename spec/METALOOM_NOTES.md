@@ -8,20 +8,14 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
-- Remove PicoCLIModule from cortex. Cortex has no longer a CLI! Cortex is just a container anymore!
+
 - Create Market analysis of metaloom. Are there comperable offerings?
-- USP: Describe the USP of metaloom. Also point out missing aspects. Currently metaloom only focuses on extraction. What could be the real usecase for agencies. Where lies the big benefit. How can all this extraction information be utilized? Is metaloom a search and ingestion pipeline for assets? Is there any more?
 - Metadata ingestion: Tika? Dublin Core - https://de.wikipedia.org/wiki/Dublin_Core, exif
 - Metadata writeback: (Dublin Core - https://de.wikipedia.org/wiki/Dublin_Core) - Check how many there are. Investigate (Images have exif data)
 - How can nodes register themself onto loom? How can custom nodes automatically be picked up and how can the UI allow those nodes to be used for pipelines
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
-- Add gdrive/onedrive support for asset sources
-- Add dedicated file upload area in the UI
 - Add way of viewing notifications in the UI (How are notifications tracked in loom?)
 - Add semantic ingestion node. This allows constructed semantic data to be ingested into loom
-- Add translate node. This node should be able to translate input text into a specified language
-- Add language filter node. This node is able to determine the language and act as a filter
-- Add support for dynamic outputs (e.g. language filter node) should have dynamic amount of outputs (min 1). The UI in the pipeline editor should have a + sign to add new filter options
 - Add tag node. The node should be able to automatically be able to tag an asset
 - Would a merge node be useful to combine assets in a reactive pipeline? (e.g. zip them)
 

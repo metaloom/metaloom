@@ -63,6 +63,10 @@
             <artifactId>cortex-s3-common</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-cloud-common</artifactId>
+        </dependency>
+        <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
         </dependency>

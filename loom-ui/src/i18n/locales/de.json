@@ -1,1687 +1,1755 @@
 {
- "common": {
-  "cancel": "Abbrechen",
-  "close": "Schließen",
-  "delete": "Löschen",
-  "save": "Speichern",
-  "create": "Erstellen",
-  "search": "Suchen",
-  "name": "Name",
-  "description": "Beschreibung",
-  "actions": "Aktionen",
-  "uuid": "UUID",
-  "created": "Erstellt",
-  "status": "Status",
-  "assets": "Assets",
-  "clearFilters": "Filter zurücksetzen",
-  "noMatchFilters": "Keine Assets entsprechen Ihren Filtern",
-  "allStatus": "Alle Status",
-  "enabled": "aktiviert",
-  "disabled": "deaktiviert",
-  "confirmed": "Bestätigt",
-  "denied": "Abgelehnt",
-  "rejected": "Zurückgewiesen",
-  "never": "Nie",
-  "permanent": "Dauerhaft"
- },
- "sidebar": {
-  "brand": "Metaloom",
-  "nav": {
-   "chat": "Chat",
-   "library": "Bibliothek",
-   "assets": "Assets",
-   "collections": "Sammlungen",
-   "tasks": "Aufgaben",
-   "detection": "Erkennung",
-   "tags": "Tags",
-   "workflow": "Workflow",
-   "skills": "Skills",
-   "memory": "Gedächtnis",
-   "chatSessions": "Chat-Sitzungen"
-  },
-  "admin": {
-   "assetPools": "Asset-Pools",
-   "pipelines": "Pipelines",
-   "cortex": "Cortex",
-   "monitoring": "Monitoring",
-   "spaces": "Spaces",
-   "users": "Benutzer",
-   "groups": "Gruppen",
-   "permissions": "Berechtigungen",
-   "apiKeys": "API-Schlüssel",
-   "blacklist": "Sperrliste",
-   "memoryDenylist": "Gedächtnis-Sperrliste"
-  },
-  "divider": {
-   "admin": "Administration",
-   "ai": "KI",
-   "content": "Inhalte",
-   "management": "Verwaltung"
-  },
-  "group": {
-   "acl": "ACL"
-  },
-  "menu": {
-   "profile": "Profil",
-   "logout": "Abmelden"
-  },
-  "tooltip": {
-   "expand": "Seitenleiste ausklappen",
-   "collapse": "Seitenleiste einklappen"
-  },
-  "fallback": {
-   "unknown": "Unbekannt"
-  }
- },
- "auth": {
-  "title": "Loom Studio",
-  "subtitle": "Melden Sie sich an, um fortzufahren",
-  "error": {
-   "invalidCredentials": "Ungültige Anmeldedaten."
-  },
-  "placeholder": {
-   "username": "Benutzername",
-   "password": "Passwort"
-  },
-  "button": {
-   "signIn": "Anmelden"
-  }
- },
- "assets": {
-  "title": "Assets",
-  "search": {
-   "placeholder": "Assets, Tags suchen…"
-  },
-  "filter": {
-   "allStatus": "Alle Status",
-   "ready": "Bereit",
-   "processing": "Wird verarbeitet",
-   "failed": "Fehlgeschlagen",
-   "archived": "Archiviert",
-   "allTypes": "Alle Typen",
-   "video": "Video",
-   "image": "Bild",
-   "audio": "Audio",
-   "document": "Dokument",
-   "allLibraries": "Alle Bibliotheken",
-   "clear": "Filter zurücksetzen"
-  },
-  "tooltip": {
-   "small": "Klein — nur Vorschaubild",
-   "medium": "Mittel",
-   "large": "Groß — Tags, Größe, Dauer"
-  },
-  "count": "Assets",
-  "chip": {
-   "clearFilters": "Filter zurücksetzen"
-  },
-  "empty": {
-   "noMatch": "Keine Assets entsprechen Ihren Filtern",
-   "title": "Bereit, deine Mediathek aufzubauen?",
-   "description": "Lade Material hoch, lass es von den Pipelines anreichern und organisiere alles an einem Ort.",
-   "action": "Erstes Asset hochladen"
-  },
-  "button": {
-   "upload": "Hochladen",
-   "uploading": "Wird hochgeladen…",
-   "select": "Auswählen",
-   "cancelSelect": "Abbrechen",
-   "cancel": "Abbrechen",
-   "delete": "Löschen",
-   "apply": "Anwenden",
-   "bulkTag": "Taggen",
-   "bulkDelete": "Löschen"
-  },
-  "select": {
-   "count": "{{count}} ausgewählt"
-  },
-  "dialog": {
-   "upload": "Asset hochladen",
-   "delete": "Asset löschen",
-   "bulkTag": "{{count}} Assets taggen"
-  },
-  "upload": {
-   "pickFile": "Datei auswählen…",
-   "library": "Bibliothek",
-   "origin": "Herkunft"
-  },
-  "label": {
-   "tag": "Tag"
-  },
-  "confirm": {
-   "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
-  },
-  "toast": {
-   "uploaded": "Asset hochgeladen",
-   "uploadFailed": "Hochladen fehlgeschlagen",
-   "deleted": "Asset gelöscht",
-   "deleteFailed": "Asset konnte nicht gelöscht werden",
-   "bulkDeleted": "{{count}} Assets gelöscht",
-   "bulkDeletedPartial": "{{ok}} Assets gelöscht, {{failed}} fehlgeschlagen",
-   "bulkTagged": "{{count}} Assets getaggt",
-   "bulkTagFailed": "Assets konnten nicht getaggt werden"
-  }
- },
- "library": {
-  "title": "Bibliotheken",
-  "tooltip": {
-   "info": "Bibliotheken werden verwendet, um Assets innerhalb eines Spaces zu logischen Sammlungen zusammenzufassen.",
-   "newLibrary": "Neue Bibliothek",
-   "deleteLibrary": "Bibliothek löschen"
-  },
-  "count": {
-   "assets": "Assets"
-  },
-  "search": {
-   "placeholder": "Assets suchen…"
-  },
-  "stats": {
-   "videos": "Videos",
-   "images": "Bilder",
-   "total": "gesamt"
-  },
-  "empty": {
-   "noAssets": "Keine Assets in dieser Bibliothek",
-   "noSearch": "Keine Assets entsprechen Ihrer Suche",
-   "selectLibrary": "Bibliothek auswählen"
-  },
-  "dialog": {
-   "newLibrary": "Neue Bibliothek",
-   "deleteLibrary": "Bibliothek löschen"
-  },
-  "label": {
-   "name": "Name",
-   "description": "Beschreibung"
-  },
-  "button": {
-   "cancel": "Abbrechen",
-   "creating": "Wird erstellt…",
-   "create": "Erstellen"
-  },
-  "confirm": {
-   "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
-  },
-  "toast": {
-   "deleted": "Bibliothek gelöscht"
-  },
-  "emptyState": {
-   "title": "Willst du ein Projekt starten?",
-   "description": "In Bibliotheken liegt dein Material. Lege eine an, um Medien hochzuladen, eigene Vorgaben zu setzen und alles an einem Ort zu organisieren.",
-   "action": "Erste Bibliothek anlegen",
-   "assets": {
-    "title": "Diese Bibliothek ist noch leer",
-    "description": "Lade Medien in diese Bibliothek hoch — sie erscheinen hier und können getaggt, analysiert und geprüft werden.",
-    "action": "Assets hochladen"
-   }
-  }
- },
- "collections": {
-  "title": "Sammlungen",
-  "count": {
-   "collections": "Sammlungen",
-   "results": "Ergebnisse"
-  },
-  "button": {
-   "new": "Neue Sammlung",
-   "cancel": "Abbrechen",
-   "creating": "Wird erstellt…",
-   "create": "Erstellen"
-  },
-  "search": {
-   "placeholder": "Sammlungen suchen…"
-  },
-  "tooltip": {
-   "delete": "Sammlung löschen",
-   "back": "Zurück zu Sammlungen"
-  },
-  "chip": {
-   "assets": "Assets",
-   "open": "Öffnen"
-  },
-  "empty": {
-   "noCollections": "Keine Sammlungen in diesem Space",
-   "noSearch": "Keine Sammlungen entsprechen Ihrer Suche",
-   "noAssets": "Keine Assets in dieser Sammlung",
-   "title": "Möchtest du deine Arbeit bündeln?",
-   "description": "Kollektionen fassen zusammengehörige Assets zusammen, damit eine Kampagne, ein Dreh oder ein Projekt an einem Ort bleibt.",
-   "action": "Erste Kollektion anlegen"
-  },
-  "dialog": {
-   "newCollection": "Neue Sammlung",
-   "deleteCollection": "Sammlung löschen"
-  },
-  "label": {
-   "name": "Name",
-   "description": "Beschreibung",
-   "color": "Farbe"
-  },
-  "confirm": {
-   "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
-  },
-  "toast": {
-   "deleted": "Sammlung gelöscht"
-  }
- },
- "tasks": {
-  "title": "Aufgaben",
-  "count": "Aufgaben",
-  "button": {
-   "new": "Neue Aufgabe",
-   "create": "Erstellen",
-   "save": "Speichern",
-   "edit": "Bearbeiten",
-   "delete": "Löschen",
-   "cancel": "Abbrechen",
-   "close": "Schließen"
-  },
-  "form": {
-   "title": "Titel",
-   "description": "Beschreibung",
-   "priority": "Priorität"
-  },
-  "priority": {
-   "LOW": "Niedrig",
-   "MEDIUM": "Mittel",
-   "HIGH": "Hoch",
-   "CRITICAL": "Kritisch"
-  },
-  "dialog": {
-   "newTitle": "Aufgabe erstellen",
-   "editTitle": "Aufgabe bearbeiten",
-   "deleteTitle": "Aufgabe löschen"
-  },
-  "confirm": {
-   "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
-  },
-  "table": {
-   "task": "Aufgabe",
-   "priority": "Priorität",
-   "created": "Erstellt"
-  },
-  "status": {
-   "PENDING": "Ausstehend",
-   "REJECTED": "Abgelehnt",
-   "ACCEPTED": "Angenommen",
-   "REVIEW": "Überprüfung"
-  },
-  "drawer": {
-   "title": "Aufgabendetails",
-   "created": "Erstellt",
-   "lastEdited": "Zuletzt bearbeitet"
-  },
-  "reactions": {
-   "title": "Reaktionen",
-   "add": "Reagieren",
-   "empty": "Noch keine Reaktionen",
-   "type": {
-    "THUMBSUP": "Daumen hoch",
-    "THUMBSDOWN": "Daumen runter",
-    "SATISFIED": "Zufrieden",
-    "PLUS_ONE": "+1",
-    "MINUS_ONE": "-1"
-   }
-  },
-  "empty": "Keine Aufgaben gefunden",
-  "comments": {
-   "title": "Kommentare",
-   "addPlaceholder": "Kommentar schreiben…",
-   "post": "Kommentar senden",
-   "empty": "Noch keine Kommentare"
-  },
-  "emptyState": {
-   "title": "Noch nichts zu tun",
-   "description": "Aufgaben steuern Review, Freigabe und Nacharbeit an deinen Medien — mit Priorität, Zuständigkeit und Fälligkeit.",
-   "action": "Erste Aufgabe anlegen"
-  }
- },
- "monitoring": {
-  "title": "Monitoring & Statistiken",
-  "subtitle": "Rollende 14-Tage-Metriken",
-  "sampleData": "Beispieldaten",
-  "loadError": "Pipeline-Läufe konnten nicht geladen werden",
-  "kpi": {
-   "dailyIngest": "Tägliche Ingestion",
-   "assets": "Assets",
-   "assetsToday": "Heute ingestionierte Assets",
-   "pipelineRuns": "Pipeline-Läufe (7T)",
-   "runs": "Läufe",
-   "allPipelines": "Alle Pipelines",
-   "avgLatency": "Ø Latenz",
-   "processingPipeline": "Verarbeitungs-Pipeline",
-   "storageUsed": "Speicher verwendet",
-   "totalLibraries": "Gesamt über alle Bibliotheken",
-   "openTasks": "Offene Aufgaben",
-   "allProjects": "Über alle Spaces",
-   "agentQueries": "Agent-Anfragen (14T)",
-   "totalAgentQueries": "Gesamte Loom-Agent-Anfragen",
-   "annotations": "Annotationen (14T)",
-   "newAnnotations": "Neue Annotationen erstellt"
-  },
-  "chart": {
-   "ingestion": "Asset-Ingestion (14T)",
-   "pipelineRuns": "Pipeline-Läufe (14T)",
-   "taskBacklog": "Aufgaben-Rückstand",
-   "latency": "Verarbeitungslatenz (ms)",
-   "storage": "Speicherwachstum (TB)",
-   "agentUsage": "Agent-Nutzung (14T)"
-  },
-  "series": {
-   "assets": "Assets",
-   "success": "Erfolg",
-   "failed": "Fehlgeschlagen",
-   "skipped": "Übersprungen",
-   "open": "Offen",
-   "overdue": "Überfällig",
-   "avg": "Ø",
-   "p99": "P99",
-   "storage": "Speicher",
-   "queries": "Anfragen",
-   "actions": "Aktionen"
-  }
- },
- "tags": {
-  "title": "Tags",
-  "tooltip": {
-   "info": "Tags sind flache Bezeichnungen, die nach Sammlung gruppiert sind. Ziehen Sie einen Tag auf einen Sammlungs-Header, um ihn zu verschieben.",
-   "create": "Tag erstellen"
-  },
-  "count": "Tags in {{count}} Sammlungen",
-  "placeholder": {
-   "name": "Tag-Name…",
-   "collection": "Sammlung…",
-   "filter": "Tags filtern…"
-  },
-  "search": {
-   "placeholder": "Tags filtern…"
-  },
-  "menu": {
-   "delete": "Löschen"
-  },
-  "loading": "Tags werden geladen…",
-  "empty": "Noch keine Tags. Erstellen Sie einen Tag, um zu beginnen.",
-  "detail": {
-   "title": "Tag-Details",
-   "name": "Name",
-   "collection": "Sammlung",
-   "collectionPlaceholder": "z. B. Kategorie",
-   "collectionHelper": "Sammlung ändern, um den Tag in eine andere Gruppe zu verschieben",
-   "placeholder": "z. B. Kategorie",
-   "helper": "Sammlung ändern, um den Tag in eine andere Gruppe zu verschieben",
-   "rating": "Deine Bewertung",
-   "save": "Speichern"
-  },
-  "emptyState": {
-   "title": "Noch nichts getaggt?",
-   "description": "Tags beschreiben den Inhalt deiner Medien, damit du — und der Agent — sie in Sekunden wiederfindest.",
-   "action": "Ersten Tag anlegen"
-  }
- },
- "profile": {
-  "title": "Profil",
-  "subtitle": "Persönliche Informationen verwalten",
-  "field": {
-   "firstName": "Vorname",
-   "lastName": "Nachname",
-   "email": "E-Mail",
-   "username": "Benutzername",
-   "usernameHelper": "Benutzername kann nicht geändert werden",
-   "role": "Rolle"
-  },
-  "label": {
-   "firstName": "Vorname",
-   "lastName": "Nachname",
-   "email": "E-Mail",
-   "username": "Benutzername",
-   "role": "Rolle"
-  },
-  "helper": {
-   "username": "Benutzername kann nicht geändert werden"
-  },
-  "language": {
-   "label": "Sprache",
-   "en": "Englisch",
-   "de": "Deutsch"
-  },
-  "appearance": {
-   "label": "Erscheinungsbild",
-   "dark": "Dunkel",
-   "light": "Hell"
-  },
-  "button": {
-   "save": "Änderungen speichern"
-  },
-  "toast": {
-   "saved": "Profil aktualisiert",
-   "updated": "Profil aktualisiert",
-   "error": "Profil konnte nicht aktualisiert werden"
-  }
- },
- "chat": {
-  "header": {
-   "title": "Loom Agent",
-   "status": "● online · {{space}}",
-   "noSpace": "Kein Space"
-  },
-  "input": {
-   "placeholder": "Fragen Sie nach Assets, Sammlungen, Aufgaben, Pipelines…",
-   "helper": "Enter zum Senden · Shift+Enter für neue Zeile"
-  },
-  "sessions": {
-   "newChat": "Neuer Chat",
-   "empty": "Noch keine Unterhaltungen",
-   "untitled": "Unbenannt",
-   "toggle": "Unterhaltungsliste umschalten"
-  },
-  "panel": {
-   "recentAssets": "Neueste Assets",
-   "activeTasks": "Aktive Aufgaben",
-   "collections": "Sammlungen",
-   "open": "Öffnen",
-   "collectionAssets": "{{count}} Assets",
-   "hide": "Arbeitsbereich ausblenden",
-   "show": "Arbeitsbereich einblenden"
-  },
-  "tab": {
-   "overview": "Übersicht",
-   "assets": "Assets"
-  },
-  "detail": {
-   "size": "Größe",
-   "status": "Status",
-   "duration": "Dauer",
-   "dimensions": "Abmessungen",
-   "open": "Öffnen"
-  },
-  "reasoning": {
-   "thinking": "denkt nach… ({{seconds}}s)",
-   "show": "Überlegungen anzeigen",
-   "hide": "Überlegungen ausblenden"
-  },
-  "streaming": {
-   "stop": "Generierung stoppen"
-  },
-  "pipeline": {
-   "open": "Öffnen",
-   "version": "v{{version}}",
-   "disabled": "deaktiviert",
-   "truncated": "Das Diagramm zeigt nur einen Teil dieser Pipeline — den vollständigen Graphen zeigt der Editor."
-  },
-  "error": {
-   "busy": "Der Agent arbeitet noch an diesem Chat — bitte gleich erneut versuchen",
-   "llm": "Die Agent-Anfrage ist fehlgeschlagen",
-   "aborted": "Generierung gestoppt"
-  },
-  "skills": {
-   "title": "Skills",
-   "active": "Aktive Skills ({{count}})",
-   "none": "Noch keine Skills — unter Skills anlegen",
-   "manage": "Skills verwalten"
-  },
-  "greeting": {
-   "hello": "Hallo {{name}}",
-   "helloAnonymous": "Hallo",
-   "subtitle": "Frag nach deinen Assets, Aufgaben, Kollektionen oder Transkripten — der Loom Agent durchsucht deinen Space und antwortet mit den gefundenen Objekten."
-  }
- },
- "admin": {
-  "title": "Administration",
-  "subtitle": "Benutzerverwaltung, Zugriffskontrolle und Sicherheit",
-  "tab": {
-   "spaces": "Spaces",
-   "users": "Benutzer",
-   "groups": "Gruppen",
-   "permissions": "Berechtigungen",
-   "apiKeys": "API-Schlüssel",
-   "blacklist": "Sperrliste",
-   "memoryDenylist": "Gedächtnis-Sperrliste"
-  },
-  "spaces": {
-   "title": "Spaces",
-   "tooltip": "Spaces organisieren Projekte, Teams und Assets in isolierten Umgebungen.",
-   "count": "Spaces",
-   "newSpace": "Neuer Space",
-   "search": "Spaces suchen…",
-   "table": {
+  "common": {
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "delete": "Löschen",
+    "save": "Speichern",
+    "create": "Erstellen",
+    "search": "Suchen",
     "name": "Name",
+    "description": "Beschreibung",
+    "actions": "Aktionen",
     "uuid": "UUID",
     "created": "Erstellt",
-    "actions": "Aktionen"
-   },
-   "dialog": {
-    "create": "Space erstellen",
-    "edit": "Space bearbeiten",
-    "delete": "Space löschen",
-    "label": "Space-Name",
-    "placeholder": "z. B. Produktion"
-   },
-   "confirm": {
-    "delete": "Sind Sie sicher, dass Sie Space {{name}} löschen möchten?"
-   }
-  },
-  "users": {
-   "title": "Benutzer",
-   "tooltip": "Benutzerkonten und deren Zugriff auf das System verwalten.",
-   "count": "Konten",
-   "createUser": "Benutzer erstellen",
-   "search": "Benutzer suchen…",
-   "table": {
-    "user": "Benutzer",
-    "email": "E-Mail",
     "status": "Status",
-    "created": "Erstellt",
-    "actions": "Aktionen"
-   },
-   "chip": {
+    "assets": "Assets",
+    "clearFilters": "Filter zurücksetzen",
+    "noMatchFilters": "Keine Assets entsprechen Ihren Filtern",
+    "allStatus": "Alle Status",
     "enabled": "aktiviert",
-    "disabled": "deaktiviert"
-   },
-   "dialog": {
-    "create": "Benutzer erstellen",
-    "edit": "Benutzer bearbeiten",
-    "delete": "Benutzer löschen",
-    "label": {
-     "username": "Benutzername",
-     "email": "E-Mail",
-     "firstname": "Vorname",
-     "lastname": "Nachname"
-    }
-   },
-   "confirm": {
-    "delete": "Sind Sie sicher, dass Sie Benutzer {{name}} löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden."
-   }
-  },
-  "groups": {
-   "title": "Gruppen",
-   "tooltip": "Gruppen ermöglichen es, Benutzer in logische Teams zu organisieren und gemeinsame Berechtigungen zuzuweisen.",
-   "count": "Gruppen",
-   "newGroup": "Neue Gruppe",
-   "search": "Gruppen suchen…",
-   "table": {
-    "name": "Name",
-    "uuid": "UUID",
-    "created": "Erstellt",
-    "actions": "Aktionen"
-   },
-   "dialog": {
-    "create": "Gruppe erstellen",
-    "edit": "Gruppe bearbeiten",
-    "delete": "Gruppe löschen",
-    "label": "Gruppenname",
-    "placeholder": "z. B. Technik"
-   },
-   "confirm": {
-    "delete": "Sind Sie sicher, dass Sie Gruppe {{name}} löschen möchten?"
-   }
-  },
-  "roles": {
-   "title": "Zugriffskontrolle",
-   "count": "Rollen",
-   "saving": "Wird gespeichert…",
-   "newRole": "Neue Rolle",
-   "sectionTitle": "Rollen",
-   "permissionsCount": "Berechtigungen",
-   "permissionsGranted": "Berechtigungen erteilt",
-   "empty": "Wählen Sie eine Rolle, um ihre Berechtigungen zu verwalten",
-   "permission": {
-    "CREATE_ANNOTATION": "Neue Annotationen anlegen — Bereichsmarkierungen und Notizen auf einem Asset.",
-    "READ_ANNOTATION": "Annotationen ansehen — Bereichsmarkierungen und Notizen auf einem Asset.",
-    "DELETE_ANNOTATION": "Annotationen löschen — Bereichsmarkierungen und Notizen auf einem Asset.",
-    "UPDATE_ANNOTATION": "Bestehende Annotationen bearbeiten — Bereichsmarkierungen und Notizen auf einem Asset.",
-    "CREATE_ASSET": "Neue Assets anlegen — Medien-Datensätze samt Metadaten.",
-    "READ_ASSET": "Assets ansehen — Medien-Datensätze samt Metadaten.",
-    "DELETE_ASSET": "Assets löschen — Medien-Datensätze samt Metadaten.",
-    "UPDATE_ASSET": "Bestehende Assets bearbeiten — Medien-Datensätze samt Metadaten.",
-    "CREATE_ASSET_BINARY": "Neue Asset-Binärdaten anlegen — die gespeicherten Dateibytes eines Assets.",
-    "READ_ASSET_BINARY": "Asset-Binärdaten ansehen — die gespeicherten Dateibytes eines Assets.",
-    "DELETE_ASSET_BINARY": "Asset-Binärdaten löschen — die gespeicherten Dateibytes eines Assets.",
-    "UPDATE_ASSET_BINARY": "Bestehende Asset-Binärdaten bearbeiten — die gespeicherten Dateibytes eines Assets.",
-    "CREATE_ASSET_LOCATION": "Neue Asset-Speicherorte anlegen — veraltete Speicherorte eines Assets.",
-    "READ_ASSET_LOCATION": "Asset-Speicherorte ansehen — veraltete Speicherorte eines Assets.",
-    "DELETE_ASSET_LOCATION": "Asset-Speicherorte löschen — veraltete Speicherorte eines Assets.",
-    "UPDATE_ASSET_LOCATION": "Bestehende Asset-Speicherorte bearbeiten — veraltete Speicherorte eines Assets.",
-    "CREATE_ATTACHMENT": "Neue Anhänge anlegen — Dateien, die einem Asset beiliegen.",
-    "READ_ATTACHMENT": "Anhänge ansehen — Dateien, die einem Asset beiliegen.",
-    "DELETE_ATTACHMENT": "Anhänge löschen — Dateien, die einem Asset beiliegen.",
-    "UPDATE_ATTACHMENT": "Bestehende Anhänge bearbeiten — Dateien, die einem Asset beiliegen.",
-    "CREATE_USER": "Neue Benutzer anlegen — Benutzerkonten.",
-    "READ_USER": "Benutzer ansehen — Benutzerkonten.",
-    "DELETE_USER": "Benutzer löschen — Benutzerkonten.",
-    "UPDATE_USER": "Bestehende Benutzer bearbeiten — Benutzerkonten.",
-    "CREATE_ROLE": "Neue Rollen anlegen — Rollen und die darin enthaltenen Berechtigungen.",
-    "READ_ROLE": "Rollen ansehen — Rollen und die darin enthaltenen Berechtigungen.",
-    "DELETE_ROLE": "Rollen löschen — Rollen und die darin enthaltenen Berechtigungen.",
-    "UPDATE_ROLE": "Bestehende Rollen bearbeiten — Rollen und die darin enthaltenen Berechtigungen.",
-    "CREATE_GROUP": "Neue Gruppen anlegen — Gruppen, die Benutzer und Rollen bündeln.",
-    "READ_GROUP": "Gruppen ansehen — Gruppen, die Benutzer und Rollen bündeln.",
-    "DELETE_GROUP": "Gruppen löschen — Gruppen, die Benutzer und Rollen bündeln.",
-    "UPDATE_GROUP": "Bestehende Gruppen bearbeiten — Gruppen, die Benutzer und Rollen bündeln.",
-    "CREATE_SPACE": "Neue Spaces anlegen — oberste Mandanten mit Libraries und Collections.",
-    "READ_SPACE": "Spaces ansehen — oberste Mandanten mit Libraries und Collections.",
-    "DELETE_SPACE": "Spaces löschen — oberste Mandanten mit Libraries und Collections.",
-    "UPDATE_SPACE": "Bestehende Spaces bearbeiten — oberste Mandanten mit Libraries und Collections.",
-    "CREATE_CLUSTER": "Neue Cluster anlegen — Cluster ähnlicher Gesichts-Embeddings.",
-    "READ_CLUSTER": "Cluster ansehen — Cluster ähnlicher Gesichts-Embeddings.",
-    "DELETE_CLUSTER": "Cluster löschen — Cluster ähnlicher Gesichts-Embeddings.",
-    "UPDATE_CLUSTER": "Bestehende Cluster bearbeiten — Cluster ähnlicher Gesichts-Embeddings.",
-    "CREATE_COLLECTION": "Neue Collections anlegen — kuratierte Asset-Sammlungen.",
-    "READ_COLLECTION": "Collections ansehen — kuratierte Asset-Sammlungen.",
-    "DELETE_COLLECTION": "Collections löschen — kuratierte Asset-Sammlungen.",
-    "UPDATE_COLLECTION": "Bestehende Collections bearbeiten — kuratierte Asset-Sammlungen.",
-    "CREATE_COMMENT": "Neue Kommentare anlegen — Benutzerkommentare zu Assets.",
-    "READ_COMMENT": "Kommentare ansehen — Benutzerkommentare zu Assets.",
-    "DELETE_COMMENT": "Kommentare löschen — Benutzerkommentare zu Assets.",
-    "UPDATE_COMMENT": "Bestehende Kommentare bearbeiten — Benutzerkommentare zu Assets.",
-    "CREATE_EMBEDDING": "Neue Embeddings anlegen — Vektoren für die Ähnlichkeitssuche.",
-    "READ_EMBEDDING": "Embeddings ansehen — Vektoren für die Ähnlichkeitssuche.",
-    "DELETE_EMBEDDING": "Embeddings löschen — Vektoren für die Ähnlichkeitssuche.",
-    "UPDATE_EMBEDDING": "Bestehende Embeddings bearbeiten — Vektoren für die Ähnlichkeitssuche.",
-    "CREATE_REACTION": "Neue Reaktionen anlegen — Likes und eigene Reaktionen.",
-    "READ_REACTION": "Reaktionen ansehen — Likes und eigene Reaktionen.",
-    "DELETE_REACTION": "Reaktionen löschen — Likes und eigene Reaktionen.",
-    "UPDATE_REACTION": "Bestehende Reaktionen bearbeiten — Likes und eigene Reaktionen.",
-    "CREATE_TASK": "Neue Tasks anlegen — Hintergrundjobs wie Massen-Import.",
-    "READ_TASK": "Tasks ansehen — Hintergrundjobs wie Massen-Import.",
-    "DELETE_TASK": "Tasks löschen — Hintergrundjobs wie Massen-Import.",
-    "UPDATE_TASK": "Bestehende Tasks bearbeiten — Hintergrundjobs wie Massen-Import.",
-    "CREATE_TAG": "Neue Tags anlegen — das Tag-Vokabular.",
-    "READ_TAG": "Tags ansehen — das Tag-Vokabular.",
-    "DELETE_TAG": "Tags löschen — das Tag-Vokabular.",
-    "UPDATE_TAG": "Bestehende Tags bearbeiten — das Tag-Vokabular.",
-    "TAG_ASSET": "Ein Tag an ein Asset anhängen.",
-    "UNTAG_ASSET": "Ein Tag von einem Asset entfernen.",
-    "CREATE_TOKEN": "Neue API-Keys anlegen — langlebige Tokens für Service-Accounts.",
-    "READ_TOKEN": "API-Keys ansehen — langlebige Tokens für Service-Accounts.",
-    "DELETE_TOKEN": "API-Keys löschen — langlebige Tokens für Service-Accounts.",
-    "UPDATE_TOKEN": "Bestehende API-Keys bearbeiten — langlebige Tokens für Service-Accounts.",
-    "CREATE_LIBRARY": "Neue Libraries anlegen — Libraries, die Asset-Pools gruppieren.",
-    "READ_LIBRARY": "Libraries ansehen — Libraries, die Asset-Pools gruppieren.",
-    "DELETE_LIBRARY": "Libraries löschen — Libraries, die Asset-Pools gruppieren.",
-    "UPDATE_LIBRARY": "Bestehende Libraries bearbeiten — Libraries, die Asset-Pools gruppieren.",
-    "CREATE_PIPELINE": "Neue Pipelines anlegen — Definitionen von Verarbeitungs-Pipelines.",
-    "READ_PIPELINE": "Pipelines ansehen — Definitionen von Verarbeitungs-Pipelines.",
-    "DELETE_PIPELINE": "Pipelines löschen — Definitionen von Verarbeitungs-Pipelines.",
-    "UPDATE_PIPELINE": "Bestehende Pipelines bearbeiten — Definitionen von Verarbeitungs-Pipelines.",
-    "READ_PIPELINE_VERSION": "Den Versionsverlauf einer Pipeline ansehen.",
-    "RESTORE_PIPELINE_VERSION": "Eine Pipeline auf eine frühere Version zurücksetzen.",
-    "CREATE_PIPELINE_RUN": "Neue Pipeline-Läufe anlegen — Ausführungen einer Pipeline.",
-    "READ_PIPELINE_RUN": "Pipeline-Läufe ansehen — Ausführungen einer Pipeline.",
-    "UPDATE_PIPELINE_RUN": "Bestehende Pipeline-Läufe bearbeiten — Ausführungen einer Pipeline.",
-    "DELETE_PIPELINE_RUN": "Pipeline-Läufe löschen — Ausführungen einer Pipeline.",
-    "CREATE_ASSET_POOL": "Neue Asset-Pools anlegen — Speicherorte, aus denen Assets eingelesen werden.",
-    "READ_ASSET_POOL": "Asset-Pools ansehen — Speicherorte, aus denen Assets eingelesen werden.",
-    "DELETE_ASSET_POOL": "Asset-Pools löschen — Speicherorte, aus denen Assets eingelesen werden.",
-    "UPDATE_ASSET_POOL": "Bestehende Asset-Pools bearbeiten — Speicherorte, aus denen Assets eingelesen werden.",
-    "CREATE_BLACKLIST": "Neue Blacklist-Einträge anlegen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
-    "READ_BLACKLIST": "Blacklist-Einträge ansehen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
-    "DELETE_BLACKLIST": "Blacklist-Einträge löschen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
-    "UPDATE_BLACKLIST": "Bestehende Blacklist-Einträge bearbeiten — Hashes und Fingerprints, die nicht importiert werden dürfen.",
-    "CREATE_PERSON": "Neue Personen anlegen — Personen, die über Gesichtserkennungen identifiziert werden.",
-    "READ_PERSON": "Personen ansehen — Personen, die über Gesichtserkennungen identifiziert werden.",
-    "DELETE_PERSON": "Personen löschen — Personen, die über Gesichtserkennungen identifiziert werden.",
-    "UPDATE_PERSON": "Bestehende Personen bearbeiten — Personen, die über Gesichtserkennungen identifiziert werden.",
-    "CREATE_DETECTION": "Neue Detections anlegen — in einem Asset gefundene Gesichter und Objekte.",
-    "READ_DETECTION": "Detections ansehen — in einem Asset gefundene Gesichter und Objekte.",
-    "DELETE_DETECTION": "Detections löschen — in einem Asset gefundene Gesichter und Objekte.",
-    "UPDATE_DETECTION": "Bestehende Detections bearbeiten — in einem Asset gefundene Gesichter und Objekte.",
-    "CREATE_CHAT": "Neue Chats anlegen — Unterhaltungen mit dem KI-Agenten.",
-    "READ_CHAT": "Chats ansehen — Unterhaltungen mit dem KI-Agenten.",
-    "DELETE_CHAT": "Chats löschen — Unterhaltungen mit dem KI-Agenten.",
-    "UPDATE_CHAT": "Bestehende Chats bearbeiten — Unterhaltungen mit dem KI-Agenten.",
-    "CREATE_SKILL": "Neue Skills anlegen — Anweisungspakete, die den Agenten steuern.",
-    "READ_SKILL": "Skills ansehen — Anweisungspakete, die den Agenten steuern.",
-    "DELETE_SKILL": "Skills löschen — Anweisungspakete, die den Agenten steuern.",
-    "UPDATE_SKILL": "Bestehende Skills bearbeiten — Anweisungspakete, die den Agenten steuern.",
-    "READ_SKILL_VERSION": "Den Versionsverlauf eines Skills ansehen.",
-    "RESTORE_SKILL_VERSION": "Einen Skill auf eine frühere Version zurücksetzen.",
-    "CREATE_CHAT_SESSION": "Neue Chat-Sessions anlegen — veröffentlichbare Snapshots eines Chats samt Workspace.",
-    "READ_CHAT_SESSION": "Chat-Sessions ansehen — veröffentlichbare Snapshots eines Chats samt Workspace.",
-    "DELETE_CHAT_SESSION": "Chat-Sessions löschen — veröffentlichbare Snapshots eines Chats samt Workspace.",
-    "UPDATE_CHAT_SESSION": "Bestehende Chat-Sessions bearbeiten — veröffentlichbare Snapshots eines Chats samt Workspace.",
-    "CREATE_MEMORY": "Neue Memory-Notizen anlegen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
-    "READ_MEMORY": "Memory-Notizen ansehen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
-    "DELETE_MEMORY": "Memory-Notizen löschen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
-    "UPDATE_MEMORY": "Bestehende Memory-Notizen bearbeiten — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
-    "CREATE_MEMORY_DENY_RULE": "Neue Memory-Sperrregeln anlegen — Muster, die der Agent niemals speichern darf.",
-    "READ_MEMORY_DENY_RULE": "Memory-Sperrregeln ansehen — Muster, die der Agent niemals speichern darf.",
-    "DELETE_MEMORY_DENY_RULE": "Memory-Sperrregeln löschen — Muster, die der Agent niemals speichern darf.",
-    "UPDATE_MEMORY_DENY_RULE": "Bestehende Memory-Sperrregeln bearbeiten — Muster, die der Agent niemals speichern darf.",
-    "MANAGE_CORTEX_INSTANCE": "Registrierte Cortex-Worker verwalten — Verarbeitungsinstanzen freigeben, konfigurieren und entfernen.",
-    "READ_CORTEX_INSTANCE": "Registrierte Cortex-Worker und deren Status ansehen."
-   },
-   "dialog": {
-    "create": "Rolle erstellen",
-    "edit": "Rolle bearbeiten",
-    "delete": "Rolle löschen",
-    "label": "Rollenname",
-    "placeholder": "z. B. Redakteur"
-   },
-   "confirm": {
-    "delete": "Sind Sie sicher, dass Sie Rolle {{name}} löschen möchten?"
-   }
-  },
-  "apiKeys": {
-   "title": "API-Schlüssel",
-   "tooltip": "API-Schlüssel ermöglichen programmatischen Zugriff auf die Metaloom REST API.",
-   "count": "Schlüssel",
-   "createKey": "Schlüssel erstellen",
-   "search": "API-Schlüssel suchen…",
-   "table": {
-    "name": "Name",
-    "keyId": "Schlüssel-ID",
-    "created": "Erstellt"
-   },
-   "menu": {
-    "rename": "Schlüssel umbenennen",
-    "delete": "Schlüssel löschen"
-   },
-   "dialog": {
-    "create": "API-Schlüssel erstellen",
-    "edit": "API-Schlüssel umbenennen",
-    "keyName": "Schlüsselname",
-    "keyPlaceholder": "z. B. CI-Pipeline-Schlüssel",
-    "creating": "Wird erstellt…",
-    "createKey": "Schlüssel erstellen",
-    "tokenCreated": "Token erfolgreich erstellt!",
-    "tokenWarning": "Kopieren Sie dieses Token jetzt — es wird nicht erneut angezeigt."
-   }
-  },
-  "blacklist": {
-   "title": "Sperrliste",
-   "count": "Einträge",
-   "addEntry": "Eintrag hinzufügen",
-   "search": "Sperrlisten-Einträge suchen…",
-   "table": {
-    "type": "Typ",
-    "value": "Wert",
-    "reason": "Grund",
-    "added": "Hinzugefügt",
-    "expires": "Läuft ab"
-   },
-   "dialog": {
-    "add": "Sperrlisten-Eintrag hinzufügen",
-    "type": "Typ",
-    "typeIp": "IP-Adresse",
-    "typeDomain": "Domain",
-    "typeFingerprint": "Fingerabdruck",
-    "typeUser": "Benutzer",
-    "value": "Wert",
-    "reason": "Grund",
-    "reasonPlaceholder": "Grund für die Sperrung",
-    "expiry": "Ablaufdatum (optional)"
-   },
-   "defaultReason": "Manueller Eintrag"
-  },
-  "memoryDenylist": {
-   "title": "Gedächtnis-Sperrliste",
-   "subtitle": "Muster, die der Chat-Agent niemals in seinem Gedächtnis speichern darf. Ein Treffer lehnt den Schreibvorgang mit der Meldung der Regel ab.",
-   "addRule": "Regel hinzufügen",
-   "search": "Regeln durchsuchen",
-   "empty": "Keine Sperrregeln konfiguriert.",
-   "table": {
-    "name": "Name",
-    "pattern": "Muster",
-    "message": "Ablehnungsmeldung",
-    "enabled": "Aktiv"
-   },
-   "dialog": {
-    "add": "Sperrregel hinzufügen",
-    "edit": "Sperrregel bearbeiten",
-    "name": "Name",
-    "pattern": "Muster (Regex)",
-    "patternHelp": "Java-Regex. Mehrere Begriffe lassen sich per Alternation in einer Regel abdecken, z. B. (?i)\\b(alpha|beta)\\b",
-    "message": "Ablehnungsmeldung",
-    "messageHelp": "Wird dem Agenten bei einer Ablehnung angezeigt. Erkläre die Alternative; wiederhole niemals den gefundenen Text."
-   }
-  }
- },
- "pipeline": {
-  "editor": {
-   "title": "Pipelines",
-   "noRuns": "keine Läufe",
-   "selectPipeline": "Wählen Sie eine Pipeline, um deren Graph anzuzeigen",
-   "showLog": "Protokoll anzeigen",
-   "log": "Protokoll",
-   "dryRun": "Probelauf",
-   "run": "Ausführen",
-   "dryRunTooltip": "Probelauf — keine Schreibvorgänge",
-   "runTooltip": "Pipeline ausführen",
-   "enabled": "Aktiviert",
-   "addNode": "Knoten hinzufügen",
-   "addNodeTooltip": "Einen Knoten zur Pipeline hinzufügen",
-   "tabVisual": "Visuell",
-   "tabJson": "JSON",
-   "deleteNodeTitle": "Knoten löschen",
-   "deleteNodeMessage": "Sind Sie sicher, dass Sie \"{{name}}\" löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
-   "connectionTypeError": "Verbindung nicht möglich — inkompatible Datentypen",
-   "filterNodes": "Knoten filtern…",
-   "jsonValid": "JSON gültig",
-   "jsonInvalid": "JSON ungültig",
-   "jsonLoaded": "Geladene Definition",
-   "jsonCurrent": "Aktueller Canvas-Zustand",
-   "source": "Quelle",
-   "filter": "Filter",
-   "process": "Verarbeitung",
-   "systemLog": "Systemprotokoll",
-   "selectPipelineLogs": "Wählen Sie eine Pipeline, um die Protokolle anzuzeigen.",
-   "edgeLabel": "Kantenbeschriftung",
-   "edgeAny": "ANY",
-   "edgePass": "PASS",
-   "edgeReject": "REJECT",
-   "edgeLabelTooltip": "Kantenbeschriftung festlegen (PASS / REJECT / ANY)",
-   "edgeLabelPassDesc": "Nur passende Assets weiterleiten",
-   "edgeLabelRejectDesc": "Nur abgelehnte Assets weiterleiten",
-   "edgeLabelAnyDesc": "Alle Assets weiterleiten",
-   "validationDuplicateId": "Doppelte Knoten-ID: \"{{id}}\" — Knoten-IDs müssen eindeutig sein",
-   "validationCycle": "Zyklus im Pipeline-Graph erkannt — Knoten bilden eine zirkuläre Abhängigkeit",
-   "validationInvalidId": "Ungültige Knoten-ID: \"{{id}}\" — IDs müssen ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$ entsprechen",
-   "validationNoSource": "Pipeline benötigt genau einen Quellknoten (isSource=true)",
-   "validationMultipleSource": "Pipeline hat mehrere Quellknoten — nur einer ist erlaubt",
-   "validationUnknownType": "Unbekannter Knotentyp: \"{{type}}\" — nicht in der Descriptor-Registry gefunden",
-   "validationOk": "Pipeline-Validierung erfolgreich",
-   "validationTitle": "Validierung",
-   "save": "Speichern",
-   "saving": "Speichert…",
-   "saved": "Gespeichert",
-   "saveTooltip": "Pipeline speichern",
-   "savedTooltip": "Keine ungespeicherten Änderungen",
-   "saveOk": "Pipeline gespeichert",
-   "running": "Läuft…",
-   "runDispatched": "Pipeline-Lauf gestartet",
-   "runNoProcessor": "Kein Prozessor verfügbar",
-   "runCancelled": "Pipeline-Lauf abgebrochen",
-   "newPipeline": "Neue Pipeline",
-   "newPipelineTitle": "Neue Pipeline",
-   "clonePipelineTitle": "Pipeline klonen",
-   "clone": "Klonen",
-   "create": "Erstellen",
-   "nameLabel": "Name",
-   "descriptionLabel": "Beschreibung",
-   "nameRequired": "Pipeline-Name ist erforderlich",
-   "deletePipelineTitle": "Pipeline löschen",
-   "deletePipelineMessage": "Möchten Sie die Pipeline \"{{name}}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-   "switchDirtyTitle": "Ungespeicherte Änderungen verwerfen?",
-   "switchDirtyMessage": "Diese Pipeline hat ungespeicherte Änderungen, die verloren gehen.",
-   "discard": "Verwerfen",
-   "createOk": "Pipeline erstellt",
-   "cloneOk": "Pipeline geklont",
-   "deleteOk": "Pipeline gelöscht"
-  },
-  "version": {
-   "title": "Versionsverlauf",
-   "badgeTooltip": "Aktuelle Version — klicken für den Verlauf",
-   "loading": "Versionen werden geladen…",
-   "empty": "Kein Versionsverlauf verfügbar",
-   "current": "aktuell",
-   "restore": "Wiederherstellen",
-   "restoreTooltip": "Version {{version}} wiederherstellen",
-   "restoreTitle": "Version wiederherstellen",
-   "restoreMessage": "Version {{version}} wiederherstellen? Dabei wird eine neue Version mit dem Inhalt von v{{version}} erstellt — es wird nichts gelöscht.",
-   "restoreDirtyWarning": "Sie haben ungespeicherte Änderungen. Beim Wiederherstellen gehen diese verloren.",
-   "restoreOk": "v{{from}} als v{{to}} wiederhergestellt",
-   "restoreFailed": "Wiederherstellen fehlgeschlagen",
-   "compareTooltip": "v{{version}} mit aktueller Version vergleichen"
-  },
-  "diff": {
-   "title": "Vergleich v{{from}} → v{{to}} (aktuell)",
-   "loading": "Versionen werden geladen…",
-   "empty": "Keine Unterschiede",
-   "failed": "Versionen konnten nicht geladen werden",
-   "close": "Schließen",
-   "base": "v{{version}}",
-   "current": "v{{version}} (aktuell)"
-  },
-  "node": {
-   "s3Source": {
-    "label": "S3-Quelle",
-    "description": "Einen S3-Bucket auf neue Assets überwachen"
-   },
-   "filesystemSource": {
-    "label": "Dateisystem-Quelle",
-    "description": "Ein lokales Verzeichnis auf neue Dateien überwachen"
-   },
-   "assetSource": {
-    "label": "Asset-Quelle",
-    "description": "Ein einzelnes Asset zum Testen bereitstellen"
-   },
-   "formatFilter": {
-    "label": "Format-Filter",
-    "description": "Nach MIME-Typ filtern"
-   },
-   "hash": {
-    "label": "Hash",
-    "description": "SHA-256 + perzeptueller Hash"
-   },
-   "fingerprint": {
-    "label": "Fingerabdruck",
-    "description": "Audio-/Video-Fingerabdruck erstellen"
-   },
-   "resizeProxy": {
-    "label": "Größenanpassungs-Proxy",
-    "description": "Proxy-Auflösungen erstellen"
-   },
-   "yoloDetection": {
-    "label": "YOLO-Erkennung",
-    "description": "YOLOv8-Objekterkennung auf Frames ausführen"
-   },
-   "sceneDetection": {
-    "label": "Szenenerkennung",
-    "description": "Szenengrenzen per Histogrammdifferenz erkennen"
-   },
-   "s3Output": {
-    "label": "S3-Ausgabe",
-    "description": "Ergebnisse in S3-Bucket schreiben"
-   },
-   "thumbnail": {
-    "label": "Vorschaubild",
-    "description": "Vorschaubilder erstellen"
-   },
-   "llmVision": {
-    "label": "LLM-Vision",
-    "description": "Einen Vision-Modell-Prompt auf Asset-Frames anwenden"
-   },
-   "faceDetection": {
-    "label": "Gesichtserkennung",
-    "description": "Gesichter erkennen und wiedererkennen"
-   },
-   "embedding": {
-    "label": "Einbettung",
-    "description": "CLIP-Einbettungsvektoren erstellen"
-   },
-   "asr": {
-    "label": "ASR",
-    "description": "Automatische Spracherkennung"
-   },
-   "autoTag": {
-    "label": "Auto-Tag",
-    "description": "Assets automatisch per Tag-Glob-Matching taggen"
-   },
-   "transcriptionFilter": {
-    "label": "Transkriptions-Filter",
-    "description": "Assets mit Transkriptionen filtern"
-   }
-  },
-  "runHistory": {
-   "title": "Ausführungsverlauf",
-   "assets": "Assets",
-   "error": "Fehler",
-   "errors": "Fehler",
-   "noRuns": "Noch keine Läufe aufgezeichnet",
-   "loading": "Läufe werden geladen…",
-   "cancel": "Lauf abbrechen"
-  },
-  "runDetail": {
-   "title": "Lauf-Detail",
-   "items": "Einträge",
-   "noItems": "Keine Einträge für diesen Lauf aufgezeichnet",
-   "loading": "Einträge werden geladen…"
-  },
-  "inspector": {
-   "empty": "Wählen Sie eine Pipeline zur Inspektion",
-   "enabled": "aktiviert",
-   "disabled": "deaktiviert",
-   "priority": "Priorität",
-   "dryRun": "Probelauf",
-   "runningNow": "Läuft gerade",
-   "lastRun": "Letzter Lauf:"
-  },
-  "nodeDetail": {
-   "title": "Knotendetails",
-   "collapse": "Bereich einklappen",
-   "tab": {
-    "config": "Konfiguration",
-    "log": "Protokoll",
-    "json": "JSON"
-   },
-   "displayName": "Anzeigename",
-   "maxChars": "Max. 15 Zeichen",
-   "description": "Beschreibung",
-   "affinity": "Affinitätsgruppe",
-   "affinityHelp": "Knoten derselben Gruppe werden gemeinsam als ein Segment ausgeführt.",
-   "configuration": "Konfiguration",
-   "nodeId": "Knoten-ID",
-   "processingLog": "Verarbeitungsprotokoll",
-   "nodeState": "Knotenstatus (JSON)",
-   "emptyHint": "Klicken Sie auf einen Knoten im Canvas, um seine Details anzuzeigen und zu bearbeiten",
-   "parameters": "Parameter",
-   "noParameters": "Dieser Knoten hat keine konfigurierbaren Parameter",
-   "parameterDescription": "Parameterbeschreibung",
-   "invalidJson": "Ungültiges JSON"
-  },
-  "help": {
-   "title": "Tastenkombinationen",
-   "close": "H oder Escape zum Schließen",
-   "hKey": "Hilfe ein-/ausblenden",
-   "nKey": "Neuen Knoten hinzufügen",
-   "aKey": "Knoten automatisch anordnen",
-   "delKey": "Ausgewählten Knoten löschen"
-  },
-  "commandPalette": {
-   "placeholder": "Knoten suchen…",
-   "empty": "Keine passenden Knoten"
-  }
- },
- "cortex": {
-  "title": "Cortex-Worker",
-  "tooltip": {
-   "info": "Cortex-Worker sind verteilte Verarbeitungsknoten für Medienanalyse, Transcodierung und KI-Inferenz.",
-   "stats": "CPU: {{cpu}}% · GPU: {{gpu}}% · IO: {{io}}%"
-  },
-  "count": {
-   "online": "{{online}} / {{total}} online",
-   "workers": "{{count}} Worker"
-  },
-  "search": {
-   "placeholder": "Worker, Hosts suchen…"
-  },
-  "filter": {
-   "allStatus": "Alle Status",
-   "online": "Online",
-   "paused": "Pausiert",
-   "starting": "Wird gestartet",
-   "offline": "Offline",
-   "terminating": "Wird beendet",
-   "allCaps": "Alle Kapazitäten"
-  },
-  "chip": {
-   "clearFilters": "Filter zurücksetzen"
-  },
-  "empty": "Keine Worker entsprechen Ihren Filtern",
-  "loading": "Worker werden geladen…",
-  "error": "Worker konnten nicht geladen werden",
-  "lastSeen": {
-   "label": "gesehen {{time}}",
-   "tooltip": "Zeit seit dem letzten Heartbeat oder Status-Update"
-  },
-  "stat": {
-   "cpu": "CPU",
-   "gpu": "GPU",
-   "io": "IO",
-   "mem": "RAM"
-  },
-  "menu": {
-   "pause": "Pausieren",
-   "resume": "Fortsetzen",
-   "restart": "Neustarten",
-   "terminate": "Beenden",
-   "restrictions": "Node-Einschränkungen",
-   "forget": "Worker vergessen"
-  },
-  "badge": {
-   "persisted": "Gemerkt",
-   "persistedTooltip": "Dieser Worker ist offline, aber Loom merkt sich ihn samt seinen Node-Einschränkungen."
-  },
-  "restrictions": {
-   "title": "Node-Einschränkungen — {{name}}",
-   "whitelist": "Erlaubte Node-Typen",
-   "blacklist": "Verbotene Node-Typen",
-   "whitelistPlaceholder": "Leer lassen, um alle Typen zuzulassen",
-   "blacklistPlaceholder": "Typen, die dieser Worker nie ausführen darf",
-   "allowTooltip": "Erlaubter Node-Typ",
-   "denyTooltip": "Verbotener Node-Typ (überschreibt die Zulassungsliste)",
-   "save": "Speichern",
-   "cancel": "Abbrechen",
-   "saved": "Node-Einschränkungen gespeichert",
-   "saveError": "Einschränkungen konnten nicht gespeichert werden: {{error}}"
-  },
-  "forget": {
-   "done": "Worker vergessen",
-   "error": "Worker konnte nicht vergessen werden: {{error}}"
-  }
- },
- "detection": {
-  "title": "Erkennungsverwaltung",
-  "tab": {
-   "faces": "Gesichter",
-   "objects": "Objekte",
-   "llm": "LLM"
-  }
- },
- "llmDetection": {
-  "search": {
-   "placeholder": "Prompts, Ergebnisse suchen…"
-  },
-  "chip": {
-   "prompts": "Prompts",
-   "results": "Ergebnisse"
-  },
-  "button": {
-   "newPrompt": "Neuer Prompt",
-   "cancel": "Abbrechen",
-   "create": "Prompt erstellen"
-  },
-  "dialog": {
-   "title": "Neuer Vision-Prompt"
-  },
-  "label": {
-   "name": "Name",
-   "namePlaceholder": "z. B. Szenenbeschreibung",
-   "model": "Modell",
-   "prompt": "Prompt",
-   "promptPlaceholder": "Beschreiben Sie, was das Modell mit dem Asset tun soll…",
-   "reasoningEffort": "Denkaufwand",
-   "outputFormat": "Ausgabeformat",
-   "maxTokens": "Max. Token",
-   "description": "Beschreibung (optional)",
-   "descriptionPlaceholder": "Kurze Beschreibung des Zwecks dieses Prompts",
-   "maxTokensValue": "Max. Token: {{count}}",
-   "tokens": "{{count}} Token"
-  },
-  "effort": {
-   "low": "Niedrig",
-   "medium": "Mittel",
-   "high": "Hoch"
-  },
-  "format": {
-   "text": "Text",
-   "json": "JSON"
-  },
-  "chip_template": {
-   "effort": "{{effort}} Aufwand"
-  },
-  "tooltip": {
-   "edit": "Bearbeiten",
-   "run": "Auf Assets ausführen"
-  },
-  "empty": {
-   "prompts": "Keine Prompts gefunden",
-   "results": "Keine Ergebnisse gefunden"
-  }
- },
- "objectDetection": {
-  "search": {
-   "placeholder": "Objektbezeichnungen suchen…"
-  },
-  "count": "{{detections}} Erkennungen · {{labels}} Bezeichnungen",
-  "tooltip": {
-   "confirm": "Bestätigen",
-   "reject": "Ablehnen"
-  },
-  "label": {
-   "confidence": "Konfidenz: {{pct}}%"
-  },
-  "confirmError": "Erkennung konnte nicht bestätigt werden",
-  "rejectError": "Erkennung konnte nicht gelöscht werden",
-  "empty": "Keine Objekterkennungen gefunden"
- },
- "faceDetection": {
-  "title": "Gesichtserkennung",
-  "subtitle": "Gesichts-Cluster und Personendatenbank verwalten",
-  "search": {
-   "placeholder": "Cluster, Personen suchen…"
-  },
-  "chip": {
-   "clusters": "Cluster",
-   "persons": "Personen"
-  },
-  "button": {
-   "addPerson": "Person hinzufügen",
-   "addCluster": "Cluster hinzufügen",
-   "cancel": "Abbrechen",
-   "create": "Erstellen",
-   "assign": "Zuweisen",
-   "save": "Speichern"
-  },
-  "count": {
-   "faces": "{{count}} Gesichter",
-   "clusters": "{{count}} Cluster"
-  },
-  "label": {
-   "since": "seit {{date}}",
-   "name": "Name",
-   "description": "Beschreibung"
-  },
-  "tooltip": {
-   "assign": "Person zuweisen"
-  },
-  "empty": {
-   "clusters": "Keine Cluster gefunden",
-   "persons": "Keine Personen gefunden"
-  },
-  "dialog": {
-   "addPerson": "Person hinzufügen",
-   "editPerson": "Person bearbeiten",
-   "addCluster": "Cluster hinzufügen",
-   "editCluster": "Cluster bearbeiten",
-   "assign": "Cluster einer Person zuweisen",
-   "selectPerson": "Person auswählen…"
-  }
- },
- "maintenance": {
-  "title": "Wartung",
-  "subtitle": "Systemzustand und Wartungsstatus",
-  "chip": {
-   "lastRestart": "Letzter Neustart: vor 2 Tagen",
-   "version": "Version 0.9.4-alpha",
-   "uptime": "Betriebszeit: 48h 12m"
-  },
-  "status": {
-   "database": "Datenbank",
-   "objectStorage": "Objektspeicher (S3)",
-   "memory": "Speicher",
-   "pipelineWorkers": "Pipeline-Worker"
-  },
-  "statusLabel": {
-   "healthy": "Gesund",
-   "running": "Läuft"
-  }
- },
- "workflow": {
-  "title": "Workflow",
-  "tooltip": {
-   "info": "Workflows bieten tastaturgesteuerte Massen-Review-Modi für Bewertung, Tagging, Deduplizierung und Erkennungsaufgaben.",
-   "fullscreen": "Vollbild (F)",
-   "exitFullscreen": "Vollbild beenden (F)",
-   "showProfiles": "Tastenprofile anzeigen"
-  },
-  "mode": {
-   "rating": "Bewertung",
-   "tagging": "Tagging",
-   "dedup": "Deduplizierung",
-   "llm": "LLM",
-   "faces": "Gesichter",
-   "objects": "Objekte"
-  },
-  "rating": {
-   "label": "Bewertung:",
-   "addTag": "Tag hinzufügen… (Enter zum Bestätigen)",
-   "addTagPlaceholder": "Tag hinzufügen… (Enter zum Bestätigen)"
-  },
-  "tagging": {
-   "noTags": "Noch keine Tags",
-   "search": "Tags suchen… (Enter zum Hinzufügen)",
-   "placeholder": "Tags suchen… (Enter zum Hinzufügen)"
-  },
-  "dedup": {
-   "keep": "Behalten",
-   "duplicateCandidates": "Duplikat-Kandidaten",
-   "remove": "Entfernen",
-   "kept": "Behalten",
-   "chipRemove": "Entfernen",
-   "chipKept": "Behalten",
-   "confirmDedup": "Deduplizierung bestätigen (Y)",
-   "confirmBtn": "Deduplizierung bestätigen (Y)",
-   "rejectBtn": "Ablehnen (N)",
-   "reject": "Ablehnen (N)"
-  },
-  "faceMode": {
-   "clusters": "Gesichts-Cluster ({{count}})",
-   "confirm": "Bestätigen (Y)",
-   "confirmed": "Bestätigt",
-   "denied": "Abgelehnt",
-   "deny": "Ablehnen (N)",
-   "confirmBtn": "Bestätigen (Y)",
-   "denyBtn": "Ablehnen (N)",
-   "assignPerson": "Person zuweisen…",
-   "noClusters": "Keine Gesichts-Cluster für dieses Asset",
-   "empty": "Keine Gesichts-Cluster für dieses Asset"
-  },
-  "objectMode": {
-   "detectedObjects": "Erkannte Objekte ({{count}})",
-   "detected": "Erkannte Objekte ({{count}})",
-   "confidence": "Konfidenz: {{pct}}%",
-   "confirmed": "Bestätigt",
-   "rejected": "Abgelehnt",
-   "noDetections": "Keine Objekterkennungen für dieses Asset",
-   "empty": "Keine Objekterkennungen für dieses Asset"
-  },
-  "llmMode": {
-   "title": "Vision-Modell-Ausgabe",
-   "modelOutput": "Vision-Modell-Ausgabe",
-   "approve": "Genehmigen (Y)",
-   "reject": "Ablehnen (N)",
-   "approveBtn": "Genehmigen (Y)",
-   "rejectBtn": "Ablehnen (N)"
-  },
-  "profiles": {
-   "title": "Tastenprofile",
-   "collapse": "Einklappen",
-   "bindings": "{{count}} Belegungen",
-   "bindingsTitle": "Belegungen · klicken zum Neu-Belegen",
-   "bindingsHeader": "Belegungen · klicken zum Neu-Belegen",
-   "pressKey": "Taste drücken… (Rücktaste zum Entfernen)",
-   "clickToRebind": "Zum Neu-Belegen klicken",
-   "notBound": "Nicht belegt"
-  },
-  "hint": {
-   "rating": "<strong>1-0</strong> Bewertung setzen · <strong>←/→</strong> Navigieren · <strong>Leertaste</strong> Weiter · <strong>Enter</strong> Tags bearbeiten · <strong>F</strong> Vollbild",
-   "tagging": "<strong>←/→</strong> Navigieren · <strong>Leertaste</strong> Weiter · <strong>Enter</strong> Tags bearbeiten · <strong>Esc</strong> Blur · <strong>F</strong> Vollbild",
-   "dedup": "<strong>←/→</strong> Navigieren · <strong>Y</strong> Deduplizierung bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild",
-   "llm": "<strong>←/→</strong> Navigieren · <strong>Y</strong> Genehmigen · <strong>N</strong> Ablehnen · <strong>R</strong> Prompt neu ausführen · <strong>F</strong> Vollbild",
-   "faces": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Cluster wechseln · <strong>Tab</strong> Nächster Cluster · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>Enter</strong> Person zuweisen · <strong>F</strong> Vollbild",
-   "objects": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Erkennungen wechseln · <strong>Tab</strong> Nächste Erkennung · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild",
-   "facedetection": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Cluster wechseln · <strong>Tab</strong> Nächster Cluster · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>Enter</strong> Person zuweisen · <strong>F</strong> Vollbild",
-   "objectdetection": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Erkennungen wechseln · <strong>Tab</strong> Nächste Erkennung · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild"
-  }
- },
- "assetPools": {
-  "title": "Asset-Pools",
-  "tooltip": {
-   "info": "Asset-Pools definieren Speicherorte für Assets. Sie können durch einen lokalen Dateisystemordner oder einen S3-kompatiblen Bucket gesichert sein.",
-   "editPool": "Pool bearbeiten",
-   "deletePool": "Pool löschen"
-  },
-  "chip": {
-   "filesystem": "Dateisystem",
-   "s3": "S3",
-   "assets": "Assets",
-   "s3Bucket": "S3-Bucket",
-   "filesystemLabel": "Dateisystem"
-  },
-  "button": {
-   "new": "Neuer Pool",
-   "newPool": "Neuer Pool",
-   "cancel": "Abbrechen",
-   "create": "Erstellen",
-   "save": "Speichern",
-   "delete": "Löschen"
-  },
-  "search": {
-   "placeholder": "Pools suchen…"
-  },
-  "form": {
-   "name": "Name",
-   "type": "Typ",
-   "filesystem": "Dateisystem",
-   "s3": "S3-Bucket",
-   "fsPath": "Dateisystempfad",
-   "s3Bucket": "S3-Bucket",
-   "s3Region": "S3-Region",
-   "s3Endpoint": "S3-Endpunkt"
-  },
-  "empty": "Keine Asset-Pools gefunden",
-  "dialog": {
-   "create": "Neuer Asset-Pool",
-   "edit": "Asset-Pool bearbeiten",
-   "delete": "Asset-Pool löschen"
-  },
-  "confirm": {
-   "delete": "Sind Sie sicher, dass Sie {{name}} löschen möchten? Der zugrunde liegende Speicher wird nicht gelöscht, aber die Pool-Referenz wird entfernt."
-  },
-  "toast": {
-   "created": "Asset-Pool erstellt",
-   "updated": "Asset-Pool aktualisiert",
-   "deleted": "Asset-Pool gelöscht",
-   "loadFailed": "Pools konnten nicht geladen werden",
-   "createFailed": "Pool konnte nicht erstellt werden",
-   "updateFailed": "Pool konnte nicht aktualisiert werden",
-   "deleteFailed": "Pool konnte nicht gelöscht werden",
-   "loadError": "Pools konnten nicht geladen werden",
-   "createError": "Pool konnte nicht erstellt werden",
-   "updateError": "Pool konnte nicht aktualisiert werden",
-   "deleteError": "Pool konnte nicht gelöscht werden"
-  },
-  "emptyState": {
-   "title": "Noch keine Storage-Pools",
-   "description": "Asset-Pools legen fest, wo Binärdaten gespeichert und repliziert werden. Lege einen an, um deinen Medien ein Zuhause zu geben.",
-   "action": "Ersten Pool anlegen"
-  }
- },
- "reactions": {
-  "title": "Reaktionen",
-  "add": "Reagieren",
-  "empty": "Noch keine Reaktionen",
-  "type": {
-   "THUMBSUP": "Daumen hoch",
-   "THUMBSDOWN": "Daumen runter",
-   "SATISFIED": "Zufrieden",
-   "PLUS_ONE": "+1",
-   "MINUS_ONE": "-1"
-  }
- },
- "assetDetail": {
-  "tab": {
-   "overview": "Übersicht",
-   "comments": "Kommentare ({{count}})",
-   "annotations": "Annotationen ({{count}})",
-   "reactions": "Reaktionen ({{count}})",
-   "tasks": "Aufgaben ({{count}})",
-   "transcript": "Transkript",
-   "faces": "Gesichter ({{count}})"
-  },
-  "comment": {
-   "addPlaceholder": "Kommentar schreiben…",
-   "post": "Kommentar senden",
-   "edit": "Kommentar bearbeiten",
-   "delete": "Kommentar löschen",
-   "save": "Speichern",
-   "cancel": "Abbrechen",
-   "postError": "Kommentar konnte nicht gesendet werden",
-   "editError": "Kommentar konnte nicht aktualisiert werden",
-   "deleteError": "Kommentar konnte nicht gelöscht werden"
-  },
-  "annotation": {
-   "add": "Anmerkung hinzufügen",
-   "titlePlaceholder": "Titel der Anmerkung…",
-   "addPlaceholder": "Beschreibung hinzufügen…",
-   "edit": "Anmerkung bearbeiten",
-   "delete": "Anmerkung löschen",
-   "save": "Speichern",
-   "cancel": "Abbrechen",
-   "addError": "Anmerkung konnte nicht erstellt werden",
-   "editError": "Anmerkung konnte nicht aktualisiert werden",
-   "deleteError": "Anmerkung konnte nicht gelöscht werden"
-  },
-  "reaction": {
-   "addError": "Reaktion konnte nicht hinzugefügt werden",
-   "deleteError": "Reaktion konnte nicht gelöscht werden",
-   "thumbsUp": "Daumen hoch",
-   "thumbsDown": "Daumen runter"
-  },
-  "meta": {
-   "title": "Metadaten",
-   "size": "Größe",
-   "mime": "MIME",
-   "dimensions": "Abmessungen",
-   "duration": "Dauer",
-   "owner": "Eigentümer",
-   "created": "Erstellt",
-   "description": "Beschreibung"
-  },
-  "location": {
-   "title": "Speicherort(e)",
-   "empty": "Kein Speicherort – das Asset hat noch keine Binärdatei.",
-   "pool": "Pool",
-   "path": "Pfad",
-   "state": "Status",
-   "license": "Lizenz",
-   "locked": "Gesperrt",
-   "mime": "MIME",
-   "viewPool": "Speicher-Pool anzeigen"
-  },
-  "action": {
-   "process": "Verarbeiten",
-   "createTask": "Aufgabe erstellen",
-   "addTranscript": "Transkript hinzufügen",
-   "save": "Speichern",
-   "delete": "Löschen",
-   "noPipelines": "Keine Pipelines verfügbar",
-   "download": "Herunterladen",
-   "uploadBinary": "Binärdatei hochladen / ersetzen",
-   "removeBinary": "Binärdatei entfernen",
-   "registerBinary": "Vorhandene Binärdatei registrieren"
-  },
-  "dialog": {
-   "delete": "Asset löschen"
-  },
-  "registerBinary": {
-   "title": "Vorhandene Binärdatei registrieren",
-   "description": "Verweist dieses Asset auf bereits im Dateisystem des Servers vorhandene Daten. Es wird keine Datei hochgeladen.",
-   "pathLabel": "Dateisystempfad",
-   "pathPlaceholder": "/data/library/clip.mp4",
-   "submit": "Registrieren"
-  },
-  "confirm": {
-   "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
-  },
-  "toast": {
-   "saved": "Asset gespeichert",
-   "saveFailed": "Asset konnte nicht gespeichert werden",
-   "deleted": "Asset gelöscht",
-   "deleteFailed": "Asset konnte nicht gelöscht werden",
-   "processStarted": "Verarbeitung gestartet",
-   "processFailed": "Verarbeitung konnte nicht gestartet werden",
-   "binaryUploaded": "Binärdatei hochgeladen",
-   "binaryUploadFailed": "Binärdatei konnte nicht hochgeladen werden",
-   "binaryDownloadFailed": "Binärdatei konnte nicht heruntergeladen werden",
-   "binaryRemoved": "Binärdatei entfernt",
-   "binaryRemoveFailed": "Binärdatei konnte nicht entfernt werden",
-   "binaryRegistered": "Binärdatei registriert",
-   "binaryRegisterFailed": "Binärdatei konnte nicht registriert werden"
-  },
-  "tag": {
-   "addPlaceholder": "Tag hinzufügen…",
-   "regionToggle": "Region taggen: Box im Bild zeichnen oder Bereich auf der Zeitleiste wählen",
-   "regionHintImage": "Box im Bild zeichnen…",
-   "regionHintVideo": "Bereich auf der Zeitleiste ziehen…",
-   "regionCaptured": "Region erfasst — Namen eingeben und Enter drücken",
-   "regionTooltip": "Region-Tag (Zeit / Bereich)",
-   "newRegion": "neue Region"
-  },
-  "detection": {
-   "label": "Erkennungen",
-   "defaultLabel": "Objekt",
-   "modeToggle": "Erkennungsmodus: Box im Bild zeichnen, um eine Objekterkennung hinzuzufügen",
-   "bulkToggle": "Massenmodus: mehrere Boxen zeichnen und alle auf einmal speichern",
-   "hint": "Box im Bild zeichnen, um eine Erkennung hinzuzufügen",
-   "bulkHint": "Boxen zeichnen, dann „Alle speichern“",
-   "redrawHint": "Neue Box für die ausgewählte Erkennung zeichnen",
-   "staged": "vorgemerkt",
-   "saveAll": "Alle speichern ({{count}})",
-   "confidence": "Konfidenz",
-   "redraw": "Begrenzungsrahmen neu zeichnen",
-   "confirm": "Erkennung bestätigen",
-   "delete": "Erkennung löschen",
-   "empty": "Noch keine Erkennungen — Box zeichnen, um eine hinzuzufügen",
-   "createError": "Erkennung konnte nicht erstellt werden",
-   "updateError": "Erkennung konnte nicht aktualisiert werden",
-   "deleteError": "Erkennung konnte nicht gelöscht werden"
+    "disabled": "deaktiviert",
+    "confirmed": "Bestätigt",
+    "denied": "Abgelehnt",
+    "rejected": "Zurückgewiesen",
+    "never": "Nie",
+    "permanent": "Dauerhaft"
   },
   "sidebar": {
-   "filterPlaceholder": "Filtern…"
+    "brand": "Metaloom",
+    "nav": {
+      "chat": "Chat",
+      "library": "Bibliothek",
+      "assets": "Assets",
+      "collections": "Sammlungen",
+      "tasks": "Aufgaben",
+      "detection": "Erkennung",
+      "tags": "Tags",
+      "workflow": "Workflow",
+      "skills": "Skills",
+      "memory": "Gedächtnis",
+      "chatSessions": "Chat-Sitzungen",
+      "uploads": "Uploads"
+    },
+    "admin": {
+      "assetPools": "Asset-Pools",
+      "pipelines": "Pipelines",
+      "cortex": "Cortex",
+      "monitoring": "Monitoring",
+      "spaces": "Spaces",
+      "users": "Benutzer",
+      "groups": "Gruppen",
+      "permissions": "Berechtigungen",
+      "apiKeys": "API-Schlüssel",
+      "blacklist": "Sperrliste",
+      "memoryDenylist": "Gedächtnis-Sperrliste"
+    },
+    "divider": {
+      "admin": "Administration",
+      "ai": "KI",
+      "content": "Inhalte",
+      "management": "Verwaltung"
+    },
+    "group": {
+      "acl": "ACL"
+    },
+    "menu": {
+      "profile": "Profil",
+      "logout": "Abmelden"
+    },
+    "tooltip": {
+      "expand": "Seitenleiste ausklappen",
+      "collapse": "Seitenleiste einklappen"
+    },
+    "fallback": {
+      "unknown": "Unbekannt"
+    }
   },
-  "empty": {
-   "noComments": "Noch keine Kommentare",
-   "noMatchComments": "Keine passenden Kommentare",
-   "noAnnotations": "Noch keine Annotationen",
-   "noMatchAnnotations": "Keine passenden Annotationen",
-   "noReactions": "Noch keine Reaktionen",
-   "noTasks": "Keine verknüpften Aufgaben",
-   "noTranscript": "Kein Transkript verfügbar",
-   "noFaces": "Keine Gesichtserkennungsdaten"
+  "auth": {
+    "title": "Loom Studio",
+    "subtitle": "Melden Sie sich an, um fortzufahren",
+    "error": {
+      "invalidCredentials": "Ungültige Anmeldedaten."
+    },
+    "placeholder": {
+      "username": "Benutzername",
+      "password": "Passwort"
+    },
+    "button": {
+      "signIn": "Anmelden"
+    }
   },
-  "faces": {
-   "detected": "{{count}} Gesichter erkannt",
-   "clusters": "{{count}} Cluster",
-   "identified": "{{count}} identifiziert",
-   "identifiedChip": "Identifiziert",
-   "unidentifiedChip": "Nicht identifiziert",
-   "unclustered": "Nicht geclustert ({{count}})"
+  "assets": {
+    "title": "Assets",
+    "search": {
+      "placeholder": "Assets, Tags suchen…"
+    },
+    "filter": {
+      "allStatus": "Alle Status",
+      "ready": "Bereit",
+      "processing": "Wird verarbeitet",
+      "failed": "Fehlgeschlagen",
+      "archived": "Archiviert",
+      "allTypes": "Alle Typen",
+      "video": "Video",
+      "image": "Bild",
+      "audio": "Audio",
+      "document": "Dokument",
+      "allLibraries": "Alle Bibliotheken",
+      "clear": "Filter zurücksetzen"
+    },
+    "tooltip": {
+      "small": "Klein — nur Vorschaubild",
+      "medium": "Mittel",
+      "large": "Groß — Tags, Größe, Dauer"
+    },
+    "count": "Assets",
+    "chip": {
+      "clearFilters": "Filter zurücksetzen"
+    },
+    "empty": {
+      "noMatch": "Keine Assets entsprechen Ihren Filtern",
+      "title": "Bereit, deine Mediathek aufzubauen?",
+      "description": "Lade Material hoch, lass es von den Pipelines anreichern und organisiere alles an einem Ort.",
+      "action": "Erstes Asset hochladen"
+    },
+    "button": {
+      "upload": "Hochladen",
+      "select": "Auswählen",
+      "cancelSelect": "Abbrechen",
+      "cancel": "Abbrechen",
+      "delete": "Löschen",
+      "apply": "Anwenden",
+      "bulkTag": "Taggen",
+      "bulkDelete": "Löschen"
+    },
+    "select": {
+      "count": "{{count}} ausgewählt"
+    },
+    "dialog": {
+      "upload": "Asset hochladen",
+      "delete": "Asset löschen",
+      "bulkTag": "{{count}} Assets taggen"
+    },
+    "upload": {
+      "pickFile": "Datei auswählen…",
+      "library": "Bibliothek",
+      "origin": "Herkunft",
+      "filesSelected": "{{count}} Dateien ausgewählt",
+      "backgroundHint": "Uploads laufen im Hintergrund weiter. Verfolgen Sie sie unter „Uploads“ in der Seitenleiste."
+    },
+    "label": {
+      "tag": "Tag"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "toast": {
+      "deleted": "Asset gelöscht",
+      "deleteFailed": "Asset konnte nicht gelöscht werden",
+      "bulkDeleted": "{{count}} Assets gelöscht",
+      "bulkDeletedPartial": "{{ok}} Assets gelöscht, {{failed}} fehlgeschlagen",
+      "bulkTagged": "{{count}} Assets getaggt",
+      "bulkTagFailed": "Assets konnten nicht getaggt werden",
+      "uploadQueued": "{{count}} Datei(en) zum Upload eingereiht"
+    }
   },
-  "taskDetail": {
-   "title": "Aufgabendetails",
-   "status": "Status",
-   "priority": "Priorität",
-   "dueDate": "Fälligkeitsdatum",
-   "created": "Erstellt"
+  "uploads": {
+    "title": "Uploads",
+    "subtitle": "Dateien hier ablegen, um sie zu Loom hinzuzufügen. Uploads laufen im Hintergrund weiter, während Sie in anderen Bereichen arbeiten — ein Neuladen der Seite bricht sie jedoch ab.",
+    "field": {
+      "library": "Bibliothek",
+      "pool": "Speicher-Pool",
+      "origin": "Herkunft"
+    },
+    "pool": {
+      "fromLibrary": "Aus Bibliothek",
+      "libraryPool": "Pool der Bibliothek",
+      "serverDefault": "Standardspeicher des Servers",
+      "storesTo": "Speichert nach",
+      "derivedHint": "Die gewählte Bibliothek bestimmt, wo die Daten gespeichert werden.",
+      "overrideHint": "Überschreibt den Pool der Bibliothek für diesen Upload."
+    },
+    "dropzone": {
+      "title": "Dateien hier ablegen",
+      "hint": "oder klicken, um Dateien auszuwählen. Mehrere Dateien gleichzeitig sind möglich.",
+      "noLibrary": "Zuerst eine Bibliothek wählen — jeder Upload muss in einer landen."
+    },
+    "status": {
+      "queued": "Wartet",
+      "uploading": "Wird hochgeladen",
+      "done": "Hochgeladen",
+      "duplicate": "Bereits in Loom — mit vorhandenem Asset verknüpft",
+      "error": "Fehlgeschlagen",
+      "cancelled": "Abgebrochen"
+    },
+    "action": {
+      "cancel": "Diesen Upload abbrechen",
+      "retry": "Wiederholen",
+      "cancelAll": "Alle abbrechen",
+      "retryFailed": "Fehlgeschlagene wiederholen",
+      "clearFinished": "Abgeschlossene entfernen"
+    },
+    "queue": {
+      "active": "Wird hochgeladen — {{done}} von {{total}} fertig ({{percent}}%)",
+      "idle": "{{count}} Datei(en) in dieser Sitzung"
+    },
+    "totals": "{{uploaded}} hochgeladen · {{duplicates}} bereits bekannt · {{failed}} fehlgeschlagen · {{bytes}} gesamt",
+    "empty": {
+      "title": "Noch nichts hochgeladen",
+      "description": "Oben eine Bibliothek wählen und dann Dateien in den Bereich am Seitenanfang ziehen. Der Fortschritt erscheint hier und in der Seitenleiste.",
+      "action": "Dateien wählen"
+    },
+    "toast": {
+      "completed": "{{count}} Datei(en) hochgeladen",
+      "completedWithDuplicates": "{{count}} Datei(en) hochgeladen, {{duplicates}} bereits in Loom",
+      "failed": "{{count}} Upload(s) fehlgeschlagen",
+      "cancelled": "{{count}} Upload(s) abgebrochen"
+    }
   },
-  "taskCreate": {
-   "title": "Aufgabe erstellen",
-   "dueDate": "Fälligkeitsdatum",
-   "error": "Aufgabe konnte nicht erstellt werden"
+  "library": {
+    "title": "Bibliotheken",
+    "tooltip": {
+      "info": "Bibliotheken werden verwendet, um Assets innerhalb eines Spaces zu logischen Sammlungen zusammenzufassen.",
+      "newLibrary": "Neue Bibliothek",
+      "deleteLibrary": "Bibliothek löschen"
+    },
+    "count": {
+      "assets": "Assets"
+    },
+    "search": {
+      "placeholder": "Assets suchen…"
+    },
+    "stats": {
+      "videos": "Videos",
+      "images": "Bilder",
+      "total": "gesamt"
+    },
+    "empty": {
+      "noAssets": "Keine Assets in dieser Bibliothek",
+      "noSearch": "Keine Assets entsprechen Ihrer Suche",
+      "selectLibrary": "Bibliothek auswählen"
+    },
+    "dialog": {
+      "newLibrary": "Neue Bibliothek",
+      "deleteLibrary": "Bibliothek löschen"
+    },
+    "label": {
+      "name": "Name",
+      "description": "Beschreibung"
+    },
+    "button": {
+      "cancel": "Abbrechen",
+      "creating": "Wird erstellt…",
+      "create": "Erstellen"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "toast": {
+      "deleted": "Bibliothek gelöscht"
+    },
+    "emptyState": {
+      "title": "Willst du ein Projekt starten?",
+      "description": "In Bibliotheken liegt dein Material. Lege eine an, um Medien hochzuladen, eigene Vorgaben zu setzen und alles an einem Ort zu organisieren.",
+      "action": "Erste Bibliothek anlegen",
+      "assets": {
+        "title": "Diese Bibliothek ist noch leer",
+        "description": "Lade Medien in diese Bibliothek hoch — sie erscheinen hier und können getaggt, analysiert und geprüft werden.",
+        "action": "Assets hochladen"
+      }
+    }
   },
-  "transcript": {
-   "untitled": "Transkript",
-   "sectionTitle": "Abschnittstitel",
-   "delete": "Transkript löschen",
-   "createError": "Transkript konnte nicht hinzugefügt werden",
-   "updateError": "Transkript konnte nicht gespeichert werden",
-   "deleteError": "Transkript konnte nicht gelöscht werden"
+  "collections": {
+    "title": "Sammlungen",
+    "count": {
+      "collections": "Sammlungen",
+      "results": "Ergebnisse"
+    },
+    "button": {
+      "new": "Neue Sammlung",
+      "cancel": "Abbrechen",
+      "creating": "Wird erstellt…",
+      "create": "Erstellen"
+    },
+    "search": {
+      "placeholder": "Sammlungen suchen…"
+    },
+    "tooltip": {
+      "delete": "Sammlung löschen",
+      "back": "Zurück zu Sammlungen"
+    },
+    "chip": {
+      "assets": "Assets",
+      "open": "Öffnen"
+    },
+    "empty": {
+      "noCollections": "Keine Sammlungen in diesem Space",
+      "noSearch": "Keine Sammlungen entsprechen Ihrer Suche",
+      "noAssets": "Keine Assets in dieser Sammlung",
+      "title": "Möchtest du deine Arbeit bündeln?",
+      "description": "Kollektionen fassen zusammengehörige Assets zusammen, damit eine Kampagne, ein Dreh oder ein Projekt an einem Ort bleibt.",
+      "action": "Erste Kollektion anlegen"
+    },
+    "dialog": {
+      "newCollection": "Neue Sammlung",
+      "deleteCollection": "Sammlung löschen"
+    },
+    "label": {
+      "name": "Name",
+      "description": "Beschreibung",
+      "color": "Farbe"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "toast": {
+      "deleted": "Sammlung gelöscht"
+    }
   },
-  "transcriptCreate": {
-   "title": "Transkript hinzufügen",
-   "source": "Quelle",
-   "lang": "Sprache"
+  "tasks": {
+    "title": "Aufgaben",
+    "count": "Aufgaben",
+    "button": {
+      "new": "Neue Aufgabe",
+      "create": "Erstellen",
+      "save": "Speichern",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "cancel": "Abbrechen",
+      "close": "Schließen"
+    },
+    "form": {
+      "title": "Titel",
+      "description": "Beschreibung",
+      "priority": "Priorität"
+    },
+    "priority": {
+      "LOW": "Niedrig",
+      "MEDIUM": "Mittel",
+      "HIGH": "Hoch",
+      "CRITICAL": "Kritisch"
+    },
+    "dialog": {
+      "newTitle": "Aufgabe erstellen",
+      "editTitle": "Aufgabe bearbeiten",
+      "deleteTitle": "Aufgabe löschen"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "table": {
+      "task": "Aufgabe",
+      "priority": "Priorität",
+      "created": "Erstellt"
+    },
+    "status": {
+      "PENDING": "Ausstehend",
+      "REJECTED": "Abgelehnt",
+      "ACCEPTED": "Angenommen",
+      "REVIEW": "Überprüfung"
+    },
+    "drawer": {
+      "title": "Aufgabendetails",
+      "created": "Erstellt",
+      "lastEdited": "Zuletzt bearbeitet"
+    },
+    "reactions": {
+      "title": "Reaktionen",
+      "add": "Reagieren",
+      "empty": "Noch keine Reaktionen",
+      "type": {
+        "THUMBSUP": "Daumen hoch",
+        "THUMBSDOWN": "Daumen runter",
+        "SATISFIED": "Zufrieden",
+        "PLUS_ONE": "+1",
+        "MINUS_ONE": "-1"
+      }
+    },
+    "empty": "Keine Aufgaben gefunden",
+    "comments": {
+      "title": "Kommentare",
+      "addPlaceholder": "Kommentar schreiben…",
+      "post": "Kommentar senden",
+      "empty": "Noch keine Kommentare"
+    },
+    "emptyState": {
+      "title": "Noch nichts zu tun",
+      "description": "Aufgaben steuern Review, Freigabe und Nacharbeit an deinen Medien — mit Priorität, Zuständigkeit und Fälligkeit.",
+      "action": "Erste Aufgabe anlegen"
+    }
   },
-  "annotations": {
-   "label": "Annotationen:"
+  "monitoring": {
+    "title": "Monitoring & Statistiken",
+    "subtitle": "Rollende 14-Tage-Metriken",
+    "sampleData": "Beispieldaten",
+    "loadError": "Pipeline-Läufe konnten nicht geladen werden",
+    "kpi": {
+      "dailyIngest": "Tägliche Ingestion",
+      "assets": "Assets",
+      "assetsToday": "Heute ingestionierte Assets",
+      "pipelineRuns": "Pipeline-Läufe (7T)",
+      "runs": "Läufe",
+      "allPipelines": "Alle Pipelines",
+      "avgLatency": "Ø Latenz",
+      "processingPipeline": "Verarbeitungs-Pipeline",
+      "storageUsed": "Speicher verwendet",
+      "totalLibraries": "Gesamt über alle Bibliotheken",
+      "openTasks": "Offene Aufgaben",
+      "allProjects": "Über alle Spaces",
+      "agentQueries": "Agent-Anfragen (14T)",
+      "totalAgentQueries": "Gesamte Loom-Agent-Anfragen",
+      "annotations": "Annotationen (14T)",
+      "newAnnotations": "Neue Annotationen erstellt"
+    },
+    "chart": {
+      "ingestion": "Asset-Ingestion (14T)",
+      "pipelineRuns": "Pipeline-Läufe (14T)",
+      "taskBacklog": "Aufgaben-Rückstand",
+      "latency": "Verarbeitungslatenz (ms)",
+      "storage": "Speicherwachstum (TB)",
+      "agentUsage": "Agent-Nutzung (14T)"
+    },
+    "series": {
+      "assets": "Assets",
+      "success": "Erfolg",
+      "failed": "Fehlgeschlagen",
+      "skipped": "Übersprungen",
+      "open": "Offen",
+      "overdue": "Überfällig",
+      "avg": "Ø",
+      "p99": "P99",
+      "storage": "Speicher",
+      "queries": "Anfragen",
+      "actions": "Aktionen"
+    }
+  },
+  "tags": {
+    "title": "Tags",
+    "tooltip": {
+      "info": "Tags sind flache Bezeichnungen, die nach Sammlung gruppiert sind. Ziehen Sie einen Tag auf einen Sammlungs-Header, um ihn zu verschieben.",
+      "create": "Tag erstellen"
+    },
+    "count": "Tags in {{count}} Sammlungen",
+    "placeholder": {
+      "name": "Tag-Name…",
+      "collection": "Sammlung…",
+      "filter": "Tags filtern…"
+    },
+    "search": {
+      "placeholder": "Tags filtern…"
+    },
+    "menu": {
+      "delete": "Löschen"
+    },
+    "loading": "Tags werden geladen…",
+    "empty": "Noch keine Tags. Erstellen Sie einen Tag, um zu beginnen.",
+    "detail": {
+      "title": "Tag-Details",
+      "name": "Name",
+      "collection": "Sammlung",
+      "collectionPlaceholder": "z. B. Kategorie",
+      "collectionHelper": "Sammlung ändern, um den Tag in eine andere Gruppe zu verschieben",
+      "placeholder": "z. B. Kategorie",
+      "helper": "Sammlung ändern, um den Tag in eine andere Gruppe zu verschieben",
+      "rating": "Deine Bewertung",
+      "save": "Speichern"
+    },
+    "emptyState": {
+      "title": "Noch nichts getaggt?",
+      "description": "Tags beschreiben den Inhalt deiner Medien, damit du — und der Agent — sie in Sekunden wiederfindest.",
+      "action": "Ersten Tag anlegen"
+    }
+  },
+  "profile": {
+    "title": "Profil",
+    "subtitle": "Persönliche Informationen verwalten",
+    "field": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail",
+      "username": "Benutzername",
+      "usernameHelper": "Benutzername kann nicht geändert werden",
+      "role": "Rolle"
+    },
+    "label": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail",
+      "username": "Benutzername",
+      "role": "Rolle"
+    },
+    "helper": {
+      "username": "Benutzername kann nicht geändert werden"
+    },
+    "language": {
+      "label": "Sprache",
+      "en": "Englisch",
+      "de": "Deutsch"
+    },
+    "appearance": {
+      "label": "Erscheinungsbild",
+      "dark": "Dunkel",
+      "light": "Hell"
+    },
+    "button": {
+      "save": "Änderungen speichern"
+    },
+    "toast": {
+      "saved": "Profil aktualisiert",
+      "updated": "Profil aktualisiert",
+      "error": "Profil konnte nicht aktualisiert werden"
+    }
+  },
+  "chat": {
+    "header": {
+      "title": "Loom Agent",
+      "status": "● online · {{space}}",
+      "noSpace": "Kein Space"
+    },
+    "input": {
+      "placeholder": "Fragen Sie nach Assets, Sammlungen, Aufgaben, Pipelines…",
+      "helper": "Enter zum Senden · Shift+Enter für neue Zeile"
+    },
+    "sessions": {
+      "newChat": "Neuer Chat",
+      "empty": "Noch keine Unterhaltungen",
+      "untitled": "Unbenannt",
+      "toggle": "Unterhaltungsliste umschalten"
+    },
+    "panel": {
+      "recentAssets": "Neueste Assets",
+      "activeTasks": "Aktive Aufgaben",
+      "collections": "Sammlungen",
+      "open": "Öffnen",
+      "collectionAssets": "{{count}} Assets",
+      "hide": "Arbeitsbereich ausblenden",
+      "show": "Arbeitsbereich einblenden"
+    },
+    "tab": {
+      "overview": "Übersicht",
+      "assets": "Assets"
+    },
+    "detail": {
+      "size": "Größe",
+      "status": "Status",
+      "duration": "Dauer",
+      "dimensions": "Abmessungen",
+      "open": "Öffnen"
+    },
+    "reasoning": {
+      "thinking": "denkt nach… ({{seconds}}s)",
+      "show": "Überlegungen anzeigen",
+      "hide": "Überlegungen ausblenden"
+    },
+    "streaming": {
+      "stop": "Generierung stoppen"
+    },
+    "pipeline": {
+      "open": "Öffnen",
+      "version": "v{{version}}",
+      "disabled": "deaktiviert",
+      "truncated": "Das Diagramm zeigt nur einen Teil dieser Pipeline — den vollständigen Graphen zeigt der Editor."
+    },
+    "error": {
+      "busy": "Der Agent arbeitet noch an diesem Chat — bitte gleich erneut versuchen",
+      "llm": "Die Agent-Anfrage ist fehlgeschlagen",
+      "aborted": "Generierung gestoppt"
+    },
+    "skills": {
+      "title": "Skills",
+      "active": "Aktive Skills ({{count}})",
+      "none": "Noch keine Skills — unter Skills anlegen",
+      "manage": "Skills verwalten"
+    },
+    "greeting": {
+      "hello": "Hallo {{name}}",
+      "helloAnonymous": "Hallo",
+      "subtitle": "Frag nach deinen Assets, Aufgaben, Kollektionen oder Transkripten — der Loom Agent durchsucht deinen Space und antwortet mit den gefundenen Objekten."
+    }
+  },
+  "admin": {
+    "title": "Administration",
+    "subtitle": "Benutzerverwaltung, Zugriffskontrolle und Sicherheit",
+    "tab": {
+      "spaces": "Spaces",
+      "users": "Benutzer",
+      "groups": "Gruppen",
+      "permissions": "Berechtigungen",
+      "apiKeys": "API-Schlüssel",
+      "blacklist": "Sperrliste",
+      "memoryDenylist": "Gedächtnis-Sperrliste"
+    },
+    "spaces": {
+      "title": "Spaces",
+      "tooltip": "Spaces organisieren Projekte, Teams und Assets in isolierten Umgebungen.",
+      "count": "Spaces",
+      "newSpace": "Neuer Space",
+      "search": "Spaces suchen…",
+      "table": {
+        "name": "Name",
+        "uuid": "UUID",
+        "created": "Erstellt",
+        "actions": "Aktionen"
+      },
+      "dialog": {
+        "create": "Space erstellen",
+        "edit": "Space bearbeiten",
+        "delete": "Space löschen",
+        "label": "Space-Name",
+        "placeholder": "z. B. Produktion"
+      },
+      "confirm": {
+        "delete": "Sind Sie sicher, dass Sie Space {{name}} löschen möchten?"
+      }
+    },
+    "users": {
+      "title": "Benutzer",
+      "tooltip": "Benutzerkonten und deren Zugriff auf das System verwalten.",
+      "count": "Konten",
+      "createUser": "Benutzer erstellen",
+      "search": "Benutzer suchen…",
+      "table": {
+        "user": "Benutzer",
+        "email": "E-Mail",
+        "status": "Status",
+        "created": "Erstellt",
+        "actions": "Aktionen"
+      },
+      "chip": {
+        "enabled": "aktiviert",
+        "disabled": "deaktiviert"
+      },
+      "dialog": {
+        "create": "Benutzer erstellen",
+        "edit": "Benutzer bearbeiten",
+        "delete": "Benutzer löschen",
+        "label": {
+          "username": "Benutzername",
+          "email": "E-Mail",
+          "firstname": "Vorname",
+          "lastname": "Nachname"
+        }
+      },
+      "confirm": {
+        "delete": "Sind Sie sicher, dass Sie Benutzer {{name}} löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden."
+      }
+    },
+    "groups": {
+      "title": "Gruppen",
+      "tooltip": "Gruppen ermöglichen es, Benutzer in logische Teams zu organisieren und gemeinsame Berechtigungen zuzuweisen.",
+      "count": "Gruppen",
+      "newGroup": "Neue Gruppe",
+      "search": "Gruppen suchen…",
+      "table": {
+        "name": "Name",
+        "uuid": "UUID",
+        "created": "Erstellt",
+        "actions": "Aktionen"
+      },
+      "dialog": {
+        "create": "Gruppe erstellen",
+        "edit": "Gruppe bearbeiten",
+        "delete": "Gruppe löschen",
+        "label": "Gruppenname",
+        "placeholder": "z. B. Technik"
+      },
+      "confirm": {
+        "delete": "Sind Sie sicher, dass Sie Gruppe {{name}} löschen möchten?"
+      }
+    },
+    "roles": {
+      "title": "Zugriffskontrolle",
+      "count": "Rollen",
+      "saving": "Wird gespeichert…",
+      "newRole": "Neue Rolle",
+      "sectionTitle": "Rollen",
+      "permissionsCount": "Berechtigungen",
+      "permissionsGranted": "Berechtigungen erteilt",
+      "empty": "Wählen Sie eine Rolle, um ihre Berechtigungen zu verwalten",
+      "permission": {
+        "CREATE_ANNOTATION": "Neue Annotationen anlegen — Bereichsmarkierungen und Notizen auf einem Asset.",
+        "READ_ANNOTATION": "Annotationen ansehen — Bereichsmarkierungen und Notizen auf einem Asset.",
+        "DELETE_ANNOTATION": "Annotationen löschen — Bereichsmarkierungen und Notizen auf einem Asset.",
+        "UPDATE_ANNOTATION": "Bestehende Annotationen bearbeiten — Bereichsmarkierungen und Notizen auf einem Asset.",
+        "CREATE_ASSET": "Neue Assets anlegen — Medien-Datensätze samt Metadaten.",
+        "READ_ASSET": "Assets ansehen — Medien-Datensätze samt Metadaten.",
+        "DELETE_ASSET": "Assets löschen — Medien-Datensätze samt Metadaten.",
+        "UPDATE_ASSET": "Bestehende Assets bearbeiten — Medien-Datensätze samt Metadaten.",
+        "CREATE_ASSET_BINARY": "Neue Asset-Binärdaten anlegen — die gespeicherten Dateibytes eines Assets.",
+        "READ_ASSET_BINARY": "Asset-Binärdaten ansehen — die gespeicherten Dateibytes eines Assets.",
+        "DELETE_ASSET_BINARY": "Asset-Binärdaten löschen — die gespeicherten Dateibytes eines Assets.",
+        "UPDATE_ASSET_BINARY": "Bestehende Asset-Binärdaten bearbeiten — die gespeicherten Dateibytes eines Assets.",
+        "CREATE_ASSET_LOCATION": "Neue Asset-Speicherorte anlegen — veraltete Speicherorte eines Assets.",
+        "READ_ASSET_LOCATION": "Asset-Speicherorte ansehen — veraltete Speicherorte eines Assets.",
+        "DELETE_ASSET_LOCATION": "Asset-Speicherorte löschen — veraltete Speicherorte eines Assets.",
+        "UPDATE_ASSET_LOCATION": "Bestehende Asset-Speicherorte bearbeiten — veraltete Speicherorte eines Assets.",
+        "CREATE_ATTACHMENT": "Neue Anhänge anlegen — Dateien, die einem Asset beiliegen.",
+        "READ_ATTACHMENT": "Anhänge ansehen — Dateien, die einem Asset beiliegen.",
+        "DELETE_ATTACHMENT": "Anhänge löschen — Dateien, die einem Asset beiliegen.",
+        "UPDATE_ATTACHMENT": "Bestehende Anhänge bearbeiten — Dateien, die einem Asset beiliegen.",
+        "CREATE_USER": "Neue Benutzer anlegen — Benutzerkonten.",
+        "READ_USER": "Benutzer ansehen — Benutzerkonten.",
+        "DELETE_USER": "Benutzer löschen — Benutzerkonten.",
+        "UPDATE_USER": "Bestehende Benutzer bearbeiten — Benutzerkonten.",
+        "CREATE_ROLE": "Neue Rollen anlegen — Rollen und die darin enthaltenen Berechtigungen.",
+        "READ_ROLE": "Rollen ansehen — Rollen und die darin enthaltenen Berechtigungen.",
+        "DELETE_ROLE": "Rollen löschen — Rollen und die darin enthaltenen Berechtigungen.",
+        "UPDATE_ROLE": "Bestehende Rollen bearbeiten — Rollen und die darin enthaltenen Berechtigungen.",
+        "CREATE_GROUP": "Neue Gruppen anlegen — Gruppen, die Benutzer und Rollen bündeln.",
+        "READ_GROUP": "Gruppen ansehen — Gruppen, die Benutzer und Rollen bündeln.",
+        "DELETE_GROUP": "Gruppen löschen — Gruppen, die Benutzer und Rollen bündeln.",
+        "UPDATE_GROUP": "Bestehende Gruppen bearbeiten — Gruppen, die Benutzer und Rollen bündeln.",
+        "CREATE_SPACE": "Neue Spaces anlegen — oberste Mandanten mit Libraries und Collections.",
+        "READ_SPACE": "Spaces ansehen — oberste Mandanten mit Libraries und Collections.",
+        "DELETE_SPACE": "Spaces löschen — oberste Mandanten mit Libraries und Collections.",
+        "UPDATE_SPACE": "Bestehende Spaces bearbeiten — oberste Mandanten mit Libraries und Collections.",
+        "CREATE_CLUSTER": "Neue Cluster anlegen — Cluster ähnlicher Gesichts-Embeddings.",
+        "READ_CLUSTER": "Cluster ansehen — Cluster ähnlicher Gesichts-Embeddings.",
+        "DELETE_CLUSTER": "Cluster löschen — Cluster ähnlicher Gesichts-Embeddings.",
+        "UPDATE_CLUSTER": "Bestehende Cluster bearbeiten — Cluster ähnlicher Gesichts-Embeddings.",
+        "CREATE_COLLECTION": "Neue Collections anlegen — kuratierte Asset-Sammlungen.",
+        "READ_COLLECTION": "Collections ansehen — kuratierte Asset-Sammlungen.",
+        "DELETE_COLLECTION": "Collections löschen — kuratierte Asset-Sammlungen.",
+        "UPDATE_COLLECTION": "Bestehende Collections bearbeiten — kuratierte Asset-Sammlungen.",
+        "CREATE_COMMENT": "Neue Kommentare anlegen — Benutzerkommentare zu Assets.",
+        "READ_COMMENT": "Kommentare ansehen — Benutzerkommentare zu Assets.",
+        "DELETE_COMMENT": "Kommentare löschen — Benutzerkommentare zu Assets.",
+        "UPDATE_COMMENT": "Bestehende Kommentare bearbeiten — Benutzerkommentare zu Assets.",
+        "CREATE_EMBEDDING": "Neue Embeddings anlegen — Vektoren für die Ähnlichkeitssuche.",
+        "READ_EMBEDDING": "Embeddings ansehen — Vektoren für die Ähnlichkeitssuche.",
+        "DELETE_EMBEDDING": "Embeddings löschen — Vektoren für die Ähnlichkeitssuche.",
+        "UPDATE_EMBEDDING": "Bestehende Embeddings bearbeiten — Vektoren für die Ähnlichkeitssuche.",
+        "CREATE_REACTION": "Neue Reaktionen anlegen — Likes und eigene Reaktionen.",
+        "READ_REACTION": "Reaktionen ansehen — Likes und eigene Reaktionen.",
+        "DELETE_REACTION": "Reaktionen löschen — Likes und eigene Reaktionen.",
+        "UPDATE_REACTION": "Bestehende Reaktionen bearbeiten — Likes und eigene Reaktionen.",
+        "CREATE_TASK": "Neue Tasks anlegen — Hintergrundjobs wie Massen-Import.",
+        "READ_TASK": "Tasks ansehen — Hintergrundjobs wie Massen-Import.",
+        "DELETE_TASK": "Tasks löschen — Hintergrundjobs wie Massen-Import.",
+        "UPDATE_TASK": "Bestehende Tasks bearbeiten — Hintergrundjobs wie Massen-Import.",
+        "CREATE_TAG": "Neue Tags anlegen — das Tag-Vokabular.",
+        "READ_TAG": "Tags ansehen — das Tag-Vokabular.",
+        "DELETE_TAG": "Tags löschen — das Tag-Vokabular.",
+        "UPDATE_TAG": "Bestehende Tags bearbeiten — das Tag-Vokabular.",
+        "TAG_ASSET": "Ein Tag an ein Asset anhängen.",
+        "UNTAG_ASSET": "Ein Tag von einem Asset entfernen.",
+        "CREATE_TOKEN": "Neue API-Keys anlegen — langlebige Tokens für Service-Accounts.",
+        "READ_TOKEN": "API-Keys ansehen — langlebige Tokens für Service-Accounts.",
+        "DELETE_TOKEN": "API-Keys löschen — langlebige Tokens für Service-Accounts.",
+        "UPDATE_TOKEN": "Bestehende API-Keys bearbeiten — langlebige Tokens für Service-Accounts.",
+        "CREATE_LIBRARY": "Neue Libraries anlegen — Libraries, die Asset-Pools gruppieren.",
+        "READ_LIBRARY": "Libraries ansehen — Libraries, die Asset-Pools gruppieren.",
+        "DELETE_LIBRARY": "Libraries löschen — Libraries, die Asset-Pools gruppieren.",
+        "UPDATE_LIBRARY": "Bestehende Libraries bearbeiten — Libraries, die Asset-Pools gruppieren.",
+        "CREATE_PIPELINE": "Neue Pipelines anlegen — Definitionen von Verarbeitungs-Pipelines.",
+        "READ_PIPELINE": "Pipelines ansehen — Definitionen von Verarbeitungs-Pipelines.",
+        "DELETE_PIPELINE": "Pipelines löschen — Definitionen von Verarbeitungs-Pipelines.",
+        "UPDATE_PIPELINE": "Bestehende Pipelines bearbeiten — Definitionen von Verarbeitungs-Pipelines.",
+        "READ_PIPELINE_VERSION": "Den Versionsverlauf einer Pipeline ansehen.",
+        "RESTORE_PIPELINE_VERSION": "Eine Pipeline auf eine frühere Version zurücksetzen.",
+        "CREATE_PIPELINE_RUN": "Neue Pipeline-Läufe anlegen — Ausführungen einer Pipeline.",
+        "READ_PIPELINE_RUN": "Pipeline-Läufe ansehen — Ausführungen einer Pipeline.",
+        "UPDATE_PIPELINE_RUN": "Bestehende Pipeline-Läufe bearbeiten — Ausführungen einer Pipeline.",
+        "DELETE_PIPELINE_RUN": "Pipeline-Läufe löschen — Ausführungen einer Pipeline.",
+        "CREATE_ASSET_POOL": "Neue Asset-Pools anlegen — Speicherorte, aus denen Assets eingelesen werden.",
+        "READ_ASSET_POOL": "Asset-Pools ansehen — Speicherorte, aus denen Assets eingelesen werden.",
+        "DELETE_ASSET_POOL": "Asset-Pools löschen — Speicherorte, aus denen Assets eingelesen werden.",
+        "UPDATE_ASSET_POOL": "Bestehende Asset-Pools bearbeiten — Speicherorte, aus denen Assets eingelesen werden.",
+        "CREATE_BLACKLIST": "Neue Blacklist-Einträge anlegen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+        "READ_BLACKLIST": "Blacklist-Einträge ansehen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+        "DELETE_BLACKLIST": "Blacklist-Einträge löschen — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+        "UPDATE_BLACKLIST": "Bestehende Blacklist-Einträge bearbeiten — Hashes und Fingerprints, die nicht importiert werden dürfen.",
+        "CREATE_PERSON": "Neue Personen anlegen — Personen, die über Gesichtserkennungen identifiziert werden.",
+        "READ_PERSON": "Personen ansehen — Personen, die über Gesichtserkennungen identifiziert werden.",
+        "DELETE_PERSON": "Personen löschen — Personen, die über Gesichtserkennungen identifiziert werden.",
+        "UPDATE_PERSON": "Bestehende Personen bearbeiten — Personen, die über Gesichtserkennungen identifiziert werden.",
+        "CREATE_DETECTION": "Neue Detections anlegen — in einem Asset gefundene Gesichter und Objekte.",
+        "READ_DETECTION": "Detections ansehen — in einem Asset gefundene Gesichter und Objekte.",
+        "DELETE_DETECTION": "Detections löschen — in einem Asset gefundene Gesichter und Objekte.",
+        "UPDATE_DETECTION": "Bestehende Detections bearbeiten — in einem Asset gefundene Gesichter und Objekte.",
+        "CREATE_CHAT": "Neue Chats anlegen — Unterhaltungen mit dem KI-Agenten.",
+        "READ_CHAT": "Chats ansehen — Unterhaltungen mit dem KI-Agenten.",
+        "DELETE_CHAT": "Chats löschen — Unterhaltungen mit dem KI-Agenten.",
+        "UPDATE_CHAT": "Bestehende Chats bearbeiten — Unterhaltungen mit dem KI-Agenten.",
+        "CREATE_SKILL": "Neue Skills anlegen — Anweisungspakete, die den Agenten steuern.",
+        "READ_SKILL": "Skills ansehen — Anweisungspakete, die den Agenten steuern.",
+        "DELETE_SKILL": "Skills löschen — Anweisungspakete, die den Agenten steuern.",
+        "UPDATE_SKILL": "Bestehende Skills bearbeiten — Anweisungspakete, die den Agenten steuern.",
+        "READ_SKILL_VERSION": "Den Versionsverlauf eines Skills ansehen.",
+        "RESTORE_SKILL_VERSION": "Einen Skill auf eine frühere Version zurücksetzen.",
+        "CREATE_CHAT_SESSION": "Neue Chat-Sessions anlegen — veröffentlichbare Snapshots eines Chats samt Workspace.",
+        "READ_CHAT_SESSION": "Chat-Sessions ansehen — veröffentlichbare Snapshots eines Chats samt Workspace.",
+        "DELETE_CHAT_SESSION": "Chat-Sessions löschen — veröffentlichbare Snapshots eines Chats samt Workspace.",
+        "UPDATE_CHAT_SESSION": "Bestehende Chat-Sessions bearbeiten — veröffentlichbare Snapshots eines Chats samt Workspace.",
+        "CREATE_MEMORY": "Neue Memory-Notizen anlegen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+        "READ_MEMORY": "Memory-Notizen ansehen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+        "DELETE_MEMORY": "Memory-Notizen löschen — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+        "UPDATE_MEMORY": "Bestehende Memory-Notizen bearbeiten — dauerhafte Notizen, die der Agent über Chats hinweg behält.",
+        "CREATE_MEMORY_DENY_RULE": "Neue Memory-Sperrregeln anlegen — Muster, die der Agent niemals speichern darf.",
+        "READ_MEMORY_DENY_RULE": "Memory-Sperrregeln ansehen — Muster, die der Agent niemals speichern darf.",
+        "DELETE_MEMORY_DENY_RULE": "Memory-Sperrregeln löschen — Muster, die der Agent niemals speichern darf.",
+        "UPDATE_MEMORY_DENY_RULE": "Bestehende Memory-Sperrregeln bearbeiten — Muster, die der Agent niemals speichern darf.",
+        "MANAGE_CORTEX_INSTANCE": "Registrierte Cortex-Worker verwalten — Verarbeitungsinstanzen freigeben, konfigurieren und entfernen.",
+        "READ_CORTEX_INSTANCE": "Registrierte Cortex-Worker und deren Status ansehen."
+      },
+      "dialog": {
+        "create": "Rolle erstellen",
+        "edit": "Rolle bearbeiten",
+        "delete": "Rolle löschen",
+        "label": "Rollenname",
+        "placeholder": "z. B. Redakteur"
+      },
+      "confirm": {
+        "delete": "Sind Sie sicher, dass Sie Rolle {{name}} löschen möchten?"
+      }
+    },
+    "apiKeys": {
+      "title": "API-Schlüssel",
+      "tooltip": "API-Schlüssel ermöglichen programmatischen Zugriff auf die Metaloom REST API.",
+      "count": "Schlüssel",
+      "createKey": "Schlüssel erstellen",
+      "search": "API-Schlüssel suchen…",
+      "table": {
+        "name": "Name",
+        "keyId": "Schlüssel-ID",
+        "created": "Erstellt"
+      },
+      "menu": {
+        "rename": "Schlüssel umbenennen",
+        "delete": "Schlüssel löschen"
+      },
+      "dialog": {
+        "create": "API-Schlüssel erstellen",
+        "edit": "API-Schlüssel umbenennen",
+        "keyName": "Schlüsselname",
+        "keyPlaceholder": "z. B. CI-Pipeline-Schlüssel",
+        "creating": "Wird erstellt…",
+        "createKey": "Schlüssel erstellen",
+        "tokenCreated": "Token erfolgreich erstellt!",
+        "tokenWarning": "Kopieren Sie dieses Token jetzt — es wird nicht erneut angezeigt."
+      }
+    },
+    "blacklist": {
+      "title": "Sperrliste",
+      "count": "Einträge",
+      "addEntry": "Eintrag hinzufügen",
+      "search": "Sperrlisten-Einträge suchen…",
+      "table": {
+        "type": "Typ",
+        "value": "Wert",
+        "reason": "Grund",
+        "added": "Hinzugefügt",
+        "expires": "Läuft ab"
+      },
+      "dialog": {
+        "add": "Sperrlisten-Eintrag hinzufügen",
+        "type": "Typ",
+        "typeIp": "IP-Adresse",
+        "typeDomain": "Domain",
+        "typeFingerprint": "Fingerabdruck",
+        "typeUser": "Benutzer",
+        "value": "Wert",
+        "reason": "Grund",
+        "reasonPlaceholder": "Grund für die Sperrung",
+        "expiry": "Ablaufdatum (optional)"
+      },
+      "defaultReason": "Manueller Eintrag"
+    },
+    "memoryDenylist": {
+      "title": "Gedächtnis-Sperrliste",
+      "subtitle": "Muster, die der Chat-Agent niemals in seinem Gedächtnis speichern darf. Ein Treffer lehnt den Schreibvorgang mit der Meldung der Regel ab.",
+      "addRule": "Regel hinzufügen",
+      "search": "Regeln durchsuchen",
+      "empty": "Keine Sperrregeln konfiguriert.",
+      "table": {
+        "name": "Name",
+        "pattern": "Muster",
+        "message": "Ablehnungsmeldung",
+        "enabled": "Aktiv"
+      },
+      "dialog": {
+        "add": "Sperrregel hinzufügen",
+        "edit": "Sperrregel bearbeiten",
+        "name": "Name",
+        "pattern": "Muster (Regex)",
+        "patternHelp": "Java-Regex. Mehrere Begriffe lassen sich per Alternation in einer Regel abdecken, z. B. (?i)\\b(alpha|beta)\\b",
+        "message": "Ablehnungsmeldung",
+        "messageHelp": "Wird dem Agenten bei einer Ablehnung angezeigt. Erkläre die Alternative; wiederhole niemals den gefundenen Text."
+      }
+    }
+  },
+  "pipeline": {
+    "buckets": {
+      "id": "ID",
+      "label": "Bezeichnung",
+      "match": "Aliasse",
+      "add": "Bucket hinzufügen",
+      "remove": "Bucket entfernen",
+      "hint": "Jeder Bucket wird zu einem Ausgangsport. Ein 'other'-Port für alles Übrige ist immer vorhanden.",
+      "error": {
+        "required": "Eine ID ist erforderlich",
+        "reserved": "Diese ID ist einer der reservierten Ports des Knotens",
+        "invalid": "Nur Kleinbuchstaben, Ziffern und Unterstrich",
+        "duplicate": "Diese ID wird bereits von einem anderen Bucket verwendet"
+      }
+    },
+    "editor": {
+      "title": "Pipelines",
+      "noRuns": "keine Läufe",
+      "selectPipeline": "Wählen Sie eine Pipeline, um deren Graph anzuzeigen",
+      "showLog": "Protokoll anzeigen",
+      "log": "Protokoll",
+      "dryRun": "Probelauf",
+      "run": "Ausführen",
+      "dryRunTooltip": "Probelauf — keine Schreibvorgänge",
+      "runTooltip": "Pipeline ausführen",
+      "enabled": "Aktiviert",
+      "addNode": "Knoten hinzufügen",
+      "addNodeTooltip": "Einen Knoten zur Pipeline hinzufügen",
+      "tabVisual": "Visuell",
+      "tabJson": "JSON",
+      "deleteNodeTitle": "Knoten löschen",
+      "deleteNodeMessage": "Sind Sie sicher, dass Sie \"{{name}}\" löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "connectionTypeError": "Verbindung nicht möglich — inkompatible Datentypen",
+      "filterNodes": "Knoten filtern…",
+      "jsonValid": "JSON gültig",
+      "jsonInvalid": "JSON ungültig",
+      "jsonLoaded": "Geladene Definition",
+      "jsonCurrent": "Aktueller Canvas-Zustand",
+      "source": "Quelle",
+      "filter": "Filter",
+      "process": "Verarbeitung",
+      "systemLog": "Systemprotokoll",
+      "selectPipelineLogs": "Wählen Sie eine Pipeline, um die Protokolle anzuzeigen.",
+      "edgeLabel": "Kantenbeschriftung",
+      "edgeAny": "ANY",
+      "edgePass": "PASS",
+      "edgeReject": "REJECT",
+      "edgeLabelTooltip": "Kantenbeschriftung festlegen (PASS / REJECT / ANY)",
+      "edgeLabelPassDesc": "Nur passende Assets weiterleiten",
+      "edgeLabelRejectDesc": "Nur abgelehnte Assets weiterleiten",
+      "edgeLabelAnyDesc": "Alle Assets weiterleiten",
+      "validationDuplicateId": "Doppelte Knoten-ID: \"{{id}}\" — Knoten-IDs müssen eindeutig sein",
+      "validationCycle": "Zyklus im Pipeline-Graph erkannt — Knoten bilden eine zirkuläre Abhängigkeit",
+      "validationInvalidId": "Ungültige Knoten-ID: \"{{id}}\" — IDs müssen ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$ entsprechen",
+      "validationNoSource": "Pipeline benötigt genau einen Quellknoten (isSource=true)",
+      "validationMultipleSource": "Pipeline hat mehrere Quellknoten — nur einer ist erlaubt",
+      "validationUnknownType": "Unbekannter Knotentyp: \"{{type}}\" — nicht in der Descriptor-Registry gefunden",
+      "validationOk": "Pipeline-Validierung erfolgreich",
+      "validationTitle": "Validierung",
+      "save": "Speichern",
+      "saving": "Speichert…",
+      "saved": "Gespeichert",
+      "saveTooltip": "Pipeline speichern",
+      "savedTooltip": "Keine ungespeicherten Änderungen",
+      "saveOk": "Pipeline gespeichert",
+      "running": "Läuft…",
+      "runDispatched": "Pipeline-Lauf gestartet",
+      "runNoProcessor": "Kein Prozessor verfügbar",
+      "runCancelled": "Pipeline-Lauf abgebrochen",
+      "newPipeline": "Neue Pipeline",
+      "newPipelineTitle": "Neue Pipeline",
+      "clonePipelineTitle": "Pipeline klonen",
+      "clone": "Klonen",
+      "create": "Erstellen",
+      "nameLabel": "Name",
+      "descriptionLabel": "Beschreibung",
+      "nameRequired": "Pipeline-Name ist erforderlich",
+      "deletePipelineTitle": "Pipeline löschen",
+      "deletePipelineMessage": "Möchten Sie die Pipeline \"{{name}}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "switchDirtyTitle": "Ungespeicherte Änderungen verwerfen?",
+      "switchDirtyMessage": "Diese Pipeline hat ungespeicherte Änderungen, die verloren gehen.",
+      "discard": "Verwerfen",
+      "createOk": "Pipeline erstellt",
+      "cloneOk": "Pipeline geklont",
+      "deleteOk": "Pipeline gelöscht"
+    },
+    "version": {
+      "title": "Versionsverlauf",
+      "badgeTooltip": "Aktuelle Version — klicken für den Verlauf",
+      "loading": "Versionen werden geladen…",
+      "empty": "Kein Versionsverlauf verfügbar",
+      "current": "aktuell",
+      "restore": "Wiederherstellen",
+      "restoreTooltip": "Version {{version}} wiederherstellen",
+      "restoreTitle": "Version wiederherstellen",
+      "restoreMessage": "Version {{version}} wiederherstellen? Dabei wird eine neue Version mit dem Inhalt von v{{version}} erstellt — es wird nichts gelöscht.",
+      "restoreDirtyWarning": "Sie haben ungespeicherte Änderungen. Beim Wiederherstellen gehen diese verloren.",
+      "restoreOk": "v{{from}} als v{{to}} wiederhergestellt",
+      "restoreFailed": "Wiederherstellen fehlgeschlagen",
+      "compareTooltip": "v{{version}} mit aktueller Version vergleichen"
+    },
+    "diff": {
+      "title": "Vergleich v{{from}} → v{{to}} (aktuell)",
+      "loading": "Versionen werden geladen…",
+      "empty": "Keine Unterschiede",
+      "failed": "Versionen konnten nicht geladen werden",
+      "close": "Schließen",
+      "base": "v{{version}}",
+      "current": "v{{version}} (aktuell)"
+    },
+    "node": {
+      "s3Source": {
+        "label": "S3-Quelle",
+        "description": "Einen S3-Bucket auf neue Assets überwachen"
+      },
+      "filesystemSource": {
+        "label": "Dateisystem-Quelle",
+        "description": "Ein lokales Verzeichnis auf neue Dateien überwachen"
+      },
+      "assetSource": {
+        "label": "Asset-Quelle",
+        "description": "Ein einzelnes Asset zum Testen bereitstellen"
+      },
+      "formatFilter": {
+        "label": "Format-Filter",
+        "description": "Nach MIME-Typ filtern"
+      },
+      "hash": {
+        "label": "Hash",
+        "description": "SHA-256 + perzeptueller Hash"
+      },
+      "fingerprint": {
+        "label": "Fingerabdruck",
+        "description": "Audio-/Video-Fingerabdruck erstellen"
+      },
+      "resizeProxy": {
+        "label": "Größenanpassungs-Proxy",
+        "description": "Proxy-Auflösungen erstellen"
+      },
+      "yoloDetection": {
+        "label": "YOLO-Erkennung",
+        "description": "YOLOv8-Objekterkennung auf Frames ausführen"
+      },
+      "sceneDetection": {
+        "label": "Szenenerkennung",
+        "description": "Szenengrenzen per Histogrammdifferenz erkennen"
+      },
+      "s3Output": {
+        "label": "S3-Ausgabe",
+        "description": "Ergebnisse in S3-Bucket schreiben"
+      },
+      "thumbnail": {
+        "label": "Vorschaubild",
+        "description": "Vorschaubilder erstellen"
+      },
+      "llmVision": {
+        "label": "LLM-Vision",
+        "description": "Einen Vision-Modell-Prompt auf Asset-Frames anwenden"
+      },
+      "faceDetection": {
+        "label": "Gesichtserkennung",
+        "description": "Gesichter erkennen und wiedererkennen"
+      },
+      "embedding": {
+        "label": "Einbettung",
+        "description": "CLIP-Einbettungsvektoren erstellen"
+      },
+      "asr": {
+        "label": "ASR",
+        "description": "Automatische Spracherkennung"
+      },
+      "autoTag": {
+        "label": "Auto-Tag",
+        "description": "Assets automatisch per Tag-Glob-Matching taggen"
+      },
+      "transcriptionFilter": {
+        "label": "Transkriptions-Filter",
+        "description": "Assets mit Transkriptionen filtern"
+      }
+    },
+    "runHistory": {
+      "title": "Ausführungsverlauf",
+      "assets": "Assets",
+      "error": "Fehler",
+      "errors": "Fehler",
+      "noRuns": "Noch keine Läufe aufgezeichnet",
+      "loading": "Läufe werden geladen…",
+      "cancel": "Lauf abbrechen"
+    },
+    "runDetail": {
+      "title": "Lauf-Detail",
+      "items": "Einträge",
+      "noItems": "Keine Einträge für diesen Lauf aufgezeichnet",
+      "loading": "Einträge werden geladen…"
+    },
+    "inspector": {
+      "empty": "Wählen Sie eine Pipeline zur Inspektion",
+      "enabled": "aktiviert",
+      "disabled": "deaktiviert",
+      "priority": "Priorität",
+      "dryRun": "Probelauf",
+      "runningNow": "Läuft gerade",
+      "lastRun": "Letzter Lauf:"
+    },
+    "nodeDetail": {
+      "title": "Knotendetails",
+      "collapse": "Bereich einklappen",
+      "tab": {
+        "config": "Konfiguration",
+        "log": "Protokoll",
+        "json": "JSON"
+      },
+      "displayName": "Anzeigename",
+      "maxChars": "Max. 15 Zeichen",
+      "description": "Beschreibung",
+      "affinity": "Affinitätsgruppe",
+      "affinityHelp": "Knoten derselben Gruppe werden gemeinsam als ein Segment ausgeführt.",
+      "configuration": "Konfiguration",
+      "nodeId": "Knoten-ID",
+      "processingLog": "Verarbeitungsprotokoll",
+      "nodeState": "Knotenstatus (JSON)",
+      "emptyHint": "Klicken Sie auf einen Knoten im Canvas, um seine Details anzuzeigen und zu bearbeiten",
+      "parameters": "Parameter",
+      "noParameters": "Dieser Knoten hat keine konfigurierbaren Parameter",
+      "parameterDescription": "Parameterbeschreibung",
+      "invalidJson": "Ungültiges JSON"
+    },
+    "help": {
+      "title": "Tastenkombinationen",
+      "close": "H oder Escape zum Schließen",
+      "hKey": "Hilfe ein-/ausblenden",
+      "nKey": "Neuen Knoten hinzufügen",
+      "aKey": "Knoten automatisch anordnen",
+      "delKey": "Ausgewählten Knoten löschen"
+    },
+    "commandPalette": {
+      "placeholder": "Knoten suchen…",
+      "empty": "Keine passenden Knoten"
+    }
+  },
+  "cortex": {
+    "title": "Cortex-Worker",
+    "tooltip": {
+      "info": "Cortex-Worker sind verteilte Verarbeitungsknoten für Medienanalyse, Transcodierung und KI-Inferenz.",
+      "stats": "CPU: {{cpu}}% · GPU: {{gpu}}% · IO: {{io}}%"
+    },
+    "count": {
+      "online": "{{online}} / {{total}} online",
+      "workers": "{{count}} Worker"
+    },
+    "search": {
+      "placeholder": "Worker, Hosts suchen…"
+    },
+    "filter": {
+      "allStatus": "Alle Status",
+      "online": "Online",
+      "paused": "Pausiert",
+      "starting": "Wird gestartet",
+      "offline": "Offline",
+      "terminating": "Wird beendet",
+      "allCaps": "Alle Kapazitäten"
+    },
+    "chip": {
+      "clearFilters": "Filter zurücksetzen"
+    },
+    "empty": "Keine Worker entsprechen Ihren Filtern",
+    "loading": "Worker werden geladen…",
+    "error": "Worker konnten nicht geladen werden",
+    "lastSeen": {
+      "label": "gesehen {{time}}",
+      "tooltip": "Zeit seit dem letzten Heartbeat oder Status-Update"
+    },
+    "stat": {
+      "cpu": "CPU",
+      "gpu": "GPU",
+      "io": "IO",
+      "mem": "RAM"
+    },
+    "menu": {
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "restart": "Neustarten",
+      "terminate": "Beenden",
+      "restrictions": "Node-Einschränkungen",
+      "forget": "Worker vergessen"
+    },
+    "badge": {
+      "persisted": "Gemerkt",
+      "persistedTooltip": "Dieser Worker ist offline, aber Loom merkt sich ihn samt seinen Node-Einschränkungen."
+    },
+    "restrictions": {
+      "title": "Node-Einschränkungen — {{name}}",
+      "whitelist": "Erlaubte Node-Typen",
+      "blacklist": "Verbotene Node-Typen",
+      "whitelistPlaceholder": "Leer lassen, um alle Typen zuzulassen",
+      "blacklistPlaceholder": "Typen, die dieser Worker nie ausführen darf",
+      "allowTooltip": "Erlaubter Node-Typ",
+      "denyTooltip": "Verbotener Node-Typ (überschreibt die Zulassungsliste)",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "saved": "Node-Einschränkungen gespeichert",
+      "saveError": "Einschränkungen konnten nicht gespeichert werden: {{error}}"
+    },
+    "forget": {
+      "done": "Worker vergessen",
+      "error": "Worker konnte nicht vergessen werden: {{error}}"
+    }
+  },
+  "detection": {
+    "title": "Erkennungsverwaltung",
+    "tab": {
+      "faces": "Gesichter",
+      "objects": "Objekte",
+      "llm": "LLM"
+    }
+  },
+  "llmDetection": {
+    "search": {
+      "placeholder": "Prompts, Ergebnisse suchen…"
+    },
+    "chip": {
+      "prompts": "Prompts",
+      "results": "Ergebnisse"
+    },
+    "button": {
+      "newPrompt": "Neuer Prompt",
+      "cancel": "Abbrechen",
+      "create": "Prompt erstellen"
+    },
+    "dialog": {
+      "title": "Neuer Vision-Prompt"
+    },
+    "label": {
+      "name": "Name",
+      "namePlaceholder": "z. B. Szenenbeschreibung",
+      "model": "Modell",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Beschreiben Sie, was das Modell mit dem Asset tun soll…",
+      "reasoningEffort": "Denkaufwand",
+      "outputFormat": "Ausgabeformat",
+      "maxTokens": "Max. Token",
+      "description": "Beschreibung (optional)",
+      "descriptionPlaceholder": "Kurze Beschreibung des Zwecks dieses Prompts",
+      "maxTokensValue": "Max. Token: {{count}}",
+      "tokens": "{{count}} Token"
+    },
+    "effort": {
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch"
+    },
+    "format": {
+      "text": "Text",
+      "json": "JSON"
+    },
+    "chip_template": {
+      "effort": "{{effort}} Aufwand"
+    },
+    "tooltip": {
+      "edit": "Bearbeiten",
+      "run": "Auf Assets ausführen"
+    },
+    "empty": {
+      "prompts": "Keine Prompts gefunden",
+      "results": "Keine Ergebnisse gefunden"
+    }
+  },
+  "objectDetection": {
+    "search": {
+      "placeholder": "Objektbezeichnungen suchen…"
+    },
+    "count": "{{detections}} Erkennungen · {{labels}} Bezeichnungen",
+    "tooltip": {
+      "confirm": "Bestätigen",
+      "reject": "Ablehnen"
+    },
+    "label": {
+      "confidence": "Konfidenz: {{pct}}%"
+    },
+    "confirmError": "Erkennung konnte nicht bestätigt werden",
+    "rejectError": "Erkennung konnte nicht gelöscht werden",
+    "empty": "Keine Objekterkennungen gefunden"
+  },
+  "faceDetection": {
+    "title": "Gesichtserkennung",
+    "subtitle": "Gesichts-Cluster und Personendatenbank verwalten",
+    "search": {
+      "placeholder": "Cluster, Personen suchen…"
+    },
+    "chip": {
+      "clusters": "Cluster",
+      "persons": "Personen"
+    },
+    "button": {
+      "addPerson": "Person hinzufügen",
+      "addCluster": "Cluster hinzufügen",
+      "cancel": "Abbrechen",
+      "create": "Erstellen",
+      "assign": "Zuweisen",
+      "save": "Speichern"
+    },
+    "count": {
+      "faces": "{{count}} Gesichter",
+      "clusters": "{{count}} Cluster"
+    },
+    "label": {
+      "since": "seit {{date}}",
+      "name": "Name",
+      "description": "Beschreibung"
+    },
+    "tooltip": {
+      "assign": "Person zuweisen"
+    },
+    "empty": {
+      "clusters": "Keine Cluster gefunden",
+      "persons": "Keine Personen gefunden"
+    },
+    "dialog": {
+      "addPerson": "Person hinzufügen",
+      "editPerson": "Person bearbeiten",
+      "addCluster": "Cluster hinzufügen",
+      "editCluster": "Cluster bearbeiten",
+      "assign": "Cluster einer Person zuweisen",
+      "selectPerson": "Person auswählen…"
+    }
+  },
+  "maintenance": {
+    "title": "Wartung",
+    "subtitle": "Systemzustand und Wartungsstatus",
+    "chip": {
+      "lastRestart": "Letzter Neustart: vor 2 Tagen",
+      "version": "Version 0.9.4-alpha",
+      "uptime": "Betriebszeit: 48h 12m"
+    },
+    "status": {
+      "database": "Datenbank",
+      "objectStorage": "Objektspeicher (S3)",
+      "memory": "Speicher",
+      "pipelineWorkers": "Pipeline-Worker"
+    },
+    "statusLabel": {
+      "healthy": "Gesund",
+      "running": "Läuft"
+    }
+  },
+  "workflow": {
+    "title": "Workflow",
+    "tooltip": {
+      "info": "Workflows bieten tastaturgesteuerte Massen-Review-Modi für Bewertung, Tagging, Deduplizierung und Erkennungsaufgaben.",
+      "fullscreen": "Vollbild (F)",
+      "exitFullscreen": "Vollbild beenden (F)",
+      "showProfiles": "Tastenprofile anzeigen"
+    },
+    "mode": {
+      "rating": "Bewertung",
+      "tagging": "Tagging",
+      "dedup": "Deduplizierung",
+      "llm": "LLM",
+      "faces": "Gesichter",
+      "objects": "Objekte"
+    },
+    "rating": {
+      "label": "Bewertung:",
+      "addTag": "Tag hinzufügen… (Enter zum Bestätigen)",
+      "addTagPlaceholder": "Tag hinzufügen… (Enter zum Bestätigen)"
+    },
+    "tagging": {
+      "noTags": "Noch keine Tags",
+      "search": "Tags suchen… (Enter zum Hinzufügen)",
+      "placeholder": "Tags suchen… (Enter zum Hinzufügen)"
+    },
+    "dedup": {
+      "keep": "Behalten",
+      "duplicateCandidates": "Duplikat-Kandidaten",
+      "remove": "Entfernen",
+      "kept": "Behalten",
+      "chipRemove": "Entfernen",
+      "chipKept": "Behalten",
+      "confirmDedup": "Deduplizierung bestätigen (Y)",
+      "confirmBtn": "Deduplizierung bestätigen (Y)",
+      "rejectBtn": "Ablehnen (N)",
+      "reject": "Ablehnen (N)"
+    },
+    "faceMode": {
+      "clusters": "Gesichts-Cluster ({{count}})",
+      "confirm": "Bestätigen (Y)",
+      "confirmed": "Bestätigt",
+      "denied": "Abgelehnt",
+      "deny": "Ablehnen (N)",
+      "confirmBtn": "Bestätigen (Y)",
+      "denyBtn": "Ablehnen (N)",
+      "assignPerson": "Person zuweisen…",
+      "noClusters": "Keine Gesichts-Cluster für dieses Asset",
+      "empty": "Keine Gesichts-Cluster für dieses Asset"
+    },
+    "objectMode": {
+      "detectedObjects": "Erkannte Objekte ({{count}})",
+      "detected": "Erkannte Objekte ({{count}})",
+      "confidence": "Konfidenz: {{pct}}%",
+      "confirmed": "Bestätigt",
+      "rejected": "Abgelehnt",
+      "noDetections": "Keine Objekterkennungen für dieses Asset",
+      "empty": "Keine Objekterkennungen für dieses Asset"
+    },
+    "llmMode": {
+      "title": "Vision-Modell-Ausgabe",
+      "modelOutput": "Vision-Modell-Ausgabe",
+      "approve": "Genehmigen (Y)",
+      "reject": "Ablehnen (N)",
+      "approveBtn": "Genehmigen (Y)",
+      "rejectBtn": "Ablehnen (N)"
+    },
+    "profiles": {
+      "title": "Tastenprofile",
+      "collapse": "Einklappen",
+      "bindings": "{{count}} Belegungen",
+      "bindingsTitle": "Belegungen · klicken zum Neu-Belegen",
+      "bindingsHeader": "Belegungen · klicken zum Neu-Belegen",
+      "pressKey": "Taste drücken… (Rücktaste zum Entfernen)",
+      "clickToRebind": "Zum Neu-Belegen klicken",
+      "notBound": "Nicht belegt"
+    },
+    "hint": {
+      "rating": "<strong>1-0</strong> Bewertung setzen · <strong>←/→</strong> Navigieren · <strong>Leertaste</strong> Weiter · <strong>Enter</strong> Tags bearbeiten · <strong>F</strong> Vollbild",
+      "tagging": "<strong>←/→</strong> Navigieren · <strong>Leertaste</strong> Weiter · <strong>Enter</strong> Tags bearbeiten · <strong>Esc</strong> Blur · <strong>F</strong> Vollbild",
+      "dedup": "<strong>←/→</strong> Navigieren · <strong>Y</strong> Deduplizierung bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild",
+      "llm": "<strong>←/→</strong> Navigieren · <strong>Y</strong> Genehmigen · <strong>N</strong> Ablehnen · <strong>R</strong> Prompt neu ausführen · <strong>F</strong> Vollbild",
+      "faces": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Cluster wechseln · <strong>Tab</strong> Nächster Cluster · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>Enter</strong> Person zuweisen · <strong>F</strong> Vollbild",
+      "objects": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Erkennungen wechseln · <strong>Tab</strong> Nächste Erkennung · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild",
+      "facedetection": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Cluster wechseln · <strong>Tab</strong> Nächster Cluster · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>Enter</strong> Person zuweisen · <strong>F</strong> Vollbild",
+      "objectdetection": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Erkennungen wechseln · <strong>Tab</strong> Nächste Erkennung · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild"
+    }
+  },
+  "assetPools": {
+    "title": "Asset-Pools",
+    "tooltip": {
+      "info": "Asset-Pools definieren Speicherorte für Assets. Sie können durch einen lokalen Dateisystemordner oder einen S3-kompatiblen Bucket gesichert sein.",
+      "editPool": "Pool bearbeiten",
+      "deletePool": "Pool löschen"
+    },
+    "chip": {
+      "filesystem": "Dateisystem",
+      "s3": "S3",
+      "assets": "Assets",
+      "s3Bucket": "S3-Bucket",
+      "filesystemLabel": "Dateisystem"
+    },
+    "button": {
+      "new": "Neuer Pool",
+      "newPool": "Neuer Pool",
+      "cancel": "Abbrechen",
+      "create": "Erstellen",
+      "save": "Speichern",
+      "delete": "Löschen"
+    },
+    "search": {
+      "placeholder": "Pools suchen…"
+    },
+    "form": {
+      "name": "Name",
+      "type": "Typ",
+      "filesystem": "Dateisystem",
+      "s3": "S3-Bucket",
+      "fsPath": "Dateisystempfad",
+      "s3Bucket": "S3-Bucket",
+      "s3Region": "S3-Region",
+      "s3Endpoint": "S3-Endpunkt"
+    },
+    "empty": "Keine Asset-Pools gefunden",
+    "dialog": {
+      "create": "Neuer Asset-Pool",
+      "edit": "Asset-Pool bearbeiten",
+      "delete": "Asset-Pool löschen"
+    },
+    "confirm": {
+      "delete": "Sind Sie sicher, dass Sie {{name}} löschen möchten? Der zugrunde liegende Speicher wird nicht gelöscht, aber die Pool-Referenz wird entfernt."
+    },
+    "toast": {
+      "created": "Asset-Pool erstellt",
+      "updated": "Asset-Pool aktualisiert",
+      "deleted": "Asset-Pool gelöscht",
+      "loadFailed": "Pools konnten nicht geladen werden",
+      "createFailed": "Pool konnte nicht erstellt werden",
+      "updateFailed": "Pool konnte nicht aktualisiert werden",
+      "deleteFailed": "Pool konnte nicht gelöscht werden",
+      "loadError": "Pools konnten nicht geladen werden",
+      "createError": "Pool konnte nicht erstellt werden",
+      "updateError": "Pool konnte nicht aktualisiert werden",
+      "deleteError": "Pool konnte nicht gelöscht werden"
+    },
+    "emptyState": {
+      "title": "Noch keine Storage-Pools",
+      "description": "Asset-Pools legen fest, wo Binärdaten gespeichert und repliziert werden. Lege einen an, um deinen Medien ein Zuhause zu geben.",
+      "action": "Ersten Pool anlegen"
+    }
+  },
+  "reactions": {
+    "title": "Reaktionen",
+    "add": "Reagieren",
+    "empty": "Noch keine Reaktionen",
+    "type": {
+      "THUMBSUP": "Daumen hoch",
+      "THUMBSDOWN": "Daumen runter",
+      "SATISFIED": "Zufrieden",
+      "PLUS_ONE": "+1",
+      "MINUS_ONE": "-1"
+    }
+  },
+  "assetDetail": {
+    "tab": {
+      "overview": "Übersicht",
+      "comments": "Kommentare ({{count}})",
+      "annotations": "Annotationen ({{count}})",
+      "reactions": "Reaktionen ({{count}})",
+      "tasks": "Aufgaben ({{count}})",
+      "transcript": "Transkript",
+      "faces": "Gesichter ({{count}})"
+    },
+    "comment": {
+      "addPlaceholder": "Kommentar schreiben…",
+      "post": "Kommentar senden",
+      "edit": "Kommentar bearbeiten",
+      "delete": "Kommentar löschen",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "postError": "Kommentar konnte nicht gesendet werden",
+      "editError": "Kommentar konnte nicht aktualisiert werden",
+      "deleteError": "Kommentar konnte nicht gelöscht werden"
+    },
+    "annotation": {
+      "add": "Anmerkung hinzufügen",
+      "titlePlaceholder": "Titel der Anmerkung…",
+      "addPlaceholder": "Beschreibung hinzufügen…",
+      "edit": "Anmerkung bearbeiten",
+      "delete": "Anmerkung löschen",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "addError": "Anmerkung konnte nicht erstellt werden",
+      "editError": "Anmerkung konnte nicht aktualisiert werden",
+      "deleteError": "Anmerkung konnte nicht gelöscht werden"
+    },
+    "reaction": {
+      "addError": "Reaktion konnte nicht hinzugefügt werden",
+      "deleteError": "Reaktion konnte nicht gelöscht werden",
+      "thumbsUp": "Daumen hoch",
+      "thumbsDown": "Daumen runter"
+    },
+    "meta": {
+      "title": "Metadaten",
+      "size": "Größe",
+      "mime": "MIME",
+      "dimensions": "Abmessungen",
+      "duration": "Dauer",
+      "owner": "Eigentümer",
+      "created": "Erstellt",
+      "description": "Beschreibung"
+    },
+    "location": {
+      "title": "Speicherort(e)",
+      "empty": "Kein Speicherort – das Asset hat noch keine Binärdatei.",
+      "pool": "Pool",
+      "path": "Pfad",
+      "state": "Status",
+      "license": "Lizenz",
+      "locked": "Gesperrt",
+      "mime": "MIME",
+      "viewPool": "Speicher-Pool anzeigen"
+    },
+    "action": {
+      "process": "Verarbeiten",
+      "createTask": "Aufgabe erstellen",
+      "addTranscript": "Transkript hinzufügen",
+      "save": "Speichern",
+      "delete": "Löschen",
+      "noPipelines": "Keine Pipelines verfügbar",
+      "download": "Herunterladen",
+      "uploadBinary": "Binärdatei hochladen / ersetzen",
+      "removeBinary": "Binärdatei entfernen",
+      "registerBinary": "Vorhandene Binärdatei registrieren"
+    },
+    "dialog": {
+      "delete": "Asset löschen"
+    },
+    "registerBinary": {
+      "title": "Vorhandene Binärdatei registrieren",
+      "description": "Verweist dieses Asset auf bereits im Dateisystem des Servers vorhandene Daten. Es wird keine Datei hochgeladen.",
+      "pathLabel": "Dateisystempfad",
+      "pathPlaceholder": "/data/library/clip.mp4",
+      "submit": "Registrieren"
+    },
+    "confirm": {
+      "delete": "{{name}} löschen? Dies kann nicht rückgängig gemacht werden."
+    },
+    "toast": {
+      "saved": "Asset gespeichert",
+      "saveFailed": "Asset konnte nicht gespeichert werden",
+      "deleted": "Asset gelöscht",
+      "deleteFailed": "Asset konnte nicht gelöscht werden",
+      "processStarted": "Verarbeitung gestartet",
+      "processFailed": "Verarbeitung konnte nicht gestartet werden",
+      "binaryUploaded": "Binärdatei hochgeladen",
+      "binaryUploadFailed": "Binärdatei konnte nicht hochgeladen werden",
+      "binaryDownloadFailed": "Binärdatei konnte nicht heruntergeladen werden",
+      "binaryRemoved": "Binärdatei entfernt",
+      "binaryRemoveFailed": "Binärdatei konnte nicht entfernt werden",
+      "binaryRegistered": "Binärdatei registriert",
+      "binaryRegisterFailed": "Binärdatei konnte nicht registriert werden"
+    },
+    "tag": {
+      "addPlaceholder": "Tag hinzufügen…",
+      "regionToggle": "Region taggen: Box im Bild zeichnen oder Bereich auf der Zeitleiste wählen",
+      "regionHintImage": "Box im Bild zeichnen…",
+      "regionHintVideo": "Bereich auf der Zeitleiste ziehen…",
+      "regionCaptured": "Region erfasst — Namen eingeben und Enter drücken",
+      "regionTooltip": "Region-Tag (Zeit / Bereich)",
+      "newRegion": "neue Region"
+    },
+    "detection": {
+      "label": "Erkennungen",
+      "defaultLabel": "Objekt",
+      "modeToggle": "Erkennungsmodus: Box im Bild zeichnen, um eine Objekterkennung hinzuzufügen",
+      "bulkToggle": "Massenmodus: mehrere Boxen zeichnen und alle auf einmal speichern",
+      "hint": "Box im Bild zeichnen, um eine Erkennung hinzuzufügen",
+      "bulkHint": "Boxen zeichnen, dann „Alle speichern“",
+      "redrawHint": "Neue Box für die ausgewählte Erkennung zeichnen",
+      "staged": "vorgemerkt",
+      "saveAll": "Alle speichern ({{count}})",
+      "confidence": "Konfidenz",
+      "redraw": "Begrenzungsrahmen neu zeichnen",
+      "confirm": "Erkennung bestätigen",
+      "delete": "Erkennung löschen",
+      "empty": "Noch keine Erkennungen — Box zeichnen, um eine hinzuzufügen",
+      "createError": "Erkennung konnte nicht erstellt werden",
+      "updateError": "Erkennung konnte nicht aktualisiert werden",
+      "deleteError": "Erkennung konnte nicht gelöscht werden"
+    },
+    "sidebar": {
+      "filterPlaceholder": "Filtern…"
+    },
+    "empty": {
+      "noComments": "Noch keine Kommentare",
+      "noMatchComments": "Keine passenden Kommentare",
+      "noAnnotations": "Noch keine Annotationen",
+      "noMatchAnnotations": "Keine passenden Annotationen",
+      "noReactions": "Noch keine Reaktionen",
+      "noTasks": "Keine verknüpften Aufgaben",
+      "noTranscript": "Kein Transkript verfügbar",
+      "noFaces": "Keine Gesichtserkennungsdaten"
+    },
+    "faces": {
+      "detected": "{{count}} Gesichter erkannt",
+      "clusters": "{{count}} Cluster",
+      "identified": "{{count}} identifiziert",
+      "identifiedChip": "Identifiziert",
+      "unidentifiedChip": "Nicht identifiziert",
+      "unclustered": "Nicht geclustert ({{count}})"
+    },
+    "taskDetail": {
+      "title": "Aufgabendetails",
+      "status": "Status",
+      "priority": "Priorität",
+      "dueDate": "Fälligkeitsdatum",
+      "created": "Erstellt"
+    },
+    "taskCreate": {
+      "title": "Aufgabe erstellen",
+      "dueDate": "Fälligkeitsdatum",
+      "error": "Aufgabe konnte nicht erstellt werden"
+    },
+    "transcript": {
+      "untitled": "Transkript",
+      "sectionTitle": "Abschnittstitel",
+      "delete": "Transkript löschen",
+      "createError": "Transkript konnte nicht hinzugefügt werden",
+      "updateError": "Transkript konnte nicht gespeichert werden",
+      "deleteError": "Transkript konnte nicht gelöscht werden"
+    },
+    "transcriptCreate": {
+      "title": "Transkript hinzufügen",
+      "source": "Quelle",
+      "lang": "Sprache"
+    },
+    "annotations": {
+      "label": "Annotationen:"
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Anweisungspakete für den Chat-Agenten — pro Unterhaltung aktivierbar",
+    "create": "Neuer Skill",
+    "edit": "Skill bearbeiten",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "deleteTitle": "Skill löschen",
+    "deleteConfirm": "Skill \"{{name}}\" löschen? Installierte Kopien anderer Benutzer bleiben erhalten.",
+    "saved": "Skill gespeichert",
+    "deleted": "Skill gelöscht",
+    "saveFailed": "Speichern des Skills fehlgeschlagen",
+    "installFailed": "Installation des Skills fehlgeschlagen",
+    "installed": "Installiert als \"{{name}}\"",
+    "install": "Installieren",
+    "own": "Eigener",
+    "empty": "Noch keine Skills",
+    "libraryEmpty": "Noch keine veröffentlichten Skills anderer Benutzer",
+    "tabMine": "Meine Skills",
+    "tabLibrary": "Bibliothek",
+    "originBadge": "Aus der geteilten Bibliothek installiert",
+    "installedBadge": "installiert",
+    "updateAvailable": "Der Ursprungs-Skill wurde seit der Installation aktualisiert",
+    "descriptionHelper": "Wird dem Agenten vorab gezeigt — möglichst vollständig formulieren (max. 1024 Zeichen)",
+    "contentHelper": "Vollständige Markdown-Anweisungen — werden vom Agenten bei Bedarf geladen",
+    "columns": {
+      "name": "Name",
+      "description": "Beschreibung",
+      "enabled": "Aktiviert",
+      "published": "Veröffentlicht",
+      "content": "Anweisungen (Markdown)",
+      "author": "Autor"
+    },
+    "version": {
+      "title": "Versionsverlauf",
+      "current": "aktuell",
+      "revert": "Zurücksetzen",
+      "revertTitle": "Auf Version {{version}} zurücksetzen",
+      "revertConfirm": "Auf Version {{version}} zurücksetzen? Alle neueren Versionen werden endgültig gelöscht und die aktive Version des Skills wird auf diese gesetzt.",
+      "reverted": "Auf Version {{version}} zurückgesetzt",
+      "revertFailed": "Zurücksetzen des Skills fehlgeschlagen",
+      "empty": "Noch kein Versionsverlauf",
+      "loading": "Versionen werden geladen…",
+      "badge": "v{{version}}",
+      "saveHint": "Änderungen an den Anweisungen erzeugen eine neue Version"
+    },
+    "emptyState": {
+      "title": "Bring dem Agenten etwas bei",
+      "description": "Skills sind Markdown-Anleitungen, die der Loom Agent bei Bedarf lädt. Schreibe eine, aktiviere sie pro Unterhaltung und veröffentliche sie für dein Team.",
+      "action": "Ersten Skill anlegen",
+      "library": {
+        "title": "Die geteilte Bibliothek ist leer",
+        "description": "Sobald Kolleginnen und Kollegen Skills veröffentlichen, erscheinen sie hier und können installiert werden."
+      }
+    }
+  },
+  "memory": {
+    "title": "Agenten-Gedächtnis",
+    "subtitle": "Markdown-Notizen, die der Chat-Agent über Unterhaltungen hinweg lesen und schreiben kann. Für den Agenten ist dies ein schreibgeschützter /memory-Ordner.",
+    "noScopes": "Es sind keine Gedächtnis-Bereiche verfügbar.",
+    "myNotes": "Meine Notizen",
+    "readOnlyScope": "Dieser geteilte Bereich ist für dich schreibgeschützt.",
+    "new": "Neue Notiz",
+    "id": "Id",
+    "idHelp": "Kleingeschriebener Pfad mit der Endung .md, z. B. projects/loom-db.md",
+    "noteTitle": "Titel",
+    "updated": "Aktualisiert",
+    "session": "Sitzung",
+    "size": "Größe",
+    "body": "Inhalt (Markdown)",
+    "headerNote": "Der Herkunfts-Header (Aktualisierung, Sitzung, Version) wird automatisch erzeugt.",
+    "empty": "In diesem Bereich sind noch keine Notizen gespeichert.",
+    "edit": "Notiz bearbeiten",
+    "create": "Neue Notiz",
+    "deleteTitle": "Notiz löschen",
+    "deleteBody": "Die Notiz wird endgültig entfernt — es gibt noch keine Versionshistorie."
   }
- },
- "skills": {
-  "title": "Skills",
-  "subtitle": "Anweisungspakete für den Chat-Agenten — pro Unterhaltung aktivierbar",
-  "create": "Neuer Skill",
-  "edit": "Skill bearbeiten",
-  "save": "Speichern",
-  "cancel": "Abbrechen",
-  "delete": "Löschen",
-  "deleteTitle": "Skill löschen",
-  "deleteConfirm": "Skill \"{{name}}\" löschen? Installierte Kopien anderer Benutzer bleiben erhalten.",
-  "saved": "Skill gespeichert",
-  "deleted": "Skill gelöscht",
-  "saveFailed": "Speichern des Skills fehlgeschlagen",
-  "installFailed": "Installation des Skills fehlgeschlagen",
-  "installed": "Installiert als \"{{name}}\"",
-  "install": "Installieren",
-  "own": "Eigener",
-  "empty": "Noch keine Skills",
-  "libraryEmpty": "Noch keine veröffentlichten Skills anderer Benutzer",
-  "tabMine": "Meine Skills",
-  "tabLibrary": "Bibliothek",
-  "originBadge": "Aus der geteilten Bibliothek installiert",
-  "installedBadge": "installiert",
-  "updateAvailable": "Der Ursprungs-Skill wurde seit der Installation aktualisiert",
-  "descriptionHelper": "Wird dem Agenten vorab gezeigt — möglichst vollständig formulieren (max. 1024 Zeichen)",
-  "contentHelper": "Vollständige Markdown-Anweisungen — werden vom Agenten bei Bedarf geladen",
-  "columns": {
-   "name": "Name",
-   "description": "Beschreibung",
-   "enabled": "Aktiviert",
-   "published": "Veröffentlicht",
-   "content": "Anweisungen (Markdown)",
-   "author": "Autor"
-  },
-  "version": {
-   "title": "Versionsverlauf",
-   "current": "aktuell",
-   "revert": "Zurücksetzen",
-   "revertTitle": "Auf Version {{version}} zurücksetzen",
-   "revertConfirm": "Auf Version {{version}} zurücksetzen? Alle neueren Versionen werden endgültig gelöscht und die aktive Version des Skills wird auf diese gesetzt.",
-   "reverted": "Auf Version {{version}} zurückgesetzt",
-   "revertFailed": "Zurücksetzen des Skills fehlgeschlagen",
-   "empty": "Noch kein Versionsverlauf",
-   "loading": "Versionen werden geladen…",
-   "badge": "v{{version}}",
-   "saveHint": "Änderungen an den Anweisungen erzeugen eine neue Version"
-  },
-  "emptyState": {
-   "title": "Bring dem Agenten etwas bei",
-   "description": "Skills sind Markdown-Anleitungen, die der Loom Agent bei Bedarf lädt. Schreibe eine, aktiviere sie pro Unterhaltung und veröffentliche sie für dein Team.",
-   "action": "Ersten Skill anlegen",
-   "library": {
-    "title": "Die geteilte Bibliothek ist leer",
-    "description": "Sobald Kolleginnen und Kollegen Skills veröffentlichen, erscheinen sie hier und können installiert werden."
-   }
-  }
- },
- "memory": {
-  "title": "Agenten-Gedächtnis",
-  "subtitle": "Markdown-Notizen, die der Chat-Agent über Unterhaltungen hinweg lesen und schreiben kann. Für den Agenten ist dies ein schreibgeschützter /memory-Ordner.",
-  "noScopes": "Es sind keine Gedächtnis-Bereiche verfügbar.",
-  "myNotes": "Meine Notizen",
-  "readOnlyScope": "Dieser geteilte Bereich ist für dich schreibgeschützt.",
-  "new": "Neue Notiz",
-  "id": "Id",
-  "idHelp": "Kleingeschriebener Pfad mit der Endung .md, z. B. projects/loom-db.md",
-  "noteTitle": "Titel",
-  "updated": "Aktualisiert",
-  "session": "Sitzung",
-  "size": "Größe",
-  "body": "Inhalt (Markdown)",
-  "headerNote": "Der Herkunfts-Header (Aktualisierung, Sitzung, Version) wird automatisch erzeugt.",
-  "empty": "In diesem Bereich sind noch keine Notizen gespeichert.",
-  "edit": "Notiz bearbeiten",
-  "create": "Neue Notiz",
-  "deleteTitle": "Notiz löschen",
-  "deleteBody": "Die Notiz wird endgültig entfernt — es gibt noch keine Versionshistorie."
- }
 }

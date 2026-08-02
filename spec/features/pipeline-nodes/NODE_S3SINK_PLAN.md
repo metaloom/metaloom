@@ -20,7 +20,7 @@
 >    `count : scalar/integer`, `flag : scalar/string`.
 > 4. **Phases 2 and 3 are no longer this file's work.** They are superseded by
 >    [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
-> 5. SPI counts are now **26 providers / 41 kinds**, not 22/36.
+> 5. SPI counts are now **26 providers / 34 kinds**, not 22/36.
 >
 > **This file is now a design record, not a plan.** The code is the source of truth.
 
@@ -256,7 +256,7 @@ the *worker's* options for every node it builds, so a `bucket`-required `validat
       `UploadedArtifact`, `ArtifactSelector`, options + validation
 - [x] The node — upload → SHA-512 → `createAsset` → json comp + ledger; 89 unit tests
 - [x] CLI wiring — `NodeCollectionModule`, `PipelineConfigurableTest` case
-- [x] Descriptor + SPI registration (26 providers / 41 kinds)
+- [x] Descriptor + SPI registration (26 providers / 34 kinds)
 - [x] Integration test — `S3SinkNodeIntegrationTest`, 7 tests against real MinIO
 - [x] Docs & demo — `website/content/english/docs/nodes/s3-sink/`, two demo pipelines,
       [NODES.md](NODES.md), the `start-minio.sh` recipe

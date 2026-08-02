@@ -83,7 +83,7 @@ conversation:
 
   <rect x="268" y="112" width="172" height="56" rx="6" class="ml-box-part"></rect>
   <text x="354" y="136" text-anchor="middle" class="ml-part-title">Audio/Video Filter</text>
-  <text x="354" y="154" text-anchor="middle" class="ml-part-sub">filter-mimetype</text>
+  <text x="354" y="154" text-anchor="middle" class="ml-part-sub">filter</text>
 
   <rect x="488" y="112" width="172" height="56" rx="6" class="ml-box-part"></rect>
   <text x="574" y="136" text-anchor="middle" class="ml-part-title">Transcribe</text>

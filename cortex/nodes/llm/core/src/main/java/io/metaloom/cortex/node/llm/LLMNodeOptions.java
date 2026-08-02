@@ -5,35 +5,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.metaloom.ai.genai.llm.LLMProviderType;
-import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
+import io.metaloom.cortex.llm.AbstractLlmNodeOptions;
 
-public class LLMNodeOptions extends AbstractNodeOptions<LLMNodeOptions> {
+public class LLMNodeOptions extends AbstractLlmNodeOptions<LLMNodeOptions> {
 
-	private String ollamaUrl = "http://127.0.0.1:11434";
-
-	/** The LLM backend protocol. Defaults to Ollama; set to {@code VLLM} for an OpenAI-compatible endpoint. */
-	private LLMProviderType providerType = LLMProviderType.OLLAMA;
+	public static final String KEY = "llm";
 
 	private Map<String, LLMNodePrompt> prompts = new HashMap<>();
-
-	public String ollamaUrl() {
-		return ollamaUrl;
-	}
-
-	public void setOllamaUrl(String ollamaUrl) {
-		this.ollamaUrl = ollamaUrl;
-	}
-
-	public LLMProviderType providerType() {
-		return providerType;
-	}
-
-	public LLMNodeOptions setProviderType(LLMProviderType providerType) {
-		this.providerType = providerType;
-		return this;
-	}
 
 	public Map<String, LLMNodePrompt> getPrompts() {
 		return prompts;
@@ -52,17 +31,15 @@ public class LLMNodeOptions extends AbstractNodeOptions<LLMNodeOptions> {
 	public ValidationResult validate() {
 		List<String> errors = new ArrayList<>();
 		errors.addAll(validateCommon());
-		
-		// ollamaUrl must not be empty
-		if (ollamaUrl == null || ollamaUrl.isBlank()) {
-			errors.add("ollamaUrl must not be empty");
-		}
-		
+
+		// ollamaUrl must not be empty; contextWindow must be positive
+		errors.addAll(validateEndpoint());
+
 		// prompts must not be empty
 		if (prompts == null || prompts.isEmpty()) {
 			errors.add("prompts must not be empty");
 		}
-		
+
 		return errors.isEmpty() ? ValidationResult.valid() : ValidationResult.invalid(errors);
 	}
 }

@@ -755,10 +755,10 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
-    "kind" : "filter-mimetype",
-    "name" : "MIME Type Filter",
-    "description" : "Filter media by MIME type (e.g. only process images or videos).",
-    "icon" : "filter_alt",
+    "kind" : "filter",
+    "name" : "Filter",
+    "description" : "Route each item down one branch per configured bucket. The output port is the branch: a node wired to a port that carried nothing for an item is skipped for that item.",
+    "icon" : "call_split",
     "category" : "FILTER",
     "inputPorts" : [ {
       "id" : "media",
@@ -766,435 +766,21 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The media item whose MIME type is tested",
-      "many" : false
-    } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    }, {
-      "key" : "allowedTypes",
-      "type" : "STRING",
-      "label" : "Allowed MIME Types",
-      "description" : "Comma-separated list of allowed MIME types (e.g. 'image/*,video/*')"
-    } ],
-    "defaultConcurrency" : 4,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : true,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
-    "kind" : "filter-date",
-    "name" : "Date Filter",
-    "description" : "Filter media by file creation or modification date.",
-    "icon" : "date_range",
-    "category" : "FILTER",
-    "inputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The media item whose timestamps are tested",
-      "many" : false
-    } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    }, {
-      "key" : "after",
-      "type" : "STRING",
-      "label" : "After Date",
-      "description" : "Only pass files modified after this date (ISO-8601)"
-    }, {
-      "key" : "before",
-      "type" : "STRING",
-      "label" : "Before Date",
-      "description" : "Only pass files modified before this date (ISO-8601)"
-    } ],
-    "defaultConcurrency" : 4,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : true,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
-    "kind" : "filter-size",
-    "name" : "File Size Filter",
-    "description" : "Filter media by file size.",
-    "icon" : "straighten",
-    "category" : "FILTER",
-    "inputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The media item whose size on disk is tested",
-      "many" : false
-    } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    }, {
-      "key" : "minSize",
-      "type" : "INTEGER",
-      "label" : "Min Size (bytes)",
-      "description" : "Minimum file size in bytes",
-      "min" : 0
-    }, {
-      "key" : "maxSize",
-      "type" : "INTEGER",
-      "label" : "Max Size (bytes)",
-      "description" : "Maximum file size in bytes",
-      "min" : 0
-    } ],
-    "defaultConcurrency" : 4,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : true,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
-    "kind" : "filter-duplicate",
-    "name" : "Duplicate Filter",
-    "description" : "Filter out media that has already been processed.",
-    "icon" : "block",
-    "category" : "FILTER",
-    "inputPorts" : [ {
-      "id" : "hash",
-      "label" : "Hash",
-      "contentType" : "hash/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The identity checked against what this pipeline has already seen",
-      "many" : false
-    } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    } ],
-    "defaultConcurrency" : 4,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : true,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
-    "kind" : "filter-blacklist",
-    "name" : "Blacklist Filter",
-    "description" : "Filter out media whose upstream text output matches a blacklisted term.",
-    "icon" : "playlist_remove",
-    "category" : "FILTER",
-    "inputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item being gated. Passed through to the media output",
+      "description" : "The item being routed",
       "many" : false
     }, {
       "id" : "text",
       "label" : "Text",
       "contentType" : "text/*",
-      "cardinality" : "MANY",
-      "required" : true,
-      "description" : "Every upstream text matched against the blacklisted terms",
-      "many" : true
-    } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    }, {
-      "key" : "terms",
-      "type" : "STRING",
-      "label" : "Blacklisted Terms",
-      "description" : "Comma-separated list of blacklisted terms"
-    } ],
-    "defaultConcurrency" : 4,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : true,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
-    "kind" : "filter-quality",
-    "name" : "Quality Filter",
-    "description" : "Filter media based on quality metrics (resolution, blurriness, bitrate).",
-    "icon" : "tune",
-    "category" : "FILTER",
-    "inputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item being gated. Passed through to the media output",
-      "many" : false
-    }, {
-      "id" : "quality",
-      "label" : "Quality Metrics",
-      "contentType" : "struct/quality",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The metric bag from an upstream quality node",
-      "many" : false
-    } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    }, {
-      "key" : "minWidth",
-      "type" : "INTEGER",
-      "label" : "Min Width (px)",
-      "min" : 0
-    }, {
-      "key" : "minHeight",
-      "type" : "INTEGER",
-      "label" : "Min Height (px)",
-      "min" : 0
-    }, {
-      "key" : "maxBlurriness",
-      "type" : "NUMBER",
-      "label" : "Max Blurriness",
-      "min" : 0.0
-    } ],
-    "defaultConcurrency" : 4,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : true,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
-    "kind" : "filter-threshold",
-    "name" : "Threshold Filter",
-    "description" : "Filter media based on a numeric upstream output exceeding a threshold.",
-    "icon" : "linear_scale",
-    "category" : "FILTER",
-    "inputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item being gated. Passed through to the media output",
-      "many" : false
-    }, {
-      "id" : "value",
-      "label" : "Value",
-      "contentType" : "scalar/number",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The number compared against the configured threshold",
-      "many" : false
-    } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
-    "inputGroups" : [ ],
-    "outputGroups" : [ ],
-    "dynamicPorts" : false,
-    "parameters" : [ {
-      "key" : "enabled",
-      "type" : "BOOLEAN",
-      "defaultValue" : true,
-      "label" : "Enabled",
-      "description" : "Whether this node is active in the pipeline"
-    }, {
-      "key" : "threshold",
-      "type" : "NUMBER",
-      "label" : "Threshold",
-      "description" : "Minimum value to pass the filter"
-    } ],
-    "defaultConcurrency" : 4,
-    "defaultMode" : "PARALLEL",
-    "defaultBlocking" : true,
-    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
-  }, {
-    "kind" : "filter-asset-attribute",
-    "name" : "Asset Attribute Filter",
-    "description" : "Filter media based on asset attributes stored in Loom.",
-    "icon" : "label",
-    "category" : "FILTER",
-    "inputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The media item whose Loom asset attributes are tested",
-      "many" : false
-    }, {
-      "id" : "quality",
-      "label" : "Quality",
-      "contentType" : "struct/quality",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "Metrics from a quality node; without it only the file-size checks apply",
+      "description" : "The text to classify - a transcript, extracted document text or a caption. Without it every item lands in 'other'",
       "many" : false
     } ],
-    "outputPorts" : [ {
-      "id" : "media",
-      "label" : "Media",
-      "contentType" : "media/*",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The item, passed through. Wire downstream work here and set the edge branch to PASS or REJECT",
-      "many" : false
-    }, {
-      "id" : "passed",
-      "label" : "Passed",
-      "contentType" : "control/filter",
-      "cardinality" : "ONE",
-      "required" : true,
-      "description" : "The verdict itself, for a node that consumes the decision rather than the item",
-      "many" : false
-    } ],
+    "outputPorts" : [ ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
-    "dynamicPorts" : false,
+    "dynamicPorts" : true,
     "parameters" : [ {
       "key" : "enabled",
       "type" : "BOOLEAN",
@@ -1202,15 +788,45 @@
       "label" : "Enabled",
       "description" : "Whether this node is active in the pipeline"
     }, {
-      "key" : "attributeKey",
-      "type" : "STRING",
-      "label" : "Attribute Key",
-      "description" : "The asset attribute to check"
+      "key" : "filterBy",
+      "type" : "ENUM",
+      "defaultValue" : "LANGUAGE",
+      "label" : "Filter By",
+      "description" : "What the buckets are matched against",
+      "values" : [ "LANGUAGE" ]
     }, {
-      "key" : "attributeValue",
+      "key" : "buckets",
+      "type" : "PORT_LIST",
+      "defaultValue" : [ ],
+      "label" : "Buckets",
+      "description" : "One output port per bucket. An 'other' port for everything else is always present"
+    }, {
+      "key" : "model",
       "type" : "STRING",
-      "label" : "Expected Value",
-      "description" : "The value to match against"
+      "defaultValue" : "llama3.2",
+      "label" : "Model",
+      "description" : "The model asked to classify each item"
+    }, {
+      "key" : "ollamaUrl",
+      "type" : "STRING",
+      "defaultValue" : "http://127.0.0.1:11434",
+      "label" : "Ollama URL",
+      "description" : "URL of the Ollama service"
+    }, {
+      "key" : "maxTextChars",
+      "type" : "INTEGER",
+      "defaultValue" : 2000,
+      "label" : "Max Text Characters",
+      "description" : "How much of the text to send to the model",
+      "min" : 1
+    }, {
+      "key" : "minConfidence",
+      "type" : "NUMBER",
+      "defaultValue" : 0.0,
+      "label" : "Minimum Confidence",
+      "description" : "Classifications below this confidence are routed to 'other'",
+      "min" : 0.0,
+      "max" : 1.0
     } ],
     "defaultConcurrency" : 4,
     "defaultMode" : "PARALLEL",
@@ -2509,6 +2125,174 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "kind" : "gdrive-source",
+    "name" : "Google Drive Source",
+    "description" : "Reads media files from Google Drive - My Drive or a shared drive - as pipeline input. Only new, changed and moved files are picked up on a re-run.",
+    "icon" : "add_to_drive",
+    "category" : "SOURCE",
+    "inputPorts" : [ ],
+    "outputPorts" : [ {
+      "id" : "media",
+      "label" : "Media",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched",
+      "many" : false
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "driveId",
+      "type" : "STRING",
+      "label" : "Shared drive ID",
+      "description" : "Shared drive to read from. Leave empty for the connected account's own My Drive. Credentials are configured on the worker, not here"
+    }, {
+      "key" : "folderId",
+      "type" : "STRING",
+      "label" : "Folder ID",
+      "description" : "Folder to scan, taken from its Drive URL. Empty scans the whole drive"
+    }, {
+      "key" : "recursive",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Include sub-folders",
+      "description" : "Descend into folders below the selected one"
+    }, {
+      "key" : "maxDepth",
+      "type" : "INTEGER",
+      "defaultValue" : 0,
+      "label" : "Maximum depth",
+      "description" : "How many folder levels to descend. 0 means no limit"
+    }, {
+      "key" : "suffixes",
+      "type" : "STRING",
+      "label" : "File suffixes",
+      "description" : "Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything"
+    }, {
+      "key" : "mimeTypes",
+      "type" : "STRING",
+      "label" : "MIME types",
+      "description" : "Comma-separated MIME type prefixes to accept, e.g. video/,image/. Drive reports a real type, so this also catches files with a missing or misleading extension"
+    }, {
+      "key" : "emitStates",
+      "type" : "ENUM_SET",
+      "defaultValue" : [ "NEW", "MODIFIED", "MOVED" ],
+      "label" : "Emit states",
+      "description" : "Which changes flow downstream. Renames and moves are detected, because a Drive file keeps its identity when it is moved",
+      "values" : [ "NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED" ]
+    }, {
+      "key" : "useDelta",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Use the change feed",
+      "description" : "Ask Drive what changed instead of listing the folders. Much faster on large drives. A full scan still runs periodically, so nothing is missed"
+    }, {
+      "key" : "includeTrashed",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Include trashed files",
+      "description" : "Keep files that are in the Drive trash"
+    }, {
+      "key" : "exportNativeDocs",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Export Google Docs",
+      "description" : "Convert Google Docs, Sheets and Slides so they can be processed. They have no file to download otherwise. Conversion is limited to 10 MB per document"
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "SEQUENTIAL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
+    "kind" : "onedrive-source",
+    "name" : "OneDrive Source",
+    "description" : "Reads media files from OneDrive or a SharePoint document library as pipeline input. Only new, changed and moved files are picked up on a re-run.",
+    "icon" : "cloud_queue",
+    "category" : "SOURCE",
+    "inputPorts" : [ ],
+    "outputPorts" : [ {
+      "id" : "media",
+      "label" : "Media",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched",
+      "many" : false
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "driveId",
+      "type" : "STRING",
+      "label" : "Drive ID",
+      "description" : "The OneDrive or SharePoint library to read from. Required unless a default drive is configured on the worker. Credentials are configured on the worker, not here"
+    }, {
+      "key" : "folderId",
+      "type" : "STRING",
+      "label" : "Folder ID",
+      "description" : "Folder to scan. Empty scans the whole drive"
+    }, {
+      "key" : "recursive",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Include sub-folders",
+      "description" : "Descend into folders below the selected one"
+    }, {
+      "key" : "maxDepth",
+      "type" : "INTEGER",
+      "defaultValue" : 0,
+      "label" : "Maximum depth",
+      "description" : "How many folder levels to descend. 0 means no limit"
+    }, {
+      "key" : "suffixes",
+      "type" : "STRING",
+      "label" : "File suffixes",
+      "description" : "Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything"
+    }, {
+      "key" : "mimeTypes",
+      "type" : "STRING",
+      "label" : "MIME types",
+      "description" : "Comma-separated MIME type prefixes to accept, e.g. video/,image/. OneDrive reports a real type, so this also catches files with a missing or misleading extension"
+    }, {
+      "key" : "emitStates",
+      "type" : "ENUM_SET",
+      "defaultValue" : [ "NEW", "MODIFIED", "MOVED" ],
+      "label" : "Emit states",
+      "description" : "Which changes flow downstream. Renames and moves are detected, because a OneDrive file keeps its identity when it is moved",
+      "values" : [ "NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED" ]
+    }, {
+      "key" : "useDelta",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Use the change feed",
+      "description" : "Ask OneDrive what changed instead of listing the folders. Much faster on large drives. A full scan still runs periodically, so nothing is missed"
+    }, {
+      "key" : "includeTrashed",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Include deleted files",
+      "description" : "Keep files that are in the recycle bin"
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "SEQUENTIAL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
     "kind" : "loom-fetch",
     "name" : "Loom Fetch",
     "description" : "Fetches media references from the Loom backend.",
@@ -2680,6 +2464,128 @@
       "description" : "Retry processing media that previously failed"
     } ],
     "defaultConcurrency" : 4,
+    "defaultMode" : "PARALLEL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
+    "kind" : "translate",
+    "name" : "Translate",
+    "description" : "Translate text produced by an upstream node into a target language using a language model.",
+    "icon" : "translate",
+    "category" : "ANALYSIS",
+    "inputPorts" : [ {
+      "id" : "text",
+      "label" : "Text",
+      "contentType" : "text/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The prose to translate - a transcript, document body, OCR result or any other upstream text",
+      "many" : false
+    } ],
+    "outputPorts" : [ {
+      "id" : "translation",
+      "label" : "Translation",
+      "contentType" : "text/plain",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The translated text, ready to be spoken by the TTS node or stored",
+      "many" : false
+    }, {
+      "id" : "language",
+      "label" : "Language",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The target language the text was translated into",
+      "many" : false
+    }, {
+      "id" : "result",
+      "label" : "Result",
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The stored payload: translation, languages, model and how many chunks it took",
+      "many" : false
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "processIncomplete",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Process Incomplete",
+      "description" : "Process media files that are still being written"
+    }, {
+      "key" : "retryFailed",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Retry Failed",
+      "description" : "Retry processing media that previously failed"
+    }, {
+      "key" : "targetLanguage",
+      "type" : "STRING",
+      "defaultValue" : "en",
+      "label" : "Target Language",
+      "description" : "Language to translate into; also the variant the result is stored under"
+    }, {
+      "key" : "sourceLanguage",
+      "type" : "STRING",
+      "defaultValue" : "auto",
+      "label" : "Source Language",
+      "description" : "Language of the input, or 'auto' to let the model work it out"
+    }, {
+      "key" : "model",
+      "type" : "STRING",
+      "defaultValue" : "gemma2:27b",
+      "label" : "Model",
+      "description" : "Model id asked to translate; also recorded as the producer version"
+    }, {
+      "key" : "ollamaUrl",
+      "type" : "STRING",
+      "defaultValue" : "http://127.0.0.1:11434",
+      "label" : "Ollama URL",
+      "description" : "Base URL of the Ollama or OpenAI-compatible backend"
+    }, {
+      "key" : "providerType",
+      "type" : "STRING",
+      "defaultValue" : "OLLAMA",
+      "label" : "Provider Type",
+      "description" : "Wire protocol spoken at that URL: OLLAMA or VLLM"
+    }, {
+      "key" : "contextWindow",
+      "type" : "INTEGER",
+      "defaultValue" : 2048,
+      "label" : "Context Window",
+      "description" : "Tokens the model is told it may use for one call",
+      "min" : 1
+    }, {
+      "key" : "promptTemplate",
+      "type" : "STRING",
+      "label" : "Prompt Template",
+      "description" : "Instruction sent with each chunk; must contain the ${text} placeholder"
+    }, {
+      "key" : "maxChunkChars",
+      "type" : "INTEGER",
+      "defaultValue" : 8000,
+      "label" : "Max Chunk Characters",
+      "description" : "Longer input is split on paragraph and sentence boundaries into chunks of this size",
+      "min" : 200
+    }, {
+      "key" : "maxChars",
+      "type" : "INTEGER",
+      "defaultValue" : 200000,
+      "label" : "Max Characters",
+      "description" : "Upper bound on the total input text",
+      "min" : 1
+    } ],
+    "defaultConcurrency" : 1,
     "defaultMode" : "PARALLEL",
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]

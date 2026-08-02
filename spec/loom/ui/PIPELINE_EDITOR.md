@@ -29,7 +29,10 @@ validates it client-side, and persists a pipeline **definition JSON** that
 - [x] Handle ids **are** port ids (`PortSpec.id`) — no invented fallback handles
 - [x] Typed connection validation mirroring the server lattice (`isAssignable`)
 - [x] Cardinality (ONE/MANY), XOR input groups, EXCLUSIVE output groups enforced on drag and on save
-- [x] Dynamic ports for `script` / `llm` / `vlm` via `portResolvers.ts` mirrors
+- [x] Dynamic ports for `script` / `llm` / `vlm` / `filter` via `portResolvers.ts` mirrors
+- [x] `PORT_LIST` parameter editor (`BucketListEditor.tsx`): repeatable rows with an add button,
+      whose ids become the node's output ports; selective ports render with a dashed handle
+- [x] Edges are pruned when a resolved port disappears (the effect after the `nodeParameters` one)
 - [x] Edges serialise `sourcePort` / `targetPort`; branch serialises as `branch`
 - [x] Per-instance parameters serialise under `options` (`config` accepted as a legacy alias on load)
 - [x] Sidebar parameter/affinity edits mirrored onto the canvas before `getGraphJson()`
@@ -98,6 +101,7 @@ All in `loom-ui/src/features/pipeline/PipelineEditor.tsx` unless noted. Line num
 
 | Symbol | Line | Purpose |
 |---|---|---|
+| `BucketListEditor.tsx` | — | `PORT_LIST` editor: one row per bucket, add/remove buttons, id slugified as typed. **Never emits a JSON string** — see the gotcha below |
 | `affinityColor` | 65 | Deterministic colour for a non-default affinity group |
 | `categoryConfig` / `ICON_MAP` / `resolveNodeIcon` | 75–121 | Category colours + Material icon mapping by descriptor `icon` |
 | `NodePorts` / `nodeConnectors` | 137–164 | Resolved `portsIn`/`portsOut`/`portGroupsIn`/`portGroupsOut` for one instance |
@@ -219,7 +223,9 @@ The port model itself is specified in
 - `nodeConnectors(desc, options)` → `{ portsIn, portsOut, portGroupsIn, portGroupsOut }`. A kind
   with **no descriptor gets no ports at all** — inventing a fallback handle would author an edge no
   server-side port could ever match.
-- `dynamicPorts` kinds (`script`, `llm`, `vlm`) resolve outputs through `portResolvers.ts`:
+- `dynamicPorts` kinds (`script`, `llm`, `vlm`, `filter`) resolve outputs through `portResolvers.ts`:
+  `filter` → one **selective** `media/*` port per configured bucket, plus a permanent `other`
+  (also selective) and the non-selective `passed` / `bucket` decision ports;
   `script` → one port per declared output (`SCRIPT_OUTPUT_TYPES` maps `ScriptValueType` →
   `contentType` + cardinality, so `TEXT_LIST` renders as `text/plain` ×MANY); `llm`/`vlm` → one
   `result_<promptId>` port per configured prompt, falling back to a single `result`.
@@ -237,6 +243,7 @@ The port model itself is specified in
   | `data-content-type` | `port.contentType` |
   | `data-cardinality` | `ONE` \| `MANY` |
   | `data-port-blocked` | `"true"` when `portBlockedReason` returns a reason |
+  | `data-port-selective` | `"true"` when the port routes — it carries only the items sent down it |
 
 - Visual encoding, all in `PipelineNodeComponent` (374 / 436): `isWildcard(contentType)` → **hollow**
   handle (filled with the surface colour, coloured border) because a `family/*` producer's real type
@@ -341,7 +348,7 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
 | Keyboard | `H` help overlay · `N` palette · `A` auto-arrange · `Delete` delete selected node (confirm dialog) · `Escape` close · `↑/↓/Enter` in palette |
 | Auto-arrange | Kahn topological columns, 200×80 node box, 80/40 gaps, then `fitView({padding:0.3})` |
 | Edge menu | Click an edge → PASS / REJECT / ANY; updates edge style, `data.branch`, and the definition edge |
-| Node detail sidebar | 280px; tabs Config / Log (mock) / JSON. Parameter editors by `ParameterType`: `ENUM`→select, `BOOLEAN`→switch, `INTEGER`/`NUMBER`(+`FLOAT`)→numeric field, `ENUM_SET`(+`STRING_LIST`)→comma-separated, `CODE`/`JSON`→multiline with per-parameter parse-error flag, else text |
+| Node detail sidebar | 280px; tabs Config / Log (mock) / JSON. Parameter editors by `ParameterType`: `ENUM`→select, `BOOLEAN`→switch, `INTEGER`/`NUMBER`(+`FLOAT`)→numeric field, `ENUM_SET`(+`STRING_LIST`)→comma-separated, `PORT_LIST`→`BucketListEditor` repeatable rows (see below), `CODE`/`JSON`→multiline with per-parameter parse-error flag, else text |
 | Dirty tracking | Any canvas change, parameter/affinity/edge edit, node add/delete → `dirty`. Switching pipelines while dirty opens a discard-confirm (`pipeline-switch-confirm`). Leaving the route does not. |
 | i18n | All user-visible strings under the `pipeline.*` namespace in `loom-ui/src/i18n/locales/{en,de}.json` |
 | **Not implemented** | No autosave (saving is always the explicit button), no undo/redo, no node copy/paste or multi-select, no drag-and-drop from the palette — nodes are added by click/Enter and land at a computed position |
@@ -360,6 +367,15 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
   2586) so a same-named option can never overwrite editor state.
 - **Handle id === port id.** Never generate `in_0`/`out_0` style handles again; reordering a node's
   ports would silently re-point existing edges.
+- **`PORT_LIST` exists because `JSON` cannot define ports.** A `JSON` parameter commits its *raw
+  text* on every keystroke (1315), so mid-edit it parses to nothing and every handle the node derives
+  disappears until the text is valid again — harmless for a config bag, unacceptable for a parameter
+  whose rows *are* the ports. `BucketListEditor` therefore always emits a structurally valid array,
+  and an unfinished row resolves to no port without disturbing its neighbours.
+- **Edge pruning only runs on the `nodeParameters` channel**, treats an unresolved port list as
+  "keep the edge", and ignores an *empty* resolution outright — for `script`/`llm`/`vlm` that is far
+  more likely half-typed JSON than a deliberate "remove every output". Without those guards it would
+  eat edges while someone types.
 - **`grep` treats `PipelineEditor.tsx` as binary** (very long lines) and prints nothing. Use `rg`, or
   `grep -a`.
 - **React Flow is the `reactflow` v11 package**, not `@xyflow/react` v12. Imports are
@@ -447,5 +463,5 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (Verified against the 3739-line editor: fixed the `VITE_API_BASE_URL` default, documented the handle DOM contract, and recorded the residual `displayName` and mirror-state-leak defects.)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (PORT_LIST parameter type + BucketListEditor, filter dynamic ports, selective handles, edge pruning on a vanished port)_

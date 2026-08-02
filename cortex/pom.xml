@@ -20,6 +20,8 @@
         <module>api</module>
         <module>common</module>
         <module>s3-common</module>
+        <module>cloud-common</module>
+        <module>llm-common</module>
         <module>fs</module>
         <module>core-media</module>
         <module>nodes</module>
@@ -105,6 +107,22 @@
                 <artifactId>cortex-s3-common</artifactId>
                 <version>${project.version}</version>
                 <type>test-jar</type>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-cloud-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-cloud-common</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
+            </dependency>
+            <dependency>
+                <groupId>io.metaloom.cortex</groupId>
+                <artifactId>cortex-cloud-source-node</artifactId>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.metaloom.cortex</groupId>

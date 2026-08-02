@@ -223,7 +223,7 @@ All **per pipeline instance**; the node has no worker-level configuration beyond
 # The node and all its helpers — 51 tests. The video suite self-skips without ffmpeg.
 ./mvnw -pl cortex/nodes/watermark/core test
 
-# Descriptor + content-type model, SPI discovery (asserts 26 providers / 41 kinds)
+# Descriptor + content-type model, SPI discovery (asserts 26 providers / 34 kinds)
 ./mvnw -pl loom-shared/node-model test
 
 # Kind registration: the worker must advertise 'watermark'

@@ -154,5 +154,5 @@ the registered set fills in.
 | `$LOOM` | Base URL of the Loom server, e.g. `\http://localhost:8092`
 | `$TOKEN` | A JWT from `POST /api/v1/login`, or an API key from `/api/v1/tokens`
 | Pipeline JSON | Shown in the shape Loom's graph parser executes — `nodes[]`, `edges[]`, per-node `options`
-| Node kinds | Written as they appear in a definition's `type` field: `whisper`, `filter-mimetype`, …
+| Node kinds | Written as they appear in a definition's `type` field: `whisper`, `filter`, …
 |===

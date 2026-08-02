@@ -6,7 +6,7 @@ import { PipelineGraphPayload } from "../../types";
 const LINEAR: PipelineGraphPayload = {
   nodes: [
     { id: "pn1", kind: "filesystem-source", label: "Media Source", category: "SOURCE" },
-    { id: "pn2", kind: "filter-mimetype", label: "Audio/Video Filter", category: "FILTER" },
+    { id: "pn2", kind: "filter", label: "Audio/Video Filter", category: "FILTER" },
     { id: "pn3", kind: "whisper", label: "Transcribe", category: "ANALYSIS" },
     { id: "pn4", kind: "sentiment", label: "Sentiment", category: "ANALYSIS" },
   ],

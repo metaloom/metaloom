@@ -14,6 +14,7 @@
     <modules>
         <module>filesystem-source</module>
         <module>s3-source</module>
+        <module>cloud-source</module>
         <module>s3-sink</module>
         <module>hash</module>
         <module>dedup</module>
@@ -38,6 +39,8 @@
         <module>image-generation</module>
         <module>video-generation</module>
         <module>watermark</module>
+        <module>filter</module>
+        <module>translate</module>
     </modules>
 
     <name>MetaLoom // Cortex :: Nodes</name>

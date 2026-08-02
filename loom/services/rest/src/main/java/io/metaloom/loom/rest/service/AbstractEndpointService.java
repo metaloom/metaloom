@@ -42,7 +42,20 @@ public abstract class AbstractEndpointService implements EndpointService {
 	}
 
 	protected void checkPerm(LoomRoutingContext lrc, Permission permission, Runnable action) {
-		lrc.requirePerm(permission).onSuccess(l -> {
+		checkPerms(lrc, action, permission);
+	}
+
+	/**
+	 * All-or-nothing variant of {@link #checkPerm(LoomRoutingContext, Permission, Runnable)} for routes whose required permission set depends on the
+	 * request. The action runs only when the caller holds every listed permission.
+	 *
+	 * <p>
+	 * The {@link Runnable} comes before the permissions because varargs must be last; call sites needing a single fixed permission should keep using
+	 * {@code checkPerm}, which reads better.
+	 * </p>
+	 */
+	protected void checkPerms(LoomRoutingContext lrc, Runnable action, Permission... permissions) {
+		lrc.requirePerm(permissions).onSuccess(l -> {
 			action.run();
 		}).onFailure(e -> {
 			// TODO this should be 500 error

@@ -6,6 +6,7 @@ import java.io.UncheckedIOException;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.media.MediaReferenceResolver;
+import io.metaloom.cortex.common.media.SchemeMediaReferenceResolver;
 import io.metaloom.loom.pipeline.model.MediaRef;
 
 /**
@@ -19,7 +20,8 @@ import io.metaloom.loom.pipeline.model.MediaRef;
  * <p>Anything that is not an S3 URI falls through to the superclass unchanged, so a mixed
  * pipeline - filesystem source here, S3 source there - needs no special handling.</p>
  */
-public class S3MediaReferenceResolver extends MediaReferenceResolver {
+public class S3MediaReferenceResolver extends MediaReferenceResolver
+	implements SchemeMediaReferenceResolver.SchemeResolver {
 
 	private final S3MediaMaterializer materializer;
 
@@ -29,6 +31,15 @@ public class S3MediaReferenceResolver extends MediaReferenceResolver {
 			throw new IllegalArgumentException("A materializer must be provided");
 		}
 		this.materializer = materializer;
+	}
+
+	/**
+	 * Lets this resolver be used as one branch of a {@link SchemeMediaReferenceResolver} on a
+	 * worker that also has cloud-drive media, without changing what it does on its own.
+	 */
+	@Override
+	public boolean handles(String reference) {
+		return S3Uri.isS3(reference);
 	}
 
 	@Override

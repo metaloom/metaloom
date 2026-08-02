@@ -16,6 +16,7 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.artifact.ArtifactCache;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.loom.nodes.spec.ValueCoercer;
 import io.metaloom.loom.nodes.spec.ValueCoercionException;
@@ -76,6 +77,12 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	@Override
 	public LoomMedia media() {
 		return media;
+	}
+
+	@Override
+	public ArtifactCache artifacts() {
+		// Never null - NodeInputs substitutes the no-op scope for a caller that has none.
+		return inputs.artifacts();
 	}
 
 	@Override

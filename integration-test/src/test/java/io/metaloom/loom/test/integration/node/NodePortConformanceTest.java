@@ -50,42 +50,55 @@ import io.metaloom.loom.nodes.spec.PortSpec;
 public class NodePortConformanceTest {
 
 	/**
-	 * Node class → descriptor kind. Listed explicitly rather than scanned, so adding a node forces a
-	 * deliberate line here and a kind can never be silently unchecked.
+	 * Node class → the descriptor kinds it serves. Listed explicitly rather than scanned, so adding a
+	 * node forces a deliberate line here and a kind can never be silently unchecked.
+	 *
+	 * <p>The value is a list because one class may serve several kinds: {@code CloudSourceNode} backs
+	 * both {@code gdrive-source} and {@code onedrive-source}, since the scanning is provider-agnostic
+	 * and only the bound file store differs.</p>
 	 */
-	private static final Map<String, String> NODE_KINDS = new LinkedHashMap<>();
+	private static final Map<String, List<String>> NODE_KINDS = new LinkedHashMap<>();
+
+	private static void map(String className, String... kinds) {
+		NODE_KINDS.put(className, List.of(kinds));
+	}
 
 	static {
-		NODE_KINDS.put("io.metaloom.cortex.node.hash.MD5Node", "md5");
-		NODE_KINDS.put("io.metaloom.cortex.node.hash.SHA256Node", "sha256");
-		NODE_KINDS.put("io.metaloom.cortex.node.hash.SHA512Node", "sha512");
-		NODE_KINDS.put("io.metaloom.cortex.node.hash.ChunkHashNode", "chunk-hash");
-		NODE_KINDS.put("io.metaloom.cortex.node.consistency.ConsistencyNode", "consistency");
-		NODE_KINDS.put("io.metaloom.cortex.node.fp.FingerprintNode", "fingerprint");
-		NODE_KINDS.put("io.metaloom.cortex.node.thumbnail.ThumbnailNode", "thumbnail");
-		NODE_KINDS.put("io.metaloom.cortex.node.facedetect.FacedetectNode", "facedetect");
-		NODE_KINDS.put("io.metaloom.cortex.node.facedescription.FacedescriptionNode", "facedescription");
-		NODE_KINDS.put("io.metaloom.cortex.node.ocr.OCRNode", "ocr");
-		NODE_KINDS.put("io.metaloom.cortex.node.tika.TikaNode", "tika");
-		NODE_KINDS.put("io.metaloom.cortex.node.quality.QualityNode", "quality");
-		NODE_KINDS.put("io.metaloom.cortex.node.whisper.WhisperNode", "whisper");
-		NODE_KINDS.put("io.metaloom.cortex.node.sentiment.SentimentNode", "sentiment");
-		NODE_KINDS.put("io.metaloom.cortex.node.depthmap.DepthmapNode", "depthmap");
-		NODE_KINDS.put("io.metaloom.cortex.node.scenelayout.SceneLayoutNode", "scene-layout");
-		NODE_KINDS.put("io.metaloom.cortex.node.color.DominantColorNode", "dominant-color");
-		NODE_KINDS.put("io.metaloom.cortex.node.scene.SceneDetectionNode", "scene-detection");
-		NODE_KINDS.put("io.metaloom.cortex.node.captioning.CaptioningNode", "captioning");
-		NODE_KINDS.put("io.metaloom.cortex.node.tts.TtsNode", "tts");
-		NODE_KINDS.put("io.metaloom.cortex.node.imagegen.ImageGenNode", "imagegen");
-		NODE_KINDS.put("io.metaloom.cortex.node.watermark.WatermarkNode", "watermark");
-		NODE_KINDS.put("io.metaloom.cortex.node.sink.s3.S3SinkNode", "s3-sink");
+		map("io.metaloom.cortex.node.source.fs.FilesystemSourceNode", "filesystem-source");
+		map("io.metaloom.cortex.node.source.s3.S3SourceNode", "s3-source");
+		map("io.metaloom.cortex.node.source.cloud.CloudSourceNode", "gdrive-source", "onedrive-source");
+		map("io.metaloom.cortex.node.hash.MD5Node", "md5");
+		map("io.metaloom.cortex.node.hash.SHA256Node", "sha256");
+		map("io.metaloom.cortex.node.hash.SHA512Node", "sha512");
+		map("io.metaloom.cortex.node.hash.ChunkHashNode", "chunk-hash");
+		map("io.metaloom.cortex.node.consistency.ConsistencyNode", "consistency");
+		map("io.metaloom.cortex.node.fp.FingerprintNode", "fingerprint");
+		map("io.metaloom.cortex.node.thumbnail.ThumbnailNode", "thumbnail");
+		map("io.metaloom.cortex.node.facedetect.FacedetectNode", "facedetect");
+		map("io.metaloom.cortex.node.facedescription.FacedescriptionNode", "facedescription");
+		map("io.metaloom.cortex.node.ocr.OCRNode", "ocr");
+		map("io.metaloom.cortex.node.tika.TikaNode", "tika");
+		map("io.metaloom.cortex.node.quality.QualityNode", "quality");
+		map("io.metaloom.cortex.node.whisper.WhisperNode", "whisper");
+		map("io.metaloom.cortex.node.sentiment.SentimentNode", "sentiment");
+		map("io.metaloom.cortex.node.depthmap.DepthmapNode", "depthmap");
+		map("io.metaloom.cortex.node.scenelayout.SceneLayoutNode", "scene-layout");
+		map("io.metaloom.cortex.node.color.DominantColorNode", "dominant-color");
+		map("io.metaloom.cortex.node.scene.SceneDetectionNode", "scene-detection");
+		map("io.metaloom.cortex.node.captioning.CaptioningNode", "captioning");
+		map("io.metaloom.cortex.node.tts.TtsNode", "tts");
+		map("io.metaloom.cortex.node.imagegen.ImageGenNode", "imagegen");
+		map("io.metaloom.cortex.node.watermark.WatermarkNode", "watermark");
+		map("io.metaloom.cortex.node.sink.s3.S3SinkNode", "s3-sink");
+		map("io.metaloom.cortex.node.filter.FilterNode", "filter");
+		map("io.metaloom.cortex.node.translate.TranslateNode", "translate");
 	}
 
 	/**
 	 * Kinds whose port set is per-instance, so a static comparison is meaningless: their descriptors
 	 * declare no static outputs and a {@code NodePortResolver} derives them from the node's options.
 	 */
-	private static final Set<String> DYNAMIC_KINDS = Set.of("script", "llm", "vlm");
+	private static final Set<String> DYNAMIC_KINDS = Set.of("script", "llm", "vlm", "filter");
 
 	private static Map<String, NodeDescriptor> descriptors() {
 		Map<String, NodeDescriptor> byKind = new LinkedHashMap<>();
@@ -101,7 +114,7 @@ public class NodePortConformanceTest {
 		int compared = 0;
 		int portsSeen = 0;
 
-		for (Map.Entry<String, String> entry : NODE_KINDS.entrySet()) {
+		for (Map.Entry<String, List<String>> entry : NODE_KINDS.entrySet()) {
 			Class<?> nodeClass;
 			try {
 				nodeClass = Class.forName(entry.getKey());
@@ -110,20 +123,22 @@ public class NodePortConformanceTest {
 				// catch drift, not to police the dependency list.
 				continue;
 			}
-			String kind = entry.getValue();
-			NodeDescriptor descriptor = descriptors.get(kind);
-			if (descriptor == null) {
-				problems.add(nodeClass.getSimpleName() + " declares ports but no descriptor advertises kind '" + kind + "'");
-				continue;
-			}
-
-			compared++;
 			Map<String, PortView> in = inputPorts(nodeClass);
 			Map<String, PortView> out = outputPorts(nodeClass);
-			portsSeen += in.size() + out.size();
-			compare(problems, nodeClass, kind, "input", in, descriptor.getInputPorts());
-			if (!DYNAMIC_KINDS.contains(kind)) {
-				compare(problems, nodeClass, kind, "output", out, descriptor.getOutputPorts());
+
+			for (String kind : entry.getValue()) {
+				NodeDescriptor descriptor = descriptors.get(kind);
+				if (descriptor == null) {
+					problems.add(nodeClass.getSimpleName() + " declares ports but no descriptor advertises kind '" + kind + "'");
+					continue;
+				}
+
+				compared++;
+				portsSeen += in.size() + out.size();
+				compare(problems, nodeClass, kind, "input", in, descriptor.getInputPorts());
+				if (!DYNAMIC_KINDS.contains(kind)) {
+					compare(problems, nodeClass, kind, "output", out, descriptor.getOutputPorts());
+				}
 			}
 		}
 
@@ -132,9 +147,10 @@ public class NodePortConformanceTest {
 
 		// A conformance test that silently compares nothing is worse than no test: it reads as green.
 		// The per-node loop skips a class that is not on this module's path, so assert that most of
-		// the mapped nodes were genuinely reached and that ports were actually seen.
-		assertTrue(compared >= NODE_KINDS.size() - 3,
-			"Only " + compared + " of " + NODE_KINDS.size() + " mapped nodes were on the class path -"
+		// the mapped kinds were genuinely reached and that ports were actually seen.
+		int mappedKinds = NODE_KINDS.values().stream().mapToInt(List::size).sum();
+		assertTrue(compared >= mappedKinds - 3,
+			"Only " + compared + " of " + mappedKinds + " mapped kinds were on the class path -"
 				+ " this test would pass without checking anything. Add the missing node module as a"
 				+ " test dependency of integration-test.");
 		assertTrue(portsSeen > 40,
@@ -175,8 +191,10 @@ public class NodePortConformanceTest {
 	public void testTheMappingItselfIsSane() {
 		Map<String, NodeDescriptor> descriptors = descriptors();
 		assertFalse(descriptors.isEmpty(), "No descriptors were discovered - the ServiceLoader wiring is broken");
-		for (String kind : NODE_KINDS.values()) {
-			assertNotNull(descriptors.get(kind), "This test maps a node onto kind '" + kind + "', which no provider declares");
+		for (List<String> kinds : NODE_KINDS.values()) {
+			for (String kind : kinds) {
+				assertNotNull(descriptors.get(kind), "This test maps a node onto kind '" + kind + "', which no provider declares");
+			}
 		}
 	}
 

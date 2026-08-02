@@ -770,6 +770,7 @@ keeps answering.
 
 == Next Steps
 
-* Put your node to work — link:../translation/[Translating Content] uses this route for its translate step.
+* Put your node to work — link:../translation/[Translating Content] shows the same text-in, text-out
+  shape as a built-in node.
 * The Java equivalents, and the full example sources — link:../../cortex/examples/[Cortex Examples].
 * Node reference — every built-in kind's input and output ports — link:../../nodes/[Nodes].

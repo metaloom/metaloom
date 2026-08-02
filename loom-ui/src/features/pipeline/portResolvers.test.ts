@@ -115,6 +115,59 @@ describe("llm / vlm prompt port resolvers", () => {
   });
 });
 
+describe("filter", () => {
+  const buckets = (...rows: unknown[]) => ({ buckets: rows });
+
+  it("emits one port per bucket followed by the three fixed ports", () => {
+    const ports = resolveOutputPorts(descriptor("filter"), buckets(
+      { id: "de", label: "German" },
+      { id: "en", label: "English" },
+    ));
+
+    expect(ids(ports)).toEqual(["de", "en", "other", "passed", "bucket"]);
+    expect(ports[0].contentType).toBe("media/*");
+    expect(ports[0].label).toBe("German");
+    expect(ports[3].contentType).toBe("control/filter");
+    expect(ports[4].contentType).toBe("scalar/string");
+  });
+
+  it("marks the branch ports selective and the decision ports not", () => {
+    const ports = resolveOutputPorts(descriptor("filter"), buckets({ id: "de" }));
+    const selective = ports.filter(p => p.selective).map(p => p.id);
+
+    // 'passed' and 'bucket' fire for every item, so a node reading the decision must never be
+    // skipped — that is the escape hatch from routing.
+    expect(selective).toEqual(["de", "other"]);
+  });
+
+  it("still offers the fixed ports when nothing is configured yet", () => {
+    expect(ids(resolveOutputPorts(descriptor("filter"), {}))).toEqual(["other", "passed", "bucket"]);
+    expect(ids(resolveOutputPorts(descriptor("filter"), buckets()))).toEqual(["other", "passed", "bucket"]);
+    expect(ids(resolveOutputPorts(descriptor("filter"), { buckets: "de,en" }))).toEqual(["other", "passed", "bucket"]);
+  });
+
+  it("skips rows that cannot form a port, without disturbing the others", () => {
+    const ports = resolveOutputPorts(descriptor("filter"), buckets(
+      { id: "de" },
+      { id: "de" },             // duplicate
+      { id: "" },               // a row someone has just added
+      { id: "Not A Port" },     // fails the id pattern
+      { id: "other" },          // reserved: the catch-all
+      { id: "passed" },         // reserved: the verdict
+      { id: "media" },          // reserved: collides with an input
+      "not-an-object",
+      null,
+    ));
+
+    expect(ids(ports)).toEqual(["de", "other", "passed", "bucket"]);
+  });
+
+  it("names a bucket after its id when no label was given", () => {
+    const ports = resolveOutputPorts(descriptor("filter"), buckets({ id: "ja" }));
+    expect(ports[0].label).toBe("ja");
+  });
+});
+
 describe("static kinds", () => {
   const whisper: NodeDescriptor = {
     ...descriptor("whisper", [{ id: "transcript", contentType: "text/transcript", cardinality: "ONE", required: true }]),

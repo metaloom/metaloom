@@ -113,21 +113,22 @@ shadows the base method — do not copy it.
 | `facedetect` | `assets/:uuid/detections/bulk` → `detection` (upsert) | `bulkCreateAssetDetections` |
 | `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) | `createAssetTranscript` |
 | `scene-detection` | `assets/:uuid/segments` → `asset_segment_comp` (whole-set **replace**) | `createAssetSegmentComps` |
-| `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
+| `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
 | `script` | `asset_json_comp` (`variant` = node id) **+** `asset_segment_comp` for `TIMEFRAMES` outputs | `createAssetJsonComp`, `createAssetSegmentComps` |
 | `s3-sink` | one `asset` **per uploaded artifact** (`origin` = the `s3://` URI) + `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) on the source asset | `createAsset`, `createAssetJsonComp` |
 | `fingerprint-dedup` | `dedup-groups` → `dedup_group` + `dedup_group_member` | `createDedupGroup` |
 | `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
-`quality`, `tika`, `sentiment`, `scene-layout`, `dominant-color`, `script`, `s3-artifact`.
+`quality`, `tika`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`, `s3-artifact`.
 
 ### 2.1 Ledger-only nodes and produced bytes
 
 Nodes that produce **new bytes** write them to `metaPath/<name>_bin/<segment>/<sha512>.<ext>`
 (`HashUtils.segmentPath`) and record the ledger with **no `result_ref`**. Live artifact directories:
 `thumbnail_bin`, `tts_bin`, `imagegen_bin`, `videogen_bin`, `depthmap_bin`, `watermark_bin`,
-`script_bin` (plus `s3_bin`, the S3 materializer's download cache).
+`script_bin` (plus `s3_bin`, `gdrive_bin` and `onedrive_bin` — the remote materializers' download
+caches, which hold fetched inputs rather than produced outputs).
 
 Loom has **no byte-ingest endpoint for produced media**. Wiring the artifact output port into
 `s3-sink` is the only way to keep the bytes off the worker. 🔴 The sink must run on the **same
@@ -137,10 +138,11 @@ worker** as the producer and nothing enforces that (§10).
 
 ## 3. Node Reference
 
-**26 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
+**29 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
 leftover directory with no `pom.xml` and is not a module — do not list or resurrect it.
 
-Layout is `cortex/nodes/<name>/core/` except `filesystem-source` and `s3-source`, which are flat.
+Layout is `cortex/nodes/<name>/core/` except `filesystem-source`, `s3-source` and `cloud-source`,
+which are flat.
 
 ### 3.1 Processing nodes (`AbstractMediaNode`)
 
@@ -167,6 +169,7 @@ Port ids only; content types and cardinality are in
 | `vlm` | `VlmNode` · vlm | image | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | OpenAI-compat VLM |
 | `captioning` | `CaptioningNode` · captioning | image, video | `image` \| `video` → `caption` | `asset_json_comp` | SmolVLM / Qwen2.5-VL |
 | `sentiment` | `SentimentNode` · sentiment | any with `text` wired | `text` → `label`, `score`, `result` | `asset_json_comp` | sidecar `9110` |
+| `translate` | `TranslateNode` · translate | any with `text` wired | `text` → `translation`, `language`, `result` | `asset_json_comp` (`variant` = target language) | Ollama / OpenAI-compat |
 | `tts` | `TtsNode` · tts | any with `text` wired | `text` → `audio`, `flag` | ledger only | sidecar `9100` |
 | `depthmap` | `DepthmapNode` · depthmap | image | `media` → `map`, `meta`, `flag` | ledger only | sidecar `9120` |
 | `scene-layout` | `SceneLayoutNode` · scene-layout | image | `depth`, `detections` (MANY) → `result`, `object_count`, `relation_count` | `asset_json_comp` | **none** (geometry) |
@@ -191,8 +194,14 @@ Notes worth knowing:
   Same for `s3-sink` and whatever produced its artifacts.
 - **`captioning`'s `videoStrategy`**: `WHOLE` (N frames → one prompt), `SCENE` (optical-flow
   segmentation → per-scene timeline, `schemaType=video-caption`), `NATIVE` (`video_url`, vLLM only).
-- **`sentiment` / `tts` ignore media type entirely** — `isProcessable` is "is the `text` port
-  non-blank". They are the two nodes that can attach to any asset.
+- **`sentiment` / `tts` / `translate` ignore media type entirely** — `isProcessable` is "is the
+  `text` port non-blank". They are the three nodes that can attach to any asset.
+- **`translate` is one language per instance.** The target language is the `asset_json_comp`
+  `variant`, so two translate nodes in one graph write two rows on the same asset rather than
+  overwriting each other. It shares its LLM plumbing with `llm` via `cortex/llm-common`, but not its
+  shape: `llm` reads `media` and prompts from the filename, so no transcript can reach it.
+  `translate` chunks input larger than `maxChunkChars` on paragraph then sentence boundaries and
+  rejoins the answers — one model call per chunk.
 - **Two sidecars serve `imagegen`**: `ideogram-sidecar` (`9200`, SDXL-Turbo, non-commercial weights)
   and `mage-flow-sidecar` (`9210`, MIT weights). Same HTTP contract; pick via the `port` option.
 
@@ -205,6 +214,8 @@ are constructed directly by `RegistryNodeRegistrar` (§5).
 |---|---|---|---|
 | `filesystem-source` | `FilesystemSourceNode` · nodes/filesystem-source (flat) | `media` | Root mode = differential scan (`LinuxFilesystemScanner` + Avro `FileIndexStore` under `indexPath`); glob mode re-enumerates every match and **wins** when both are set. `emitStates` default `[NEW, MODIFIED, MOVED]` |
 | `s3-source` | `S3SourceNode` · nodes/s3-source (flat) | `media` (`s3://` refs) | Differential on `(key, etag, size)`; Avro index per `sha256(endpoint/bucket/prefix)`. **`MOVED` is never emitted** — ETags collide across identical objects, so inferring renames would invent them. Three scan paths (full list / `startAfter` resume / buffered bucket events), both fast paths gated on a full listing within `reconcileIntervalMs` (default 6h). Registered **only when S3 is configured** |
+| `gdrive-source` | `CloudSourceNode` · nodes/cloud-source (flat) | `media` (`gdrive://` refs) | Differential on `(changeToken, size)` with `parentId`+`name` for moves; Avro index per `sha256(scheme/account/drive/folder/recursion/depth)`, keyed by **file id**. **`MOVED` is genuinely emitted** — a cloud file id survives a rename and a re-parent, which no S3 ETag can. Two scan paths (full folder walk / `changes.list` delta), the fast path gated on a full walk within `reconcileIntervalMs` (default 24h). Registered **only when Google credentials are configured** |
+| `onedrive-source` | `CloudSourceNode` · nodes/cloud-source (flat) | `media` (`onedrive://` refs) | Same implementation and semantics as `gdrive-source` over Microsoft Graph `/root/delta`. Separate kind so a worker advertises only the cloud it holds credentials for. Registered **only when Microsoft credentials are configured** |
 | `asset-source` | `AssetSourceNode` · pipeline-core | one configured `LoomMedia` | Built from the node def's `path`, which Loom fills from the asset's stored location. **No descriptor** — pipeline JSON can select it but the editor palette cannot offer it |
 
 `stream()` must return a **cold** `Flowable`: no filesystem or network work before subscription, and
@@ -220,19 +231,26 @@ atomically, **preserving the extension** (otherwise `isVideo()` — which delega
 `FilterHelper.isVideo(path())` — goes blind). The etag is an opaque change token, never MD5.
 ⚠️ Every worker touching S3 media needs the S3 settings, not only the one running the source.
 
-### 3.3 Filter nodes (`AbstractFilterNode`)
+### 3.3 The filter node (`cortex/nodes/filter`)
 
-`AbstractFilterNode extends AbstractPipelineNode`, is **pipeline-only**, provides a concrete
-`process(LoomMedia, NodeInputs)` and an abstract `evaluate(NodeContext<LoomMedia>)`, and writes the
-verdict to `public static final OutputPort<Boolean> OUT_PASSED`.
+`FilterNode extends AbstractMediaNode<FilterNodeOptions> implements PipelineConfigurable`, kind
+`filter`, **not `@Singleton`** (`configure` mutates it per task). It routes each item onto exactly one
+of its dynamic bucket ports — the port *is* the branch, see
+[NODE_DATA_TYPES.md §4.5 and §8.6](../pipeline/NODE_DATA_TYPES.md).
 
-Implementations in `pipeline-core`: `AssetAttributeFilterNode`, `BlacklistFilterNode`,
-`DateFilterNode`, `DuplicateFilterNode`, `MimeTypeFilterNode`, `QualityFilterNode`,
-`SamplingFilterNode`, `ThresholdFilterNode`.
+`filterBy` picks a `FilterStrategy` from a `Map<FilterBy, Provider<FilterStrategy>>` multibinding.
+Today only `LANGUAGE`, which classifies the wired `text` through the shared `LLMProvider`
+(`cortex/llm-common`). Adding a way of filtering is a strategy class plus a `@FilterByKey` binding
+plus an enum value in the descriptor — never an edit to `FilterNode`.
 
-🔴 **Two mismatches with `FilterDescriptorProvider`**: it advertises `filter-size`, for which there is
-no class, and there is no descriptor for `SamplingFilterNode`. Neither is registered as an executable
-kind, so both are inert today.
+This **replaced eight `filter-*` kinds and nine classes** in `cortex/pipeline-core/.../node/filter/`
+(`AbstractFilterNode` and its subclasses). They extended `AbstractPipelineNode` rather than
+`FilesystemNode<?,?>`, so they could not go through the `@StringKey` multibinding at all: a graph
+using one saved, validated, dispatched, and then failed at the worker with
+`RegistryNodeFactory.createNode() == null`. All nine classes and their ten tests are deleted.
+
+🔴 **MIME, size and date bucketing regressed with them.** The strategy seam exists and each is ~30
+lines, but only `LANGUAGE` is implemented today.
 
 ---
 
@@ -243,18 +261,19 @@ Two independent layers — confusing them is a classic mistake.
 | Layer | Where | Lifetime | Purpose |
 |---|---|---|---|
 | `LocalResultCache<V>` | `cortex/common/.../cache/`, one per node instance | Worker process | Skip recompute **and** re-persist; a hit re-emits and returns `LOCAL` |
-| `NodeCacheProvider` | `cortex/pipeline-common` | Varies | Legacy `NodeResult` cache: `NoOpNodeCache`, `HeapNodeCache` (Caffeine, 10k/60min), `XAttrNodeCache`, `SidecarFileNodeCache`, `LayeredNodeCache` |
+| `ArtifactCache` | `cortex/api/.../node/artifact/`, one per segment execution | One `run()` over one item | Share an expensive **intermediate** (decoded frames, extracted audio) between nodes of one segment. Never persisted. `MediaArtifacts.DECODED_IMAGE` is shared by `quality` and `dominant-color`. See [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) §7.4 |
 
 `LocalResultCache` is a bounded, thread-safe, access-order LRU (100k for hash/fingerprint, 50k and
 10k elsewhere). It is **non-durable by design** — the durable copy is what Loom got on the first pass.
 
-🔴 **Cache-key hygiene is uneven.** Only three nodes include anything beyond the media path:
+🔴 **Cache-key hygiene is uneven.** Only four nodes include anything beyond the media path:
 
 | Node | Key |
 |---|---|
 | `dominant-color` | `absolutePath \| sha256(wired detection payloads + every result-affecting option)` — **the model to copy** |
 | `watermark` | `absolutePath \| sha256(watermark bytes, relX/relY, scale, opacity, codec, crf, preset)`, re-checked with `Files.exists` |
 | `script` | `absolutePath \| scriptHash` |
+| `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
 | everything else | `absolutePath` **only** |
 
 The consequence is concrete: `sentiment` re-uses the first score for a file even when a different
@@ -262,7 +281,8 @@ upstream text is wired; `depthmap` ignores `mode`/`model`/`maxDim`; `tts` ignore
 `scene-layout` ignores the wired depth map and detections. `depthmap` and `watermark` at least
 re-check the artifact still exists on disk.
 
-`s3-source`, `filesystem-source` and `s3-sink` hold no `LocalResultCache`; the sources keep durable
+`s3-source`, `gdrive-source`, `onedrive-source`, `filesystem-source` and `s3-sink` hold no
+`LocalResultCache`; the sources keep durable
 Avro indexes instead and `s3-sink` dedups remotely via `OverwritePolicy`.
 
 ---
@@ -276,26 +296,30 @@ flowchart TD
   M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>30 entries"]
   NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = 26 node modules)"] --> M
   K --> R["RegistryNodeRegistrar.registerAll()"]
-  SRC["filesystem-source · asset-source<br/>+ s3-source when s3Support.isActive()"] --> R
-  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>33 kinds (32 without S3)"]
+  SRC["filesystem-source · asset-source<br/>+ s3-source when s3Support.isActive()<br/>+ gdrive-source / onedrive-source per configured provider"] --> R
+  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>34 kinds (33 without S3)"]
   F --> W["registeredTypes() → announced nodeWhitelist"]
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>26 NodeDescriptorProviders → 41 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>27 NodeDescriptorProviders → 35 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **30** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **32** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
   `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `tika`, `llm`, `vlm`,
   `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`, `whisper`,
-  `tts`, `sentiment`, `script`, `depthmap`, `scene-layout`, `dominant-color`, `watermark`, `s3-sink`.
-  All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java` (26 module classes).
+  `tts`, `sentiment`, `translate`, `script`, `depthmap`, `scene-layout`, `dominant-color`,
+  `watermark`, `filter`, `s3-sink`.
+  All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java` (28 module classes).
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
-  `filesystem-source` and `asset-source` always, `s3-source` **only when `s3Support.isActive()`**.
-- **Total runnable: 33 with S3 configured, 32 without.**
+  `filesystem-source` and `asset-source` always, `s3-source` **only when `s3Support.isActive()`**,
+  and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
+  configured. The gate is per provider rather than per module, which is the reason the two clouds
+  are two kinds sharing one implementation rather than one kind with a `provider` parameter.
+- **Total runnable: 35 with S3 configured, 34 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -306,7 +330,9 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **26 providers declare 41 kinds.**
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **27 providers declare 37 kinds.**
+The two cloud kinds live in the existing `SourceDescriptorProvider`, so the provider count is
+unchanged — only the kind count moves.
 `NodeDescriptorServiceLoaderTest` asserts both literals — that test failing after you add a node is
 the intended tripwire, not a regression.
 
@@ -314,14 +340,14 @@ Reconciling the two registries:
 
 | Set | Count | Members |
 |---|---|---|
-| Descriptor **and** runnable | 31 | the 30 kind bindings minus `sha512-dedup`, plus `filesystem-source` + `s3-source` |
-| Descriptor only — **not runnable** | 10 | `facedescription`, `loom-fetch`, and the 8 `filter-*` kinds |
+| Descriptor **and** runnable | 34 | the 31 kind bindings minus `sha512-dedup`, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` |
+| Descriptor only — **not runnable** | 2 | `facedescription`, `loom-fetch` |
 | Runnable only — **no descriptor** | 2 | `sha512-dedup` (alias), `asset-source` |
 
 🔴 The descriptor is an enforced contract, not decoration: `PortGraphAnalyzer` validates every edge
-against it at save time and at run start. `NodePortConformanceTest` (23 `NODE_KINDS` entries) compares
-port constants against `PortSpec`s in both directions; `script`/`llm`/`vlm` are exempt via
-`DYNAMIC_KINDS`.
+against it at save time and at run start. `NodePortConformanceTest` (24 `NODE_KINDS` entries) compares
+port constants against `PortSpec`s in both directions; `script`/`llm`/`vlm`/`filter` are exempt on the
+**output** side via `DYNAMIC_KINDS` (inputs are still compared).
 
 ---
 
@@ -348,8 +374,8 @@ Everything else matches its kind, except the four hash kinds which share `KEY = 
 `dedup` classes which share `DedupNodeOptions`. Full set: `hash`, `thumbnail`, `fingerprint` (no
 fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `facedetection`, `quality`,
 `scene-detector` (no fields), `captioning`, `llm`, `vlm`, `sentiment`, `tts`, `depthmap`,
-`scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `script`, `s3-sink`,
-`s3-source`, `filesystem-source`.
+`scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`, `script`,
+`s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
 
 ### 6.3 Per-node option defaults
 
@@ -365,6 +391,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `llm` | `ollamaUrl` (`http://127.0.0.1:11434`), `providerType` (`OLLAMA`\|`VLLM`), `prompts` (`Map<String, LLMNodePrompt>`) |
 | `vlm` | `endpointUrl`, `apiKey`, `prompts` (`Map<String, VlmNodePrompt>`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | `sentiment` | `sentimentHost` (`localhost`), `sentimentPort` (9110), `language` (`auto`), `modelDe`/`modelEn` (null), `maxChars` (200000) |
+| `translate` | `targetLanguage` (`en`), `sourceLanguage` (`auto`), `model` (`gemma2:27b`), `ollamaUrl` (`http://127.0.0.1:11434`), `providerType` (`OLLAMA`\|`VLLM`), `contextWindow` (2048), `promptTemplate` (must contain `${text}`), `maxChunkChars` (8000), `maxChars` (200000) |
 | `tts` | `ttsHost` (`localhost`), `ttsPort` (9100), `language` (`de`), `voice` (`Jakob`) |
 | `depthmap` | `depthHost` (`localhost`), `depthPort` (9120), `mode` (`RELATIVE`\|`METRIC`), `model` (null), `maxDim` (1024), `timeoutMs` (120000) |
 | `scene-layout` | `allowLoomFallback` (true), `coreInset` (0.25), `minCorePixels` (16), `depthZThreshold` (1.0), `occlusionMinOverlap` (0.05), `containmentRatio` (0.85), `nextToMaxGap` (0.5), `foregroundQuantile` (0.66), `backgroundQuantile` (0.33), `maxObjects` (40), `maxRelations` (200), `emitPhrases` (true) |
@@ -376,6 +403,8 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `s3-sink` | `bucket` (required), `keyTemplate` (`cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}`), `includeSource` (false), `createAssets` (true), `overwrite` (`IF_DIFFERENT`), `deleteAfterUpload` (false), `maxArtifacts` (64), `maxArtifactBytes` (0), `failOnPartial` (true), `artifacts` ⚠️ |
 | `filesystem-source` | `path` (null), `pathGlobs` (`[]`, wins over `path`), `emitStates` (`[NEW, MODIFIED, MOVED]`), `indexPath` (null) |
 | `s3-source` | `bucket`, `prefix`, `suffixes`, `emitStates` (`[NEW, MODIFIED]`), `startAfter` (false), `useEvents` (false). ⚠️ **Connection settings are not here** — endpoint/region/credentials/cache live on `CortexOptions.getS3()` because they describe the worker and a pipeline definition is stored in Postgres and rendered in the editor |
+| `gdrive-source` | `driveId`, `folderId`, `recursive` (true), `maxDepth` (0 = unlimited), `suffixes`, `mimeTypes`, `emitStates` (`[NEW, MODIFIED, MOVED]`), `useDelta` (true), `includeTrashed` (false), `exportNativeDocs` (false). ⚠️ **Credentials are not here** — they live on `CortexOptions.getGdrive()` for the same reason as S3's, and `ParameterType` has no `SECRET` |
+| `onedrive-source` | The same set **minus `exportNativeDocs`**, which is Google-only; setting it is a validation error rather than a silent no-op, because every OneDrive item has downloadable bytes. Credentials live on `CortexOptions.getOnedrive()` |
 | `dedup` | `dupFolder`; discovery adds `algorithm`, `scoreThreshold`, `topK`, `allowPartial` (false), `abortOnLargerDup` (true) |
 
 ### 6.4 🔴 Node-id string options are being deleted
@@ -461,7 +490,7 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
 | `NodePortConformanceTest` | `integration-test/.../node/` | port constants ↔ descriptor `PortSpec`s, both directions |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | the 26/41 literals + no duplicate kinds |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | the 27/37 literals + no duplicate kinds |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,
@@ -494,6 +523,8 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | **Cardinality is behaviour, not decoration** | A `ONE` input fed by a `MANY` output runs the node once **per element**; a `MANY` input gathers the branch and runs once. Neither needs configuration |
 | **Two outputs express a branch** | `watermark` writes `image` *or* `video`; the unwritten port delivers nothing. No filter node needed |
 | **Fail, don't skip, when the worker cannot do the job** | Missing `ffmpeg`, unreachable sidecar. A skip reads as "this item did not need processing" |
+| **A rename is a real state on a cloud drive, and only there** | `filesystem-source` has inodes and `gdrive-source`/`onedrive-source` have stable file ids, so both emit `MOVED`. `s3-source` has neither and deliberately omits it rather than inventing renames from colliding ETags |
+| **A drive-wide change feed is not a subtree feed** | Both cloud providers' delta APIs report the whole drive. `CloudDifferentialScanner` filters back to the selected folder by walking the parent chain (bounded, memoised); the reconcile walk exists to repair what that bound can miss |
 | **Force HTTP/1.1 in every sidecar client** | FastAPI rejects HTTP/2 |
 | **A `PipelineConfigurable` must not be `@Singleton`** | `configure` mutates the instance; two concurrent script nodes would overwrite each other |
 | **Clean-rebuild `cortex/core` after a node constructor change** | Otherwise `setup-pool`/tests fail with `NoSuchMethodError` against the stale Dagger factory |
@@ -519,10 +550,10 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
       deleted; execution is Loom-side (`PipelineRunEngine`) + `NodeTaskRunner`.
 - [x] **Cross-tree port conformance test exists** — `NodePortConformanceTest`, 23 kinds,
       `DYNAMIC_KINDS` exempting `script`/`llm`/`vlm`.
-- [ ] **`cortex/pipeline-common` caches speak the old API** — `XAttrNodeCache` and
-      `SidecarFileNodeCache` still hand a `Map<String,Object>` to `NodeResult`. The whole
-      `NodeCacheProvider` layer is now vestigial next to `LocalResultCache`; decide whether to port it
-      or delete it rather than carrying both.
+- [x] **`cortex/pipeline-common` caches** — deleted 2026-08-02. `NodeCacheProvider`, its five impls
+      and `PipelineNode.cacheProvider()` are gone; they were never consulted by any runtime path.
+      The two caches that remain do different jobs: `LocalResultCache` (result, across items) and
+      `ArtifactCache` (intermediate, one segment).
 - [ ] **Two node-id options survive** — `ScriptNodeOptions.requiredInputs` and
       `S3SinkNodeOptions.artifacts` (§6.4). Delete the field, accessors, validation, `nodeDef` parsing
       and tests together.
@@ -561,11 +592,11 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
       It is also image-only; per-frame video description is stubbed.
 - [ ] **`loom-fetch` has a descriptor but no runtime** — `LoomFetchNode` exists in `pipeline-core`,
       no producer is registered, and it is not a `MediaSourceNode`, so it cannot drive a run.
-- [ ] **The 8 `filter-*` descriptor kinds have no runtime registration** — filters are pipeline-level
-      and never enter the kind map.
+- [x] **The 8 `filter-*` descriptor kinds have no runtime registration** — resolved: they are deleted
+      and replaced by the one runnable `filter` kind (§3.3).
 - [ ] **`asset-source` has no descriptor** — selectable from pipeline JSON, invisible to the palette.
-- [ ] **Filter code ↔ descriptor mismatch** — `filter-size` is advertised with no class;
-      `SamplingFilterNode` exists with no descriptor.
+- [x] **Filter code ↔ descriptor mismatch** — resolved by the consolidation; both sides are now one
+      kind. 🔴 But MIME/size/date bucketing is not implemented on the new strategy seam yet.
 - [ ] **`QualityNode` has no test that runs the node** — only `QualityNodeOptionsValidationTest` and
       the assertj helpers.
 - [ ] **`HashDedupNodeTest` is a 5-line empty stub**, and `FingerprintDedupApplyNode` has no unit
@@ -606,7 +637,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | `AbstractMediaNode<T>` | `cortex/common` · `io.metaloom.cortex.common.node` | The node base: lifecycle, `recordNodeResult`, `resultRef`, `nodeId` |
 | `AbstractFilesystemNode` | `cortex/common` | Progress tracking (`set`, `print`, `error`) |
 | `AbstractPipelineNode` | `cortex/pipeline-core` · `…pipeline.core.node` | Pipeline-level base: id, mode, blocking, concurrency, timeout |
-| `AbstractFilterNode` | `cortex/pipeline-core` · `…core.node.filter` | Concrete `process`, abstract `evaluate`, writes `OUT_PASSED` |
+| `FilterNode` / `FilterStrategy` | `cortex/nodes/filter/core` · `…node.filter` | Routes onto dynamic bucket ports; `LanguageFilterStrategy` classifies through the shared `LLMProvider` |
 | `CortexNodeAdapter` | `cortex/pipeline-core` · `…core.node` | Wraps a `FilesystemNode` as a `PipelineNode` |
 | `NodeContextImpl` | `cortex/api` · `…node.context.impl` | `next()` / `abort()` / `skipped()` semantics; port coercion |
 | `InputPort` / `OutputPort` / `Element` / `NodeInputs` | `cortex/api` · `io.metaloom.cortex.api.node` | The port model |
@@ -621,7 +652,11 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | `NodeDescriptor` / `PortSpec` / `PortGroup` / `NodeParameter` / `NodeCategory` | `loom-shared/node-model` · `io.metaloom.loom.nodes.spec` | Descriptor model |
 | `NodeDescriptorRegistry` / `NodePortResolver` | `loom-shared/node-model` | ServiceLoader registry; `resolvePorts(kind, options)` for dynamic ports |
 | `MediaSourceNode` | `cortex/pipeline-api` | `Flowable<LoomMedia> stream()` — cold, re-enumerating |
-| `MediaReferenceResolver` / `S3MediaMaterializer` | `cortex/common`, `cortex/s3-common` | `MediaRef` → handle; lazy S3 download |
+| `MediaReferenceResolver` / `SchemeMediaReferenceResolver` | `cortex/common` | `MediaRef` → handle. The composite routes by URI scheme and falls back to a local path; a worker with nothing remote configured still gets the plain resolver |
+| `S3MediaMaterializer` / `CloudMediaMaterializer` | `cortex/s3-common`, `cortex/cloud-common` | Lazy download + local cache, keyed on an opaque change token so a modified object lands at a new path |
+| `CloudFileStore` (`GoogleDriveFileStore`, `GraphFileStore`) | `cortex/cloud-common` | The provider seam: one-level listing, metadata read, delta feed, download. Hand-rolled `java.net.http`, no SDKs |
+| `CloudDifferentialScanner` / `CloudFileIndex` | `cortex/nodes/cloud-source` | Full walk vs delta, MOVED classification, subtree filtering over a drive-wide feed |
+| `LlmInvoker` / `TextChunker` / `AbstractLlmNodeOptions` | `cortex/llm-common` · `…cortex.llm` | One model call with its metrics; structural chunking; the shared endpoint options |
 | `AbstractNodeChainTest` / `CapturingNode` / `StubLoomMedia` | `cortex/pipeline-core` **test-jar** · `…pipeline.test` | Node-chain harness and assertions |
 
 ---
@@ -631,6 +666,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | Concept | Path |
 |---|---|
 | A node's implementation | `cortex/nodes/<module>/core/src/main/java/io/metaloom/cortex/node/<pkg>/` |
+| Shared LLM plumbing (`llm`, `translate`) | `cortex/llm-common/.../cortex/llm/` — `LLMProviderModule` (the one `LLMProvider` binding), `AbstractLlmNodeOptions`, `LlmInvoker`, `TextChunker` |
 | The lifecycle + ledger helper | `cortex/common/.../node/AbstractMediaNode.java` |
 | `next()`/`abort()`/`skipped()` semantics | `cortex/api/.../node/context/impl/NodeContextImpl.java` |
 | The kind multibinding for a node | `cortex/nodes/<module>/core/.../<X>NodeModule.java` |
@@ -648,5 +684,8 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (rebuilt from the code: 26 modules / 30 kind bindings + 3 source kinds = 33 runnable with S3, 26 descriptor providers / 41 kinds; removed the dead media-decorator and in-Cortex-executor sections and cut duplication now owned by NODE_DATA_TYPES.md, PIPELINE.md and NEW_NODE.md)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (added the `gdrive-source` and `onedrive-source` kinds and the shared
+`cortex/cloud-common` module; counts re-derived (27 providers / 37 kinds, 29 node modules,
+34 descriptor-and-runnable). Recorded that MOVED is genuinely detectable on a cloud drive and that a
+drive-wide delta feed needs subtree filtering)_

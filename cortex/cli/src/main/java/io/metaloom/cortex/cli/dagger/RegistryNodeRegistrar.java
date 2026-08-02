@@ -11,12 +11,22 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.FilesystemNode;
+import io.metaloom.cortex.api.option.CloudClientOptions;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.S3ClientOptions;
 import io.metaloom.cortex.api.option.node.CortexNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
+import io.metaloom.cortex.cloud.CloudProviderId;
+import io.metaloom.cortex.cloud.CloudSupport;
+import io.metaloom.cortex.cloud.CloudSupportRegistry;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
+import io.metaloom.cortex.node.source.cloud.CloudDifferentialScanner;
+import io.metaloom.cortex.node.source.cloud.CloudFileIndexStore;
+import io.metaloom.cortex.node.source.cloud.CloudSourceNode;
+import io.metaloom.cortex.node.source.cloud.CloudSourceNodeOptions;
+import io.metaloom.cortex.node.source.cloud.GDriveSourceNodeOptions;
+import io.metaloom.cortex.node.source.cloud.OneDriveSourceNodeOptions;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNode;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeOptions;
 import io.metaloom.cortex.node.source.s3.S3DifferentialScanner;
@@ -61,6 +71,9 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 	private final S3SourceNodeOptions s3SourceOptions;
 	private final S3Support s3Support;
 	private final S3EventBuffer s3EventBuffer;
+	private final CloudSupportRegistry cloudSupport;
+	private final GDriveSourceNodeOptions gdriveSourceOptions;
+	private final OneDriveSourceNodeOptions onedriveSourceOptions;
 	private final CortexOptions cortexOptions;
 
 	private boolean registered;
@@ -72,6 +85,9 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 		S3SourceNodeOptions s3SourceOptions,
 		S3Support s3Support,
 		S3EventBuffer s3EventBuffer,
+		CloudSupportRegistry cloudSupport,
+		GDriveSourceNodeOptions gdriveSourceOptions,
+		OneDriveSourceNodeOptions onedriveSourceOptions,
 		CortexOptions cortexOptions) {
 		this.factory = factory;
 		this.nodeKinds = nodeKinds;
@@ -80,7 +96,14 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 		this.s3SourceOptions = s3SourceOptions;
 		this.s3Support = s3Support;
 		this.s3EventBuffer = s3EventBuffer;
+		this.cloudSupport = cloudSupport;
+		this.gdriveSourceOptions = gdriveSourceOptions;
+		this.onedriveSourceOptions = onedriveSourceOptions;
 		this.cortexOptions = cortexOptions;
+	}
+
+	private CloudSourceNodeOptions<?> cloudDefaults(CloudProviderId provider) {
+		return provider == CloudProviderId.GDRIVE ? gdriveSourceOptions : onedriveSourceOptions;
 	}
 
 	@Override
@@ -100,6 +123,20 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 			factory.register("s3-source", def -> s3Source(def, s3Support, s3EventBuffer, s3SourceOptions, cortexOptions));
 		} else {
 			log.info("S3 is not configured on this worker; the 's3-source' kind is not advertised");
+		}
+
+		// Cloud sources: one kind per provider, each advertised only when this worker holds
+		// credentials for it. A single 'cloud-source' kind could not express "Google yes,
+		// Microsoft no", and Loom would dispatch a run this worker cannot serve.
+		for (CloudProviderId provider : CloudProviderId.values()) {
+			CloudSupport support = cloudSupport == null ? null : cloudSupport.get(provider);
+			if (support != null && support.isActive()) {
+				factory.register(provider.kind(),
+					def -> cloudSource(def, provider, support, cloudDefaults(provider), cortexOptions));
+			} else {
+				log.info("{} is not configured on this worker; the '{}' kind is not advertised",
+					provider.displayName(), provider.kind());
+			}
 		}
 
 		// Asset source: run a pipeline against a single asset. Loom injects the asset's
@@ -207,6 +244,96 @@ public class RegistryNodeRegistrar implements NodeRegistrar {
 			nodeDef.getBoolean("startAfter"),
 			nodeDef.getBoolean("useEvents"),
 			defaults);
+	}
+
+	/**
+	 * Build a {@code gdrive-source} or {@code onedrive-source} node from its JSON definition.
+	 *
+	 * <p>One builder for both kinds: only the {@link CloudSupport} and the defaults differ. As with
+	 * {@code s3-source}, only the selection comes from the definition ({@code driveId},
+	 * {@code folderId}, {@code recursive}, {@code maxDepth}, {@code suffixes}, {@code mimeTypes},
+	 * {@code emitStates}, {@code useDelta}, {@code includeTrashed}). Credentials are worker-level
+	 * and arrive through {@link CloudSupport}, so a pipeline definition - stored in the database and
+	 * rendered in the editor - never carries a secret.</p>
+	 */
+	private static PipelineNode cloudSource(JsonObject nodeDef, CloudProviderId provider,
+		CloudSupport support, CloudSourceNodeOptions<?> defaults, CortexOptions cortexOptions) {
+
+		String id = nodeDef.getString("id", provider.kind());
+
+		if (defaults != null) {
+			ValidationResult result = defaults.validate();
+			if (result.isInvalid()) {
+				throw new IllegalStateException("Node '" + id + "' options validation failed: "
+					+ String.join("; ", result.getErrors()));
+			}
+		}
+
+		java.nio.file.Path indexBaseDir = support.indexBaseDir();
+		if (indexBaseDir == null) {
+			throw new IllegalStateException("Node '" + id + "' (" + provider.kind() + ") needs an index directory; "
+				+ "set --" + provider.scheme() + "-index-path (CORTEX_" + provider.scheme().toUpperCase()
+				+ "_INDEX_PATH) or --meta-path (CORTEX_META_PATH)");
+		}
+
+		CloudClientOptions<?> clientOptions = clientOptionsFor(provider, cortexOptions);
+
+		long reconcileMs = clientOptions == null
+			? CloudClientOptions.DEFAULT_RECONCILE_INTERVAL_MS
+			: clientOptions.getReconcileIntervalMs();
+
+		// A drive id is optional for Google (blank means My Drive) and effectively required for
+		// Microsoft, which is why the store resolves it rather than the caller guessing.
+		String configuredDriveId = firstNonBlank(nodeDef.getString("driveId"),
+			defaults == null ? null : defaults.getDriveId(),
+			clientOptions == null ? null : clientOptions.getDefaultDriveId());
+		String driveId;
+		try {
+			driveId = support.store().resolveDriveId(configuredDriveId);
+		} catch (java.io.IOException e) {
+			throw new IllegalStateException("Node '" + id + "' (" + provider.kind() + "): " + e.getMessage(), e);
+		}
+
+		// The export setting is a Google-only worker default that a node may raise but not invent.
+		boolean exportDocs = provider == CloudProviderId.GDRIVE
+			&& (defaults instanceof GDriveSourceNodeOptions gdriveDefaults && gdriveDefaults.isExportNativeDocs()
+				|| Boolean.TRUE.equals(nodeDef.getBoolean("exportNativeDocs"))
+				|| cortexOptions != null && cortexOptions.getGdrive() != null
+					&& cortexOptions.getGdrive().isExportNativeDocs());
+
+		CloudDifferentialScanner scanner = new CloudDifferentialScanner(support.store(),
+			new CloudFileIndexStore(), indexBaseDir, reconcileMs);
+
+		return CloudSourceNode.create(id, scanner, support.materializer(), provider, driveId,
+			nodeDef.getString("folderId"),
+			nodeDef.getBoolean("recursive"),
+			nodeDef.getInteger("maxDepth"),
+			nodeDef.getString("suffixes"),
+			nodeDef.getString("mimeTypes"),
+			readStringArray(nodeDef, "emitStates"),
+			nodeDef.getBoolean("useDelta"),
+			nodeDef.getBoolean("includeTrashed"),
+			exportDocs,
+			defaults);
+	}
+
+	/**
+	 * The worker-level client options for a provider, or null when none are configured.
+	 */
+	private static CloudClientOptions<?> clientOptionsFor(CloudProviderId provider, CortexOptions cortexOptions) {
+		if (cortexOptions == null) {
+			return null;
+		}
+		return provider == CloudProviderId.GDRIVE ? cortexOptions.getGdrive() : cortexOptions.getOnedrive();
+	}
+
+	private static String firstNonBlank(String... candidates) {
+		for (String candidate : candidates) {
+			if (candidate != null && !candidate.isBlank()) {
+				return candidate;
+			}
+		}
+		return null;
 	}
 
 	/**

@@ -90,8 +90,25 @@
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-filesystem-source-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-s3-source-node</artifactId>
             <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-cloud-source-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-cloud-common</artifactId>
+            <version>${loom.cortex.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
@@ -192,6 +209,16 @@
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-watermark-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-filter-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-translate-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
         <dependency>

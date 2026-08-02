@@ -9,6 +9,7 @@ import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultState;
+import io.metaloom.cortex.api.node.artifact.ArtifactCache;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
 import io.metaloom.loom.pipeline.model.Origin;
@@ -98,8 +99,15 @@ public final class NodeResultMapper {
 	 * fills each one before dispatching, so nothing here has to know the graph.</p>
 	 */
 	public static NodeInputs toInputs(NodeTask task) {
+		return toInputs(task, ArtifactCache.noop());
+	}
+
+	/**
+	 * As above, bound to the artifact scope the runner opened for this execution.
+	 */
+	public static NodeInputs toInputs(NodeTask task, ArtifactCache artifacts) {
 		return new NodeInputs(task.getInputs(), task.getDemandedOutputs(),
-			new Origin(task.getItemId(), task.getElementSeq(), null));
+			new Origin(task.getItemId(), task.getElementSeq(), null), artifacts);
 	}
 
 	/**
@@ -116,7 +124,19 @@ public final class NodeResultMapper {
 	 * whose port ids collide with a different meaning.</p>
 	 */
 	public static NodeInputs toInputs(SegmentTask task, Map<String, PortPayload> available) {
-		return new NodeInputs(available, Set.of(), Origin.single(task.getItemId()));
+		return toInputs(task, available, ArtifactCache.noop());
+	}
+
+	/**
+	 * As above, bound to the artifact scope the segment opened.
+	 *
+	 * <p>
+	 * The port view is rebuilt per node — it grows as the segment runs — while the scope is one object shared by every node in the segment. That
+	 * asymmetry is the whole mechanism: outputs travel, artifacts stay.
+	 * </p>
+	 */
+	public static NodeInputs toInputs(SegmentTask task, Map<String, PortPayload> available, ArtifactCache artifacts) {
+		return new NodeInputs(available, Set.of(), Origin.single(task.getItemId()), artifacts);
 	}
 
 	private static io.metaloom.loom.pipeline.model.NodeState toWireState(ResultState state) {

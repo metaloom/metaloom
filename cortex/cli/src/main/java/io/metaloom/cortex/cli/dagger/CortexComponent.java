@@ -16,7 +16,8 @@ import picocli.CommandLine;
 
 @Singleton
 @Component(modules = { CortexBindModule.class, CortexMediaModule.class, PicoCLIModule.class,
-	PipelineNodeFactoryModule.class, CortexClientModule.class, S3Module.class })
+	PipelineNodeFactoryModule.class, CortexClientModule.class, S3Module.class, CloudModule.class,
+	MediaResolverModule.class })
 public interface CortexComponent {
 
 	Cortex cortex();

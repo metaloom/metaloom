@@ -1,5 +1,6 @@
 package io.metaloom.loom.nodes.spec;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -140,6 +141,50 @@ public class NodeDescriptorPortsTest {
 			assertNotNull(resolvers.get(descriptor.getKind()),
 				"kind '" + descriptor.getKind() + "' sets dynamicPorts but no NodePortResolver is registered for it in "
 					+ "META-INF/services/io.metaloom.loom.nodes.spec.NodePortResolver. Known resolvers: " + resolvers.keySet());
+		}
+	}
+
+	/**
+	 * {@code selective} is an output-side routing statement: a consumer wired to such a port is
+	 * <em>skipped</em> for the items where nothing was emitted. On an input it means nothing, and a
+	 * descriptor that sets it there would read as though it routed when it does not.
+	 */
+	@Test
+	void testNoInputPortIsSelective() {
+		for (NodeDescriptor descriptor : descriptors()) {
+			for (PortSpec port : descriptor.getInputPorts()) {
+				assertFalse(port.isSelective(),
+					"kind '" + descriptor.getKind() + "' marks input port '" + port.getId()
+						+ "' selective; selectivity is an output-side property");
+			}
+		}
+	}
+
+	/**
+	 * The one kind that routes by port today. Pinned deliberately: marking a port selective changes
+	 * what the engine does with every consumer wired to it, so it must never be acquired by accident
+	 * - and the filter's own {@code passed} / {@code bucket} ports must stay non-selective, or a node
+	 * reading the decision would be skipped exactly when it most needs to run.
+	 */
+	@Test
+	void testOnlyTheFilterBucketPortsAreSelective() {
+		NodePortResolver resolver = resolvers().get("filter");
+		assertNotNull(resolver, "no resolver registered for the 'filter' kind");
+
+		List<PortSpec> ports = resolver.resolveOutputPorts(null,
+			Map.of("buckets", List.of(Map.of("id", "de"), Map.of("id", "en"))));
+
+		Set<String> selective = ports.stream().filter(PortSpec::isSelective).map(PortSpec::getId).collect(Collectors.toSet());
+		assertEquals(Set.of("de", "en", "other"), selective,
+			"only the bucket ports and 'other' route; found " + selective);
+
+		// No *static* descriptor anywhere declares a selective port - they all come from resolvers.
+		for (NodeDescriptor descriptor : descriptors()) {
+			for (PortSpec port : descriptor.getOutputPorts()) {
+				assertFalse(port.isSelective(),
+					"kind '" + descriptor.getKind() + "' statically declares selective output '" + port.getId()
+						+ "'. If that is intended, extend this test - it exists so routing is never acquired silently");
+			}
 		}
 	}
 

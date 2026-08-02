@@ -229,4 +229,59 @@ public class PipelineSegmenterTest {
 		assertTrue(segmenter.segment(g).isEmpty(), "There is nothing to dispatch");
 	}
 
+	/**
+	 * A segment must never span an edge leaving a selective port.
+	 *
+	 * <p>
+	 * A worker runs a segment as one unit and applies only local blocking rules — it has no idea
+	 * which branch an item took. Packing a router and its branch consumer together would therefore
+	 * run the branch unconditionally, which is the same defect the older {@code PASS}/{@code REJECT}
+	 * edges are already segmented apart for. It needs a descriptor registry to reproduce: without one
+	 * the analyzer never runs and nothing is marked selective.
+	 * </p>
+	 */
+	@Test
+	void testASelectiveEdgeEndsASegment() {
+		PipelineGraphParser typed = new PipelineGraphParser(io.metaloom.loom.pipeline.TestDescriptors.registry());
+		PipelineGraph g = typed.parse("routed", new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "test-source").put("source", true))
+				.add(new JsonObject().put("id", "r").put("type", "router"))
+				.add(new JsonObject().put("id", "d").put("type", "describe")))
+			.put("edges", new JsonArray()
+				.add(edge("src", "r"))
+				.add(new JsonObject().put("source", "r").put("sourcePort", "a")
+					.put("target", "d").put("targetPort", "media"))),
+			true, false, 0);
+
+		List<PipelineSegment> segments = segmenter.segment(g);
+
+		assertFalse(segmentContaining(segments, "r").getNodeIds().contains("d"),
+			"the router and its branch consumer must not travel to a worker together: " + segments);
+	}
+
+	/**
+	 * The converse, so the rule stays as narrow as it claims to be: an edge from a router's
+	 * <em>non</em>-selective port decides nothing, so it must not cost the pipeline its batching.
+	 */
+	@Test
+	void testANonSelectiveEdgeFromARouterDoesNotEndASegment() {
+		PipelineGraphParser typed = new PipelineGraphParser(io.metaloom.loom.pipeline.TestDescriptors.registry());
+		PipelineGraph g = typed.parse("routed", new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "test-source").put("source", true))
+				.add(new JsonObject().put("id", "r").put("type", "router"))
+				.add(new JsonObject().put("id", "n").put("type", "noticer")))
+			.put("edges", new JsonArray()
+				.add(edge("src", "r"))
+				.add(new JsonObject().put("source", "r").put("sourcePort", "label")
+					.put("target", "n").put("targetPort", "label"))),
+			true, false, 0);
+
+		List<PipelineSegment> segments = segmenter.segment(g);
+
+		assertTrue(segmentContaining(segments, "r").getNodeIds().contains("n"),
+			"only the edge that actually decides a branch ends a segment: " + segments);
+	}
+
 }

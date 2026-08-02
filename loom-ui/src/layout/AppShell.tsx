@@ -24,6 +24,7 @@ import MemoryView from "../features/memory/MemoryView";
 import ChatSessionsView from "../features/chatSessions/ChatSessionsView";
 import ChatSessionDetail from "../features/chatSessions/ChatSessionDetail";
 import AssetPoolsView from "../features/assetPools/AssetPoolsView";
+import UploadView from "../features/uploads/UploadView";
 import { LayoutContext } from "../context/LayoutContext";
 
 export default function AppShell() {
@@ -48,6 +49,7 @@ export default function AppShell() {
           <Route path="/library" element={<LibraryView />} />
           <Route path="/assets" element={<AssetBrowser />} />
           <Route path="/assets/:id" element={<AssetDetail />} />
+          <Route path="/uploads" element={<UploadView />} />
           <Route path="/collections" element={<CollectionsView />} />
           <Route path="/tasks" element={<TasksView />} />
           <Route path="/skills" element={<SkillManagementView />} />

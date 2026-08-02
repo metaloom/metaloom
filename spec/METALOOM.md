@@ -193,7 +193,7 @@ Container images produced: `metaloom/loom-server`, `metaloom/loom-demo`
   but `cortex/node-runtime` is `io.metaloom.cortex.runtime`, `cortex/s3-common` is
   `io.metaloom.cortex.s3`, and `loom/services/s3` is `io.metaloom.loom.storage.s3`.
 - **`cortex/nodes/loom/` is a directory, not a module.** It is absent from
-  `cortex/nodes/pom.xml`; the 26 modules listed in §2 are the real set. Same for `loom/helm/`
+  `cortex/nodes/pom.xml`; the 27 modules listed in §2 are the real set. Same for `loom/helm/`
   (README placeholder — real charts are top-level `helm/`), `loom/design/`, `loom/agent/deploy/`
   and `loom/agent/session-runner/`. `loom/io/` is a stray misplaced source folder — nothing builds it.
 - **There is no Cortex DAG executor any more.** `ReactivePipelineExecutor`, `DefaultPipeline` and

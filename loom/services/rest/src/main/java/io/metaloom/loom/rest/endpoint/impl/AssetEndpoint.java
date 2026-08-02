@@ -140,7 +140,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 
 		addUploadRoute(basePath() + "/upload",
 			"Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field "
-				+ "and an optional 'origin'. The target library's storage pool decides whether the bytes land on a filesystem or in S3. "
+				+ "and the optional form fields 'origin' and 'poolUuid'. The target library's storage pool decides whether the bytes land on a "
+				+ "filesystem or in S3; naming 'poolUuid' overrides that for this upload and additionally requires the READ_ASSET_POOL permission. "
 				+ "Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
 			examples.assetResponseExample(),
 			lrc -> {

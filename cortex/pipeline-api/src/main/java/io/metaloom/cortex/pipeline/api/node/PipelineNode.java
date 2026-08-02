@@ -8,7 +8,6 @@ import java.util.Set;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
-import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.api.media.LoomMedia;
 
@@ -155,14 +154,6 @@ public interface PipelineNode {
 	 */
 	default Map<String, Object> options() {
 		return Collections.emptyMap();
-	}
-
-	/**
-	 * Optional cache provider for this node. When set, results are cached and looked up
-	 * before invoking {@link #process(LoomMedia, NodeInputs)}.
-	 */
-	default NodeCacheProvider cacheProvider() {
-		return null;
 	}
 
 	/**

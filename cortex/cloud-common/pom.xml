@@ -1,0 +1,101 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-cloud-common</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: Cloud Common</name>
+    <description>
+        Shared cloud-drive access for cortex: the provider seam (Google Drive, OneDrive), the
+        OAuth token sources, the HTTP client and the lazy materializer that turns a gdrive:// or
+        onedrive:// reference into a local file. Lives outside the cloud-source node because every
+        worker needs the materializer to resolve cloud media, including workers that cannot run
+        the source node itself - exactly the argument that put s3-common here.
+
+        No provider SDKs: the two stores are hand-rolled java.net.http clients against Drive v3 and
+        Microsoft Graph v1.0. That keeps the shaded cortex jar free of the ServiceLoader and
+        transitive-dependency hazards the AWS SDK brings.
+    </description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.metaloom</groupId>
+                <artifactId>bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- LoomMedia / ProcessableMedia and the worker-level options -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-api</artifactId>
+        </dependency>
+        <!-- LoomMediaImpl + MediaReferenceResolver for the materialized handle -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.utils</groupId>
+            <artifactId>hash-utils</artifactId>
+        </dependency>
+
+        <!-- JsonObject only; unlike s3-common we need no routes, so not vertx-web -->
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-core</artifactId>
+        </dependency>
+
+        <!-- DI -->
+        <dependency>
+            <groupId>com.google.dagger</groupId>
+            <artifactId>dagger</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- FakeCloudFileStore and the stub token/API servers are reused by the
+                 cloud-source node module, exactly as s3-common publishes FakeS3ObjectStore. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

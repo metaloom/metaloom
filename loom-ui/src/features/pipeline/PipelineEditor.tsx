@@ -53,6 +53,7 @@ import { useNodeRegistry } from "../../context/NodeRegistryContext";
 import type { ContentType, NodeDescriptor, NodeCategory, PortGroup, PortSpec } from "../../types/nodeDescriptors";
 import { contentTypeColor, findContentType, isAssignable, isWildcard } from "./contentTypes";
 import { resolveInputPorts, resolveOutputPorts } from "./portResolvers";
+import BucketListEditor, { type Bucket } from "./BucketListEditor";
 import { PipelineVersionDiff } from "./PipelineVersionDiff";
 
 // Default affinity group name. Mirrors PipelineGraphNode.DEFAULT_AFFINITY on the
@@ -178,6 +179,9 @@ function portTooltip(port: PortSpec, contentTypes: ContentType[]): string {
     `${portName(port)} · ${port.contentType}${served ? ` (${served.label})` : ""}`,
     port.cardinality === "MANY" ? "MANY — a sequence of elements" : "ONE — a single element",
   ];
+  if (port.selective) {
+    lines.push("Branch — carries only the items routed here. Anything wired to it is skipped for the rest.");
+  }
   if (port.description) lines.push(port.description);
   if (served?.description) lines.push(served.description);
   return lines.join("\n");
@@ -442,10 +446,13 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
               data-content-type={port.contentType}
               data-cardinality={port.cardinality}
               data-port-blocked={blocked ? "true" : "false"}
+              data-port-selective={port.selective ? "true" : "false"}
               title={blocked ? `${portTooltip(port, contentTypes)}\n\n${blocked}` : portTooltip(port, contentTypes)}
               style={{
                 background: isWildcard(port.contentType) ? tokens.bg.elevated : dtColor,
-                border: `2px solid ${isWildcard(port.contentType) ? dtColor : tokens.bg.elevated}`,
+                // A selective port is a branch: it carries some items and not others, so its border
+                // is dashed. Wiring it is still a real edge — it just does not fire every time.
+                border: `2px ${port.selective ? "dashed" : "solid"} ${isWildcard(port.contentType) ? dtColor : tokens.bg.elevated}`,
                 borderRadius: many ? 2 : "50%",
                 boxShadow: many ? `-4px 0 0 -2px ${dtColor}` : undefined,
                 width: 10,
@@ -1242,6 +1249,7 @@ function NodeDetailSidebar({
                         const isStringList = param.type === "ENUM_SET" || param.type === "STRING_LIST";
                         const isCode = param.type === "CODE";
                         const isJson = param.type === "JSON";
+                        const isPortList = param.type === "PORT_LIST";
                         const fieldValue = isStringList
                           ? Array.isArray(currentValue) ? (currentValue as unknown[]).join(", ") : String(currentValue)
                           : isJson
@@ -1286,6 +1294,15 @@ function NodeDetailSidebar({
                                   onParameterChange?.(nodeId!, param.key, parts);
                                 }}
                                 sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
+                              />
+                            ) : isPortList ? (
+                              // Rows whose ids become the node's output ports. Deliberately not the
+                              // JSON editor below: that one commits raw text per keystroke, so a
+                              // half-typed value would resolve to no ports and every handle on the
+                              // node would disappear until it parsed again.
+                              <BucketListEditor
+                                value={Array.isArray(currentValue) ? (currentValue as Bucket[]) : []}
+                                onChange={next => onParameterChange?.(nodeId!, param.key, next)}
                               />
                             ) : isCode || isJson ? (
                               // Script bodies and structured bags need room and a monospace face.
@@ -1638,6 +1655,30 @@ function PipelineCanvas({
       return { ...n, data: { ...data, ...connectors } };
     }));
   }, [nodeParameters, descriptors, setNodes]);
+
+  // A resolved port that disappears takes its connections with it. Removing a bucket unmounts its
+  // <Handle>, and without this the edge survives in state pointing at a handle React Flow no longer
+  // renders — invisible until save time, where it surfaces as an `unknownPort` error the author then
+  // has to hunt down by hand.
+  //
+  // Three guards keep this from ever eating an edge it should not. It runs only on the
+  // `nodeParameters` channel, so never on load or on selection. An unresolved port list is treated
+  // as "unknown, keep the edge" rather than "no ports". And an empty resolution is ignored outright:
+  // for `script`/`llm`/`vlm` that is far more likely a half-typed JSON blob than a deliberate
+  // "remove every output" — `PORT_LIST` cannot resolve to empty at all, which is why it is the right
+  // type for a parameter that defines ports.
+  useEffect(() => {
+    if (!nodeParameters) return;
+    setEdges(eds => eds.filter(e => {
+      const source = nodes.find(n => n.id === e.source);
+      const target = nodes.find(n => n.id === e.target);
+      const outs = source?.data?.portsOut as PortSpec[] | undefined;
+      const ins = target?.data?.portsIn as PortSpec[] | undefined;
+      if (outs?.length && e.sourceHandle && !outs.some(p => p.id === e.sourceHandle)) return false;
+      if (ins?.length && e.targetHandle && !ins.some(p => p.id === e.targetHandle)) return false;
+      return true;
+    }));
+  }, [nodeParameters, nodes, setEdges]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: RFNode) => {
     setSelectedId(node.id);

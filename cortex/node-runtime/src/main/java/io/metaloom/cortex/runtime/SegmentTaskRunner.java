@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.artifact.ArtifactCache;
+import io.metaloom.cortex.api.node.artifact.impl.ScopedArtifactCache;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
@@ -26,14 +28,26 @@ import io.vertx.core.json.JsonObject;
  * was shaped for. The saving is <strong>one round trip instead of N</strong>, plus
  * one dispatch decision instead of N.</p>
  *
- * <p>⚠️ It is <em>not</em> a decode-once saving, despite the obvious appeal of that
- * idea. The media handle is resolved once, but {@link LoomMedia} is a lightweight
- * file reference rather than a decoded artifact, so each node still reads what it
- * needs itself. A benchmark over 155 MiB of real video measured segment dispatch at
- * 1.01× per-node dispatch — within noise. Genuine decode-once would need a shared
- * per-segment context for nodes to publish expensive artifacts into, which this API
- * does not have: nodes receive upstream <em>outputs</em>, and there is nowhere for a
- * frame buffer to live.</p>
+ * <h2>Decode once</h2>
+ *
+ * <p>Dispatching a segment is not by itself a decode-once saving: the media handle is
+ * resolved once, but {@link LoomMedia} is a lightweight file reference rather than a
+ * decoded artifact, so a node that needs frames still reads the file itself. A benchmark
+ * over 155 MiB of real video measured segment dispatch at 1.01× per-node dispatch —
+ * within noise, because the round trips it saves were never the expensive part.</p>
+ *
+ * <p>What makes decode-once possible is the {@link ArtifactCache} this opens for the
+ * segment. Node outputs travel — they are serialised back to Loom — and are therefore
+ * the wrong home for a frame buffer; the artifact scope stays here and is the right one.
+ * A node publishes into it, a later node in the same segment reads from it, and the
+ * whole thing is closed when the segment ends. The saving is real only for the nodes
+ * that opt in: the mechanism is here, adopting it is per node.</p>
+ *
+ * <p>One scope per {@code run()}, so item B never sees item A's artifacts, and a retry
+ * after a lease expiry starts from nothing rather than inheriting whatever the failed
+ * attempt had built. Each node runs inside its own publication window, so an artifact
+ * published by a node that then fails is discarded instead of being served — half-built
+ * to the eye of the type system is indistinguishable from finished.</p>
  *
  * <h2>Local semantics must match the engine's</h2>
  *
@@ -53,11 +67,23 @@ public class SegmentTaskRunner {
 
 	private final NodeTaskRunner.NodeInstantiator instantiator;
 	private final NodeTaskRunner.MediaResolver mediaResolver;
+	private final long maxArtifactBytes;
 
 	public SegmentTaskRunner(NodeTaskRunner.NodeInstantiator instantiator,
 		NodeTaskRunner.MediaResolver mediaResolver) {
+		this(instantiator, mediaResolver, ScopedArtifactCache.DEFAULT_MAX_BYTES);
+	}
+
+	/**
+	 * @param maxArtifactBytes
+	 *            the ceiling for one segment's artifact scope. Bounds a single segment; the
+	 *            across-a-long-run bound is the scope's lifetime, not this number.
+	 */
+	public SegmentTaskRunner(NodeTaskRunner.NodeInstantiator instantiator,
+		NodeTaskRunner.MediaResolver mediaResolver, long maxArtifactBytes) {
 		this.instantiator = instantiator;
 		this.mediaResolver = mediaResolver;
+		this.maxArtifactBytes = maxArtifactBytes;
 	}
 
 	/**
@@ -86,20 +112,25 @@ public class SegmentTaskRunner {
 		Map<String, NodeState> states = new LinkedHashMap<>();
 		List<NodeTaskResult> wireResults = new ArrayList<>();
 
-		for (SegmentNode node : task.getNodes()) {
-			String skipReason = blockedBy(node, states);
-			if (skipReason != null) {
-				NodeTaskResult skipped = NodeTaskResult.skipped(node.getNodeId(), skipReason);
-				wireResults.add(skipped);
-				states.put(node.getNodeId(), NodeState.SKIPPED);
-				continue;
-			}
+		// One scope per run, closed on the way out however the segment ends. That is what
+		// makes "item B cannot see item A's artifact" structural rather than a rule someone
+		// has to remember, and what releases native-backed artifacts deterministically.
+		try (ScopedArtifactCache artifacts = new ScopedArtifactCache(task.getItemId(), maxArtifactBytes)) {
+			for (SegmentNode node : task.getNodes()) {
+				String skipReason = blockedBy(node, states);
+				if (skipReason != null) {
+					NodeTaskResult skipped = NodeTaskResult.skipped(node.getNodeId(), skipReason);
+					wireResults.add(skipped);
+					states.put(node.getNodeId(), NodeState.SKIPPED);
+					continue;
+				}
 
-			NodeTaskResult result = runOne(task, node, media, available);
-			wireResults.add(result);
-			states.put(node.getNodeId(), result.getState());
-			// A node's outputs become the next node's inputs, matched by port id.
-			available.putAll(result.getOutputs());
+				NodeTaskResult result = runOne(task, node, media, available, artifacts);
+				wireResults.add(result);
+				states.put(node.getNodeId(), result.getState());
+				// A node's outputs become the next node's inputs, matched by port id.
+				available.putAll(result.getOutputs());
+			}
 		}
 
 		return new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(), task.getSegmentId(),
@@ -123,17 +154,24 @@ public class SegmentTaskRunner {
 	}
 
 	private NodeTaskResult runOne(SegmentTask task, SegmentNode node, LoomMedia media,
-		Map<String, PortPayload> available) {
+		Map<String, PortPayload> available, ArtifactCache artifacts) {
 		long start = System.currentTimeMillis();
-		try {
+		// Everything this node publishes is provisional until it succeeds. Closing the
+		// window without committing takes it back out - see ArtifactCache on why the
+		// conservative direction is the right one here.
+		try (ArtifactCache.Publication publication = artifacts.beginPublication()) {
 			PipelineNode instance = instantiator.create(toNodeDefinition(node));
-			NodeResult result = instance.process(media, NodeResultMapper.toInputs(task, available));
+			NodeResult result = instance.process(media, NodeResultMapper.toInputs(task, available, artifacts));
 			if (result == null) {
 				return NodeTaskResult.failed(task.getTaskUuid(), node.getNodeId(),
 					System.currentTimeMillis() - start,
 					"Node '" + node.getNodeKind() + "' returned no result");
 			}
-			return NodeResultMapper.toWire(task, result);
+			NodeTaskResult wire = NodeResultMapper.toWire(task, result);
+			if (wire.getState() != NodeState.FAILED) {
+				publication.commit();
+			}
+			return wire;
 		} catch (Exception e) {
 			// One bad node must not abandon the rest of the segment: the nodes after it
 			// may not depend on it, and the engine needs an answer for every one.

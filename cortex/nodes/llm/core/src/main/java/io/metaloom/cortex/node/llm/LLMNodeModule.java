@@ -6,14 +6,13 @@ import dagger.Provides;
 import dagger.multibindings.IntoMap;
 import dagger.multibindings.IntoSet;
 import dagger.multibindings.StringKey;
-import io.metaloom.ai.genai.llm.LLMProvider;
-import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractNodeModule;
 import io.metaloom.cortex.common.option.CortexNodeOptionDeserializerInfo;
+import io.metaloom.cortex.llm.LLMProviderModule;
 
-@Module
+@Module(includes = LLMProviderModule.class)
 public abstract class LLMNodeModule extends AbstractNodeModule {
 
 	private static final String KEY = "llm";
@@ -26,11 +25,6 @@ public abstract class LLMNodeModule extends AbstractNodeModule {
 	@IntoMap
 	@StringKey("llm")
 	abstract FilesystemNode<?, ?> kindLlm(LLMNode node);
-
-	@Provides
-	public static LLMProvider llmProvider() {
-		return new OllamaLLMProvider();
-	}
 
 	@IntoSet
 	@Provides

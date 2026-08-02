@@ -12,6 +12,7 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultOrigin;
+import io.metaloom.cortex.api.node.artifact.ArtifactCache;
 import io.metaloom.cortex.api.node.context.impl.NodeContextImpl;
 import io.metaloom.loom.pipeline.model.Origin;
 
@@ -107,6 +108,29 @@ public interface NodeContext<I> {
 	 * </p>
 	 */
 	boolean isWired(InputPort<?> port);
+
+	/**
+	 * The artifact scope shared by every node of this segment execution.
+	 *
+	 * <p>
+	 * Where a node parks something expensive that the next node needs and that has no business being an output port — decoded frames, an extracted
+	 * audio track, a parsed document. Never null: outside a managed execution it is {@link ArtifactCache#noop()}, so a node that uses it works
+	 * standalone and simply pays the cost each time.
+	 * </p>
+	 *
+	 * <pre>
+	 * List&lt;Frame&gt; frames = ctx.artifacts().get(KEYFRAMES, () -&gt; {
+	 *     List&lt;Frame&gt; decoded = decode(ctx.media(), 2.0);
+	 *     return Artifact.of(decoded, decoded.size() * bytesPerFrame);
+	 * });
+	 * </pre>
+	 *
+	 * <p>
+	 * Read {@link ArtifactCache} before publishing into it — the artifact must be treated as immutable, must not be retained past this
+	 * {@code process()} call, and must be weighed honestly.
+	 * </p>
+	 */
+	ArtifactCache artifacts();
 
 	/**
 	 * Whether anything downstream asked for this output port.

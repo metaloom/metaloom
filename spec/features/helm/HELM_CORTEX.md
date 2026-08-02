@@ -42,6 +42,7 @@ graph LR
 | `templates/service.yaml` | Service (headless) | Gated `service.enabled`; `clusterIP: None`; fronts monitoring `8093` for health/metrics scraping only |
 | `templates/secret.yaml` | Secret | `<fullname>-token` (key `token`), only if `loom.token` set and no `existingSecret` |
 | `templates/s3-secret.yaml` | Secret | `<fullname>-s3` (`accessKey`, `secretKey`, `webhookSecret`); only when `s3.enabled` **and** something to store **and** no `s3.existingSecret` |
+| `templates/cloud-secret.yaml` | Secret | `<fullname>-gdrive` (`serviceAccountJson`, `clientSecret`, `refreshToken`) and `<fullname>-onedrive` (`clientSecret`, `refreshToken`); each rendered per provider under the same three conditions |
 | `templates/configmap.yaml` | ConfigMap | Only when `.Values.config` set → mounted `/config/cortex.yml` (subPath). 🔴 **Inert — see gotchas** |
 | `templates/serviceaccount.yaml` | ServiceAccount | Gated `serviceAccount.create` |
 | `templates/poddisruptionbudget.yaml` | PodDisruptionBudget | Gated `podDisruptionBudget.enabled` |
@@ -99,6 +100,8 @@ side. A name absent from `EnvDefaultProvider.OPTION_ENV_MAP` is read by nobody i
 | `CORTEX_NODE_BLACKLIST` | `nodeBlacklist` | unset | `--node-blacklist` (wins over the whitelist) |
 | `CORTEX_S3_ENDPOINT` / `_REGION` / `_PATH_STYLE` | `s3.endpoint` / `.region` / `.pathStyleAccess` | — / `us-east-1` / `true` | `--s3-endpoint` / `--s3-region` / `--s3-path-style` |
 | `CORTEX_S3_ACCESS_KEY` / `_SECRET_KEY` | s3 Secret | unset → AWS default credential chain (IRSA) | `--s3-access-key` / `--s3-secret-key` |
+| `CORTEX_GDRIVE_SERVICE_ACCOUNT_JSON` | gdrive Secret | unset → the `gdrive-source` kind is not advertised | `--gdrive-service-account-json` |
+| `CORTEX_ONEDRIVE_CLIENT_SECRET` / `_TENANT_ID` / `_CLIENT_ID` | onedrive Secret / values | unset → the `onedrive-source` kind is not advertised | `--onedrive-*` |
 | `CORTEX_S3_CACHE_PATH` / `_MAX_CACHE_BYTES` / `_RECONCILE_INTERVAL_MS` | `s3.*` | `<meta.path>/s3_bin` / 50Gi / 6h | matching `--s3-*` options |
 | `CORTEX_S3_EVENTS_ENABLED` / `_MODE` / `_QUEUE_URL` / `_WEBHOOK_SECRET` | `s3.events.*` | off / `WEBHOOK` | matching `--s3-events-*` options |
 
@@ -115,6 +118,7 @@ Everything under `s3.*` is rendered only inside `if .Values.s3.enabled`.
 | `meta.path` / `meta.persistence.*` | `/meta` / **disabled**, RWO, 2Gi | 🔴 When persistence is off the mount is omitted entirely — `/meta` is container-local and lost per restart (a worker rebuilds it) |
 | `media.{enabled,mountPath,existingClaim,hostPath,nfs,readOnly}` | off, `/media`, …, `true` | Provide exactly one volume source |
 | `s3.*` | disabled | Belongs on **every** worker touching `s3://` media, not just the source-node worker |
+| `gdrive.*` / `onedrive.*` | disabled | Same rule for `gdrive://` and `onedrive://` media. Each provider gates its own node kind independently, so a worker may serve one cloud and not the other |
 | `monitoring.port` / `service.{enabled,type,port}` | `8093` / on, `ClusterIP`, `8093` | Service is headless regardless of `type` |
 | `livenessProbe` / `readinessProbe` | on, `httpGet`, `/api/health` / `/api/ready` | Ready = connected **and** registered with Loom |
 | `resources.requests` | `250m` / `512Mi` | GPU via `resources.limits["nvidia.com/gpu"]` |
@@ -145,6 +149,7 @@ Everything under `s3.*` is rendered only inside `if .Values.s3.enabled`.
 | **Direction** | Cortex dials **out** to Loom; Loom never connects in. The Service is headless and exists only for health/metrics scraping — it is not a load-balancing target. |
 | **Media by path** | Loom hands the worker a *path*, not bytes. Source/hash/whisper-style nodes need the same media mounted (`media.enabled` with `existingClaim`/`hostPath`/`nfs`) — **unless** the media is `s3://`, in which case `s3.enabled` removes the shared-volume requirement entirely (objects are fetched lazily by whichever worker runs the task). |
 | **S3 is per-worker, not per-node** | ⚠️ Any worker that may execute a task against `s3://` media needs the `s3.*` block — not only the one running the `s3-source` node. |
+| **Cloud drives are per-worker too, and per provider** | ⚠️ The same applies to `gdrive.*` / `onedrive.*`. Note that OneDrive app-only credentials have no `/me`, so `onedrive.defaultDriveId` (or a `driveId` on every node) is effectively required. |
 | **Token-less mode** | Without `loom.token`/`existingSecret` the worker still registers and answers tasks but skips result persistence — the same graceful degradation as an offline worker. |
 | **Probes vs image** | Default probes assume the stock monitoring server (`/api/health`, `/api/ready` on 8093). A minimal custom image without them must disable or retype the probes, or the pod never becomes Ready. Probes always target the `monitoring` port — an image serving health elsewhere needs `type: exec`. |
 | **`meta` volume is conditional** | ⚠️ The `/meta` mount and its `volumeClaimTemplate` are both gated on `meta.persistence.enabled`. `CORTEX_META_PATH` is set either way, so with persistence off the worker writes to the pod filesystem (including the S3 cache, which defaults under it). |

@@ -94,7 +94,7 @@ graph TB
     ENG -->|processor WebSocket<br/>SOURCE_TASK / NODE_TASK / SEGMENT_TASK| CX
     subgraph CX["Cortex worker(s)"]
         RT["cortex/node-runtime<br/>NodeTaskRunner"]
-        ND["cortex/nodes/* (26 modules)<br/>hash, facedetect, whisper, ocr, depthmap, …"]
+        ND["cortex/nodes/* (29 modules)<br/>hash, facedetect, whisper, ocr, depthmap, filter, …"]
         RT --- ND
     end
     ND -->|HTTP| SC["sidecars/* (Python model servers)"]
@@ -119,7 +119,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-80 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+96 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -187,6 +187,8 @@ spec/
 │   │   ├── NODE_DOMINANT_COLOR_PLAN.md# 🟢 BUILT (CIELAB k-means, EN/DE naming)
 │   │   ├── NODE_IMAGEGEN_PLAN.md      # 🟢 BUILT — authoritative over plans/imagegen-node.md
 │   │   ├── NODE_S3SINK_PLAN.md        # 🟢 BUILT (phase 1) — kind s3-sink
+│   │   ├── NODE_CLOUDSOURCE_PLAN.md   # 🟢 BUILT — kinds gdrive-source + onedrive-source and the
+│   │   │                              #   shared cortex/cloud-common module (Drive v3 + MS Graph)
 │   │   ├── NODE_S3SOURCE_PLAN.md      # 🟢 BUILT — kind s3-source + the shared cortex/s3-common module
 │   │   ├── NODE_SCENE_LAYOUT_PLAN.md  # 🟡 BUILT (12 spatial-relation predicates); objectdetect is
 │   │   │                              #   still faces-only
@@ -244,6 +246,8 @@ spec/
 │       ├── CHAT.md                    # Chat / Loom Agent: agentic loop, streaming, skills
 │       │                              #   (~80% server-side — move candidate, §7)
 │       ├── LOOM_UI.md                 # Loom UI specification
+│       ├── LOOM_UI_UPLOAD.md          # 🟢 Upload screen: background queue, multi-file drag & drop,
+│       │                              #   progress/cancel/retry, library → pool targeting
 │       ├── PIPELINE_EDITOR.md         # Product pipeline editor: React Flow canvas, CRUD, validation
 │       ├── TASK_UI_AI_ML.md           # UI gap tasks: embeddings, clusters, detections, persons
 │       ├── TASK_UI_ASSETS_MEDIA.md    # UI gap tasks: assets, locations, pools, attachments
@@ -288,6 +292,7 @@ spec/
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
 | Chat / AI agent / skills / memory | [loom/ui/CHAT.md](loom/ui/CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [features/chat/CHAT_TASKS.md](features/chat/CHAT_TASKS.md) |
 | The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |
+| **Uploading media from the UI** (background queue, progress, which pool receives the bytes) | [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) — **shipped**; the endpoint contract itself is in [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
@@ -296,6 +301,7 @@ spec/
 | Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) — **built**, off by default |
 | Deduplication (discover, review, apply) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md) — nodes + REST built, review UI is a mock |
 | S3 as a source or sink | [NODE_S3SOURCE_PLAN.md](features/pipeline-nodes/NODE_S3SOURCE_PLAN.md), [NODE_S3SINK_PLAN.md](features/pipeline-nodes/NODE_S3SINK_PLAN.md) — also the only home of the `cortex/s3-common` design |
+| Google Drive / OneDrive / SharePoint as a source | [NODE_CLOUDSOURCE_PLAN.md](features/pipeline-nodes/NODE_CLOUDSOURCE_PLAN.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3 |
 | Running more than one Loom instance / per-process state | [CLUSTERING.md](CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`) |
 | Helm deployment | [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
@@ -350,7 +356,7 @@ where to go and what to run.
 | **Loom** (`loom/`) | [loom/LOOM.md](loom/LOOM.md) — architecture, module layout, lifecycle, Dagger DI | Pipeline execution is in [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md); authorization in [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) — **not** in the component files |
 | **Cortex** (`cortex/`) | [cortex/CORTEX.md](cortex/CORTEX.md) — module map, startup, CLI, online/offline | Online when `LOOM_HOST`+`LOOM_PORT` are set (registers over the processor WS); offline is CLI-driven via `cortex process run` |
 | **CLI** (`cli/`) | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) | Replaced the dead `loom/cli` stub. ⚠️ `./build.sh` does **not** invoke `cli/build-native.sh` — build the native image yourself |
-| **loom-ui** (`loom-ui/`) | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + `TASK_UI_*.md` | Component tests are Playwright **mocked** e2e specs; pure logic uses node-env vitest. No RTL/jsdom |
+| **loom-ui** (`loom-ui/`) | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) + `TASK_UI_*.md` | Component tests are Playwright **mocked** e2e specs; pure logic uses node-env vitest. No RTL/jsdom. ⚠️ `npx` stalls in the sandbox — use `./node_modules/.bin/{vitest,playwright}` |
 | **website** (`website/`) | [website/WEBSITE.md](website/WEBSITE.md) | 🔴 New customer-facing features **must** get a page under `website/content/english/docs` |
 | **integration-test/** | `AbstractIntegrationTest` + per-node Cortex E2E tests | Runs against the **packaged** shaded `cortex/cli` JAR and image — rebuild both after a Cortex change |
 | **e2e-test/** | `E2ETest` against a packaged container deployment | `mvn test -Dloom.external=true -pl e2e-test` targets an already-running container |
@@ -358,8 +364,8 @@ where to go and what to run.
 
 **Cortex module set** (`cortex/`): `api`, `common`, `core`, `core-media` (value types
 `WhisperResult`/`Scene` + AssertJ helpers only), `cli`, `container`, `fs` (empty shell — the scanner
-is the external `io.metaloom.fs` artifact), `node-runtime`, `nodes/` (**26 modules**), `pipeline-api`,
-`pipeline-common`, `pipeline-core`, `processor`, `s3-common`.
+is the external `io.metaloom.fs` artifact), `llm-common`, `node-runtime`, `nodes/` (**29 modules**), `pipeline-api`,
+`pipeline-common`, `pipeline-core`, `processor`, `s3-common`, `cloud-common`.
 
 ### 3.1 Key classes reference
 
@@ -376,7 +382,7 @@ is the external `io.metaloom.fs` artifact), `node-runtime`, `nodes/` (**26 modul
 | `PipelineSegmenter` | `io.metaloom.loom.pipeline.graph` | Groups nodes into affinity segments |
 | `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` | Lexical search over `search_document` (tsvector + pg_trgm) |
 | `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` | Fingerprint HNSW index behind the `SimilarityIndex` SPI |
-| `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **26 providers, 41 kinds**, ServiceLoader-discovered |
+| `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **27 providers, 37 kinds**, ServiceLoader-discovered |
 | `MemoryService` | `io.metaloom.loom.agent.memory` | Scoped markdown memory bank for the chat agent |
 | `CortexImpl` | `io.metaloom.cortex.impl` | Cortex lifecycle; **registers a shutdown hook** that drains in-flight work |
 | `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom: registration, heartbeat, tasks, reconnect |
@@ -492,6 +498,9 @@ Full list: [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md). CLI flags map to 
 | `CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST` | — | Enable/disable node kinds on this worker |
 | `CORTEX_DRAIN_TIMEOUT_MS` | `30000` | Shutdown-hook budget for flushing and draining in-flight work |
 | `CORTEX_S3_ENDPOINT` / `_REGION` / `_ACCESS_KEY` / `_SECRET_KEY` / `_PATH_STYLE` | — | S3 connection; without these the `s3-source` kind is not advertised |
+| `CORTEX_GDRIVE_SERVICE_ACCOUNT_JSON` / `_FILE` / `_IMPERSONATE_SUBJECT` | — | Google Drive credentials (the production mode); without them `gdrive-source` is not advertised. 18 `CORTEX_GDRIVE_*` mappings in total |
+| `CORTEX_ONEDRIVE_TENANT_ID` / `_CLIENT_ID` / `_CLIENT_SECRET` / `_DEFAULT_DRIVE_ID` | `common` (tenant) | OneDrive / SharePoint app-only credentials; without them `onedrive-source` is not advertised. App-only has no `/me`, so a drive id is effectively required. 15 `CORTEX_ONEDRIVE_*` mappings in total |
+| `CORTEX_GDRIVE_REFRESH_TOKEN` / `CORTEX_ONEDRIVE_REFRESH_TOKEN` | — | 🔴 Development-only auth: Google's expires after 7 days in "Testing" status, Microsoft's rotates on every use and a stateless worker cannot persist the replacement |
 | `CORTEX_S3_INDEX_PATH` / `_CACHE_PATH` / `_MAX_CACHE_BYTES` / `_MAX_OBJECT_SIZE` | — | Differential-scan index and local object cache |
 | `CORTEX_S3_EVENTS_ENABLED` / `_MODE` / `_QUEUE_URL` / `_WEBHOOK_PATH` / `_WEBHOOK_SECRET` / `_MAX_BUFFERED_KEYS` / `CORTEX_S3_RECONCILE_INTERVAL_MS` | — | Event-driven S3 ingestion (24 `CORTEX_S3_*` mappings in total) |
 
@@ -533,8 +542,10 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | Cortex task runners | `cortex/node-runtime/src/main/java/io/metaloom/cortex/runtime/` |
 | Loom↔Cortex control channel & task handler | `cortex/core/.../impl/loom/` |
 | Node kind registration | the node's own module (`@Binds @IntoMap @StringKey`) + `cortex/cli/.../dagger/RegistryNodeRegistrar.java` |
-| Cortex processing nodes | `cortex/nodes/` (26 modules) |
+| Cortex processing nodes | `cortex/nodes/` (29 modules) |
 | Shared S3 support for nodes | `cortex/s3-common/` (design currently only in `NODE_S3SOURCE_PLAN.md`) |
+| Shared cloud-drive support for nodes | `cortex/cloud-common/` — the provider seam, the hand-rolled Drive/Graph clients, the OAuth token sources and the lazy materializer (design in `NODE_CLOUDSOURCE_PLAN.md`) |
+| Shared LLM support for nodes | `cortex/llm-common/` — the one `LLMProvider` Dagger binding (`LLMProviderModule`), the endpoint options, `LlmInvoker`, `TextChunker`. Used by `llm` and `translate` |
 | Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
 | **Lexical search** | `loom/db/jooq/.../search/PostgresSearchProvider.java`, `loom/core/.../dagger/SearchModule.java`, `loom/services/rest/.../endpoint/impl/SearchEndpoint.java` |
 | Search schema | `V2.57__add_search_permission.sql`, `V2.58__add_search_document.sql`, `V2.59__add_search_triggers.sql` |
@@ -573,8 +584,8 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Every edge carries ports** | `sourcePort` + `targetPort` are **required**; the branch key is `branch` (not `edgeType`). `nodes[].dependencies[]` is **rejected outright** by `PipelineGraphParser` — the old "inline fallback" behaviour is gone |
 | **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Pipeline validation** | *Structural* rules (ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a third copy |
-| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **26 providers declare 41 kinds; 33 kinds are runnable with S3 configured, 32 without** (30 `@StringKey` bindings + `filesystem-source` + `asset-source` + conditional `s3-source`). Visible but not runnable: `facedescription`, `loom-fetch` and the eight `filter-*` kinds. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
-| **🔴 No `filter-*` kind is runnable** | The eight filter classes have no `@StringKey` binding, so the 503 precheck (which consults the worker registry) does not reject a filter graph up front — the run dispatches and then **fails at the worker**. Wire the binding before advertising filters |
+| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **27 providers declare 37 kinds; 35 kinds are runnable with S3 and both clouds configured, 32 with none** (31 `@StringKey` bindings + `filesystem-source` + `asset-source` + the conditional `s3-source`, `gdrive-source` and `onedrive-source`). Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
+| **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). 🔴 MIME/size/date bucketing is not reimplemented on the strategy seam yet |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
 | **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/pipeline-nodes/NODES.md) §5.1 |
@@ -599,7 +610,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 
 ### This file
 
-- [x] All 80 files under `spec/` catalogued and matched against `find spec -name "*.md"` (§2)
+- [x] All 95 files under `spec/` catalogued and matched against `find spec -name "*.md"` (§2)
 - [x] Non-existent entries removed (`AGENTS.md`, root `TASKS.md`, `tasks/TASKS.md`)
 - [x] Missing entries added: `METALOOM_NOTES.md`, `plans/`, `guidelines/NEW_NODE.md`,
       `PIPELINE_FLOW.md`, the S3/watermark node plans
@@ -614,12 +625,14 @@ and subcomponents for request scope (`RestComponent` per REST request).
       `CORTEX_DRAIN_TIMEOUT_MS`, `CORTEX_S3_*`; `LOOM_CONF_FILENAME` marked dead
 - [x] Gotchas corrected: shutdown hook exists, backoff is linear, `dependencies[]` is rejected,
       `NodeState` vocabularies are unified, unknown kind → `null`
-- [x] Counts re-derived from source: 26 providers / 41 kinds; 33 runnable kinds (32 without S3)
+- [x] Counts re-derived from source: 26 providers / 34 kinds; 34 runnable kinds (33 without S3)
 
 ### Open items in the tree
 
-- [ ] 🔴 No `filter-*` kind is runnable — either wire the eight `@StringKey` bindings or drop the
-      filter descriptors so the palette stops advertising them
+- [x] 🔴 No `filter-*` kind is runnable — **resolved**: consolidated into one runnable `filter` kind
+      with dynamic per-bucket output ports and port-based routing
+- [ ] MIME / size / date bucketing regressed with that consolidation — the `FilterStrategy` seam is
+      there, only `LANGUAGE` is implemented
 - [ ] 🔴 Helm: the unread `LOOM_AUTH_KEYSTORE_PATH` (the `LOOM_DB_USER` mismatch was fixed 2026-08-02)
 - [ ] 🔴 Loom has no JVM shutdown hook — SIGTERM skips `deinit()`
 - [ ] `cortex/CONFIGURATION.md` documents a YAML precedence chain that does not work
@@ -653,8 +666,9 @@ and subcomponents for request scope (`RestComponent` per REST request).
       stays as the UI document
 - [ ] Rename now-shipped plans: `CHAT_MEMORY_PLAN.md` → `CHAT_MEMORY.md`, `CLI_PLAN.md` → `CLI.md`,
       `NODE_DOMINANT_COLOR_PLAN.md` → `NODE_DOMINANT_COLOR.md`
-- [ ] `cortex/s3-common` and `cortex/node-runtime` have **no spec owner** — the S3 design lives only
-      inside `NODE_S3SOURCE_PLAN.md`. Both are candidates for their own file
+- [ ] `cortex/s3-common`, `cortex/llm-common` and `cortex/node-runtime` have **no spec owner** — the
+      S3 design lives only inside `NODE_S3SOURCE_PLAN.md`, and `llm-common` only in the `NODES.md`
+      reference tables. All three are candidates for their own file
 
 ---
 
@@ -668,5 +682,5 @@ wins** — and fix the spec in the same change.
 
 ---
 
-_Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-02 (registered 12 new specs: six sidecars + SIDECARS.md, five loom/services stubs, loom-app; Helm `LOOM_DB_USER` gotcha removed — fixed)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (registered loom/ui/LOOM_UI_UPLOAD.md — dedicated upload screen and background upload queue; corrected the stale file count 80 → 95, verified against `find spec -name "*.md"`)_

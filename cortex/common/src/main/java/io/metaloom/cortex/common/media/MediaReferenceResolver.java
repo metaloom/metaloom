@@ -38,6 +38,20 @@ public class MediaReferenceResolver {
 	 * @return the media handle
 	 */
 	public LoomMedia resolve(String reference) {
+		return resolveLocal(reference);
+	}
+
+	/**
+	 * The behaviour that existed before remote media: a reference is an absolute path.
+	 *
+	 * <p>Deliberately final and separate from {@link #resolve(String)}. {@link SchemeMediaReferenceResolver}
+	 * overrides {@code resolve} to dispatch by scheme and needs a way to reach the local branch
+	 * without re-entering its own override.</p>
+	 *
+	 * @param reference an absolute path
+	 * @return the media handle
+	 */
+	protected final LoomMedia resolveLocal(String reference) {
 		return mediaLoader.load(Paths.get(reference));
 	}
 

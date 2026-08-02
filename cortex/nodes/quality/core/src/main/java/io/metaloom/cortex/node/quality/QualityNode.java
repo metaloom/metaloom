@@ -7,7 +7,6 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 
 import javax.annotation.Nullable;
-import javax.imageio.ImageIO;
 import javax.inject.Inject;
 
 import org.slf4j.Logger;
@@ -24,6 +23,7 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.artifact.MediaArtifacts;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
@@ -142,8 +142,9 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 	}
 
 	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset, Map<String, Object> metrics) throws IOException {
-		LoomMedia media = ctx.media();
-		BufferedImage image = ImageIO.read(media.file());
+		// Shared with every other image node in this segment - dominant-color reads the same
+		// decode rather than opening the file again. Alone, this is still one ImageIO.read.
+		BufferedImage image = MediaArtifacts.decodedImageOrNull(ctx);
 		if (image == null) {
 			return ctx.failure("Could not read image file").next();
 		}

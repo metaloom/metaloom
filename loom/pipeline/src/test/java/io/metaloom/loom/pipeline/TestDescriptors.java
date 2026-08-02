@@ -1,10 +1,12 @@
 package io.metaloom.loom.pipeline;
 
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.CONTROL_FILTER;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.HASH_MD5;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.MEDIA_ANY;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.MEDIA_AUDIO;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.MEDIA_VIDEO;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.SCALAR_INTEGER;
+import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.SCALAR_STRING;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.STRUCT_ANY;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.STRUCT_JSON;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.TEXT_ANY;
@@ -102,6 +104,36 @@ public final class TestDescriptors {
 				PortSpec.one("video", MEDIA_VIDEO).setGroup("media_alt")))
 			.setInputGroups(List.of(PortGroup.xor("media_alt", "Media")))
 			.setOutputPorts(List.of(PortSpec.one("text", TEXT_PLAIN))));
+
+		// Routes one media item down exactly one of its two selective branches. The verdict and label
+		// ports are deliberately NOT selective: a node wired to those runs on every item, whichever
+		// branch the item took, which is what makes "consume the decision rather than the item"
+		// expressible at all.
+		registry.register(new NodeDescriptor().setKind("router").setName("Router")
+			.setCategory(NodeCategory.FILTER)
+			.setInputPorts(List.of(PortSpec.one("media", MEDIA_ANY)))
+			.setOutputPorts(List.of(
+				PortSpec.selectiveOne("a", MEDIA_ANY),
+				PortSpec.selectiveOne("b", MEDIA_ANY),
+				PortSpec.one("verdict", CONTROL_FILTER),
+				PortSpec.one("label", SCALAR_STRING))));
+
+		// Consumes a router's decision rather than the item it routed - the shape that must keep
+		// running whichever branch an item took.
+		registry.register(new NodeDescriptor().setKind("noticer").setName("Noticer")
+			.setCategory(NodeCategory.ANALYSIS)
+			.setInputPorts(List.of(PortSpec.one("label", SCALAR_STRING)))
+			.setOutputPorts(List.of(PortSpec.one("text", TEXT_PLAIN))));
+
+		// The same, one level down the type system: routes a single text, so downstream of a
+		// splitter it classifies per element.
+		registry.register(new NodeDescriptor().setKind("text-router").setName("Text Router")
+			.setCategory(NodeCategory.FILTER)
+			.setInputPorts(List.of(PortSpec.one("text", TEXT_PLAIN)))
+			.setOutputPorts(List.of(
+				PortSpec.selectiveOne("a", TEXT_PLAIN),
+				PortSpec.selectiveOne("b", TEXT_PLAIN),
+				PortSpec.one("verdict", CONTROL_FILTER))));
 
 		registry.register(new NodeDescriptor().setKind("either-optional").setName("Either (optional)")
 			.setCategory(NodeCategory.ANALYSIS)

@@ -1,0 +1,103 @@
+---
+title: Filter
+---
+
+The Filter node is a **router**. Instead of producing metadata, it decides which group each item
+belongs to and sends it down the matching branch, so the work you hang off each branch only runs on
+the items that belong there.
+
+You configure a list of **buckets**, and the node grows **one output port per bucket** — plus an
+`other` port that is always present. Wire the ports you care about; that is the whole configuration.
+
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"filter","applies":"Routing node","badge":"Needs a language model","persist":"the routing decision, as a JSON component on the asset","configs":[{"name":"language routing","note":"buckets: de, en","inputs":[{"t":"media","l":"media","d":"the item being routed"},{"t":"text","l":"text","d":"the text to classify — a transcript, extracted document text or a caption (optional)"}],"outputs":[{"t":"media","l":"de","d":"items classified as German — carries only those items"},{"t":"media","l":"en","d":"items classified as English — carries only those items"},{"t":"media","l":"other","d":"everything else; always present"},{"t":"branch","l":"passed","d":"true when a bucket other than other matched"},{"t":"text","l":"bucket","d":"the id of the bucket this item landed in — carries a value for every item"}]}]}'></div>
+++++
+
+[cols="1,3"]
+|===
+| Kind | `filter`
+| Applies to | — (routing; sits between other nodes)
+| Input ports | `media` — the item being routed. `text` — the text to classify; optional, and without it every item lands in `other`
+| Output ports | One per configured bucket, plus `other`, `passed` and `bucket`
+| Requirements | A reachable language model (Ollama by default)
+| Persists to | The routing decision, as a JSON component on the asset
+|===
+
+== How routing works
+
+The **port is the branch**. Each item is written to exactly one bucket port, and anything wired to a
+port that carried nothing is skipped for that item. Nothing else has to be configured: there is no
+branch setting on the connection, and no limit of two ways.
+
+Skipping carries down the branch. If a node is skipped because its branch did not fire, everything
+downstream of it is skipped for that item too — you do not have to repeat the condition at each step.
+
+Two ports behave differently on purpose:
+
+`passed`:: `true` when the item matched a bucket other than `other`. Useful when you want the plain
+yes/no rather than the group.
+
+`bucket`:: The id of the bucket the item landed in. This port carries a value for **every** item, so
+a node wired to it runs whichever way the item went — that is how you record or count the decision
+without also being routed by it.
+
+In the editor a branch port is drawn with a **dashed** outline, so you can see at a glance which
+connections carry every item and which carry only some.
+
+== Configuring buckets
+
+Each bucket has:
+
+[options="header",cols="1,3"]
+|===
+| Field | Meaning
+| Id | Becomes the output port. Lowercase letters, digits and underscore; typing "Brazilian Portuguese" turns into `brazilian_portuguese` for you
+| Label | The name shown on the node. Defaults to the id
+| Aliases | Other names that mean the same bucket, comma separated — e.g. `german, deutsch`
+|===
+
+Use the **Add bucket** button to grow a branch, and the delete icon to remove one. The node's ports
+follow immediately, and removing a bucket also removes any connections that were hanging off it.
+
+`other` cannot be used as a bucket id — it is the catch-all and is always there. Neither can
+`passed`, `bucket`, `media` or `text`.
+
+== Filtering by
+
+The **Filter by** setting chooses what the buckets are matched against.
+
+[options="header",cols="1,3"]
+|===
+| Filter by | Each item goes to the bucket whose…
+| Language | …language matches the text wired into the node
+|===
+
+Language is decided by a language model, which means it needs a reachable Ollama endpoint but no
+extra model download and no separate service. Wire the `text` port from whatever produced the text:
+a transcript from link:../whisper/[Whisper], extracted document text from link:../tika/[Tika], or
+recognised text from link:../ocr/[OCR].
+
+If the model is unreachable the item **fails** rather than being quietly routed to `other` — an item
+that could not be classified is not the same as one that did not match. An answer the model gives
+that names no configured bucket does land in `other`, which is what that branch is for.
+
+Set a **Minimum confidence** to send uncertain classifications to `other` instead of trusting them.
+
+== Use Cases
+
+* **Language routing** — send German transcripts to one summarisation prompt and English ones to
+  another, and everything else to a review branch.
+* **Per-language publishing** — tag, translate or caption each language differently without building
+  a separate pipeline for each.
+* **Catching the unexpected** — wire `other` to a review step and see what your library actually
+  contains.
+* **Recording the decision** — wire `bucket` into link:../script/[Script] to count or store which
+  group each item fell into, without changing what else runs.
+
+== Notes
+
+* The node remembers its answer per item for the lifetime of the worker, so re-running a pipeline
+  does not pay for the same classification twice. Changing the buckets or the model counts as a
+  different question and is classified afresh.
+* Two Filter nodes can sit in one pipeline — route by language first, then by something else — and
+  they keep their decisions separate.

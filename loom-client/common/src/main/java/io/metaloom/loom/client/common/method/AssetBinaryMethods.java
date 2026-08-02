@@ -60,6 +60,22 @@ public interface AssetBinaryMethods {
 	LoomClientRequest<AssetResponse> uploadAsset(File file, UUID libraryUuid, String mimeType);
 
 	/**
+	 * Create an asset from a local file, storing the bytes in an explicitly named pool rather than the one the library configures.
+	 *
+	 * @param file
+	 *            the file to upload
+	 * @param libraryUuid
+	 *            target library; the created binary is recorded against it
+	 * @param poolUuid
+	 *            storage pool to write into, overriding {@code library.poolUuid}. Null falls back to the library's pool. A non-null value additionally
+	 *            requires the {@code READ_ASSET_POOL} permission
+	 * @param mimeType
+	 *            content type of the file, or null for {@code application/octet-stream}
+	 * @return the request, yielding the created asset
+	 */
+	LoomClientRequest<AssetResponse> uploadAsset(File file, UUID libraryUuid, UUID poolUuid, String mimeType);
+
+	/**
 	 * Upload raw bytes into an existing asset's binary, creating or replacing it.
 	 *
 	 * @param assetUuid

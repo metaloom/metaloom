@@ -3,6 +3,7 @@ package io.metaloom.loom.pipeline.graph;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.HASH_MD5;
 import static io.metaloom.loom.nodes.spec.ContentTypeRegistry.MEDIA_ANY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -317,5 +318,76 @@ public class PortGraphAnalyzerTest {
 
 		// 'count' has no outgoing edge, so the worker may skip computing it.
 		assertEquals(Set.of("texts"), graph.getNode("split").getDemandedOutputs());
+	}
+
+	// ---------------------------------------------------------------- routing stamps
+
+	private static InputBinding bindingOf(PipelineGraph graph, String nodeId, String targetPort) {
+		return graph.getNode(nodeId).getInputBindings().stream()
+			.filter(b -> b.targetPortId().equals(targetPort))
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("no binding on " + nodeId + "." + targetPort));
+	}
+
+	/**
+	 * An edge leaving a selective port is stamped both {@code sourceSelective} — this is where the
+	 * branch is decided, which is what the segmenter keys off — and {@code routed}.
+	 */
+	@Test
+	void testAnEdgeFromASelectivePortIsStampedRouted() {
+		PipelineGraph graph = parse(
+			new JsonArray().add(node("r", "router")).add(node("d", "describe")).add(node("n", "noticer")),
+			new JsonArray()
+				.add(edge("src", "media", "r", "media"))
+				.add(edge("r", "a", "d", "media"))
+				.add(edge("r", "label", "n", "label")));
+
+		InputBinding routed = bindingOf(graph, "d", "media");
+		assertTrue(routed.sourceSelective(), "'a' declares itself selective");
+		assertTrue(routed.routed());
+
+		InputBinding plain = bindingOf(graph, "n", "label");
+		assertFalse(plain.sourceSelective(), "'label' carries a value for every item");
+		assertFalse(plain.routed());
+	}
+
+	/**
+	 * Routing is inherited down the graph, but {@code sourceSelective} is not.
+	 *
+	 * <p>
+	 * The distinction is the whole reason there are two flags. {@code routed} has to reach the
+	 * grandchild, or a branch that did not fire leaves it running with empty inputs. {@code
+	 * sourceSelective} must <em>not</em>, or the segmenter would refuse to batch anything below a
+	 * router — a pure performance loss, since a closed branch already stops the whole subtree.
+	 * </p>
+	 */
+	@Test
+	void testRoutingIsInheritedButSelectivityIsNot() {
+		PipelineGraph graph = parse(
+			new JsonArray().add(node("r", "router")).add(node("d", "describe")).add(node("w", "worker")),
+			new JsonArray()
+				.add(edge("src", "media", "r", "media"))
+				.add(edge("r", "a", "d", "media"))
+				.add(edge("d", "text", "w", "text")));
+
+		InputBinding grandchild = bindingOf(graph, "w", "text");
+		assertTrue(grandchild.routed(), "'w' sits below a branch, so it must skip when that branch closes");
+		assertFalse(grandchild.sourceSelective(), "'describe.text' decides nothing - it is an ordinary port");
+	}
+
+	/**
+	 * A graph with no selective port anywhere stamps nothing. This is what contains the change: every
+	 * pipeline that existed before routing behaves exactly as it did.
+	 */
+	@Test
+	void testAGraphWithoutSelectivePortsIsNotRouted() {
+		PipelineGraph graph = parse(
+			new JsonArray().add(node("d", "describe")).add(node("w", "worker")),
+			new JsonArray()
+				.add(edge("src", "media", "d", "media"))
+				.add(edge("d", "text", "w", "text")));
+
+		assertFalse(bindingOf(graph, "d", "media").routed());
+		assertFalse(bindingOf(graph, "w", "text").routed());
 	}
 }

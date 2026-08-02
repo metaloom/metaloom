@@ -10,7 +10,10 @@ import dagger.Module;
 import dagger.Provides;
 import io.metaloom.cortex.api.node.FilesystemNode;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.cloud.CloudSupportRegistry;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
+import io.metaloom.cortex.node.source.cloud.GDriveSourceNodeOptions;
+import io.metaloom.cortex.node.source.cloud.OneDriveSourceNodeOptions;
 import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeOptions;
 import io.metaloom.cortex.node.source.s3.S3SourceNodeOptions;
 import io.metaloom.cortex.s3.S3Support;
@@ -54,8 +57,12 @@ public abstract class PipelineNodeFactoryModule {
 		S3SourceNodeOptions s3SourceOptions,
 		S3Support s3Support,
 		S3EventBuffer s3EventBuffer,
+		CloudSupportRegistry cloudSupport,
+		GDriveSourceNodeOptions gdriveSourceOptions,
+		OneDriveSourceNodeOptions onedriveSourceOptions,
 		CortexOptions cortexOptions) {
 		return new RegistryNodeRegistrar(factory, nodeKinds, mediaLoader, fsSourceOptions,
-			s3SourceOptions, s3Support, s3EventBuffer, cortexOptions);
+			s3SourceOptions, s3Support, s3EventBuffer, cloudSupport, gdriveSourceOptions,
+			onedriveSourceOptions, cortexOptions);
 	}
 }

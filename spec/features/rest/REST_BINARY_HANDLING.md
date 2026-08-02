@@ -41,7 +41,7 @@ Base path `/api/v1`. Every route sits behind `secure(basePath() + "*")` — JWT 
 
 | Method | Path | Body in | Body out | Permission | Handler |
 |---|---|---|---|---|---|
-| POST | `/assets/upload` | `multipart/form-data`: one file part + `libraryUuid` (required) + `origin` (optional, default `upload`) | `AssetResponse`; **201** new content, **200** when the SHA-512 already exists | `CREATE_ASSET` | `AssetUploadEndpointService.upload` |
+| POST | `/assets/upload` | `multipart/form-data`: one file part + `libraryUuid` (required) + `origin` (optional, default `upload`) + `poolUuid` (optional, see below) | `AssetResponse`; **201** new content, **200** when the SHA-512 already exists | `CREATE_ASSET`, plus `READ_ASSET_POOL` when `poolUuid` is given | `AssetUploadEndpointService.upload` |
 | POST | `/assets/:uuid/binary/data` | `multipart/form-data`: one file part + `libraryUuid` (conditional, see below) | `AssetBinaryResponse`, **201** | `CREATE_ASSET_BINARY` | `AssetUploadEndpointService.uploadForAsset` |
 | GET | `/assets/:uuid/binary/data` | optional `Range: bytes=` | raw bytes, **200**/**206**/**416**; `Content-Type` from `asset_location.mime_type`, `Content-Disposition: attachment`, `Accept-Ranges: bytes` | `READ_ASSET_BINARY` | `AssetBinaryEndpointService.downloadByAssetUuid` |
 | POST | `/attachments` | `multipart/form-data`: one file part + optional `assetUuid`, `embeddingUuid`, `type`, `poolUuid` | `AttachmentResponse` | `CREATE_ATTACHMENT` | `AttachmentEndpointService.create` |
@@ -51,6 +51,14 @@ Base path `/api/v1`. Every route sits behind `secure(basePath() + "*")` — JWT 
 - `libraryUuid` on `/binary/data` is required when the asset has **no** binary yet, and when it has
   **more than one** (400 rather than silently replacing the wrong library's copy). Optional when the
   asset has exactly one. On `/assets/upload` it is always required.
+- `poolUuid` on `/assets/upload` **overrides** the pool the library resolves to, for that one upload.
+  Absent or blank means "let the library decide" — so a form that always emits the field still works.
+  Because choosing a storage backend is an operator action rather than a content action, a non-null
+  value additionally requires `READ_ASSET_POOL`; the required permission set is therefore computed
+  from the form body *before* the permission check runs. An unknown pool is a **404** (never a silent
+  fall-back to local disk) and a malformed uuid is a **400** naming the field. The UI side of this —
+  including why the pool selector is only rendered for callers who can read `/pools` — is in
+  [../../loom/ui/LOOM_UI_UPLOAD.md](../../loom/ui/LOOM_UI_UPLOAD.md).
 - `POST /attachments` with no `type` form field defaults to `AttachmentType.EMBEDDING_ATTACHMENT`
   (historic behaviour, kept so pre-existing callers are unaffected).
 
@@ -443,7 +451,7 @@ group+role, never a direct user grant ([../permissions/PERMISSIONS.md](../permis
 | `DaoAssetSink` | `io.metaloom.loom.rest.service.impl` | Persists node outputs — hashes only; `warnAboutUnmapped` logs the rest |
 | `StorageOptions` | `io.metaloom.loom.api.options` (`loom-shared/api`) | `uploadDirectory` (default `data/storage`), `maxUploadSize`, `minFreeSpace`; `overrideWithEnv` applies the `LOOM_BINARY_DIR` alias first |
 | `S3Options` | `io.metaloom.loom.api.options` | `LOOM_S3_*` endpoint/region/keys/path-style |
-| `AssetBinaryMethods` | `io.metaloom.loom.client.common.method` | JSON CRUD **plus** `uploadAsset(File, libraryUuid, mimeType)`, `uploadAssetBinary(assetUuid, File, libraryUuid, mimeType)`, `downloadAssetBinary(assetUuid)` |
+| `AssetBinaryMethods` | `io.metaloom.loom.client.common.method` | JSON CRUD **plus** `uploadAsset(File, libraryUuid, mimeType)`, `uploadAsset(File, libraryUuid, poolUuid, mimeType)`, `uploadAssetBinary(assetUuid, File, libraryUuid, mimeType)`, `downloadAssetBinary(assetUuid)` |
 | `AttachmentMethods` | `io.metaloom.loom.client.common.method` | `uploadAttachment(filename, mimeType, InputStream)`, `uploadAttachment(File, mimeType, assetUuid, type)`, `downloadAttachment` |
 | `LoomBinaryResponse` | `io.metaloom.loom.client.common` | Client-side streaming response (`InputStream` / `Flowable<byte[]>`); used by `downloadAssetBinary` and `downloadAttachment` |
 | `ThumbnailNode` | `io.metaloom.cortex.node.thumbnail` | Reference for the local-artefact pattern (G2) |
@@ -548,6 +556,8 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 ### Implemented
 
 - [x] `POST /api/v1/assets/upload` — multipart create-asset-from-bytes; 201 new, 200 for known content
+- [x] Optional `poolUuid` form field on `POST /assets/upload`, guarded by `READ_ASSET_POOL`
+      (404 unknown pool, 400 malformed, blank == absent) — covered by `AssetBinaryDataEndpointTest`
 - [x] `POST /api/v1/assets/:uuid/binary/data` — multipart upload/replace, 201 + `AssetBinaryResponse`
 - [x] `GET /api/v1/assets/:uuid/binary/data` — download with `Range` (206/416), fs `sendFile` fast path
       and S3 streaming path
@@ -592,5 +602,5 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified against code; corrected stale Key Classes entries, the reclaim/model-builder gotchas and the storage-layout copy mechanism, and added G16 for the untested `AssetBinaryDao`)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (documented the optional `poolUuid` form field on `POST /assets/upload` and its `READ_ASSET_POOL` guard; added the Java client overload and a cross-reference to loom/ui/LOOM_UI_UPLOAD.md)_

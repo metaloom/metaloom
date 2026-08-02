@@ -12,11 +12,9 @@ import dagger.Module;
 import dagger.Provides;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.S3ClientOptions;
-import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.media.MediaReferenceResolver;
 import io.metaloom.cortex.s3.AwsS3ObjectStore;
 import io.metaloom.cortex.s3.S3MediaMaterializer;
-import io.metaloom.cortex.s3.S3MediaReferenceResolver;
 import io.metaloom.cortex.s3.S3ObjectStore;
 import io.metaloom.cortex.s3.S3Support;
 import io.metaloom.cortex.s3.event.S3EventBuffer;
@@ -30,10 +28,14 @@ import io.metaloom.cortex.s3.event.WebhookS3EventSource;
  * inactive, no SDK client is built, and the plain {@link MediaReferenceResolver} is provided - so
  * a worker that never touches object storage behaves exactly as it did before S3 existed.</p>
  *
- * <p>Note the resolver is wired for <em>every</em> worker, not only those whitelisted for
+ * <p>Note this is wired for <em>every</em> worker, not only those whitelisted for
  * {@code s3-source}. Materialization is lazy and happens wherever a node task lands, so a
  * hash-only worker still has to be able to fetch {@code s3://} media - which is precisely what
  * removes the shared-storage requirement.</p>
+ *
+ * <p>The {@link MediaReferenceResolver} binding itself lives in {@code MediaResolverModule}: with
+ * more than one remote scheme it has to compose S3 and cloud-drive branches, and a module that
+ * owns S3 should not have to know about the others.</p>
  */
 @Module
 public abstract class S3Module {
@@ -95,15 +97,6 @@ public abstract class S3Module {
 	@Singleton
 	static SqsS3EventSource provideSqsS3EventSource(S3EventBuffer buffer, S3ClientOptions options) {
 		return new SqsS3EventSource(buffer, options);
-	}
-
-	@Provides
-	@Singleton
-	static MediaReferenceResolver provideMediaReferenceResolver(LoomMediaLoader mediaLoader, S3Support s3) {
-		if (!s3.isActive()) {
-			return new MediaReferenceResolver(mediaLoader);
-		}
-		return new S3MediaReferenceResolver(mediaLoader, s3.materializer());
 	}
 
 	/**

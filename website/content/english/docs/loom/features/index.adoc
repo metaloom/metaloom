@@ -119,7 +119,7 @@ _Read more:_ link:../authentication/#_api_keys_tokens[Authentication — API Key
 
 Assets or hashes can be blacklisted to prevent them from being re-ingested or surfaced in search results.
 
-_Read more:_ link:../../nodes/hash/[Hashing Node] · link:../../nodes/filters/[Filter Nodes] · link:../../ui/#administration[Loom UI — Blacklist]
+_Read more:_ link:../../nodes/hash/[Hashing Node] · link:../../nodes/filter/[Filter Node] · link:../../ui/#administration[Loom UI — Blacklist]
 
 == Spaces
 

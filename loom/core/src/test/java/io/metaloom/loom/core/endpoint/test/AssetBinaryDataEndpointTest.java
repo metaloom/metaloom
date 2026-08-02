@@ -21,6 +21,11 @@ import io.metaloom.loom.client.common.LoomBinaryResponse;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.db.model.asset.AssetBinary;
+import io.metaloom.loom.db.model.group.Group;
+import io.metaloom.loom.db.model.perm.Permission;
+import io.metaloom.loom.db.model.pool.AssetPool;
+import io.metaloom.loom.db.model.role.Role;
+import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.asset.binary.AssetBinaryListResponse;
 import io.metaloom.loom.rest.model.asset.binary.AssetBinaryResponse;
@@ -98,6 +103,85 @@ public class AssetBinaryDataEndpointTest extends AbstractEndpointTest implements
 			assertThat(Files.exists(Path.of(firstPath))).isFalse();
 			// Still one binary, not two - the upload replaced the row rather than adding one.
 			assertThat(client.listAssetBinaries(asset.getUuid()).sync().body().getData()).hasSize(1);
+		}
+	}
+
+	// -- explicit pool targeting ---------------------------------------------
+
+	@Test
+	public void shouldStoreIntoAnExplicitlyNamedPool() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			Path poolDir = Files.createTempDirectory("loom-named-pool");
+			UUID poolUuid = createPool("named-pool", poolDir);
+
+			// The fixture library has no pool of its own, so without the override these bytes would land in
+			// the process-wide upload directory. Naming the pool has to win over that.
+			AssetResponse asset = client.uploadAsset(tempFile("pooled-bytes", ".bin"), LIBRARY_UUID, poolUuid, "text/plain").sync().body();
+
+			AssetBinaryResponse binary = client.loadAssetBinary(asset.getUuid()).sync().body();
+			assertThat(binary.getPoolUuid()).isEqualTo(poolUuid);
+			assertThat(binary.getFilesystem().getPath()).startsWith(poolDir.toString());
+			assertThat(binary.getFilesystem().getPath()).doesNotStartWith(storageDir.toString());
+			assertThat(Files.readString(Path.of(binary.getFilesystem().getPath()))).isEqualTo("pooled-bytes");
+		}
+	}
+
+	@Test
+	public void shouldRejectAnUnknownPool() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			expect(404, "Not Found", client.uploadAsset(tempFile("no-such-pool", ".bin"), LIBRARY_UUID, UUID.randomUUID(), "text/plain"));
+		}
+	}
+
+	@Test
+	public void shouldRequirePoolPermissionToNameAPool() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			Path poolDir = Files.createTempDirectory("loom-guarded-pool");
+			UUID poolUuid = createPool("guarded-pool", poolDir);
+
+			// A user who may create assets but knows nothing about pools. Uploading is open to them; choosing
+			// which storage backend the bytes land in is not, because that is an operator decision.
+			try (LoomHttpClient uploader = loginWithPermissions("pool-perm", Permission.CREATE_ASSET, Permission.READ_ASSET,
+				Permission.READ_ASSET_BINARY)) {
+				expect(403, "Forbidden", uploader.uploadAsset(tempFile("denied-pool", ".bin"), LIBRARY_UUID, poolUuid, "text/plain"));
+
+				// The very same upload without the override still succeeds, so the guard is on the pool
+				// override alone and does not regress plain uploading.
+				AssetResponse asset = uploader.uploadAsset(tempFile("allowed-plain", ".bin"), LIBRARY_UUID, "text/plain").sync().body();
+				assertThat(asset.getUuid()).isNotNull();
+			}
+		}
+	}
+
+	@Test
+	public void shouldRejectAMalformedPoolUuid() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			String token = tokenOf(client);
+			int port = loom.internal().boot().getRestService().getServer().actualPort();
+
+			// A typo must not quietly fall back to the library's pool and store the bytes somewhere the
+			// caller did not ask for.
+			HttpResponse<String> res = multipartUpload(port, token, "typo-pool", "libraryUuid", LIBRARY_UUID.toString(), "poolUuid", "not-a-uuid");
+			assertEquals(400, res.statusCode());
+			assertThat(res.body()).contains("poolUuid");
+		}
+	}
+
+	@Test
+	public void shouldTreatABlankPoolUuidAsAbsent() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			String token = tokenOf(client);
+			int port = loom.internal().boot().getRestService().getServer().actualPort();
+
+			// A form built by a UI that always emits the field sends an empty string when nothing is chosen.
+			// That must mean "use the library's pool", not "pool with a blank uuid".
+			HttpResponse<String> res = multipartUpload(port, token, "blank-pool", "libraryUuid", LIBRARY_UUID.toString(), "poolUuid", "");
+			assertEquals(201, res.statusCode());
 		}
 	}
 
@@ -292,6 +376,69 @@ public class AssetBinaryDataEndpointTest extends AbstractEndpointTest implements
 		var library = daos().libraryDao().createLibrary(daos().userDao().loadAdmin(), name);
 		daos().libraryDao().store(library);
 		return library.getUuid();
+	}
+
+	/** A filesystem-backed pool rooted at the given directory. */
+	private UUID createPool(String name, Path fsPath) {
+		AssetPool pool = daos().assetPoolDao().createAssetPool(adminUuid(), name);
+		pool.setFsPath(fsPath.toString());
+		daos().assetPoolDao().store(pool);
+		return pool.getUuid();
+	}
+
+	/**
+	 * A fresh enabled user holding exactly the listed permissions, and a client logged in as them.
+	 *
+	 * <p>
+	 * The permissions go through a group + role rather than direct user grants: {@code user_permission} is keyed by user alone, so only one direct
+	 * grant per user is possible.
+	 * </p>
+	 */
+	private LoomHttpClient loginWithPermissions(String username, Permission... permissions) throws Exception {
+		User user = daos().userDao().createUser(adminUuid(), username);
+		user.enable();
+		user.setPasswordHash(loom.internal().authService().encodePassword("secret"));
+		daos().userDao().store(user);
+
+		Role role = daos().roleDao().createRole(adminUuid(), username + "-role");
+		daos().roleDao().store(role);
+		for (Permission perm : permissions) {
+			daos().permissionDao().grantRolePermission(role.getUuid(), perm);
+		}
+		Group group = daos().groupDao().create(user, username + "-group");
+		daos().groupDao().store(group);
+		daos().groupDao().addRoleToGroup(group, role);
+		daos().groupDao().addUserToGroup(group, user);
+
+		LoomHttpClient client = loom.httpClient();
+		client.setToken(client.login(username, "secret").sync().body().getToken());
+		return client;
+	}
+
+	/**
+	 * A hand-rolled multipart upload, for the cases the typed client cannot express: a {@code poolUuid} that is not a valid uuid, and one sent as an
+	 * empty string.
+	 */
+	private HttpResponse<String> multipartUpload(int port, String token, String content, String... formFields) throws Exception {
+		String boundary = "loom-test-boundary";
+		StringBuilder body = new StringBuilder();
+		for (int i = 0; i + 1 < formFields.length; i += 2) {
+			body.append("--").append(boundary).append("\r\n")
+				.append("Content-Disposition: form-data; name=\"").append(formFields[i]).append("\"\r\n\r\n")
+				.append(formFields[i + 1]).append("\r\n");
+		}
+		body.append("--").append(boundary).append("\r\n")
+			.append("Content-Disposition: form-data; name=\"file\"; filename=\"upload.bin\"\r\n")
+			.append("Content-Type: text/plain\r\n\r\n")
+			.append(content).append("\r\n")
+			.append("--").append(boundary).append("--\r\n");
+
+		return http.send(HttpRequest.newBuilder()
+			.uri(URI.create("http://localhost:" + port + "/api/v1/assets/upload"))
+			.header("Authorization", "Bearer " + token)
+			.header("Content-Type", "multipart/form-data; boundary=" + boundary)
+			.POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
+			.build(), BodyHandlers.ofString());
 	}
 
 	private String dataUrl(UUID assetUuid) {

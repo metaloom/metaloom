@@ -28,9 +28,22 @@ import io.metaloom.loom.pipeline.model.FilterBranch;
  *            whether the consuming port accepts a sequence. Resolved once by
  *            {@link PortGraphAnalyzer} and carried here so the engine can build a task's inputs
  *            without re-consulting the descriptor registry on every dispatch
+ * @param sourceSelective
+ *            whether the <em>producing port itself</em> declares
+ *            {@link io.metaloom.loom.nodes.spec.PortSpec#isSelective() selective}. This is the edge
+ *            at which the branch is actually decided, which is what
+ *            {@link PipelineSegmenter} needs: a segment must not span it, because the worker runs a
+ *            segment as a unit and cannot know which branch an item took
+ * @param routed
+ *            whether this edge is on a routed path at all — the source port is selective, <em>or</em>
+ *            the producing node is itself downstream of a routed edge. Selectivity has to be
+ *            inherited: if the German branch does not fire, the node wired to it is skipped, so its
+ *            own outputs are empty and <em>its</em> consumers must skip in turn. A one-hop rule would
+ *            leave the grandchild running with empty inputs, which is exactly the non-transitivity
+ *            defect {@link PipelineGraphNode} documents for {@link FilterBranch}
  */
 public record InputBinding(String targetPortId, String sourceNodeId, String sourcePortId, FilterBranch branch,
-	boolean targetIsMany) {
+	boolean targetIsMany, boolean sourceSelective, boolean routed) {
 
 	public InputBinding {
 		Objects.requireNonNull(targetPortId, "A target port id must be set");
@@ -39,24 +52,38 @@ public record InputBinding(String targetPortId, String sourceNodeId, String sour
 		branch = branch == null ? FilterBranch.ANY : branch;
 	}
 
+	public InputBinding(String targetPortId, String sourceNodeId, String sourcePortId, FilterBranch branch,
+		boolean targetIsMany) {
+		this(targetPortId, sourceNodeId, sourcePortId, branch, targetIsMany, false, false);
+	}
+
 	public InputBinding(String targetPortId, String sourceNodeId, String sourcePortId, FilterBranch branch) {
-		this(targetPortId, sourceNodeId, sourcePortId, branch, false);
+		this(targetPortId, sourceNodeId, sourcePortId, branch, false, false, false);
 	}
 
 	public static InputBinding of(String targetPortId, String sourceNodeId, String sourcePortId) {
-		return new InputBinding(targetPortId, sourceNodeId, sourcePortId, FilterBranch.ANY, false);
+		return new InputBinding(targetPortId, sourceNodeId, sourcePortId, FilterBranch.ANY, false, false, false);
 	}
 
 	/**
 	 * A copy that knows whether its target port gathers a sequence.
 	 */
 	public InputBinding withTargetCardinality(boolean many) {
-		return new InputBinding(targetPortId, sourceNodeId, sourcePortId, branch, many);
+		return new InputBinding(targetPortId, sourceNodeId, sourcePortId, branch, many, sourceSelective, routed);
+	}
+
+	/**
+	 * A copy that knows whether it carries branch routing. See {@link #sourceSelective} and
+	 * {@link #routed}.
+	 */
+	public InputBinding withRouting(boolean sourceSelective, boolean routed) {
+		return new InputBinding(targetPortId, sourceNodeId, sourcePortId, branch, targetIsMany, sourceSelective, routed);
 	}
 
 	@Override
 	public String toString() {
 		return sourceNodeId + "." + sourcePortId + " -> ." + targetPortId
-			+ (branch == FilterBranch.ANY ? "" : " [" + branch + "]");
+			+ (branch == FilterBranch.ANY ? "" : " [" + branch + "]")
+			+ (routed ? " [routed]" : "");
 	}
 }

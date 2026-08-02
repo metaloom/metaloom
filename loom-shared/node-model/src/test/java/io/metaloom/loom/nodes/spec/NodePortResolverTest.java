@@ -1,6 +1,7 @@
 package io.metaloom.loom.nodes.spec;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,6 +30,7 @@ public class NodePortResolverTest {
 	private final ScriptPortResolver script = new ScriptPortResolver();
 	private final LlmPortResolver llm = new LlmPortResolver();
 	private final VlmPortResolver vlm = new VlmPortResolver();
+	private final FilterPortResolver filter = new FilterPortResolver();
 
 	// ------------------------------------------------------------------ script ---
 
@@ -205,10 +207,83 @@ public class NodePortResolverTest {
 		List<String> kinds = new ArrayList<>();
 		ServiceLoader.load(NodePortResolver.class).forEach(r -> kinds.add(r.kind()));
 
-		for (String kind : List.of("script", "llm", "vlm")) {
+		for (String kind : List.of("script", "llm", "vlm", "filter")) {
 			assertTrue(kinds.contains(kind),
 				"no NodePortResolver registered for kind '" + kind + "'. Discovered: " + kinds);
 		}
+	}
+
+	// ------------------------------------------------------------------ filter ---
+
+	/**
+	 * One selective port per bucket, in declaration order, followed by the three fixed ports.
+	 */
+	@Test
+	void testFilterEmitsOnePortPerBucketPlusTheFixedThree() {
+		List<PortSpec> ports = filter.resolveOutputPorts(descriptor("filter"),
+			options("buckets", List.of(bucket("de", "German"), bucket("en", "English"))));
+
+		assertEquals(List.of("de", "en", "other", "passed", "bucket"), ids(ports));
+
+		assertEquals("German", ports.get(0).getLabel());
+		assertEquals(ContentTypeRegistry.MEDIA_ANY, ports.get(0).getContentType());
+		assertTrue(ports.get(0).isSelective(), "a bucket port routes");
+		assertTrue(ports.get(2).isSelective(), "'other' routes too - it is the branch nothing else matched");
+
+		assertEquals(ContentTypeRegistry.CONTROL_FILTER, ports.get(3).getContentType());
+		assertFalse(ports.get(3).isSelective(), "'passed' fires for every item and must never gate a consumer");
+		assertEquals(ContentTypeRegistry.SCALAR_STRING, ports.get(4).getContentType());
+		assertFalse(ports.get(4).isSelective(), "'bucket' fires for every item and must never gate a consumer");
+	}
+
+	/**
+	 * A node with no buckets configured yet is still connectable - the same reason
+	 * {@link PromptPortResolver} falls back to a single {@code result} port. Dropping a filter onto
+	 * the canvas and finding no handles at all would leave the author with no way forward.
+	 */
+	@Test
+	void testFilterWithoutBucketsStillOffersTheFixedPorts() {
+		assertEquals(List.of("other", "passed", "bucket"), ids(filter.resolveOutputPorts(descriptor("filter"), Map.of())));
+		assertEquals(List.of("other", "passed", "bucket"), ids(filter.resolveOutputPorts(descriptor("filter"), options("buckets", List.of()))));
+	}
+
+	/**
+	 * Every way an author can get a bucket wrong degrades to "that port does not exist", never to an
+	 * exception. A half-typed row is the normal state of the editor while someone is typing in it.
+	 */
+	@Test
+	void testFilterSkipsMalformedBuckets() {
+		List<Object> declared = new ArrayList<>(Arrays.asList(
+			bucket("de", "German"),
+			bucket("de", "Duplicate"),       // duplicate id
+			bucket("", null),                // blank id - a freshly added row
+			bucket("Not A Port", null),      // fails ID_PATTERN
+			bucket("other", null),           // reserved: the catch-all
+			bucket("passed", null),          // reserved: the verdict
+			bucket("media", null),           // reserved: collides with an input
+			"not-an-object",
+			null));
+
+		assertEquals(List.of("de", "other", "passed", "bucket"), ids(filter.resolveOutputPorts(descriptor("filter"), options("buckets", declared))));
+	}
+
+	/**
+	 * A bucket without a label is named after its id rather than rendering an empty handle caption.
+	 */
+	@Test
+	void testFilterBucketWithoutALabelFallsBackToItsId() {
+		List<PortSpec> ports = filter.resolveOutputPorts(descriptor("filter"), options("buckets", List.of(bucket("ja", null))));
+
+		assertEquals("ja", ports.get(0).getId());
+		assertEquals("ja", ports.get(0).getLabel());
+	}
+
+	/**
+	 * The option arriving as something other than a list must not take the node's fixed ports with it.
+	 */
+	@Test
+	void testFilterToleratesANonListBucketsOption() {
+		assertEquals(List.of("other", "passed", "bucket"), ids(filter.resolveOutputPorts(descriptor("filter"), options("buckets", "de,en"))));
 	}
 
 	/**
@@ -232,6 +307,16 @@ public class NodePortResolverTest {
 		Map<String, Object> options = new LinkedHashMap<>();
 		options.put(key, value);
 		return options;
+	}
+
+	/** A bucket row as the editor writes it. A null label is the shape of a row someone has not finished. */
+	private static Map<String, Object> bucket(String id, String label) {
+		Map<String, Object> declaration = new LinkedHashMap<>();
+		declaration.put("id", id);
+		if (label != null) {
+			declaration.put("label", label);
+		}
+		return declaration;
 	}
 
 	private static Map<String, Object> output(String key, String type) {

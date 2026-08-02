@@ -1,8 +1,9 @@
 import type { Cardinality, NodeDescriptor, PortSpec } from "../../types/nodeDescriptors";
 
 /**
- * TypeScript mirrors of the three Java `NodePortResolver`s
- * (`ScriptPortResolver`, `LlmPortResolver`, `VlmPortResolver` in `loom-shared/node-model`).
+ * TypeScript mirrors of the four Java `NodePortResolver`s
+ * (`ScriptPortResolver`, `LlmPortResolver`, `VlmPortResolver`, `FilterPortResolver` in
+ * `loom-shared/node-model`).
  *
  * Some kinds only know their ports once configured, so the descriptor cannot state them. The
  * server resolver is authoritative at save time; these mirrors exist so the canvas can render the
@@ -18,7 +19,7 @@ import type { Cardinality, NodeDescriptor, PortSpec } from "../../types/nodeDesc
 const PORT_ID_PATTERN = /^[a-z0-9][a-z0-9_]{0,62}$/;
 
 /** The kinds that carry a resolver. Mirrors the `ServiceLoader` registrations. */
-const RESOLVER_KINDS = new Set(["script", "llm", "vlm"]);
+const RESOLVER_KINDS = new Set(["script", "llm", "vlm", "filter"]);
 
 /**
  * The `ScriptValueType` vocabulary, mapped onto content type plus cardinality.
@@ -130,6 +131,81 @@ function resolvePromptOutputPorts(options: Record<string, unknown>, modelLabel: 
   return ports;
 }
 
+/** The filter node's fixed ports, and the ids a bucket may therefore not claim. */
+export const FILTER_PORT_OTHER = "other";
+export const FILTER_PORT_PASSED = "passed";
+export const FILTER_PORT_BUCKET = "bucket";
+export const FILTER_RESERVED_BUCKET_IDS = new Set([
+  FILTER_PORT_OTHER,
+  FILTER_PORT_PASSED,
+  FILTER_PORT_BUCKET,
+  "media",
+  "text",
+]);
+
+/**
+ * One selective port per configured bucket, then the three fixed ports.
+ * Mirrors `FilterPortResolver.resolveOutputPorts`.
+ *
+ * The bucket ports and `other` are `selective`: the item goes down exactly one of them, and the
+ * engine skips whatever is wired to the rest. `passed` and `bucket` carry a value for *every* item,
+ * so a node wired to those runs regardless of which branch was taken — that is the escape hatch for
+ * "I want the decision, not the item".
+ */
+function resolveFilterOutputPorts(options: Record<string, unknown>): PortSpec[] {
+  const declared = parseOption(options.buckets);
+  const ports: PortSpec[] = [];
+  const seen = new Set<string>();
+
+  if (Array.isArray(declared)) {
+    for (const entry of declared) {
+      if (!entry || typeof entry !== "object") continue;
+      const id = trimmedString((entry as { id?: unknown }).id);
+      // A blank id is a row someone has just added and not finished; skipping it rather than
+      // failing is what lets handles follow typing without the others flickering away.
+      if (!id || !PORT_ID_PATTERN.test(id) || FILTER_RESERVED_BUCKET_IDS.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      const label = trimmedString((entry as { label?: unknown }).label) || id;
+      ports.push({
+        id,
+        label,
+        contentType: "media/*",
+        cardinality: "ONE",
+        required: true,
+        selective: true,
+        description: `Items classified as '${label}'`,
+      });
+    }
+  }
+
+  ports.push({
+    id: FILTER_PORT_OTHER,
+    label: "Other",
+    contentType: "media/*",
+    cardinality: "ONE",
+    required: true,
+    selective: true,
+    description: "Items no configured bucket matched",
+  });
+  ports.push({
+    id: FILTER_PORT_PASSED,
+    label: "Passed",
+    contentType: "control/filter",
+    cardinality: "ONE",
+    required: true,
+    description: "True when a bucket other than 'other' matched",
+  });
+  ports.push({
+    id: FILTER_PORT_BUCKET,
+    label: "Bucket",
+    contentType: "scalar/string",
+    cardinality: "ONE",
+    required: true,
+    description: "The id of the bucket this item landed in. Carries a value for every item",
+  });
+  return ports;
+}
+
 /** Whether a dynamic-port mirror exists for this kind. */
 export function hasPortResolver(kind: string | undefined): boolean {
   return !!kind && RESOLVER_KINDS.has(kind);
@@ -148,6 +224,7 @@ export function resolveOutputPorts(desc: NodeDescriptor | undefined, options: Re
       case "script": return resolveScriptOutputPorts(options);
       case "llm":    return resolvePromptOutputPorts(options, "the language model");
       case "vlm":    return resolvePromptOutputPorts(options, "the vision-language model");
+      case "filter": return resolveFilterOutputPorts(options);
     }
   }
   return desc.outputPorts ?? [];

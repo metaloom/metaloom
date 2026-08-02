@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 
 import io.metaloom.cortex.pipeline.api.NodeMode;
-import io.metaloom.cortex.pipeline.api.cache.NodeCacheProvider;
 import io.metaloom.cortex.pipeline.api.filter.FilterBranch;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 
@@ -29,7 +28,6 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 	private final int concurrency;
 	private boolean source;
 	private boolean syncToLoom;
-	private NodeCacheProvider cacheProvider;
 	private long timeoutMs;
 
 	private final List<PipelineNode> children = new ArrayList<>();
@@ -145,15 +143,6 @@ public abstract class AbstractPipelineNode implements PipelineNode {
 
 	public void setSyncToLoom(boolean syncToLoom) {
 		this.syncToLoom = syncToLoom;
-	}
-
-	@Override
-	public NodeCacheProvider cacheProvider() {
-		return cacheProvider;
-	}
-
-	public void setCacheProvider(NodeCacheProvider cacheProvider) {
-		this.cacheProvider = cacheProvider;
 	}
 
 	@Override

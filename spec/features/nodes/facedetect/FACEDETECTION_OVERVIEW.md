@@ -103,6 +103,14 @@ warning — the Java binding code is Apache-2.0, the packs are not redistributab
 | Recognition | MobileFaceNet-class (`_03_extract`) | ResNet-18 @ **Glint360K** | **Glint360K** — non-commercial |
 | Attribute | FairFace | FairFace | FairFace (CC-BY-4.0 dataset, but the shipped weights carry the pack licence) |
 
+> **Correction (2026-08-02, verified by download):** an earlier revision of this file repeated
+> insightface's model-zoo table in listing `buffalo_l` and `antelopev2` as using **RetinaFace-10GF**.
+> They do not. Both ship **SCRFD-10GF** — and in fact the *same* SCRFD-10GF: `buffalo_l/det_10g.onnx`
+> and `antelopev2/scrfd_10g_bnkps.onnx` are byte-identical
+> (`sha256 5838f7fe053675b1…`, 16,923,827 bytes). The upstream table's "RetinaFace-10GF" label is
+> wrong; antelopev2's own filename says SCRFD. Consequence: buffalo_l and antelopev2 differ **only**
+> in the embedder (`w600k_r50` vs `glintr100` R100), not in detection.
+
 So the restriction is *structural*, not a formality: SCRFD is trained on WIDER FACE (academic only),
 and the Megatron embedder is explicitly a Glint360K model.
 
@@ -393,8 +401,30 @@ graph LR
 | Path | Model | Licence status |
 |---|---|---|
 | `INSPIREFACE` capability (**default**) | InspireFace `packs/Pikachu` | 🔴 **non-commercial** |
-| `DLIB` capability (opt-in) | dlib detector + ResNet embedder | 🟢 Boost, permissive |
+| `DLIB` capability (opt-in) | dlib detector + ResNet embedder | 🔴 **see below** — not the clean "🟢 Boost" it looks like |
 | `insightface-http` (`face-recognition-server`, `MODEL_ID=buffalo_l`) | insightface `buffalo_l` | 🔴 **non-commercial** |
+
+> **Correction (2026-08-02):** the `DLIB` row previously read "🟢 Boost, permissive". That is wrong
+> as the capability is actually wired. `jdlib` drives the recogniser through
+> `shape_predictor_68_face_landmarks.dat`, which is the **only** landmark model in
+> `cortex/nodes/facedetect/core/dlib/` — and §4.3 of this document records that Davis King marks it
+> **explicitly non-commercial** (the 300-W dataset). So the dlib path as configured is prohibited,
+> even though the *recogniser* (`dlib_face_recognition_resnet_model_v1.dat`) carries no such warning
+> and is Boost-licensed. **Fix:** swap in `shape_predictor_5_face_landmarks.dat`, which has no
+> commercial restriction — and which is the 5-point set ArcFace-style alignment wants anyway. It is
+> not currently on disk; `face-eval/tools/fetch-data.sh` downloads it.
+
+> 🔴 **Live memory-safety bug in `inspireface4j` (found 2026-08-02).**
+> `FaceDetections.releaseData()` passes its `HFMultipleFaceData` to
+> `InspirefaceLib.releaseFaceFeature(...)`, whose C shim calls `HFReleaseFaceFeature(*feature)` —
+> a detection-results struct handed to the face-*feature* deallocator. This is a type-confused free
+> and it **segfaults the JVM** (`SIGSEGV … HFReleaseFaceFeature+0x18`), reproduced on the first
+> embedding call with the Pikachu pack under SDK 1.2.3. It is very likely the cause of the
+> long-standing SIGSEGVs in this node. Not calling `releaseData()` is both the workaround and the
+> correct behaviour: `HFMultipleFaceData` from `HFExecuteFaceTrack` points into session-owned memory
+> and is not the caller's to free. Separately, the C shim leaks a `new HFFaceFeature()` and an
+> `HFImageStream` on every embedding call. See
+> `face-eval/engines/inspireface/.../InspirefaceEngine.java#releaseLast`.
 
 The default capability set is `Set.of(FacedetectNodeCapabilities.INSPIREFACE)` and the default pack
 path is `packs/Pikachu` — see

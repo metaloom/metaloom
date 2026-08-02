@@ -25,6 +25,7 @@
 |-----------|----------|
 | [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) | Pipeline editor: React Flow canvas, typed ports, node/edge rendering, validation, CRUD, versions, diff, run history, live events |
 | [CHAT.md](CHAT.md) | Chat / Loom Agent: server-side agentic loop, SSE streaming, references, skills, sessions |
+| [LOOM_UI_UPLOAD.md](LOOM_UI_UPLOAD.md) | Upload screen (`/uploads`): background upload queue, multi-file + drag-and-drop, progress/cancel/retry, library → pool targeting |
 | [TASK_UI_AI_ML.md](TASK_UI_AI_ML.md) | Gap matrix — embeddings, clusters, detections, persons, chat |
 | [TASK_UI_ASSETS_MEDIA.md](TASK_UI_ASSETS_MEDIA.md) | Gap matrix — assets, locations, pools, components, attachments, annotations |
 | [TASK_UI_COLLABORATION.md](TASK_UI_COLLABORATION.md) | Gap matrix — tasks, comments, reactions |
@@ -118,7 +119,8 @@ graph TD
     AuthGate -->|not authenticated| LoginPage
     AuthGate -->|authenticated| NodeRegistryProvider
     NodeRegistryProvider --> SpaceProvider
-    SpaceProvider --> AppShell
+    SpaceProvider --> UploadProvider
+    UploadProvider --> AppShell
     AppShell --> LayoutContext[LayoutContext.Provider]
     LayoutContext --> Sidebar
     LayoutContext --> RouteTable["&lt;Routes&gt; — see §4.2"]
@@ -139,6 +141,7 @@ graph TD
 | `/library` | `LibraryView` | `features/library/LibraryView.tsx` |
 | `/assets` | `AssetBrowser` | `features/assets/AssetBrowser.tsx` |
 | `/assets/:id` | `AssetDetail` | `features/assetDetail/AssetDetail.tsx` |
+| `/uploads` | `UploadView` | `features/uploads/UploadView.tsx` |
 | `/collections` | `CollectionsView` | `features/collections/CollectionsView.tsx` |
 | `/tasks` | `TasksView` | `features/tasks/TasksView.tsx` |
 | `/detection` | `DetectionManagement` | `features/detection/DetectionManagement.tsx` |
@@ -195,7 +198,9 @@ MANAGEMENT  Asset Pools · Pipelines · Cortex · Monitoring · Spaces (/admin/s
 ## 5. API client layer (`src/api/`)
 
 Every module is plain `fetch` + `authHeaders(token)`, exporting typed functions and the
-response interfaces. `API_BASE_URL` comes from `src/api/config.ts`:
+response interfaces. The **one exception** is `uploadAssetWithProgress` in `assets.ts`, which uses
+`XMLHttpRequest` because `fetch` reports no upload progress — see
+[LOOM_UI_UPLOAD.md](LOOM_UI_UPLOAD.md) §2.1. `API_BASE_URL` comes from `src/api/config.ts`:
 
 ```ts
 export const API_BASE_URL =
@@ -245,6 +250,7 @@ export const API_BASE_URL =
 | `ThemeContext` | `context/ThemeContext.tsx` | `mode` (`dark`\|`light`), `toggleMode`, `setMode` | `localStorage` key `loom-ui-theme` |
 | `ToastContext` | `context/ToastContext.tsx` | global notifications | No |
 | `LayoutContext` | `context/LayoutContext.tsx` | `sidebarCollapsed`, `setSidebarCollapsed` | **No** — plain `useState` in `AppShell` |
+| `UploadContext` | `features/uploads/UploadContext.tsx` | `UploadSummary` — items, counts, weighted `percent`, `isActive` | **No** — mirrors the module-level queue; see [LOOM_UI_UPLOAD.md](LOOM_UI_UPLOAD.md) |
 
 Other persisted state: `loom-ui-language` (`i18n/i18n.ts`), `loom.chat.splitPct` /
 `loom.chat.panelOpen` (§7.3), workflow ratings (`features/workflow/ratingPersistence.ts`).
@@ -635,5 +641,5 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (rewritten as a shell-level reference: verified stack, routes, API modules and test tooling against the code; per-screen and gap content delegated to PIPELINE_EDITOR.md, CHAT.md and the TASK_UI_* files.)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (added the `/uploads` route, `UploadProvider` in the provider tree, `UploadContext` in §6 and the LOOM_UI_UPLOAD.md cross-reference; noted the XHR exception in §5)_

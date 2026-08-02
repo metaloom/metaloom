@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeResult;
+import io.metaloom.cortex.api.node.artifact.impl.ScopedArtifactCache;
 import io.metaloom.cortex.pipeline.api.node.PipelineNode;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeTask;
@@ -35,6 +36,7 @@ public class NodeTaskRunner {
 
 	private final NodeInstantiator instantiator;
 	private final MediaResolver mediaResolver;
+	private final long maxArtifactBytes;
 
 	/**
 	 * Resolves a node definition to an executable node.
@@ -68,8 +70,17 @@ public class NodeTaskRunner {
 	}
 
 	public NodeTaskRunner(NodeInstantiator instantiator, MediaResolver mediaResolver) {
+		this(instantiator, mediaResolver, ScopedArtifactCache.DEFAULT_MAX_BYTES);
+	}
+
+	/**
+	 * @param maxArtifactBytes
+	 *            the ceiling for this task's artifact scope
+	 */
+	public NodeTaskRunner(NodeInstantiator instantiator, MediaResolver mediaResolver, long maxArtifactBytes) {
 		this.instantiator = instantiator;
 		this.mediaResolver = mediaResolver;
+		this.maxArtifactBytes = maxArtifactBytes;
 	}
 
 	/**
@@ -80,11 +91,15 @@ public class NodeTaskRunner {
 	 */
 	public NodeTaskResult run(NodeTask task) {
 		long start = System.currentTimeMillis();
-		try {
+		// A per-node task is a segment of one, so it gets a scope too. Nothing is shared
+		// with anybody - the scope dies with the task - but a node that caches an
+		// intermediate for its own second pass within one process() call must not have to
+		// care which runner it landed in, and there is exactly one code path this way.
+		try (ScopedArtifactCache artifacts = new ScopedArtifactCache(task.getItemId(), maxArtifactBytes)) {
 			PipelineNode node = instantiator.create(toNodeDefinition(task));
 			LoomMedia media = mediaResolver.resolve(task.getMedia());
 
-			NodeResult result = node.process(media, NodeResultMapper.toInputs(task));
+			NodeResult result = node.process(media, NodeResultMapper.toInputs(task, artifacts));
 			if (result == null) {
 				// A node returning null is a bug in that node, but the engine still
 				// needs a definite answer for this task.

@@ -36,6 +36,7 @@ operating the installation.
 
 * *Library* — browse assets grouped into libraries
 * *Assets* — grid/list browser with search, status and type filters, plus a rich per-asset detail view
+* *Uploads* — multi-file drag-and-drop ingest with per-file progress that keeps running in the background
 * *Collections* — organise assets into colour-coded collections
 * *Tasks* — a Kanban-style task board with priority, status, due dates and per-asset tasks
 * *Detection* — review face, object and LLM detections; manage face clusters and persons
@@ -115,6 +116,25 @@ Opening an asset reveals the detail view: media preview, a timeline with markers
 tabs for comments, annotations and reactions.
 
 image::asset-detail.png[Asset detail view,role=img-fluid]
+
+=== Uploads
+
+The *Uploads* screen is the place to bring media into Loom. Drag a whole selection of files onto the
+drop area, or click it to pick them — there is no one-file-at-a-time limit.
+
+Every upload has to land in a *library*, which you choose before adding files. The library also decides
+where the bytes are physically stored, and the screen shows that destination so there is never any doubt
+about where a file went. Administrators additionally get a *storage pool* selector to send a particular
+batch somewhere else — an archive bucket, say — without changing the library itself.
+
+Each file gets its own progress bar and can be cancelled on its own; anything that fails can be retried
+without re-picking the file. Uploading the same content twice is not an error: Loom recognises content it
+already holds and links it to the existing asset instead of creating a duplicate, and the screen says so.
+
+Uploads keep running while you work elsewhere in the application. Leave the screen and a progress bar
+appears next to *Uploads* in the navigation, and a notification tells you when the batch finishes or if
+something went wrong. Reloading the browser page is the one thing that cancels an upload in progress, so
+the application warns you before that happens.
 
 === Library
 

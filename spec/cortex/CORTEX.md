@@ -63,9 +63,9 @@ Maven reactor `cortex/pom.xml`. Build ordering and dependency versions live in
 | `core/` | `cortex-core` | `CortexImpl`, `CortexCLI` + commands, Dagger modules, `LoomControlChannel`, `PipelineTaskHandler`, monitoring, node registry |
 | `cli/` | `cortex-cli` | `CortexCLIMain`, `CortexComponent`, `NodeCollectionModule`, `PipelineNodeFactoryModule`, `RegistryNodeRegistrar`; shaded jar |
 | `container/` | `cortex-container` | `Containerfile`, `build-container.sh`, `logback.xml` |
-| `pipeline-api/` | `cortex-pipeline-api` | `PipelineNode`, `MediaSourceNode`, `PipelineResult`, `NodeMode`, filter SPI, `PipelineEventBus`, `NodeCacheProvider`, `LoomBulkSyncCollector` |
+| `pipeline-api/` | `cortex-pipeline-api` | `PipelineNode`, `MediaSourceNode`, `PipelineResult`, `NodeMode`, filter SPI, `PipelineEventBus`, `LoomBulkSyncCollector` |
 | `pipeline-core/` | `cortex-pipeline-core` | `AbstractPipelineNode`, `CortexNodeAdapter`, `AssetSourceNode`, `LoomFetchNode`, filter nodes |
-| `pipeline-common/` | `cortex-pipeline-common` | `DefaultPipelineEventBus`, cache impls (heap / xattr / sidecar / layered / no-op), `DefaultLoomBulkSyncCollector` |
+| `pipeline-common/` | `cortex-pipeline-common` | `DefaultPipelineEventBus`, `DefaultLoomBulkSyncCollector` |
 
 ```mermaid
 graph TD
@@ -115,6 +115,8 @@ graph TD
 | `HealthEndpoint` / `MetricsEndpoint` / `MicrometerCortexMetrics` | `…impl.monitoring` | `/api/health`, `/api/ready`, `/metrics`; `cortex_*` meters |
 | `MediaProcessor` / `FilesystemProcessor` | `io.metaloom.cortex.processor` / `.scanner` | CLI batch processing |
 | `S3Support` | `io.metaloom.cortex.s3` | Worker-level S3 client, materializer, index base dir; `isActive()` gates the `s3-source` kind |
+| `CloudSupportRegistry` / `CloudSupport` | `io.metaloom.cortex.cloud` | The same shape per cloud provider; `isActive(provider)` gates `gdrive-source` and `onedrive-source` independently |
+| `SchemeMediaReferenceResolver` | `io.metaloom.cortex.common.media` | Routes a media reference to the branch owning its URI scheme; falls back to a local path |
 
 ---
 
@@ -218,7 +220,7 @@ Registered kinds (`registeredTypes()`):
 
 | Group | Kinds |
 |---|---|
-| Sources | `filesystem-source`, `asset-source`, `s3-source` *(only when `S3Support.isActive()`)* |
+| Sources | `filesystem-source`, `asset-source`, `s3-source` *(only when `S3Support.isActive()`)*, `gdrive-source` / `onedrive-source` *(each only when that provider's credentials are configured)* |
 | Hash / dedup | `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` |
 | Analysis | `fingerprint`, `facedetect`, `ocr`, `tika`, `quality`, `consistency`, `scene-detection`, `scene-layout`, `dominant-color`, `depthmap`, `sentiment` |
 | AI | `llm`, `vlm`, `captioning`, `whisper`, `tts`, `imagegen`, `videogen` |
@@ -351,7 +353,7 @@ AssertJ helpers: `PipelineResultAssert`/`PipelineNodeResultAssert`
 - **`process` is registered as `po`.** See [§4.2](#42-subcommands-picocli). Fixing it means changing `PicoCLIModule`, not the annotation.
 - **Registrar before channel.** `NodeRegistrar#registerAll()` must run before `LoomControlChannel#start()`, or REGISTER advertises an empty whitelist and the worker silently receives nothing. `registerAll()` is guarded by a `registered` flag and is idempotent.
 - **Never eagerly inject node sets.** Use `Provider`/`Lazy`. Injecting `Set<CortexNode>` directly constructs every node — face detection loads its model pack merely to print help.
-- **Conditional kinds.** `s3-source` is only registered when `S3Support.isActive()`. Registering it unconditionally turns a missing capability into a dead run.
+- **Conditional kinds.** `s3-source` is only registered when `S3Support.isActive()`, and `gdrive-source` / `onedrive-source` only when that cloud's credentials are configured. Registering one unconditionally turns a missing capability into a dead run. This per-provider gate is why the two clouds are two kinds sharing one implementation rather than a single kind with a `provider` parameter.
 - **Package roots.** `io.metaloom.cortex.*` only; `io.metaloom.loom.*` is Loom backend. Note `CortexCLI` lives in `cortex/core` while `CortexCLIMain` lives in `cortex/cli`, both in package `io.metaloom.cortex.cli`.
 - **Two node hierarchies.** `CortexNode`/`FilesystemNode` (Cortex level) vs `PipelineNode` (pipeline level), bridged by `CortexNodeAdapter`. Never mix without the adapter — see [NODES.md](../features/pipeline-nodes/NODES.md).
 - **Offline safety.** `LoomClient` may be `null`; never dereference it unguarded.
@@ -385,7 +387,8 @@ AssertJ helpers: `PipelineResultAssert`/`PipelineNodeResultAssert`
 | S3 support | `cortex/s3-common/src/main/java/io/metaloom/cortex/s3/` |
 | Node → pipeline adapter | `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/CortexNodeAdapter.java` |
 | Filter nodes | `cortex/pipeline-core/src/main/java/io/metaloom/cortex/pipeline/core/node/filter/` |
-| Node caches | `cortex/pipeline-common/src/main/java/io/metaloom/cortex/pipeline/common/cache/` |
+| Node result cache (per node, across items) | `cortex/common/src/main/java/io/metaloom/cortex/common/cache/LocalResultCache.java` |
+| Artifact scope (per segment, one item) | `cortex/api/src/main/java/io/metaloom/cortex/api/node/artifact/` |
 | Concrete nodes | `cortex/nodes/<kind>/core/` |
 | Containerfile / build | `cortex/container/`, `build.sh` (repo root) |
 | Integration tests | `integration-test/src/test/java/io/metaloom/loom/test/` |
@@ -414,4 +417,4 @@ AssertJ helpers: `PipelineResultAssert`/`PipelineNodeResultAssert`
 ---
 
 _Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (verified against code: module map, subcommand names, bootstrap order, linear reconnect backoff, node-kind multibinding)_
+_Last updated: 2026-08-02 (added CloudSupportRegistry and SchemeMediaReferenceResolver; recorded the per-provider conditional registration of gdrive-source / onedrive-source)_

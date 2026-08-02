@@ -98,6 +98,66 @@ s3:
     # -- SQS queue URL, when mode is SQS.
     queueUrl: ""
 
+# Cloud drive access (Google Drive, OneDrive, SharePoint). Same deployment note as
+# S3: files are fetched lazily by whichever worker runs a node task against them,
+# so these settings belong on EVERY worker that processes cloud media - not only
+# the one running the source node. A provider is only advertised as a runnable
+# node kind when its credentials are present here, so Loom refuses a run the
+# worker could not serve instead of dispatching one that dies mid-flight.
+gdrive:
+  # -- Enable Google Drive access on this worker.
+  enabled: false
+  # -- Service account key JSON. The production credential: it does not expire and
+  # needs no interactive consent. Share the drive or folder with its client_email.
+  serviceAccountJson: ""
+  # -- User to impersonate through domain-wide delegation. Only needed to read an
+  # individual's own My Drive rather than what was shared with the service account.
+  impersonateSubject: ""
+  # -- Shared drive used when a pipeline node names none. Empty = My Drive.
+  defaultDriveId: ""
+  # -- Use an existing secret with keys: serviceAccountJson, clientSecret, refreshToken.
+  existingSecret: ""
+  # -- Where fetched files are cached. Defaults to <meta.path>/gdrive_bin when empty.
+  cachePath: ""
+  # -- Size budget for that cache in bytes; the oldest entries are evicted past it.
+  maxCacheBytes: 53687091200
+  # -- How long the change feed may be trusted before a full folder walk is forced.
+  # Longer than the S3 default because a delta feed is a provider guarantee rather
+  # than a notification that can be lost; it exists only to repair subtree drift.
+  reconcileIntervalMs: 86400000
+  # -- Convert Google Docs, Sheets and Slides so they can be processed. Off by
+  # default: conversion is lossy and Google caps it at 10 MB per document.
+  exportNativeDocs: false
+  # -- Refresh-token auth. Development only - a token from an app in "Testing"
+  # publishing status expires after seven days and cannot be renewed unattended.
+  clientId: ""
+  clientSecret: ""
+  refreshToken: ""
+
+onedrive:
+  # -- Enable OneDrive / SharePoint access on this worker.
+  enabled: false
+  # -- App-only credentials: the production mode. Register an application, give it
+  # the Files.Read.All application permission, and grant admin consent.
+  tenantId: ""
+  clientId: ""
+  clientSecret: ""
+  # -- Drive used when a pipeline node names none. Effectively REQUIRED: an app-only
+  # token has no /me, so there is no implicit drive to fall back on. Find one with
+  # GET /sites/{hostname}:/sites/{path}:/drives.
+  defaultDriveId: ""
+  # -- Use an existing secret with keys: clientSecret, refreshToken.
+  existingSecret: ""
+  # -- Where fetched files are cached. Defaults to <meta.path>/onedrive_bin when empty.
+  cachePath: ""
+  # -- Size budget for that cache in bytes; the oldest entries are evicted past it.
+  maxCacheBytes: 53687091200
+  # -- How long the change feed may be trusted before a full folder walk is forced.
+  reconcileIntervalMs: 86400000
+  # -- Delegated refresh-token auth. Development only - Microsoft rotates the token
+  # on every use and a stateless worker cannot persist the replacement.
+  refreshToken: ""
+
 # Shared media storage. Loom sends the worker a PATH to media, never the bytes,
 # so the worker must be able to READ that path itself. Mount the same storage the
 # Loom uploads volume uses (or wherever the source files live).

@@ -41,6 +41,26 @@ public class PortSpec {
 	@JsonPropertyDescription("Whether this input must be wired for the node to execute. Ignored for grouped ports - the group owns it")
 	private boolean required = true;
 
+	/**
+	 * Output side only. A selective port is how a node expresses a branch: it carries data for some items and not others, and the engine skips a
+	 * consumer wired to it for the items where nothing was emitted.
+	 *
+	 * <p>
+	 * This is deliberately opt-in per port rather than a property of the node. Leaving a declared output unwritten is normal and must stay harmless -
+	 * {@code facedetect} finds no faces, a {@code script} does not set every declared key - so a blanket "unwritten port stops the branch" rule would
+	 * silently change what those graphs do. Only a port that says it routes, routes.
+	 * </p>
+	 *
+	 * <p>
+	 * {@code NON_DEFAULT} is on the field because the class-level {@code NON_NULL} does not suppress a primitive {@code false}: without it every one of
+	 * the ~150 ports in the generated descriptor snapshots would grow a {@code "selective": false} line.
+	 * </p>
+	 */
+	@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+	@JsonPropertyDescription("Output side only: this port carries data for some items and not others. A consumer wired to it is skipped for the items "
+		+ "where nothing was emitted")
+	private boolean selective = false;
+
 	@JsonPropertyDescription("Id of the PortGroup this port belongs to, if any")
 	private String group;
 
@@ -74,6 +94,13 @@ public class PortSpec {
 	/** An optional port carrying a sequence of elements. */
 	public static PortSpec optionalMany(String id, String contentType) {
 		return new PortSpec(id, contentType, Cardinality.MANY).setRequired(false);
+	}
+
+	/**
+	 * A required output port carrying one element <em>for the items it routes</em>. See {@link #selective}.
+	 */
+	public static PortSpec selectiveOne(String id, String contentType) {
+		return new PortSpec(id, contentType, Cardinality.ONE).setSelective(true);
 	}
 
 	public String getId() {
@@ -118,6 +145,15 @@ public class PortSpec {
 
 	public PortSpec setRequired(boolean required) {
 		this.required = required;
+		return this;
+	}
+
+	public boolean isSelective() {
+		return selective;
+	}
+
+	public PortSpec setSelective(boolean selective) {
+		this.selective = selective;
 		return this;
 	}
 

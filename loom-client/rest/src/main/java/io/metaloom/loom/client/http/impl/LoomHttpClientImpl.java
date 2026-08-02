@@ -1508,8 +1508,14 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 	@Override
 	public LoomClientHttpRequest<AssetResponse> uploadAsset(java.io.File file, UUID libraryUuid, String mimeType) {
+		return uploadAsset(file, libraryUuid, null, mimeType);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetResponse> uploadAsset(java.io.File file, UUID libraryUuid, UUID poolUuid, String mimeType) {
 		return multipartRequest("assets/upload", AssetResponse.class, file, mimeType,
-			"libraryUuid", libraryUuid == null ? null : libraryUuid.toString());
+			"libraryUuid", libraryUuid == null ? null : libraryUuid.toString(),
+			"poolUuid", poolUuid == null ? null : poolUuid.toString());
 	}
 
 	@Override

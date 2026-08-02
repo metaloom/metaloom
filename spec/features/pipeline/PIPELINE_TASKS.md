@@ -12,10 +12,9 @@
 > stable — [../cli/CLI_PLAN.md](../cli/CLI_PLAN.md) cites Task 7 and
 > [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md) cites Task 2.
 >
-> **Blocking:** **Task 3** is the only item that makes a documented capability fail at
-> run time — no `filter-*` kind is runnable, so requirement R7 is unmet. **Task 12** is
-> the only silent-correctness bug (a restart drops port checking and fan-out). Do those
-> two before any polish.
+> **Blocking:** **Task 3 is resolved** (2026-08-02) — filtering runs, as one `filter` kind
+> with dynamic bucket ports. **Task 12** is now the only silent-correctness bug (a restart
+> drops port checking and fan-out); do it before any polish.
 
 ---
 
@@ -25,9 +24,9 @@
 |---|---|---|
 | 1 | Unify the pipeline definition schema between Loom and Cortex | ✅ **Superseded** (2026-07-2x) — Cortex no longer parses definitions at all. `PipelineGraphParser` in `loom/pipeline/graph` is the single parser; edges are port-to-port; `nodes[].dependencies[]` is **rejected outright**; `LoomPipelineLoader` is deleted. [PIPELINE.md §4](PIPELINE.md) |
 | 2 | Make pipeline runs report completion | ✅ **DONE** (2026-07-18) — `PipelineRunEngine.onCompletion(RunSummary)` → `PipelineRunTracker.complete(...)`, first-terminal-verdict-wins; `PipelineRunStatusResolver` derives `SUCCESS`/`PARTIAL`/`FAILED`. The `WorkOrderResultRegistry` + 60 s ack watchdog were removed; an unreachable processor now fails synchronously at dispatch. Tests: `PipelineRunStatusResolverTest`, `PipelineRunCompletionEndpointTest`. |
-| 3 | Register the remaining node kinds; fail loudly on unknown | 🟡 **Half done — OPEN below.** Fail-loudly landed (`RegistryNodeFactory.createNode` returns `null`, the task fails). Registration did not: 10 descriptor kinds still have no producer. |
+| 3 | Register the remaining node kinds; fail loudly on unknown | 🟢 **DONE** (2026-08-02) — resolved by consolidation, not registration: the eight `filter-*` kinds and their nine classes are deleted and one runnable `filter` kind replaces them. Two descriptor-only kinds remain (`facedescription`, `loom-fetch`). 🔴 MIME/size/date bucketing regressed — see below. |
 | 4 | Fix executor lifecycle (single-use scheduler, node shutdown) | ✅ **Superseded** — `ReactivePipelineExecutor` is deleted; there is no in-Cortex executor or stats scheduler. The residual — `initialize()`/`shutdown()` never called by the runners — moved into Task 10. |
-| 5 | Wire result caching and fix cache type fidelity | 🔴 **OPEN below**, re-scoped: the question is now *use or delete*, not *fix*. |
+| 5 | Wire result caching and fix cache type fidelity | ✅ **DONE** (2026-08-02) — resolved as **delete**. `NodeCacheProvider`, its five `cortex/pipeline-common` impls, `PipelineNode.cacheProvider()` and `AbstractPipelineNode.setCacheProvider()` are gone; nothing ever consulted them. `FacedetectNode`'s stale `XAttrNodeCache` javadoc is corrected. The caching that was actually wanted landed alongside it as the segment-scoped `ArtifactCache` ([PIPELINE.md §7.4](PIPELINE.md)). Two caches remain and they do different jobs: `LocalResultCache` (a node's finished result, across items) and `ArtifactCache` (an intermediate, one segment). |
 | 6 | Close the Cortex/pipeline test blind spots | 🟡 **Mostly done — OPEN below.** `cortex/node-runtime` is covered (`NodeTaskRunnerTest`, `SegmentTaskRunnerTest`, `SourceTaskRunnerTest`, `ResultBatcherTest`); `loom/pipeline` has 13 engine tests + 6 graph tests. Residual blind spots listed below. |
 | 7 | Complete the Java REST client for run and version operations | 🟡 **Client done** (2026-07-26) — `PipelineMethods` now has `runPipeline`, `pause/resume/cancelPipelineRun`, `listPipelineVersions`, `loadPipelineVersion`, `restorePipelineVersion`, `loadPipelineRunStats`, `listPipelineRunItems`. **The endpoint tests it was meant to unblock are still missing — OPEN below.** |
 | 8 | Consolidate validation and add a validation endpoint | 🔴 **OPEN below** — closes R11. |
@@ -41,52 +40,39 @@
 
 ## Task 3: Make every advertised node kind runnable — starting with the filters
 
-**Argumentation Summary:** `NodeDescriptorProvider` declares **41** kinds; only **33**
-are runnable (32 without S3). The 10 descriptor-only kinds are `facedescription`,
-`loom-fetch`, and **all eight `filter-*` kinds** — which means requirement **R7 is
-unmet**: filtering, one of the four rooted capabilities, cannot execute. The eight
-filter classes exist in `cortex/pipeline-core/…/node/filter/`, the definition format
-carries `branch: PASS|REJECT`, and `PipelineRunEngine` honours `conditionalDependencies`
-— only the registration is missing. Worse, `unsupportedNodeKinds` checks the worker's
-**config whitelist/blacklist**, not what it can construct, so the run is **not** refused
-with 503: it dispatches, `RegistryNodeFactory.createNode` returns `null`,
-`NodeTaskRunner` NPEs, and the task fails. Two further mismatches: `filter-size` is
-advertised with no class, and `SamplingFilterNode` is a class with no descriptor.
+✅ **RESOLVED (2026-08-02) — but not the way this task proposed.**
 
-**Improvement Summary:** Register the eight filters as first-class kinds, resolve the
-two descriptor mismatches, and add a boot-time consistency check so the two registries
-cannot drift again.
+The plan below was to register the eight `filter-*` classes through the source-node
+`factory.register(kind, def -> ...)` path, because they extend `AbstractPipelineNode`
+rather than `FilesystemNode`. That was the wrong end of the problem: it would have kept
+nine builder-configured classes with no options type, no per-instance configuration and
+a boolean-only verdict, in order to serve eight palette entries that differed only in
+what they read.
 
-```
-1. cortex/cli/.../dagger/RegistryNodeRegistrar.registerAll():
-   Filters extend AbstractPipelineNode, NOT FilesystemNode, so they cannot go
-   through the `Map<String, Provider<FilesystemNode<?,?>>>` multibinding or the
-   CortexNodeAdapter. Register them the same way sources are registered:
+**What was done instead:** all nine classes and their ten tests were **deleted**, and one
+runnable `filter` kind replaced them — `cortex/nodes/filter/core`, an ordinary
+`AbstractMediaNode` with a real `@Binds @IntoMap @StringKey` binding, a
+`PipelineConfigurable` options type, and **dynamic output ports**: one per configured
+bucket, plus a permanent `other`. Routing moved from an edge attribute to the port
+itself (`PortSpec.selective`), which makes an N-way branch expressible without new
+vocabulary and — unlike `FilterBranch` — propagates down the branch. See
+[NODE_DATA_TYPES.md §4.5 and §8.6](NODE_DATA_TYPES.md) and
+[NODES.md §3.3](../pipeline-nodes/NODES.md).
 
-       factory.register("filter-mimetype", def -> mimeTypeFilter(def));
+Sub-items, resolved:
 
-   Add one private static builder helper per kind, reading its options out of the
-   node definition JsonObject exactly as filesystemSource(...) does. The kinds and
-   their classes (cortex/pipeline-core/.../node/filter/):
-       filter-mimetype         -> MimeTypeFilterNode
-       filter-date             -> DateFilterNode
-       filter-duplicate        -> DuplicateFilterNode
-       filter-blacklist        -> BlacklistFilterNode
-       filter-quality          -> QualityFilterNode
-       filter-threshold        -> ThresholdFilterNode
-       filter-asset-attribute  -> AssetAttributeFilterNode
-   Each has a `builder(String id)` whose setters mirror the descriptor's
-   parameters (e.g. MimeTypeFilterNode.Builder: allowVideo/allowImage/allowAudio/
-   allowDocument/allowedExtensions). Use the node id from the definition.
+- `filter-size` advertised with no class, and `SamplingFilterNode` with no descriptor:
+  both gone with the consolidation.
+- Counts updated in `NodeDescriptorServiceLoaderTest` (**34** kinds) and across the spec
+  tree.
+- R7 is now met at run time — see [PIPELINE_REQUIREMENTS.md](PIPELINE_REQUIREMENTS.md).
 
-2. Resolve the two mismatches in
-   loom-shared/node-model/.../spec/FilterDescriptorProvider.java:
-   - `filter-size` has no implementation. Either add SizeFilterNode to
-     pipeline-core or drop the descriptor. Do not leave it advertised.
-   - SamplingFilterNode has no descriptor. Either add one (kind
-     `filter-sampling`) and register it, or delete the class.
-   Whichever way each goes, update the counts in
-   ../pipeline-nodes/NODES.md §5.2 and NodeDescriptorServiceLoaderTest.
+🔴 **Still open, and a genuine regression:** only `filterBy: LANGUAGE` is implemented.
+MIME, size and date bucketing went away with the deleted classes. The `FilterStrategy`
+seam is in place and each is roughly thirty lines plus tests, but until they exist a
+pipeline cannot route by file type.
+
+Still open from the original task, unchanged:
 
 3. facedescription and loom-fetch: decide and record. `facedescription`
    deliberately has no map binding today (NODES.md §5.1) — if that stays,
@@ -118,59 +104,6 @@ Run: `mvn -pl cortex/cli,cortex/pipeline-core,loom/pipeline test`.
 
 ---
 
-## Task 5: Resolve the node cache layer — use it or delete it
-
-**Argumentation Summary:** `cortex/pipeline-api`'s `NodeCacheProvider` and its five
-implementations in `cortex/pipeline-common` (`HeapNodeCache`, `XAttrNodeCache`,
-`SidecarFileNodeCache`, `LayeredNodeCache`, `NoOpNodeCache`) are **unreachable**:
-`PipelineNode.cacheProvider()` and `AbstractPipelineNode.setCacheProvider(...)` have no
-caller in any runtime path, there is no Dagger provider for a `NodeCacheProvider`, and
-`cortex/pipeline-common` has **no test directory at all**. Only `FacedetectNode`
-references a cache impl directly. Meanwhile the caching that *does* work is a different
-thing entirely — `cortex/common/…/cache/LocalResultCache`, a bounded per-node LRU of
-already-computed results used by ~20 nodes. Two cache concepts, one live, one dead, both
-named "cache" is how an agent loses an afternoon.
-
-**Improvement Summary:** Decide the layer's fate. Deleting it is the default; keeping it
-requires wiring and tests in the same change.
-
-```
-Decide ONE of:
-
-(a) DELETE. Remove NodeCacheProvider, the five impls, PipelineNode.cacheProvider(),
-    AbstractPipelineNode.setCacheProvider(), and the pipeline-common cache package.
-    Have FacedetectNode use LocalResultCache instead. Record the removal in
-    PIPELINE.md §7.3 and ../pipeline-nodes/NODES.md §4.
-
-(b) WIRE. Add a Dagger provider driven by CortexOptions
-    (none|heap|xattr|sidecar|layered, default none), call setCacheProvider(...)
-    from RegistryNodeRegistrar.adapt(...), and have NodeTaskRunner consult the
-    cache before process(...). Before doing this, fix the two known defects:
-    - XAttrNodeCache and SidecarFileNodeCache share a line-based `key=value`
-      serializer, so EVERY value returns as a String — a cached boolean
-      `passed` comes back as "true" and silently breaks branch routing.
-      Replace with JSON plus a schema-version field.
-    - clear() is an unimplemented stub in both; XAttrNodeCache.invalidate()
-      writes "" instead of removing the attribute.
-    Create cortex/pipeline-common/src/test and cover all five impls, plus
-    DefaultPipelineEventBus and DefaultLoomBulkSyncCollector.
-
-Note the neighbouring, genuinely-wanted feature: a segment-scoped *artifact*
-cache (decode once per segment) is designed in ../../plans/TASKS.md and is NOT
-this task. If (b) is chosen, align the two rather than shipping a third cache.
-```
-
-**References:** [PIPELINE.md §7.3](PIPELINE.md) · [../pipeline-nodes/NODES.md §4](../pipeline-nodes/NODES.md) ·
-[../../plans/TASKS.md](../../plans/TASKS.md) · `cortex/pipeline-common/…/cache/`, `cortex/common/…/cache/LocalResultCache.java`
-
-**Test Requirements:** For (a): a compile-clean build and a grep showing no remaining
-`cacheProvider` reference. For (b): a type-fidelity round-trip test per persistent cache
-(boolean, numeric and list outputs must survive `put`/`get`), `clear()`/`invalidate()`
-tests including that unrelated files survive, and a runner test that a cache hit on a
-filter still routes PASS correctly.
-
----
-
 ## Task 6: Close the residual test blind spots
 
 **Argumentation Summary:** The engine and worker runtime are now well covered, but four
@@ -195,8 +128,7 @@ the format has never had.
 
 2. CortexNodeAdapterTest — wrap a stub FilesystemNode and assert: id re-stamping via
    NodeResult.withNode(...), measured elapsed is non-zero, state/message/outputs are
-   preserved, and syncToLoom/cacheProvider are post-construction setters (not ctor
-   args).
+   preserved, and syncToLoom is a post-construction setter (not a ctor arg).
 
 3. LoomControlChannelTest — frame routing per ProcessorMessageType, reconnect
    scheduling, and that gauges/counters listed in ../ops/METRICS.md §4 are updated.
@@ -575,7 +507,6 @@ Link them; do not open a parallel task.
 | Adaptive dispatch width from live load; priority with aging; straggler / speculative re-dispatch | [../../cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md](../../cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) §3.1 |
 | Dispatch batching; adaptive `resultBatchSize` | [PLAN_C](../../cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) §3.2 |
 | Per-item opt-in event stream | [PLAN_C](../../cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) §3.3 |
-| Segment-scoped intermediate **artifact** cache (decode once per segment) | [../../plans/TASKS.md](../../plans/TASKS.md) — related to but distinct from Task 5 |
 | UI gaps: node-task drill-down, server-driven handle colours, run deep-linking, `PipelineArea` retirement | [../../loom/ui/TASK_UI_PIPELINE.md](../../loom/ui/TASK_UI_PIPELINE.md) |
 | Node-level gaps: `facedescription` binding, `asset-source` descriptor, per-node docs | [../pipeline-nodes/NODES.md §10](../pipeline-nodes/NODES.md) |
 
@@ -587,7 +518,7 @@ Link them; do not open a parallel task.
 - [x] **Task 2** — Runs report completion (2026-07-18)
 - [ ] **Task 3** — Make every advertised kind runnable, starting with the filters (**blocking, R7**)
 - [x] **Task 4** — Executor lifecycle (superseded: the Cortex executor is deleted; residual folded into Task 10)
-- [ ] **Task 5** — Resolve the node cache layer: use it or delete it
+- [x] **Task 5** — Node cache layer resolved as *delete* (2026-08-02); the segment-scoped `ArtifactCache` landed with it
 - [ ] **Task 6** — Close the residual test blind spots (fixture, adapter, control channel, DAOs)
 - [ ] **Task 7** — Java endpoint tests for versioning, dispatch and delete-cascade
 - [ ] **Task 8** — Validation endpoint + de-triplicated structural validation (**closes R11**)
@@ -642,8 +573,8 @@ Task-file discipline for this area. Code-level conventions live in
 | Filter implementations + their builders (Task 3) | `cortex/pipeline-core/…/node/filter/` |
 | Filter descriptors + kind names (Task 3) | `loom-shared/node-model/…/spec/FilterDescriptorProvider.java` |
 | Descriptor ↔ runnable reconciliation | [../pipeline-nodes/NODES.md §5.2](../pipeline-nodes/NODES.md) |
-| The dead cache layer (Task 5) | `cortex/pipeline-api/…/api/cache/`, `cortex/pipeline-common/…/cache/` |
-| The *live* result cache (Task 5, contrast) | `cortex/common/…/common/cache/LocalResultCache.java` |
+| The result cache — a node's finished result, across items | `cortex/common/…/common/cache/LocalResultCache.java` |
+| The artifact scope — an intermediate, one segment | `cortex/api/…/api/node/artifact/`, `cortex/common/…/common/artifact/MediaArtifacts.java` |
 | Endpoint-test harness + pattern to copy (Task 7) | `loom/core/src/test/…/endpoint/test/PipelineRunItemEndpointTest.java` |
 | Java client methods (Task 7) | `loom-client/common/…/method/PipelineMethods.java` |
 | The three validators (Task 8) | `loom/services/rest/…/validation/PipelineValidationService.java` · `loom-shared/rest-model/…/validation/PipelineModelValidator.java` · `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
@@ -656,5 +587,5 @@ Task-file discipline for this area. Code-level conventions live in
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (rebuilt against the current runtime: Tasks 1/2/4 collapsed to outcome records, Tasks 3/5/6/7/10/11 re-scoped to what is actually still open, new Tasks 12–13 for the recovery parser bug and the uninstrumented engine, and items owned by other spec files moved to a cross-reference table)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (Task 3 resolved by consolidation rather than registration; MIME/size/date bucketing recorded as the residual regression)_

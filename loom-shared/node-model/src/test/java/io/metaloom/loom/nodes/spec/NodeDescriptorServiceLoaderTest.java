@@ -34,8 +34,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testAllProvidersAreDiscovered() {
 		List<NodeDescriptorProvider> providers = loadProviders();
 
-		assertEquals(26, providers.size(),
-			"Expected 26 descriptor providers via ServiceLoader but found " + providers.size()
+		assertEquals(27, providers.size(),
+			"Expected 27 descriptor providers via ServiceLoader but found " + providers.size()
 				+ ". If a provider was intentionally added or removed, update this count and "
 				+ "META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider together. "
 				+ "Discovered: " + providerNames(providers));
@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(41, registry.size(),
-			"Expected 41 advertised node kinds but found " + registry.size()
+		assertEquals(37, registry.size(),
+			"Expected 37 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -66,8 +66,10 @@ public class NodeDescriptorServiceLoaderTest {
 			"sha512",             // former cortex-hash-api
 			"filesystem-source",  // former cortex-source-api
 			"s3-source",
+			"gdrive-source",   // cloud drives; one kind per provider so a worker
+			"onedrive-source", // advertises only the cloud it holds credentials for
 			"s3-sink",
-			"filter-mimetype",    // former cortex-filter-api
+			"filter",             // former cortex-filter-api; the eight filter-* kinds collapsed into this one
 			"thumbnail",          // former cortex-thumbnail-api
 			"facedetect",         // former cortex-facedetect-api
 			"fingerprint",        // former cortex-fingerprint-api
@@ -86,6 +88,7 @@ public class NodeDescriptorServiceLoaderTest {
 			"scene-layout",       // depth + boxes -> spatial relations
 			"dominant-color",     // CIELAB colour clustering + bilingual naming
 			"tts",                // text to speech via the /v1/tts sidecar
+			"translate",          // upstream text into a target language via a language model
 			"imagegen",           // text-to-image / image-to-image sidecar
 			"watermark"           // composite a configured overlay onto image or video
 		};

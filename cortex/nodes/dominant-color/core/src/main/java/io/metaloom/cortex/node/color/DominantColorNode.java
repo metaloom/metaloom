@@ -24,6 +24,7 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.artifact.MediaArtifacts;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.node.color.ColorResult.ColorEntry;
@@ -147,7 +148,9 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 
 		BufferedImage image;
 		try {
-			image = PixelSampler.read(ctx.media().file());
+			// Shared with every other image node in this segment - quality reads the same
+			// decode rather than opening the file again. Alone, this is still one ImageIO.read.
+			image = MediaArtifacts.decodedImage(ctx);
 		} catch (Exception e) {
 			// A file that claims to be an image and cannot be decoded is a real problem, not a
 			// normal outcome - unlike a photo with no faces in it.

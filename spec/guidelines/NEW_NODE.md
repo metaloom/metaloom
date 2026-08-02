@@ -17,13 +17,14 @@ change.
 > | Pure compute, **no model / no sidecar** | `cortex/nodes/dominant-color` | k-means arithmetic, no external runtime |
 > | A **sink** that consumes upstream artifacts | `cortex/nodes/s3-sink` | reads files an upstream node wrote to local disk; also a `PipelineConfigurable` |
 > | A minimal out-of-tree example | `examples/cortex-custom-node` | the smallest thing that compiles and registers |
+| A **source** that reaches a remote system | `cortex/nodes/cloud-source` · `cortex/s3-common` | `AbstractPipelineNode implements MediaSourceNode`, a cold `stream()`, lazy media handles, and the provider seam + materializer in a sibling `*-common` module so every worker can resolve the references |
 
 ---
 
 ## 1. Anatomy of a node
 
 A node module is `cortex/nodes/<name>/core` (all but two nodes use the `core/` submodule layout —
-copy it; flat modules exist only for `filesystem-source` and `s3-source`), in package
+copy it; flat modules exist only for `filesystem-source`, `s3-source` and `cloud-source`), in package
 `io.metaloom.cortex.node.<pkg>`:
 
 | File | Responsibility |
@@ -136,12 +137,12 @@ run, or the build fails.
 | 2 | `cortex/processor/pom.xml` | add a `<dependency>` on `cortex-<your-node>-node` — this is the aggregation module the CLI/server pull in transitively |
 | 3 | `cortex/cli/.../dagger/NodeCollectionModule.java` | import `XNodeModule` and add `XNodeModule.class` to `@Module(includes = {…})` |
 | 4 | `loom-shared/node-model/.../spec/XDescriptorProvider.java` **+** the `META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` file | the descriptor (ports, parameters, category, icon) and its ServiceLoader registration |
-| 5 | `integration-test/.../node/NodePortConformanceTest.java` | add a `NODE_KINDS.put("<node class FQN>", "<kind>")` line — kinds are listed explicitly, never scanned |
+| 5 | `integration-test/.../node/NodePortConformanceTest.java` | add a `map("<node class FQN>", "<kind>")` line — kinds are listed explicitly, never scanned. One class may serve several kinds (`map(fqn, "a", "b")`), as `CloudSourceNode` does |
 
 **And update the two guard tests:**
 
 - `NodeDescriptorServiceLoaderTest` asserts an exact provider count and kind count — currently
-  **26 providers / 41 kinds**. Adding a descriptor bumps both `assertEquals` literals; also add the
+  **27 providers / 37 kinds**. Adding a descriptor bumps both `assertEquals` literals; also add the
   kind to its `testKindsFromEachFormerModule` list and update the "N providers declare M kinds" line
   in [NODES.md §8](../features/pipeline-nodes/NODES.md). This test failing is the intended tripwire,
   not a regression.
@@ -198,8 +199,9 @@ in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
   descriptor declares. If the node pulls a new model, add its licence to
   `website/content/english/docs/legal/model-licenses/`.
 - **Spec** — add the node to [NODES.md](../features/pipeline-nodes/NODES.md): the node-list table
-  (§3), the persistence table (§2), the Dagger wiring/descriptor counts (§8) and the capability
-  matrix (§12).
+  (§3), the persistence table (§2), the cache-key table (§4) when the key is more than the media
+  path, the Dagger wiring and descriptor counts (§5.1, §5.2) and the options tables (§6.2, §6.3).
+  Also add the port row to [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.
 - **Demo data** — `DemoDatabaseInitializer` seeds demo pipelines. Add the node to a demo pipeline
   graph **when it fits an existing ingest/publish story**; the GPU sidecar nodes (`imagegen`, `tts`,
   `depthmap`, `videogen`) are deliberately left out because the demo container has no sidecar —
@@ -244,7 +246,9 @@ in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
 | Port ↔ descriptor conformance test | `integration-test/.../node/NodePortConformanceTest.java` |
 | Test scaffolding (`StubLoomMedia`, `AbstractNodeChainTest`, `CapturingNode`) | `cortex/pipeline-core` test-jar (`io.metaloom.cortex.pipeline.test`) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
-| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` |
+| Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
+| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) |
 
 _Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (re-verified against the watermark node: failure must use .abort(), added the NodePortConformanceTest touch-point, corrected the guard-test counts and the test-scaffolding module)_
+_Last updated: 2026-08-02 (added the cloud source nodes: recorded cortex/cloud-common, the third flat
+module, the per-provider capability gate, and refreshed the guard-test counts to 27/37)_

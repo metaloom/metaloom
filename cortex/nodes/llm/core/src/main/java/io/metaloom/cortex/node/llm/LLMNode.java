@@ -10,10 +10,7 @@ import java.util.Map.Entry;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 
-import io.metaloom.ai.genai.llm.LLMContext;
 import io.metaloom.ai.genai.llm.LLMProvider;
-import io.metaloom.ai.genai.llm.LargeLanguageModel;
-import io.metaloom.ai.genai.llm.impl.LargeLanguageModelImpl;
 import io.metaloom.ai.genai.llm.prompt.Prompt;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
 import io.metaloom.cortex.api.node.InputPort;
@@ -25,6 +22,8 @@ import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.llm.LlmEndpoint;
+import io.metaloom.cortex.llm.LlmInvoker;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -34,6 +33,9 @@ import io.vertx.core.json.JsonObject;
 public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
+
+	/** Metrics provider label. Kept as {@code "ollama"} rather than {@code "llm"} so existing dashboards keep resolving. */
+	private static final String METRICS_LABEL = "ollama";
 
 	/** In-heap skip cache of the per-prompt LLM outputs, keyed by media path, to avoid re-running the model within this worker's lifetime. Non-durable -
 	 * the durable copy lives in Loom. */
@@ -103,31 +105,22 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 		// re-persisting.
 		Map<String, String> cached = resultCache.get(path);
 		if (cached != null) {
-			metrics.recordAiCacheHit("ollama");
+			metrics.recordAiCacheHit(METRICS_LABEL);
 			cached.forEach((promptId, answer) -> ctx.output(resultPort(promptId), answer));
 			return ctx.origin(LOCAL).next();
 		}
 		Map<String, String> answers = new HashMap<>();
+		LlmInvoker invoker = new LlmInvoker(provider, LlmEndpoint.of(options()));
 
 		for (Entry<String, LLMNodePrompt> entry : options().getPrompts().entrySet()) {
 			String promptId = entry.getKey();
 			String modelName = entry.getValue().getModel();
 			String promptStr = entry.getValue().getPrompt();
 
-			LargeLanguageModel model = new LargeLanguageModelImpl(modelName, options().ollamaUrl(), 2048, options().providerType());
 			Prompt prompt = new PromptImpl(promptStr);
 			prompt.set("name", ctx.media().file().getName());
-			LLMContext llmCtx = LLMContext.ctx(prompt, model);
 
-			long aiStart = System.currentTimeMillis();
-			JsonObject json;
-			try {
-				json = provider.generateJson(llmCtx);
-			} catch (RuntimeException e) {
-				metrics.recordAiCall("ollama", false, System.currentTimeMillis() - aiStart);
-				throw e;
-			}
-			metrics.recordAiCall("ollama", true, System.currentTimeMillis() - aiStart);
+			JsonObject json = invoker.generateJson(modelName, prompt, metrics, METRICS_LABEL);
 
 			ctx.output(resultPort(promptId), json.encode());
 			answers.put(promptId, json.encode());

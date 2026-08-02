@@ -66,10 +66,10 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * </p>
 	 *
 	 * <p>
-	 * Each element is a JSON <em>string</em> rather than a structured value on purpose: node
-	 * outputs are serialized as {@code key=value.toString()} by {@code XAttrNodeCache} and come
-	 * back as plain strings on a cache hit, so anything structured has to be explicitly encoded
-	 * and re-parsed.
+	 * Each element is a JSON <em>string</em> rather than a structured value because the port is
+	 * declared as {@code String.class}: every element crosses the wire to Loom, so the encoding
+	 * is explicit here and re-parsed by the consumer rather than left to whatever a serializer
+	 * would have made of a nested object.
 	 * </p>
 	 *
 	 * <pre>

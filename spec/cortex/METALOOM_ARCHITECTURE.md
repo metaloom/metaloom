@@ -237,7 +237,7 @@ unregistered kind (its "falling back to stub" log line is a leftover), and
 non-source kind is rejected outright. Unknown kinds no longer report silent success.
 
 The palette is dynamic — `GET /api/v1/pipeline/node-descriptors`, served from
-`NodeDescriptorRegistry` (26 `ServiceLoader` providers, 41 kinds). **The descriptor set
+`NodeDescriptorRegistry` (26 `ServiceLoader` providers, 34 kinds). **The descriptor set
 is wider than the executable set:** the 8 `filter-*` kinds, `loom-fetch` and
 `facedescription` have descriptors but no producer; `asset-source` and `sha512-dedup`
 are the reverse. Details in [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md).
@@ -251,12 +251,17 @@ is checked, not just the source.
 ⚠️ The *descriptor* check (`PipelineValidationService`, "Unknown node type") runs only
 on pipeline **create/update**. At run start `PipelineEndpointService` builds
 `PipelineGraphParser` with the no-arg constructor, whose registry is `null`, so the
-unknown-kind branch is skipped. A saved pipeline containing `filter-mimetype` therefore
+unknown-kind branch is skipped. A saved pipeline containing an unregistered kind therefore
 fails at run start as a 503 capability error, not as a validation error.
 
 **Affinity segments** group connected nodes onto one worker, saving a round trip per
-node per item. Everything is in one group by default. It does **not** avoid re-reading
-the file — there is no frame handoff between nodes.
+node per item. Everything is in one group by default. Grouping alone does not avoid
+re-reading the file — the round trips it saves were never the expensive part, and
+segment dispatch measured 1.01× per-node dispatch. What makes decode-once possible is
+the **artifact scope** the segment opens: nodes publish an expensive intermediate into
+`NodeInputs.artifacts()` and later nodes in the same segment read it instead of
+decoding again. Opt-in per node, one scope per item, closed when the segment ends —
+see [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §7.4.
 
 ---
 

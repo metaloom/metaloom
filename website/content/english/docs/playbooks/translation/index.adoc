@@ -4,14 +4,14 @@ weight: 5
 ---
 
 Translation in MetaLoom is three separate jobs, and it is worth naming them before writing any
-pipeline, because each has a different answer today:
+pipeline:
 
 . **Extract** the source text — from speech, from documents, from images.
 . **Translate** that text.
 . Optionally **speak** the translation back onto the asset as narration audio.
 
-Extraction and speech synthesis are stock nodes. Translation is the step that needs a decision, for a
-specific reason spelled out below.
+All three are stock nodes. This page builds the pipeline end to end, then covers the two off-graph
+routes that are still the right answer for a one-off backfill or a human-reviewed translation.
 
 == The Shape of It
 
@@ -19,7 +19,7 @@ specific reason spelled out below.
 <div class="ml-figure">
 <svg viewBox="0 0 900 300" role="img" aria-labelledby="ml-tl-title ml-tl-desc" class="ml-arch-svg">
   <title id="ml-tl-title">Extract, translate, speak</title>
-  <desc id="ml-tl-desc">Four extractor nodes turn media into text: whisper for speech, tika for documents, ocr for images and vlm for scanned pages, each carrying its result on a named output port. Those ports feed a translate step, whose translated text can then be wired into the text input port of the tts node to synthesize narration audio.</desc>
+  <desc id="ml-tl-desc">Four extractor nodes turn media into text: whisper for speech, tika for documents, ocr for images and vlm for scanned pages, each carrying its result on a named output port. Those ports feed the translate node, whose translated text can then be wired into the text input port of the tts node to synthesize narration audio.</desc>
   <defs>
     <marker id="ml-tl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
   </defs>
@@ -52,12 +52,12 @@ specific reason spelled out below.
 
   <!-- translate -->
   <g>
-    <rect x="440" y="96" width="200" height="120" rx="12" class="ml-box-dyn"></rect>
+    <rect x="440" y="96" width="200" height="120" rx="12" class="ml-box-container"></rect>
     <text x="456" y="120" class="ml-box-title">2 · Translate</text>
-    <text x="540" y="146" text-anchor="middle" class="ml-part-sub">REST batch (no code)</text>
-    <text x="540" y="166" text-anchor="middle" class="ml-part-sub">chat agent + skill</text>
-    <text x="540" y="186" text-anchor="middle" class="ml-part-sub">custom node</text>
-    <text x="540" y="206" text-anchor="middle" class="ml-box-tag">not a stock node — pick one</text>
+    <rect x="456" y="132" width="168" height="44" rx="6" class="ml-box-part"></rect>
+    <text x="540" y="152" text-anchor="middle" class="ml-part-title">translate</text>
+    <text x="540" y="168" text-anchor="middle" class="ml-part-sub">one node per language</text>
+    <text x="540" y="200" text-anchor="middle" class="ml-part-sub">translation — plain prose</text>
   </g>
 
   <!-- tts -->
@@ -82,8 +82,8 @@ specific reason spelled out below.
 
 [IMPORTANT]
 ====
-Of the kinds on this page, only `tts` and `vlm` are registered with the stock worker's pipeline node
-factory. `whisper`, `tika`, `ocr` and `llm` are not yet dispatchable — see
+`translate` needs a reachable language model — any Ollama or OpenAI-compatible endpoint — on the
+worker that runs it. A kind no online worker advertises makes the run fail with a `503`; see
 link:../#node-availability[Which node kinds a worker can actually run].
 ====
 
@@ -118,22 +118,62 @@ Build that first and confirm the transcripts are stored before adding anything d
 [#translate]
 == Step 2 — Translate
 
-Here is the constraint that decides the whole design:
+link:../../nodes/translate/[`translate`] takes text on its `text` input port and puts the translation
+on its `translation` output port. Because the port is typed `text/*`, any of the four extractors above
+can feed it — you draw the edge, and nothing in the node's configuration says where the text came
+from.
 
-[WARNING]
+[source,json]
+----
+{ "id": "translate", "type": "translate", "name": "Translate to English",
+  "options": { "targetLanguage": "en", "model": "gemma2:27b" } }
+----
+
+[NOTE]
 ====
-**The `llm` node does not see upstream text.** Its only input port is `media`; it builds its prompt
-from the asset's *filename* (the prompt variable `name`), so there is no port to wire a transcript
-into and ask for a translation. It is built for classification and tagging from metadata, and its
-output is a JSON document stored as an `asset_json_comp` per prompt.
-
-Anything that translates extracted text therefore has to come from one of the three options below.
+The link:../../nodes/llm/[`llm`] node cannot do this job. Its only input port is `media` and it builds
+its prompt from the asset's *filename*, so there is no port to wire a transcript into. It is built for
+classification and tagging from metadata. The two nodes share their model plumbing, not their shape.
 ====
 
-=== Option A — Translate outside the graph (works today, no code)
+=== One node per language
 
-Run the extraction pipeline, then read the stored text over REST, translate it with whatever model you
-already run, and write the translation back as a JSON component on the same asset:
+A translate node translates into exactly one language. For several, add several nodes and connect the
+same upstream text to each:
+
+[source,json]
+----
+{ "id": "to-en", "type": "translate", "options": { "targetLanguage": "en" } },
+{ "id": "to-fr", "type": "translate", "options": { "targetLanguage": "fr" } }
+----
+
+Each translation is stored under its own target language, so one asset carries `en`, `de` and `fr`
+side by side and each stays separately retrievable:
+
+[source,bash]
+----
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "$LOOM/api/v1/assets/$ASSET/json-comps" \
+  | jq '.data[] | select(.schemaType == "translation" and .variant == "fr") | .data.text'
+----
+
+They also run independently, so a slow or unavailable model for one language does not hold up the
+others.
+
+=== Long transcripts
+
+A feature-length transcript does not fit in a model's context window. The node splits it at paragraph
+boundaries first, then sentence boundaries — never mid-sentence — and rejoins the answers in order.
+`maxChunkChars` sets the budget per request, and each chunk is one call to the model, so a longer
+recording costs proportionally more. `chunkCount` in the stored result records how many it took.
+
+=== When not to use the node
+
+Two situations are still better served off the graph.
+
+**A one-off backfill of an existing library.** Adding a node to a pipeline only affects what the
+pipeline processes next. To translate what you already have, read the stored text over REST, translate
+it, and write the result back as a component on the same asset:
 
 [source,bash]
 ----
@@ -150,7 +190,7 @@ TRANSLATION=$(curl -s http://ollama:11434/api/generate -d "{
   \"prompt\": $(jq -Rs '"Translate the following text into English. Return only the translation.\n\n" + .' source.txt)
 }" | jq -r .response)
 
-# 3. Store it back on the asset, alongside the original
+# 3. Store it back on the asset, in the same shape the node writes
 curl -s -X POST $LOOM/api/v1/assets/$ASSET/json-comps \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d "$(jq -n --arg t "$TRANSLATION" '{
@@ -158,20 +198,15 @@ curl -s -X POST $LOOM/api/v1/assets/$ASSET/json-comps \
         schemaType: "translation",
         variant: "en",
         producerVersion: "gpt-oss:20b",
-        data: { language: "en", text: $t }
+        data: { targetLanguage: "en", text: $t }
       }')"
 ----
 
-Using `variant` for the target language means one asset can carry `en`, `de` and `fr` translations side
-by side, each retrievable from `GET /api/v1/assets/{uuid}/json-comps`.
+Writing the same `schemaType` and `variant` the node writes means backfilled and pipeline-produced
+translations read back through one query.
 
-This is a batch job you run after the pipeline, not a node — which is exactly what it should be while
-translation is a one-off backfill.
-
-=== Option B — Ask the chat agent (works today, interactive)
-
-For occasional, human-in-the-loop translation, the link:../../loom/chat/[chat agent] already reaches
-transcripts through `search_transcript`. A skill makes the behaviour consistent:
+**An occasional translation a human should see first.** The link:../../loom/chat/[chat agent] already
+reaches transcripts through `search_transcript`. A skill makes the behaviour consistent:
 
 [source,markdown]
 ----
@@ -194,51 +229,8 @@ If no transcript exists, say so and suggest running the Whisper pipeline — nev
 filename or invent dialogue.
 ----
 
-Remember that the agent's domain tools are **read-only**: it will produce the translation in the
-conversation, not persist it onto the asset. Pair it with Option A when the translation must be stored.
-
-=== Option C — A translate node (the durable answer)
-
-Once translation is a routine part of ingest, it belongs in the graph. A translate node is small:
-declare a `text` input port and a `translation` output port, read the input, call the provider, emit
-the result. Loom resolves each input port from the **wired edges** and ships the resulting values to
-the worker together with the node task, so a node can consume a transcript produced by a different
-node on a different machine.
-
-The quickest way to build one is a Python worker — a single file that advertises the kind and runs it.
-The whole procedure, from an empty file to a pipeline that dispatches to it, is
-link:../python-node/[A Custom Node in Python]. The node body is the only part that differs from the
-example there:
-
-[source,python]
-----
-def run_node(node_kind, media_path, options, inputs):
-    # `inputs` is keyed by THIS node's own input port ids. Whichever upstream
-    # port was wired into "text" — a whisper transcript, tika document text,
-    # OCR output — arrives here under the same name.
-    source = one_value(inputs, "text")
-    if not source:
-        return NodeResult.skipped("nothing wired into 'text'")
-
-    translated = translate(source, options.get("targetLanguage", "en"))
-
-    # Keyed by this node's OUTPUT port id — what an edge can be drawn from.
-    return NodeResult.completed({"translation": translated})
-----
-
-`one_value` is the small reader from the link:../python-node/#node[Python node playbook] that unwraps
-the payload envelope every port value travels in; the same page shows the `OUTPUT_PORTS` table that
-tells the protocol layer to wrap `translation` back up as `text/plain`.
-
-Because the node's own ports name its inputs, nothing in the node's configuration says where the text
-comes from — you draw an edge from `speech.transcript` (or `pages.content`, or `scan.result_body`)
-into `translate.text` and the engine resolves the rest. Declare the input as `text/*` and any of the
-extractors above can feed it.
-
-Two registrations are needed before Loom will route work to the kind: a **node descriptor** on the Loom
-side — including its `inputPorts` and `outputPorts`, so `translate` passes pipeline validation and can
-be connected in the UI palette — and the kind in your worker's advertised list. Both are covered in the
-link:../python-node/[Python node playbook].
+The agent's domain tools are **read-only**: it produces the translation in the conversation, not on
+the asset. Pair it with the REST write above when the translation must be stored.
 
 [#dub]
 == Step 3 — Speak the Translation
@@ -258,7 +250,7 @@ nodes:
     voice: af_heart # German default: Jakob
 ----
 
-The words come from the graph. With a `translate` node in place, the full dubbing pipeline is:
+The words come from the graph. The full dubbing pipeline is:
 
 [source,json]
 ----
@@ -266,24 +258,21 @@ The words come from the graph. With a `translate` node in place, the full dubbin
   "nodes": [
     { "id": "source",    "type": "filesystem-source", "name": "Video library",
       "options": { "path": "/media/video" } },
-    { "id": "mime",      "type": "filter-mimetype",   "name": "Video only",
-      "options": { "allowedTypes": "video/*" } },
     { "id": "hash",      "type": "sha512",            "name": "SHA-512 identity" },
     { "id": "speech",    "type": "whisper",           "name": "Transcribe",
       "timeoutMs": 3600000 },
-    { "id": "translate", "type": "translate",         "name": "Translate to English" },
+    { "id": "translate", "type": "translate",         "name": "Translate to English",
+      "options": { "targetLanguage": "en" } },
     { "id": "narrate",   "type": "tts",               "name": "Speak the translation" }
   ],
   "edges": [
     { "id": "e1", "source": "source",    "sourcePort": "media",
-      "target": "mime",      "targetPort": "media" },
-    { "id": "e2", "source": "mime",      "sourcePort": "passed",
-      "target": "hash",      "targetPort": "media",  "branch": "PASS" },
-    { "id": "e3", "source": "mime",      "sourcePort": "passed",
-      "target": "speech",    "targetPort": "video",  "branch": "PASS" },
-    { "id": "e4", "source": "speech",    "sourcePort": "transcript",
+      "target": "hash",      "targetPort": "media" },
+    { "id": "e2", "source": "source",    "sourcePort": "media",
+      "target": "speech",    "targetPort": "video" },
+    { "id": "e3", "source": "speech",    "sourcePort": "transcript",
       "target": "translate", "targetPort": "text" },
-    { "id": "e5", "source": "translate", "sourcePort": "translation",
+    { "id": "e4", "source": "translate", "sourcePort": "translation",
       "target": "narrate",   "targetPort": "text" }
   ]
 }
@@ -313,10 +302,11 @@ with a production path where Orpheus runs on vLLM or llama.cpp.
 [options="header",cols="1,2,2"]
 |===
 | Situation | Route | Why
-| One-off backfill of an existing library | Option A (REST batch) | No code, no rebuild; run it once and store the result.
-| Occasional, reviewed translation | Option B (chat + skill) | A human sees the output before it counts.
-| Translation on every ingest | Option C (custom node) | Belongs in the graph; composes with `tts` for dubbing.
-| Dubbing / accessibility audio | Option C + `tts` | `tts` speaks whatever is wired into its `text` port.
+| Translation on every ingest | The `translate` node | Belongs in the graph; composes with `tts` for dubbing.
+| Several target languages | One `translate` node per language | Each translation is stored under its own language and stays separately retrievable.
+| Dubbing / accessibility audio | `translate` + `tts` | `tts` speaks whatever is wired into its `text` port.
+| One-off backfill of an existing library | REST batch | A pipeline only affects what it processes next; a backfill reaches what is already stored.
+| Occasional, reviewed translation | Chat agent + skill | A human sees the output before it counts.
 |===
 
 == Gotchas
@@ -326,7 +316,19 @@ with a production path where Orpheus runs on vLLM or llama.cpp.
 | Symptom | Cause
 
 | The `llm` node "translates" nonsense
-| It only ever saw the filename. It cannot read a transcript — see the warning above.
+| It only ever saw the filename. It cannot read a transcript — use `translate`, which has a `text`
+input port.
+
+| Two `translate` nodes, but only one translation stored
+| Both are set to the same `targetLanguage`. The language is the storage key, so the second overwrites
+the first. Give them different targets.
+
+| The translation is truncated
+| The input hit `maxChars`. Raise it, or translate per scene rather than per file.
+
+| The narration is in the right words but the wrong accent
+| The `tts` node's own `language` still points at the source language. It says how to speak, never
+what to speak — set it to match the translate node's target.
 
 | Saving the pipeline fails with `requires input 'text' ... but nothing is connected`
 | Nothing is wired into the `tts` node's `text` port. A required input port with no edge is rejected
@@ -341,7 +343,8 @@ assignability never crosses families — so a `hash/sha512` port cannot feed a s
 
 | The narration reads out JSON syntax
 | A JSON-returning `llm` prompt port is wired into `text`. Both ports are `text/plain`, so validation
-cannot catch it — wire a prose port instead.
+cannot catch it — wire a prose port instead. The same applies to `translate`: it will dutifully
+translate field names.
 
 | The translation is stored but not visible
 | It is a JSON component — read it from `GET /api/v1/assets/{uuid}/json-comps`, filtered by `variant`.
@@ -359,4 +362,5 @@ link:../#node-availability[node availability].
 
 * Get the source text first — link:../transcription/[Transcribing for the Chat Agent].
 * Translate per scene rather than per file — link:../scene-analysis/[Scene-Level Video Analysis].
-* Build the node — link:../../cortex/examples/[Cortex Examples].
+* The node's full option set — link:../../nodes/translate/[Translate].
+* Build a node of your own — link:../python-node/[A Custom Node in Python].

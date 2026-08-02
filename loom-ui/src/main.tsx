@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import { NodeRegistryProvider } from "./context/NodeRegistryContext";
 import { ThemeModeProvider, useThemeMode } from "./context/ThemeContext";
+import { UploadProvider } from "./features/uploads/UploadContext";
 import AppShell from "./layout/AppShell";
 import LoginPage from "./features/auth/LoginPage";
 
@@ -20,10 +21,14 @@ const ROUTER_BASENAME = import.meta.env.BASE_URL.replace(/\/+$/, "");
 function AuthGate() {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <LoginPage />;
+  // UploadProvider sits above AppShell so an in-flight batch outlives every route change; only a
+  // logout (which unmounts this branch) tears it down.
   return (
     <NodeRegistryProvider>
       <SpaceProvider>
-        <AppShell />
+        <UploadProvider>
+          <AppShell />
+        </UploadProvider>
       </SpaceProvider>
     </NodeRegistryProvider>
   );

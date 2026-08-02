@@ -85,7 +85,9 @@ test.describe("Asset CRUD – mocked request mapping", () => {
     const captured = await mockRest(page);
     await login(page);
 
-    await page.getByRole("button", { name: "Upload" }).first().click();
+    // exact: true — role-name matching is substring-based, and the sidebar's "Uploads" entry
+    // (added with the dedicated upload screen) would otherwise match first and navigate away.
+    await page.getByRole("button", { name: "Upload", exact: true }).first().click();
     // Set the hidden file input inside the dialog.
     await page.setInputFiles('input[type="file"]', {
       name: "photo.jpg",

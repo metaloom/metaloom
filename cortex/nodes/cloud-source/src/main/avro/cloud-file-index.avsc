@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "CloudFileEntry",
+  "namespace": "io.metaloom.cortex.node.source.cloud.avro",
+  "doc": "A single persisted file index entry for one cloud selection. State is transient (derived per scan by diffing against this record) and is therefore not stored. The changeToken is an opaque token prefixed with its origin (md5:, v:, ctag:, etag:), NOT a content hash - never dedup on it. Folders are indexed alongside files because subtree membership over a drive-wide delta feed needs to know which ids are folders inside the selection.",
+  "fields": [
+    {"name": "provider", "type": "string", "doc": "GDRIVE or ONEDRIVE"},
+    {"name": "driveId", "type": "string"},
+    {"name": "fileId", "type": "string", "doc": "Stable provider id; survives renames and moves, which is what makes MOVED detectable."},
+    {"name": "name", "type": "string"},
+    {"name": "parentId", "type": ["null", "string"], "default": null},
+    {"name": "mimeType", "type": ["null", "string"], "default": null},
+    {"name": "changeToken", "type": ["null", "string"], "default": null},
+    {"name": "size", "type": "long", "doc": "-1 when the provider reports none, which is the normal case for Google native documents."},
+    {"name": "lastModifiedMillis", "type": "long"},
+    {"name": "exportMimeType", "type": ["null", "string"], "default": null, "doc": "Non-null only for Google native documents that must be exported rather than downloaded."},
+    {"name": "folder", "type": "boolean", "default": false}
+  ]
+}

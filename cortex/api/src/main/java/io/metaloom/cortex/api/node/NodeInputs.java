@@ -8,27 +8,50 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.metaloom.cortex.api.node.artifact.ArtifactCache;
 import io.metaloom.loom.pipeline.model.DataElement;
 import io.metaloom.loom.pipeline.model.Origin;
 import io.metaloom.loom.pipeline.model.PortPayload;
 
 /**
  * Everything the engine hands a node besides the media itself: what its input ports carry, which of its output ports the pipeline actually wired up,
- * and the origin this execution belongs to.
+ * the origin this execution belongs to, and the scope it may park expensive intermediates in.
  *
  * <p>
  * This replaces the {@code Map<String, Map<String, Object>>} keyed by upstream node id. The keys here are <strong>this node's own input port ids</strong>
  * — the engine has already resolved which upstream {@code (node, port)} fills each one — so a node can no longer be broken by someone renaming its
  * neighbour in the editor.
  * </p>
+ *
+ * <p>
+ * {@link #artifacts()} is the one component that is not data: it is the segment-scoped {@link ArtifactCache} through which a node hands a decoded
+ * frame set or an extracted audio track to the next node in the same segment. Ports carry what is serialised back to Loom; the artifact scope carries
+ * what must never be. It is never null — a node invoked outside a managed execution gets {@link ArtifactCache#noop()}, which computes and retains
+ * nothing.
+ * </p>
  */
-public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin) {
+public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin, ArtifactCache artifacts) {
 
 	private static final NodeInputs EMPTY = new NodeInputs(Map.of(), Set.of(), null);
 
 	public NodeInputs {
 		ports = ports == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(ports));
 		demandedOutputs = demandedOutputs == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(demandedOutputs));
+		artifacts = artifacts == null ? ArtifactCache.noop() : artifacts;
+	}
+
+	/**
+	 * The form for a caller that has no artifact scope to offer — which is every caller outside the two task runners.
+	 */
+	public NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin) {
+		this(ports, demandedOutputs, origin, null);
+	}
+
+	/**
+	 * The same inputs, bound to an artifact scope. Used by the runner, which builds the port view per node but opens the scope once per segment.
+	 */
+	public NodeInputs withArtifacts(ArtifactCache artifacts) {
+		return new NodeInputs(ports, demandedOutputs, origin, artifacts);
 	}
 
 	/**

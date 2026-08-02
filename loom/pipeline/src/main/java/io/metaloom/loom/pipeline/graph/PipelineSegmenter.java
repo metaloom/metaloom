@@ -80,8 +80,8 @@ public class PipelineSegmenter {
 				if (!affinity.equals(graph.getNode(neighbour).getAffinity())) {
 					continue;
 				}
-				if (isFilterEdge(graph, current, neighbour)) {
-					// A filter edge ends the segment. The worker applies blocking-skip
+				if (isRoutingEdge(graph, current, neighbour)) {
+					// A routing edge ends the segment. The worker applies blocking-skip
 					// rules locally but knows nothing about branch verdicts, so a filter
 					// inside a segment would run the branch node regardless of the
 					// verdict - silently changing what the pipeline does. Routing stays
@@ -104,11 +104,37 @@ public class PipelineSegmenter {
 	}
 
 	/**
-	 * @return true when either node depends on the other through a filter branch
+	 * @return true when either node depends on the other through a branch the engine has to resolve —
+	 *         an older {@code PASS}/{@code REJECT} edge, or an edge leaving a
+	 *         {@link io.metaloom.loom.nodes.spec.PortSpec#isSelective() selective} port
 	 */
-	private boolean isFilterEdge(PipelineGraph graph, String a, String b) {
+	private boolean isRoutingEdge(PipelineGraph graph, String a, String b) {
 		return graph.getNode(a).getConditionalDependencies().containsKey(b)
-			|| graph.getNode(b).getConditionalDependencies().containsKey(a);
+			|| graph.getNode(b).getConditionalDependencies().containsKey(a)
+			|| isSelectiveEdge(graph, a, b)
+			|| isSelectiveEdge(graph, b, a);
+	}
+
+	/**
+	 * Whether {@code consumer} is fed by a selective port of {@code producer}.
+	 *
+	 * <p>
+	 * This deliberately reads {@link InputBinding#sourceSelective()} rather than
+	 * {@link InputBinding#routed()}. The declared flag marks the one edge where the branch is actually
+	 * decided, which is the only edge a worker cannot reason about. {@code routed()} is inherited and
+	 * would be true for the whole subgraph below a filter, so using it here would stop segment
+	 * batching everywhere downstream of one — a pure performance loss for no correctness gain, since
+	 * a branch that did not fire leaves the filter an unsettled external dependency of every segment
+	 * below it anyway.
+	 * </p>
+	 */
+	private boolean isSelectiveEdge(PipelineGraph graph, String consumer, String producer) {
+		for (InputBinding binding : graph.getNode(consumer).getInputBindings()) {
+			if (binding.sourceNodeId().equals(producer) && binding.sourceSelective()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private List<String> neighboursOf(PipelineGraph graph, String nodeId) {

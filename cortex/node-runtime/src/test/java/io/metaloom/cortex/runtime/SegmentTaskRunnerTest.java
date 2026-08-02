@@ -3,7 +3,9 @@ package io.metaloom.cortex.runtime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +24,10 @@ import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.PortOutput;
+import io.metaloom.cortex.api.node.artifact.Artifact;
+import io.metaloom.cortex.api.node.artifact.ArtifactCache;
+import io.metaloom.cortex.api.node.artifact.ArtifactKey;
+import io.metaloom.cortex.api.node.artifact.impl.ScopedArtifactCache;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
@@ -67,15 +75,29 @@ public class SegmentTaskRunnerTest {
 		private final RuntimeException failure;
 		final List<NodeInputs> seenInputs = new ArrayList<>();
 
+		/**
+		 * What the node does with its inputs before returning. Runs <em>before</em> the failure so
+		 * a test can have a node publish an artifact and then die, which is the interesting case.
+		 */
+		private Consumer<NodeInputs> action;
+
 		RecordingNode(String id, Map<String, PortOutput> output, RuntimeException failure) {
 			super(id, id, NodeMode.PARALLEL, true, 1);
 			this.output = output;
 			this.failure = failure;
 		}
 
+		RecordingNode doing(Consumer<NodeInputs> action) {
+			this.action = action;
+			return this;
+		}
+
 		@Override
 		public NodeResult process(LoomMedia media, NodeInputs inputs) {
 			seenInputs.add(inputs);
+			if (action != null) {
+				action.accept(inputs);
+			}
 			if (failure != null) {
 				throw failure;
 			}
@@ -87,6 +109,10 @@ public class SegmentTaskRunnerTest {
 	private final AtomicInteger mediaResolutions = new AtomicInteger();
 
 	private SegmentTaskRunner runner() {
+		return runner(ScopedArtifactCache.DEFAULT_MAX_BYTES);
+	}
+
+	private SegmentTaskRunner runner(long maxArtifactBytes) {
 		return new SegmentTaskRunner(
 			def -> {
 				String id = def.getString("id");
@@ -99,7 +125,8 @@ public class SegmentTaskRunnerTest {
 			mediaRef -> {
 				mediaResolutions.incrementAndGet();
 				return new StubLoomMedia(mediaRef.getPath());
-			});
+			},
+			maxArtifactBytes);
 	}
 
 	private RecordingNode register(String id, Map<String, PortOutput> output) {
@@ -123,8 +150,12 @@ public class SegmentTaskRunnerTest {
 	}
 
 	private SegmentTask task(List<SegmentNode> segNodes, Map<String, PortPayload> inputs) {
-		return new SegmentTask(UUID.randomUUID(), UUID.randomUUID(), "item-1", "seg-1", "video",
-			MediaRef.of("/media/a.mp4"), segNodes, inputs);
+		return task("item-1", "/media/a.mp4", segNodes, inputs);
+	}
+
+	private SegmentTask task(String itemId, String path, List<SegmentNode> segNodes, Map<String, PortPayload> inputs) {
+		return new SegmentTask(UUID.randomUUID(), UUID.randomUUID(), itemId, "seg-1", "video",
+			MediaRef.of(path), segNodes, inputs);
 	}
 
 	@Test
@@ -295,6 +326,191 @@ public class SegmentTaskRunnerTest {
 		assertEquals(NodeState.SKIPPED, result.getResults().get(1).getState());
 		assertEquals(NodeState.COMPLETED, result.getResults().get(2).getState(),
 			"A skipped dependency does not block; only a failed one does");
+	}
+
+	// ── decode once ──────────────────────────────────────────────────────
+	//
+	// The saving a segment was supposed to deliver and did not: nodes receive upstream
+	// outputs, those outputs are serialised back to Loom, and a 200 MB frame buffer has no
+	// business travelling. The artifact scope is where it lives instead.
+
+	/** Stands in for decoded frames: expensive to build, holds memory a collector will not reclaim promptly. */
+	private static class DecodedFrames implements AutoCloseable {
+
+		boolean closed;
+
+		@Override
+		public void close() {
+			closed = true;
+		}
+	}
+
+	private static final ArtifactKey<DecodedFrames> FRAMES = ArtifactKey.of("video/frames@2fps", DecodedFrames.class);
+
+	private static final long FRAMES_BYTES = 200L * 1024 * 1024;
+
+	/** One entry per time the expensive work actually ran. */
+	private final List<DecodedFrames> decodes = new ArrayList<>();
+
+	/** One entry per node that asked for frames, in order. */
+	private final List<DecodedFrames> handedOut = new ArrayList<>();
+
+	/** What a node needing decoded frames does: ask the scope, and decode only if nobody has yet. */
+	private Consumer<NodeInputs> needsFrames() {
+		return needsArtifact(FRAMES, FRAMES_BYTES);
+	}
+
+	private Consumer<NodeInputs> needsArtifact(ArtifactKey<DecodedFrames> key, long weightBytes) {
+		return inputs -> handedOut.add(inputs.artifacts().get(key, () -> {
+			DecodedFrames frames = new DecodedFrames();
+			decodes.add(frames);
+			return Artifact.of(frames, weightBytes);
+		}));
+	}
+
+	@Test
+	void testTwoNodesNeedingTheSameArtifactProduceItOnce() {
+		register("a", Map.of()).doing(needsFrames());
+		register("b", Map.of()).doing(needsFrames());
+
+		SegmentTaskResult result = runner().run(task(List.of(segNode("a", true), segNode("b", true, "a")), Map.of()));
+
+		assertTrue(result.getResults().stream().allMatch(r -> r.getState() == NodeState.COMPLETED));
+		// This is the whole point of the task. Before the artifact scope existed both nodes
+		// opened the same file and decoded it themselves; the media handle being resolved once
+		// never helped, because LoomMedia is a file reference and not a decoded artifact.
+		assertEquals(1, decodes.size(), "The expensive artifact must be produced once for the whole segment");
+		assertEquals(2, handedOut.size(), "...and both nodes must have received it");
+		assertSame(handedOut.get(0), handedOut.get(1), "The second node gets the artifact itself, not a rebuild of it");
+	}
+
+	@Test
+	void testAnArtifactDoesNotLeakFromOneMediaItemToTheNext() {
+		register("a", Map.of()).doing(needsFrames());
+		register("b", Map.of()).doing(needsFrames());
+		List<SegmentNode> segNodes = List.of(segNode("a", true), segNode("b", true, "a"));
+
+		runner().run(task("item-A", "/media/a.mp4", segNodes, Map.of()));
+		runner().run(task("item-B", "/media/b.mp4", segNodes, Map.of()));
+
+		// Item B's nodes are handed a different scope object, so there is no key by which
+		// they could reach item A's frames even if they tried. The isolation is structural,
+		// not a rule someone has to remember to apply.
+		assertEquals(2, decodes.size(), "Each item must decode its own media");
+		assertEquals(4, handedOut.size());
+		assertSame(handedOut.get(0), handedOut.get(1), "Within item A, produced once");
+		assertSame(handedOut.get(2), handedOut.get(3), "Within item B, produced once");
+		assertNotSame(handedOut.get(1), handedOut.get(2), "Item B must not be handed item A's artifact");
+	}
+
+	@Test
+	void testAnArtifactPublishedByANodeThatThenFailsIsNotServedToTheNodesAfterIt() {
+		// 'a' gets as far as publishing and then dies. Nothing in the type system can tell a
+		// frame buffer it had finished filling from one it had not.
+		nodes.put("a", new RecordingNode("a", Map.of(), new IllegalStateException("boom")).doing(needsFrames()));
+		register("b", Map.of()).doing(needsFrames());
+
+		// 'b' is non-blocking, so the engine's rule says it runs despite the failure upstream.
+		SegmentTaskResult result = runner().run(task(List.of(segNode("a", true), segNode("b", false, "a")), Map.of()));
+
+		assertEquals(NodeState.FAILED, result.getResults().get(0).getState());
+		assertEquals(NodeState.COMPLETED, result.getResults().get(1).getState());
+		assertEquals(2, decodes.size(), "The failed node's artifact must not be reused - 'b' decodes for itself");
+		assertNotSame(handedOut.get(0), handedOut.get(1));
+		assertTrue(decodes.get(0).closed, "The discarded artifact is released rather than left to the collector");
+	}
+
+	@Test
+	void testAnArtifactFromASucceedingNodeSurvivesAFailureInADifferentNode() {
+		register("a", Map.of()).doing(needsFrames());
+		registerFailing("b");
+		register("c", Map.of()).doing(needsFrames());
+
+		SegmentTaskResult result = runner().run(
+			task(List.of(segNode("a", true), segNode("b", true), segNode("c", true)), Map.of()));
+
+		assertEquals(NodeState.FAILED, result.getResults().get(1).getState());
+		// The rollback is per node, not per segment. 'b' failing says nothing about frames
+		// 'a' finished decoding, and throwing them away would turn one failure into three.
+		assertEquals(1, decodes.size(), "An unrelated failure must not invalidate an artifact that was completed");
+		assertSame(handedOut.get(0), handedOut.get(1));
+	}
+
+	@Test
+	void testTheScopeIsClosedWhenTheSegmentEnds() {
+		register("a", Map.of()).doing(needsFrames());
+
+		runner().run(task(List.of(segNode("a", true)), Map.of()));
+
+		// Deterministic release is what makes a native-backed artifact safe to cache. Waiting
+		// for a collector that sees a small Java object wrapping 200 MB of off-heap memory is
+		// how a worker gets OOM-killed while the heap looks fine.
+		assertEquals(1, decodes.size());
+		assertTrue(decodes.get(0).closed, "The segment ending must release what the scope still holds");
+	}
+
+	@Test
+	void testAScopeKeptPastItsSegmentFailsTheNodeRatherThanServingAStaleArtifact() {
+		AtomicReference<ArtifactCache> stashed = new AtomicReference<>();
+		register("a", Map.of()).doing(inputs -> {
+			ArtifactCache previous = stashed.getAndSet(inputs.artifacts());
+			if (previous == null) {
+				inputs.artifacts().get(FRAMES, () -> {
+					DecodedFrames frames = new DecodedFrames();
+					decodes.add(frames);
+					return Artifact.of(frames, FRAMES_BYTES);
+				});
+			} else {
+				// The bug this guards: a node stashing the scope in a field, which node
+				// instances invite because the registry reuses them across items.
+				previous.peek(FRAMES);
+			}
+		});
+
+		runner().run(task("item-A", "/media/a.mp4", List.of(segNode("a", true)), Map.of()));
+		SegmentTaskResult second = runner().run(task("item-B", "/media/b.mp4", List.of(segNode("a", true)), Map.of()));
+
+		assertEquals(NodeState.FAILED, second.getResults().get(0).getState(),
+			"Reaching into a finished scope must fail that node, not quietly return item A's artifact");
+		assertTrue(second.getResults().get(0).getMessage().contains("closed"),
+			"The message must name the cause: " + second.getResults().get(0).getMessage());
+	}
+
+	@Test
+	void testOneSegmentCannotPushTheScopeBeyondItsMemoryCeiling() {
+		long ceiling = 2 * FRAMES_BYTES;
+		List<Long> retainedAfterEachNode = new ArrayList<>();
+		for (String id : List.of("a", "b", "c", "d")) {
+			// Distinct keys, so each node genuinely adds to what is held rather than sharing.
+			register(id, Map.of()).doing(needsArtifact(ArtifactKey.of("video/frames-" + id, DecodedFrames.class), FRAMES_BYTES)
+				.andThen(inputs -> retainedAfterEachNode.add(inputs.artifacts().retainedBytes())));
+		}
+
+		runner(ceiling).run(task(List.of(segNode("a", true), segNode("b", true), segNode("c", true), segNode("d", true)),
+			Map.of()));
+
+		assertEquals(4, decodes.size(), "Every node did its own work - these are four different artifacts");
+		// Within one segment the scope's lifetime bounds nothing, so the ceiling has to.
+		assertTrue(retainedAfterEachNode.stream().allMatch(retained -> retained <= ceiling),
+			"The scope exceeded its ceiling: " + retainedAfterEachNode);
+		assertEquals(ceiling, retainedAfterEachNode.get(3), "The ceiling is used, not merely respected");
+	}
+
+	@Test
+	void testALongRunOfSegmentsReleasesEveryArtifactItProduced() {
+		register("a", Map.of()).doing(needsFrames());
+		register("b", Map.of()).doing(needsFrames());
+		List<SegmentNode> segNodes = List.of(segNode("a", true), segNode("b", true, "a"));
+
+		for (int item = 0; item < 300; item++) {
+			runner().run(task("item-" + item, "/media/" + item + ".mp4", segNodes, Map.of()));
+		}
+
+		// The bound across a run is the scope's lifetime, not a size limit: a worker that has
+		// processed 300 items holds exactly what a worker that has processed one holds.
+		assertEquals(300, decodes.size(), "One decode per item, not one per node");
+		assertTrue(decodes.stream().allMatch(frames -> frames.closed),
+			"Every segment released its artifact; nothing accumulates from one item to the next");
 	}
 
 }

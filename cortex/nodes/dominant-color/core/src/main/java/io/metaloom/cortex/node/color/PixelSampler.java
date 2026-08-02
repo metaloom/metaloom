@@ -1,13 +1,9 @@
 package io.metaloom.cortex.node.color;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-
-import javax.imageio.ImageIO;
 
 /**
- * Reads an image and reduces a region of it to a bounded, deterministic set of CIELAB points.
+ * Reduces a region of an already-decoded image to a bounded, deterministic set of CIELAB points.
  *
  * <h2>Why stride sampling and not {@code Graphics2D} downscaling</h2>
  *
@@ -38,21 +34,10 @@ public final class PixelSampler {
 	private PixelSampler() {
 	}
 
-	/**
-	 * Decode an image file.
-	 *
-	 * @param file the file
-	 * @return the decoded image
-	 * @throws IOException when no registered reader can decode it. Notably this is what happens for
-	 *                     a CMYK JPEG, matching the behaviour of the facedetect and quality nodes
-	 */
-	public static BufferedImage read(File file) throws IOException {
-		BufferedImage image = ImageIO.read(file);
-		if (image == null) {
-			throw new IOException("No image reader could decode " + file.getAbsolutePath());
-		}
-		return image;
-	}
+	// Decoding moved to MediaArtifacts.decodedImage(ctx) in cortex-common, so that the quality
+	// node and this one share one decode per segment instead of reading the same JPEG twice.
+	// A second way to decode here would be a second artifact nobody could see was a duplicate -
+	// which is how the two nodes came to open the file separately in the first place.
 
 	/**
 	 * Sample a region into a flat CIELAB array.

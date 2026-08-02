@@ -9,7 +9,8 @@ import static io.metaloom.loom.nodes.spec.PortSpec.one;
 import java.util.List;
 
 /**
- * Provides node descriptors for pipeline source nodes (Filesystem Source, S3 Source, Loom Fetch).
+ * Provides node descriptors for pipeline source nodes (Filesystem Source, S3 Source, Google Drive
+ * Source, OneDrive Source, Loom Fetch).
  */
 public class SourceDescriptorProvider implements NodeDescriptorProvider {
 
@@ -25,6 +26,13 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 	 */
 	private static final List<String> FS_EMIT_STATES = List.of("NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED");
 	private static final List<String> S3_EMIT_STATES = List.of("NEW", "MODIFIED", "PRESENT", "DELETED");
+
+	/**
+	 * Cloud drives keep a stable id per file and report its parent folder, so a rename or a move
+	 * <em>is</em> distinguishable from a delete plus an add - unlike S3, which has no inode and
+	 * therefore omits {@code MOVED}. It is offered here because it is genuinely produced.
+	 */
+	private static final List<String> CLOUD_EMIT_STATES = List.of("NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED");
 
 	@Override
 	public List<NodeDescriptor> getDescriptors() {
@@ -92,6 +100,98 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 						.setLabel("Resume from last key")
 						.setDescription("Continue listing after the highest key seen so far. Only correct for "
 							+ "buckets whose keys are added in ascending order and never edited afterwards")))
+				.setDefaultConcurrency(1)
+				.setDefaultMode(SEQUENTIAL)
+				.setEvents(STANDARD_EVENTS),
+
+			new NodeDescriptor()
+				.setKind("gdrive-source")
+				.setName("Google Drive Source")
+				.setDescription("Reads media files from Google Drive - My Drive or a shared drive - as pipeline "
+					+ "input. Only new, changed and moved files are picked up on a re-run.")
+				.setIcon("add_to_drive")
+				.setCategory(SOURCE)
+				.setInputPorts(List.of())
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "Every file the scan emitted. The concrete kind is only known once the file is fetched")))
+				.setParameters(List.of(
+					commonEnabled(),
+					new NodeParameter().setKey("driveId").setType(STRING).setLabel("Shared drive ID")
+						.setDescription("Shared drive to read from. Leave empty for the connected account's own "
+							+ "My Drive. Credentials are configured on the worker, not here"),
+					new NodeParameter().setKey("folderId").setType(STRING).setLabel("Folder ID")
+						.setDescription("Folder to scan, taken from its Drive URL. Empty scans the whole drive"),
+					new NodeParameter().setKey("recursive").setType(BOOLEAN).setDefaultValue(true)
+						.setLabel("Include sub-folders")
+						.setDescription("Descend into folders below the selected one"),
+					new NodeParameter().setKey("maxDepth").setType(INTEGER).setDefaultValue(0)
+						.setLabel("Maximum depth")
+						.setDescription("How many folder levels to descend. 0 means no limit"),
+					new NodeParameter().setKey("suffixes").setType(STRING).setLabel("File suffixes")
+						.setDescription("Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything"),
+					new NodeParameter().setKey("mimeTypes").setType(STRING).setLabel("MIME types")
+						.setDescription("Comma-separated MIME type prefixes to accept, e.g. video/,image/. Drive "
+							+ "reports a real type, so this also catches files with a missing or misleading extension"),
+					new NodeParameter().setKey("emitStates").setType(ENUM_SET).setValues(CLOUD_EMIT_STATES)
+						.setDefaultValue(List.of("NEW", "MODIFIED", "MOVED")).setLabel("Emit states")
+						.setDescription("Which changes flow downstream. Renames and moves are detected, because a "
+							+ "Drive file keeps its identity when it is moved"),
+					new NodeParameter().setKey("useDelta").setType(BOOLEAN).setDefaultValue(true)
+						.setLabel("Use the change feed")
+						.setDescription("Ask Drive what changed instead of listing the folders. Much faster on large "
+							+ "drives. A full scan still runs periodically, so nothing is missed"),
+					new NodeParameter().setKey("includeTrashed").setType(BOOLEAN).setDefaultValue(false)
+						.setLabel("Include trashed files")
+						.setDescription("Keep files that are in the Drive trash"),
+					new NodeParameter().setKey("exportNativeDocs").setType(BOOLEAN).setDefaultValue(false)
+						.setLabel("Export Google Docs")
+						.setDescription("Convert Google Docs, Sheets and Slides so they can be processed. They have "
+							+ "no file to download otherwise. Conversion is limited to 10 MB per document")))
+				.setDefaultConcurrency(1)
+				.setDefaultMode(SEQUENTIAL)
+				.setEvents(STANDARD_EVENTS),
+
+			new NodeDescriptor()
+				.setKind("onedrive-source")
+				.setName("OneDrive Source")
+				.setDescription("Reads media files from OneDrive or a SharePoint document library as pipeline "
+					+ "input. Only new, changed and moved files are picked up on a re-run.")
+				.setIcon("cloud_queue")
+				.setCategory(SOURCE)
+				.setInputPorts(List.of())
+				.setOutputPorts(List.of(
+					one("media", MEDIA_ANY)
+						.describedAs("Media", "Every file the scan emitted. The concrete kind is only known once the file is fetched")))
+				.setParameters(List.of(
+					commonEnabled(),
+					new NodeParameter().setKey("driveId").setType(STRING).setLabel("Drive ID")
+						.setDescription("The OneDrive or SharePoint library to read from. Required unless a default "
+							+ "drive is configured on the worker. Credentials are configured on the worker, not here"),
+					new NodeParameter().setKey("folderId").setType(STRING).setLabel("Folder ID")
+						.setDescription("Folder to scan. Empty scans the whole drive"),
+					new NodeParameter().setKey("recursive").setType(BOOLEAN).setDefaultValue(true)
+						.setLabel("Include sub-folders")
+						.setDescription("Descend into folders below the selected one"),
+					new NodeParameter().setKey("maxDepth").setType(INTEGER).setDefaultValue(0)
+						.setLabel("Maximum depth")
+						.setDescription("How many folder levels to descend. 0 means no limit"),
+					new NodeParameter().setKey("suffixes").setType(STRING).setLabel("File suffixes")
+						.setDescription("Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything"),
+					new NodeParameter().setKey("mimeTypes").setType(STRING).setLabel("MIME types")
+						.setDescription("Comma-separated MIME type prefixes to accept, e.g. video/,image/. OneDrive "
+							+ "reports a real type, so this also catches files with a missing or misleading extension"),
+					new NodeParameter().setKey("emitStates").setType(ENUM_SET).setValues(CLOUD_EMIT_STATES)
+						.setDefaultValue(List.of("NEW", "MODIFIED", "MOVED")).setLabel("Emit states")
+						.setDescription("Which changes flow downstream. Renames and moves are detected, because a "
+							+ "OneDrive file keeps its identity when it is moved"),
+					new NodeParameter().setKey("useDelta").setType(BOOLEAN).setDefaultValue(true)
+						.setLabel("Use the change feed")
+						.setDescription("Ask OneDrive what changed instead of listing the folders. Much faster on "
+							+ "large drives. A full scan still runs periodically, so nothing is missed"),
+					new NodeParameter().setKey("includeTrashed").setType(BOOLEAN).setDefaultValue(false)
+						.setLabel("Include deleted files")
+						.setDescription("Keep files that are in the recycle bin")))
 				.setDefaultConcurrency(1)
 				.setDefaultMode(SEQUENTIAL)
 				.setEvents(STANDARD_EVENTS),

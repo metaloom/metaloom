@@ -73,7 +73,7 @@ are kept because the reasoning is not recoverable from the code.
 | Q1 | Must standalone Cortex pipeline execution survive? | **No — Loom-only is acceptable** | Cortex holds no pipelines and needs no local driver. Offline use is limited to the legacy `cortex process run --actions` path. README/website still claim otherwise — [METALOOM_ARCHITECTURE_TASK.md §2](METALOOM_ARCHITECTURE_TASK.md) |
 | Q4 | Push or pull dispatch? | **Push** | Loom sends `NODE_TASK`/`SEGMENT_TASK` when work becomes ready. Revisited when leases arrived and **kept**: push + leases + per-worker caps gives the same backpressure without a second protocol rewrite |
 | Q5 | Version the definition format? | **Yes** | Delivered late (see §1) after the format had already gained `syncToLoom`, filter branches, options, `affinity` and `resultBatchSize` |
-| — | Where do intermediate results live? | In the node implementation's own cache | Tracked in [../plans/TASKS.md](../plans/TASKS.md); affinity grouping saves round trips, **not** file re-reads |
+| — | Where do intermediate results live? | In the node implementation's own cache, reached through the segment-scoped `ArtifactCache` | **Shipped** 2026-08-02 — `NodeInputs.artifacts()`, owned by the segment execution, opt-in per node. Affinity grouping on its own still saves only round trips; the scope is what removes the re-read. [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §7.4 |
 | — | Is a separate segmented-dispatch variant (D) needed? | **No** | Segments are what was built; single-node dispatch is the degenerate case |
 
 ---

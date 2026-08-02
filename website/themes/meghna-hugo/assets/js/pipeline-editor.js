@@ -1223,7 +1223,7 @@
 				meta: { sourceMode: "multiple", sourceCount: 3 },
 				nodes: [
 					{ id: "src", type: "filesystem-source", position: { x: 30, y: 200 } },
-					{ id: "mime", type: "filter-mimetype", position: { x: 270, y: 200 } },
+					{ id: "mime", type: "filter", position: { x: 270, y: 200 } },
 					{ id: "fd", type: "facedetect", position: { x: 520, y: 80 } },
 					{ id: "fdesc", type: "facedescription", position: { x: 780, y: 80 } },
 					{ id: "h", type: "sha512", position: { x: 520, y: 330 } },
@@ -1244,7 +1244,7 @@
 				meta: { sourceMode: "multiple", sourceCount: 3 },
 				nodes: [
 					{ id: "src", type: "filesystem-source", position: { x: 30, y: 200 } },
-					{ id: "mime", type: "filter-mimetype", position: { x: 270, y: 200 } },
+					{ id: "mime", type: "filter", position: { x: 270, y: 200 } },
 					{ id: "w", type: "whisper", position: { x: 520, y: 80 } },
 					{ id: "sent", type: "sentiment", position: { x: 790, y: 80 } },
 					{ id: "h", type: "md5", position: { x: 520, y: 340 } },

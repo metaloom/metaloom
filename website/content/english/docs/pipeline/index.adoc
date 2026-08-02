@@ -60,7 +60,7 @@ The definition is a graph of `nodes[]` connected by `edges[]`:
   "version": 1,
   "nodes": [
     { "id": "pn1", "type": "filesystem-source", "name": "File Source" },
-    { "id": "pn2", "type": "filter-mimetype",   "name": "MIME Filter" },
+    { "id": "pn2", "type": "filter",   "name": "Language Filter" },
     { "id": "pn3", "type": "sha256",            "name": "SHA-256 Hash" }
   ],
   "edges": [
@@ -82,8 +82,9 @@ The definition is a graph of `nodes[]` connected by `edges[]`:
   consuming one. Both are mandatory — an edge that only names two nodes does not say which value
   flows, and is rejected.
 * A pipeline has exactly one **source** node (e.g. `filesystem-source`) that enumerates media.
-* **Filter** nodes (e.g. `filter-mimetype`) route items down `PASS` / `REJECT` branches so, for
-  example, a video-only branch never receives images. The key is `branch`, and it defaults to `ANY`.
+* **Filter** nodes (`filter`) grow one output port per configured bucket and route each item down
+  exactly one of them — so a German branch never receives English. The port *is* the branch:
+  anything wired to a port that carried nothing is skipped for that item.
 * Node kinds map to the built-in link:../nodes/[Nodes] (or your own custom nodes).
 
 [#ports]

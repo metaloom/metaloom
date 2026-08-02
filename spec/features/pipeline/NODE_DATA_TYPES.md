@@ -169,17 +169,18 @@ Fluent factories `one` / `many` / `optionalOne` / `optionalMany` (`PortSpec:60-7
 | Count | Value | Where |
 |---|---|---|
 | **Descriptor kinds** (visible in the palette, validated by the parser) | **41**, from **26 providers** | `META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` |
-| **Runnable kinds** (a worker can actually execute) | **33** with S3 configured, **32** without | 30 × `@Binds @IntoMap @StringKey` in `cortex/nodes/*/…NodeModule.java`, plus `filesystem-source`, `asset-source` and (conditionally) `s3-source` registered by hand in `RegistryNodeRegistrar:94-107` |
+| **Runnable kinds** (a worker can actually execute) | **35** with S3 and both clouds configured, **32** with none | 30 × `@Binds @IntoMap @StringKey` in `cortex/nodes/*/…NodeModule.java`, plus `filesystem-source`, `asset-source` and — each conditionally, per configured provider — `s3-source`, `gdrive-source` and `onedrive-source`, registered by hand in `RegistryNodeRegistrar` |
 
-> ⚠️ [PIPELINE.md](PIPELINE.md) §8 still says "25 providers / 39 kinds". **41 from 26 is the current
-> number**; recount with the commands in §14 rather than trusting either file.
+> ⚠️ [PIPELINE.md](PIPELINE.md) §8 still says "25 providers / 39 kinds". **34 from 26 is the current
+> number** (the eight `filter-*` kinds collapsed into one `filter`); recount with the commands in §14
+> rather than trusting either file.
 
 The two sets do not coincide, and the mismatch is real, not a bookkeeping artefact:
 
-- **Descriptor but not runnable (11):** the nine `filter-*` kinds, `facedescription`, `loom-fetch`.
-  The filter implementations live in `cortex/pipeline-core/.../node/filter/` and carry port
-  constants, but no module contributes them to the `@StringKey` multibinding — a pipeline can be
-  drawn with a filter and saved, and no worker advertises the kind.
+- **Descriptor but not runnable (2):** `facedescription` and `loom-fetch`. This set used to include
+  nine `filter-*` kinds whose implementations lived in `cortex/pipeline-core/.../node/filter/` and
+  which no module contributed to the `@StringKey` multibinding; they are **deleted**, replaced by the
+  one runnable `filter` kind (§4.5).
 - **Runnable but no descriptor (2):** `sha512-dedup` and `asset-source`. Neither can be placed from
   the palette, and `PipelineGraphParser` rejects an unknown kind (`:222-225`), so `asset-source`
   reaches a worker only via a Loom-injected asset-scoped run.
@@ -239,6 +240,8 @@ unless marked **MANY**; `(opt)` marks `required = false`.
 |---|---|---|
 | `filesystem-source` | — | `media : media/*` |
 | `s3-source` | — | `media : media/*` |
+| `gdrive-source` | — | `media : media/*` |
+| `onedrive-source` | — | `media : media/*` |
 | `loom-fetch` | — | `media : media/*` |
 
 All three emit the family wildcard: the concrete kind is unknown until the file is opened (§2.1, §5).
@@ -270,6 +273,7 @@ All three emit the family wildcard: the concrete kind is unknown until the file 
 | `dominant-color` | `media : media/image`, `detections : detection/*` **MANY** *(opt)* | `result : struct/color`, `hex : scalar/string`, `term : scalar/string`, `name_en : scalar/string`, `name_de : scalar/string`, `region_count : scalar/integer` |
 | `whisper` | **XOR `media_alt`**: `audio : media/audio` \| `video : media/video` | `transcript : text/transcript` |
 | `sentiment` | `text : text/*` | `label : scalar/string`, `score : scalar/number`, `result : struct/json` |
+| `translate` | `text : text/*` | `translation : text/plain`, `language : scalar/string`, `result : struct/json` |
 | `llm` | `media : media/*` | **dynamic** — `result_<promptId> : text/plain` per prompt |
 | `vlm` | `media : media/image` | **dynamic** — same shape |
 
@@ -291,28 +295,41 @@ All three emit the family wildcard: the concrete kind is unknown until the file 
 upstream `consistency` node id. Leave them unwired and a half-written file is processed anyway,
 which is the historic behaviour.
 
-### 4.5 Filters — category `FILTER`
+### 4.5 The filter — category `FILTER`
 
-**Every filter emits two output ports**, not one:
+**One kind, `filter`, and the port *is* the branch.** It replaced eight `filter-*` kinds that were
+advertised in the palette and could never run — they extended `AbstractPipelineNode` rather than
+`FilesystemNode`, so they could not be bound into the executable-kind map at all, and they advertised
+a `media` output no filter ever emitted.
 
-| Output port | Purpose |
-|---|---|
-| `media : media/*` | The item, passed through. Wire downstream work here and set the edge `branch` to `PASS` or `REJECT` |
-| `passed : control/filter` | The verdict itself, for a node that consumes the decision rather than the item |
+| Side | Port | Type | Card | Selective |
+|---|---|---|---|---|
+| in | `media` | `media/*` | ONE | — |
+| in | `text` | `text/*` | ONE *(opt)* | — |
+| out | `<bucketId>` ×N | `media/*` | ONE | **yes** |
+| out | `other` | `media/*` | ONE | **yes** |
+| out | `passed` | `control/filter` | ONE | no |
+| out | `bucket` | `scalar/string` | ONE | no |
 
-They differ only in what they consume:
+The outputs are **dynamic** (`dynamicPorts`, `FilterPortResolver`), derived from the `buckets` option
+— a `PORT_LIST` of `{id, label?, match?}` rows whose `id` becomes the port. `other`, `passed` and
+`bucket` are always present, so a freshly dropped node is connectable and a graph is never a dead end.
+Reserved bucket ids: `other`, `passed`, `bucket`, `media`, `text`.
 
-| Kind | Input ports |
-|---|---|
-| `filter-mimetype`, `filter-date`, `filter-size` | `media : media/*` |
-| `filter-duplicate` | `hash : hash/*` |
-| `filter-blacklist` | `media : media/*`, `text : text/*` **MANY** |
-| `filter-quality` | `media : media/*`, `quality : struct/quality` |
-| `filter-threshold` | `media : media/*`, `value : scalar/number` |
-| `filter-asset-attribute` | `media : media/*`, `quality : struct/quality` *(opt)* |
+`passed` keeps the older `PASS`/`REJECT` edge routing working — `NodeTaskResult.getFilterPassed()`
+finds it by its `control/` family, not by name. `bucket` is deliberately **not** selective: a node
+wired to it runs whichever branch the item took, which is the escape hatch from routing.
 
-`filter-blacklist.text` is `MANY` because checking a transcript and an OCR pass together is the
-normal case; each wired producer contributes its elements.
+`filterBy` selects a `FilterStrategy`. Today: `LANGUAGE`, decided by an LLM through the shared
+`LLMProvider`. Adding a way of filtering is a strategy class plus a `@FilterByKey` binding plus a
+value in the descriptor's enum — never an edit to `FilterNode`.
+
+> 🔴 **MIME/size/date bucketing is not available yet.** The eight deleted kinds included them, and
+> the strategy seam exists, but only `LANGUAGE` is implemented. Graphs and docs that routed by MIME
+> now wire straight into a typed port instead (`media/*` into `whisper.video` is settled per item),
+> which covers the common case but not all of them.
+
+**Routing semantics** — see §8.6.
 
 ### 4.6 Sinks and dedup — category `OUTPUT`
 
@@ -639,6 +656,66 @@ The `Full Processing` demo pipeline is exactly this shape (`DemoDatabaseInitiali
 > exercises `PER_ELEMENT` end to end. The gather path has a demo; the fan-out path is covered only by
 > `PipelineRunEngineFanOutTest` and `PortGraphAnalyzerTest`.
 
+### 8.6 Port routing — the port *is* the branch
+
+An output port may declare `PortSpec.selective`: *"this port carries data for some items and not
+others"*. The engine turns that into routing — a consumer wired only to ports the producer did not
+write for an item is **SKIPPED** for that item. No `branch` attribute is involved, and an N-way split
+needs no new vocabulary, just N ports.
+
+**It is opt-in per port, and that is not negotiable.** Leaving a declared output unwritten is normal
+and must stay harmless: `facedetect` finds no faces, a `script` does not set every declared key.
+~15 engine tests complete a node with `Map.of()` outputs and then expect its consumer to run. Gating
+on the producing node's *category* or on `dynamicPorts` would be wrong too — `script`/`llm`/`vlm`
+routinely leave declared ports unwritten, and the filter's own `passed` port fires on every item and
+must never gate anything.
+
+**Selectivity is inherited.** `InputBinding` carries two flags, stamped by `PortGraphAnalyzer` in
+topological order (`stampBindings`):
+
+| Flag | Meaning | Read by |
+|---|---|---|
+| `sourceSelective` | the producing port *declares* selective — the edge where the branch is decided | `PipelineSegmenter.isRoutingEdge` |
+| `routed` | `sourceSelective` **or** the producing node is itself downstream of a routed edge | `PipelineRunEngine.routedDependencyDelivered` |
+
+Inheritance is what makes a branch of any depth work: if the branch does not fire, the node on it is
+skipped, its own outputs are empty, and *its* consumers must skip in turn. A one-hop rule would leave
+the grandchild running with empty inputs — exactly the non-transitivity `FilterBranch` still has
+(`PipelineGraphNode:181-186`).
+
+The predicate (`evaluateSkip`, after the `FilterBranch` block):
+
+| Case | Behaviour |
+|---|---|
+| Some routed binding from a dependency delivered | Runs. It is an **or** across that dependency's routed bindings — `watermark`'s `image`\|`video` into one port runs when either delivers |
+| No routed binding from that dependency at all | Rule does not apply |
+| Two different dependencies each routed | **And** across dependencies, matching `FilterBranch` |
+| Dependency FAILED | Rule **not** applied. A blocking consumer already skipped above; a non-blocking one must run and see the failure, or `blocking:false` silently breaks |
+| Consumer is `PER_ELEMENT` | Element-scoped: the shared `collect(...)` picks by `origin.seq`, so skip and zip agree by construction |
+| Gather (`targetIsMany`) | Delivered when **any** producer element wrote the port; the gather sees only the routed elements, keeping their original `seq` |
+| Consumer's only routed binding targets an *optional* input | Skipped. The edge from a routed port **is** the routing statement; wire from `bucket`/`passed` for "run always" |
+| Gated on `isBlocking()`? | **No.** Routing is not an error, and `FilterBranch` is not gated either |
+
+🔴 **`collect(...)` is shared between `buildInputs` and `routedDependencyDelivered` on purpose.**
+"Delivered" must mean exactly "`buildInputs` would put something on the target port from this
+binding". Deriving it twice is how the two drift, and the failure is silent in both directions: a node
+dispatched with an empty required input, or a node skipped while its data sat there.
+
+**The segmenter must break at a selective edge.** `PipelineSegmenter.isRoutingEdge` already split a
+segment at a `PASS`/`REJECT` edge because a worker runs a segment as a unit and knows nothing about
+branch verdicts. Port routing carries `branch: ANY`, so without the added `sourceSelective` case a
+filter and its branch consumers would be packed into one segment and run unconditionally. It reads
+the *declared* flag, not `routed()` — using the inherited one would stop segment batching across the
+whole subgraph below any filter, for no correctness gain.
+
+**Containment.** `PortGraphAnalyzer.analyze` returns early when there is no descriptor registry, and
+every `PipelineRunEngine*Test` parses without one. So every existing engine test stamps `routed=false`
+and no existing graph changes behaviour. In production `routed` is true only below a port some
+descriptor explicitly marks selective — today, only the `filter` node's buckets.
+
+Covered by `PipelineRunEnginePortRoutingTest` (which parses **with** a registry, unlike its siblings),
+plus stamping cases in `PortGraphAnalyzerTest` and two segment cases in `PipelineSegmenterTest`.
+
 ---
 
 ## 9. Known Gaps
@@ -651,12 +728,12 @@ The historical defect audit — what the typed-port model fixed and why — live
 | 1 | 🔴 **`ResultOrigin` never reaches the wire** | `NodeTaskResult` has no origin field. `AbstractMediaNode.recordNodeResult` hardcodes `ledger.setOrigin(ResultOrigin.COMPUTED.name())` (`:150`) instead of reading `ctx.resultOrigin()`, so `asset_node_result.origin` is always `COMPUTED` even on a `LOCAL` cache hit |
 | 2 | 🔴 **No run/task provenance on the node-result ledger** | `AssetNodeResult` has `setRunUuid`/`setTaskUuid` (`:88, :92`) and the columns exist, but `NodeResultCreateRequest` carries neither field and nothing on the Cortex write path sets them. A ledger row cannot be traced back to the run that produced it |
 | 3 | **Recovery re-parses with a null registry** | `PipelineRunRecovery:68` uses `new PipelineGraphParser()`, so a resumed run gets no port checking and no fan-out classification (§6.3) |
-| 4 | **`FILTER_PASSED` still exists as two constants with different values** | `PipelineNode.FILTER_PASSED = "passed"` (cortex/pipeline-api:46) and `FilterBranch.FILTER_PASSED = "filter_passed"` (loom-shared:24). Routing no longer reads either — `getFilterPassed()` matches on the `control/` family — but they have not been reconciled |
+| 4 | ~~**`FILTER_PASSED` exists as two constants with different values**~~ | **Fixed.** The dead `FilterBranch.FILTER_PASSED = "filter_passed"` is deleted; `PipelineNode.FILTER_PASSED = "passed"` is the only one left, and routing reads neither — `getFilterPassed()` matches on the `control/` family |
 | 5 | **Undeclared and non-selected-`EXCLUSIVE` ports are not rejected on emit** | The design called for both to fail the task by name (§7.4) |
 | 6 | **No `PortPayload` round-trip test** | Nothing asserts `output → JSON → JSONB → input` preserves type *and* origin tags. `PortPayloads`' lenient decode path is untested |
 | 7 | **No `ValueCoercerTest`** | The coercer is the only thing standing between a node and a `ClassCastException`, and has no direct test — only whatever the engine and node suites exercise incidentally |
 | 8 | **`PipelineValidationServiceTest` barely exercises ports** | 29 test methods, one mention of `sourcePort`. The delegated §6.3 rules are almost never reached from the REST side |
-| 9 | **Nine `filter-*` kinds and `facedescription` have descriptors but no runnable binding** | §3.3. A graph using them saves and validates, and no worker advertises the kind |
+| 9 | **`facedescription` and `loom-fetch` have descriptors but no runnable binding** | §3.3. A graph using them saves and validates, and no worker advertises the kind. The nine `filter-*` kinds that used to head this row are gone — see §4.5 |
 | 10 | **No Java-side fixture export for the TS contract test** | `contentTypes.test.ts` transcribes its fixture from `ContentTypeLatticeTest` by hand; the two implementations can still drift (§10) |
 
 ---
@@ -730,7 +807,7 @@ plus the TS resolver mirrors — it never asks the server for a configured node'
 | `ContentType` | ″ | Served vocabulary entry: `id`, `label`, `family`, `description`, `wildcard` |
 | `PortSpec` / `PortGroup` / `PortGroupMode` / `Cardinality` | ″ | The port model |
 | `NodeDescriptor` | ″ | `inputPorts` / `outputPorts` / `inputGroups` / `outputGroups` / `dynamicPorts` |
-| `NodeDescriptorProvider` | ″ | ServiceLoader SPI — 26 providers, 41 kinds |
+| `NodeDescriptorProvider` | ″ | ServiceLoader SPI — 26 providers, 34 kinds |
 | `NodePortResolver` | ″ | SPI for options-derived ports |
 | `ScriptPortResolver` / `PromptPortResolver` / `LlmPortResolver` / `VlmPortResolver` | ″ | The three registered implementations |
 | `ResolvedPorts` | ″ | A node instance's effective ports; what validation always works against |
@@ -751,10 +828,10 @@ plus the TS resolver mirrors — it never asks the server for a configured node'
 | `DaoRunStateStore` / `PipelineRunRecovery` / `DaoAssetSink` | `loom/services/rest` · `…rest.service.impl` | Run-state and output persistence. Both fan-out keying bugs are fixed: the buffer key is `item/node#seq` (`:319-320`), recovery restores a `List<RestoredTask>` carrying `elementSeq` (`:190-204`), and `DaoAssetSink` selects hashes by **content type** via `hashOfType(...)` |
 | `NodeDescriptorEndpoint` | `loom/services/rest` · `…rest.endpoint.impl` | Serves descriptors + content types |
 | `InputPort<T>` / `OutputPort<T>` / `Element<T>` / `NodeInputs` / `PortOutput` | `cortex/api` · `io.metaloom.cortex.api.node` | The node-author port API |
-| `NodeContext` / `NodeContextImpl` | `cortex/api` · `…node.context` | `input`/`inputs`/`isWired`/`isDemanded`/`origin`/`output`/`outputElement` |
+| `NodeContext` / `NodeContextImpl` | `cortex/api` · `…node.context` | `input`/`inputs`/`isWired`/`isDemanded`/`origin`/`output`/`outputElement`/`artifacts` |
 | `NodeResultMapper` | `cortex/node-runtime` · `io.metaloom.cortex.runtime` | `toPayloads` (coerce + stamp origin), `toInputs` |
-| `XAttrNodeCache` / `SidecarFileNodeCache` | `cortex/pipeline-common` · `…pipeline.common.cache` | `portId⇥contentType⇥cardinality⇥value`, one line per element; rebuilds a real `PortOutput` (`:99-168`) |
-| `RegistryNodeRegistrar` | `cortex/cli` · `…cli.dagger` | Hand-registers `filesystem-source` / `asset-source` / `s3-source`; adapts every `@StringKey` kind |
+| `ArtifactCache` / `ArtifactKey` / `Artifact` | `cortex/api` · `…node.artifact` | Not a port type — the segment-scoped home for an intermediate that must **not** be serialised. Reached via `NodeInputs.artifacts()` |
+| `RegistryNodeRegistrar` | `cortex/cli` · `…cli.dagger` | Hand-registers `filesystem-source` / `asset-source` and, per configured provider, `s3-source` / `gdrive-source` / `onedrive-source`; adapts every `@StringKey` kind |
 | `NodePortConformanceTest` | `integration-test` · `…test.integration.node` | Descriptor ↔ runtime port-constant parity |
 | `contentTypes.ts` / `portResolvers.ts` / `PipelineEditor.tsx` | `loom-ui/src/features/pipeline` | The TS mirrors and the port-aware editor |
 | `nodeviz.js` | `website/themes/meghna-hugo/static/plugins/nodeviz` | Docs renderer; speaks the same vocabulary |
@@ -861,7 +938,9 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] `ValueCoercer` + `ValueCoercionException`
 - [ ] Java fixture export for the TS contract test (the TS fixture is hand-transcribed)
 - [ ] No descriptor uses `EXCLUSIVE`; that path is untested outside `PortGraphAnalyzerTest` and the editor
-- [ ] Eleven descriptor kinds (9 filters, `facedescription`, `loom-fetch`) have no runnable binding; `sha512-dedup` and `asset-source` are runnable with no descriptor (§3.3)
+- [ ] Two descriptor kinds (`facedescription`, `loom-fetch`) have no runnable binding; `sha512-dedup` and `asset-source` are runnable with no descriptor (§3.3)
+- [x] The nine `filter-*` descriptor kinds are gone — one runnable `filter` kind replaces them (§4.5)
+- [x] Port routing: `PortSpec.selective`, inherited `InputBinding.routed`, the segmenter break (§8.6)
 
 ### Parser, validation and engine
 
@@ -901,9 +980,9 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] Outputs preserved on SKIPPED / FAILED
 - [x] `CortexNodeAdapter.process(LoomMedia, NodeInputs)` delivers ports
 - [x] All node-id-string options deleted (`textSources`, `sourceNodeId`/`sourceOutputKey`, `detectionSources`, `depthNodeId`, `ScriptNodeOptions.requiredInputs`, `S3SinkNodeOptions.artifacts`/`autoDiscover`)
-- [x] `XAttrNodeCache` / `SidecarFileNodeCache` serialise `portId⇥contentType⇥cardinality⇥value` per element and rebuild a real `PortOutput`, re-emitting a `MANY` port's whole sequence
+- [x] `NodeInputs` carries a segment-scoped `ArtifactCache` alongside the ports: outputs are what travels to Loom, artifacts are what must not
 - [x] `NodePortConformanceTest` exists in `integration-test/` and is green — descriptor ↔ port-constant parity is enforced
-- [ ] `FILTER_PASSED` still exists as two constants with different values
+- [x] `FILTER_PASSED` reconciled — the dead loom-shared constant is deleted
 
 ### Editor
 
@@ -929,5 +1008,5 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified against the tree, cut ~40%, corrected the kind counts and the inline-`dependencies[]`, editor, conformance-test and persistence claims.)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (added the gdrive-source and onedrive-source port rows and re-derived the runnable-kind counts; the filter consolidation entry above is unchanged)_

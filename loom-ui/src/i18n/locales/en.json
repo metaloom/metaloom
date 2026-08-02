@@ -1,1699 +1,1767 @@
 {
- "common": {
-  "cancel": "Cancel",
-  "close": "Close",
-  "delete": "Delete",
-  "save": "Save",
-  "create": "Create",
-  "search": "Search",
-  "name": "Name",
-  "description": "Description",
-  "actions": "Actions",
-  "uuid": "UUID",
-  "created": "Created",
-  "status": "Status",
-  "assets": "assets",
-  "clearFilters": "Clear filters",
-  "noMatchFilters": "No assets match your filters",
-  "allStatus": "All Status",
-  "enabled": "enabled",
-  "disabled": "disabled",
-  "confirmed": "Confirmed",
-  "denied": "Denied",
-  "rejected": "Rejected",
-  "never": "Never",
-  "permanent": "Permanent"
- },
- "sidebar": {
-  "brand": "Metaloom",
-  "nav": {
-   "chat": "Chat",
-   "library": "Library",
-   "assets": "Assets",
-   "collections": "Collections",
-   "tasks": "Tasks",
-   "detection": "Detection",
-   "tags": "Tags",
-   "workflow": "Workflow",
-   "skills": "Skills",
-   "memory": "Memory",
-   "chatSessions": "Chat Sessions"
-  },
-  "admin": {
-   "assetPools": "Asset Pools",
-   "pipelines": "Pipelines",
-   "cortex": "Cortex",
-   "monitoring": "Monitoring",
-   "spaces": "Spaces",
-   "users": "Users",
-   "groups": "Groups",
-   "permissions": "Permissions",
-   "apiKeys": "API Keys",
-   "blacklist": "Blacklist",
-   "memoryDenylist": "Memory Denylist"
-  },
-  "divider": {
-   "admin": "Admin",
-   "ai": "AI",
-   "content": "Content",
-   "management": "Management"
-  },
-  "group": {
-   "acl": "ACL"
-  },
-  "menu": {
-   "profile": "Profile",
-   "logout": "Logout"
-  },
-  "tooltip": {
-   "expand": "Expand sidebar",
-   "collapse": "Collapse sidebar"
-  },
-  "fallback": {
-   "unknown": "Unknown"
-  }
- },
- "auth": {
-  "title": "Loom Studio",
-  "subtitle": "Sign in to continue",
-  "error": {
-   "invalidCredentials": "Invalid credentials."
-  },
-  "placeholder": {
-   "username": "Username",
-   "password": "Password"
-  },
-  "button": {
-   "signIn": "Sign in"
-  }
- },
- "assets": {
-  "title": "Assets",
-  "search": {
-   "placeholder": "Search assets, tags…"
-  },
-  "filter": {
-   "allStatus": "All Status",
-   "ready": "Ready",
-   "processing": "Processing",
-   "failed": "Failed",
-   "archived": "Archived",
-   "allTypes": "All Types",
-   "video": "Video",
-   "image": "Image",
-   "audio": "Audio",
-   "document": "Document",
-   "allLibraries": "All Libraries",
-   "clear": "Clear filters"
-  },
-  "tooltip": {
-   "small": "Small — thumbnail only",
-   "medium": "Medium",
-   "large": "Large — tags, size, duration"
-  },
-  "count": "assets",
-  "chip": {
-   "clearFilters": "Clear filters"
-  },
-  "empty": {
-   "noMatch": "No assets match your filters",
-   "title": "Ready to build your media library?",
-   "description": "Upload materials, let the pipelines enrich them, and organize everything in one space.",
-   "action": "Upload your first asset"
-  },
-  "button": {
-   "upload": "Upload",
-   "uploading": "Uploading…",
-   "select": "Select",
-   "cancelSelect": "Cancel",
-   "cancel": "Cancel",
-   "delete": "Delete",
-   "apply": "Apply",
-   "bulkTag": "Tag",
-   "bulkDelete": "Delete"
-  },
-  "select": {
-   "count": "{{count}} selected"
-  },
-  "dialog": {
-   "upload": "Upload Asset",
-   "delete": "Delete Asset",
-   "bulkTag": "Tag {{count}} assets"
-  },
-  "upload": {
-   "pickFile": "Choose a file…",
-   "library": "Library",
-   "origin": "Origin"
-  },
-  "label": {
-   "tag": "Tag"
-  },
-  "confirm": {
-   "delete": "Delete {{name}}? This cannot be undone."
-  },
-  "toast": {
-   "uploaded": "Asset uploaded",
-   "uploadFailed": "Upload failed",
-   "deleted": "Asset deleted",
-   "deleteFailed": "Failed to delete asset",
-   "bulkDeleted": "Deleted {{count}} assets",
-   "bulkDeletedPartial": "Deleted {{ok}} assets, {{failed}} failed",
-   "bulkTagged": "Tagged {{count}} assets",
-   "bulkTagFailed": "Failed to tag assets"
-  }
- },
- "library": {
-  "title": "Libraries",
-  "tooltip": {
-   "info": "Libraries are used to aggregate and organise assets into logical collections within a space.",
-   "newLibrary": "New library",
-   "deleteLibrary": "Delete library"
-  },
-  "count": {
-   "assets": "assets"
-  },
-  "search": {
-   "placeholder": "Search assets…"
-  },
-  "stats": {
-   "videos": "videos",
-   "images": "images",
-   "total": "total"
-  },
-  "empty": {
-   "noAssets": "No assets in this library",
-   "noSearch": "No assets match your search",
-   "selectLibrary": "Select a library"
-  },
-  "dialog": {
-   "newLibrary": "New Library",
-   "deleteLibrary": "Delete Library"
-  },
-  "label": {
-   "name": "Name",
-   "description": "Description"
-  },
-  "button": {
-   "cancel": "Cancel",
-   "creating": "Creating…",
-   "create": "Create"
-  },
-  "confirm": {
-   "delete": "Delete {{name}}? This cannot be undone."
-  },
-  "toast": {
-   "deleted": "Library deleted"
-  },
-  "emptyState": {
-   "title": "Looking to start a project?",
-   "description": "Libraries are where your material lives. Create one to upload media, set custom instructions and keep everything organized in one space.",
-   "action": "Create your first library",
-   "assets": {
-    "title": "This library is still empty",
-    "description": "Upload media into this library and it will show up here, ready to be tagged, analyzed and reviewed.",
-    "action": "Upload assets"
-   }
-  }
- },
- "collections": {
-  "title": "Collections",
-  "count": {
-   "collections": "collections",
-   "results": "results"
-  },
-  "button": {
-   "new": "New Collection",
-   "cancel": "Cancel",
-   "creating": "Creating…",
-   "create": "Create",
-   "save": "Save",
-   "delete": "Delete"
-  },
-  "search": {
-   "placeholder": "Search collections…"
-  },
-  "tooltip": {
-   "delete": "Delete collection",
-   "back": "Back to collections"
-  },
-  "chip": {
-   "assets": "assets",
-   "open": "Open"
-  },
-  "empty": {
-   "noCollections": "No collections in this space",
-   "noSearch": "No collections match your search",
-   "noAssets": "No assets in this collection",
-   "title": "Looking to group your work?",
-   "description": "Collections bundle related assets so a campaign, shoot or project stays together in one space.",
-   "action": "Create your first collection"
-  },
-  "dialog": {
-   "newCollection": "New Collection",
-   "editCollection": "Edit Collection",
-   "deleteCollection": "Delete Collection"
-  },
-  "label": {
-   "name": "Name",
-   "description": "Description",
-   "color": "Color"
-  },
-  "confirm": {
-   "delete": "Delete {{name}}? This cannot be undone."
-  },
-  "toast": {
-   "deleted": "Collection deleted",
-   "created": "Collection created",
-   "updated": "Collection updated",
-   "loadFailed": "Failed to load collections",
-   "createFailed": "Failed to create collection",
-   "updateFailed": "Failed to update collection",
-   "deleteFailed": "Failed to delete collection"
-  }
- },
- "tasks": {
-  "title": "Tasks",
-  "count": "tasks",
-  "button": {
-   "new": "New Task",
-   "create": "Create",
-   "save": "Save",
-   "edit": "Edit",
-   "delete": "Delete",
-   "cancel": "Cancel",
-   "close": "Close"
-  },
-  "form": {
-   "title": "Title",
-   "description": "Description",
-   "priority": "Priority"
-  },
-  "priority": {
-   "LOW": "Low",
-   "MEDIUM": "Medium",
-   "HIGH": "High",
-   "CRITICAL": "Critical"
-  },
-  "dialog": {
-   "newTitle": "Create Task",
-   "editTitle": "Edit Task",
-   "deleteTitle": "Delete Task"
-  },
-  "confirm": {
-   "delete": "Delete {{name}}? This cannot be undone."
-  },
-  "table": {
-   "task": "Task",
-   "priority": "Priority",
-   "created": "Created"
-  },
-  "status": {
-   "PENDING": "Pending",
-   "REJECTED": "Rejected",
-   "ACCEPTED": "Accepted",
-   "REVIEW": "Review"
-  },
-  "drawer": {
-   "title": "Task Detail",
-   "created": "Created",
-   "lastEdited": "Last Edited"
-  },
-  "reactions": {
-   "title": "Reactions",
-   "add": "React",
-   "empty": "No reactions yet",
-   "type": {
-    "THUMBSUP": "Thumbs up",
-    "THUMBSDOWN": "Thumbs down",
-    "SATISFIED": "Satisfied",
-    "PLUS_ONE": "+1",
-    "MINUS_ONE": "-1"
-   }
-  },
-  "empty": "No tasks found",
-  "comments": {
-   "title": "Comments",
-   "addPlaceholder": "Write a comment…",
-   "post": "Post comment",
-   "empty": "No comments yet"
-  },
-  "emptyState": {
-   "title": "Nothing on your plate yet",
-   "description": "Tasks track review, approval and follow-up work on your media, with priority, assignee and due date.",
-   "action": "Create your first task"
-  }
- },
- "monitoring": {
-  "title": "Monitoring & Statistics",
-  "subtitle": "14-day rolling metrics",
-  "sampleData": "Sample data",
-  "loadError": "Failed to load pipeline run data",
-  "kpi": {
-   "dailyIngest": "Daily Ingest",
-   "assets": "assets",
-   "assetsToday": "Assets ingested today",
-   "pipelineRuns": "Pipeline Runs (7d)",
-   "runs": "runs",
-   "allPipelines": "All pipelines",
-   "avgLatency": "Avg Latency",
-   "processingPipeline": "Processing pipeline",
-   "storageUsed": "Storage Used",
-   "totalLibraries": "Total across libraries",
-   "openTasks": "Open Tasks",
-   "allProjects": "Across all spaces",
-   "agentQueries": "Agent Queries (14d)",
-   "totalAgentQueries": "Total Loom Agent queries",
-   "annotations": "Annotations (14d)",
-   "newAnnotations": "New annotations created"
-  },
-  "chart": {
-   "ingestion": "Asset Ingestion (14d)",
-   "pipelineRuns": "Pipeline Runs (14d)",
-   "taskBacklog": "Task Backlog",
-   "latency": "Processing Latency (ms)",
-   "storage": "Storage Growth (TB)",
-   "agentUsage": "Agent Usage (14d)"
-  },
-  "series": {
-   "assets": "Assets",
-   "success": "Success",
-   "failed": "Failed",
-   "skipped": "Skipped",
-   "open": "Open",
-   "overdue": "Overdue",
-   "avg": "Avg",
-   "p99": "P99",
-   "storage": "Storage",
-   "queries": "Queries",
-   "actions": "Actions"
-  }
- },
- "tags": {
-  "title": "Tags",
-  "tooltip": {
-   "info": "Tags are flat labels grouped by collection. Drag a tag onto a collection header to move it.",
-   "create": "Create tag"
-  },
-  "count": "tags across {{count}} collections",
-  "placeholder": {
-   "name": "Tag name…",
-   "collection": "Collection…",
-   "filter": "Filter tags…"
-  },
-  "search": {
-   "placeholder": "Filter tags…"
-  },
-  "menu": {
-   "delete": "Delete"
-  },
-  "loading": "Loading tags…",
-  "empty": "No tags yet. Create a tag to get started.",
-  "detail": {
-   "title": "Tag Details",
-   "name": "Name",
-   "collection": "Collection",
-   "collectionPlaceholder": "e.g. category",
-   "collectionHelper": "Change collection to move tag to a different group",
-   "placeholder": "e.g. category",
-   "helper": "Change collection to move tag to a different group",
-   "rating": "Your rating",
-   "save": "Save"
-  },
-  "emptyState": {
-   "title": "Nothing tagged yet?",
-   "description": "Tags describe what is in your media so you — and the agent — can find it again in seconds.",
-   "action": "Create your first tag"
-  }
- },
- "profile": {
-  "title": "Profile",
-  "subtitle": "Manage your personal information",
-  "field": {
-   "firstName": "First name",
-   "lastName": "Last name",
-   "email": "Email",
-   "username": "Username",
-   "usernameHelper": "Username cannot be changed",
-   "role": "Role"
-  },
-  "label": {
-   "firstName": "First name",
-   "lastName": "Last name",
-   "email": "Email",
-   "username": "Username",
-   "role": "Role"
-  },
-  "helper": {
-   "username": "Username cannot be changed"
-  },
-  "language": {
-   "label": "Language",
-   "en": "English",
-   "de": "German"
-  },
-  "appearance": {
-   "label": "Appearance",
-   "dark": "Dark",
-   "light": "Light"
-  },
-  "button": {
-   "save": "Save changes"
-  },
-  "toast": {
-   "saved": "Profile updated",
-   "updated": "Profile updated",
-   "error": "Failed to update profile"
-  }
- },
- "chat": {
-  "header": {
-   "title": "Loom Agent",
-   "status": "● online · {{space}}",
-   "noSpace": "No space"
-  },
-  "input": {
-   "placeholder": "Ask about assets, collections, tasks, pipelines…",
-   "helper": "Enter to send · Shift+Enter for new line"
-  },
-  "sessions": {
-   "newChat": "New chat",
-   "empty": "No conversations yet",
-   "untitled": "Untitled",
-   "toggle": "Toggle conversation list"
-  },
-  "panel": {
-   "recentAssets": "Recent Assets",
-   "activeTasks": "Active Tasks",
-   "collections": "Collections",
-   "open": "Open",
-   "collectionAssets": "{{count}} assets",
-   "hide": "Hide the workspace panel",
-   "show": "Show the workspace panel"
-  },
-  "tab": {
-   "overview": "Overview",
-   "assets": "Assets"
-  },
-  "detail": {
-   "size": "Size",
-   "status": "Status",
-   "duration": "Duration",
-   "dimensions": "Dimensions",
-   "open": "Open"
-  },
-  "reasoning": {
-   "thinking": "thinking… ({{seconds}}s)",
-   "show": "Show reasoning",
-   "hide": "Hide reasoning"
-  },
-  "streaming": {
-   "stop": "Stop generating"
-  },
-  "pipeline": {
-   "open": "Open",
-   "version": "v{{version}}",
-   "disabled": "disabled",
-   "truncated": "The diagram shows only part of this pipeline — open the editor for the full graph."
-  },
-  "error": {
-   "busy": "The agent is still working on this chat — try again in a moment",
-   "llm": "The agent request failed",
-   "aborted": "Generation stopped"
-  },
-  "skills": {
-   "title": "Skills",
-   "active": "Active skills ({{count}})",
-   "none": "No skills yet — create one under Skills",
-   "manage": "Manage skills"
-  },
-  "greeting": {
-   "hello": "Hello {{name}}",
-   "helloAnonymous": "Hello there",
-   "subtitle": "Ask about your assets, tasks, collections or transcripts — the Loom Agent searches your space and answers with the entities it finds."
-  }
- },
- "admin": {
-  "title": "Admin",
-  "subtitle": "User management, access control, and security",
-  "tab": {
-   "spaces": "Spaces",
-   "users": "Users",
-   "groups": "Groups",
-   "permissions": "Permissions",
-   "apiKeys": "API Keys",
-   "blacklist": "Blacklist",
-   "memoryDenylist": "Memory Denylist"
-  },
-  "spaces": {
-   "title": "Spaces",
-   "tooltip": "Spaces organise projects, teams and assets into isolated environments.",
-   "count": "spaces",
-   "newSpace": "New Space",
-   "search": "Search spaces…",
-   "table": {
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "save": "Save",
+    "create": "Create",
+    "search": "Search",
     "name": "Name",
+    "description": "Description",
+    "actions": "Actions",
     "uuid": "UUID",
     "created": "Created",
-    "actions": "Actions"
-   },
-   "dialog": {
-    "create": "Create Space",
-    "edit": "Edit Space",
-    "delete": "Delete Space",
-    "label": "Space name",
-    "placeholder": "e.g. Production"
-   },
-   "confirm": {
-    "delete": "Are you sure you want to delete space {{name}}?"
-   }
-  },
-  "users": {
-   "title": "Users",
-   "tooltip": "Manage user accounts and their access to the system.",
-   "count": "accounts",
-   "createUser": "Create User",
-   "search": "Search users…",
-   "table": {
-    "user": "User",
-    "email": "Email",
     "status": "Status",
-    "created": "Created",
-    "actions": "Actions"
-   },
-   "chip": {
+    "assets": "assets",
+    "clearFilters": "Clear filters",
+    "noMatchFilters": "No assets match your filters",
+    "allStatus": "All Status",
     "enabled": "enabled",
-    "disabled": "disabled"
-   },
-   "dialog": {
-    "create": "Create User",
-    "edit": "Edit User",
-    "delete": "Delete User",
-    "label": {
-     "username": "Username",
-     "email": "Email",
-     "firstname": "Firstname",
-     "lastname": "Lastname"
-    }
-   },
-   "confirm": {
-    "delete": "Are you sure you want to delete user {{name}}? This action cannot be undone."
-   }
-  },
-  "groups": {
-   "title": "Groups",
-   "tooltip": "Groups let you organise users into logical teams and assign shared permissions.",
-   "count": "groups",
-   "newGroup": "New Group",
-   "search": "Search groups…",
-   "table": {
-    "name": "Name",
-    "uuid": "UUID",
-    "created": "Created",
-    "actions": "Actions"
-   },
-   "dialog": {
-    "create": "Create Group",
-    "edit": "Edit Group",
-    "delete": "Delete Group",
-    "label": "Group name",
-    "placeholder": "e.g. Engineering"
-   },
-   "confirm": {
-    "delete": "Are you sure you want to delete group {{name}}?"
-   }
-  },
-  "roles": {
-   "title": "Access Control",
-   "count": "roles",
-   "saving": "saving…",
-   "newRole": "New Role",
-   "sectionTitle": "Roles",
-   "permissionsCount": "permissions",
-   "permissionsGranted": "permissions granted",
-   "empty": "Select a role to manage its permissions",
-   "permission": {
-    "CREATE_ANNOTATION": "Create new annotations — region markers and notes drawn on an asset.",
-    "READ_ANNOTATION": "View annotations — region markers and notes drawn on an asset.",
-    "DELETE_ANNOTATION": "Delete annotations — region markers and notes drawn on an asset.",
-    "UPDATE_ANNOTATION": "Edit existing annotations — region markers and notes drawn on an asset.",
-    "CREATE_ASSET": "Create new assets — media records with their metadata.",
-    "READ_ASSET": "View assets — media records with their metadata.",
-    "DELETE_ASSET": "Delete assets — media records with their metadata.",
-    "UPDATE_ASSET": "Edit existing assets — media records with their metadata.",
-    "CREATE_ASSET_BINARY": "Create new asset binaries — the stored file bytes of an asset.",
-    "READ_ASSET_BINARY": "View asset binaries — the stored file bytes of an asset.",
-    "DELETE_ASSET_BINARY": "Delete asset binaries — the stored file bytes of an asset.",
-    "UPDATE_ASSET_BINARY": "Edit existing asset binaries — the stored file bytes of an asset.",
-    "CREATE_ASSET_LOCATION": "Create new asset locations — legacy storage locations of an asset.",
-    "READ_ASSET_LOCATION": "View asset locations — legacy storage locations of an asset.",
-    "DELETE_ASSET_LOCATION": "Delete asset locations — legacy storage locations of an asset.",
-    "UPDATE_ASSET_LOCATION": "Edit existing asset locations — legacy storage locations of an asset.",
-    "CREATE_ATTACHMENT": "Create new attachments — files attached alongside an asset.",
-    "READ_ATTACHMENT": "View attachments — files attached alongside an asset.",
-    "DELETE_ATTACHMENT": "Delete attachments — files attached alongside an asset.",
-    "UPDATE_ATTACHMENT": "Edit existing attachments — files attached alongside an asset.",
-    "CREATE_USER": "Create new users — user accounts.",
-    "READ_USER": "View users — user accounts.",
-    "DELETE_USER": "Delete users — user accounts.",
-    "UPDATE_USER": "Edit existing users — user accounts.",
-    "CREATE_ROLE": "Create new roles — roles and the permissions they carry.",
-    "READ_ROLE": "View roles — roles and the permissions they carry.",
-    "DELETE_ROLE": "Delete roles — roles and the permissions they carry.",
-    "UPDATE_ROLE": "Edit existing roles — roles and the permissions they carry.",
-    "CREATE_GROUP": "Create new groups — groups that bundle users and roles.",
-    "READ_GROUP": "View groups — groups that bundle users and roles.",
-    "DELETE_GROUP": "Delete groups — groups that bundle users and roles.",
-    "UPDATE_GROUP": "Edit existing groups — groups that bundle users and roles.",
-    "CREATE_SPACE": "Create new spaces — top-level tenants that hold libraries and collections.",
-    "READ_SPACE": "View spaces — top-level tenants that hold libraries and collections.",
-    "DELETE_SPACE": "Delete spaces — top-level tenants that hold libraries and collections.",
-    "UPDATE_SPACE": "Edit existing spaces — top-level tenants that hold libraries and collections.",
-    "CREATE_CLUSTER": "Create new clusters — clusters of similar face embeddings.",
-    "READ_CLUSTER": "View clusters — clusters of similar face embeddings.",
-    "DELETE_CLUSTER": "Delete clusters — clusters of similar face embeddings.",
-    "UPDATE_CLUSTER": "Edit existing clusters — clusters of similar face embeddings.",
-    "CREATE_COLLECTION": "Create new collections — curated sets of assets.",
-    "READ_COLLECTION": "View collections — curated sets of assets.",
-    "DELETE_COLLECTION": "Delete collections — curated sets of assets.",
-    "UPDATE_COLLECTION": "Edit existing collections — curated sets of assets.",
-    "CREATE_COMMENT": "Create new comments — user comments on assets.",
-    "READ_COMMENT": "View comments — user comments on assets.",
-    "DELETE_COMMENT": "Delete comments — user comments on assets.",
-    "UPDATE_COMMENT": "Edit existing comments — user comments on assets.",
-    "CREATE_EMBEDDING": "Create new embeddings — vectors used for similarity search.",
-    "READ_EMBEDDING": "View embeddings — vectors used for similarity search.",
-    "DELETE_EMBEDDING": "Delete embeddings — vectors used for similarity search.",
-    "UPDATE_EMBEDDING": "Edit existing embeddings — vectors used for similarity search.",
-    "CREATE_REACTION": "Create new reactions — likes and custom reactions.",
-    "READ_REACTION": "View reactions — likes and custom reactions.",
-    "DELETE_REACTION": "Delete reactions — likes and custom reactions.",
-    "UPDATE_REACTION": "Edit existing reactions — likes and custom reactions.",
-    "CREATE_TASK": "Create new tasks — background jobs such as bulk ingestion.",
-    "READ_TASK": "View tasks — background jobs such as bulk ingestion.",
-    "DELETE_TASK": "Delete tasks — background jobs such as bulk ingestion.",
-    "UPDATE_TASK": "Edit existing tasks — background jobs such as bulk ingestion.",
-    "CREATE_TAG": "Create new tags — the tag vocabulary.",
-    "READ_TAG": "View tags — the tag vocabulary.",
-    "DELETE_TAG": "Delete tags — the tag vocabulary.",
-    "UPDATE_TAG": "Edit existing tags — the tag vocabulary.",
-    "TAG_ASSET": "Attach a tag to an asset.",
-    "UNTAG_ASSET": "Remove a tag from an asset.",
-    "CREATE_TOKEN": "Create new API keys — long-lived tokens for service accounts.",
-    "READ_TOKEN": "View API keys — long-lived tokens for service accounts.",
-    "DELETE_TOKEN": "Delete API keys — long-lived tokens for service accounts.",
-    "UPDATE_TOKEN": "Edit existing API keys — long-lived tokens for service accounts.",
-    "CREATE_LIBRARY": "Create new libraries — libraries that group asset pools.",
-    "READ_LIBRARY": "View libraries — libraries that group asset pools.",
-    "DELETE_LIBRARY": "Delete libraries — libraries that group asset pools.",
-    "UPDATE_LIBRARY": "Edit existing libraries — libraries that group asset pools.",
-    "CREATE_PIPELINE": "Create new pipelines — processing pipeline definitions.",
-    "READ_PIPELINE": "View pipelines — processing pipeline definitions.",
-    "DELETE_PIPELINE": "Delete pipelines — processing pipeline definitions.",
-    "UPDATE_PIPELINE": "Edit existing pipelines — processing pipeline definitions.",
-    "READ_PIPELINE_VERSION": "View the version history of a pipeline.",
-    "RESTORE_PIPELINE_VERSION": "Roll a pipeline back to an earlier version.",
-    "CREATE_PIPELINE_RUN": "Create new pipeline runs — executions of a pipeline.",
-    "READ_PIPELINE_RUN": "View pipeline runs — executions of a pipeline.",
-    "UPDATE_PIPELINE_RUN": "Edit existing pipeline runs — executions of a pipeline.",
-    "DELETE_PIPELINE_RUN": "Delete pipeline runs — executions of a pipeline.",
-    "CREATE_ASSET_POOL": "Create new asset pools — storage locations that assets are scanned from.",
-    "READ_ASSET_POOL": "View asset pools — storage locations that assets are scanned from.",
-    "DELETE_ASSET_POOL": "Delete asset pools — storage locations that assets are scanned from.",
-    "UPDATE_ASSET_POOL": "Edit existing asset pools — storage locations that assets are scanned from.",
-    "CREATE_BLACKLIST": "Create new blacklist entries — hashes and fingerprints that must not be ingested.",
-    "READ_BLACKLIST": "View blacklist entries — hashes and fingerprints that must not be ingested.",
-    "DELETE_BLACKLIST": "Delete blacklist entries — hashes and fingerprints that must not be ingested.",
-    "UPDATE_BLACKLIST": "Edit existing blacklist entries — hashes and fingerprints that must not be ingested.",
-    "CREATE_PERSON": "Create new persons — people identified across face detections.",
-    "READ_PERSON": "View persons — people identified across face detections.",
-    "DELETE_PERSON": "Delete persons — people identified across face detections.",
-    "UPDATE_PERSON": "Edit existing persons — people identified across face detections.",
-    "CREATE_DETECTION": "Create new detections — faces and objects found in an asset.",
-    "READ_DETECTION": "View detections — faces and objects found in an asset.",
-    "DELETE_DETECTION": "Delete detections — faces and objects found in an asset.",
-    "UPDATE_DETECTION": "Edit existing detections — faces and objects found in an asset.",
-    "CREATE_CHAT": "Create new chats — conversations with the AI agent.",
-    "READ_CHAT": "View chats — conversations with the AI agent.",
-    "DELETE_CHAT": "Delete chats — conversations with the AI agent.",
-    "UPDATE_CHAT": "Edit existing chats — conversations with the AI agent.",
-    "CREATE_SKILL": "Create new skills — instruction packages that steer the agent.",
-    "READ_SKILL": "View skills — instruction packages that steer the agent.",
-    "DELETE_SKILL": "Delete skills — instruction packages that steer the agent.",
-    "UPDATE_SKILL": "Edit existing skills — instruction packages that steer the agent.",
-    "READ_SKILL_VERSION": "View the version history of a skill.",
-    "RESTORE_SKILL_VERSION": "Roll a skill back to an earlier version.",
-    "CREATE_CHAT_SESSION": "Create new chat sessions — publishable snapshots of a chat and its workspace.",
-    "READ_CHAT_SESSION": "View chat sessions — publishable snapshots of a chat and its workspace.",
-    "DELETE_CHAT_SESSION": "Delete chat sessions — publishable snapshots of a chat and its workspace.",
-    "UPDATE_CHAT_SESSION": "Edit existing chat sessions — publishable snapshots of a chat and its workspace.",
-    "CREATE_MEMORY": "Create new memory notes — durable notes the agent keeps across chats.",
-    "READ_MEMORY": "View memory notes — durable notes the agent keeps across chats.",
-    "DELETE_MEMORY": "Delete memory notes — durable notes the agent keeps across chats.",
-    "UPDATE_MEMORY": "Edit existing memory notes — durable notes the agent keeps across chats.",
-    "CREATE_MEMORY_DENY_RULE": "Create new memory deny rules — patterns the agent must never store.",
-    "READ_MEMORY_DENY_RULE": "View memory deny rules — patterns the agent must never store.",
-    "DELETE_MEMORY_DENY_RULE": "Delete memory deny rules — patterns the agent must never store.",
-    "UPDATE_MEMORY_DENY_RULE": "Edit existing memory deny rules — patterns the agent must never store.",
-    "MANAGE_CORTEX_INSTANCE": "Manage registered Cortex workers — approve, configure and remove processing instances.",
-    "READ_CORTEX_INSTANCE": "View registered Cortex workers and their state."
-   },
-   "dialog": {
-    "create": "Create Role",
-    "edit": "Edit Role",
-    "delete": "Delete Role",
-    "label": "Role name",
-    "placeholder": "e.g. Editor"
-   },
-   "confirm": {
-    "delete": "Are you sure you want to delete role {{name}}?"
-   }
-  },
-  "apiKeys": {
-   "title": "API Keys",
-   "tooltip": "API keys provide programmatic access to the Metaloom REST API.",
-   "count": "keys",
-   "createKey": "Create Key",
-   "search": "Search API keys…",
-   "table": {
-    "name": "Name",
-    "keyId": "Key ID",
-    "created": "Created"
-   },
-   "menu": {
-    "rename": "Rename Key",
-    "delete": "Delete Key"
-   },
-   "dialog": {
-    "create": "Create API Key",
-    "edit": "Rename API Key",
-    "keyName": "Key name",
-    "keyPlaceholder": "e.g. CI Pipeline Key",
-    "creating": "Creating…",
-    "createKey": "Create Key",
-    "tokenCreated": "Token created successfully!",
-    "tokenWarning": "Copy this token now — it will not be shown again."
-   }
-  },
-  "blacklist": {
-   "title": "Blacklist",
-   "count": "entries",
-   "addEntry": "Add Entry",
-   "search": "Search blacklist entries…",
-   "table": {
-    "type": "Type",
-    "value": "Value",
-    "reason": "Reason",
-    "added": "Added",
-    "expires": "Expires"
-   },
-   "dialog": {
-    "add": "Add Blacklist Entry",
-    "type": "Type",
-    "typeIp": "IP Address",
-    "typeDomain": "Domain",
-    "typeFingerprint": "Fingerprint",
-    "typeUser": "User",
-    "value": "Value",
-    "reason": "Reason",
-    "reasonPlaceholder": "Reason for blacklisting",
-    "expiry": "Expiry date (optional)"
-   },
-   "defaultReason": "Manual entry"
-  },
-  "memoryDenylist": {
-   "title": "Memory denylist",
-   "subtitle": "Patterns the chat agent may never store in its memory. A match rejects the write with the rule's message.",
-   "addRule": "Add rule",
-   "search": "Search rules",
-   "empty": "No deny rules configured.",
-   "table": {
-    "name": "Name",
-    "pattern": "Pattern",
-    "message": "Rejection message",
-    "enabled": "Enabled"
-   },
-   "dialog": {
-    "add": "Add deny rule",
-    "edit": "Edit deny rule",
-    "name": "Name",
-    "pattern": "Pattern (regex)",
-    "patternHelp": "Java regex. Cover several phrases in one rule with alternation, e.g. (?i)\\b(alpha|beta)\\b",
-    "message": "Rejection message",
-    "messageHelp": "Shown to the agent when a note is rejected. Explain what to do instead; never repeat the matched text."
-   }
-  }
- },
- "pipeline": {
-  "editor": {
-   "title": "Pipelines",
-   "noRuns": "no runs",
-   "selectPipeline": "Select a pipeline to view its graph",
-   "showLog": "Show log",
-   "log": "Log",
-   "dryRun": "Dry Run",
-   "run": "Run",
-   "dryRunTooltip": "Dry run mode — no writes",
-   "runTooltip": "Run pipeline",
-   "enabled": "Enabled",
-   "addNode": "Add Node",
-   "addNodeTooltip": "Add a node to the pipeline",
-   "tabVisual": "Visual",
-   "tabJson": "JSON",
-   "deleteNodeTitle": "Delete Node",
-   "deleteNodeMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
-   "connectionTypeError": "Cannot connect — incompatible data types",
-   "filterNodes": "Filter nodes…",
-   "jsonValid": "Valid JSON",
-   "jsonInvalid": "Invalid JSON",
-   "jsonLoaded": "Loaded Definition",
-   "jsonCurrent": "Current Canvas State",
-   "source": "Source",
-   "filter": "Filter",
-   "process": "Process",
-   "systemLog": "System Log",
-   "selectPipelineLogs": "Select a pipeline to view logs.",
-   "edgeLabel": "Edge Label",
-   "edgeAny": "ANY",
-   "edgePass": "PASS",
-   "edgeReject": "REJECT",
-   "edgeLabelTooltip": "Set edge label (PASS / REJECT / ANY)",
-   "edgeLabelPassDesc": "Pass only matching assets",
-   "edgeLabelRejectDesc": "Pass only rejected assets",
-   "edgeLabelAnyDesc": "Pass all assets",
-   "validationDuplicateId": "Duplicate node ID: \"{{id}}\" — node IDs must be unique",
-   "validationCycle": "Cycle detected in pipeline graph — nodes form a circular dependency",
-   "validationInvalidId": "Invalid node ID: \"{{id}}\" — IDs must match ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$",
-   "validationNoSource": "Pipeline must have exactly one source node (isSource=true)",
-   "validationMultipleSource": "Pipeline has multiple source nodes — only one is allowed",
-   "validationUnknownType": "Unknown node type: \"{{type}}\" — not found in descriptor registry",
-   "validationOk": "Pipeline validation passed",
-   "validationTitle": "Validation",
-   "save": "Save",
-   "saving": "Saving…",
-   "saved": "Saved",
-   "saveTooltip": "Save pipeline",
-   "savedTooltip": "No unsaved changes",
-   "saveOk": "Pipeline saved",
-   "running": "Running…",
-   "runDispatched": "Pipeline run dispatched",
-   "runNoProcessor": "No processor available",
-   "runCancelled": "Pipeline run cancelled",
-   "newPipeline": "New pipeline",
-   "newPipelineTitle": "New Pipeline",
-   "clonePipelineTitle": "Clone Pipeline",
-   "clone": "Clone",
-   "create": "Create",
-   "nameLabel": "Name",
-   "descriptionLabel": "Description",
-   "nameRequired": "Pipeline name is required",
-   "deletePipelineTitle": "Delete Pipeline",
-   "deletePipelineMessage": "Are you sure you want to delete the pipeline \"{{name}}\"? This action cannot be undone.",
-   "switchDirtyTitle": "Discard unsaved changes?",
-   "switchDirtyMessage": "This pipeline has unsaved changes that will be lost.",
-   "discard": "Discard",
-   "createOk": "Pipeline created",
-   "cloneOk": "Pipeline cloned",
-   "deleteOk": "Pipeline deleted"
-  },
-  "version": {
-   "title": "Version History",
-   "badgeTooltip": "Current version — click to view history",
-   "loading": "Loading versions…",
-   "empty": "No version history available",
-   "current": "current",
-   "restore": "Restore",
-   "restoreTooltip": "Restore version {{version}}",
-   "restoreTitle": "Restore Version",
-   "restoreMessage": "Restore version {{version}}? This creates a new version with the contents of v{{version}} — nothing is deleted.",
-   "restoreDirtyWarning": "You have unsaved changes. Restoring will discard them.",
-   "restoreOk": "Restored v{{from}} as v{{to}}",
-   "restoreFailed": "Restore failed",
-   "compareTooltip": "Compare v{{version}} with current"
-  },
-  "diff": {
-   "title": "Compare v{{from}} → v{{to}} (current)",
-   "loading": "Loading versions…",
-   "empty": "No differences",
-   "failed": "Failed to load versions",
-   "close": "Close",
-   "base": "v{{version}}",
-   "current": "v{{version}} (current)"
-  },
-  "node": {
-   "s3Source": {
-    "label": "S3 Source",
-    "description": "Watch an S3 bucket for new assets"
-   },
-   "filesystemSource": {
-    "label": "Filesystem Source",
-    "description": "Watch a local directory for new files"
-   },
-   "assetSource": {
-    "label": "Asset Source",
-    "description": "Yield a single asset for testing"
-   },
-   "formatFilter": {
-    "label": "Format Filter",
-    "description": "Filter by MIME type"
-   },
-   "hash": {
-    "label": "Hash",
-    "description": "SHA-256 + perceptual hash"
-   },
-   "fingerprint": {
-    "label": "Fingerprint",
-    "description": "Generate audio/video fingerprint"
-   },
-   "resizeProxy": {
-    "label": "Resize Proxy",
-    "description": "Generate proxy resolutions"
-   },
-   "yoloDetection": {
-    "label": "YOLO Detection",
-    "description": "Run YOLOv8 object detection on frames"
-   },
-   "sceneDetection": {
-    "label": "Scene Detection",
-    "description": "Detect scene boundaries via histogram diff"
-   },
-   "s3Output": {
-    "label": "S3 Output",
-    "description": "Write results to S3 bucket"
-   },
-   "thumbnail": {
-    "label": "Thumbnail",
-    "description": "Generate thumbnail images"
-   },
-   "llmVision": {
-    "label": "LLM Vision",
-    "description": "Run a vision model prompt on asset frames"
-   },
-   "faceDetection": {
-    "label": "Face Detection",
-    "description": "Detect and recognize faces"
-   },
-   "embedding": {
-    "label": "Embedding",
-    "description": "Generate CLIP embedding vectors"
-   },
-   "asr": {
-    "label": "ASR",
-    "description": "Automatic speech recognition"
-   },
-   "autoTag": {
-    "label": "Auto Tag",
-    "description": "Automatically tag assets by matching tag globs"
-   },
-   "transcriptionFilter": {
-    "label": "Transcription Filter",
-    "description": "Filter assets that have transcriptions"
-   }
-  },
-  "runHistory": {
-   "title": "Run History",
-   "assets": "assets",
-   "error": "error",
-   "errors": "errors",
-   "noRuns": "No runs recorded yet",
-   "loading": "Loading runs…",
-   "cancel": "Cancel run"
-  },
-  "runDetail": {
-   "title": "Run Detail",
-   "items": "Items",
-   "noItems": "No items recorded for this run",
-   "loading": "Loading items…"
-  },
-  "inspector": {
-   "empty": "Select a pipeline to inspect",
-   "enabled": "enabled",
-   "disabled": "disabled",
-   "priority": "priority",
-   "dryRun": "dry run",
-   "runningNow": "Running now",
-   "lastRun": "Last run:"
-  },
-  "nodeDetail": {
-   "title": "Node Details",
-   "collapse": "Collapse panel",
-   "tab": {
-    "config": "Config",
-    "log": "Log",
-    "json": "JSON"
-   },
-   "displayName": "Display Name",
-   "maxChars": "Max 15 characters",
-   "description": "Description",
-   "affinity": "Affinity group",
-   "affinityHelp": "Nodes sharing a group are dispatched together as one segment.",
-   "configuration": "Configuration",
-   "nodeId": "Node ID",
-   "processingLog": "Processing Log",
-   "nodeState": "Node State (JSON)",
-   "emptyHint": "Click a node in the canvas to view and edit its details",
-   "parameters": "Parameters",
-   "noParameters": "This node has no configurable parameters",
-   "parameterDescription": "Parameter description",
-   "invalidJson": "Invalid JSON"
-  },
-  "help": {
-   "title": "Keyboard Shortcuts",
-   "close": "Press H or Escape to close",
-   "hKey": "Toggle help overlay",
-   "nKey": "Add new node",
-   "aKey": "Auto-arrange nodes",
-   "delKey": "Delete selected node"
-  },
-  "commandPalette": {
-   "placeholder": "Search nodes…",
-   "empty": "No matching nodes"
-  }
- },
- "cortex": {
-  "title": "Cortex Workers",
-  "tooltip": {
-   "info": "Cortex workers are distributed processing nodes that handle media analysis, transcoding, and AI inference tasks.",
-   "stats": "CPU: {{cpu}}% · GPU: {{gpu}}% · IO: {{io}}%"
-  },
-  "count": {
-   "online": "{{online}} / {{total}} online",
-   "workers": "{{count}} workers"
-  },
-  "search": {
-   "placeholder": "Search workers, hosts…"
-  },
-  "filter": {
-   "allStatus": "All Status",
-   "online": "Online",
-   "paused": "Paused",
-   "starting": "Starting",
-   "offline": "Offline",
-   "terminating": "Terminating",
-   "allCaps": "All Caps"
-  },
-  "chip": {
-   "clearFilters": "Clear filters"
-  },
-  "empty": "No workers match your filters",
-  "loading": "Loading workers…",
-  "error": "Failed to load workers",
-  "lastSeen": {
-   "label": "seen {{time}}",
-   "tooltip": "Time since the last heartbeat or status update"
-  },
-  "stat": {
-   "cpu": "CPU",
-   "gpu": "GPU",
-   "io": "IO",
-   "mem": "MEM"
-  },
-  "menu": {
-   "pause": "Pause",
-   "resume": "Resume",
-   "restart": "Restart",
-   "terminate": "Terminate",
-   "restrictions": "Node restrictions",
-   "forget": "Forget worker"
-  },
-  "badge": {
-   "persisted": "Remembered",
-   "persistedTooltip": "This worker is offline but Loom remembers it and its node restrictions."
-  },
-  "restrictions": {
-   "title": "Node restrictions — {{name}}",
-   "whitelist": "Allowed node kinds",
-   "blacklist": "Denied node kinds",
-   "whitelistPlaceholder": "Leave empty to allow all kinds",
-   "blacklistPlaceholder": "Kinds this worker must never run",
-   "allowTooltip": "Allowed node kind",
-   "denyTooltip": "Denied node kind (overrides the allow list)",
-   "save": "Save",
-   "cancel": "Cancel",
-   "saved": "Node restrictions saved",
-   "saveError": "Failed to save restrictions: {{error}}"
-  },
-  "forget": {
-   "done": "Worker forgotten",
-   "error": "Failed to forget worker: {{error}}"
-  }
- },
- "detection": {
-  "title": "Detection Management",
-  "tab": {
-   "faces": "Faces",
-   "objects": "Objects",
-   "llm": "LLM"
-  }
- },
- "llmDetection": {
-  "search": {
-   "placeholder": "Search prompts, results…"
-  },
-  "chip": {
-   "prompts": "Prompts",
-   "results": "Results"
-  },
-  "button": {
-   "newPrompt": "New Prompt",
-   "cancel": "Cancel",
-   "create": "Create Prompt"
-  },
-  "dialog": {
-   "title": "New Vision Prompt"
-  },
-  "label": {
-   "name": "Name",
-   "namePlaceholder": "e.g. Scene Description",
-   "model": "Model",
-   "prompt": "Prompt",
-   "promptPlaceholder": "Describe what the model should do with the asset…",
-   "reasoningEffort": "Reasoning Effort",
-   "outputFormat": "Output Format",
-   "maxTokens": "Max Tokens",
-   "description": "Description (optional)",
-   "descriptionPlaceholder": "Brief description of this prompt's purpose",
-   "maxTokensValue": "Max tokens: {{count}}",
-   "tokens": "{{count}} tokens"
-  },
-  "effort": {
-   "low": "Low",
-   "medium": "Medium",
-   "high": "High"
-  },
-  "format": {
-   "text": "Text",
-   "json": "JSON"
-  },
-  "chip_template": {
-   "effort": "{{effort}} effort"
-  },
-  "tooltip": {
-   "edit": "Edit",
-   "run": "Run on assets"
-  },
-  "empty": {
-   "prompts": "No prompts found",
-   "results": "No results found"
-  }
- },
- "objectDetection": {
-  "search": {
-   "placeholder": "Search object labels…"
-  },
-  "count": "{{detections}} detections · {{labels}} labels",
-  "tooltip": {
-   "confirm": "Confirm",
-   "reject": "Reject"
-  },
-  "label": {
-   "confidence": "Confidence: {{pct}}%"
-  },
-  "confirmError": "Failed to confirm detection",
-  "rejectError": "Failed to delete detection",
-  "empty": "No object detections found"
- },
- "faceDetection": {
-  "title": "Face Detection",
-  "subtitle": "Manage face clusters and person database",
-  "search": {
-   "placeholder": "Search clusters, persons…"
-  },
-  "chip": {
-   "clusters": "Clusters",
-   "persons": "Persons"
-  },
-  "button": {
-   "addPerson": "Add Person",
-   "addCluster": "Add Cluster",
-   "cancel": "Cancel",
-   "create": "Create",
-   "assign": "Assign",
-   "save": "Save"
-  },
-  "count": {
-   "faces": "{{count}} faces",
-   "clusters": "{{count}} clusters"
-  },
-  "label": {
-   "since": "since {{date}}",
-   "name": "Name",
-   "description": "Description",
-   "alias": "Alias",
-   "firstname": "First Name",
-   "lastname": "Last Name"
-  },
-  "tooltip": {
-   "assign": "Assign to person"
-  },
-  "empty": {
-   "clusters": "No clusters found",
-   "persons": "No persons found"
-  },
-  "dialog": {
-   "addPerson": "Add Person",
-   "editPerson": "Edit Person",
-   "addCluster": "Add Cluster",
-   "editCluster": "Edit Cluster",
-   "assign": "Assign Cluster to Person",
-   "selectPerson": "Select a person…"
-  }
- },
- "maintenance": {
-  "title": "Maintenance",
-  "subtitle": "System health overview and maintenance status",
-  "chip": {
-   "lastRestart": "Last restart: 2 days ago",
-   "version": "Version 0.9.4-alpha",
-   "uptime": "Uptime: 48h 12m"
-  },
-  "status": {
-   "database": "Database",
-   "objectStorage": "Object Storage (S3)",
-   "memory": "Memory",
-   "pipelineWorkers": "Pipeline Workers"
-  },
-  "statusLabel": {
-   "healthy": "Healthy",
-   "running": "Running"
-  }
- },
- "workflow": {
-  "title": "Workflow",
-  "tooltip": {
-   "info": "Workflows provide keyboard-driven bulk review modes for rating, tagging, deduplication, and detection tasks.",
-   "fullscreen": "Fullscreen (F)",
-   "exitFullscreen": "Exit fullscreen (F)",
-   "showProfiles": "Show key profiles"
-  },
-  "mode": {
-   "rating": "Rating",
-   "tagging": "Tagging",
-   "dedup": "Dedup",
-   "llm": "LLM",
-   "faces": "Faces",
-   "objects": "Objects"
-  },
-  "rating": {
-   "label": "Rating:",
-   "addTag": "Add tag… (Enter to confirm)",
-   "addTagPlaceholder": "Add tag… (Enter to confirm)"
-  },
-  "tagging": {
-   "noTags": "No tags yet",
-   "search": "Type to search tags… (Enter to add)",
-   "placeholder": "Type to search tags… (Enter to add)"
-  },
-  "dedup": {
-   "keep": "Keep",
-   "duplicateCandidates": "Duplicate Candidates",
-   "remove": "Remove",
-   "kept": "Kept",
-   "chipRemove": "Remove",
-   "chipKept": "Kept",
-   "confirmDedup": "Confirm Dedup (Y)",
-   "confirmBtn": "Confirm Dedup (Y)",
-   "rejectBtn": "Reject (N)",
-   "reject": "Reject (N)"
-  },
-  "faceMode": {
-   "clusters": "Face Clusters ({{count}})",
-   "confirm": "Confirm (Y)",
-   "confirmed": "Confirmed",
-   "denied": "Denied",
-   "deny": "Deny (N)",
-   "confirmBtn": "Confirm (Y)",
-   "denyBtn": "Deny (N)",
-   "assignPerson": "Assign person…",
-   "noClusters": "No face clusters for this asset",
-   "empty": "No face clusters for this asset"
-  },
-  "objectMode": {
-   "detectedObjects": "Detected Objects ({{count}})",
-   "detected": "Detected Objects ({{count}})",
-   "confidence": "Confidence: {{pct}}%",
-   "confirmed": "Confirmed",
-   "rejected": "Rejected",
-   "noDetections": "No object detections for this asset",
-   "empty": "No object detections for this asset"
-  },
-  "llmMode": {
-   "title": "Vision Model Output",
-   "modelOutput": "Vision Model Output",
-   "approve": "Approve (Y)",
-   "reject": "Reject (N)",
-   "approveBtn": "Approve (Y)",
-   "rejectBtn": "Reject (N)"
-  },
-  "profiles": {
-   "title": "Key Profiles",
-   "collapse": "Collapse",
-   "bindings": "{{count}} bindings",
-   "bindingsTitle": "Bindings · click to rebind",
-   "bindingsHeader": "Bindings · click to rebind",
-   "pressKey": "Press a key… (Backspace to unbind)",
-   "clickToRebind": "Click to rebind",
-   "notBound": "Not bound"
-  },
-  "hint": {
-   "rating": "<strong>1-0</strong> Set rating · <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>F</strong> Fullscreen",
-   "tagging": "<strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>Esc</strong> Blur · <strong>F</strong> Fullscreen",
-   "dedup": "<strong>←/→</strong> Navigate · <strong>Y</strong> Confirm dedup · <strong>N</strong> Reject · <strong>F</strong> Fullscreen",
-   "llm": "<strong>←/→</strong> Navigate · <strong>Y</strong> Approve · <strong>N</strong> Reject · <strong>R</strong> Re-run prompt · <strong>F</strong> Fullscreen",
-   "faces": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen",
-   "objects": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen",
-   "facedetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen",
-   "objectdetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen"
-  }
- },
- "assetPools": {
-  "title": "Asset Pools",
-  "tooltip": {
-   "info": "Asset pools define storage locations for assets. They can be backed by a local filesystem folder or an S3-compatible bucket.",
-   "editPool": "Edit pool",
-   "deletePool": "Delete pool"
-  },
-  "chip": {
-   "filesystem": "filesystem",
-   "s3": "S3",
-   "assets": "assets",
-   "s3Bucket": "S3 Bucket",
-   "filesystemLabel": "Filesystem"
-  },
-  "button": {
-   "new": "New Pool",
-   "newPool": "New Pool",
-   "cancel": "Cancel",
-   "create": "Create",
-   "save": "Save",
-   "delete": "Delete"
-  },
-  "search": {
-   "placeholder": "Search pools…"
-  },
-  "form": {
-   "name": "Name",
-   "type": "Type",
-   "filesystem": "Filesystem",
-   "s3": "S3 Bucket",
-   "fsPath": "Filesystem Path",
-   "s3Bucket": "S3 Bucket",
-   "s3Region": "S3 Region",
-   "s3Endpoint": "S3 Endpoint"
-  },
-  "empty": "No asset pools found",
-  "dialog": {
-   "create": "New Asset Pool",
-   "edit": "Edit Asset Pool",
-   "delete": "Delete Asset Pool"
-  },
-  "confirm": {
-   "delete": "Are you sure you want to delete {{name}}? This will not delete the underlying storage, but the pool reference will be removed."
-  },
-  "toast": {
-   "created": "Asset pool created",
-   "updated": "Asset pool updated",
-   "deleted": "Asset pool deleted",
-   "loadFailed": "Failed to load pools",
-   "createFailed": "Failed to create pool",
-   "updateFailed": "Failed to update pool",
-   "deleteFailed": "Failed to delete pool",
-   "loadError": "Failed to load pools",
-   "createError": "Failed to create pool",
-   "updateError": "Failed to update pool",
-   "deleteError": "Failed to delete pool"
-  },
-  "emptyState": {
-   "title": "No storage pools yet",
-   "description": "Asset pools define where binaries are stored and replicated. Create one to give your media a home.",
-   "action": "Create your first pool"
-  }
- },
- "reactions": {
-  "title": "Reactions",
-  "add": "React",
-  "empty": "No reactions yet",
-  "type": {
-   "THUMBSUP": "Thumbs up",
-   "THUMBSDOWN": "Thumbs down",
-   "SATISFIED": "Satisfied",
-   "PLUS_ONE": "+1",
-   "MINUS_ONE": "-1"
-  }
- },
- "assetDetail": {
-  "tab": {
-   "overview": "Overview",
-   "comments": "Comments ({{count}})",
-   "annotations": "Annotations ({{count}})",
-   "reactions": "Reactions ({{count}})",
-   "tasks": "Tasks ({{count}})",
-   "transcript": "Transcript",
-   "faces": "Faces ({{count}})"
-  },
-  "comment": {
-   "addPlaceholder": "Write a comment…",
-   "post": "Post comment",
-   "edit": "Edit comment",
-   "delete": "Delete comment",
-   "save": "Save",
-   "cancel": "Cancel",
-   "postError": "Failed to post comment",
-   "editError": "Failed to update comment",
-   "deleteError": "Failed to delete comment"
-  },
-  "annotation": {
-   "add": "Add annotation",
-   "titlePlaceholder": "Annotation title…",
-   "addPlaceholder": "Add a description…",
-   "edit": "Edit annotation",
-   "delete": "Delete annotation",
-   "save": "Save",
-   "cancel": "Cancel",
-   "addError": "Failed to create annotation",
-   "editError": "Failed to update annotation",
-   "deleteError": "Failed to delete annotation"
-  },
-  "reaction": {
-   "addError": "Failed to add reaction",
-   "deleteError": "Failed to delete reaction",
-   "thumbsUp": "Thumbs up",
-   "thumbsDown": "Thumbs down"
-  },
-  "meta": {
-   "title": "Metadata",
-   "size": "Size",
-   "mime": "MIME",
-   "dimensions": "Dimensions",
-   "duration": "Duration",
-   "owner": "Owner",
-   "created": "Created",
-   "description": "Description"
-  },
-  "location": {
-   "title": "Location(s)",
-   "empty": "No storage location — the asset has no binary yet.",
-   "pool": "Pool",
-   "path": "Path",
-   "state": "State",
-   "license": "License",
-   "locked": "Locked",
-   "mime": "MIME",
-   "viewPool": "View storage pool"
-  },
-  "action": {
-   "process": "Process",
-   "createTask": "Create Task",
-   "addTranscript": "Add Transcript",
-   "save": "Save",
-   "delete": "Delete",
-   "noPipelines": "No pipelines available",
-   "download": "Download",
-   "uploadBinary": "Upload / Replace binary",
-   "removeBinary": "Remove binary",
-   "registerBinary": "Register existing binary"
-  },
-  "dialog": {
-   "delete": "Delete Asset"
-  },
-  "registerBinary": {
-   "title": "Register existing binary",
-   "description": "Point this asset at bytes that already exist on the server's filesystem. No file is uploaded.",
-   "pathLabel": "Filesystem path",
-   "pathPlaceholder": "/data/library/clip.mp4",
-   "submit": "Register"
-  },
-  "confirm": {
-   "delete": "Delete {{name}}? This cannot be undone."
-  },
-  "toast": {
-   "saved": "Asset saved",
-   "saveFailed": "Failed to save asset",
-   "deleted": "Asset deleted",
-   "deleteFailed": "Failed to delete asset",
-   "processStarted": "Processing started",
-   "processFailed": "Failed to start processing",
-   "binaryUploaded": "Binary uploaded",
-   "binaryUploadFailed": "Failed to upload binary",
-   "binaryDownloadFailed": "Failed to download binary",
-   "binaryRemoved": "Binary removed",
-   "binaryRemoveFailed": "Failed to remove binary",
-   "binaryRegistered": "Binary registered",
-   "binaryRegisterFailed": "Failed to register binary"
-  },
-  "tag": {
-   "addPlaceholder": "Add tag…",
-   "regionToggle": "Tag a region: draw a box on the image or select a range on the timeline",
-   "regionHintImage": "Draw a box on the image…",
-   "regionHintVideo": "Drag a range on the timeline…",
-   "regionCaptured": "Region captured — type a name and press Enter",
-   "regionTooltip": "Region tag (time / area)",
-   "newRegion": "new region"
-  },
-  "detection": {
-   "label": "Detections",
-   "defaultLabel": "object",
-   "modeToggle": "Detection mode: draw a box on the image to add an object detection",
-   "bulkToggle": "Bulk mode: draw several boxes, then save them all at once",
-   "hint": "Draw a box on the image to add a detection",
-   "bulkHint": "Draw boxes, then Save all",
-   "redrawHint": "Draw the new box for the selected detection",
-   "staged": "staged",
-   "saveAll": "Save all ({{count}})",
-   "confidence": "Confidence",
-   "redraw": "Redraw bounding box",
-   "confirm": "Confirm detection",
-   "delete": "Delete detection",
-   "empty": "No detections yet — draw a box to add one",
-   "createError": "Failed to create detection",
-   "updateError": "Failed to update detection",
-   "deleteError": "Failed to delete detection"
+    "disabled": "disabled",
+    "confirmed": "Confirmed",
+    "denied": "Denied",
+    "rejected": "Rejected",
+    "never": "Never",
+    "permanent": "Permanent"
   },
   "sidebar": {
-   "filterPlaceholder": "Filter…"
+    "brand": "Metaloom",
+    "nav": {
+      "chat": "Chat",
+      "library": "Library",
+      "assets": "Assets",
+      "collections": "Collections",
+      "tasks": "Tasks",
+      "detection": "Detection",
+      "tags": "Tags",
+      "workflow": "Workflow",
+      "skills": "Skills",
+      "memory": "Memory",
+      "chatSessions": "Chat Sessions",
+      "uploads": "Uploads"
+    },
+    "admin": {
+      "assetPools": "Asset Pools",
+      "pipelines": "Pipelines",
+      "cortex": "Cortex",
+      "monitoring": "Monitoring",
+      "spaces": "Spaces",
+      "users": "Users",
+      "groups": "Groups",
+      "permissions": "Permissions",
+      "apiKeys": "API Keys",
+      "blacklist": "Blacklist",
+      "memoryDenylist": "Memory Denylist"
+    },
+    "divider": {
+      "admin": "Admin",
+      "ai": "AI",
+      "content": "Content",
+      "management": "Management"
+    },
+    "group": {
+      "acl": "ACL"
+    },
+    "menu": {
+      "profile": "Profile",
+      "logout": "Logout"
+    },
+    "tooltip": {
+      "expand": "Expand sidebar",
+      "collapse": "Collapse sidebar"
+    },
+    "fallback": {
+      "unknown": "Unknown"
+    }
   },
-  "empty": {
-   "noComments": "No comments yet",
-   "noMatchComments": "No matching comments",
-   "noAnnotations": "No annotations yet",
-   "noMatchAnnotations": "No matching annotations",
-   "noReactions": "No reactions yet",
-   "noTasks": "No tasks linked",
-   "noTranscript": "No transcript available",
-   "noFaces": "No face detection data"
+  "auth": {
+    "title": "Loom Studio",
+    "subtitle": "Sign in to continue",
+    "error": {
+      "invalidCredentials": "Invalid credentials."
+    },
+    "placeholder": {
+      "username": "Username",
+      "password": "Password"
+    },
+    "button": {
+      "signIn": "Sign in"
+    }
   },
-  "faces": {
-   "detected": "{{count}} faces detected",
-   "clusters": "{{count}} clusters",
-   "identified": "{{count}} identified",
-   "identifiedChip": "Identified",
-   "unidentifiedChip": "Unidentified",
-   "unclustered": "Unclustered ({{count}})"
+  "assets": {
+    "title": "Assets",
+    "search": {
+      "placeholder": "Search assets, tags…"
+    },
+    "filter": {
+      "allStatus": "All Status",
+      "ready": "Ready",
+      "processing": "Processing",
+      "failed": "Failed",
+      "archived": "Archived",
+      "allTypes": "All Types",
+      "video": "Video",
+      "image": "Image",
+      "audio": "Audio",
+      "document": "Document",
+      "allLibraries": "All Libraries",
+      "clear": "Clear filters"
+    },
+    "tooltip": {
+      "small": "Small — thumbnail only",
+      "medium": "Medium",
+      "large": "Large — tags, size, duration"
+    },
+    "count": "assets",
+    "chip": {
+      "clearFilters": "Clear filters"
+    },
+    "empty": {
+      "noMatch": "No assets match your filters",
+      "title": "Ready to build your media library?",
+      "description": "Upload materials, let the pipelines enrich them, and organize everything in one space.",
+      "action": "Upload your first asset"
+    },
+    "button": {
+      "upload": "Upload",
+      "select": "Select",
+      "cancelSelect": "Cancel",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "apply": "Apply",
+      "bulkTag": "Tag",
+      "bulkDelete": "Delete"
+    },
+    "select": {
+      "count": "{{count}} selected"
+    },
+    "dialog": {
+      "upload": "Upload Asset",
+      "delete": "Delete Asset",
+      "bulkTag": "Tag {{count}} assets"
+    },
+    "upload": {
+      "pickFile": "Choose a file…",
+      "library": "Library",
+      "origin": "Origin",
+      "filesSelected": "{{count}} files selected",
+      "backgroundHint": "Uploads continue in the background. Track them under Uploads in the sidebar."
+    },
+    "label": {
+      "tag": "Tag"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "deleted": "Asset deleted",
+      "deleteFailed": "Failed to delete asset",
+      "bulkDeleted": "Deleted {{count}} assets",
+      "bulkDeletedPartial": "Deleted {{ok}} assets, {{failed}} failed",
+      "bulkTagged": "Tagged {{count}} assets",
+      "bulkTagFailed": "Failed to tag assets",
+      "uploadQueued": "{{count}} file(s) queued for upload"
+    }
   },
-  "taskDetail": {
-   "title": "Task Detail",
-   "status": "Status",
-   "priority": "Priority",
-   "dueDate": "Due Date",
-   "created": "Created"
+  "uploads": {
+    "title": "Uploads",
+    "subtitle": "Drop files here to add them to Loom. Uploads keep running in the background while you work elsewhere in the app — but reloading the page cancels them.",
+    "field": {
+      "library": "Library",
+      "pool": "Storage pool",
+      "origin": "Origin"
+    },
+    "pool": {
+      "fromLibrary": "From library",
+      "libraryPool": "Library pool",
+      "serverDefault": "Server default storage",
+      "storesTo": "Stores to",
+      "derivedHint": "The target library decides where the bytes are stored.",
+      "overrideHint": "Overriding the library's pool for this upload."
+    },
+    "dropzone": {
+      "title": "Drop files here",
+      "hint": "or click to choose files. Multiple files at a time are fine.",
+      "noLibrary": "Choose a library first — every upload has to land in one."
+    },
+    "status": {
+      "queued": "Waiting",
+      "uploading": "Uploading",
+      "done": "Uploaded",
+      "duplicate": "Already in Loom — linked to the existing asset",
+      "error": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "action": {
+      "cancel": "Cancel this upload",
+      "retry": "Retry",
+      "cancelAll": "Cancel all",
+      "retryFailed": "Retry failed",
+      "clearFinished": "Clear finished"
+    },
+    "queue": {
+      "active": "Uploading — {{done}} of {{total}} done ({{percent}}%)",
+      "idle": "{{count}} file(s) in this session"
+    },
+    "totals": "{{uploaded}} uploaded · {{duplicates}} already known · {{failed}} failed · {{bytes}} total",
+    "empty": {
+      "title": "Nothing uploaded yet",
+      "description": "Pick a library above, then drop files into the area at the top of this page. Progress shows up here and in the sidebar.",
+      "action": "Choose files"
+    },
+    "toast": {
+      "completed": "{{count}} file(s) uploaded",
+      "completedWithDuplicates": "{{count}} file(s) uploaded, {{duplicates}} already in Loom",
+      "failed": "{{count}} upload(s) failed",
+      "cancelled": "{{count}} upload(s) cancelled"
+    }
   },
-  "taskCreate": {
-   "title": "Create Task",
-   "dueDate": "Due Date",
-   "error": "Failed to create task"
+  "library": {
+    "title": "Libraries",
+    "tooltip": {
+      "info": "Libraries are used to aggregate and organise assets into logical collections within a space.",
+      "newLibrary": "New library",
+      "deleteLibrary": "Delete library"
+    },
+    "count": {
+      "assets": "assets"
+    },
+    "search": {
+      "placeholder": "Search assets…"
+    },
+    "stats": {
+      "videos": "videos",
+      "images": "images",
+      "total": "total"
+    },
+    "empty": {
+      "noAssets": "No assets in this library",
+      "noSearch": "No assets match your search",
+      "selectLibrary": "Select a library"
+    },
+    "dialog": {
+      "newLibrary": "New Library",
+      "deleteLibrary": "Delete Library"
+    },
+    "label": {
+      "name": "Name",
+      "description": "Description"
+    },
+    "button": {
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "create": "Create"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "deleted": "Library deleted"
+    },
+    "emptyState": {
+      "title": "Looking to start a project?",
+      "description": "Libraries are where your material lives. Create one to upload media, set custom instructions and keep everything organized in one space.",
+      "action": "Create your first library",
+      "assets": {
+        "title": "This library is still empty",
+        "description": "Upload media into this library and it will show up here, ready to be tagged, analyzed and reviewed.",
+        "action": "Upload assets"
+      }
+    }
   },
-  "transcript": {
-   "untitled": "Transcript",
-   "sectionTitle": "Section title",
-   "delete": "Delete transcript",
-   "createError": "Failed to add transcript",
-   "updateError": "Failed to save transcript",
-   "deleteError": "Failed to delete transcript"
+  "collections": {
+    "title": "Collections",
+    "count": {
+      "collections": "collections",
+      "results": "results"
+    },
+    "button": {
+      "new": "New Collection",
+      "cancel": "Cancel",
+      "creating": "Creating…",
+      "create": "Create",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "search": {
+      "placeholder": "Search collections…"
+    },
+    "tooltip": {
+      "delete": "Delete collection",
+      "back": "Back to collections"
+    },
+    "chip": {
+      "assets": "assets",
+      "open": "Open"
+    },
+    "empty": {
+      "noCollections": "No collections in this space",
+      "noSearch": "No collections match your search",
+      "noAssets": "No assets in this collection",
+      "title": "Looking to group your work?",
+      "description": "Collections bundle related assets so a campaign, shoot or project stays together in one space.",
+      "action": "Create your first collection"
+    },
+    "dialog": {
+      "newCollection": "New Collection",
+      "editCollection": "Edit Collection",
+      "deleteCollection": "Delete Collection"
+    },
+    "label": {
+      "name": "Name",
+      "description": "Description",
+      "color": "Color"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "deleted": "Collection deleted",
+      "created": "Collection created",
+      "updated": "Collection updated",
+      "loadFailed": "Failed to load collections",
+      "createFailed": "Failed to create collection",
+      "updateFailed": "Failed to update collection",
+      "deleteFailed": "Failed to delete collection"
+    }
   },
-  "transcriptCreate": {
-   "title": "Add Transcript",
-   "source": "Source",
-   "lang": "Language"
+  "tasks": {
+    "title": "Tasks",
+    "count": "tasks",
+    "button": {
+      "new": "New Task",
+      "create": "Create",
+      "save": "Save",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "close": "Close"
+    },
+    "form": {
+      "title": "Title",
+      "description": "Description",
+      "priority": "Priority"
+    },
+    "priority": {
+      "LOW": "Low",
+      "MEDIUM": "Medium",
+      "HIGH": "High",
+      "CRITICAL": "Critical"
+    },
+    "dialog": {
+      "newTitle": "Create Task",
+      "editTitle": "Edit Task",
+      "deleteTitle": "Delete Task"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "table": {
+      "task": "Task",
+      "priority": "Priority",
+      "created": "Created"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "REJECTED": "Rejected",
+      "ACCEPTED": "Accepted",
+      "REVIEW": "Review"
+    },
+    "drawer": {
+      "title": "Task Detail",
+      "created": "Created",
+      "lastEdited": "Last Edited"
+    },
+    "reactions": {
+      "title": "Reactions",
+      "add": "React",
+      "empty": "No reactions yet",
+      "type": {
+        "THUMBSUP": "Thumbs up",
+        "THUMBSDOWN": "Thumbs down",
+        "SATISFIED": "Satisfied",
+        "PLUS_ONE": "+1",
+        "MINUS_ONE": "-1"
+      }
+    },
+    "empty": "No tasks found",
+    "comments": {
+      "title": "Comments",
+      "addPlaceholder": "Write a comment…",
+      "post": "Post comment",
+      "empty": "No comments yet"
+    },
+    "emptyState": {
+      "title": "Nothing on your plate yet",
+      "description": "Tasks track review, approval and follow-up work on your media, with priority, assignee and due date.",
+      "action": "Create your first task"
+    }
   },
-  "annotations": {
-   "label": "Annotations:"
+  "monitoring": {
+    "title": "Monitoring & Statistics",
+    "subtitle": "14-day rolling metrics",
+    "sampleData": "Sample data",
+    "loadError": "Failed to load pipeline run data",
+    "kpi": {
+      "dailyIngest": "Daily Ingest",
+      "assets": "assets",
+      "assetsToday": "Assets ingested today",
+      "pipelineRuns": "Pipeline Runs (7d)",
+      "runs": "runs",
+      "allPipelines": "All pipelines",
+      "avgLatency": "Avg Latency",
+      "processingPipeline": "Processing pipeline",
+      "storageUsed": "Storage Used",
+      "totalLibraries": "Total across libraries",
+      "openTasks": "Open Tasks",
+      "allProjects": "Across all spaces",
+      "agentQueries": "Agent Queries (14d)",
+      "totalAgentQueries": "Total Loom Agent queries",
+      "annotations": "Annotations (14d)",
+      "newAnnotations": "New annotations created"
+    },
+    "chart": {
+      "ingestion": "Asset Ingestion (14d)",
+      "pipelineRuns": "Pipeline Runs (14d)",
+      "taskBacklog": "Task Backlog",
+      "latency": "Processing Latency (ms)",
+      "storage": "Storage Growth (TB)",
+      "agentUsage": "Agent Usage (14d)"
+    },
+    "series": {
+      "assets": "Assets",
+      "success": "Success",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "open": "Open",
+      "overdue": "Overdue",
+      "avg": "Avg",
+      "p99": "P99",
+      "storage": "Storage",
+      "queries": "Queries",
+      "actions": "Actions"
+    }
+  },
+  "tags": {
+    "title": "Tags",
+    "tooltip": {
+      "info": "Tags are flat labels grouped by collection. Drag a tag onto a collection header to move it.",
+      "create": "Create tag"
+    },
+    "count": "tags across {{count}} collections",
+    "placeholder": {
+      "name": "Tag name…",
+      "collection": "Collection…",
+      "filter": "Filter tags…"
+    },
+    "search": {
+      "placeholder": "Filter tags…"
+    },
+    "menu": {
+      "delete": "Delete"
+    },
+    "loading": "Loading tags…",
+    "empty": "No tags yet. Create a tag to get started.",
+    "detail": {
+      "title": "Tag Details",
+      "name": "Name",
+      "collection": "Collection",
+      "collectionPlaceholder": "e.g. category",
+      "collectionHelper": "Change collection to move tag to a different group",
+      "placeholder": "e.g. category",
+      "helper": "Change collection to move tag to a different group",
+      "rating": "Your rating",
+      "save": "Save"
+    },
+    "emptyState": {
+      "title": "Nothing tagged yet?",
+      "description": "Tags describe what is in your media so you — and the agent — can find it again in seconds.",
+      "action": "Create your first tag"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Manage your personal information",
+    "field": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "username": "Username",
+      "usernameHelper": "Username cannot be changed",
+      "role": "Role"
+    },
+    "label": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "username": "Username",
+      "role": "Role"
+    },
+    "helper": {
+      "username": "Username cannot be changed"
+    },
+    "language": {
+      "label": "Language",
+      "en": "English",
+      "de": "German"
+    },
+    "appearance": {
+      "label": "Appearance",
+      "dark": "Dark",
+      "light": "Light"
+    },
+    "button": {
+      "save": "Save changes"
+    },
+    "toast": {
+      "saved": "Profile updated",
+      "updated": "Profile updated",
+      "error": "Failed to update profile"
+    }
+  },
+  "chat": {
+    "header": {
+      "title": "Loom Agent",
+      "status": "● online · {{space}}",
+      "noSpace": "No space"
+    },
+    "input": {
+      "placeholder": "Ask about assets, collections, tasks, pipelines…",
+      "helper": "Enter to send · Shift+Enter for new line"
+    },
+    "sessions": {
+      "newChat": "New chat",
+      "empty": "No conversations yet",
+      "untitled": "Untitled",
+      "toggle": "Toggle conversation list"
+    },
+    "panel": {
+      "recentAssets": "Recent Assets",
+      "activeTasks": "Active Tasks",
+      "collections": "Collections",
+      "open": "Open",
+      "collectionAssets": "{{count}} assets",
+      "hide": "Hide the workspace panel",
+      "show": "Show the workspace panel"
+    },
+    "tab": {
+      "overview": "Overview",
+      "assets": "Assets"
+    },
+    "detail": {
+      "size": "Size",
+      "status": "Status",
+      "duration": "Duration",
+      "dimensions": "Dimensions",
+      "open": "Open"
+    },
+    "reasoning": {
+      "thinking": "thinking… ({{seconds}}s)",
+      "show": "Show reasoning",
+      "hide": "Hide reasoning"
+    },
+    "streaming": {
+      "stop": "Stop generating"
+    },
+    "pipeline": {
+      "open": "Open",
+      "version": "v{{version}}",
+      "disabled": "disabled",
+      "truncated": "The diagram shows only part of this pipeline — open the editor for the full graph."
+    },
+    "error": {
+      "busy": "The agent is still working on this chat — try again in a moment",
+      "llm": "The agent request failed",
+      "aborted": "Generation stopped"
+    },
+    "skills": {
+      "title": "Skills",
+      "active": "Active skills ({{count}})",
+      "none": "No skills yet — create one under Skills",
+      "manage": "Manage skills"
+    },
+    "greeting": {
+      "hello": "Hello {{name}}",
+      "helloAnonymous": "Hello there",
+      "subtitle": "Ask about your assets, tasks, collections or transcripts — the Loom Agent searches your space and answers with the entities it finds."
+    }
+  },
+  "admin": {
+    "title": "Admin",
+    "subtitle": "User management, access control, and security",
+    "tab": {
+      "spaces": "Spaces",
+      "users": "Users",
+      "groups": "Groups",
+      "permissions": "Permissions",
+      "apiKeys": "API Keys",
+      "blacklist": "Blacklist",
+      "memoryDenylist": "Memory Denylist"
+    },
+    "spaces": {
+      "title": "Spaces",
+      "tooltip": "Spaces organise projects, teams and assets into isolated environments.",
+      "count": "spaces",
+      "newSpace": "New Space",
+      "search": "Search spaces…",
+      "table": {
+        "name": "Name",
+        "uuid": "UUID",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "dialog": {
+        "create": "Create Space",
+        "edit": "Edit Space",
+        "delete": "Delete Space",
+        "label": "Space name",
+        "placeholder": "e.g. Production"
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete space {{name}}?"
+      }
+    },
+    "users": {
+      "title": "Users",
+      "tooltip": "Manage user accounts and their access to the system.",
+      "count": "accounts",
+      "createUser": "Create User",
+      "search": "Search users…",
+      "table": {
+        "user": "User",
+        "email": "Email",
+        "status": "Status",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "chip": {
+        "enabled": "enabled",
+        "disabled": "disabled"
+      },
+      "dialog": {
+        "create": "Create User",
+        "edit": "Edit User",
+        "delete": "Delete User",
+        "label": {
+          "username": "Username",
+          "email": "Email",
+          "firstname": "Firstname",
+          "lastname": "Lastname"
+        }
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete user {{name}}? This action cannot be undone."
+      }
+    },
+    "groups": {
+      "title": "Groups",
+      "tooltip": "Groups let you organise users into logical teams and assign shared permissions.",
+      "count": "groups",
+      "newGroup": "New Group",
+      "search": "Search groups…",
+      "table": {
+        "name": "Name",
+        "uuid": "UUID",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "dialog": {
+        "create": "Create Group",
+        "edit": "Edit Group",
+        "delete": "Delete Group",
+        "label": "Group name",
+        "placeholder": "e.g. Engineering"
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete group {{name}}?"
+      }
+    },
+    "roles": {
+      "title": "Access Control",
+      "count": "roles",
+      "saving": "saving…",
+      "newRole": "New Role",
+      "sectionTitle": "Roles",
+      "permissionsCount": "permissions",
+      "permissionsGranted": "permissions granted",
+      "empty": "Select a role to manage its permissions",
+      "permission": {
+        "CREATE_ANNOTATION": "Create new annotations — region markers and notes drawn on an asset.",
+        "READ_ANNOTATION": "View annotations — region markers and notes drawn on an asset.",
+        "DELETE_ANNOTATION": "Delete annotations — region markers and notes drawn on an asset.",
+        "UPDATE_ANNOTATION": "Edit existing annotations — region markers and notes drawn on an asset.",
+        "CREATE_ASSET": "Create new assets — media records with their metadata.",
+        "READ_ASSET": "View assets — media records with their metadata.",
+        "DELETE_ASSET": "Delete assets — media records with their metadata.",
+        "UPDATE_ASSET": "Edit existing assets — media records with their metadata.",
+        "CREATE_ASSET_BINARY": "Create new asset binaries — the stored file bytes of an asset.",
+        "READ_ASSET_BINARY": "View asset binaries — the stored file bytes of an asset.",
+        "DELETE_ASSET_BINARY": "Delete asset binaries — the stored file bytes of an asset.",
+        "UPDATE_ASSET_BINARY": "Edit existing asset binaries — the stored file bytes of an asset.",
+        "CREATE_ASSET_LOCATION": "Create new asset locations — legacy storage locations of an asset.",
+        "READ_ASSET_LOCATION": "View asset locations — legacy storage locations of an asset.",
+        "DELETE_ASSET_LOCATION": "Delete asset locations — legacy storage locations of an asset.",
+        "UPDATE_ASSET_LOCATION": "Edit existing asset locations — legacy storage locations of an asset.",
+        "CREATE_ATTACHMENT": "Create new attachments — files attached alongside an asset.",
+        "READ_ATTACHMENT": "View attachments — files attached alongside an asset.",
+        "DELETE_ATTACHMENT": "Delete attachments — files attached alongside an asset.",
+        "UPDATE_ATTACHMENT": "Edit existing attachments — files attached alongside an asset.",
+        "CREATE_USER": "Create new users — user accounts.",
+        "READ_USER": "View users — user accounts.",
+        "DELETE_USER": "Delete users — user accounts.",
+        "UPDATE_USER": "Edit existing users — user accounts.",
+        "CREATE_ROLE": "Create new roles — roles and the permissions they carry.",
+        "READ_ROLE": "View roles — roles and the permissions they carry.",
+        "DELETE_ROLE": "Delete roles — roles and the permissions they carry.",
+        "UPDATE_ROLE": "Edit existing roles — roles and the permissions they carry.",
+        "CREATE_GROUP": "Create new groups — groups that bundle users and roles.",
+        "READ_GROUP": "View groups — groups that bundle users and roles.",
+        "DELETE_GROUP": "Delete groups — groups that bundle users and roles.",
+        "UPDATE_GROUP": "Edit existing groups — groups that bundle users and roles.",
+        "CREATE_SPACE": "Create new spaces — top-level tenants that hold libraries and collections.",
+        "READ_SPACE": "View spaces — top-level tenants that hold libraries and collections.",
+        "DELETE_SPACE": "Delete spaces — top-level tenants that hold libraries and collections.",
+        "UPDATE_SPACE": "Edit existing spaces — top-level tenants that hold libraries and collections.",
+        "CREATE_CLUSTER": "Create new clusters — clusters of similar face embeddings.",
+        "READ_CLUSTER": "View clusters — clusters of similar face embeddings.",
+        "DELETE_CLUSTER": "Delete clusters — clusters of similar face embeddings.",
+        "UPDATE_CLUSTER": "Edit existing clusters — clusters of similar face embeddings.",
+        "CREATE_COLLECTION": "Create new collections — curated sets of assets.",
+        "READ_COLLECTION": "View collections — curated sets of assets.",
+        "DELETE_COLLECTION": "Delete collections — curated sets of assets.",
+        "UPDATE_COLLECTION": "Edit existing collections — curated sets of assets.",
+        "CREATE_COMMENT": "Create new comments — user comments on assets.",
+        "READ_COMMENT": "View comments — user comments on assets.",
+        "DELETE_COMMENT": "Delete comments — user comments on assets.",
+        "UPDATE_COMMENT": "Edit existing comments — user comments on assets.",
+        "CREATE_EMBEDDING": "Create new embeddings — vectors used for similarity search.",
+        "READ_EMBEDDING": "View embeddings — vectors used for similarity search.",
+        "DELETE_EMBEDDING": "Delete embeddings — vectors used for similarity search.",
+        "UPDATE_EMBEDDING": "Edit existing embeddings — vectors used for similarity search.",
+        "CREATE_REACTION": "Create new reactions — likes and custom reactions.",
+        "READ_REACTION": "View reactions — likes and custom reactions.",
+        "DELETE_REACTION": "Delete reactions — likes and custom reactions.",
+        "UPDATE_REACTION": "Edit existing reactions — likes and custom reactions.",
+        "CREATE_TASK": "Create new tasks — background jobs such as bulk ingestion.",
+        "READ_TASK": "View tasks — background jobs such as bulk ingestion.",
+        "DELETE_TASK": "Delete tasks — background jobs such as bulk ingestion.",
+        "UPDATE_TASK": "Edit existing tasks — background jobs such as bulk ingestion.",
+        "CREATE_TAG": "Create new tags — the tag vocabulary.",
+        "READ_TAG": "View tags — the tag vocabulary.",
+        "DELETE_TAG": "Delete tags — the tag vocabulary.",
+        "UPDATE_TAG": "Edit existing tags — the tag vocabulary.",
+        "TAG_ASSET": "Attach a tag to an asset.",
+        "UNTAG_ASSET": "Remove a tag from an asset.",
+        "CREATE_TOKEN": "Create new API keys — long-lived tokens for service accounts.",
+        "READ_TOKEN": "View API keys — long-lived tokens for service accounts.",
+        "DELETE_TOKEN": "Delete API keys — long-lived tokens for service accounts.",
+        "UPDATE_TOKEN": "Edit existing API keys — long-lived tokens for service accounts.",
+        "CREATE_LIBRARY": "Create new libraries — libraries that group asset pools.",
+        "READ_LIBRARY": "View libraries — libraries that group asset pools.",
+        "DELETE_LIBRARY": "Delete libraries — libraries that group asset pools.",
+        "UPDATE_LIBRARY": "Edit existing libraries — libraries that group asset pools.",
+        "CREATE_PIPELINE": "Create new pipelines — processing pipeline definitions.",
+        "READ_PIPELINE": "View pipelines — processing pipeline definitions.",
+        "DELETE_PIPELINE": "Delete pipelines — processing pipeline definitions.",
+        "UPDATE_PIPELINE": "Edit existing pipelines — processing pipeline definitions.",
+        "READ_PIPELINE_VERSION": "View the version history of a pipeline.",
+        "RESTORE_PIPELINE_VERSION": "Roll a pipeline back to an earlier version.",
+        "CREATE_PIPELINE_RUN": "Create new pipeline runs — executions of a pipeline.",
+        "READ_PIPELINE_RUN": "View pipeline runs — executions of a pipeline.",
+        "UPDATE_PIPELINE_RUN": "Edit existing pipeline runs — executions of a pipeline.",
+        "DELETE_PIPELINE_RUN": "Delete pipeline runs — executions of a pipeline.",
+        "CREATE_ASSET_POOL": "Create new asset pools — storage locations that assets are scanned from.",
+        "READ_ASSET_POOL": "View asset pools — storage locations that assets are scanned from.",
+        "DELETE_ASSET_POOL": "Delete asset pools — storage locations that assets are scanned from.",
+        "UPDATE_ASSET_POOL": "Edit existing asset pools — storage locations that assets are scanned from.",
+        "CREATE_BLACKLIST": "Create new blacklist entries — hashes and fingerprints that must not be ingested.",
+        "READ_BLACKLIST": "View blacklist entries — hashes and fingerprints that must not be ingested.",
+        "DELETE_BLACKLIST": "Delete blacklist entries — hashes and fingerprints that must not be ingested.",
+        "UPDATE_BLACKLIST": "Edit existing blacklist entries — hashes and fingerprints that must not be ingested.",
+        "CREATE_PERSON": "Create new persons — people identified across face detections.",
+        "READ_PERSON": "View persons — people identified across face detections.",
+        "DELETE_PERSON": "Delete persons — people identified across face detections.",
+        "UPDATE_PERSON": "Edit existing persons — people identified across face detections.",
+        "CREATE_DETECTION": "Create new detections — faces and objects found in an asset.",
+        "READ_DETECTION": "View detections — faces and objects found in an asset.",
+        "DELETE_DETECTION": "Delete detections — faces and objects found in an asset.",
+        "UPDATE_DETECTION": "Edit existing detections — faces and objects found in an asset.",
+        "CREATE_CHAT": "Create new chats — conversations with the AI agent.",
+        "READ_CHAT": "View chats — conversations with the AI agent.",
+        "DELETE_CHAT": "Delete chats — conversations with the AI agent.",
+        "UPDATE_CHAT": "Edit existing chats — conversations with the AI agent.",
+        "CREATE_SKILL": "Create new skills — instruction packages that steer the agent.",
+        "READ_SKILL": "View skills — instruction packages that steer the agent.",
+        "DELETE_SKILL": "Delete skills — instruction packages that steer the agent.",
+        "UPDATE_SKILL": "Edit existing skills — instruction packages that steer the agent.",
+        "READ_SKILL_VERSION": "View the version history of a skill.",
+        "RESTORE_SKILL_VERSION": "Roll a skill back to an earlier version.",
+        "CREATE_CHAT_SESSION": "Create new chat sessions — publishable snapshots of a chat and its workspace.",
+        "READ_CHAT_SESSION": "View chat sessions — publishable snapshots of a chat and its workspace.",
+        "DELETE_CHAT_SESSION": "Delete chat sessions — publishable snapshots of a chat and its workspace.",
+        "UPDATE_CHAT_SESSION": "Edit existing chat sessions — publishable snapshots of a chat and its workspace.",
+        "CREATE_MEMORY": "Create new memory notes — durable notes the agent keeps across chats.",
+        "READ_MEMORY": "View memory notes — durable notes the agent keeps across chats.",
+        "DELETE_MEMORY": "Delete memory notes — durable notes the agent keeps across chats.",
+        "UPDATE_MEMORY": "Edit existing memory notes — durable notes the agent keeps across chats.",
+        "CREATE_MEMORY_DENY_RULE": "Create new memory deny rules — patterns the agent must never store.",
+        "READ_MEMORY_DENY_RULE": "View memory deny rules — patterns the agent must never store.",
+        "DELETE_MEMORY_DENY_RULE": "Delete memory deny rules — patterns the agent must never store.",
+        "UPDATE_MEMORY_DENY_RULE": "Edit existing memory deny rules — patterns the agent must never store.",
+        "MANAGE_CORTEX_INSTANCE": "Manage registered Cortex workers — approve, configure and remove processing instances.",
+        "READ_CORTEX_INSTANCE": "View registered Cortex workers and their state."
+      },
+      "dialog": {
+        "create": "Create Role",
+        "edit": "Edit Role",
+        "delete": "Delete Role",
+        "label": "Role name",
+        "placeholder": "e.g. Editor"
+      },
+      "confirm": {
+        "delete": "Are you sure you want to delete role {{name}}?"
+      }
+    },
+    "apiKeys": {
+      "title": "API Keys",
+      "tooltip": "API keys provide programmatic access to the Metaloom REST API.",
+      "count": "keys",
+      "createKey": "Create Key",
+      "search": "Search API keys…",
+      "table": {
+        "name": "Name",
+        "keyId": "Key ID",
+        "created": "Created"
+      },
+      "menu": {
+        "rename": "Rename Key",
+        "delete": "Delete Key"
+      },
+      "dialog": {
+        "create": "Create API Key",
+        "edit": "Rename API Key",
+        "keyName": "Key name",
+        "keyPlaceholder": "e.g. CI Pipeline Key",
+        "creating": "Creating…",
+        "createKey": "Create Key",
+        "tokenCreated": "Token created successfully!",
+        "tokenWarning": "Copy this token now — it will not be shown again."
+      }
+    },
+    "blacklist": {
+      "title": "Blacklist",
+      "count": "entries",
+      "addEntry": "Add Entry",
+      "search": "Search blacklist entries…",
+      "table": {
+        "type": "Type",
+        "value": "Value",
+        "reason": "Reason",
+        "added": "Added",
+        "expires": "Expires"
+      },
+      "dialog": {
+        "add": "Add Blacklist Entry",
+        "type": "Type",
+        "typeIp": "IP Address",
+        "typeDomain": "Domain",
+        "typeFingerprint": "Fingerprint",
+        "typeUser": "User",
+        "value": "Value",
+        "reason": "Reason",
+        "reasonPlaceholder": "Reason for blacklisting",
+        "expiry": "Expiry date (optional)"
+      },
+      "defaultReason": "Manual entry"
+    },
+    "memoryDenylist": {
+      "title": "Memory denylist",
+      "subtitle": "Patterns the chat agent may never store in its memory. A match rejects the write with the rule's message.",
+      "addRule": "Add rule",
+      "search": "Search rules",
+      "empty": "No deny rules configured.",
+      "table": {
+        "name": "Name",
+        "pattern": "Pattern",
+        "message": "Rejection message",
+        "enabled": "Enabled"
+      },
+      "dialog": {
+        "add": "Add deny rule",
+        "edit": "Edit deny rule",
+        "name": "Name",
+        "pattern": "Pattern (regex)",
+        "patternHelp": "Java regex. Cover several phrases in one rule with alternation, e.g. (?i)\\b(alpha|beta)\\b",
+        "message": "Rejection message",
+        "messageHelp": "Shown to the agent when a note is rejected. Explain what to do instead; never repeat the matched text."
+      }
+    }
+  },
+  "pipeline": {
+    "buckets": {
+      "id": "Id",
+      "label": "Label",
+      "match": "Aliases",
+      "add": "Add bucket",
+      "remove": "Remove bucket",
+      "hint": "Each bucket becomes an output port. An 'other' port for everything else is always present.",
+      "error": {
+        "required": "An id is required",
+        "reserved": "That id is one of the node's reserved ports",
+        "invalid": "Use lowercase letters, digits and underscore",
+        "duplicate": "Another bucket already uses this id"
+      }
+    },
+    "editor": {
+      "title": "Pipelines",
+      "noRuns": "no runs",
+      "selectPipeline": "Select a pipeline to view its graph",
+      "showLog": "Show log",
+      "log": "Log",
+      "dryRun": "Dry Run",
+      "run": "Run",
+      "dryRunTooltip": "Dry run mode — no writes",
+      "runTooltip": "Run pipeline",
+      "enabled": "Enabled",
+      "addNode": "Add Node",
+      "addNodeTooltip": "Add a node to the pipeline",
+      "tabVisual": "Visual",
+      "tabJson": "JSON",
+      "deleteNodeTitle": "Delete Node",
+      "deleteNodeMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+      "connectionTypeError": "Cannot connect — incompatible data types",
+      "filterNodes": "Filter nodes…",
+      "jsonValid": "Valid JSON",
+      "jsonInvalid": "Invalid JSON",
+      "jsonLoaded": "Loaded Definition",
+      "jsonCurrent": "Current Canvas State",
+      "source": "Source",
+      "filter": "Filter",
+      "process": "Process",
+      "systemLog": "System Log",
+      "selectPipelineLogs": "Select a pipeline to view logs.",
+      "edgeLabel": "Edge Label",
+      "edgeAny": "ANY",
+      "edgePass": "PASS",
+      "edgeReject": "REJECT",
+      "edgeLabelTooltip": "Set edge label (PASS / REJECT / ANY)",
+      "edgeLabelPassDesc": "Pass only matching assets",
+      "edgeLabelRejectDesc": "Pass only rejected assets",
+      "edgeLabelAnyDesc": "Pass all assets",
+      "validationDuplicateId": "Duplicate node ID: \"{{id}}\" — node IDs must be unique",
+      "validationCycle": "Cycle detected in pipeline graph — nodes form a circular dependency",
+      "validationInvalidId": "Invalid node ID: \"{{id}}\" — IDs must match ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$",
+      "validationNoSource": "Pipeline must have exactly one source node (isSource=true)",
+      "validationMultipleSource": "Pipeline has multiple source nodes — only one is allowed",
+      "validationUnknownType": "Unknown node type: \"{{type}}\" — not found in descriptor registry",
+      "validationOk": "Pipeline validation passed",
+      "validationTitle": "Validation",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveTooltip": "Save pipeline",
+      "savedTooltip": "No unsaved changes",
+      "saveOk": "Pipeline saved",
+      "running": "Running…",
+      "runDispatched": "Pipeline run dispatched",
+      "runNoProcessor": "No processor available",
+      "runCancelled": "Pipeline run cancelled",
+      "newPipeline": "New pipeline",
+      "newPipelineTitle": "New Pipeline",
+      "clonePipelineTitle": "Clone Pipeline",
+      "clone": "Clone",
+      "create": "Create",
+      "nameLabel": "Name",
+      "descriptionLabel": "Description",
+      "nameRequired": "Pipeline name is required",
+      "deletePipelineTitle": "Delete Pipeline",
+      "deletePipelineMessage": "Are you sure you want to delete the pipeline \"{{name}}\"? This action cannot be undone.",
+      "switchDirtyTitle": "Discard unsaved changes?",
+      "switchDirtyMessage": "This pipeline has unsaved changes that will be lost.",
+      "discard": "Discard",
+      "createOk": "Pipeline created",
+      "cloneOk": "Pipeline cloned",
+      "deleteOk": "Pipeline deleted"
+    },
+    "version": {
+      "title": "Version History",
+      "badgeTooltip": "Current version — click to view history",
+      "loading": "Loading versions…",
+      "empty": "No version history available",
+      "current": "current",
+      "restore": "Restore",
+      "restoreTooltip": "Restore version {{version}}",
+      "restoreTitle": "Restore Version",
+      "restoreMessage": "Restore version {{version}}? This creates a new version with the contents of v{{version}} — nothing is deleted.",
+      "restoreDirtyWarning": "You have unsaved changes. Restoring will discard them.",
+      "restoreOk": "Restored v{{from}} as v{{to}}",
+      "restoreFailed": "Restore failed",
+      "compareTooltip": "Compare v{{version}} with current"
+    },
+    "diff": {
+      "title": "Compare v{{from}} → v{{to}} (current)",
+      "loading": "Loading versions…",
+      "empty": "No differences",
+      "failed": "Failed to load versions",
+      "close": "Close",
+      "base": "v{{version}}",
+      "current": "v{{version}} (current)"
+    },
+    "node": {
+      "s3Source": {
+        "label": "S3 Source",
+        "description": "Watch an S3 bucket for new assets"
+      },
+      "filesystemSource": {
+        "label": "Filesystem Source",
+        "description": "Watch a local directory for new files"
+      },
+      "assetSource": {
+        "label": "Asset Source",
+        "description": "Yield a single asset for testing"
+      },
+      "formatFilter": {
+        "label": "Format Filter",
+        "description": "Filter by MIME type"
+      },
+      "hash": {
+        "label": "Hash",
+        "description": "SHA-256 + perceptual hash"
+      },
+      "fingerprint": {
+        "label": "Fingerprint",
+        "description": "Generate audio/video fingerprint"
+      },
+      "resizeProxy": {
+        "label": "Resize Proxy",
+        "description": "Generate proxy resolutions"
+      },
+      "yoloDetection": {
+        "label": "YOLO Detection",
+        "description": "Run YOLOv8 object detection on frames"
+      },
+      "sceneDetection": {
+        "label": "Scene Detection",
+        "description": "Detect scene boundaries via histogram diff"
+      },
+      "s3Output": {
+        "label": "S3 Output",
+        "description": "Write results to S3 bucket"
+      },
+      "thumbnail": {
+        "label": "Thumbnail",
+        "description": "Generate thumbnail images"
+      },
+      "llmVision": {
+        "label": "LLM Vision",
+        "description": "Run a vision model prompt on asset frames"
+      },
+      "faceDetection": {
+        "label": "Face Detection",
+        "description": "Detect and recognize faces"
+      },
+      "embedding": {
+        "label": "Embedding",
+        "description": "Generate CLIP embedding vectors"
+      },
+      "asr": {
+        "label": "ASR",
+        "description": "Automatic speech recognition"
+      },
+      "autoTag": {
+        "label": "Auto Tag",
+        "description": "Automatically tag assets by matching tag globs"
+      },
+      "transcriptionFilter": {
+        "label": "Transcription Filter",
+        "description": "Filter assets that have transcriptions"
+      }
+    },
+    "runHistory": {
+      "title": "Run History",
+      "assets": "assets",
+      "error": "error",
+      "errors": "errors",
+      "noRuns": "No runs recorded yet",
+      "loading": "Loading runs…",
+      "cancel": "Cancel run"
+    },
+    "runDetail": {
+      "title": "Run Detail",
+      "items": "Items",
+      "noItems": "No items recorded for this run",
+      "loading": "Loading items…"
+    },
+    "inspector": {
+      "empty": "Select a pipeline to inspect",
+      "enabled": "enabled",
+      "disabled": "disabled",
+      "priority": "priority",
+      "dryRun": "dry run",
+      "runningNow": "Running now",
+      "lastRun": "Last run:"
+    },
+    "nodeDetail": {
+      "title": "Node Details",
+      "collapse": "Collapse panel",
+      "tab": {
+        "config": "Config",
+        "log": "Log",
+        "json": "JSON"
+      },
+      "displayName": "Display Name",
+      "maxChars": "Max 15 characters",
+      "description": "Description",
+      "affinity": "Affinity group",
+      "affinityHelp": "Nodes sharing a group are dispatched together as one segment.",
+      "configuration": "Configuration",
+      "nodeId": "Node ID",
+      "processingLog": "Processing Log",
+      "nodeState": "Node State (JSON)",
+      "emptyHint": "Click a node in the canvas to view and edit its details",
+      "parameters": "Parameters",
+      "noParameters": "This node has no configurable parameters",
+      "parameterDescription": "Parameter description",
+      "invalidJson": "Invalid JSON"
+    },
+    "help": {
+      "title": "Keyboard Shortcuts",
+      "close": "Press H or Escape to close",
+      "hKey": "Toggle help overlay",
+      "nKey": "Add new node",
+      "aKey": "Auto-arrange nodes",
+      "delKey": "Delete selected node"
+    },
+    "commandPalette": {
+      "placeholder": "Search nodes…",
+      "empty": "No matching nodes"
+    }
+  },
+  "cortex": {
+    "title": "Cortex Workers",
+    "tooltip": {
+      "info": "Cortex workers are distributed processing nodes that handle media analysis, transcoding, and AI inference tasks.",
+      "stats": "CPU: {{cpu}}% · GPU: {{gpu}}% · IO: {{io}}%"
+    },
+    "count": {
+      "online": "{{online}} / {{total}} online",
+      "workers": "{{count}} workers"
+    },
+    "search": {
+      "placeholder": "Search workers, hosts…"
+    },
+    "filter": {
+      "allStatus": "All Status",
+      "online": "Online",
+      "paused": "Paused",
+      "starting": "Starting",
+      "offline": "Offline",
+      "terminating": "Terminating",
+      "allCaps": "All Caps"
+    },
+    "chip": {
+      "clearFilters": "Clear filters"
+    },
+    "empty": "No workers match your filters",
+    "loading": "Loading workers…",
+    "error": "Failed to load workers",
+    "lastSeen": {
+      "label": "seen {{time}}",
+      "tooltip": "Time since the last heartbeat or status update"
+    },
+    "stat": {
+      "cpu": "CPU",
+      "gpu": "GPU",
+      "io": "IO",
+      "mem": "MEM"
+    },
+    "menu": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "restart": "Restart",
+      "terminate": "Terminate",
+      "restrictions": "Node restrictions",
+      "forget": "Forget worker"
+    },
+    "badge": {
+      "persisted": "Remembered",
+      "persistedTooltip": "This worker is offline but Loom remembers it and its node restrictions."
+    },
+    "restrictions": {
+      "title": "Node restrictions — {{name}}",
+      "whitelist": "Allowed node kinds",
+      "blacklist": "Denied node kinds",
+      "whitelistPlaceholder": "Leave empty to allow all kinds",
+      "blacklistPlaceholder": "Kinds this worker must never run",
+      "allowTooltip": "Allowed node kind",
+      "denyTooltip": "Denied node kind (overrides the allow list)",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saved": "Node restrictions saved",
+      "saveError": "Failed to save restrictions: {{error}}"
+    },
+    "forget": {
+      "done": "Worker forgotten",
+      "error": "Failed to forget worker: {{error}}"
+    }
+  },
+  "detection": {
+    "title": "Detection Management",
+    "tab": {
+      "faces": "Faces",
+      "objects": "Objects",
+      "llm": "LLM"
+    }
+  },
+  "llmDetection": {
+    "search": {
+      "placeholder": "Search prompts, results…"
+    },
+    "chip": {
+      "prompts": "Prompts",
+      "results": "Results"
+    },
+    "button": {
+      "newPrompt": "New Prompt",
+      "cancel": "Cancel",
+      "create": "Create Prompt"
+    },
+    "dialog": {
+      "title": "New Vision Prompt"
+    },
+    "label": {
+      "name": "Name",
+      "namePlaceholder": "e.g. Scene Description",
+      "model": "Model",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Describe what the model should do with the asset…",
+      "reasoningEffort": "Reasoning Effort",
+      "outputFormat": "Output Format",
+      "maxTokens": "Max Tokens",
+      "description": "Description (optional)",
+      "descriptionPlaceholder": "Brief description of this prompt's purpose",
+      "maxTokensValue": "Max tokens: {{count}}",
+      "tokens": "{{count}} tokens"
+    },
+    "effort": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "format": {
+      "text": "Text",
+      "json": "JSON"
+    },
+    "chip_template": {
+      "effort": "{{effort}} effort"
+    },
+    "tooltip": {
+      "edit": "Edit",
+      "run": "Run on assets"
+    },
+    "empty": {
+      "prompts": "No prompts found",
+      "results": "No results found"
+    }
+  },
+  "objectDetection": {
+    "search": {
+      "placeholder": "Search object labels…"
+    },
+    "count": "{{detections}} detections · {{labels}} labels",
+    "tooltip": {
+      "confirm": "Confirm",
+      "reject": "Reject"
+    },
+    "label": {
+      "confidence": "Confidence: {{pct}}%"
+    },
+    "confirmError": "Failed to confirm detection",
+    "rejectError": "Failed to delete detection",
+    "empty": "No object detections found"
+  },
+  "faceDetection": {
+    "title": "Face Detection",
+    "subtitle": "Manage face clusters and person database",
+    "search": {
+      "placeholder": "Search clusters, persons…"
+    },
+    "chip": {
+      "clusters": "Clusters",
+      "persons": "Persons"
+    },
+    "button": {
+      "addPerson": "Add Person",
+      "addCluster": "Add Cluster",
+      "cancel": "Cancel",
+      "create": "Create",
+      "assign": "Assign",
+      "save": "Save"
+    },
+    "count": {
+      "faces": "{{count}} faces",
+      "clusters": "{{count}} clusters"
+    },
+    "label": {
+      "since": "since {{date}}",
+      "name": "Name",
+      "description": "Description",
+      "alias": "Alias",
+      "firstname": "First Name",
+      "lastname": "Last Name"
+    },
+    "tooltip": {
+      "assign": "Assign to person"
+    },
+    "empty": {
+      "clusters": "No clusters found",
+      "persons": "No persons found"
+    },
+    "dialog": {
+      "addPerson": "Add Person",
+      "editPerson": "Edit Person",
+      "addCluster": "Add Cluster",
+      "editCluster": "Edit Cluster",
+      "assign": "Assign Cluster to Person",
+      "selectPerson": "Select a person…"
+    }
+  },
+  "maintenance": {
+    "title": "Maintenance",
+    "subtitle": "System health overview and maintenance status",
+    "chip": {
+      "lastRestart": "Last restart: 2 days ago",
+      "version": "Version 0.9.4-alpha",
+      "uptime": "Uptime: 48h 12m"
+    },
+    "status": {
+      "database": "Database",
+      "objectStorage": "Object Storage (S3)",
+      "memory": "Memory",
+      "pipelineWorkers": "Pipeline Workers"
+    },
+    "statusLabel": {
+      "healthy": "Healthy",
+      "running": "Running"
+    }
+  },
+  "workflow": {
+    "title": "Workflow",
+    "tooltip": {
+      "info": "Workflows provide keyboard-driven bulk review modes for rating, tagging, deduplication, and detection tasks.",
+      "fullscreen": "Fullscreen (F)",
+      "exitFullscreen": "Exit fullscreen (F)",
+      "showProfiles": "Show key profiles"
+    },
+    "mode": {
+      "rating": "Rating",
+      "tagging": "Tagging",
+      "dedup": "Dedup",
+      "llm": "LLM",
+      "faces": "Faces",
+      "objects": "Objects"
+    },
+    "rating": {
+      "label": "Rating:",
+      "addTag": "Add tag… (Enter to confirm)",
+      "addTagPlaceholder": "Add tag… (Enter to confirm)"
+    },
+    "tagging": {
+      "noTags": "No tags yet",
+      "search": "Type to search tags… (Enter to add)",
+      "placeholder": "Type to search tags… (Enter to add)"
+    },
+    "dedup": {
+      "keep": "Keep",
+      "duplicateCandidates": "Duplicate Candidates",
+      "remove": "Remove",
+      "kept": "Kept",
+      "chipRemove": "Remove",
+      "chipKept": "Kept",
+      "confirmDedup": "Confirm Dedup (Y)",
+      "confirmBtn": "Confirm Dedup (Y)",
+      "rejectBtn": "Reject (N)",
+      "reject": "Reject (N)"
+    },
+    "faceMode": {
+      "clusters": "Face Clusters ({{count}})",
+      "confirm": "Confirm (Y)",
+      "confirmed": "Confirmed",
+      "denied": "Denied",
+      "deny": "Deny (N)",
+      "confirmBtn": "Confirm (Y)",
+      "denyBtn": "Deny (N)",
+      "assignPerson": "Assign person…",
+      "noClusters": "No face clusters for this asset",
+      "empty": "No face clusters for this asset"
+    },
+    "objectMode": {
+      "detectedObjects": "Detected Objects ({{count}})",
+      "detected": "Detected Objects ({{count}})",
+      "confidence": "Confidence: {{pct}}%",
+      "confirmed": "Confirmed",
+      "rejected": "Rejected",
+      "noDetections": "No object detections for this asset",
+      "empty": "No object detections for this asset"
+    },
+    "llmMode": {
+      "title": "Vision Model Output",
+      "modelOutput": "Vision Model Output",
+      "approve": "Approve (Y)",
+      "reject": "Reject (N)",
+      "approveBtn": "Approve (Y)",
+      "rejectBtn": "Reject (N)"
+    },
+    "profiles": {
+      "title": "Key Profiles",
+      "collapse": "Collapse",
+      "bindings": "{{count}} bindings",
+      "bindingsTitle": "Bindings · click to rebind",
+      "bindingsHeader": "Bindings · click to rebind",
+      "pressKey": "Press a key… (Backspace to unbind)",
+      "clickToRebind": "Click to rebind",
+      "notBound": "Not bound"
+    },
+    "hint": {
+      "rating": "<strong>1-0</strong> Set rating · <strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>F</strong> Fullscreen",
+      "tagging": "<strong>←/→</strong> Navigate · <strong>Space</strong> Next · <strong>Enter</strong> Edit tags · <strong>Esc</strong> Blur · <strong>F</strong> Fullscreen",
+      "dedup": "<strong>←/→</strong> Navigate · <strong>Y</strong> Confirm dedup · <strong>N</strong> Reject · <strong>F</strong> Fullscreen",
+      "llm": "<strong>←/→</strong> Navigate · <strong>Y</strong> Approve · <strong>N</strong> Reject · <strong>R</strong> Re-run prompt · <strong>F</strong> Fullscreen",
+      "faces": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen",
+      "objects": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen",
+      "facedetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen",
+      "objectdetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen"
+    }
+  },
+  "assetPools": {
+    "title": "Asset Pools",
+    "tooltip": {
+      "info": "Asset pools define storage locations for assets. They can be backed by a local filesystem folder or an S3-compatible bucket.",
+      "editPool": "Edit pool",
+      "deletePool": "Delete pool"
+    },
+    "chip": {
+      "filesystem": "filesystem",
+      "s3": "S3",
+      "assets": "assets",
+      "s3Bucket": "S3 Bucket",
+      "filesystemLabel": "Filesystem"
+    },
+    "button": {
+      "new": "New Pool",
+      "newPool": "New Pool",
+      "cancel": "Cancel",
+      "create": "Create",
+      "save": "Save",
+      "delete": "Delete"
+    },
+    "search": {
+      "placeholder": "Search pools…"
+    },
+    "form": {
+      "name": "Name",
+      "type": "Type",
+      "filesystem": "Filesystem",
+      "s3": "S3 Bucket",
+      "fsPath": "Filesystem Path",
+      "s3Bucket": "S3 Bucket",
+      "s3Region": "S3 Region",
+      "s3Endpoint": "S3 Endpoint"
+    },
+    "empty": "No asset pools found",
+    "dialog": {
+      "create": "New Asset Pool",
+      "edit": "Edit Asset Pool",
+      "delete": "Delete Asset Pool"
+    },
+    "confirm": {
+      "delete": "Are you sure you want to delete {{name}}? This will not delete the underlying storage, but the pool reference will be removed."
+    },
+    "toast": {
+      "created": "Asset pool created",
+      "updated": "Asset pool updated",
+      "deleted": "Asset pool deleted",
+      "loadFailed": "Failed to load pools",
+      "createFailed": "Failed to create pool",
+      "updateFailed": "Failed to update pool",
+      "deleteFailed": "Failed to delete pool",
+      "loadError": "Failed to load pools",
+      "createError": "Failed to create pool",
+      "updateError": "Failed to update pool",
+      "deleteError": "Failed to delete pool"
+    },
+    "emptyState": {
+      "title": "No storage pools yet",
+      "description": "Asset pools define where binaries are stored and replicated. Create one to give your media a home.",
+      "action": "Create your first pool"
+    }
+  },
+  "reactions": {
+    "title": "Reactions",
+    "add": "React",
+    "empty": "No reactions yet",
+    "type": {
+      "THUMBSUP": "Thumbs up",
+      "THUMBSDOWN": "Thumbs down",
+      "SATISFIED": "Satisfied",
+      "PLUS_ONE": "+1",
+      "MINUS_ONE": "-1"
+    }
+  },
+  "assetDetail": {
+    "tab": {
+      "overview": "Overview",
+      "comments": "Comments ({{count}})",
+      "annotations": "Annotations ({{count}})",
+      "reactions": "Reactions ({{count}})",
+      "tasks": "Tasks ({{count}})",
+      "transcript": "Transcript",
+      "faces": "Faces ({{count}})"
+    },
+    "comment": {
+      "addPlaceholder": "Write a comment…",
+      "post": "Post comment",
+      "edit": "Edit comment",
+      "delete": "Delete comment",
+      "save": "Save",
+      "cancel": "Cancel",
+      "postError": "Failed to post comment",
+      "editError": "Failed to update comment",
+      "deleteError": "Failed to delete comment"
+    },
+    "annotation": {
+      "add": "Add annotation",
+      "titlePlaceholder": "Annotation title…",
+      "addPlaceholder": "Add a description…",
+      "edit": "Edit annotation",
+      "delete": "Delete annotation",
+      "save": "Save",
+      "cancel": "Cancel",
+      "addError": "Failed to create annotation",
+      "editError": "Failed to update annotation",
+      "deleteError": "Failed to delete annotation"
+    },
+    "reaction": {
+      "addError": "Failed to add reaction",
+      "deleteError": "Failed to delete reaction",
+      "thumbsUp": "Thumbs up",
+      "thumbsDown": "Thumbs down"
+    },
+    "meta": {
+      "title": "Metadata",
+      "size": "Size",
+      "mime": "MIME",
+      "dimensions": "Dimensions",
+      "duration": "Duration",
+      "owner": "Owner",
+      "created": "Created",
+      "description": "Description"
+    },
+    "location": {
+      "title": "Location(s)",
+      "empty": "No storage location — the asset has no binary yet.",
+      "pool": "Pool",
+      "path": "Path",
+      "state": "State",
+      "license": "License",
+      "locked": "Locked",
+      "mime": "MIME",
+      "viewPool": "View storage pool"
+    },
+    "action": {
+      "process": "Process",
+      "createTask": "Create Task",
+      "addTranscript": "Add Transcript",
+      "save": "Save",
+      "delete": "Delete",
+      "noPipelines": "No pipelines available",
+      "download": "Download",
+      "uploadBinary": "Upload / Replace binary",
+      "removeBinary": "Remove binary",
+      "registerBinary": "Register existing binary"
+    },
+    "dialog": {
+      "delete": "Delete Asset"
+    },
+    "registerBinary": {
+      "title": "Register existing binary",
+      "description": "Point this asset at bytes that already exist on the server's filesystem. No file is uploaded.",
+      "pathLabel": "Filesystem path",
+      "pathPlaceholder": "/data/library/clip.mp4",
+      "submit": "Register"
+    },
+    "confirm": {
+      "delete": "Delete {{name}}? This cannot be undone."
+    },
+    "toast": {
+      "saved": "Asset saved",
+      "saveFailed": "Failed to save asset",
+      "deleted": "Asset deleted",
+      "deleteFailed": "Failed to delete asset",
+      "processStarted": "Processing started",
+      "processFailed": "Failed to start processing",
+      "binaryUploaded": "Binary uploaded",
+      "binaryUploadFailed": "Failed to upload binary",
+      "binaryDownloadFailed": "Failed to download binary",
+      "binaryRemoved": "Binary removed",
+      "binaryRemoveFailed": "Failed to remove binary",
+      "binaryRegistered": "Binary registered",
+      "binaryRegisterFailed": "Failed to register binary"
+    },
+    "tag": {
+      "addPlaceholder": "Add tag…",
+      "regionToggle": "Tag a region: draw a box on the image or select a range on the timeline",
+      "regionHintImage": "Draw a box on the image…",
+      "regionHintVideo": "Drag a range on the timeline…",
+      "regionCaptured": "Region captured — type a name and press Enter",
+      "regionTooltip": "Region tag (time / area)",
+      "newRegion": "new region"
+    },
+    "detection": {
+      "label": "Detections",
+      "defaultLabel": "object",
+      "modeToggle": "Detection mode: draw a box on the image to add an object detection",
+      "bulkToggle": "Bulk mode: draw several boxes, then save them all at once",
+      "hint": "Draw a box on the image to add a detection",
+      "bulkHint": "Draw boxes, then Save all",
+      "redrawHint": "Draw the new box for the selected detection",
+      "staged": "staged",
+      "saveAll": "Save all ({{count}})",
+      "confidence": "Confidence",
+      "redraw": "Redraw bounding box",
+      "confirm": "Confirm detection",
+      "delete": "Delete detection",
+      "empty": "No detections yet — draw a box to add one",
+      "createError": "Failed to create detection",
+      "updateError": "Failed to update detection",
+      "deleteError": "Failed to delete detection"
+    },
+    "sidebar": {
+      "filterPlaceholder": "Filter…"
+    },
+    "empty": {
+      "noComments": "No comments yet",
+      "noMatchComments": "No matching comments",
+      "noAnnotations": "No annotations yet",
+      "noMatchAnnotations": "No matching annotations",
+      "noReactions": "No reactions yet",
+      "noTasks": "No tasks linked",
+      "noTranscript": "No transcript available",
+      "noFaces": "No face detection data"
+    },
+    "faces": {
+      "detected": "{{count}} faces detected",
+      "clusters": "{{count}} clusters",
+      "identified": "{{count}} identified",
+      "identifiedChip": "Identified",
+      "unidentifiedChip": "Unidentified",
+      "unclustered": "Unclustered ({{count}})"
+    },
+    "taskDetail": {
+      "title": "Task Detail",
+      "status": "Status",
+      "priority": "Priority",
+      "dueDate": "Due Date",
+      "created": "Created"
+    },
+    "taskCreate": {
+      "title": "Create Task",
+      "dueDate": "Due Date",
+      "error": "Failed to create task"
+    },
+    "transcript": {
+      "untitled": "Transcript",
+      "sectionTitle": "Section title",
+      "delete": "Delete transcript",
+      "createError": "Failed to add transcript",
+      "updateError": "Failed to save transcript",
+      "deleteError": "Failed to delete transcript"
+    },
+    "transcriptCreate": {
+      "title": "Add Transcript",
+      "source": "Source",
+      "lang": "Language"
+    },
+    "annotations": {
+      "label": "Annotations:"
+    }
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Instruction packages the chat agent can apply — activate them per conversation",
+    "create": "New skill",
+    "edit": "Edit skill",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteTitle": "Delete skill",
+    "deleteConfirm": "Delete the skill \"{{name}}\"? Installed copies of other users are not affected.",
+    "saved": "Skill saved",
+    "deleted": "Skill deleted",
+    "saveFailed": "Saving the skill failed",
+    "installFailed": "Installing the skill failed",
+    "installed": "Installed as \"{{name}}\"",
+    "install": "Install",
+    "own": "Yours",
+    "empty": "No skills yet",
+    "libraryEmpty": "No published skills from other users yet",
+    "tabMine": "My skills",
+    "tabLibrary": "Library",
+    "originBadge": "Installed from the shared library",
+    "installedBadge": "installed",
+    "updateAvailable": "The origin skill was updated since you installed it",
+    "descriptionHelper": "Shown to the agent up front — make it action-complete (max 1024 chars)",
+    "contentHelper": "Full markdown instructions — loaded by the agent on demand",
+    "columns": {
+      "name": "Name",
+      "description": "Description",
+      "enabled": "Enabled",
+      "published": "Published",
+      "content": "Instructions (markdown)",
+      "author": "Author"
+    },
+    "version": {
+      "title": "Version history",
+      "current": "current",
+      "revert": "Revert",
+      "revertTitle": "Revert to version {{version}}",
+      "revertConfirm": "Revert to version {{version}}? All newer versions will be permanently deleted and the skill's active version will be set to this one.",
+      "reverted": "Reverted to version {{version}}",
+      "revertFailed": "Reverting the skill failed",
+      "empty": "No version history yet",
+      "loading": "Loading versions…",
+      "badge": "v{{version}}",
+      "saveHint": "Saving changes to the instructions creates a new version"
+    },
+    "emptyState": {
+      "title": "Teach the agent something new",
+      "description": "Skills are markdown instruction packages the Loom Agent can load on demand. Write one, enable it per conversation, and publish it for your team.",
+      "action": "Create your first skill",
+      "library": {
+        "title": "The shared library is empty",
+        "description": "Once teammates publish their skills they show up here, ready to install into your own set."
+      }
+    }
+  },
+  "memory": {
+    "title": "Agent memory",
+    "subtitle": "Markdown notes the chat agent can read and write across conversations. The agent sees this as a read-only /memory folder.",
+    "noScopes": "No memory scopes are available.",
+    "myNotes": "My notes",
+    "readOnlyScope": "This shared scope is read-only for you.",
+    "new": "New note",
+    "id": "Id",
+    "idHelp": "Lowercase path ending in .md, e.g. projects/loom-db.md",
+    "noteTitle": "Title",
+    "updated": "Updated",
+    "session": "Session",
+    "size": "Size",
+    "body": "Body (markdown)",
+    "headerNote": "The provenance header (updated, session, version) is generated automatically.",
+    "empty": "No notes stored in this scope yet.",
+    "edit": "Edit note",
+    "create": "New note",
+    "deleteTitle": "Delete note",
+    "deleteBody": "This permanently removes the note — there is no version history yet."
   }
- },
- "skills": {
-  "title": "Skills",
-  "subtitle": "Instruction packages the chat agent can apply — activate them per conversation",
-  "create": "New skill",
-  "edit": "Edit skill",
-  "save": "Save",
-  "cancel": "Cancel",
-  "delete": "Delete",
-  "deleteTitle": "Delete skill",
-  "deleteConfirm": "Delete the skill \"{{name}}\"? Installed copies of other users are not affected.",
-  "saved": "Skill saved",
-  "deleted": "Skill deleted",
-  "saveFailed": "Saving the skill failed",
-  "installFailed": "Installing the skill failed",
-  "installed": "Installed as \"{{name}}\"",
-  "install": "Install",
-  "own": "Yours",
-  "empty": "No skills yet",
-  "libraryEmpty": "No published skills from other users yet",
-  "tabMine": "My skills",
-  "tabLibrary": "Library",
-  "originBadge": "Installed from the shared library",
-  "installedBadge": "installed",
-  "updateAvailable": "The origin skill was updated since you installed it",
-  "descriptionHelper": "Shown to the agent up front — make it action-complete (max 1024 chars)",
-  "contentHelper": "Full markdown instructions — loaded by the agent on demand",
-  "columns": {
-   "name": "Name",
-   "description": "Description",
-   "enabled": "Enabled",
-   "published": "Published",
-   "content": "Instructions (markdown)",
-   "author": "Author"
-  },
-  "version": {
-   "title": "Version history",
-   "current": "current",
-   "revert": "Revert",
-   "revertTitle": "Revert to version {{version}}",
-   "revertConfirm": "Revert to version {{version}}? All newer versions will be permanently deleted and the skill's active version will be set to this one.",
-   "reverted": "Reverted to version {{version}}",
-   "revertFailed": "Reverting the skill failed",
-   "empty": "No version history yet",
-   "loading": "Loading versions…",
-   "badge": "v{{version}}",
-   "saveHint": "Saving changes to the instructions creates a new version"
-  },
-  "emptyState": {
-   "title": "Teach the agent something new",
-   "description": "Skills are markdown instruction packages the Loom Agent can load on demand. Write one, enable it per conversation, and publish it for your team.",
-   "action": "Create your first skill",
-   "library": {
-    "title": "The shared library is empty",
-    "description": "Once teammates publish their skills they show up here, ready to install into your own set."
-   }
-  }
- },
- "memory": {
-  "title": "Agent memory",
-  "subtitle": "Markdown notes the chat agent can read and write across conversations. The agent sees this as a read-only /memory folder.",
-  "noScopes": "No memory scopes are available.",
-  "myNotes": "My notes",
-  "readOnlyScope": "This shared scope is read-only for you.",
-  "new": "New note",
-  "id": "Id",
-  "idHelp": "Lowercase path ending in .md, e.g. projects/loom-db.md",
-  "noteTitle": "Title",
-  "updated": "Updated",
-  "session": "Session",
-  "size": "Size",
-  "body": "Body (markdown)",
-  "headerNote": "The provenance header (updated, session, version) is generated automatically.",
-  "empty": "No notes stored in this scope yet.",
-  "edit": "Edit note",
-  "create": "New note",
-  "deleteTitle": "Delete note",
-  "deleteBody": "This permanently removes the note — there is no version history yet."
- }
 }

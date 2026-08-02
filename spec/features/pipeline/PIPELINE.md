@@ -125,9 +125,10 @@ graph TB
 | `cortex/node-runtime` | `NodeTaskRunner`, `SegmentTaskRunner`, `SourceTaskRunner`, `ResultBatcher`, `NodeResultMapper`. This is the entire execution surface |
 | `cortex/core` | `LoomControlChannel`, `PipelineTaskHandler`, `RegistryNodeFactory`, `LoomBulkSyncWriterImpl`, Dagger wiring |
 | `cortex/cli` | `PipelineNodeFactoryModule`, `RegistryNodeRegistrar` — where a kind becomes runnable |
-| `cortex/pipeline-api` | `PipelineNode`, `MediaSourceNode`, `NodeMode`, `PipelineResult`, `FilterBranch`, cache/sync/event SPIs |
+| `cortex/pipeline-api` | `PipelineNode`, `MediaSourceNode`, `NodeMode`, `PipelineResult`, `FilterBranch`, sync/event SPIs |
 | `cortex/pipeline-core` | `AbstractPipelineNode`, `AbstractFilterNode` + 8 filters, `AssetSourceNode`, `LoomFetchNode`, `CortexNodeAdapter`; test-jar `AbstractNodeChainTest` |
-| `cortex/pipeline-common` | 5 `NodeCacheProvider` impls, `DefaultPipelineEventBus`, `DefaultLoomBulkSyncCollector` |
+| `cortex/pipeline-common` | `DefaultPipelineEventBus`, `DefaultLoomBulkSyncCollector` |
+| `cortex/api` | `NodeInputs`, `NodeContext`, the typed port API, and the segment-scoped `ArtifactCache` (§7.4) |
 | `cortex/nodes/*` | Concrete nodes — see [NODES.md](../pipeline-nodes/NODES.md) |
 
 🔴 **Deleted — every one of these is gone; do not reintroduce or reference them:**
@@ -150,7 +151,7 @@ parses, and `DemoDatabaseInitializer` seeds:
   "reuseResults": false,
   "nodes": [
     { "id": "pn1", "type": "filesystem-source", "name": "File Source", "x": 60,  "y": 160 },
-    { "id": "pn2", "type": "filter-mimetype",   "name": "MIME Filter",  "x": 260, "y": 160 },
+    { "id": "pn2", "type": "filter",   "name": "Language Filter",  "x": 260, "y": 160 },
     { "id": "pn5", "type": "facedetect",  "blocking": true, "syncToLoom": true,
       "affinity": "video", "options": { "minScore": 0.6 } },
     { "id": "pn6", "type": "facedescription" }
@@ -452,7 +453,7 @@ them is vestigial:
 | `process(LoomMedia, NodeInputs)` | **Live** — the only method the runners call |
 | `id/name/mode/isBlocking/concurrency/syncToLoom/timeoutMs/options` | Live as metadata |
 | `connectTo` / `children` / `dependencies` / `conditionalDependencies` | **Vestigial** — only `AbstractPipelineNode` calls them. Loom owns the graph |
-| `cacheProvider()` / all five `NodeCacheProvider` impls | **Not consulted by any runtime path.** `cortex/pipeline-common` has *no test directory*. Only `FacedetectNode` references a cache impl directly |
+| `cacheProvider()` / all five `NodeCacheProvider` impls | 🔴 **Deleted** (2026-08-02). Never consulted by any runtime path. Result caching that works is `LocalResultCache`; artifact caching is §7.4. Do not reintroduce |
 | `initialize()` / `shutdown()` | Never called by the runners |
 | `PipelineEventBus`, `PipelineResult` | Wired in Dagger and used by the test harness; no runner publishes to the bus |
 | `DefaultLoomBulkSyncCollector` | Wired and flushed at shutdown, but nothing calls `collect(...)` — see §6.3 |
@@ -460,13 +461,71 @@ them is vestigial:
 
 `CortexNodeAdapter` wraps a legacy `FilesystemNode<?,?>` as a `PipelineNode`. It hands
 the wrapped node its own **ports** (`NodeInputs`), re-stamps id + measured elapsed via
-`NodeResult.withNode(...)`, and preserves state, message and outputs. `syncToLoom` and
-`cacheProvider` are **not** constructor args — set them after construction.
+`NodeResult.withNode(...)`, and preserves state, message and outputs. `syncToLoom` is
+**not** a constructor arg — set it after construction.
 
 > The `String id` overload is *not* about data delivery any more. Under the port model
 > an edge says where each input comes from, so a node id cannot affect what a node
 > receives. `RegistryNodeRegistrar` uses it only to give an adapter a stable pipeline
 > id when several instances of one kind appear in a graph.
+
+### 7.4 The artifact scope — sharing an expensive intermediate within a segment
+
+Package `io.metaloom.cortex.api.node.artifact` in **`cortex/api`**.
+
+A node receives its upstream dependencies' **outputs**, and those outputs are serialised
+back to Loom. That is the right home for a hash and the wrong home for a 200 MB frame
+buffer, so before this existed five nodes needing decoded frames decoded the file five
+times — segment dispatch measured **1.01×** per-node dispatch, because the round trips it
+saves were never the expensive part.
+
+`NodeInputs.artifacts()` / `NodeContext.artifacts()` is an `ArtifactCache`: somewhere a
+node parks a decoded artifact so a later node **in the same segment** reuses it.
+
+| Question | Answer |
+|---|---|
+| Who owns it | The **segment execution**. Not the node instance (the registry reuses those across items, so it would have to be invalidated by hand) and not the worker (that is the cross-run cache this deliberately is not) |
+| Lifecycle | One `ScopedArtifactCache` per `SegmentTaskRunner.run()` / `NodeTaskRunner.run()`, closed on the way out. Item B is handed a different object, so cross-item isolation is structural |
+| A node fails | Each node runs inside a `Publication`; the runner commits it only when the node's state is not `FAILED`. What a **failed** node published is discarded and closed — half-built and finished are indistinguishable to the type system. What an **earlier successful** node published is untouched |
+| A factory throws | Nothing is published. The next node asking gets a clean attempt, never an inherited verdict |
+| A retry after lease expiry | A new `run()` and therefore a new scope. A retry can never repeat a failure by inheriting the state that caused it |
+| Memory | Two bounds. *Across* a run: the scope's lifetime — a worker that has done 10 000 items holds what one that has done one holds. *Within* one segment: `Artifact.weightBytes()` against `ScopedArtifactCache.DEFAULT_MAX_BYTES` (512 MiB, a runner constructor arg), LRU eviction |
+| `PipelineNode` changes | **None.** It arrives on `NodeInputs`, which every node already gets. Opting in is one call |
+
+```java
+private static final ArtifactKey<List<Frame>> KEYFRAMES = ArtifactKey.of("video/keyframes@2fps", List.class);
+
+List<Frame> frames = ctx.artifacts().get(KEYFRAMES, () -> {
+    List<Frame> decoded = decode(ctx.media(), 2.0);
+    return Artifact.of(decoded, decoded.size() * bytesPerFrame);
+});
+```
+
+Rules, none of which the mechanism can enforce for you:
+
+- **Treat the artifact as immutable** — the next node gets the same object, not a copy.
+- **Do not retain it past `process()`** — after the segment it may be closed underneath you.
+  A node that stashes the *scope* itself gets an `IllegalStateException` on the next item.
+- **Weigh it honestly**, including memory the heap does not account for. Round up.
+- **Encode every parameter in the key id.** `type` is part of key identity, so same-id
+  different-type keys are safely two artifacts; same-id *same-type* collisions are yours to avoid.
+- **Declare a key both nodes use in one place** — `cortex/common/…/artifact/MediaArtifacts`
+  holds the shared ones. Two nodes each declaring their own `"media/image"` is two decodes
+  that look like one.
+
+An eviction for capacity drops the reference but does **not** close the artifact: a node
+fetched it a moment ago and may still be reading it, and closing a native buffer under a
+running node is a segfault where leaving it to the collector is a delay. Closing happens at
+scope end, on `invalidate(...)`, and on publication rollback.
+
+**Adopted by:** `QualityNode` and `DominantColorNode`, which both start from
+`ImageIO.read` of the same file (`MediaArtifacts.decodedImage(ctx)`). Every other node is
+unaffected — outside a segment the scope is `ArtifactCache.noop()`, which computes and
+retains nothing, so standalone behaviour is unchanged.
+
+**This is not `LocalResultCache`.** That remembers a node's finished *result* across items
+so a second pass skips the work, with the durable copy in Loom. This holds an
+*intermediate* that was never a result and is never persisted. Neither replaces the other.
 
 ---
 
@@ -919,7 +978,8 @@ produce failure messages that name the port. Legacy-tree asserts live in
 | **`pipeline_run_item` stays per item** | The item *is* the origin. Do not add child items or lineage columns for fan-out |
 | **`loom/db/memory` has no pipeline DAOs** | Pipelines require the jOOQ backend |
 | **New DB fields** | Flyway migration + `loom/db/jooq/generate.sh` + `db/api` change + jooq/memory impls + `db/api-test` contract test + `./setup-pool.sh` |
-| **Dead but present** | `cacheProvider()` and all five caches; `PipelineEventBus`; `DefaultLoomBulkSyncCollector.collect`; `connectTo`/`children`; `CortexOptions.maxConcurrentMedia`; `retryFailed`; `Subscriber.queueCapacity`. Do not build on them without wiring them first |
+| **Dead but present** | `PipelineEventBus`; `DefaultLoomBulkSyncCollector.collect`; `connectTo`/`children`; `CortexOptions.maxConcurrentMedia`; `retryFailed`; `Subscriber.queueCapacity`. Do not build on them without wiring them first |
+| **Two caches, two jobs** | `LocalResultCache` = a node's finished *result*, across items, durable copy in Loom. `ArtifactCache` (§7.4) = an *intermediate*, one segment, never persisted. Do not add a third |
 
 ---
 
@@ -953,8 +1013,9 @@ produce failure messages that name the port. Legacy-tree asserts live in
 
 **Serious:**
 
-- [ ] Node caching is entirely unreachable — `cacheProvider()` has no runtime caller,
-      and `cortex/pipeline-common` has no tests at all
+- [x] ~~Node caching is entirely unreachable~~ — resolved 2026-08-02: `cacheProvider()`
+      and the five `NodeCacheProvider` impls are deleted; the segment-scoped
+      `ArtifactCache` (§7.4) replaces the part that was actually wanted
 - [ ] Structural validation is triplicated (`PipelineValidationService`,
       `PipelineModelValidator`, the editor); no standalone validation endpoint
 - [ ] `PipelineRunRecovery` uses the **no-arg** parser, so recovered runs skip port

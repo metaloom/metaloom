@@ -316,7 +316,7 @@ transformer; latent, not exercised.
 
 ```bash
 mvn -q -pl cortex/s3-common,cortex/nodes/s3-source,cortex/node-runtime,cortex/core,cortex/cli -am test
-mvn -q -pl loom-shared/node-model test          # descriptors: 26 providers / 41 kinds
+mvn -q -pl loom-shared/node-model test          # descriptors: 26 providers / 34 kinds
 
 ./setup-pool.sh                                  # mandatory before any IT
 mvn verify -pl integration-test -Dtest='S3*IntegrationTest'

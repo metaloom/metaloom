@@ -4,7 +4,7 @@ import {
   Box, Typography, TextField, InputAdornment, Chip, IconButton,
   ToggleButtonGroup, ToggleButton, Paper, Skeleton, Tooltip,
   FormControl, Select, MenuItem, SelectChangeEvent,
-  Button, Checkbox, CircularProgress, InputLabel,
+  Button, Checkbox, InputLabel,
   Dialog, DialogTitle, DialogContent, DialogActions,
 } from "@mui/material";
 import {
@@ -21,11 +21,13 @@ import EmptyState from "../../components/EmptyState";
 import { Asset, AssetType, AssetStatus } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import {
-  listAssets, AssetResponse, uploadAsset, deleteAsset, bulkUpdateAssets, assetBinaryUrl,
+  listAssets, AssetResponse, deleteAsset, bulkUpdateAssets, assetBinaryUrl,
 } from "../../api/assets";
 import { listLibraries, LibraryResponse } from "../../api/libraries";
 import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
+import { useUploads } from "../uploads/UploadContext";
+import { enqueue } from "../uploads/uploadQueue";
 import { useTranslation } from "react-i18next";
 
 function formatBytes(bytes: number): string {
@@ -315,13 +317,14 @@ export default function AssetBrowser({ embedded = false }: Props) {
   // Libraries (for the upload dialog target)
   const [libraries, setLibraries] = useState<LibraryResponse[]>([]);
 
-  // Upload dialog
+  // Upload dialog. The transfer itself is owned by the shared upload queue, so this only collects
+  // the files and the target — see features/uploads/uploadQueue.ts.
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadLibrary, setUploadLibrary] = useState("");
   const [uploadOrigin, setUploadOrigin] = useState("upload");
-  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploads = useUploads();
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
@@ -365,27 +368,38 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const exitSelection = () => { setSelectionMode(false); setSelected(new Set()); };
 
   const openUploadDialog = () => {
-    setUploadFile(null);
+    setUploadFiles([]);
     setUploadOrigin("upload");
     setUploadLibrary(libraries[0]?.uuid ?? "");
     setUploadOpen(true);
   };
 
-  const handleUpload = async () => {
-    if (!token || !uploadFile || !uploadLibrary) return;
-    setUploading(true);
-    try {
-      const resp = await uploadAsset(token, uploadFile, uploadLibrary, { origin: uploadOrigin.trim() || undefined });
-      setAssets(prev => [toAsset(resp), ...prev]);
-      setUploadOpen(false);
-      setUploadFile(null);
-      showToast(t("assets.toast.uploaded"), "success");
-    } catch {
-      showToast(t("assets.toast.uploadFailed"), "error");
-    } finally {
-      setUploading(false);
-    }
+  /**
+   * Hand the files to the background queue and close. Progress and the completion toast belong to
+   * the queue, so this screen no longer waits on the transfer and the user can navigate away.
+   */
+  const handleUpload = () => {
+    if (!uploadFiles.length || !uploadLibrary) return;
+    enqueue(uploadFiles, {
+      libraryUuid: uploadLibrary,
+      libraryName: libraries.find(l => l.uuid === uploadLibrary)?.name,
+      origin: uploadOrigin.trim() || undefined,
+    });
+    setUploadOpen(false);
+    setUploadFiles([]);
+    showToast(t("assets.toast.uploadQueued", { count: uploadFiles.length }), "info");
   };
+
+  // Assets that finished uploading in the background are not in this list yet. Reloading when the
+  // completed count grows keeps the grid current without polling.
+  const settledCount = uploads.doneCount + uploads.duplicateCount;
+  const lastSettledRef = useRef(settledCount);
+  useEffect(() => {
+    if (settledCount > lastSettledRef.current) {
+      reload();
+    }
+    lastSettledRef.current = settledCount;
+  }, [settledCount, reload]);
 
   const handleDelete = async () => {
     if (!token || !deleteTarget) return;
@@ -669,21 +683,26 @@ export default function AssetBrowser({ embedded = false }: Props) {
       </Box>
 
       {/* Upload dialog */}
-      <Dialog open={uploadOpen} onClose={() => !uploading && setUploadOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 420 } }}>
+      <Dialog open={uploadOpen} onClose={() => setUploadOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 420 } }}>
         <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("assets.dialog.upload")}</DialogTitle>
         <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: "8px !important" }}>
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             hidden
-            onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+            onChange={e => setUploadFiles(Array.from(e.target.files ?? []))}
           />
           <Button variant="outlined" startIcon={<CloudUploadOutlined sx={{ fontSize: 16 }} />} onClick={() => fileInputRef.current?.click()} sx={{ justifyContent: "flex-start" }}>
-            {uploadFile ? uploadFile.name : t("assets.upload.pickFile")}
+            {uploadFiles.length === 1
+              ? uploadFiles[0].name
+              : uploadFiles.length > 1
+                ? t("assets.upload.filesSelected", { count: uploadFiles.length })
+                : t("assets.upload.pickFile")}
           </Button>
-          {uploadFile && (
+          {uploadFiles.length > 0 && (
             <Typography variant="caption" color="text.secondary">
-              {uploadFile.type || "application/octet-stream"} · {formatBytes(uploadFile.size)}
+              {formatBytes(uploadFiles.reduce((sum, f) => sum + f.size, 0))}
             </Typography>
           )}
           <FormControl size="small" fullWidth>
@@ -693,12 +712,14 @@ export default function AssetBrowser({ embedded = false }: Props) {
             </Select>
           </FormControl>
           <TextField label={t("assets.upload.origin")} size="small" value={uploadOrigin} onChange={e => setUploadOrigin(e.target.value)} fullWidth />
+          <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>
+            {t("assets.upload.backgroundHint")}
+          </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setUploadOpen(false)} size="small" disabled={uploading} sx={{ color: tokens.text.secondary }}>{t("assets.button.cancel")}</Button>
-          <Button onClick={handleUpload} size="small" variant="contained" disabled={!uploadFile || !uploadLibrary || uploading}
-            startIcon={uploading ? <CircularProgress size={14} /> : undefined}>
-            {uploading ? t("assets.button.uploading") : t("assets.button.upload")}
+          <Button onClick={() => setUploadOpen(false)} size="small" sx={{ color: tokens.text.secondary }}>{t("assets.button.cancel")}</Button>
+          <Button onClick={handleUpload} size="small" variant="contained" disabled={!uploadFiles.length || !uploadLibrary}>
+            {t("assets.button.upload")}
           </Button>
         </DialogActions>
       </Dialog>

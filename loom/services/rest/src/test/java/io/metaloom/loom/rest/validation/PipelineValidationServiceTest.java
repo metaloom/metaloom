@@ -39,7 +39,7 @@ public class PipelineValidationServiceTest {
         registry.register(createDescriptor("md5", "MD5 Hash", NodeCategory.ANALYSIS));
         registry.register(createDescriptor("thumbnail", "Thumbnail", NodeCategory.ANALYSIS));
         registry.register(createDescriptor("facedetect", "Face Detect", NodeCategory.ANALYSIS));
-        registry.register(createDescriptor("filter-mimetype", "Mime Type Filter", NodeCategory.FILTER));
+        registry.register(createDescriptor("filter", "Mime Type Filter", NodeCategory.FILTER));
         registry.register(createDescriptor("filesystem-source", "Filesystem Source", NodeCategory.SOURCE));
 
         service = new PipelineValidationService(registry);
@@ -414,7 +414,7 @@ public class PipelineValidationServiceTest {
         JsonObject definition = createPipelineDefinition(
             List.of(
                 createSourceNode("source", "filesystem-source"),
-                createNode("filter", "filter-mimetype"),
+                createNode("filter", "filter"),
                 createNode("keep", "sha256"),
                 createNode("drop", "md5")
             ),
@@ -452,7 +452,7 @@ public class PipelineValidationServiceTest {
         JsonObject definition = createPipelineDefinition(
             List.of(
                 createSourceNode("source", "filesystem-source"),
-                createNode("filter", "filter-mimetype"),
+                createNode("filter", "filter"),
                 createNode("keep", "sha256")
             ),
             List.of(

@@ -497,7 +497,7 @@ textarea **and** a file picker, reporting parse errors inline (`.pe-modal-err`).
 | # | Name | Teaches | Sink |
 |---|---|---|---|
 | 0 | **Basic — hash & sync** | `filesystem-source → sha512 → loom`: one asset, three nodes, the `hash/sha512` → `loom.sha512` port binding | `loom` |
-| 1 | **Complex — faces (fan-out & gather)** | `filter-mimetype` `PASS` branch feeding two routes; `facedetect` `MANY detections` fanning out into `facedescription`'s gather; 3 asset groups | `loom` |
+| 1 | **Complex — faces (fan-out & gather)** | `filter` bucket branch feeding two routes; `facedetect` `MANY detections` fanning out into `facedescription`'s gather; 3 asset groups | `loom` |
 | 2 | **Use-case — transcribe & sentiment** | `whisper → sentiment` on the audio route, `md5 → loom` on the identity route; 3 asset groups | `loom` |
 
 > Every kind and port id a demo names must exist in the snapshot, or the demo loads with an
@@ -505,7 +505,7 @@ textarea **and** a file picker, reporting parse errors inline (`.pe-modal-err`).
 > descriptor rename — nothing automated does.**
 >
 > 🔴 **This is currently failing.** Verified against the staged snapshot at this revision:
-> `filesystem-source.media`, `sha512.media`/`hash`, `md5.media`/`hash`, `filter-mimetype.media`,
+> `filesystem-source.media`, `sha512.media`/`hash`, `md5.media`/`hash`, `filter.media`,
 > `facedetect.image`/`detections`, `facedescription.detections`, `whisper.audio`/`transcript` and
 > `sentiment.text` all resolve — but **`loom` does not exist**, so `loom.sha512` and `loom.md5` are
 > dangling and every demo boots into an `unknownKind` error with **Play** disabled.
@@ -582,7 +582,7 @@ grep -o 'data-descriptors="[^"]*"' website/dist/pipeline-editor/index.html
 4. **XOR group** — wire `facedetect.image`, then confirm `facedetect.video` renders `.is-blocked`; wire
    it anyway and confirm the `xor` error appears and **Play** is disabled.
 5. **Cycle** — attempt to close a loop; refused with *"Connection would create a cycle"*.
-6. **Branch routing** — double-click an edge leaving `filter-mimetype`: chip cycles
+6. **Branch routing** — double-click an edge leaving `filter`: chip cycles
    `ANY → PASS → REJECT`. Double-click a non-filter edge: refusal toast.
 7. **Simulate** — load demo 1, `Play`: tokens travel, nodes flash, the log fills, `facedetect` logs
    *"Detected n faces"* and `facedescription` logs *"Gathered n faces → descriptions"*; a `REJECT`
@@ -700,7 +700,7 @@ The page is **built and shipping**. Everything unchecked below is a known gap, n
 
 - [x] `NodeDescriptorGenerator` writes the endpoint-shaped snapshot; `ExampleGenerator` drives it
 - [x] `NodeDescriptorGeneratorTest` pins kind coverage and the port-model field names
-- [x] 41 kinds / 39 content types (8 families) staged; graceful degradation on an unknown kind or type
+- [x] 34 kinds / 39 content types (8 families) staged; graceful degradation on an unknown kind or type
 - [ ] The Loom write-back sink (`cortex/nodes/loom/`) has no descriptor provider, so the palette has
       no way to end a pipeline at Loom — the only `OUTPUT` kinds are `s3-sink` and the three dedup
       nodes

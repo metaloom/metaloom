@@ -33,12 +33,12 @@ snapshot. Do not design it again, and do not add a second copy of it.
 | Port/group/parameter value types | `PortSpec`, `PortGroup`, `PortGroupMode`, `Cardinality`, `NodeParameter`, `ParameterType`, `NodeCategory`, `NodeMode` | same package |
 | A type vocabulary and assignability rule | `ContentType`, `ContentTypeRegistry`, `ContentTypeLattice` | same package |
 | **G1 — reachable without a JVM** | `GET /api/v1/pipeline/node-descriptors` returns **`{nodeDescriptors, contentTypes}` in one call**; plus `GET …/node-descriptors/:kind` and `GET /api/v1/pipeline/content-types`. The handler declares **no permission gate** | `NodeDescriptorEndpoint` (`loom/services/rest/.../endpoint/impl/`) |
-| **G1 offline / out-of-JVM validation** | A generated static snapshot with the **same shape as the endpoint**, byte-compatible field names: **41 kinds, 39 content types** | `website/static/pipeline-editor/node-descriptors.json`, produced by `NodeDescriptorGenerator` (`loom/doc`, run from `ExampleGenerator`) |
+| **G1 offline / out-of-JVM validation** | A generated static snapshot with the **same shape as the endpoint**, byte-compatible field names: **34 kinds, 39 content types** | `website/static/pipeline-editor/node-descriptors.json`, produced by `NodeDescriptorGenerator` (`loom/doc`, run from `ExampleGenerator`) |
 | **G3 — a shared fixture for the TS mirror** | The UI fetches the endpoint (`loom-ui/src/api/nodeDescriptors.ts`) and types it (`loom-ui/src/types/nodeDescriptors.ts`); the static website editor eats the snapshot | — |
 | Dynamic ports for `script` / `llm` / `vlm` | `NodePortResolver` + `ScriptPortResolver`, `PromptPortResolver`, `LlmPortResolver`, `VlmPortResolver`, returning `ResolvedPorts`; discovered by `ServiceLoader` | `…/nodes/spec/` |
 | Ports actually resolved before validation | `PortGraphAnalyzer.analyze` calls `registry.resolvePorts(kind, options)` for **every** node (`PortGraphAnalyzer.java:78`) — at save time and again at run start | `loom/pipeline/.../graph/PortGraphAnalyzer.java` |
 | **Drift test between contract and code** | `NodePortConformanceTest` — every node class's `InputPort`/`OutputPort` constants must match its descriptor's ports, content type and cardinality, or the build fails. Plus `NodeDescriptorPortsTest` (every `dynamicPorts` kind has a registered resolver; ids match `PortSpec` pattern; content types are registered) and `NodePortResolverTest` | `integration-test/.../node/NodePortConformanceTest.java`, `loom-shared/node-model/src/test/.../spec/` |
-| **G5 — "the kind count is not agreed"** | **Settled: 41 kinds, 39 content types.** Count the snapshot or `ContentTypeRegistry.all()`; never copy a number out of a spec file | `website/static/pipeline-editor/node-descriptors.json` |
+| **G5 — "the kind count is not agreed"** | **Settled: 34 kinds, 39 content types.** Count the snapshot or `ContentTypeRegistry.all()`; never copy a number out of a spec file | `website/static/pipeline-editor/node-descriptors.json` |
 
 **Consequence: Concept 3 of the old file (a generated machine contract) effectively shipped**, in a
 better form than proposed — live over REST *and* as a static export, with conformance tests. Concept 1
@@ -63,7 +63,7 @@ directory) is dropped as disproportionate. See §3 for the post-mortem table.
 ```mermaid
 graph TB
     subgraph truth["Truth (shipped)"]
-        DP["*DescriptorProvider.java ✅<br/>26 providers · 41 kinds"]
+        DP["*DescriptorProvider.java ✅<br/>26 providers · 34 kinds"]
         RES["Script/Llm/Vlm PortResolver ✅"]
         CTR["ContentTypeRegistry ✅ 39 types"]
     end
@@ -152,8 +152,8 @@ parameterScopes:              # closes the NodeParameter.scope gap without chang
   useGpu: WORKER
 
 cost: EXPENSIVE               # TRIVIAL | CHEAP | EXPENSIVE | VERY_EXPENSIVE
-typicalUpstream:  [filesystem-source, s3-source, filter-mimetype]
-typicalDownstream: [sentiment, filter-blacklist, llm, tts]
+typicalUpstream:  [filesystem-source, s3-source, filter]
+typicalDownstream: [sentiment, filter, llm, tts]
 ---
 
 # Whisper
@@ -163,7 +163,7 @@ per-segment start/end times.
 
 ## When to use
 - The graph needs the *spoken* content of a media item as text.
-- Upstream of any text consumer: `sentiment`, `filter-blacklist`, `llm`, `tts`.
+- Upstream of any text consumer: `sentiment`, `filter`, `llm`, `tts`.
 
 ## When not to use
 - On-screen text in an image → **`ocr`**.
@@ -208,7 +208,7 @@ generator can produce**.
 | **1 · YAML-first** — the file *is* the descriptor, loaded at boot; delete 26 provider classes | Zero drift by construction | ❌ **Dropped.** Trades `javac`-checked content-type constants for boot-time string checking, and now that the descriptor is served and exported the drift it solves is already solved. A large refactor for negative value |
 | **2 · Front-matter card (full)** — contract block **and** prose in one file | Both consumers served by one file | 🟡 **Narrowed and adopted** as §2 — with the contract block removed. The full version needs a mandatory drift test whose only purpose is to police a copy of data the REST endpoint already serves |
 | **3 · Generated JSON bundle** — an exporter emits `kinds/*.json`, `content-types.json`, a JSON Schema | Drift structurally impossible | ✅ **Effectively shipped** — `NodeDescriptorGenerator` + the endpoint. Only the `pipeline-definition.schema.json` piece (gap D) is unbuilt. Its known ceiling stands: JSON Schema expresses *shape*, never assignability, XOR satisfaction or fan-out shape |
-| **4 · Bundle directory** — `contract.json` + `AGENT.md` + `examples/` + `operations.md` + `CHANGELOG.md` per kind | Richest; negative fixtures first-class | ❌ **Dropped as the starting point.** ~5 files × 41 kinds ≈ 200 files, and a half-populated bundle reads as an oversight rather than a decision. Keep as §2's growth path: split out `examples/` first, only when fixtures outgrow the card |
+| **4 · Bundle directory** — `contract.json` + `AGENT.md` + `examples/` + `operations.md` + `CHANGELOG.md` per kind | Richest; negative fixtures first-class | ❌ **Dropped as the starting point.** ~5 files × 34 kinds ≈ 200 files, and a half-populated bundle reads as an oversight rather than a decision. Keep as §2's growth path: split out `examples/` first, only when fixtures outgrow the card |
 
 **Dynamic-port kinds (`script`, `llm`, `vlm`):** the old file debated three ways for a static file to
 *describe* a resolver rule. That debate is closed by §2.1 — **serve the resolver** instead of describing
@@ -314,7 +314,7 @@ from*:
 - [x] `ContentType` / `ContentTypeRegistry` / `ContentTypeLattice` (39 content types)
 - [x] `GET /api/v1/pipeline/node-descriptors` → `{nodeDescriptors, contentTypes}`, `/:kind`,
       `/api/v1/pipeline/content-types`
-- [x] Static snapshot `website/static/pipeline-editor/node-descriptors.json` (41 kinds) via
+- [x] Static snapshot `website/static/pipeline-editor/node-descriptors.json` (34 kinds) via
       `NodeDescriptorGenerator` — out-of-JVM validation without a server
 - [x] `NodePortResolver` + three resolvers + `ResolvedPorts`, consumed by `PortGraphAnalyzer:78`
 - [x] `NodePortConformanceTest`, `NodeDescriptorPortsTest`, `NodePortResolverTest`

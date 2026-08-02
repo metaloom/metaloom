@@ -39,6 +39,12 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-s3-common</artifactId>
         </dependency>
+        <!-- Declared explicitly, like cortex-s3-common, so the shaded jar cannot lose the
+             materializer and reference resolver a worker needs to fetch cloud media. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-cloud-common</artifactId>
+        </dependency>
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
