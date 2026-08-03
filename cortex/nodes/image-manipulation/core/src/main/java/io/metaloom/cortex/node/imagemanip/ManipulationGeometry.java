@@ -128,6 +128,30 @@ public final class ManipulationGeometry {
 	}
 
 	/**
+	 * Shift a rectangle.
+	 *
+	 * <p>
+	 * Used to carry the subject boxes through every operation that moves the frame's origin: a crop makes their coordinates relative to the cut window,
+	 * a pad makes them relative to the enlarged canvas. A chain that cropped and then subject-cropped would otherwise frame the boxes as if the first
+	 * crop had not happened.
+	 * </p>
+	 */
+	public static Rect translate(Rect rect, int dx, int dy) {
+		return new Rect(rect.x() + dx, rect.y() + dy, rect.w(), rect.h());
+	}
+
+	/** Scale a rectangle, for carrying boxes through a resize. Never produces a zero-sized side. */
+	public static Rect scale(Rect rect, double sx, double sy) {
+		return new Rect((int) Math.round(rect.x() * sx), (int) Math.round(rect.y() * sy),
+			Math.max(1, (int) Math.round(rect.w() * sx)), Math.max(1, (int) Math.round(rect.h() * sy)));
+	}
+
+	/** Whether a rectangle has any pixels at all inside a {@code width x height} frame. */
+	public static boolean intersects(Rect rect, int width, int height) {
+		return rect.x() < width && rect.y() < height && rect.x() + rect.w() > 0 && rect.y() + rect.h() > 0;
+	}
+
+	/**
 	 * The bounding box of every rectangle given.
 	 *
 	 * <p>

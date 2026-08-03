@@ -78,6 +78,7 @@ public final class NodeSpecCatalog {
 		"io.metaloom.cortex.node.captioning.CaptioningNode",
 		"io.metaloom.cortex.node.tts.TtsNode",
 		"io.metaloom.cortex.node.imagegen.ImageGenNode",
+		"io.metaloom.cortex.node.imagemanip.ImageManipulationNode",
 		"io.metaloom.cortex.node.watermark.WatermarkNode",
 		"io.metaloom.cortex.node.sink.s3.S3SinkNode",
 		"io.metaloom.cortex.node.filter.FilterNode",

@@ -1,0 +1,3439 @@
+[ {
+  "nodeId" : "captioning",
+  "kind" : "captioning",
+  "name" : "Image Captioning",
+  "description" : "Generate a textual caption for an image.",
+  "icon" : "image_search",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "image",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A still image to caption"
+  }, {
+    "id" : "video",
+    "label" : "Video",
+    "contentType" : "media/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A video to caption from sampled frames"
+  } ],
+  "outputPorts" : [ {
+    "id" : "caption",
+    "label" : "Caption",
+    "contentType" : "text/caption",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "One sentence describing what the model sees, suitable for search and alt text"
+  } ],
+  "inputGroups" : [ {
+    "id" : "media_alt",
+    "mode" : "XOR",
+    "required" : true,
+    "label" : "Media"
+  } ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "chunk-hash",
+  "kind" : "chunk-hash",
+  "name" : "Chunk Hash",
+  "description" : "Compute a hash over fixed-size chunks of the media file.",
+  "icon" : "fingerprint",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The file whose bytes are digested chunk by chunk"
+  } ],
+  "outputPorts" : [ {
+    "id" : "hash",
+    "label" : "Chunk Hash",
+    "contentType" : "hash/chunk",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Digest over fixed-size chunks, so a file that was only partly rewritten still matches in part"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "consistency",
+  "kind" : "consistency",
+  "name" : "Consistency Check",
+  "description" : "Check media file integrity (zero chunk detection, completeness).",
+  "icon" : "verified",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The file to inspect for truncation and holes"
+  } ],
+  "outputPorts" : [ {
+    "id" : "zero_chunk_count",
+    "label" : "Zero Chunks",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many all-zero chunks were found - a strong sign of a truncated or sparse copy"
+  }, {
+    "id" : "is_complete",
+    "label" : "Complete",
+    "contentType" : "scalar/boolean",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "False while the file still looks like it is being written"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "depthmap",
+  "kind" : "depthmap",
+  "name" : "Depth Map",
+  "description" : "Estimate a per-pixel depth map from a single image. The map is written to a local cache as a 16-bit PNG where the brightest pixels are nearest the camera.",
+  "icon" : "layers",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The image to estimate per-pixel depth for"
+  } ],
+  "outputPorts" : [ {
+    "id" : "meta",
+    "label" : "Depth Metadata",
+    "contentType" : "struct/depthmap",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Mode, model, map dimensions and the value range needed to interpret the map"
+  }, {
+    "id" : "map",
+    "label" : "Depth Map",
+    "contentType" : "artifact/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The 16-bit PNG in the worker's local cache; the brightest pixels are nearest the camera"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "depthHost",
+    "type" : "STRING",
+    "defaultValue" : "localhost",
+    "label" : "Sidecar Host",
+    "description" : "Host of the /v1/depth sidecar"
+  }, {
+    "key" : "depthPort",
+    "type" : "INTEGER",
+    "defaultValue" : 9120,
+    "label" : "Sidecar Port",
+    "description" : "Port of the /v1/depth sidecar",
+    "min" : 1
+  }, {
+    "key" : "mode",
+    "type" : "ENUM",
+    "defaultValue" : "RELATIVE",
+    "label" : "Depth Mode",
+    "description" : "RELATIVE orders objects front-to-back; METRIC additionally reports a range in metres",
+    "values" : [ "RELATIVE", "METRIC" ]
+  }, {
+    "key" : "model",
+    "type" : "STRING",
+    "label" : "Model Override",
+    "description" : "Checkpoint to use instead of the sidecar's default for the selected mode"
+  }, {
+    "key" : "maxDim",
+    "type" : "INTEGER",
+    "defaultValue" : 1024,
+    "label" : "Max Dimension",
+    "description" : "Longest side sent to the sidecar; also the size of the produced map",
+    "min" : 1
+  }, {
+    "key" : "timeoutMs",
+    "type" : "INTEGER",
+    "defaultValue" : 120000,
+    "label" : "Timeout (ms)",
+    "description" : "HTTP request timeout",
+    "min" : 1
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "dominant-color",
+  "kind" : "dominant-color",
+  "name" : "Dominant Colour",
+  "description" : "Find the dominant colours of an image by clustering its pixels in CIELAB - for the whole frame, a configured region, and every upstream detection box. Reports each colour as HEX, RGB, HSL and CIELAB plus a readable name in English and German. No model and no GPU required.",
+  "icon" : "palette",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The image whose pixels are clustered in CIELAB"
+  }, {
+    "id" : "detections",
+    "label" : "Detections",
+    "contentType" : "detection/*",
+    "cardinality" : "MANY",
+    "required" : false,
+    "description" : "Boxes to measure individually. Leave unwired to measure only the whole frame and any fixed region"
+  } ],
+  "outputPorts" : [ {
+    "id" : "result",
+    "label" : "Colour Result",
+    "contentType" : "struct/color",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Per measured region: the ranked palette with HEX, RGB, HSL and CIELAB values"
+  }, {
+    "id" : "hex",
+    "label" : "Hex",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Dominant colour of the whole frame as #RRGGBB"
+  }, {
+    "id" : "term",
+    "label" : "Colour Term",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Language-neutral name of the dominant colour, e.g. dark_blue - the stable key to match on"
+  }, {
+    "id" : "name_en",
+    "label" : "Name (English)",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Readable English name of the dominant colour"
+  }, {
+    "id" : "name_de",
+    "label" : "Name (German)",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Readable German name of the dominant colour"
+  }, {
+    "id" : "region_count",
+    "label" : "Region Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many regions were measured, counting the whole frame and the fixed region"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "clusterCount",
+    "type" : "INTEGER",
+    "defaultValue" : 5,
+    "label" : "Colours per Region",
+    "description" : "How many colours to extract from each region, ranked by pixel share",
+    "min" : 1,
+    "max" : 16
+  }, {
+    "key" : "maxSamples",
+    "type" : "INTEGER",
+    "defaultValue" : 40000,
+    "label" : "Max Samples",
+    "description" : "Upper bound on pixels visited per region; the sampling stride is derived from it",
+    "min" : 256,
+    "max" : 1000000
+  }, {
+    "key" : "maxIterations",
+    "type" : "INTEGER",
+    "defaultValue" : 30,
+    "label" : "Max Iterations",
+    "description" : "Clustering iteration budget",
+    "min" : 1,
+    "max" : 500
+  }, {
+    "key" : "convergenceEpsilon",
+    "type" : "NUMBER",
+    "defaultValue" : 0.5,
+    "label" : "Convergence Epsilon",
+    "description" : "Stop once the largest colour shift falls below this; 0.5 is about the smallest difference a human can see",
+    "min" : 0.01,
+    "step" : 0.1
+  }, {
+    "key" : "seed",
+    "type" : "INTEGER",
+    "defaultValue" : 42,
+    "label" : "Seed",
+    "description" : "Clustering seed. Fixed so the same image always yields the same palette"
+  }, {
+    "key" : "alphaThreshold",
+    "type" : "INTEGER",
+    "defaultValue" : 128,
+    "label" : "Alpha Threshold",
+    "description" : "Pixels more transparent than this are ignored rather than blended with a background",
+    "min" : 0,
+    "max" : 255
+  }, {
+    "key" : "includeWholeImage",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Measure Whole Image",
+    "description" : "Report the dominant colour of the full frame"
+  }, {
+    "key" : "useDetections",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Measure Detections",
+    "description" : "Report a colour for every bounding box an upstream detector produced"
+  }, {
+    "key" : "regionX",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Region X",
+    "description" : "Left edge of a fixed region to measure",
+    "min" : 0.0,
+    "step" : 0.05
+  }, {
+    "key" : "regionY",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Region Y",
+    "description" : "Top edge of a fixed region to measure",
+    "min" : 0.0,
+    "step" : 0.05
+  }, {
+    "key" : "regionW",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Region Width",
+    "description" : "Width of a fixed region; 0 disables it",
+    "min" : 0.0,
+    "step" : 0.05
+  }, {
+    "key" : "regionH",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Region Height",
+    "description" : "Height of a fixed region; 0 disables it",
+    "min" : 0.0,
+    "step" : 0.05
+  }, {
+    "key" : "regionCoordinates",
+    "type" : "ENUM",
+    "defaultValue" : "NORMALIZED",
+    "label" : "Region Coordinates",
+    "description" : "Whether the fixed region is expressed as fractions of the image or in pixels",
+    "values" : [ "NORMALIZED", "ABSOLUTE_PIXELS" ]
+  }, {
+    "key" : "minRegionPixels",
+    "type" : "INTEGER",
+    "defaultValue" : 64,
+    "label" : "Min Region Pixels",
+    "description" : "Regions smaller than this are dropped - clustering them would fit noise",
+    "min" : 1
+  }, {
+    "key" : "maxRegions",
+    "type" : "INTEGER",
+    "defaultValue" : 32,
+    "label" : "Max Regions",
+    "description" : "Largest-first cap on detection regions; the whole image and fixed region are exempt",
+    "min" : 1
+  }, {
+    "key" : "emitPalette",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Emit Palette",
+    "description" : "Emit the full ranked palette per region rather than only the dominant colour"
+  }, {
+    "key" : "achromaticChroma",
+    "type" : "NUMBER",
+    "defaultValue" : 12.0,
+    "label" : "Achromatic Threshold",
+    "description" : "Below this saturation a colour is named black, grey or white instead of by hue",
+    "min" : 0.0,
+    "max" : 60.0,
+    "step" : 1.0
+  }, {
+    "key" : "blackLightness",
+    "type" : "NUMBER",
+    "defaultValue" : 20.0,
+    "label" : "Black Threshold",
+    "description" : "Lightness below which an unsaturated colour is called black",
+    "min" : 0.0,
+    "max" : 100.0,
+    "step" : 1.0
+  }, {
+    "key" : "whiteLightness",
+    "type" : "NUMBER",
+    "defaultValue" : 85.0,
+    "label" : "White Threshold",
+    "description" : "Lightness above which an unsaturated colour is called white",
+    "min" : 0.0,
+    "max" : 100.0,
+    "step" : 1.0
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "facedescription",
+  "kind" : "facedescription",
+  "name" : "Face Description",
+  "description" : "Generate textual descriptions of detected faces.",
+  "icon" : "face_retouching_natural",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "detections",
+    "label" : "Face Detections",
+    "contentType" : "detection/face",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "The faces to describe, one element each - typically straight from a facedetect node"
+  } ],
+  "outputPorts" : [ {
+    "id" : "descriptions",
+    "label" : "Descriptions",
+    "contentType" : "text/plain",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "One description per incoming face, in the same order as the detections"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 2,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "facedetect",
+  "kind" : "facedetect",
+  "name" : "Face Detection",
+  "description" : "Detect and cluster faces in images and video frames.",
+  "icon" : "face",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "image",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A still image to search for faces"
+  }, {
+    "id" : "video",
+    "label" : "Video",
+    "contentType" : "media/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A video whose frames are sampled and searched"
+  } ],
+  "outputPorts" : [ {
+    "id" : "detections",
+    "label" : "Face Detections",
+    "contentType" : "detection/face",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "One element per detected face, so a downstream node can run once per face rather than once per file"
+  }, {
+    "id" : "face_count",
+    "label" : "Face Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many distinct faces survived clustering"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ {
+    "id" : "media_alt",
+    "mode" : "XOR",
+    "required" : true,
+    "label" : "Media"
+  } ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "videoChopRate",
+    "type" : "INTEGER",
+    "defaultValue" : 5,
+    "label" : "Video Chop Rate",
+    "description" : "Process every Nth video frame",
+    "min" : 1
+  }, {
+    "key" : "faceClusterMinimum",
+    "type" : "INTEGER",
+    "defaultValue" : 2,
+    "label" : "Min Cluster Size",
+    "description" : "Minimum detections to form a cluster"
+  }, {
+    "key" : "faceClusterEPS",
+    "type" : "NUMBER",
+    "defaultValue" : 0.6,
+    "label" : "Cluster Radius",
+    "description" : "DBSCAN cluster radius threshold",
+    "min" : 0.0,
+    "max" : 2.0,
+    "step" : 0.05
+  }, {
+    "key" : "videoScaleSize",
+    "type" : "INTEGER",
+    "defaultValue" : 384,
+    "label" : "Scale Size (px)",
+    "description" : "Rescale video frames to this size"
+  }, {
+    "key" : "minFaceHeightFactor",
+    "type" : "NUMBER",
+    "defaultValue" : 0.05,
+    "label" : "Min Face Height Factor",
+    "min" : 0.0,
+    "max" : 1.0
+  }, {
+    "key" : "inspirefacePackPath",
+    "type" : "STRING",
+    "defaultValue" : "packs/Pikachu",
+    "label" : "Model Pack Path"
+  }, {
+    "key" : "capabilities",
+    "type" : "ENUM_SET",
+    "defaultValue" : [ "INSPIREFACE" ],
+    "label" : "Backends",
+    "values" : [ "INSPIREFACE", "DLIB" ]
+  } ],
+  "defaultConcurrency" : 2,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "filesystem-source",
+  "kind" : "filesystem-source",
+  "name" : "Filesystem Source",
+  "description" : "Reads media files from the filesystem as pipeline input.",
+  "icon" : "folder_open",
+  "category" : "SOURCE",
+  "inputPorts" : [ ],
+  "outputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Every file the differential scan emitted. The concrete kind is unknown until the file is opened, so this is the family wildcard"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "path",
+    "type" : "STRING",
+    "label" : "Path",
+    "description" : "Root directory to scan for media files. Scanned differentially: a local index remembers what was seen, so a re-run only picks up changes"
+  }, {
+    "key" : "pathGlobs",
+    "type" : "JSON",
+    "label" : "Path globs",
+    "description" : "Glob patterns to expand instead of scanning a root, e.g. [\"/media/**/*.mp4\"]. Takes precedence over Path, and always re-enumerates every match because differential scanning needs a single root",
+    "rows" : 3
+  }, {
+    "key" : "emitStates",
+    "type" : "ENUM_SET",
+    "defaultValue" : [ "NEW", "MODIFIED", "MOVED" ],
+    "label" : "Emit states",
+    "description" : "Which changes flow downstream. Only applies when scanning a root",
+    "values" : [ "NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED" ]
+  }, {
+    "key" : "indexPath",
+    "type" : "STRING",
+    "label" : "Index directory",
+    "description" : "Where the per-root scan index is kept. Defaults to a directory under the worker's metadata path"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "SEQUENTIAL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "filter",
+  "kind" : "filter",
+  "name" : "Filter",
+  "description" : "Route each item down one branch per configured bucket. The output port is the branch: a node wired to a port that carried nothing for an item is skipped for that item.",
+  "icon" : "call_split",
+  "category" : "FILTER",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The item being routed"
+  }, {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "The text to classify - a transcript, extracted document text or a caption. Without it every item lands in 'other'"
+  } ],
+  "outputPorts" : [ ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : true,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "filterBy",
+    "type" : "ENUM",
+    "defaultValue" : "LANGUAGE",
+    "label" : "Filter By",
+    "description" : "What the buckets are matched against",
+    "values" : [ "LANGUAGE" ]
+  }, {
+    "key" : "buckets",
+    "type" : "PORT_LIST",
+    "defaultValue" : [ ],
+    "label" : "Buckets",
+    "description" : "One output port per bucket. An 'other' port for everything else is always present"
+  }, {
+    "key" : "model",
+    "type" : "STRING",
+    "defaultValue" : "meta-llama/Llama-3.2-3B-Instruct",
+    "label" : "Model",
+    "description" : "The model asked to classify each item"
+  }, {
+    "key" : "openaiUrl",
+    "type" : "STRING",
+    "defaultValue" : "http://127.0.0.1:8080/v1",
+    "label" : "OpenAI URL",
+    "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
+  }, {
+    "key" : "maxTextChars",
+    "type" : "INTEGER",
+    "defaultValue" : 2000,
+    "label" : "Max Text Characters",
+    "description" : "How much of the text to send to the model",
+    "min" : 1
+  }, {
+    "key" : "minConfidence",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Minimum Confidence",
+    "description" : "Classifications below this confidence are routed to 'other'",
+    "min" : 0.0,
+    "max" : 1.0
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "fingerprint",
+  "kind" : "fingerprint",
+  "name" : "Fingerprint",
+  "description" : "Compute a perceptual fingerprint of the media for deduplication or similarity search.",
+  "icon" : "grain",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Video",
+    "contentType" : "media/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The video whose frames are sampled into a perceptual hash"
+  }, {
+    "id" : "is_complete",
+    "label" : "Is Complete",
+    "contentType" : "scalar/boolean",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set"
+  } ],
+  "outputPorts" : [ {
+    "id" : "fingerprint",
+    "label" : "Fingerprint",
+    "contentType" : "hash/fingerprint",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Perceptual fingerprint that survives re-encoding, so near-duplicates still compare equal"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 2,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "fingerprint-dedup",
+  "kind" : "fingerprint-dedup",
+  "name" : "Fingerprint Deduplication",
+  "description" : "Detect and move near-duplicate files based on perceptual fingerprint similarity.",
+  "icon" : "content_copy",
+  "category" : "OUTPUT",
+  "inputPorts" : [ {
+    "id" : "fingerprint",
+    "label" : "Fingerprint",
+    "contentType" : "hash/fingerprint",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "A perceptual fingerprint; files within the similarity threshold count as near-duplicates"
+  } ],
+  "outputPorts" : [ ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "algorithm",
+    "type" : "STRING",
+    "defaultValue" : "metaloom-multisector-v1",
+    "label" : "Algorithm",
+    "description" : "Fingerprint algorithm whose vectors are compared. Must match the algorithm the upstream fingerprint node produced, or nothing will be found similar"
+  }, {
+    "key" : "scoreThreshold",
+    "type" : "NUMBER",
+    "defaultValue" : 0.1,
+    "label" : "Score Threshold",
+    "description" : "Maximum distance at which two fingerprints count as near-duplicates. Lower is stricter; 0 matches only identical fingerprints",
+    "min" : 0.0
+  }, {
+    "key" : "topK",
+    "type" : "INTEGER",
+    "defaultValue" : 10,
+    "label" : "Neighbours",
+    "description" : "How many nearest neighbours to examine per item before deciding a group",
+    "min" : 1
+  }, {
+    "key" : "allowPartial",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Allow Partial Groups",
+    "description" : "Form a group even when no member is known to be complete. Off by default: never propose discarding a file where completeness is unknown"
+  }, {
+    "key" : "abortOnLargerDup",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Abort On Larger Duplicate",
+    "description" : "Abandon a candidate group if any duplicate is larger than the file being kept, so the more complete file is never the one discarded"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "SEQUENTIAL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "fingerprint-dedup-apply",
+  "kind" : "fingerprint-dedup-apply",
+  "name" : "Fingerprint Deduplication (Apply)",
+  "description" : "Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.",
+  "icon" : "content_copy",
+  "category" : "OUTPUT",
+  "inputPorts" : [ {
+    "id" : "hash",
+    "label" : "Hash",
+    "contentType" : "hash/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Any content hash; identifies the asset whose confirmed dedup groups are applied"
+  } ],
+  "outputPorts" : [ ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "dupFolder",
+    "type" : "STRING",
+    "defaultValue" : "duplicates",
+    "label" : "Duplicates Folder",
+    "description" : "Target folder for confirmed duplicate files"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "SEQUENTIAL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "gdrive-source",
+  "kind" : "gdrive-source",
+  "name" : "Google Drive Source",
+  "description" : "Reads media files from Google Drive - My Drive or a shared drive - as pipeline input. Only new, changed and moved files are picked up on a re-run.",
+  "icon" : "add_to_drive",
+  "category" : "SOURCE",
+  "inputPorts" : [ ],
+  "outputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "driveId",
+    "type" : "STRING",
+    "label" : "Shared drive ID",
+    "description" : "Shared drive to read from. Leave empty for the connected account's own My Drive. Credentials are configured on the worker, not here"
+  }, {
+    "key" : "folderId",
+    "type" : "STRING",
+    "label" : "Folder ID",
+    "description" : "Folder to scan, taken from its Drive URL. Empty scans the whole drive"
+  }, {
+    "key" : "recursive",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Include sub-folders",
+    "description" : "Descend into folders below the selected one"
+  }, {
+    "key" : "maxDepth",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "Maximum depth",
+    "description" : "How many folder levels to descend. 0 means no limit"
+  }, {
+    "key" : "suffixes",
+    "type" : "STRING",
+    "label" : "File suffixes",
+    "description" : "Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything"
+  }, {
+    "key" : "mimeTypes",
+    "type" : "STRING",
+    "label" : "MIME types",
+    "description" : "Comma-separated MIME type prefixes to accept, e.g. video/,image/. Drive reports a real type, so this also catches files with a missing or misleading extension"
+  }, {
+    "key" : "emitStates",
+    "type" : "ENUM_SET",
+    "defaultValue" : [ "NEW", "MODIFIED", "MOVED" ],
+    "label" : "Emit states",
+    "description" : "Which changes flow downstream. Renames and moves are detected, because a Drive file keeps its identity when it is moved",
+    "values" : [ "NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED" ]
+  }, {
+    "key" : "useDelta",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Use the change feed",
+    "description" : "Ask Drive what changed instead of listing the folders. Much faster on large drives. A full scan still runs periodically, so nothing is missed"
+  }, {
+    "key" : "includeTrashed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Include trashed files",
+    "description" : "Keep files that are in the Drive trash"
+  }, {
+    "key" : "exportNativeDocs",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Export Google Docs",
+    "description" : "Convert Google Docs, Sheets and Slides so they can be processed. They have no file to download otherwise. Conversion is limited to 10 MB per document"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "SEQUENTIAL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "hash-dedup",
+  "kind" : "hash-dedup",
+  "name" : "Hash Deduplication",
+  "description" : "Detect and move duplicate files based on hash equality.",
+  "icon" : "file_copy",
+  "category" : "OUTPUT",
+  "inputPorts" : [ {
+    "id" : "hash",
+    "label" : "Hash",
+    "contentType" : "hash/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Any content hash. Two files whose hashes match are treated as the same file"
+  } ],
+  "outputPorts" : [ ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "dupFolder",
+    "type" : "STRING",
+    "defaultValue" : "duplicates",
+    "label" : "Duplicates Folder",
+    "description" : "Target folder for duplicate files"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "SEQUENTIAL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "image-manipulation",
+  "kind" : "image-manipulation",
+  "name" : "Image Manipulation",
+  "description" : "Straighten, crop and reframe an image in one pass - apply its EXIF orientation, cut a fixed or subject-aware window, force a target aspect ratio (padding the margins with a blurred enlargement rather than black bars), and bound the result's long edge. The source file is never modified; the new image is written to the worker's local cache, so wire it into a sink to keep it.",
+  "icon" : "crop",
+  "category" : "TRANSFORM",
+  "inputPorts" : [ {
+    "id" : "image",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The image to transform. Video and documents are skipped"
+  }, {
+    "id" : "detections",
+    "label" : "Detections",
+    "contentType" : "detection/*",
+    "cardinality" : "MANY",
+    "required" : false,
+    "description" : "Boxes for SUBJECT_CROP to frame, usually from facedetect. Leave unwired for the other operations"
+  } ],
+  "outputPorts" : [ {
+    "id" : "image",
+    "label" : "Image",
+    "contentType" : "artifact/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The transformed image, written to the worker's artifact cache"
+  }, {
+    "id" : "geometry",
+    "label" : "Geometry",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "What was actually done: the source and result dimensions, the orientation applied, and each operation's rectangle"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "operations",
+    "type" : "STRING",
+    "defaultValue" : "AUTOROTATE,ASPECT,RESIZE",
+    "label" : "Operations",
+    "description" : "Ordered, comma-separated: AUTOROTATE, CROP, SUBJECT_CROP, ASPECT, RESIZE. They run in the order given, in one pass. AUTOROTATE must come first when used - every later step measures against the frame it rewrites"
+  }, {
+    "key" : "cropX",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Crop Left",
+    "description" : "Left edge of the CROP window as a fraction of the width",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "cropY",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Crop Top",
+    "description" : "Top edge of the CROP window as a fraction of the height",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "cropWidth",
+    "type" : "NUMBER",
+    "defaultValue" : 1.0,
+    "label" : "Crop Width",
+    "description" : "Width of the CROP window as a fraction of the frame width",
+    "min" : 0.01,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "cropHeight",
+    "type" : "NUMBER",
+    "defaultValue" : 1.0,
+    "label" : "Crop Height",
+    "description" : "Height of the CROP window as a fraction of the frame height",
+    "min" : 0.01,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "subjectTypes",
+    "type" : "STRING",
+    "defaultValue" : "face",
+    "label" : "Subject Types",
+    "description" : "Comma-separated detection types SUBJECT_CROP frames, e.g. face. Leave as * to accept every type the port delivers"
+  }, {
+    "key" : "minConfidence",
+    "type" : "NUMBER",
+    "defaultValue" : 0.5,
+    "label" : "Minimum Confidence",
+    "description" : "Detections scoring below this are ignored",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "subjectPadding",
+    "type" : "NUMBER",
+    "defaultValue" : 0.35,
+    "label" : "Subject Padding",
+    "description" : "Breathing room around the subjects, as a fraction of their combined size. Relative to the subjects rather than the frame, so a small face is not swallowed and a large one not merely outlined",
+    "min" : 0.0,
+    "max" : 4.0,
+    "step" : 0.05
+  }, {
+    "key" : "subjectFallback",
+    "type" : "ENUM",
+    "defaultValue" : "CENTRE",
+    "label" : "No Subject Found",
+    "description" : "What SUBJECT_CROP does when nothing was detected: CENTRE the frame instead, SKIP the item, or FAIL it",
+    "values" : [ "CENTRE", "SKIP", "FAIL" ]
+  }, {
+    "key" : "targetAspect",
+    "type" : "STRING",
+    "defaultValue" : "",
+    "label" : "Target Aspect",
+    "description" : "Target ratio as W:H, e.g. 16:9 or 1:1. Empty keeps the frame's own ratio"
+  }, {
+    "key" : "aspectMode",
+    "type" : "ENUM",
+    "defaultValue" : "CROP",
+    "label" : "Aspect Mode",
+    "description" : "CROP cuts the long axis and loses pixels; PAD grows the short one and loses none",
+    "values" : [ "CROP", "PAD" ]
+  }, {
+    "key" : "padFill",
+    "type" : "ENUM",
+    "defaultValue" : "BLUR",
+    "label" : "Padding Fill",
+    "description" : "What fills the margins PAD creates. BLUR uses a blurred enlargement of the image itself - the vertical-video fix - COLOR draws the classic bars",
+    "values" : [ "COLOR", "BLUR" ]
+  }, {
+    "key" : "padColor",
+    "type" : "STRING",
+    "defaultValue" : "#000000",
+    "label" : "Padding Colour",
+    "description" : "Margin colour as #RRGGBB, used when the fill is COLOR"
+  }, {
+    "key" : "blurRadius",
+    "type" : "INTEGER",
+    "defaultValue" : 24,
+    "label" : "Blur Radius",
+    "description" : "How far the blurred backdrop is smeared. Larger is softer and less recognisable",
+    "min" : 1,
+    "max" : 200
+  }, {
+    "key" : "blurZoom",
+    "type" : "NUMBER",
+    "defaultValue" : 1.15,
+    "label" : "Backdrop Overscan",
+    "description" : "How much larger than the canvas the blurred backdrop is drawn. Below about 1.05 its own edges can appear inside the frame",
+    "min" : 1.0,
+    "max" : 2.0,
+    "step" : 0.05
+  }, {
+    "key" : "maxLongEdge",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "Maximum Long Edge",
+    "description" : "RESIZE bound in pixels, applied to whichever edge is longer. 0 disables resizing",
+    "min" : 0
+  }, {
+    "key" : "allowUpscale",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Allow Upscaling",
+    "description" : "Enlarge a frame that is already smaller than the bound. Off by default: upscaling invents detail and inflates the artifact"
+  }, {
+    "key" : "outputFormat",
+    "type" : "ENUM",
+    "defaultValue" : "JPEG",
+    "label" : "Output Format",
+    "description" : "PNG is lossless and keeps transparency; JPEG is far smaller and right for photographs",
+    "values" : [ "PNG", "JPEG" ]
+  }, {
+    "key" : "jpegQuality",
+    "type" : "NUMBER",
+    "defaultValue" : 0.9,
+    "label" : "JPEG Quality",
+    "description" : "Encoder quality, 0 to 1. Ignored for PNG",
+    "min" : 0.1,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "backgroundColor",
+    "type" : "STRING",
+    "defaultValue" : "#FFFFFF",
+    "label" : "Flatten Colour",
+    "description" : "What shows through where the image was transparent, when writing a format that cannot carry alpha"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "imagegen",
+  "kind" : "imagegen",
+  "name" : "Image Generation",
+  "description" : "Generate an image through the image-generation sidecar - text-to-image from a prompt, or image-to-image from the source asset. The PNG is written to the worker's local cache; wire it into a sink to keep it.",
+  "icon" : "auto_awesome",
+  "category" : "TRANSFORM",
+  "inputPorts" : [ {
+    "id" : "prompt",
+    "label" : "Prompt",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "Upstream text used instead of the configured prompt - an LLM answer or a caption"
+  }, {
+    "id" : "media",
+    "label" : "Source Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "The image to remix. Required in REMIX mode and ignored in GENERATE mode"
+  } ],
+  "outputPorts" : [ {
+    "id" : "image",
+    "label" : "Image",
+    "contentType" : "artifact/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The generated PNG in the worker's local cache; wire it into a sink to keep it"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "mode",
+    "type" : "ENUM",
+    "defaultValue" : "GENERATE",
+    "label" : "Mode",
+    "description" : "GENERATE ignores the source pixels and works from the prompt; REMIX feeds the source image in too",
+    "values" : [ "GENERATE", "REMIX" ]
+  }, {
+    "key" : "prompt",
+    "type" : "STRING",
+    "defaultValue" : "",
+    "label" : "Prompt",
+    "description" : "What to draw. Used unless the Prompt input port is wired"
+  }, {
+    "key" : "host",
+    "type" : "STRING",
+    "defaultValue" : "localhost",
+    "label" : "Sidecar Host",
+    "description" : "Host of the image-generation sidecar"
+  }, {
+    "key" : "port",
+    "type" : "INTEGER",
+    "defaultValue" : 9200,
+    "label" : "Sidecar Port",
+    "description" : "Port of the image-generation sidecar",
+    "min" : 1
+  }, {
+    "key" : "generateEndpoint",
+    "type" : "STRING",
+    "defaultValue" : "/generate",
+    "label" : "Generate Endpoint",
+    "description" : "Sidecar path called in GENERATE mode"
+  }, {
+    "key" : "remixEndpoint",
+    "type" : "STRING",
+    "defaultValue" : "/remix",
+    "label" : "Remix Endpoint",
+    "description" : "Sidecar path called in REMIX mode"
+  }, {
+    "key" : "width",
+    "type" : "INTEGER",
+    "defaultValue" : 1024,
+    "label" : "Width (px)",
+    "description" : "Width of the generated image",
+    "min" : 1
+  }, {
+    "key" : "height",
+    "type" : "INTEGER",
+    "defaultValue" : 1024,
+    "label" : "Height (px)",
+    "description" : "Height of the generated image",
+    "min" : 1
+  }, {
+    "key" : "strength",
+    "type" : "NUMBER",
+    "defaultValue" : 0.6,
+    "label" : "Remix Strength",
+    "description" : "How far REMIX may depart from the source image; 1.0 keeps almost nothing of it",
+    "min" : 0.01,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "steps",
+    "type" : "INTEGER",
+    "defaultValue" : 30,
+    "label" : "Steps",
+    "description" : "Diffusion steps. More steps cost proportionally more time",
+    "min" : 1
+  }, {
+    "key" : "seed",
+    "type" : "INTEGER",
+    "label" : "Seed",
+    "description" : "Fix the seed to make a run reproducible. Left empty the sidecar picks one per item"
+  }, {
+    "key" : "timeoutMs",
+    "type" : "INTEGER",
+    "defaultValue" : 120000,
+    "label" : "Timeout (ms)",
+    "description" : "Wall-clock budget per item",
+    "min" : 1
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "llm",
+  "kind" : "llm",
+  "name" : "LLM (Large Language Model)",
+  "description" : "Process media through an LLM served over an OpenAI-compatible API, with configurable prompts.",
+  "icon" : "psychology",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The media item the configured prompts are asked about"
+  } ],
+  "outputPorts" : [ ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : true,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "openaiUrl",
+    "type" : "STRING",
+    "defaultValue" : "http://127.0.0.1:8080/v1",
+    "label" : "OpenAI URL",
+    "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "md5",
+  "kind" : "md5",
+  "name" : "MD5 Hash",
+  "description" : "Compute the MD5 hash of the media file.",
+  "icon" : "fingerprint",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The file whose bytes are digested"
+  } ],
+  "outputPorts" : [ {
+    "id" : "hash",
+    "label" : "MD5",
+    "contentType" : "hash/md5",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Lowercase hex MD5 digest over the whole file"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "metadata",
+  "kind" : "metadata",
+  "name" : "Asset Metadata",
+  "description" : "Read the metadata already inside a file - EXIF, IPTC, XMP, PDF and Office properties, ID3 - and normalise it onto Dublin Core: title, creator, keywords, date, rights and GPS position.",
+  "icon" : "info",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The file to read metadata from"
+  } ],
+  "outputPorts" : [ {
+    "id" : "metadata",
+    "label" : "Metadata",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The normalised metadata envelope: Dublin Core, rights, capture settings and position"
+  }, {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/plain",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Title, description, keywords and creator, newline-joined - ready for any text consumer"
+  }, {
+    "id" : "geo",
+    "label" : "Position",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Latitude and longitude, emitted only when the file carried a coordinate"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "includeRaw",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Include Raw Metadata",
+    "description" : "Store every key the file carried, unmapped. Off by default: maker notes can carry serial numbers and owner names"
+  }, {
+    "key" : "rawMaxKeys",
+    "type" : "INTEGER",
+    "defaultValue" : 500,
+    "label" : "Raw Key Limit",
+    "description" : "Maximum number of raw entries stored",
+    "min" : 1
+  }, {
+    "key" : "rawMaxValueBytes",
+    "type" : "INTEGER",
+    "defaultValue" : 4096,
+    "label" : "Raw Value Limit",
+    "description" : "Longer raw values are truncated",
+    "min" : 1
+  }, {
+    "key" : "readXmpSidecar",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Read XMP Sidecar",
+    "description" : "Merge a companion .xmp file when one sits next to the media"
+  }, {
+    "key" : "writeGeoComponent",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Store Position",
+    "description" : "Write the position to the asset's geo component"
+  }, {
+    "key" : "gpsTrackMaxSamples",
+    "type" : "INTEGER",
+    "defaultValue" : 1000,
+    "label" : "Position Sample Limit",
+    "description" : "Upper bound on the position readings kept per asset",
+    "min" : 1
+  }, {
+    "key" : "gpsPolicy",
+    "type" : "STRING",
+    "defaultValue" : "KEEP",
+    "label" : "Position Policy",
+    "description" : "KEEP the exact coordinate, ROUND it, or DROP it entirely"
+  }, {
+    "key" : "gpsRoundDecimals",
+    "type" : "INTEGER",
+    "defaultValue" : 2,
+    "label" : "Position Rounding",
+    "description" : "Decimal places kept when rounding; 2 is roughly 1.1 km",
+    "min" : 0,
+    "max" : 6
+  }, {
+    "key" : "emitText",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Emit Text",
+    "description" : "Produce the plain-text output for downstream text nodes"
+  }, {
+    "key" : "licenseDetection",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Detect Licence",
+    "description" : "Recognise well-known licence URLs and record their identifier"
+  }, {
+    "key" : "dateFallback",
+    "type" : "STRING",
+    "defaultValue" : "NONE",
+    "label" : "Date Fallback",
+    "description" : "NONE, or FILESYSTEM to fall back to the file's modification time"
+  }, {
+    "key" : "excludeKeys",
+    "type" : "STRING",
+    "label" : "Excluded Keys",
+    "description" : "Metadata keys to drop before anything else reads them"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "ocr",
+  "kind" : "ocr",
+  "name" : "OCR",
+  "description" : "Extract text from images using optical character recognition.",
+  "icon" : "text_fields",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The page or frame to read characters from"
+  } ],
+  "outputPorts" : [ {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/plain",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Everything the OCR engine recognised, in reading order"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 2,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "onedrive-source",
+  "kind" : "onedrive-source",
+  "name" : "OneDrive Source",
+  "description" : "Reads media files from OneDrive or a SharePoint document library as pipeline input. Only new, changed and moved files are picked up on a re-run.",
+  "icon" : "cloud_queue",
+  "category" : "SOURCE",
+  "inputPorts" : [ ],
+  "outputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "driveId",
+    "type" : "STRING",
+    "label" : "Drive ID",
+    "description" : "The OneDrive or SharePoint library to read from. Required unless a default drive is configured on the worker. Credentials are configured on the worker, not here"
+  }, {
+    "key" : "folderId",
+    "type" : "STRING",
+    "label" : "Folder ID",
+    "description" : "Folder to scan. Empty scans the whole drive"
+  }, {
+    "key" : "recursive",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Include sub-folders",
+    "description" : "Descend into folders below the selected one"
+  }, {
+    "key" : "maxDepth",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "Maximum depth",
+    "description" : "How many folder levels to descend. 0 means no limit"
+  }, {
+    "key" : "suffixes",
+    "type" : "STRING",
+    "label" : "File suffixes",
+    "description" : "Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything"
+  }, {
+    "key" : "mimeTypes",
+    "type" : "STRING",
+    "label" : "MIME types",
+    "description" : "Comma-separated MIME type prefixes to accept, e.g. video/,image/. OneDrive reports a real type, so this also catches files with a missing or misleading extension"
+  }, {
+    "key" : "emitStates",
+    "type" : "ENUM_SET",
+    "defaultValue" : [ "NEW", "MODIFIED", "MOVED" ],
+    "label" : "Emit states",
+    "description" : "Which changes flow downstream. Renames and moves are detected, because a OneDrive file keeps its identity when it is moved",
+    "values" : [ "NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED" ]
+  }, {
+    "key" : "useDelta",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Use the change feed",
+    "description" : "Ask OneDrive what changed instead of listing the folders. Much faster on large drives. A full scan still runs periodically, so nothing is missed"
+  }, {
+    "key" : "includeTrashed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Include deleted files",
+    "description" : "Keep files that are in the recycle bin"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "SEQUENTIAL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "quality",
+  "kind" : "quality",
+  "name" : "Quality Analysis",
+  "description" : "Analyze media quality: blurriness, resolution, bitrate.",
+  "icon" : "high_quality",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The image or video to measure"
+  } ],
+  "outputPorts" : [ {
+    "id" : "metrics",
+    "label" : "Quality Metrics",
+    "contentType" : "struct/quality",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The whole measurement bag - resolution, blurriness and bitrates - for a filter to threshold on"
+  }, {
+    "id" : "blurriness",
+    "label" : "Blurriness",
+    "contentType" : "scalar/number",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Variance of the Laplacian; the lower the value the blurrier the frame"
+  }, {
+    "id" : "width",
+    "label" : "Width",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Frame width in pixels"
+  }, {
+    "id" : "height",
+    "label" : "Height",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Frame height in pixels"
+  }, {
+    "id" : "fps",
+    "label" : "Frame Rate",
+    "contentType" : "scalar/number",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Frames per second; zero for a still image"
+  }, {
+    "id" : "frame_count",
+    "label" : "Frame Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Total number of frames; one for a still image"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "checkBlurriness",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Check Blurriness"
+  }, {
+    "key" : "checkResolution",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Check Resolution"
+  }, {
+    "key" : "checkVideoBitrate",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Check Video Bitrate"
+  }, {
+    "key" : "checkAudioBitrate",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Check Audio Bitrate"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "s3-sink",
+  "kind" : "s3-sink",
+  "name" : "S3 Sink",
+  "description" : "Uploads files produced by upstream nodes - thumbnails, depth maps, generated images, speech audio - into an S3 bucket, and registers each one in Loom as an asset so it becomes retrievable rather than living on a single worker's disk.",
+  "icon" : "cloud_upload",
+  "category" : "OUTPUT",
+  "inputPorts" : [ {
+    "id" : "artifacts",
+    "label" : "Artifacts",
+    "contentType" : "artifact/*",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "Every produced file to upload - thumbnails, depth maps, generated images, speech audio"
+  } ],
+  "outputPorts" : [ {
+    "id" : "result",
+    "label" : "Upload Report",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Per artifact: the object key, its size and whether it was uploaded or skipped as unchanged"
+  }, {
+    "id" : "count",
+    "label" : "Uploaded Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many objects ended up in the bucket"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "bucket",
+    "type" : "STRING",
+    "label" : "Bucket",
+    "description" : "Destination bucket. Endpoint, region and credentials are configured on the worker, not here, so they are never stored in the pipeline"
+  }, {
+    "key" : "keyTemplate",
+    "type" : "STRING",
+    "defaultValue" : "cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}",
+    "label" : "Key template",
+    "description" : "Object key. Placeholders: {sha512}, {sha512:N}, {sourceSha512}, {nodeId}, {sourceNode}, {sourceKey}, {ext}, {filename}, {basename}, {assetUuid}, {index}, {indexSuffix}. Using {sha512} requires an upstream hash node"
+  }, {
+    "key" : "includeSource",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Include source media",
+    "description" : "Also upload the media item itself, which turns this node into an archiver. Media that already lives in a bucket is not re-uploaded"
+  }, {
+    "key" : "createAssets",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Create assets",
+    "description" : "Register each uploaded file in Loom as its own asset. Turn off to use this node as a pure uploader"
+  }, {
+    "key" : "overwrite",
+    "type" : "ENUM",
+    "defaultValue" : "IF_DIFFERENT",
+    "label" : "Overwrite",
+    "description" : "IF_DIFFERENT skips an object already present at the same key with the same size, which is what makes a re-run cheap",
+    "values" : [ "NEVER", "IF_DIFFERENT", "ALWAYS" ]
+  }, {
+    "key" : "deleteAfterUpload",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Delete after upload",
+    "description" : "Remove the local file once the object is confirmed in the bucket. Off by default: nodes such as Scene Layout read the depth map from the same worker's local cache, and deleting it breaks that chain with a misleading 'depth map not found' skip"
+  }, {
+    "key" : "maxArtifacts",
+    "type" : "INTEGER",
+    "defaultValue" : 64,
+    "label" : "Max artifacts",
+    "description" : "Cap per media item. Exceeding it fails the node rather than silently uploading only some",
+    "min" : 1
+  }, {
+    "key" : "maxArtifactBytes",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "Max artifact bytes",
+    "description" : "Per-file size cap in bytes; 0 is unlimited",
+    "min" : 0
+  }, {
+    "key" : "failOnPartial",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Fail on partial",
+    "description" : "Report the node failed when some artifacts could not be uploaded"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : false,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "s3-source",
+  "kind" : "s3-source",
+  "name" : "S3 Source",
+  "description" : "Reads media objects from S3-compatible object storage (AWS S3, MinIO, Ceph) as pipeline input. Only new and changed objects are picked up on a re-run.",
+  "icon" : "cloud",
+  "category" : "SOURCE",
+  "inputPorts" : [ ],
+  "outputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Every object the bucket listing emitted. The concrete kind is only known once the object is fetched"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "bucket",
+    "type" : "STRING",
+    "label" : "Bucket",
+    "description" : "Bucket to read from. Connection settings and credentials are configured on the worker, not here"
+  }, {
+    "key" : "prefix",
+    "type" : "STRING",
+    "label" : "Prefix",
+    "description" : "Key prefix to limit the scan, e.g. 2026/07/. Empty scans the whole bucket"
+  }, {
+    "key" : "suffixes",
+    "type" : "STRING",
+    "label" : "File suffixes",
+    "description" : "Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything"
+  }, {
+    "key" : "emitStates",
+    "type" : "ENUM_SET",
+    "defaultValue" : [ "NEW", "MODIFIED" ],
+    "label" : "Emit states",
+    "description" : "Which changes flow downstream",
+    "values" : [ "NEW", "MODIFIED", "PRESENT", "DELETED" ]
+  }, {
+    "key" : "useEvents",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Use bucket notifications",
+    "description" : "Process only the objects the bucket reported as changed, instead of listing it. Requires notifications to be enabled on the worker. A full listing still runs periodically, so nothing is missed if a notification is lost"
+  }, {
+    "key" : "startAfter",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Resume from last key",
+    "description" : "Continue listing after the highest key seen so far. Only correct for buckets whose keys are added in ascending order and never edited afterwards"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "SEQUENTIAL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "scene-detection",
+  "kind" : "scene-detection",
+  "name" : "Scene Detection",
+  "description" : "Detect scene boundaries in video files.",
+  "icon" : "movie_filter",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Video",
+    "contentType" : "media/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The video to cut at its shot boundaries"
+  } ],
+  "outputPorts" : [ {
+    "id" : "scenes",
+    "label" : "Scenes",
+    "contentType" : "struct/segments",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The detected scene boundaries as time-coded segments"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 2,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "scene-layout",
+  "kind" : "scene-layout",
+  "name" : "Scene Layout",
+  "description" : "Relate detected objects to one another using a depth map: foreground/background bands plus pairwise relations such as in front of, behind, occludes and next to. Requires an upstream depthmap node on the same worker.",
+  "icon" : "schema",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "depth",
+    "label" : "Depth Metadata",
+    "contentType" : "struct/depthmap",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Depth metadata from an upstream depthmap node sharing this node's affinity group"
+  }, {
+    "id" : "detections",
+    "label" : "Detections",
+    "contentType" : "detection/*",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "The boxes to place in the scene - faces, objects or plain regions"
+  } ],
+  "outputPorts" : [ {
+    "id" : "result",
+    "label" : "Scene Layout",
+    "contentType" : "struct/scene-layout",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Depth band per object plus pairwise relations such as in front of, occludes and next to"
+  }, {
+    "id" : "object_count",
+    "label" : "Object Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many boxes were placed in the scene"
+  }, {
+    "id" : "relation_count",
+    "label" : "Relation Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many pairwise relations were emitted"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "allowLoomFallback",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Loom Fallback",
+    "description" : "Read detections back from Loom when no upstream node supplied them"
+  }, {
+    "key" : "coreInset",
+    "type" : "NUMBER",
+    "defaultValue" : 0.25,
+    "label" : "Core Inset",
+    "description" : "Fraction inset per side before sampling depth; keeps background corners out of the statistic",
+    "min" : 0.0,
+    "max" : 0.49,
+    "step" : 0.05
+  }, {
+    "key" : "depthZThreshold",
+    "type" : "NUMBER",
+    "defaultValue" : 1.0,
+    "label" : "Depth Threshold",
+    "description" : "Depth separation, in units of the objects' own spread, before an ordering is asserted",
+    "min" : 0.0,
+    "step" : 0.1
+  }, {
+    "key" : "occlusionMinOverlap",
+    "type" : "NUMBER",
+    "defaultValue" : 0.05,
+    "label" : "Min Occlusion Overlap",
+    "description" : "Overlap of the smaller box needed before occlusion is reported",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "containmentRatio",
+    "type" : "NUMBER",
+    "defaultValue" : 0.85,
+    "label" : "Containment Ratio",
+    "description" : "How much of a box must lie inside another to call it contained",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "nextToMaxGap",
+    "type" : "NUMBER",
+    "defaultValue" : 0.5,
+    "label" : "Next-To Max Gap",
+    "description" : "Gap over mean box size below which two same-depth objects count as adjacent",
+    "min" : 0.0,
+    "step" : 0.1
+  }, {
+    "key" : "foregroundQuantile",
+    "type" : "NUMBER",
+    "defaultValue" : 0.66,
+    "label" : "Foreground Quantile",
+    "description" : "Scene depth quantile at or above which an object is foreground",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "backgroundQuantile",
+    "type" : "NUMBER",
+    "defaultValue" : 0.33,
+    "label" : "Background Quantile",
+    "description" : "Scene depth quantile at or below which an object is background",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "maxObjects",
+    "type" : "INTEGER",
+    "defaultValue" : 40,
+    "label" : "Max Objects",
+    "description" : "Largest-first cap; relations grow with the square of this",
+    "min" : 1
+  }, {
+    "key" : "maxRelations",
+    "type" : "INTEGER",
+    "defaultValue" : 200,
+    "label" : "Max Relations",
+    "description" : "Cap on emitted relations, strongest kept first",
+    "min" : 1
+  }, {
+    "key" : "emitPhrases",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Emit Phrases",
+    "description" : "Include readable sentences alongside the structured relations"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "script",
+  "kind" : "script",
+  "name" : "Script",
+  "description" : "Run a small script over the media item and its upstream outputs, and emit any number of declared outputs - texts, numbers, JSON, timeframes or images.",
+  "icon" : "code",
+  "category" : "TRANSFORM",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "The media item the script runs over. Leave unwired for a script that only reshapes upstream data"
+  }, {
+    "id" : "data",
+    "label" : "Data",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "A structured payload from an upstream node, handed to the script as its input data"
+  }, {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "Text from an upstream node, such as a transcript or extracted document content"
+  } ],
+  "outputPorts" : [ ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : true,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "engine",
+    "type" : "STRING",
+    "defaultValue" : "js",
+    "label" : "Engine",
+    "description" : "Script engine id. 'js' runs JavaScript on GraalJS"
+  }, {
+    "key" : "script",
+    "type" : "CODE",
+    "defaultValue" : "// Runs once per media item.\n//   media    - { path, absolutePath, size, sha512, isVideo, isImage, isAudio, isDocument }\n//   upstream - upstream[\"<nodeId>\"][\"<outputKey>\"]\n//   params   - the Parameters bag below\n//   out      - out.text/number/integer/bool/json/list/timeframes/image/path(key, value)\n//   log      - log.info/warn/error(msg)\n//   ctx      - ctx.skip(reason) / ctx.fail(reason)\nout.text('result', 'hello from ' + media.path);\n",
+    "label" : "Script",
+    "description" : "The script body. Runs once per media item",
+    "language" : "javascript",
+    "rows" : 16
+  }, {
+    "key" : "outputs",
+    "type" : "JSON",
+    "defaultValue" : "[{\"key\": \"result\", \"type\": \"TEXT\"}]",
+    "label" : "Outputs",
+    "description" : "Declared outputs as [{\"key\": ..., \"type\": ...}]. Types: STRING, TEXT, INTEGER, NUMBER, BOOLEAN, JSON, TEXT_LIST, TIMEFRAMES, IMAGE, IMAGE_LIST, PATH. A TIMEFRAMES output may also set \"segmentType\": one of SCENE, SILENCE, SHOT or CHAPTER (default CHAPTER) - the database accepts no others",
+    "rows" : 6
+  }, {
+    "key" : "params",
+    "type" : "JSON",
+    "defaultValue" : "{}",
+    "label" : "Parameters",
+    "description" : "Constants handed to the script as 'params'",
+    "rows" : 4
+  }, {
+    "key" : "trusted",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Trusted",
+    "description" : "Run with full worker privileges. Turn off to deny host access, class lookup, threads and IO"
+  }, {
+    "key" : "allowNetwork",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Allow Network",
+    "description" : "Expose the 'http' binding to the script"
+  }, {
+    "key" : "allowFilesystem",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Allow Filesystem",
+    "description" : "Expose the read-only 'fs' binding to the script"
+  }, {
+    "key" : "timeoutMs",
+    "type" : "INTEGER",
+    "defaultValue" : 10000,
+    "label" : "Timeout (ms)",
+    "description" : "Wall-clock budget per media item",
+    "min" : 1
+  }, {
+    "key" : "statementLimit",
+    "type" : "INTEGER",
+    "defaultValue" : 10000000,
+    "label" : "Statement Limit",
+    "description" : "Guest-statement budget; guards against tight loops",
+    "min" : 1
+  }, {
+    "key" : "maxOutputBytes",
+    "type" : "INTEGER",
+    "defaultValue" : 1048576,
+    "label" : "Max Output Bytes",
+    "description" : "Cap on the encoded output bag",
+    "min" : 1
+  }, {
+    "key" : "maxLogLines",
+    "type" : "INTEGER",
+    "defaultValue" : 200,
+    "label" : "Max Log Lines",
+    "description" : "Cap on log.* calls per media item",
+    "min" : 0
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "sentiment",
+  "kind" : "sentiment",
+  "name" : "Sentiment Analysis",
+  "description" : "Score the polarity (positive/neutral/negative) of text produced by an upstream node. German and English.",
+  "icon" : "mood",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The prose to score - a transcript, caption, OCR result or any other upstream text"
+  } ],
+  "outputPorts" : [ {
+    "id" : "label",
+    "label" : "Label",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The polarity class: positive, neutral or negative"
+  }, {
+    "id" : "score",
+    "label" : "Score",
+    "contentType" : "scalar/number",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Polarity in [-1, 1]; its sign agrees with the label"
+  }, {
+    "id" : "result",
+    "label" : "Result",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The sidecar's full answer, including the detected language and per-class confidences"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "sentimentHost",
+    "type" : "STRING",
+    "defaultValue" : "localhost",
+    "label" : "Sidecar Host",
+    "description" : "Host of the /v1/sentiment sidecar"
+  }, {
+    "key" : "sentimentPort",
+    "type" : "INTEGER",
+    "defaultValue" : 9110,
+    "label" : "Sidecar Port",
+    "description" : "Port of the /v1/sentiment sidecar",
+    "min" : 1
+  }, {
+    "key" : "language",
+    "type" : "STRING",
+    "defaultValue" : "auto",
+    "label" : "Language",
+    "description" : "'de', 'en', or 'auto' to let the sidecar detect it"
+  }, {
+    "key" : "modelDe",
+    "type" : "STRING",
+    "label" : "German Model",
+    "description" : "Override the sidecar's German checkpoint"
+  }, {
+    "key" : "modelEn",
+    "type" : "STRING",
+    "label" : "English Model",
+    "description" : "Override the sidecar's English checkpoint"
+  }, {
+    "key" : "maxChars",
+    "type" : "INTEGER",
+    "defaultValue" : 200000,
+    "label" : "Max Characters",
+    "description" : "Upper bound on the text sent to the sidecar",
+    "min" : 1
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "sha256",
+  "kind" : "sha256",
+  "name" : "SHA-256 Hash",
+  "description" : "Compute the SHA-256 hash of the media file.",
+  "icon" : "fingerprint",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The file whose bytes are digested"
+  } ],
+  "outputPorts" : [ {
+    "id" : "hash",
+    "label" : "SHA-256",
+    "contentType" : "hash/sha256",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Lowercase hex SHA-256 digest over the whole file"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "sha512",
+  "kind" : "sha512",
+  "name" : "SHA-512 Hash",
+  "description" : "Compute the SHA-512 hash of the media file.",
+  "icon" : "fingerprint",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The file whose bytes are digested"
+  } ],
+  "outputPorts" : [ {
+    "id" : "hash",
+    "label" : "SHA-512",
+    "contentType" : "hash/sha512",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Lowercase hex SHA-512 digest over the whole file"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "thumbnail",
+  "kind" : "thumbnail",
+  "name" : "Thumbnail Generator",
+  "description" : "Generate a thumbnail grid from video or image content.",
+  "icon" : "grid_view",
+  "category" : "TRANSFORM",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The image or video to render a preview from"
+  }, {
+    "id" : "is_complete",
+    "label" : "Is Complete",
+    "contentType" : "scalar/boolean",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set"
+  } ],
+  "outputPorts" : [ {
+    "id" : "thumbnail",
+    "label" : "Thumbnail",
+    "contentType" : "artifact/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The rendered preview grid in the worker's local cache; wire it into a sink to keep it"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "cols",
+    "type" : "INTEGER",
+    "defaultValue" : 6,
+    "label" : "Grid Columns",
+    "min" : 1,
+    "max" : 20
+  }, {
+    "key" : "rows",
+    "type" : "INTEGER",
+    "defaultValue" : 1,
+    "label" : "Grid Rows",
+    "min" : 1,
+    "max" : 20
+  }, {
+    "key" : "tileSize",
+    "type" : "INTEGER",
+    "defaultValue" : 384,
+    "label" : "Tile Size (px)",
+    "min" : 32,
+    "max" : 1024
+  } ],
+  "defaultConcurrency" : 2,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "tika",
+  "kind" : "tika",
+  "name" : "Tika Extraction",
+  "description" : "Extract metadata and text content using Apache Tika.",
+  "icon" : "description",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The document or container file to parse"
+  } ],
+  "outputPorts" : [ {
+    "id" : "content",
+    "label" : "Content",
+    "contentType" : "text/plain",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The document body Tika extracted, with the markup stripped out"
+  }, {
+    "id" : "flags",
+    "label" : "Flags",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing markers recording which parsers Tika ended up using"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "translate",
+  "kind" : "translate",
+  "name" : "Translate",
+  "description" : "Translate text produced by an upstream node into a target language using a language model.",
+  "icon" : "translate",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The prose to translate - a transcript, document body, OCR result or any other upstream text"
+  } ],
+  "outputPorts" : [ {
+    "id" : "translation",
+    "label" : "Translation",
+    "contentType" : "text/plain",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The translated text, ready to be spoken by the TTS node or stored"
+  }, {
+    "id" : "language",
+    "label" : "Language",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The target language the text was translated into"
+  }, {
+    "id" : "result",
+    "label" : "Result",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The stored payload: translation, languages, model and how many chunks it took"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "targetLanguage",
+    "type" : "STRING",
+    "defaultValue" : "en",
+    "label" : "Target Language",
+    "description" : "Language to translate into; also the variant the result is stored under"
+  }, {
+    "key" : "sourceLanguage",
+    "type" : "STRING",
+    "defaultValue" : "auto",
+    "label" : "Source Language",
+    "description" : "Language of the input, or 'auto' to let the model work it out"
+  }, {
+    "key" : "model",
+    "type" : "STRING",
+    "defaultValue" : "google/gemma-2-27b-it",
+    "label" : "Model",
+    "description" : "Model id asked to translate; also recorded as the producer version"
+  }, {
+    "key" : "openaiUrl",
+    "type" : "STRING",
+    "defaultValue" : "http://127.0.0.1:8080/v1",
+    "label" : "OpenAI URL",
+    "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
+  }, {
+    "key" : "contextWindow",
+    "type" : "INTEGER",
+    "defaultValue" : 2048,
+    "label" : "Context Window",
+    "description" : "Tokens the model is told it may use for one call",
+    "min" : 1
+  }, {
+    "key" : "promptTemplate",
+    "type" : "STRING",
+    "label" : "Prompt Template",
+    "description" : "Instruction sent with each chunk; must contain the ${text} placeholder"
+  }, {
+    "key" : "maxChunkChars",
+    "type" : "INTEGER",
+    "defaultValue" : 8000,
+    "label" : "Max Chunk Characters",
+    "description" : "Longer input is split on paragraph and sentence boundaries into chunks of this size",
+    "min" : 200
+  }, {
+    "key" : "maxChars",
+    "type" : "INTEGER",
+    "defaultValue" : 200000,
+    "label" : "Max Characters",
+    "description" : "Upper bound on the total input text",
+    "min" : 1
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "tts",
+  "kind" : "tts",
+  "name" : "Text to Speech",
+  "description" : "Speak upstream text through the /v1/tts sidecar. German routes to Orpheus/Kartoffel, English to Kokoro. The WAV is written to the worker's local cache; wire it into a sink to keep it.",
+  "icon" : "record_voice_over",
+  "category" : "TRANSFORM",
+  "inputPorts" : [ {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The prose to speak - an LLM answer, a transcript, a caption or any other upstream text"
+  } ],
+  "outputPorts" : [ {
+    "id" : "audio",
+    "label" : "Audio",
+    "contentType" : "artifact/audio",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The synthesised WAV in the worker's local cache; wire it into a sink to keep it"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "ttsHost",
+    "type" : "STRING",
+    "defaultValue" : "localhost",
+    "label" : "Sidecar Host",
+    "description" : "Host of the /v1/tts sidecar"
+  }, {
+    "key" : "ttsPort",
+    "type" : "INTEGER",
+    "defaultValue" : 9100,
+    "label" : "Sidecar Port",
+    "description" : "Port of the /v1/tts sidecar",
+    "min" : 1
+  }, {
+    "key" : "language",
+    "type" : "STRING",
+    "defaultValue" : "de",
+    "label" : "Language",
+    "description" : "Selects the synthesis stack inside the sidecar: 'de' uses Orpheus/Kartoffel, 'en' uses Kokoro"
+  }, {
+    "key" : "voice",
+    "type" : "STRING",
+    "defaultValue" : "Jakob",
+    "label" : "Voice",
+    "description" : "Voice id offered by the selected stack. A voice from the other language is not substituted"
+  }, {
+    "key" : "timeoutMs",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "Timeout (ms)",
+    "description" : "Wall-clock budget per item; 0 leaves it to the worker default",
+    "min" : 0
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "videogen",
+  "kind" : "videogen",
+  "name" : "Video Generation",
+  "description" : "Generate a short video clip through the LTX-2 video sidecar - text-to-video from a prompt, or image-to-video from the source asset. The MP4 (with synchronised audio) is written to the worker's local cache; wire it into a sink to keep it.",
+  "icon" : "movie",
+  "category" : "TRANSFORM",
+  "inputPorts" : [ {
+    "id" : "prompt",
+    "label" : "Prompt",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "Upstream text used instead of the configured prompt - an LLM answer or a caption"
+  }, {
+    "id" : "media",
+    "label" : "Source Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "The still image to animate. Required in ANIMATE mode and ignored in GENERATE mode"
+  } ],
+  "outputPorts" : [ {
+    "id" : "video",
+    "label" : "Video",
+    "contentType" : "artifact/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The generated MP4 in the worker's local cache; wire it into a sink to keep it"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "mode",
+    "type" : "ENUM",
+    "defaultValue" : "GENERATE",
+    "label" : "Mode",
+    "description" : "GENERATE ignores the source pixels and works from the prompt; ANIMATE feeds the source image in as the opening frame",
+    "values" : [ "GENERATE", "ANIMATE" ]
+  }, {
+    "key" : "prompt",
+    "type" : "STRING",
+    "defaultValue" : "",
+    "label" : "Prompt",
+    "description" : "What to animate. Used unless the Prompt input port is wired"
+  }, {
+    "key" : "negativePrompt",
+    "type" : "STRING",
+    "defaultValue" : "",
+    "label" : "Negative Prompt",
+    "description" : "What to steer away from. Left empty the sidecar applies its own default"
+  }, {
+    "key" : "host",
+    "type" : "STRING",
+    "defaultValue" : "localhost",
+    "label" : "Sidecar Host",
+    "description" : "Host of the video-generation sidecar"
+  }, {
+    "key" : "port",
+    "type" : "INTEGER",
+    "defaultValue" : 9220,
+    "label" : "Sidecar Port",
+    "description" : "Port of the video-generation sidecar",
+    "min" : 1
+  }, {
+    "key" : "generateEndpoint",
+    "type" : "STRING",
+    "defaultValue" : "/generate",
+    "label" : "Generate Endpoint",
+    "description" : "Sidecar path called in GENERATE mode"
+  }, {
+    "key" : "animateEndpoint",
+    "type" : "STRING",
+    "defaultValue" : "/animate",
+    "label" : "Animate Endpoint",
+    "description" : "Sidecar path called in ANIMATE mode"
+  }, {
+    "key" : "width",
+    "type" : "INTEGER",
+    "defaultValue" : 768,
+    "label" : "Width (px)",
+    "description" : "Width of the generated clip; snapped to a multiple of 32 by the sidecar",
+    "min" : 1
+  }, {
+    "key" : "height",
+    "type" : "INTEGER",
+    "defaultValue" : 512,
+    "label" : "Height (px)",
+    "description" : "Height of the generated clip; snapped to a multiple of 32 by the sidecar",
+    "min" : 1
+  }, {
+    "key" : "numFrames",
+    "type" : "INTEGER",
+    "defaultValue" : 49,
+    "label" : "Frames",
+    "description" : "Number of frames; snapped to k*8+1 by the sidecar",
+    "min" : 1
+  }, {
+    "key" : "fps",
+    "type" : "INTEGER",
+    "defaultValue" : 24,
+    "label" : "FPS",
+    "description" : "Frame rate of the produced clip",
+    "min" : 1
+  }, {
+    "key" : "steps",
+    "type" : "INTEGER",
+    "defaultValue" : 40,
+    "label" : "Steps",
+    "description" : "Diffusion steps. More steps cost proportionally more time",
+    "min" : 1
+  }, {
+    "key" : "guidance",
+    "type" : "NUMBER",
+    "defaultValue" : 4.0,
+    "label" : "Guidance",
+    "description" : "Prompt guidance scale",
+    "min" : 0.0,
+    "step" : 0.5
+  }, {
+    "key" : "seed",
+    "type" : "INTEGER",
+    "label" : "Seed",
+    "description" : "Fix the seed to make a run reproducible. Left empty the sidecar picks one per item"
+  }, {
+    "key" : "timeoutMs",
+    "type" : "INTEGER",
+    "defaultValue" : 1800000,
+    "label" : "Timeout (ms)",
+    "description" : "Wall-clock budget per item",
+    "min" : 1
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "vlm",
+  "kind" : "vlm",
+  "name" : "VLM (Vision-Language Model)",
+  "description" : "Read an image with a vision-language model served over an OpenAI-compatible endpoint. Ships an olmOCR preset for transcribing document pages.",
+  "icon" : "image_search",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The page or frame the configured prompts are asked about"
+  } ],
+  "outputPorts" : [ ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : true,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "endpointUrl",
+    "type" : "STRING",
+    "defaultValue" : "http://127.0.0.1:8000",
+    "label" : "Endpoint URL",
+    "description" : "Base URL of the OpenAI-compatible vision endpoint (e.g. vLLM)"
+  }, {
+    "key" : "apiKey",
+    "type" : "STRING",
+    "label" : "API Key",
+    "description" : "Bearer token for the endpoint. Usually unset - a local vLLM does not check it"
+  }, {
+    "key" : "prompts",
+    "type" : "JSON",
+    "defaultValue" : { },
+    "label" : "Prompts",
+    "description" : "Prompt id to task, as {\"<id>\": {\"model\": ..., \"prompt\": ..., \"responseFormat\": TEXT|JSON|OLMOCR, \"maxImageDim\": ..., \"maxTokens\": ...}}. Each entry adds a result_<id> output port. Left empty the node falls back to the olmOCR preset",
+    "rows" : 8
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "watermark",
+  "kind" : "watermark",
+  "name" : "Watermark",
+  "description" : "Composite a configured watermark image onto the asset - a still is redrawn with Graphics2D, a video is re-encoded through the ffmpeg overlay filter with its audio copied untouched. The source file is never modified; the marked copy is written to the worker's local cache, so wire it into a sink to keep it.",
+  "icon" : "branding_watermark",
+  "category" : "TRANSFORM",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The image or video to mark. Audio and documents are skipped"
+  } ],
+  "outputPorts" : [ {
+    "id" : "image",
+    "label" : "Marked Image",
+    "contentType" : "artifact/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The watermarked PNG, written for image items only"
+  }, {
+    "id" : "video",
+    "label" : "Marked Video",
+    "contentType" : "artifact/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The watermarked clip in the source container, written for video items only"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "watermarkBase64",
+    "type" : "CODE",
+    "defaultValue" : "",
+    "label" : "Watermark Image (base64)",
+    "description" : "The overlay image, base64-encoded. A full data:image/png;base64,... URI is accepted too. Carrying the image here rather than as a path keeps the pipeline runnable on any worker",
+    "rows" : 6
+  }, {
+    "key" : "relX",
+    "type" : "NUMBER",
+    "defaultValue" : 0.95,
+    "label" : "Horizontal Position",
+    "description" : "0.0 is flush left, 1.0 flush right, 0.5 centred. Measured against the space the overlay can slide in, so it never leaves the frame",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "relY",
+    "type" : "NUMBER",
+    "defaultValue" : 0.95,
+    "label" : "Vertical Position",
+    "description" : "0.0 is flush top, 1.0 flush bottom, 0.5 centred",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "scale",
+    "type" : "NUMBER",
+    "defaultValue" : 0.2,
+    "label" : "Relative Size",
+    "description" : "Overlay width as a fraction of the media width, aspect preserved. 0 keeps the overlay's own pixel size, which makes it look different on every resolution",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "opacity",
+    "type" : "NUMBER",
+    "defaultValue" : 1.0,
+    "label" : "Opacity",
+    "description" : "Scales the overlay's own transparency. 1.0 leaves it as authored",
+    "min" : 0.01,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "videoCodec",
+    "type" : "STRING",
+    "defaultValue" : "libx264",
+    "label" : "Video Codec",
+    "description" : "Encoder for the video path. An overlay changes pixels, so the video stream must be re-encoded; audio is copied"
+  }, {
+    "key" : "videoCrf",
+    "type" : "INTEGER",
+    "defaultValue" : 23,
+    "label" : "Video Quality (CRF)",
+    "description" : "Constant rate factor. Lower is better quality and a larger file; 0 is lossless",
+    "min" : 0,
+    "max" : 51
+  }, {
+    "key" : "videoPreset",
+    "type" : "STRING",
+    "defaultValue" : "medium",
+    "label" : "Encoder Preset",
+    "description" : "Encoder speed/size trade-off, e.g. ultrafast, medium, slow"
+  }, {
+    "key" : "ffmpegPath",
+    "type" : "STRING",
+    "defaultValue" : "ffmpeg",
+    "label" : "ffmpeg Path",
+    "description" : "The ffmpeg executable, resolved on PATH when left as a bare name. Only the video path needs it"
+  }, {
+    "key" : "ffprobePath",
+    "type" : "STRING",
+    "defaultValue" : "ffprobe",
+    "label" : "ffprobe Path",
+    "description" : "The ffprobe executable, used to read the video's frame size"
+  }, {
+    "key" : "timeoutMs",
+    "type" : "INTEGER",
+    "defaultValue" : 600000,
+    "label" : "Timeout (ms)",
+    "description" : "Wall-clock budget per item. A CPU video re-encode is far slower than an image composite",
+    "min" : 1
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
+  "nodeId" : "whisper",
+  "kind" : "whisper",
+  "name" : "Whisper (Speech-to-Text)",
+  "description" : "Transcribe audio/video speech to text using Whisper.",
+  "icon" : "mic",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "audio",
+    "label" : "Audio",
+    "contentType" : "media/audio",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "An audio file to transcribe"
+  }, {
+    "id" : "video",
+    "label" : "Video",
+    "contentType" : "media/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A video whose audio track is demuxed and transcribed"
+  } ],
+  "outputPorts" : [ {
+    "id" : "transcript",
+    "label" : "Transcript",
+    "contentType" : "text/transcript",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The recognised speech with per-segment start and end times"
+  } ],
+  "inputGroups" : [ {
+    "id" : "media_alt",
+    "mode" : "XOR",
+    "required" : true,
+    "label" : "Media"
+  } ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "modelPath",
+    "type" : "STRING",
+    "defaultValue" : "models/ggml-large-v3-turbo.bin",
+    "label" : "Model Path",
+    "description" : "Path to the Whisper model file"
+  }, {
+    "key" : "temperature",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Temperature",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.1
+  }, {
+    "key" : "temperatureInc",
+    "type" : "NUMBER",
+    "defaultValue" : 0.2,
+    "label" : "Temperature Increment",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "language",
+    "type" : "STRING",
+    "label" : "Language",
+    "description" : "Target language code (e.g. 'en', 'de')"
+  }, {
+    "key" : "useGpu",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Use GPU"
+  }, {
+    "key" : "gpuDevice",
+    "type" : "INTEGER",
+    "defaultValue" : 0,
+    "label" : "GPU Device Index",
+    "min" : 0
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+} ]

@@ -94,7 +94,12 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		// hooks in its own constructor, and as a lazy @Singleton that nothing else asks for it would
 		// otherwise never exist - so the palette would never hear about a worker arriving. This is the
 		// component whose messages cause both kinds of change, so it is the honest place to anchor it.
-		registryEvents.attach(registry);
+		//
+		// Null-tolerant because the OpenAPI generator constructs every endpoint with nulls for the
+		// collaborators it does not need - it only wants the routes described, never served.
+		if (registryEvents != null) {
+			registryEvents.attach(registry);
+		}
 		this.registry = registry;
 		this.pipelineRunRegistry = pipelineRunRegistry;
 		this.authenticator = authenticator;

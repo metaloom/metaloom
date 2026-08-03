@@ -14,28 +14,28 @@ import org.junit.jupiter.api.Test;
 /**
  * Guards the {@link java.util.ServiceLoader} wiring of {@link NodeDescriptorProvider}.
  *
- * <p>The descriptor providers used to live in 17 separate {@code cortex/nodes/*-api}
- * modules, each shipping its own
- * {@code META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider} file.
- * Those modules were merged into this one on 2026-07-18, which meant merging 16
- * service files into a single registry file.</p>
+ <p>There are now two providers rather than 29. A node declares its contract once, on itself, with
+ * {@code @NodeSpec}/{@code @PortDoc}/{@code @ParamDoc}; the harvest is committed to
+ * {@code /node-descriptors.json} at build time and served by
+ * {@link GeneratedNodeDescriptorProvider}. {@link OrphanNodeDescriptorProvider} carries the single
+ * contract that has no node class behind it.</p>
  *
- * <p>That merge is exactly the kind of change that fails <em>silently</em>: a dropped
- * line means a node kind quietly disappears from pipeline validation and the UI
- * palette, while everything still compiles and every other test still passes. These
- * tests exist so that a missing entry fails loudly instead.</p>
+ * <p>What has not changed is the failure mode this guards. A dropped service-file line, or a
+ * regenerated resource that lost a node, means a kind quietly disappears from pipeline validation and
+ * the UI palette while everything still compiles and every other test still passes. These tests exist
+ * so that it fails loudly instead.</p>
  */
 public class NodeDescriptorServiceLoaderTest {
 
 	/**
-	 * Every provider listed in the merged service file must be loadable.
+	 * Every provider listed in the service file must be loadable.
 	 */
 	@Test
 	void testAllProvidersAreDiscovered() {
 		List<NodeDescriptorProvider> providers = loadProviders();
 
-		assertEquals(28, providers.size(),
-			"Expected 28 descriptor providers via ServiceLoader but found " + providers.size()
+		assertEquals(2, providers.size(),
+			"Expected 2 descriptor providers via ServiceLoader but found " + providers.size()
 				+ ". If a provider was intentionally added or removed, update this count and "
 				+ "META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider together. "
 				+ "Discovered: " + providerNames(providers));
@@ -48,14 +48,14 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(38, registry.size(),
-			"Expected 38 advertised node kinds but found " + registry.size()
+		assertEquals(39, registry.size(),
+			"Expected 39 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
 	/**
-	 * Spot-check kinds from providers that lived in different former modules, so a
-	 * single dropped service-file line is caught rather than only a wholesale failure.
+	 * Spot-check kinds across the node modules, so a harvest that quietly stopped seeing one is caught
+	 * rather than only a wholesale failure.
 	 */
 	@Test
 	void testKindsFromEachFormerModuleArePresent() {
@@ -91,7 +91,8 @@ public class NodeDescriptorServiceLoaderTest {
 			"tts",                // text to speech via the /v1/tts sidecar
 			"translate",          // upstream text into a target language via a language model
 			"imagegen",           // text-to-image / image-to-image sidecar
-			"watermark"           // composite a configured overlay onto image or video
+			"watermark",          // composite a configured overlay onto image or video
+			"image-manipulation"  // autorotate, crop, reframe and resize an image in one pass
 		};
 
 		for (String kind : expected) {

@@ -1,31 +1,11 @@
 # Node descriptor providers, discovered via ServiceLoader.
-# Merged from the former cortex/nodes/*-api modules (2026-07-18).
-# A provider added here becomes visible to pipeline validation and the UI palette.
-io.metaloom.loom.nodes.spec.CaptioningDescriptorProvider
-io.metaloom.loom.nodes.spec.ConsistencyDescriptorProvider
-io.metaloom.loom.nodes.spec.DedupDescriptorProvider
-io.metaloom.loom.nodes.spec.DepthmapDescriptorProvider
-io.metaloom.loom.nodes.spec.DominantColorDescriptorProvider
-io.metaloom.loom.nodes.spec.FacedetectDescriptorProvider
-io.metaloom.loom.nodes.spec.FilterDescriptorProvider
-io.metaloom.loom.nodes.spec.FingerprintDescriptorProvider
-io.metaloom.loom.nodes.spec.HashDescriptorProvider
-io.metaloom.loom.nodes.spec.ImageGenDescriptorProvider
-io.metaloom.loom.nodes.spec.LlmDescriptorProvider
-io.metaloom.loom.nodes.spec.MetadataDescriptorProvider
-io.metaloom.loom.nodes.spec.OcrDescriptorProvider
-io.metaloom.loom.nodes.spec.QualityDescriptorProvider
-io.metaloom.loom.nodes.spec.S3SinkDescriptorProvider
-io.metaloom.loom.nodes.spec.SceneDetectionDescriptorProvider
-io.metaloom.loom.nodes.spec.SceneLayoutDescriptorProvider
-io.metaloom.loom.nodes.spec.ScriptDescriptorProvider
-io.metaloom.loom.nodes.spec.SentimentDescriptorProvider
-io.metaloom.loom.nodes.spec.SourceDescriptorProvider
-io.metaloom.loom.nodes.spec.ThumbnailDescriptorProvider
-io.metaloom.loom.nodes.spec.TikaDescriptorProvider
-io.metaloom.loom.nodes.spec.TranslateDescriptorProvider
-io.metaloom.loom.nodes.spec.TtsDescriptorProvider
-io.metaloom.loom.nodes.spec.VideoGenDescriptorProvider
-io.metaloom.loom.nodes.spec.VlmDescriptorProvider
-io.metaloom.loom.nodes.spec.WatermarkDescriptorProvider
-io.metaloom.loom.nodes.spec.WhisperDescriptorProvider
+#
+# There used to be one hand-written provider per node here - 29 of them, each restating ports and
+# parameters the node had already declared in Java. A node now declares its contract once, with
+# @NodeSpec/@PortDoc/@ParamDoc on the very constants and fields it executes against, and the harvest
+# is committed to /node-descriptors.json at build time (NodeSpecGoldenTest keeps it honest).
+#
+# So: one provider that reads that resource, plus a holding pen for the single contract that has no
+# node class behind it.
+io.metaloom.loom.nodes.spec.GeneratedNodeDescriptorProvider
+io.metaloom.loom.nodes.spec.OrphanNodeDescriptorProvider
