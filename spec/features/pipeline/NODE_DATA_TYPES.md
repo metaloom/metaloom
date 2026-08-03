@@ -263,6 +263,7 @@ All three emit the family wildcard: the concrete kind is unknown until the file 
 | `consistency` | `media : media/*` | `zero_chunk_count : scalar/integer`, `is_complete : scalar/boolean` |
 | `quality` | `media : media/*` | `metrics : struct/quality`, `blurriness : scalar/number`, `width : scalar/integer`, `height : scalar/integer`, `fps : scalar/number`, `frame_count : scalar/integer`, `flag : scalar/string` |
 | `tika` | `media : media/*` | `content : text/plain`, `flags : scalar/string` |
+| `metadata` | `media : media/*` | `metadata : struct/json`, `text : text/plain`, `geo : struct/json` |
 | `ocr` | `media : media/image` | `text : text/plain` |
 | `captioning` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `caption : text/caption` |
 | `facedetect` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `detections : detection/face` **MANY**, `face_count : scalar/integer`, `flag : scalar/string` |
@@ -279,6 +280,10 @@ All three emit the family wildcard: the concrete kind is unknown until the file 
 
 `facedetect.detections` is the reference fan-out: **one element per detected face**, so
 `facedescription` runs once per face rather than once per file.
+
+`metadata.geo` is declared `ONE` even though it is written only for a file that carried a coordinate:
+`OutputPort` has no optional cardinality, and an unwritten port simply delivers nothing downstream —
+the same shape `watermark` uses for its image/video branch.
 
 ### 4.4 Transform and generative
 

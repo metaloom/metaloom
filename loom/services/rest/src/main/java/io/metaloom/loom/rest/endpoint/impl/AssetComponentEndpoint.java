@@ -55,9 +55,10 @@ public class AssetComponentEndpoint extends AbstractEndpoint {
 				service.list(lrc, lrc.pathParamUUID("assetUuid"));
 			});
 
-		// Create a new component for an asset
+		// Create or replace a component. This is an upsert on the component's identity
+		// (asset, node kind, discriminators), so a node re-run replaces its own row.
 		addRoute(basePath(), POST,
-			"Create a new component for an asset",
+			"Create or replace a component for an asset (upsert on asset, node kind and discriminators)",
 			examples.assetComponentCreateRequestExample(),
 			examples.assetComponentResponseExample(),
 			lrc -> {

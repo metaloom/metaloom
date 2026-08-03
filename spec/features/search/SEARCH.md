@@ -201,12 +201,17 @@ transcript match surfaces the asset in a normal search.
 |---|---|---|
 | `ocr` | `OCRNode` | `data->>'text'` |
 | `tika` | `TikaNode` | `data->>'content'` |
+| `metadata` | `MetadataNode` | title, description, publisher, coverage, rights, the `creator`/`contributor`/`subject` arrays, the rights holder and credit, and the IPTC place (V2.65) |
 | `caption` | `CaptioningNode` | `data->>'caption'` |
 | `video-caption` | `CaptioningNode` | `caption` + `$.scenes[*].caption` |
 | `face-description` | `FacedescriptionNode` | `$.faces[*].description` |
 | `llm` | `LLMNode` | `coalesce(text, answer, summary, description, search_jsonb_all_text(data))` |
 | `vlm` | `VlmNode` | `coalesce(text, search_jsonb_all_text(data))` |
 | anything else (incl. `quality`) | — | skipped, never guessed at |
+
+The `metadata` branch indexes the **authored** half of the envelope only. Camera settings, GPS
+coordinates and the raw key/value block are deliberately excluded: they are numbers and vendor tokens
+that would dilute the tsvector without ever being typed into a search box.
 
 🔴 `search_jsonb_all_text()` (recursive string-leaf walker, leaves > 2 chars) is applied **only** to
 `llm`/`vlm`, whose payloads are prompt-shaped. Applying it universally would index model names, UUIDs
@@ -361,7 +366,7 @@ interpolated SQL comes from enums it owns (`orderBy`, facet column whitelist, th
 
 | Class | Path | Tests | Covers |
 |---|---|---|---|
-| `SearchDocumentSourceTest` | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/` | 13 | one method per source: filename, `initial_origin`, transcript, transcript-gets-its-own-hit, ocr, tika, caption, video-caption scene captions, llm answer, face-description, `quality` **not** indexed, tag by name, asset by its tag name |
+| `SearchDocumentSourceTest` | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/` | 15 | one method per source: filename, `initial_origin`, transcript, transcript-gets-its-own-hit, ocr, tika, caption, video-caption scene captions, llm answer, face-description, ingested `metadata` (title, description, the keyword and creator **arrays**), `metadata` camera settings **not** indexed, `quality` **not** indexed, tag by name, asset by its tag name |
 | `SearchQueryBehaviourTest` | same | 15 | stemming, phrase, negation, typo tolerance, title outranks body, malformed queries do not error, blank/oversized rejected, offset cap, `SEMANTIC` mode rejected not downgraded, type filter, `totalHits` counts all matches, stable paging, highlighting, suggest |
 | `SearchDocumentLifecycleTest` | same | 5 | insert/update/delete lifecycle, **delete-cascade** (only the deleted asset's documents), **rebuild-equals-incremental**, oversized body truncated but still indexed |
 | `SearchEndpointTest` | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` | 16 | extends `AbstractEndpointTest` (not the CRUD base); finds an asset, `/assets` restricts, suggestions, status, paging, highlighting, missing `READ_SEARCH` ⇒ 403, **type narrowing**, `/assets` needs `READ_ASSET`, only-`READ_SEARCH` ⇒ 403, missing/oversized `q` ⇒ 400, offset cap, unsupported mode, unknown type, malformed queries |

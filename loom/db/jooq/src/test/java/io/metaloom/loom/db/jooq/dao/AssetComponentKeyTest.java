@@ -144,6 +144,49 @@ public class AssetComponentKeyTest extends AbstractJooqTest {
 	}
 
 	/**
+	 * A node re-run must leave exactly one row per identity. This is what {@code POST /assets/:uuid/components} routes through, and what makes an
+	 * ingest pipeline re-runnable at all: the insert path would violate the unique key on the second pass.
+	 */
+	@Test
+	public void testUpsertGeoCompReplacesInPlace() {
+		UUID assetUuid = assetUuid();
+
+		AssetGeoComp first = dao().createGeoComp(userUuid(), assetUuid, "metadata");
+		first.setMethod("exif").setTimeFrom(0L).setGeoLat(35.360833).setGeoLon(138.7275).setAccuracyM(12f);
+		dao().upsertGeoComp(first);
+
+		AssetGeoComp rerun = dao().createGeoComp(userUuid(), assetUuid, "metadata");
+		rerun.setMethod("exif").setTimeFrom(0L).setGeoLat(35.36).setGeoLon(138.73).setGeoAlias("Fujinomiya, JP");
+		dao().upsertGeoComp(rerun);
+
+		assertEquals(1, dao().loadGeoComps(assetUuid).size(), "a re-run must replace its own row, not append one");
+		AssetGeoComp loaded = dao().loadGeoComp(assetUuid, "metadata", "exif", 0L);
+		assertEquals(35.36, loaded.getGeoLat(), 0.0001);
+		assertEquals("Fujinomiya, JP", loaded.getGeoAlias());
+		// Everything the node computed is overwritten, including a value the second run left unset.
+		assertNull(loaded.getAccuracyM());
+	}
+
+	/**
+	 * The same coordinate read out of two standards is two answers to "what does this file say", and the method discriminates them.
+	 */
+	@Test
+	public void testTheSameNodeKindCanRecordOnePositionPerSource() {
+		UUID assetUuid = assetUuid();
+
+		AssetGeoComp exif = dao().createGeoComp(userUuid(), assetUuid, "metadata");
+		exif.setMethod("exif").setTimeFrom(0L).setGeoLat(35.360833).setGeoLon(138.7275);
+		dao().upsertGeoComp(exif);
+
+		AssetGeoComp sidecar = dao().createGeoComp(userUuid(), assetUuid, "metadata");
+		sidecar.setMethod("sidecar").setTimeFrom(0L).setGeoLat(35.4).setGeoLon(138.7);
+		dao().upsertGeoComp(sidecar);
+
+		assertEquals(2, dao().loadGeoComps(assetUuid).size());
+		assertNotNull(dao().loadGeoComp(assetUuid, "metadata", "sidecar", 0L));
+	}
+
+	/**
 	 * Worked case 7: an audio asset legitimately owns an image component (embedded cover art). Component writes are never gated on the asset's mime
 	 * type.
 	 */

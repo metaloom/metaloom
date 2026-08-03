@@ -3,7 +3,7 @@
 This is the **definition of done for a new Cortex processing node**. It is a rules file, not
 background: a node is not finished until every touch-point below is covered. It complements
 [CODING.md](CODING.md) (the general definition of done) and the node system spec
-[../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) (the source of truth for
+[../features/nodes/NODES.md](../features/nodes/NODES.md) (the source of truth for
 how nodes work). When this guide and the code disagree, the code wins — fix this guide in the same
 change.
 
@@ -16,6 +16,7 @@ change.
 > | Produces **new bytes** from the asset (transform/generative) | `cortex/nodes/watermark` (newest) · `cortex/nodes/image-generation` | `<name>_bin` artifact cache + ledger-only persistence; watermark also shows the ffmpeg/subprocess shape |
 > | Pure compute, **no model / no sidecar** | `cortex/nodes/dominant-color` | k-means arithmetic, no external runtime |
 > | A **sink** that consumes upstream artifacts | `cortex/nodes/s3-sink` | reads files an upstream node wrote to local disk; also a `PipelineConfigurable` |
+> | Analytical, writes a **typed component** through the generic component endpoint | `cortex/nodes/metadata` | the only node using `POST /assets/:uuid/components`; also the reference for a raw → canonical mapping whose design lives in its own unit test |
 > | A minimal out-of-tree example | `examples/cortex-custom-node` | the smallest thing that compiles and registers |
 | A **source** that reaches a remote system | `cortex/nodes/cloud-source` · `cortex/s3-common` | `AbstractPipelineNode implements MediaSourceNode`, a cold `stream()`, lazy media handles, and the provider seam + materializer in a sibling `*-common` module so every worker can resolve the references |
 
@@ -86,7 +87,7 @@ failure never fails the node), a no-op offline, and the row **upserts** on
   `recordNodeResult(asset, ctx, SUCCESS, null, producerVersion(), null)` — **no `result_ref`**.
   Loom has no byte-ingest endpoint for produced media yet; wiring the artifact output port into
   `s3-sink` is the current way to keep the bytes. See the persistence table in
-  [NODES.md §2](../features/pipeline-nodes/NODES.md).
+  [NODES.md §2](../features/nodes/NODES.md).
 
 Also record a FAILED ledger row on the failure path. `producerVersion` should change whenever the
 meaning of the output changes — `watermark` uses `"watermark/1:<digest of the logo>"`.
@@ -142,9 +143,9 @@ run, or the build fails.
 **And update the two guard tests:**
 
 - `NodeDescriptorServiceLoaderTest` asserts an exact provider count and kind count — currently
-  **27 providers / 37 kinds**. Adding a descriptor bumps both `assertEquals` literals; also add the
+  **28 providers / 38 kinds**. Adding a descriptor bumps both `assertEquals` literals; also add the
   kind to its `testKindsFromEachFormerModule` list and update the "N providers declare M kinds" line
-  in [NODES.md §8](../features/pipeline-nodes/NODES.md). This test failing is the intended tripwire,
+  in [NODES.md §5.2](../features/nodes/NODES.md). This test failing is the intended tripwire,
   not a regression.
 - `NodePortConformanceTest` (touch-point 5) compares the node's `InputPort`/`OutputPort` constants
   against its descriptor's `PortSpec`s — **id, content type and cardinality must match on both
@@ -198,7 +199,7 @@ in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
   the `ml-nodeviz` port-diagram block from a sibling page — it renders the ports from the same ids the
   descriptor declares. If the node pulls a new model, add its licence to
   `website/content/english/docs/legal/model-licenses/`.
-- **Spec** — add the node to [NODES.md](../features/pipeline-nodes/NODES.md): the node-list table
+- **Spec** — add the node to [NODES.md](../features/nodes/NODES.md): the node-list table
   (§3), the persistence table (§2), the cache-key table (§4) when the key is more than the media
   path, the Dagger wiring and descriptor counts (§5.1, §5.2) and the options tables (§6.2, §6.3).
   Also add the port row to [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.
@@ -219,7 +220,7 @@ in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
   against the stale Dagger factory.
 - **Force HTTP/1.1** in every sidecar client (`HttpClient.newBuilder().version(HTTP_1_1)`).
 - **Never add a `"nodeId:outputKey"` option.** Upstream data arrives through a declared input port and
-  an edge the pipeline author draws (see [NODES.md §5](../features/pipeline-nodes/NODES.md)).
+  an edge the pipeline author draws (see [NODES.md §5](../features/nodes/NODES.md)).
 - **Cardinality is behaviour, not decoration.** A `ONE` input fed by a `MANY` output runs the node
   once per element (per-face, per-paragraph); a `MANY` input gathers the branch and runs once.
 - **Two outputs are how you express a branch.** `watermark` writes `image` *or* `video` per item;
@@ -249,6 +250,6 @@ in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
 | Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
 | Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) |
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-02 (added the cloud source nodes: recorded cortex/cloud-common, the third flat
-module, the per-provider capability gate, and refreshed the guard-test counts to 27/37)_
+_Git HEAD revision: `23746123`_
+_Last updated: 2026-08-03 (added the `metadata` node: refreshed the guard-test counts to 28/38 and
+recorded it as the template for a node writing through the generic component endpoint)_

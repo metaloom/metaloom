@@ -263,7 +263,7 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/assets/:uuid/segments` · `/segments/:compUuid` | POST, GET · GET, DELETE | |
 | `/assets/:uuid/similar-assets` | GET | Fingerprint similarity lookup |
 | `/assets/:uuid/dedup-groups` | GET | Duplicate groups containing this asset |
-| `/assets/:assetUuid/components` · `/components/:compUuid` | GET, POST · GET, POST, DELETE | `AssetComponentEndpoint` (separate class) |
+| `/assets/:assetUuid/components` · `/components/:compUuid` | GET, POST · GET, POST, DELETE | `AssetComponentEndpoint` (separate class). **POST upserts** on the component's identity `(asset, node_kind, <discriminators>)`, so a Cortex node re-run replaces its own row. The discriminators travel on the request: `method`/`timeFrom` (geo), `streamIndex` (image/video/audio/transcript), `pageNumber` (doc), `json.variant`, alongside the shared `nodeId`/`producerVersion`/`confidence`/`meta` |
 | `/assets/:uuid/binary` | POST, GET, DELETE | The **primary** binary's metadata — an asset holds one binary per library it was imported into; GET returns the oldest |
 | `/assets/:uuid/binaries` | GET | Every binary, one per library |
 | `/assets/:uuid/binary/data` | POST, GET | **Raw bytes.** Upload is multipart (`libraryUuid` form field required when the asset has zero or >1 binaries, else 400). GET supports single-range `Range: bytes=` → 206 + `Content-Range` |

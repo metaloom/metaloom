@@ -27,6 +27,7 @@
         <module>llm</module>
         <module>vlm</module>
         <module>tika</module>
+        <module>metadata</module>
         <module>whisper</module>
         <module>tts</module>
         <module>sentiment</module>

@@ -45,6 +45,7 @@ The built-in nodes fall into four categories.
 [options="header",cols="2,2,3"]
 |===
 | Node | Applies to | Purpose
+| link:metadata/[Asset Metadata] (`metadata`) | Image, Document, Audio, Video | Read the metadata already inside a file — title, creator, keywords, date, rights and GPS position
 | link:tika/[Tika] (`tika`) | Any | Extract format metadata + text with Apache Tika
 | link:ocr/[OCR] (`ocr`) | Image | Extract text with Tesseract
 | link:vlm/[VLM] (`vlm`) | Image | Read images with a vision-language model; olmOCR document transcription
@@ -113,7 +114,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`
 | Google Drive, OneDrive or SharePoint credentials | `gdrive-source`, `onedrive-source`
 | A reachable OpenAI-compatible language model endpoint | `llm`, `translate`, `filter`
-| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `filesystem-source`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), dedup
+| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `metadata`, `filesystem-source`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), dedup
 |===
 
 Pin the heavy kinds to dedicated or GPU workers via `CORTEX_NODE_WHITELIST` — see
@@ -143,9 +144,18 @@ Thumbnail generation::
 link:thumbnail/[`thumbnail`] renders contact-sheet previews from video frames and source images and
 uploads them to Loom as asset binaries.
 
-Metadata extraction::
-link:tika/[`tika`] uses Apache Tika to pull structured and unstructured metadata out of any supported
-format — EXIF from images, codec information from video, full text from documents.
+Metadata ingest::
+link:metadata/[`metadata`] reads what a file already says about itself — the photographer's title,
+caption and keywords, the camera and exposure, the licence and credit line, and where the shutter
+was pressed — out of EXIF, IPTC, XMP, companion `.xmp` files, PDF and Office properties and audio
+tags, and normalises all of it onto one Dublin Core shape. It records which original field supplied
+each value, so nothing has to be trusted blindly, and it needs no model and no GPU. Its `text`
+output carries the authored prose alone, ready for link:translate/[`translate`],
+link:sentiment/[`sentiment`] or link:llm/[`llm`].
+
+Document text extraction::
+link:tika/[`tika`] uses Apache Tika to pull the full text out of any supported document format. It is
+the companion to link:metadata/[`metadata`]: one gives you the words, the other the properties.
 
 Scene detection::
 link:scene-detection/[`scene-detection`] splits video into scenes with an optical-flow detector,

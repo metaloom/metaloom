@@ -133,11 +133,19 @@ spec/
 │   ├── CODING.md                      # RULES for code changes (REST/DAO/Docs/Demo/Spec)
 │   └── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
 ├── concept/
-│   └── ASSET_METADATA_INGEST.md       # 🔵 CONCEPT: a `metadata` node reading EXIF/XMP/IPTC/Dublin
-│                                      #   Core out of asset files into asset_geo_comp +
-│                                      #   asset_json_comp. Nothing built; §7 is the build list
+│   ├── ASSET_METADATA_INGEST.md       # 🟢 Phase 1 BUILT: the `metadata` node reads EXIF/XMP/IPTC/
+│   │                                  #   Dublin Core out of asset files into asset_geo_comp +
+│   │                                  #   asset_json_comp. §14 tracks phases 2-3
+│   └── ASSET_METADATA_WRITE.md        # 🔵 CONCEPT: the inverse — a `metadata-write` node emitting
+│                                      #   sidecars / embedded derivatives, incl. marking AI-written
+│                                      #   values (IPTC DigitalSourceType, C2PA). Depends on INGEST
 ├── plans/
 │   ├── TASKS.md                       # Captured, not-yet-scheduled work (TASKS.template.md format)
+│   ├── CLUSTERING.md                  # 🔵 Loom is single-writer; a 2nd instance is destructive
+│   ├── NODE_REGISTRATION_PLAN.md      # 🔵 PLANNED: a Cortex worker announces its node specs
+│   │                                  #   (cortexId + nodes[] keyed by nodeId) so custom nodes reach
+│   │                                  #   the palette without rebuilding Loom. Also §5: deriving the
+│   │                                  #   spec from the node's own code. Nothing built; §13 is the order
 │   └── imagegen-node.md               # ⚠️ superseded draft — NODE_IMAGEGEN_PLAN.md is authoritative
 ├── features/                          # Cross-cutting features (span Loom + Cortex + UI)
 │   ├── DB_SCHEMA_FEEDBACK.md          # Schema audit vs. node results; resolved items marked in place
@@ -312,7 +320,8 @@ spec/
 | The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
 | The commercial edition / hosted service | ➜ **sibling repo** `metaloom-saas` — see §2.2 |
 | Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](TASKS.template.md) |
-| **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [concept/ASSET_METADATA_INGEST.md](concept/ASSET_METADATA_INGEST.md) — 🔵 **concept, nothing built**. Also the only place that records why `asset_geo_comp` is empty and where a licence should live |
+| **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [concept/ASSET_METADATA_INGEST.md](concept/ASSET_METADATA_INGEST.md) — 🟢 **phase 1 built**: the `metadata` node. The node itself is documented in [features/nodes/NODES.md](features/nodes/NODES.md); the concept keeps the standards map, the precedence rules and the phase 2-3 list |
+| **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
 | Dumping a half-formed idea | [METALOOM_NOTES.md](METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
 ### 2.2 The `metaloom-saas` sibling project

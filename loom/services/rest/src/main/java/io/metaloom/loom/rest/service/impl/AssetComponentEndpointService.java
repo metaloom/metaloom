@@ -11,6 +11,7 @@ import javax.inject.Singleton;
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
+import io.metaloom.loom.db.model.asset.AssetComponent;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
 import io.metaloom.loom.db.model.asset.AssetGeoComp;
@@ -53,6 +54,18 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 		});
 	}
 
+	/**
+	 * Insert or replace the component identified by its type, node kind and discriminators.
+	 *
+	 * <p>
+	 * This is an <b>upsert</b>, not a plain insert: every component table carries a
+	 * {@code UNIQUE (asset_uuid, node_kind, &lt;discriminators&gt;)} key, so a Cortex node re-run - or
+	 * any retried delivery - would otherwise fail on the second POST. The discriminators arrive on
+	 * {@link AssetComponentCreateRequest}: {@code method}/{@code timeFrom} for geo,
+	 * {@code streamIndex} for the media types, {@code pageNumber} for documents, and the schema type
+	 * plus variant for JSON.
+	 * </p>
+	 */
 	public void create(LoomRoutingContext lrc, UUID assetUuid) {
 		checkPerm(lrc, UPDATE_ASSET, () -> {
 			AssetComponentCreateRequest request = lrc.requestBody(AssetComponentCreateRequest.class);
@@ -66,30 +79,41 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 			switch (type) {
 			case GEO: {
 				AssetGeoComp comp = compDao.createGeoComp(userUuid, assetUuid, source);
+				setProvenance(comp, request);
+				comp.setMethod(request.getMethod() == null ? "" : request.getMethod());
+				comp.setTimeFrom(request.getTimeFrom() == null ? 0L : request.getTimeFrom());
 				GeoLocationInfo info = request.getGeo();
 				if (info != null) {
 					comp.setGeoLon(info.getLon());
 					comp.setGeoLat(info.getLat());
 					comp.setGeoAlias(info.getAlias());
+					comp.setAccuracyM(info.getAccuracyM());
 				}
-				compDao.storeGeoComp(comp);
+				compDao.upsertGeoComp(comp);
 				response = modelBuilder.toResponse(comp);
 				break;
 			}
 			case IMAGE: {
 				AssetImageComp comp = compDao.createImageComp(userUuid, assetUuid, source);
+				setProvenance(comp, request);
+				comp.setStreamIndex(streamIndex(request));
 				ImageInfo info = request.getImage();
 				if (info != null) {
 					comp.setImageDominantColor(info.getDominantColor());
 					comp.setMediaWidth(info.getWidth());
 					comp.setMediaHeight(info.getHeight());
+					comp.setOrientation(info.getOrientation());
+					comp.setBitDepth(info.getBitDepth());
+					comp.setImageEncoding(info.getEncoding());
 				}
-				compDao.storeImageComp(comp);
+				compDao.upsertImageComp(comp);
 				response = modelBuilder.toResponse(comp);
 				break;
 			}
 			case VIDEO: {
 				AssetVideoComp comp = compDao.createVideoComp(userUuid, assetUuid, source);
+				setProvenance(comp, request);
+				comp.setStreamIndex(streamIndex(request));
 				VideoInfo info = request.getVideo();
 				if (info != null) {
 					comp.setVideoBitrate(info.getBitrate());
@@ -97,13 +121,18 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 					comp.setMediaWidth(info.getWidth());
 					comp.setMediaHeight(info.getHeight());
 					comp.setMediaDuration(info.getDuration());
+					comp.setFps(info.getFps());
+					comp.setFrameCount(info.getFrameCount());
+					comp.setRotation(info.getRotation());
 				}
-				compDao.storeVideoComp(comp);
+				compDao.upsertVideoComp(comp);
 				response = modelBuilder.toResponse(comp);
 				break;
 			}
 			case AUDIO: {
 				AssetAudioComp comp = compDao.createAudioComp(userUuid, assetUuid, source);
+				setProvenance(comp, request);
+				comp.setStreamIndex(streamIndex(request));
 				AudioInfo info = request.getAudio();
 				if (info != null) {
 					comp.setAudioBpm(info.getBpm());
@@ -112,24 +141,33 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 					comp.setAudioEncoding(info.getEncoding());
 					comp.setAudioSamplingRate(info.getSamplingRate());
 					comp.setMediaDuration(info.getDuration());
+					comp.setLang(info.getLang());
+					comp.setTrackTitle(info.getTrackTitle());
+					comp.setIsDefault(info.getIsDefault());
 				}
-				compDao.storeAudioComp(comp);
+				compDao.upsertAudioComp(comp);
 				response = modelBuilder.toResponse(comp);
 				break;
 			}
 			case DOC: {
 				AssetDocComp comp = compDao.createDocComp(userUuid, assetUuid, source);
+				setProvenance(comp, request);
+				comp.setPageNumber(request.getPageNumber() == null ? 0 : request.getPageNumber());
 				DocumentInfo info = request.getDocument();
 				if (info != null) {
 					comp.setDocPlainText(info.getPlainText());
 					comp.setDocWordCount(info.getWordCount() != null ? info.getWordCount().intValue() : null);
+					comp.setPageCount(info.getPageCount());
+					comp.setTextLang(info.getTextLang());
 				}
-				compDao.storeDocComp(comp);
+				compDao.upsertDocComp(comp);
 				response = modelBuilder.toResponse(comp);
 				break;
 			}
 			case TRANSCRIPT: {
 				AssetTranscriptComp comp = compDao.createTranscriptComp(userUuid, assetUuid, source);
+				setProvenance(comp, request);
+				comp.setStreamIndex(streamIndex(request));
 				TranscriptInfo info = request.getTranscript();
 				if (info != null) {
 					comp.setLang(info.getLang());
@@ -138,18 +176,20 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 					comp.setModel(info.getModel());
 					comp.setTranscriptJson(info.getTranscriptJson());
 				}
-				compDao.storeTranscriptComp(comp);
+				compDao.upsertTranscriptComp(comp);
 				response = modelBuilder.toResponse(comp);
 				break;
 			}
 			case JSON: {
 				AssetJsonComp comp = compDao.createJsonComp(userUuid, assetUuid, source);
+				setProvenance(comp, request);
 				JsonComponentInfo info = request.getJson();
 				if (info != null) {
 					comp.setSchemaType(info.getSchemaType());
+					comp.setVariant(info.getVariant() == null ? "" : info.getVariant());
 					comp.setData(info.getData());
 				}
-				compDao.storeJsonComp(comp);
+				compDao.upsertJsonComp(comp);
 				response = modelBuilder.toResponse(comp);
 				break;
 			}
@@ -158,6 +198,22 @@ public class AssetComponentEndpointService extends AbstractEndpointService {
 			}
 			lrc.send(response, 201);
 		});
+	}
+
+	/**
+	 * Apply the fields every component table shares - the producer provenance the shared component contract defines.
+	 */
+	private void setProvenance(AssetComponent<?> comp, AssetComponentCreateRequest request) {
+		comp.setNodeId(request.getNodeId());
+		comp.setProducerVersion(request.getProducerVersion() == null ? "" : request.getProducerVersion());
+		comp.setConfidence(request.getConfidence());
+		if (request.getMeta() != null) {
+			comp.setMeta(request.getMeta());
+		}
+	}
+
+	private int streamIndex(AssetComponentCreateRequest request) {
+		return request.getStreamIndex() == null ? 0 : request.getStreamIndex();
 	}
 
 	public void load(LoomRoutingContext lrc, UUID assetUuid, UUID compUuid) {

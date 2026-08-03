@@ -1,26 +1,31 @@
 # Concept — Asset Metadata Ingest (Dublin Core / EXIF / XMP / IPTC)
 
-Status: 🔵 **Concept, nothing built.** This file proposes a new Cortex node kind `metadata` plus the
-Loom-side plumbing it needs. No code exists yet; every "today" statement below was verified against
-git HEAD `4dc0390a` and is marked with the file it was read from.
+Status: 🟢 **Phase 1 built.** The `metadata` node kind exists (`cortex/nodes/metadata/core`) and so
+does the Loom-side plumbing it needed: G1-G5 have landed. §14 tracks what is left (phases 2 and 3).
+
+This file remains the design record — the standards map (§3), the layering (§4.2), the precedence
+rules (§4.3) and the privacy reasoning (§8) are the "why" behind the code and are not repeated in
+[../features/nodes/NODES.md](../features/nodes/NODES.md), which is the reference for how the node
+behaves. **The §2 "what exists today" statements were true of git HEAD `4dc0390a`, before this work;
+they are kept as the record of what was fixed, not as current facts.**
 
 > **The one-line pitch.** Every media file already carries authored metadata — who shot it, where,
-> under which licence, with what title and keywords. MetaLoom currently throws all of it away. A
+> under which licence, with what title and keywords. MetaLoom used to throw all of it away. The
 > `metadata` node reads it, normalises it onto a Dublin-Core-shaped vocabulary, and persists it into
-> the component tables the schema *already has* (`asset_geo_comp` in particular).
+> the component tables the schema *already had* (`asset_geo_comp` in particular).
 
 Adjacent specs — read them, do not duplicate them:
 
 | File | Why it matters here |
 |---|---|
-| [../features/pipeline-nodes/SERVICE_TIKA.md](../features/pipeline-nodes/SERVICE_TIKA.md) | The existing `tika` node. It already opens a Tika `Metadata` object — and prints it to `System.out`. §2.1 |
+| [../features/nodes/SERVICE_TIKA.md](../features/nodes/SERVICE_TIKA.md) | The existing `tika` node. It already opens a Tika `Metadata` object — and prints it to `System.out`. §2.1 |
 | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) | **Rules.** The five registration touch-points, the persistence template, the required test set |
-| [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) | The node system and the per-node tables this node must be added to |
+| [../features/nodes/NODES.md](../features/nodes/NODES.md) | The node system and the per-node tables this node must be added to |
 | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) | The typed-port model the ports in §6 obey |
 | [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) · [../loom/DOMAIN.md](../loom/DOMAIN.md) | The component tables in §5 |
 | [../loom/RESTAPI.md](../loom/RESTAPI.md) | `/assets/:assetUuid/components`, the endpoint §7 has to fix |
 | [../features/search/SEARCH.md](../features/search/SEARCH.md) | `search_extract_json_text` — the hook that makes ingested titles searchable |
-| [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) | The *other* "Cortex → Loom metadata" plan. That one is about **produced artefacts and their bytes**; this one is about **metadata already inside the source file**. Different direction, no overlap |
+| [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) | The *other* "Cortex → Loom metadata" plan. That one is about **produced artefacts and their bytes**; this one is about **metadata already inside the source file**. Different direction, no overlap |
 
 ---
 
@@ -40,8 +45,9 @@ Adjacent specs — read them, do not duplicate them:
 **Out of scope** (named so nobody assumes it):
 
 - **Metadata write-back / export** — embedding MetaLoom's own values back into a file, or into a
-  derivative on the way out. That is the inverse direction and stays a note in
-  [../tasks/METALOOM_NOTES.md](../tasks/METALOOM_NOTES.md). §12 sketches why it is harder than it looks.
+  derivative on the way out. That is the inverse direction and has its own concept:
+  [ASSET_METADATA_WRITE.md](ASSET_METADATA_WRITE.md). §12 sketches why it is harder than it looks;
+  that file works it through.
 - **Body text extraction** — that is the `tika` node's job and its `content` port. This node reads
   the `Metadata` object, not the `ContentHandler`.
 - **Container/stream probing** (fps, frame count, real bitrate) — the `quality` node measures those
@@ -66,7 +72,7 @@ System.out.println(name + " " + metadata.get(name));   // MediaTikaParser.java:8
 …then falls out of the `try` and returns the literal `null`. So today: the metadata goes to stdout,
 the body text is lost too, and the `tika` JSON component always stores `{"content": ""}`. Both are
 already logged as 🔴 bugs 1 and 2 in
-[SERVICE_TIKA.md §7](../features/pipeline-nodes/SERVICE_TIKA.md), whose progress list also carries
+[SERVICE_TIKA.md §7](../features/nodes/SERVICE_TIKA.md), whose progress list also carries
 the open item *"Map Tika `Metadata` to something"*. **This concept is the answer to that item.**
 
 Two more details from that parser matter here:
@@ -297,6 +303,11 @@ different values. The rule set below follows the Metadata Working Group guidelin
 dates are written by the camera and XMP dates are frequently rewritten by editors, while EXIF text
 fields are ASCII-limited and mangle non-Latin scripts.
 
+**MetaLoom's own values never outrank a human's.** A file that carries a `metaloom:` provenance block
+(written by the `metadata-write` node, [ASSET_METADATA_WRITE.md §5](ASSET_METADATA_WRITE.md)) has its
+marked fields ingested at the *lowest* rank, with `provenance = "metaloom"` — never as authored
+ground truth. Without this rule the write → re-ingest → re-write loop degrades on every pass.
+
 Whichever source wins is recorded in `provenance`. When two sources disagree *and both are
 authoritative* (e.g. two different `DateTimeOriginal` values in EXIF and XMP more than 24 h apart),
 keep the winner, and record the loser under `raw` — do not silently drop it.
@@ -419,7 +430,7 @@ geo rows are discoverable from `asset_geo_comp WHERE node_kind='metadata'`.
 category `ANALYSIS`, icon `info`, `defaultConcurrency = 4`, `defaultMode = PARALLEL`.
 
 No `OUT_FLAGS`. `tika`'s flags port carries `"DONE"`/`"FAILED"` and duplicates the node result —
-[SERVICE_TIKA.md §7](../features/pipeline-nodes/SERVICE_TIKA.md) bug 3 already flags the mismatch
+[SERVICE_TIKA.md §7](../features/nodes/SERVICE_TIKA.md) bug 3 already flags the mismatch
 between it and its descriptor text. Do not copy it.
 
 ### 6.2 Options (`MetadataNodeOptions`, YAML key `metadata`)
@@ -467,20 +478,23 @@ envelope to a second, differently-configured instance. Required by NEW_NODE §1.
 
 ## 7. Loom-side gaps (the build list)
 
+G1-G5 have **landed**; G6-G10 have not. The fixes are recorded as built rather than deleted,
+because each one explains why a piece of the schema looks the way it does.
+
 | # | Gap | Fix | Phase |
 |---|---|---|---|
-| **G1** | `AssetComponentCreateRequest` cannot express `method`, `timeFrom`, `accuracyM`, `producerVersion`, `nodeId`, `confidence`, `streamIndex`, `pageNumber` | Add them to the request and to the `*Info` models (§2.3). Alternative considered and rejected: a dedicated `/assets/:uuid/geo-comps` sub-resource — it would fork the component API for one type | 1 |
-| **G2** | `AssetComponentEndpointService.create()` inserts; a re-run violates the unique key | Route through the existing `compDao.upsert*Comp(...)` methods. Document the endpoint as upsert, like `/fingerprints` already is | 1 |
-| **G3** | Ingested titles/descriptions/keywords are not searchable | New migration: add `WHEN 'metadata' THEN` to `search_extract_json_text`, concatenating `data->'dc'->>'title'`, `->>'description'`, the `subject` array and `creator`. ⚠️ Re-run `./setup-pool.sh` after it | 1 |
-| **G4** | No node-facing client method carries the new fields | Extend `AssetComponentMethods` / `LoomHttpClientImpl` alongside G1 | 1 |
-| **G5** | Descriptor guard counts | `NodeDescriptorServiceLoaderTest` asserts **27 providers / 37 kinds** — both literals bump to 28/38, plus the kind list and the NODES.md §8 line | 1 |
+| **G1** ✅ | `AssetComponentCreateRequest` could not express `method`, `timeFrom`, `accuracyM`, `producerVersion`, `nodeId`, `confidence`, `streamIndex`, `pageNumber` | **Done.** All of them are on the request; `accuracyM` on `GeoLocationInfo`, `orientation`/`bitDepth`/`encoding` on `ImageInfo`, `fps`/`frameCount`/`rotation` on `VideoInfo`, `lang`/`trackTitle`/`isDefault` on `AudioInfo`, `pageCount`/`textLang` on `DocumentInfo`, `variant` on `JsonComponentInfo`. `AssetComponentResponse` carries the discriminators back, so they round-trip. Alternative rejected: a dedicated `/assets/:uuid/geo-comps` sub-resource — it would fork the component API for one type | 1 |
+| **G2** ✅ | `AssetComponentEndpointService.create()` inserted; a re-run violated the unique key | **Done.** Every branch routes through `compDao.upsert*Comp(...)`, and the route description says so. Covered by `AssetComponentEndpointTest.testRepeatedCreateUpsertsRatherThanFailing` | 1 |
+| **G3** ✅ | Ingested titles/descriptions/keywords were not searchable | **Done.** `V2.65__search_metadata_json_comp.sql` adds `WHEN 'metadata'`, concatenating title, description, publisher, coverage, rights, the creator/contributor/subject arrays, the rights holder and credit, and the IPTC place. Camera settings and coordinates are deliberately excluded — they would dilute the tsvector and nobody types them into a search box | 1 |
+| **G4** ✅ | No node-facing client method carried the new fields | **Done, with no signature change:** `createAssetComponent(uuid, AssetComponentCreateRequest)` already takes the request model, so extending the model (G1) was the whole fix. `AssetComponentMethods` is untouched | 1 |
+| **G5** ✅ | Descriptor guard counts | **Done.** `NodeDescriptorServiceLoaderTest` now asserts 28 providers / 38 kinds, `metadata` is in its kind list, and NODES.md §5.1/§5.2/§8 carry the new numbers | 1 |
 | **G6** | Typed component writes (§5.3) | Depends on G1 landing the missing `*Info` fields | 2 |
 | **G7** | No read-side coalescing across producers | A view or builder that merges `metadata` + `quality` rows by producer precedence (§9.2) | 2 |
 | **G8** | The UI shows none of this | An asset metadata panel + a map pin for `asset_geo_comp`. Belongs in [../loom/ui/TASK_UI_ASSETS_MEDIA.md](../loom/ui/TASK_UI_ASSETS_MEDIA.md) | 2 |
 | **G9** | `asset_location.license` is undefined (§2.4) | Decide and document, or drop it | 2 |
 | **G10** | Rights need structure for a clearance workflow | `asset_rights_comp` (§5.4) | 3 |
 
-**Suggested build order.** Phase 1 = G1–G5 + the node writing envelope and geo. Phase 2 = G6–G9 plus
+**Build order.** Phase 1 = G1–G5 + the node writing envelope and geo — **done**. Phase 2 = G6–G9 plus
 video/audio breadth. Phase 3 = G10 and write-back (§12). Phase 1 alone delivers the headline
 capabilities the request named: geolocation, licence, and searchable authored metadata.
 
@@ -597,8 +611,13 @@ in a repository that is *about* rights metadata is an avoidable irony.
 
 ## 12. Out of scope but adjacent: write-back
 
-The [METALOOM_NOTES.md](../tasks/METALOOM_NOTES.md) entry that prompted this concept says "metadata
-**write-back**". Ingest is the tractable half; recording why write-back is not in this concept:
+**Now specified separately: [ASSET_METADATA_WRITE.md](ASSET_METADATA_WRITE.md).** That concept
+depends on this one — it serialises the §4.2 envelope back out — and it imposes one hard requirement
+*here*: a field carrying MetaLoom's own `metaloom:` provenance marker must be ingested with
+`provenance = "metaloom"` and **must not** be promoted to authored rank in the §4.3 precedence, or
+the write → re-ingest → re-write loop degrades the catalogue on every pass (see its §5.1).
+
+Ingest is the tractable half; the reasoning that sent write-back to its own file:
 
 - Writing EXIF/XMP into an original **mutates a content-addressed asset** — the SHA-512 changes, and
   the asset identity in MetaLoom *is* the hash. Write-back therefore produces a **new derivative**,
@@ -614,7 +633,7 @@ The [METALOOM_NOTES.md](../tasks/METALOOM_NOTES.md) entry that prompted this con
 
 ## 13. Key classes reference
 
-Existing code this concept builds on (all verified present), and the classes it proposes (marked 🆕).
+The code this concept builds on, and the code it produced. Everything below exists.
 
 | Class | Package / path | Role |
 |---|---|---|
@@ -630,42 +649,79 @@ Existing code this concept builds on (all verified present), and the classes it 
 | `AssetComponentCreateRequest`, `GeoLocationInfo`, `ImageInfo`, `VideoInfo`, `AudioInfo`, `DocumentInfo` | `io.metaloom.loom.rest.model.asset[.info]` | The request models to extend (G1) |
 | `AssetComponentType` | same | `GEO`, `DOC`, `IMAGE`, `VIDEO`, `AUDIO`, `TRANSCRIPT`, `JSON` |
 | `LoomHttpClientImpl` | `io.metaloom.loom.client.http.impl` | `createAssetComponent`, `createAssetJsonComp` |
-| 🆕 `MetadataNode` | `io.metaloom.cortex.node.metadata` | The node |
-| 🆕 `MetadataExtractor` | same | L1: file → raw key/value map (Tika + optional metadata-extractor) |
-| 🆕 `MetadataMapper` | same | L2: raw → canonical envelope; owns the §4.3 precedence table |
-| 🆕 `AssetMetadata` (+ `DcBlock`, `RightsBlock`, `CaptureBlock`, `GeoBlock`) | same | The envelope value types |
-| 🆕 `LicenseResolver` | same | `licenseUrl` → SPDX-style `licenseId` |
-| 🆕 `MetadataNodeOptions` / `MetadataNodeModule` | same | Options + Dagger bindings |
-| 🆕 `MetadataDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Descriptor + ServiceLoader entry |
+| `MetadataNode` | `io.metaloom.cortex.node.metadata` (`cortex/nodes/metadata/core`) | The node |
+| `MetadataExtractor` | same | L1: file → `RawMetadata`. `metadata-extractor` for images, Tika for everything else (§14.1) |
+| `MetadataMapper` | same | L2: `RawMetadata` → canonical envelope; owns the §4.3 precedence table |
+| `AssetMetadata` (+ `DcBlock`, `RightsBlock`, `CaptureBlock`, `GeoBlock`, `Envelopes`) | same | The envelope value types |
+| `RawMetadata` | same | L1: the source-qualified key/value view — the seam the precedence rules and their tests are written against |
+| `LicenseResolver` | same | `licenseUrl` → SPDX-style `licenseId` |
+| `MetadataNodeOptions` / `MetadataNodeModule` / `GpsPolicy` / `DateFallback` | same | Options, enums and Dagger bindings |
+| `ExifJpegFixture` / `XmpFixture` | `…metadata.fixture` (test-jar) | Byte-level EXIF/GPS/XMP writers — the fixtures, generated rather than committed (§14.1) |
+| `MetadataDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Descriptor + ServiceLoader entry |
 
 ---
 
 ## 14. Progress Assessment
 
-Nothing is built. Phase 1 is the minimum that delivers value.
+**Phase 1 is built and green.** 88 tests across the node module, the endpoint, the DAO and the
+integration suite.
 
-**Phase 1 — envelope, geo, search**
+**Phase 1 — envelope, geo, search** ✅
 
-- [ ] `cortex/nodes/metadata/core` module, copied from the `tika` shape
-- [ ] `MetadataExtractor` — Tika parser list **including `JpegParser`/`TiffParser`/`HeifParser`/`PSDParser`**, a discarding content handler, `StandardWriteFilter` cap
-- [ ] `MetadataMapper` + the §4.3 precedence table + `MetadataMapperTest` (write the test first — it is the design)
-- [ ] `AssetMetadata` envelope types, `v: 1`
-- [ ] `LicenseResolver` for the well-known CC/PD URLs
-- [ ] `MetadataNodeOptions` (§6.2) — and `MetadataNode implements PipelineConfigurable`, **not** `@Singleton`, with an overridden `nodeId()`
-- [ ] Ports `IN_MEDIA` / `OUT_METADATA` / `OUT_TEXT` / `OUT_GEO`, options-aware `LocalResultCache`
-- [ ] Persist the envelope to `asset_json_comp` (`schemaType=metadata`, `producerVersion=metadata/1`) + ledger row
-- [ ] **G1** — `method`/`timeFrom`/`accuracyM`/`producerVersion`/`nodeId`/`confidence` on `AssetComponentCreateRequest` and the `*Info` models
-- [ ] **G2** — `AssetComponentEndpointService.create()` routed through `upsert*Comp`; endpoint documented as upsert
-- [ ] **G4** — client methods carry the new fields
-- [ ] Persist `asset_geo_comp` rows (`method=exif|xmp|sidecar|gps-track`), incl. the decimated GPS-track path
-- [ ] **G3** — migration adding `WHEN 'metadata'` to `search_extract_json_text`; then `./setup-pool.sh`
-- [ ] Registration touch-points 1–5 from [NEW_NODE.md §2](../guidelines/NEW_NODE.md)
-- [ ] **G5** — descriptor guard counts 27→28 / 37→38, kind list, NODES.md §8 line
-- [ ] The full test set in §10, incl. the new `loom-test-env` fixtures with recorded provenance
-- [ ] `gpsPolicy` implemented and covered by a test
-- [ ] Website page `website/content/english/docs/nodes/metadata/index.adoc` + the three `_index.adoc` edits
-- [ ] Spec updates: NODES.md (§2 persistence, §3 node list, §4 cache key, §5.1/§5.2 wiring, §6.2/§6.3 options), NODE_DATA_TYPES.md §4 port rows
-- [ ] `DemoDatabaseInitializer` — add `metadata` to a demo ingest pipeline (it needs no GPU, so unlike the sidecar nodes it belongs there)
+- [x] `cortex/nodes/metadata/core` module, in the `tika` shape
+- [x] `MetadataExtractor` — a discarding content handler and a `StandardWriteFilter` cap. **Deviation:** images go through `metadata-extractor` directly rather than through a Tika parser list. See §14.1
+- [x] `MetadataMapper` + the §4.3 precedence table + `MetadataMapperTest` (34 cases, one per rule, no fixtures)
+- [x] `AssetMetadata` envelope types, `v: 1`, with `DcBlock` / `RightsBlock` / `CaptureBlock` / `GeoBlock`
+- [x] `LicenseResolver` for the well-known CC/PD URLs
+- [x] `MetadataNodeOptions` (§6.2) — and `MetadataNode implements PipelineConfigurable`, **not** `@Singleton`, with an overridden `nodeId()`
+- [x] Ports `IN_MEDIA` / `OUT_METADATA` / `OUT_TEXT` / `OUT_GEO`, options-aware `LocalResultCache`
+- [x] Persist the envelope to `asset_json_comp` (`schemaType=metadata`, `producerVersion=metadata/1`) + ledger row
+- [x] **G1** — the discriminators and provenance on `AssetComponentCreateRequest`, the missing fields on the `*Info` models, and the discriminators back on `AssetComponentResponse`
+- [x] **G2** — `AssetComponentEndpointService.create()` routed through `upsert*Comp`; route documented as upsert
+- [x] **G4** — no client signature change was needed; the request model carries the fields
+- [x] Persist `asset_geo_comp` rows (`method=exif|xmp|sidecar`), with the decimation cap in place
+- [x] **G3** — `V2.65__search_metadata_json_comp.sql`; pool re-provisioned
+- [x] Registration touch-points 1–5 from [NEW_NODE.md §2](../guidelines/NEW_NODE.md)
+- [x] **G5** — descriptor guard counts 27→28 / 37→38, kind list, NODES.md §5.1/§5.2/§8
+- [x] The test set in §10. **Deviation:** the fixtures are built in code, not added to `loom-test-env`. See §14.1
+- [x] `gpsPolicy` implemented and covered — in the mapper test, the node test and the persistence test
+- [x] Website page `website/content/english/docs/nodes/metadata/index.adoc` + the three `_index.adoc` edits
+- [x] Spec updates: NODES.md (§2 persistence, §3 node list, §4 cache key, §5.1/§5.2 wiring, §6.2/§6.3 options), NODE_DATA_TYPES.md §4 port rows
+- [x] `DemoDatabaseInitializer` — `metadata` is in the medium ingest pipeline
+
+### 14.1 Where the build deviated from this concept
+
+Four places. Each is a case of the code winning, per [CODING.md](../guidelines/CODING.md).
+
+| Concept said | Built instead | Why |
+|---|---|---|
+| §4.4: one Tika `AutoDetectParser` with `JpegParser`/`TiffParser`/`HeifParser`/`PSDParser` added | **Two readers.** `metadata-extractor` directly for images, Tika for documents/audio/video | Tika's `ImageMetadataExtractor` merges EXIF, IPTC and XMP into one flat namespace **and applies its own precedence while doing it** — its `IptcHandler` overwrites whatever `ExifHandler` put in `dc:title`. That is exactly the distinction §4.3's rules are written in, so it has to survive layer 1. `metadata-extractor` and `xmpcore` were already transitive Tika deps, so this adds no new dependency — only an explicit version pin in the bom |
+| §6.1: `OUT_GEO` is `optionalOne` | `OutputPort.one` | `OutputPort` has `one` and `many` and nothing else; optionality is expressed by not writing the port, exactly as `watermark` branches between `image` and `video`. The descriptor matches, so `NodePortConformanceTest` passes |
+| §10: add `imageExifGps()` etc. to `loom-test-env` | `ExifJpegFixture`, a byte-level EXIF/GPS/XMP writer in the node's test sources, published as a test-jar for the integration test | The `loom-test-env` corpus is an **unversioned directory** (`/opt/metaloom/loom-testdata`), so a fixture added there is not a fixture anybody else has. Generating the bytes makes the fixture reviewable, varies per test ("southern hemisphere, no lens tag") and needs no external tool. §10's provenance requirement is moot: nothing is copied from anywhere |
+| §4.3: `dc.title` may fall back to the filename stem | Not implemented | §6.2 lists no option to enable it, and the concept's own sentence names `dateFallback`, which is about dates. A filename is not a title, and inventing one silently is the kind of value the "absent ≠ empty" rule exists to prevent |
+
+Four additions the concept did not name, all in the same spirit:
+
+- **`container:Rights` is in the `dc.rights` precedence**, at the lowest authored rank. A PDF states
+  its rights in its own properties and nowhere else; leaving it out would have dropped them.
+- **`rights.marked` defaults to `true` when a copyright notice exists.** §4.3 prescribes exactly this
+  for EXIF `Copyright`; it is applied to whichever statement won rather than to EXIF alone.
+- **`geo.method`** is in the envelope, carrying the same value as the component row's `method`. The
+  §4.2 example omits it, but a reader holding only the envelope could otherwise not tell an EXIF
+  coordinate from a sidecar one — which is the distinction the geo component is keyed on.
+- **`geo.sampleCount`** appears only when a track carried more than one reading, as the pointer to
+  `asset_geo_comp` for the rest. The envelope still carries the representative reading alone, per
+  §4.2; duplicating a thousand samples into it would defeat the point of the component table.
+
+### 14.2 Known gaps carried forward
+
+- **No GPS track extractor.** `asset_geo_comp` is keyed for one row per sample and the node writes a
+  list, so the multi-row path exists end to end — but nothing produces more than one sample today,
+  because neither Tika nor `metadata-extractor` exposes GPMF or `gpsd` boxes. `gpsTrackMaxSamples`
+  and the decimation are implemented and unit-tested against a synthetic track.
+- **`rawFormats` is not an option.** Camera RAW goes through `metadata-extractor` already (it reads
+  CR2/NEF/ARW/DNG), so the gate the concept proposed had nothing to gate. Maker notes appear in the
+  raw dump under `tag:` when `includeRaw` is on.
 
 **Phase 2 — typed components, breadth, UI**
 
@@ -683,7 +739,7 @@ Nothing is built. Phase 1 is the minimum that delivers value.
 - [ ] General metadata write-back, if still wanted after redaction ships
 
 **Follow-on cleanup this concept unblocks** (owned by
-[SERVICE_TIKA.md](../features/pipeline-nodes/SERVICE_TIKA.md), not by this file)
+[SERVICE_TIKA.md](../features/nodes/SERVICE_TIKA.md), not by this file)
 
 - [ ] Delete the `System.out.println` dump from `MediaTikaParser` — this node makes it redundant
 - [ ] Decide `JpegParser`/`RTFParser` in `MediaTikaParser`: re-enable, or record that `metadata` owns image EXIF now
@@ -694,6 +750,10 @@ Nothing is built. Phase 1 is the minimum that delivers value.
 
 | I need … | Path |
 |---|---|
+| **The node itself** | `cortex/nodes/metadata/core/src/main/java/io/metaloom/cortex/node/metadata/` |
+| **The precedence rules, and the test that is the design** | `MetadataMapper.java` · `src/test/.../MetadataMapperTest.java` |
+| **The EXIF fixture writer** | `src/test/.../metadata/fixture/ExifJpegFixture.java` (published as a test-jar) |
+| **The search extraction branch** | `loom/db/flyway/…/V2.65__search_metadata_json_comp.sql` |
 | The node to copy | `cortex/nodes/tika/core/src/main/java/io/metaloom/cortex/node/tika/` |
 | Where metadata is read and thrown away today | `…/tika/MediaTikaParser.java:80-91` |
 | Tika version | `bom/pom.xml` → `<tika.version>` (3.2.2) |
@@ -716,6 +776,8 @@ Nothing is built. Phase 1 is the minimum that delivers value.
 
 ---
 
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 — initial concept. All "today" claims verified against this checkout; the
-standards summary in §3 is external reference material._
+_Git HEAD revision: `23746123`_
+_Last updated: 2026-08-03 — phase 1 built. §2's "today" statements describe HEAD `4dc0390a`, before
+this work, and are kept as the record of what was fixed; §7 marks G1-G5 landed; §14.1 records the
+four places the build deviated from this design and why. The standards summary in §3 is external
+reference material._

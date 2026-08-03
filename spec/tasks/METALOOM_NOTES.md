@@ -10,13 +10,6 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 - Static code analysis
 - code review markdown file with rules
-- Metadata **ingest** (Dublin Core / EXIF / XMP / IPTC) → promoted to
-  [../concept/ASSET_METADATA_INGEST.md](../concept/ASSET_METADATA_INGEST.md). Dublin Core is 15
-  elements (~55 with `dcterms:` refinements); the `tika` node already reads EXIF-adjacent metadata
-  and prints it to `System.out`, and `asset_geo_comp` is already shaped for it. Metadata
-  **write-back** stays open here — see §12 of that concept for why it is a separate, harder node
-  (it changes the content hash, so it produces a derivative rather than editing in place).
-- How can nodes register themself onto loom? How can custom nodes automatically be picked up and how can the UI allow those nodes to be used for pipelines
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
 - Add way of viewing notifications in the UI (How are notifications tracked in loom?)
 - Add semantic ingestion node. This allows constructed semantic data to be ingested into loom

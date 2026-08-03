@@ -179,6 +179,37 @@ public class SearchDocumentSourceTest extends AbstractJooqTest {
 	}
 
 	@Test
+	public void testFindsAssetByIngestedMetadata() {
+		Asset asset = storeAsset("fuji.jpg", "/media/fuji.jpg");
+		storeJsonComp(asset, "metadata", "metadata", new JsonObject()
+			.put("v", 1)
+			.put("dc", new JsonObject()
+				.put("title", "Sunrise over Fuji")
+				.put("description", "Taken from the fifth station")
+				.put("creator", new io.vertx.core.json.JsonArray().add("Jane Doe"))
+				.put("subject", new io.vertx.core.json.JsonArray().add("sunrise").add("mountain"))));
+
+		assertTrue(hitsAsset(search("Fuji"), asset.getUuid()), "An ingested title must be searchable");
+		assertTrue(hitsAsset(search("station"), asset.getUuid()), "An ingested description must be searchable");
+		// The arrays are the ones a naive ->> would silently drop.
+		assertTrue(hitsAsset(search("mountain"), asset.getUuid()), "Ingested keywords must be searchable");
+		assertTrue(hitsAsset(search("Jane"), asset.getUuid()), "The creator must be searchable");
+	}
+
+	@Test
+	public void testMetadataCameraSettingsAreNotIndexed() {
+		Asset asset = storeAsset("camera.jpg", "/media/camera.jpg");
+		storeJsonComp(asset, "metadata", "metadata", new JsonObject()
+			.put("v", 1)
+			.put("capture", new JsonObject().put("make", "SONY").put("model", "ILCE-7M3"))
+			.put("geo", new JsonObject().put("lat", 35.360833).put("lon", 138.7275)));
+
+		// Only the authored half is indexed. Camera bodies and coordinates would dilute the
+		// tsvector without anyone ever typing them into a search box.
+		assertFalse(hitsAsset(search("ILCE"), asset.getUuid()), "Camera settings must not be indexed as text");
+	}
+
+	@Test
 	public void testFindsTagByName() {
 		User user = adminUser();
 		Tag tag = tagDao().createTag(user, "seascape", "nature");

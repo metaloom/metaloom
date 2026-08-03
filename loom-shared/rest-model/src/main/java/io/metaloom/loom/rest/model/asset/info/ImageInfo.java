@@ -15,6 +15,15 @@ public class ImageInfo implements RestModel {
 
 	private Integer height;
 
+	@JsonPropertyDescription("The EXIF orientation flag (1-8) as declared by the file.")
+	private Integer orientation;
+
+	@JsonPropertyDescription("Bits per channel.")
+	private Integer bitDepth;
+
+	@JsonPropertyDescription("The image codec / container encoding, e.g. jpeg, png.")
+	private String encoding;
+
 	public String getSource() {
 		return source;
 	}
@@ -48,6 +57,33 @@ public class ImageInfo implements RestModel {
 
 	public ImageInfo setDominantColor(String dominantColor) {
 		this.dominantColor = dominantColor;
+		return this;
+	}
+
+	public Integer getOrientation() {
+		return orientation;
+	}
+
+	public ImageInfo setOrientation(Integer orientation) {
+		this.orientation = orientation;
+		return this;
+	}
+
+	public Integer getBitDepth() {
+		return bitDepth;
+	}
+
+	public ImageInfo setBitDepth(Integer bitDepth) {
+		this.bitDepth = bitDepth;
+		return this;
+	}
+
+	public String getEncoding() {
+		return encoding;
+	}
+
+	public ImageInfo setEncoding(String encoding) {
+		this.encoding = encoding;
 		return this;
 	}
 

@@ -34,8 +34,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testAllProvidersAreDiscovered() {
 		List<NodeDescriptorProvider> providers = loadProviders();
 
-		assertEquals(27, providers.size(),
-			"Expected 27 descriptor providers via ServiceLoader but found " + providers.size()
+		assertEquals(28, providers.size(),
+			"Expected 28 descriptor providers via ServiceLoader but found " + providers.size()
 				+ ". If a provider was intentionally added or removed, update this count and "
 				+ "META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider together. "
 				+ "Discovered: " + providerNames(providers));
@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(37, registry.size(),
-			"Expected 37 advertised node kinds but found " + registry.size()
+		assertEquals(38, registry.size(),
+			"Expected 38 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -78,6 +78,7 @@ public class NodeDescriptorServiceLoaderTest {
 			"llm",                // former cortex-llm-api
 			"vlm",                // vision-language model node
 			"tika",               // former cortex-tika-api
+			"metadata",           // EXIF / IPTC / XMP / container metadata ingest
 			"quality",            // former cortex-quality-api
 			"consistency",        // former cortex-consistency-api
 			"scene-detection",    // former cortex-scene-detection-api

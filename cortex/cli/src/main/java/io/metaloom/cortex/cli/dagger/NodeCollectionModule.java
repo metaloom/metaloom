@@ -23,6 +23,7 @@ import io.metaloom.cortex.node.source.fs.FilesystemSourceNodeModule;
 import io.metaloom.cortex.node.sink.s3.S3SinkNodeModule;
 import io.metaloom.cortex.node.source.s3.S3SourceNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
+import io.metaloom.cortex.node.metadata.MetadataNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
 import io.metaloom.cortex.node.translate.TranslateNodeModule;
 import io.metaloom.cortex.node.tts.TtsNodeModule;
@@ -42,6 +43,7 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	OCRNodeModule.class,
 	FacedetectNodeModule.class,
 	DedupNodeModule.class,
+	MetadataNodeModule.class,
 	TikaNodeModule.class,
 	LLMNodeModule.class,
 	VlmNodeModule.class,

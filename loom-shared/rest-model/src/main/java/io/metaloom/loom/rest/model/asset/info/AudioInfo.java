@@ -1,10 +1,21 @@
 package io.metaloom.loom.rest.model.asset.info;
 
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+
 import io.metaloom.loom.rest.model.RestModel;
 
 public class AudioInfo implements RestModel {
 
 	private String source;
+
+	@JsonPropertyDescription("The track language as declared by the container.")
+	private String lang;
+
+	@JsonPropertyDescription("The track title as declared by the container.")
+	private String trackTitle;
+
+	@JsonPropertyDescription("Whether the container marks this as the default track.")
+	private Boolean isDefault;
 
 	private Integer channels;
 
@@ -78,6 +89,33 @@ public class AudioInfo implements RestModel {
 
 	public AudioInfo setBitrate(Integer bitrate) {
 		this.bitrate = bitrate;
+		return this;
+	}
+
+	public String getLang() {
+		return lang;
+	}
+
+	public AudioInfo setLang(String lang) {
+		this.lang = lang;
+		return this;
+	}
+
+	public String getTrackTitle() {
+		return trackTitle;
+	}
+
+	public AudioInfo setTrackTitle(String trackTitle) {
+		this.trackTitle = trackTitle;
+		return this;
+	}
+
+	public Boolean getIsDefault() {
+		return isDefault;
+	}
+
+	public AudioInfo setIsDefault(Boolean isDefault) {
+		this.isDefault = isDefault;
 		return this;
 	}
 

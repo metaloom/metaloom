@@ -101,7 +101,7 @@ Every persisting node does two things inside `compute()`, guarded by `asset != n
    → `POST /api/v1/assets/:uuid/node-results` → `asset_node_result`, **UNIQUE (asset_uuid, node_kind, node_id)**.
    Best-effort: a ledger failure never fails the node.
 
-All 30 node classes call `recordNodeResult`. ⚠️ `WhisperNode` declares a **private overload** that
+All 31 node classes call `recordNodeResult`. ⚠️ `WhisperNode` declares a **private overload** that
 shadows the base method — do not copy it.
 
 | Node(s) | Typed payload → table | Client method |
@@ -114,13 +114,21 @@ shadows the base method — do not copy it.
 | `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) | `createAssetTranscript` |
 | `scene-detection` | `assets/:uuid/segments` → `asset_segment_comp` (whole-set **replace**) | `createAssetSegmentComps` |
 | `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
+| `metadata` | `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=metadata`) **+** `assets/:uuid/components` → `asset_geo_comp`, one row per reading (`method` = `exif`/`xmp`/`sidecar`) | `createAssetJsonComp`, `createAssetComponent` |
 | `script` | `asset_json_comp` (`variant` = node id) **+** `asset_segment_comp` for `TIMEFRAMES` outputs | `createAssetJsonComp`, `createAssetSegmentComps` |
 | `s3-sink` | one `asset` **per uploaded artifact** (`origin` = the `s3://` URI) + `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) on the source asset | `createAsset`, `createAssetJsonComp` |
 | `fingerprint-dedup` | `dedup-groups` → `dedup_group` + `dedup_group_member` | `createDedupGroup` |
 | `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
-`quality`, `tika`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`, `s3-artifact`.
+`quality`, `tika`, `metadata`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`,
+`s3-artifact`.
+
+`metadata` is the **only node that writes a typed component through the generic
+`/assets/:uuid/components` endpoint**. That endpoint now *upserts* (it used to plain-insert, which
+made a second pipeline run violate `asset_geo_comp_unique_key`) and `AssetComponentCreateRequest`
+carries the discriminators a node needs: `method`, `timeFrom`, `streamIndex`, `pageNumber`, plus the
+shared `nodeId` / `producerVersion` / `confidence` / `meta`.
 
 ### 2.1 Ledger-only nodes and produced bytes
 
@@ -138,7 +146,7 @@ worker** as the producer and nothing enforces that (§10).
 
 ## 3. Node Reference
 
-**29 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
+**30 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
 leftover directory with no `pom.xml` and is not a module — do not list or resurrect it.
 
 Layout is `cortex/nodes/<name>/core/` except `filesystem-source`, `s3-source` and `cloud-source`,
@@ -164,6 +172,7 @@ Port ids only; content types and cardinality are in
 | `facedescription` | `FacedescriptionNode` · facedetect | video, image | `detections` (MANY) → `descriptions` (MANY) | `asset_json_comp` | LLM |
 | `ocr` | `OCRNode` · ocr | image | `media` → `text` | `asset_json_comp` | Tesseract |
 | `tika` | `TikaNode` · tika | image, audio, video, document | `media` → `content`, `flags` | `asset_json_comp` | — |
+| `metadata` | `MetadataNode` · metadata | image, audio, video, document | `media` → `metadata`, `text`, `geo` | `asset_json_comp` + `asset_geo_comp` | — |
 | `whisper` | `WhisperNode` · whisper | video, audio | `audio` \| `video` → `transcript` | `asset_transcript_comp` | whisper.cpp |
 | `llm` | `LLMNode` · llm | any (filename-driven) | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | OpenAI-compatible |
 | `vlm` | `VlmNode` · vlm | image | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | OpenAI-compat VLM |
@@ -202,6 +211,15 @@ Notes worth knowing:
   shape: `llm` reads `media` and prompts from the filename, so no transcript can reach it.
   `translate` chunks input larger than `maxChunkChars` on paragraph then sentence boundaries and
   rejoins the answers — one model call per chunk.
+- **`metadata` is the only `PipelineConfigurable` analysis node.** Its options *are* the work — a
+  public-library pipeline rounds coordinates while the internal archive keeps them — so it reads them
+  off the node definition, is not `@Singleton`, and overrides `nodeId()`. It also reads images with
+  `metadata-extractor` directly rather than through Tika, because Tika's image path flattens EXIF,
+  IPTC and XMP into one namespace and applies its own precedence on the way, which is exactly what
+  `MetadataMapper`'s rules are stated in terms of. Tika still handles documents, audio and video.
+- **`metadata` and `tika` are complements, not alternatives.** `tika` extracts the document body;
+  `metadata` reads what the file says about itself. Both may run on the same asset; their components
+  are keyed by `node_kind` so they never collide.
 - **Two sidecars serve `imagegen`**: `ideogram-sidecar` (`9200`, SDXL-Turbo, non-commercial weights)
   and `mage-flow-sidecar` (`9210`, MIT weights). Same HTTP contract; pick via the `port` option.
 
@@ -274,6 +292,7 @@ Two independent layers — confusing them is a classic mistake.
 | `watermark` | `absolutePath \| sha256(watermark bytes, relX/relY, scale, opacity, codec, crf, preset)`, re-checked with `Files.exists` |
 | `script` | `absolutePath \| scriptHash` |
 | `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
+| `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
 | everything else | `absolutePath` **only** |
 
 The consequence is concrete: `sentiment` re-uses the first score for a file even when a different
@@ -294,32 +313,32 @@ flowchart TD
   M["cortex/nodes/&lt;name&gt;/core<br/>XNodeModule"]
   M -->|"@Binds @IntoSet FilesystemNode"| S["Set&lt;FilesystemNode&gt;<br/>(legacy CLI)"]
   M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>30 entries"]
-  NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = 26 node modules)"] --> M
+  NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = 29 node modules)"] --> M
   K --> R["RegistryNodeRegistrar.registerAll()"]
   SRC["filesystem-source · asset-source<br/>+ s3-source when s3Support.isActive()<br/>+ gdrive-source / onedrive-source per configured provider"] --> R
-  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>34 kinds (33 without S3)"]
+  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>35 kinds (34 without S3)"]
   F --> W["registeredTypes() → announced nodeWhitelist"]
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>27 NodeDescriptorProviders → 35 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>28 NodeDescriptorProviders → 38 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **32** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **33** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
-  `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `tika`, `llm`, `vlm`,
-  `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`, `whisper`,
-  `tts`, `sentiment`, `translate`, `script`, `depthmap`, `scene-layout`, `dominant-color`,
-  `watermark`, `filter`, `s3-sink`.
-  All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java` (28 module classes).
+  `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `tika`, `metadata`,
+  `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
+  `whisper`, `tts`, `sentiment`, `translate`, `script`, `depthmap`, `scene-layout`,
+  `dominant-color`, `watermark`, `filter`, `s3-sink`.
+  All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java` (29 module classes).
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
   `filesystem-source` and `asset-source` always, `s3-source` **only when `s3Support.isActive()`**,
   and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
   configured. The gate is per provider rather than per module, which is the reason the two clouds
   are two kinds sharing one implementation rather than one kind with a `provider` parameter.
-- **Total runnable: 35 with S3 configured, 34 without.**
+- **Total runnable: 36 with S3 configured, 35 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -330,9 +349,7 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **27 providers declare 37 kinds.**
-The two cloud kinds live in the existing `SourceDescriptorProvider`, so the provider count is
-unchanged — only the kind count moves.
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **28 providers declare 38 kinds.**
 `NodeDescriptorServiceLoaderTest` asserts both literals — that test failing after you add a node is
 the intended tripwire, not a regression.
 
@@ -340,12 +357,12 @@ Reconciling the two registries:
 
 | Set | Count | Members |
 |---|---|---|
-| Descriptor **and** runnable | 34 | the 31 kind bindings minus `sha512-dedup`, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` |
+| Descriptor **and** runnable | 35 | the 33 kind bindings minus `sha512-dedup`, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` |
 | Descriptor only — **not runnable** | 2 | `facedescription`, `loom-fetch` |
 | Runnable only — **no descriptor** | 2 | `sha512-dedup` (alias), `asset-source` |
 
 🔴 The descriptor is an enforced contract, not decoration: `PortGraphAnalyzer` validates every edge
-against it at save time and at run start. `NodePortConformanceTest` (24 `NODE_KINDS` entries) compares
+against it at save time and at run start. `NodePortConformanceTest` (29 `NODE_KINDS` entries) compares
 port constants against `PortSpec`s in both directions; `script`/`llm`/`vlm`/`filter` are exempt on the
 **output** side via `DYNAMIC_KINDS` (inputs are still compared).
 
@@ -373,9 +390,9 @@ port constants against `PortSpec`s in both directions; `script`/`llm`/`vlm`/`fil
 Everything else matches its kind, except the four hash kinds which share `KEY = "hash"` and the two
 `dedup` classes which share `DedupNodeOptions`. Full set: `hash`, `thumbnail`, `fingerprint` (no
 fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `facedetection`, `quality`,
-`scene-detector` (no fields), `captioning`, `llm`, `vlm`, `sentiment`, `tts`, `depthmap`,
-`scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`, `script`,
-`s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
+`scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `tts`,
+`depthmap`, `scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`,
+`script`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
 
 ### 6.3 Per-node option defaults
 
@@ -394,6 +411,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `translate` | `targetLanguage` (`en`), `sourceLanguage` (`auto`), `model` (`google/gemma-2-27b-it`), `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `promptTemplate` (must contain `${text}`), `maxChunkChars` (8000), `maxChars` (200000) |
 | `tts` | `ttsHost` (`localhost`), `ttsPort` (9100), `language` (`de`), `voice` (`Jakob`) |
 | `depthmap` | `depthHost` (`localhost`), `depthPort` (9120), `mode` (`RELATIVE`\|`METRIC`), `model` (null), `maxDim` (1024), `timeoutMs` (120000) |
+| `metadata` | `includeRaw` (false), `rawMaxKeys` (500), `rawMaxValueBytes` (4096), `readXmpSidecar` (true), `writeGeoComponent` (true), `gpsTrackMaxSamples` (1000), `gpsPolicy` (`KEEP`\|`ROUND`\|`DROP`), `gpsRoundDecimals` (2), `emitText` (true), `licenseDetection` (true), `dateFallback` (`NONE`\|`FILESYSTEM`), `excludeKeys` (`[]`). ⚠️ Read from the **node definition**, not the worker YAML — see §6.5 |
 | `scene-layout` | `allowLoomFallback` (true), `coreInset` (0.25), `minCorePixels` (16), `depthZThreshold` (1.0), `occlusionMinOverlap` (0.05), `containmentRatio` (0.85), `nextToMaxGap` (0.5), `foregroundQuantile` (0.66), `backgroundQuantile` (0.33), `maxObjects` (40), `maxRelations` (200), `emitPhrases` (true) |
 | `dominant-color` | `clusterCount` (5), `maxSamples` (40000), `maxIterations` (30), `convergenceEpsilon` (0.5), `seed` (42), `alphaThreshold` (128), `minRegionPixels` (64), `maxRegions` (32), `includeWholeImage` (true), `useDetections` (true), `regionX/Y/W/H` (0.0), `regionCoordinates` (`NORMALIZED`), `achromaticChroma` (12.0), `blackLightness` (20.0), `whiteLightness` (85.0), `emitPalette` (true) |
 | `imagegen` | `mode` (`GENERATE`\|`REMIX`), `prompt` (``), `host` (`localhost`), `port` (9200), `generateEndpoint` (`/generate`), `remixEndpoint` (`/remix`), `width`/`height` (1024), `strength` (0.6), `seed` (null), `steps` (30), `timeoutMs` (120000) |
@@ -435,8 +453,9 @@ for a model path or a sidecar address and wrong for a node whose configuration *
 public interface PipelineConfigurable { void configure(JsonObject nodeDef); }
 ```
 
-`RegistryNodeRegistrar.adapt(...)` calls it **only** for implementors — today `ScriptNode` and
-`S3SinkNode`. Their options arrive **flattened** onto the top level of the node definition, alongside
+`RegistryNodeRegistrar.adapt(...)` calls it **only** for implementors — today `ScriptNode`,
+`S3SinkNode` and `MetadataNode`. (`metadata` is the first *analysis* node in the set: its privacy
+policy has to be per pipeline, because one library publishes coordinates and another must not.) Their options arrive **flattened** onto the top level of the node definition, alongside
 the adapter fields it also reads there:
 
 | Field | Default |
@@ -490,13 +509,13 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
 | `NodePortConformanceTest` | `integration-test/.../node/` | port constants ↔ descriptor `PortSpec`s, both directions |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | the 27/37 literals + no duplicate kinds |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | the 28/38 literals + no duplicate kinds |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,
-`PipelineAssertions`, `PipelineResultAssert`, `PipelineNodeResultAssert`. **18 subclasses** today:
-17 `*NodePipelineTest` (hash ×3, depthmap, dominant-color, facedetect, fingerprint, imagegen, llm,
-scene-layout, script, sentiment, thumbnail, tts, videogen, watermark, whisper) plus
+`PipelineAssertions`, `PipelineResultAssert`, `PipelineNodeResultAssert`. **19 subclasses** today:
+18 `*NodePipelineTest` (hash ×3, depthmap, dominant-color, facedetect, fingerprint, imagegen, llm,
+metadata, scene-layout, script, sentiment, thumbnail, tts, videogen, watermark, whisper) plus
 `AbstractFilterNodeTest`.
 
 ⚠️ **There are no edges in that harness** — a node's input port is filled from whatever earlier node
@@ -515,7 +534,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 | Rule | Why |
 |---|---|
-| **Failure is always `.abort()`** | `ctx.failure(msg).next()` builds a SUCCESS result. Only 4 of 30 nodes get this right today (§10) |
+| **Failure is always `.abort()`** | `ctx.failure(msg).next()` builds a SUCCESS result. Only 5 of 31 nodes get this right today (§10) |
 | **A cache hit is SUCCESS + `ResultOrigin.LOCAL`, and must re-emit** | SKIPPED means "produced nothing", which starves every downstream node bound to that port |
 | **Put the options hash in the cache key** | Path-only keys serve stale results when an option or an upstream payload changes. `dominant-color` is the model |
 | **`KEY` ≠ kind, sometimes** | `facedetect`/`facedetection` and `scene-detection`/`scene-detector` really do differ. The `@StringKey`, `name()` and descriptor `kind` must all agree; only the options `KEY` may lag |
@@ -560,20 +579,20 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ### Correctness
 
-- [ ] 🔴 **`ctx.failure(cause).next()` reports SUCCESS in 15 of 30 node classes** (18 call sites):
+- [ ] 🔴 **`ctx.failure(cause).next()` reports SUCCESS in 15 of 31 node classes** (18 call sites):
       `FingerprintNode`, `ThumbnailNode`, `QualityNode` (×2), `TikaNode`, `FacedetectNode`,
       `WhisperNode`, `TtsNode`, `SentimentNode`, `DepthmapNode`, `SceneLayoutNode`, `ImageGenNode`,
       `VideoGenNode`, `HashDedupNode`, `FingerprintDedupNode` (×2), `FingerprintDedupApplyNode` (×2).
       A failed run is reported to the pipeline as a green node with no outputs, so `nodeFailedCounts`,
       blocking-dependency skipping and the UI status all see a success — while the
       `asset_node_result` ledger correctly records FAILED.
-      Only `WatermarkNode`, `S3SinkNode`, `ScriptNode` and `DominantColorNode` use `.abort()`; the last
-      two carry a comment explaining exactly why. Fixing the rest is 18 one-word edits, **or** a change
+      Only `WatermarkNode`, `S3SinkNode`, `ScriptNode`, `DominantColorNode` and `MetadataNode` use
+      `.abort()`; the last three carry a comment explaining exactly why. Fixing the rest is 18 one-word edits, **or** a change
       to `next()` so it honours a recorded failure cause — the latter is smaller but silently changes
       what `next()` means for every caller, so it needs its own review.
-- [ ] 🔴 **Path-only cache keys** — every node except `dominant-color`, `watermark` and `script` keys
-      its `LocalResultCache` on `media.absolutePath()` alone, so a changed option or a different
-      wired upstream payload serves a stale result (§4).
+- [ ] 🔴 **Path-only cache keys** — every node except `dominant-color`, `watermark`, `script`,
+      `translate` and `metadata` keys its `LocalResultCache` on `media.absolutePath()` alone, so a
+      changed option or a different wired upstream payload serves a stale result (§4).
 - [ ] 🔴 **A sink must share a worker with its producer, and nothing enforces it** — `s3-sink` reads
       files its upstream wrote to local disk, exactly as `scene-layout` reads the depth PNG. There is
       no affinity column in any migration and the editor's affinity channel is consumed by nothing.
@@ -684,5 +703,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (`ollamaUrl`/`providerType` replaced by `openaiUrl` on the `llm`, `translate` and `filter` nodes)_
+_Git HEAD revision: `23746123`_
+_Last updated: 2026-08-03 (added the `metadata` node: persistence table, node table, cache key,
+registration counts 33 kinds / 28 providers / 38 descriptor kinds, options table, and the note that
+it is the third `PipelineConfigurable` and the only node writing through `/assets/:uuid/components`)_

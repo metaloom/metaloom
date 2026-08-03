@@ -20,6 +20,22 @@ public class AssetComponentResponse extends AbstractCreatorEditorRestResponse<As
 	private UUID assetUuid;
 	private String source;
 
+	private String nodeId;
+	private String producerVersion;
+	private Float confidence;
+
+	/** Geo discriminator: how the position was derived. */
+	private String method;
+
+	/** Geo discriminator: millisecond offset into the media. */
+	private Long timeFrom;
+
+	/** Image/video/audio/transcript discriminator. */
+	private Integer streamIndex;
+
+	/** Document discriminator. */
+	private Integer pageNumber;
+
 	private GeoLocationInfo geo;
 	private ImageInfo image;
 	private VideoInfo video;
@@ -57,6 +73,69 @@ public class AssetComponentResponse extends AbstractCreatorEditorRestResponse<As
 
 	public AssetComponentResponse setSource(String source) {
 		this.source = source;
+		return this;
+	}
+
+	public String getNodeId() {
+		return nodeId;
+	}
+
+	public AssetComponentResponse setNodeId(String nodeId) {
+		this.nodeId = nodeId;
+		return this;
+	}
+
+	public String getProducerVersion() {
+		return producerVersion;
+	}
+
+	public AssetComponentResponse setProducerVersion(String producerVersion) {
+		this.producerVersion = producerVersion;
+		return this;
+	}
+
+	public Float getConfidence() {
+		return confidence;
+	}
+
+	public AssetComponentResponse setConfidence(Float confidence) {
+		this.confidence = confidence;
+		return this;
+	}
+
+	public String getMethod() {
+		return method;
+	}
+
+	public AssetComponentResponse setMethod(String method) {
+		this.method = method;
+		return this;
+	}
+
+	public Long getTimeFrom() {
+		return timeFrom;
+	}
+
+	public AssetComponentResponse setTimeFrom(Long timeFrom) {
+		this.timeFrom = timeFrom;
+		return this;
+	}
+
+	public Integer getStreamIndex() {
+		return streamIndex;
+	}
+
+	public AssetComponentResponse setStreamIndex(Integer streamIndex) {
+		this.streamIndex = streamIndex;
+		return this;
+	}
+
+	public Integer getPageNumber() {
+		return pageNumber;
+	}
+
+	public AssetComponentResponse setPageNumber(Integer pageNumber) {
+		this.pageNumber = pageNumber;
 		return this;
 	}
 

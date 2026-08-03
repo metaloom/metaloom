@@ -112,13 +112,13 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 
 | Entity | Table | Discriminators (unique key tail) | Notable columns | Since |
 |--------|-------|----------------------------------|-----------------|-------|
-| **Geo** | `asset_geo_comp` | `method`, `time_from` | `geo_lon/lat/alias`, `accuracy_m`. A drone video yields a whole GPS track. | V2.18 → rewritten V2.38 |
+| **Geo** | `asset_geo_comp` | `method`, `time_from` | `geo_lon/lat/alias`, `accuracy_m`. Written by the `metadata` node, one row per position reading, with `method` naming the *source* (`exif`/`xmp`/`sidecar`). A drone video would yield a whole GPS track — the key is shaped for it, though no extractor emits more than one sample yet. | V2.18 → rewritten V2.38 |
 | **Document** | `asset_doc_comp` | `page_number` | `doc_plain_text`, `doc_word_count`, `text_lang`, generated `text_search` tsvector (GIN). **Currently no producer** — see Progress. | V2.18 → V2.38 |
 | **Image** | `asset_image_comp` | `stream_index` | `media_width/height`, `image_dominant_color`, `image_encoding`, `orientation`, `bit_depth`, `blurriness`. Never gated on asset mime type (an MP3 with cover art owns one). | V2.18 → V2.38 |
 | **Video** | `asset_video_comp` | `stream_index` | `media_duration` (ms), `video_bitrate/encoding`, `fps`, `frame_count`, `rotation`, `blurriness` | V2.18 → V2.38 |
 | **Audio** | `asset_audio_comp` | `stream_index` | `lang`, `track_title`, `is_default`, `audio_bpm/sampling_rate/channels/bitrate/encoding`, `media_duration` | V2.18 → V2.38 |
 | **Transcript** | `asset_transcript_comp` | `stream_index`, `lang` | `transcript_text`, `transcript_json` (word-level timings, consumed by the UI panel), `model`, `duration`, `word_count`, generated `text_search`; `audio_comp_uuid` → `asset_audio_comp` **ON DELETE SET NULL** | V2.18 → rewritten V2.39 |
-| **JSON** | `asset_json_comp` | `schema_type`, `variant` | `data` jsonb NOT NULL (GIN `jsonb_path_ops`). The generic sink for `ocr`, `tika`, `caption`, `video-caption`, `face-description`, `llm`, `vlm`. Graduates to a typed table once a query must filter inside `data`. | V2.23 → rewritten V2.40 |
+| **JSON** | `asset_json_comp` | `schema_type`, `variant` | `data` jsonb NOT NULL (GIN `jsonb_path_ops`). The generic sink for `ocr`, `tika`, `metadata`, `caption`, `video-caption`, `face-description`, `llm`, `vlm`. Graduates to a typed table once a query must filter inside `data`. | V2.23 → rewritten V2.40 |
 | **Fingerprint** | `asset_fingerprint_comp` | `algorithm`, `sector_index` | `fingerprint`, `time_from`/`time_to`; index on `(algorithm, fingerprint)` makes dedup an index scan | V2.41 |
 | **Segment** | `asset_segment_comp` | `segment_type`, `seq` | `time_from`/`time_to`, `title`, `score`; `segment_type` CHECK ∈ SCENE, SILENCE, SHOT, CHAPTER | V2.42 |
 

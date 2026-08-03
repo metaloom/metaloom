@@ -78,6 +78,7 @@ public class NodePortConformanceTest {
 		map("io.metaloom.cortex.node.facedescription.FacedescriptionNode", "facedescription");
 		map("io.metaloom.cortex.node.ocr.OCRNode", "ocr");
 		map("io.metaloom.cortex.node.tika.TikaNode", "tika");
+		map("io.metaloom.cortex.node.metadata.MetadataNode", "metadata");
 		map("io.metaloom.cortex.node.quality.QualityNode", "quality");
 		map("io.metaloom.cortex.node.whisper.WhisperNode", "whisper");
 		map("io.metaloom.cortex.node.sentiment.SentimentNode", "sentiment");

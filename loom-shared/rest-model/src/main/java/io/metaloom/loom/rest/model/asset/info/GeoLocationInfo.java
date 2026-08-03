@@ -21,6 +21,9 @@ public class GeoLocationInfo implements RestModel {
 	@JsonPropertyDescription("Alias name for the location.")
 	private String alias;
 
+	@JsonPropertyDescription("Reported horizontal accuracy in meters, when the source states one (EXIF GPSHPositioningError).")
+	private Float accuracyM;
+
 	public String getSource() {
 		return source;
 	}
@@ -54,6 +57,15 @@ public class GeoLocationInfo implements RestModel {
 
 	public GeoLocationInfo setAlias(String alias) {
 		this.alias = alias;
+		return this;
+	}
+
+	public Float getAccuracyM() {
+		return accuracyM;
+	}
+
+	public GeoLocationInfo setAccuracyM(Float accuracyM) {
+		this.accuracyM = accuracyM;
 		return this;
 	}
 }

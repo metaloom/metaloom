@@ -12,6 +12,7 @@ io.metaloom.loom.nodes.spec.FingerprintDescriptorProvider
 io.metaloom.loom.nodes.spec.HashDescriptorProvider
 io.metaloom.loom.nodes.spec.ImageGenDescriptorProvider
 io.metaloom.loom.nodes.spec.LlmDescriptorProvider
+io.metaloom.loom.nodes.spec.MetadataDescriptorProvider
 io.metaloom.loom.nodes.spec.OcrDescriptorProvider
 io.metaloom.loom.nodes.spec.QualityDescriptorProvider
 io.metaloom.loom.nodes.spec.S3SinkDescriptorProvider

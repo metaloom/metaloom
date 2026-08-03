@@ -288,16 +288,20 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 - [ ] 🔴 **Make `MediaTikaParser.parse()` return the extracted body** (`handler.toString()`), with an
       explicit `BodyContentHandler` write limit
 - [ ] 🔴 **Remove the `System.out.println` metadata dump**; route through SLF4J or drop it
-- [ ] 🔴 **Map Tika `Metadata` to something.** Decide the target: extra keys in the `tika` JSON
-      component, or the typed `asset_*_comp` tables (`asset_doc_comp.doc_plain_text`,
-      `asset_image_comp`, `asset_video_comp`, `asset_geo_comp` all already accept `node_kind='tika'`)
+- [x] ~~**Map Tika `Metadata` to something.**~~ **Answered by the `metadata` node** (concept
+      [../../concept/ASSET_METADATA_INGEST.md](../../concept/ASSET_METADATA_INGEST.md), phase 1
+      built): a separate kind reads EXIF/IPTC/XMP/container properties, normalises them onto Dublin
+      Core, and writes `asset_json_comp` (`schemaType=metadata`) plus `asset_geo_comp`. `tika` keeps
+      the body text and stops trying to own metadata as well
 - [ ] Tighten `TikaNodeIntegrationTest` to assert non-empty `content`
 - [ ] Add a `MediaTikaParser` unit test per format family (pdf, docx, odt, epub, mp3, mp4, image)
 - [ ] Add a `TikaNodePipelineTest`
 - [ ] Give `OUT_FLAGS` the meaning its descriptor claims, or fix the descriptor text
 - [ ] Give `TikaNodeOptions` real fields (parser selection, write limit, OCR toggle) or delete the
       class — tracked in [NODES.md](NODES.md)
-- [ ] Decide `RTFParser` / `JpegParser`: re-enable or delete the commented-out lines
+- [ ] Decide `RTFParser` / `JpegParser`: re-enable or delete the commented-out lines. `JpegParser`
+      is now moot for metadata — the `metadata` node reads image EXIF with `metadata-extractor`
+      directly — so the only question left is whether `tika` should report JPEG dimensions
 - [ ] Deduplicate the `EXCLUDES` array (`vnd.ms-visio.drawing` listed twice)
 - [ ] **Delete `loom/services/tika`**, or give it a real `TikaProcessor` SPI that the Cortex node
       implements

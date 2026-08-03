@@ -303,9 +303,9 @@ public class DemoDatabaseInitializer {
 			true, 1, false,
 			simpleDefinition());
 
-		// 2) Medium pipeline: Source → Filter → Hash + Fingerprint → Output
+		// 2) Medium pipeline: Source → Filter → Hash + Fingerprint + Metadata → Output
 		Pipeline mediumPipeline = createPipeline(admin, DEMO_PIPELINE_MEDIUM,
-			"Ingest pipeline with MIME-type filtering, hashing, fingerprinting, and proxy generation.",
+			"Ingest pipeline with MIME-type filtering, hashing, fingerprinting, and metadata extraction.",
 			true, 5, false,
 			mediumDefinition());
 
@@ -1270,17 +1270,32 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe1", "pn1", "media", "pn2", "media")));
 	}
 
+	/**
+	 * Ingest: identity, similarity and the metadata the files already carry.
+	 *
+	 * <p>
+	 * The metadata node belongs here rather than in one of the analysis pipelines because it needs no
+	 * model and no sidecar - unlike the GPU nodes, which are deliberately left out of the demo
+	 * because the demo container has nothing to run them on. Reading a photo's title, keywords,
+	 * licence and GPS position is part of taking the file in.
+	 * </p>
+	 */
 	static JsonObject mediumDefinition() {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "File Source", "Watch ingest folder", 60, 160))
 					.add(node("pn2", "filter", "MIME Filter", "Accept video and image types", 260, 160))
 					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
-					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260)))
+					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260))
+					.add(node("pn5", "metadata", "Asset Metadata", "Read the metadata inside each file", 460, 400)))
 				.put("edges", new JsonArray()
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
 					.add(edge("pe2", "pn2", "media", "pn3", "media"))
-					.add(edge("pe3", "pn2", "media", "pn4", "media")));
+					.add(edge("pe3", "pn2", "media", "pn4", "media"))
+					// Straight off the source, deliberately bypassing the MIME filter: this node
+					// reads images, documents, audio and video alike, so filtering ahead of it would
+					// only throw away metadata the library wants.
+					.add(edge("pe4", "pn1", "media", "pn5", "media")));
 	}
 
 	static JsonObject complexDefinition() {
