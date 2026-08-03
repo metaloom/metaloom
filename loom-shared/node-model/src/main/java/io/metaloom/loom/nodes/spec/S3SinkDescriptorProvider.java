@@ -25,7 +25,7 @@ public class S3SinkDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("s3-sink")
+				.setNodeId("s3-sink")
 				.setName("S3 Sink")
 				.setDescription("Uploads files produced by upstream nodes - thumbnails, depth maps, generated "
 					+ "images, speech audio - into an S3 bucket, and registers each one in Loom as an asset "

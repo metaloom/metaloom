@@ -19,6 +19,7 @@ import {
   listProcessors, Processor, updateProcessorRestrictions, forgetProcessor,
 } from "../../api/processors";
 import { subscribeProcessorEvents, ProcessorEventMessage } from "../../api/pipelineEvents";
+import { nodeIdOf } from "../pipeline/nodePicker";
 
 interface WorkerNode {
   id: string;
@@ -379,7 +380,7 @@ export default function CortexView() {
   const { showToast } = useToast();
   const { descriptors } = useNodeRegistry();
   // Guard against a malformed/empty descriptors payload so the whole view never blanks.
-  const nodeKinds = (descriptors ?? []).map(d => d.kind).sort();
+  const nodeKinds = (descriptors ?? []).map(d => nodeIdOf(d)).sort();
   const [workers, setWorkers] = useState<WorkerNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

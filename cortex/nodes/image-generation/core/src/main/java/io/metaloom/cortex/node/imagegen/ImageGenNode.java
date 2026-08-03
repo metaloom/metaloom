@@ -21,11 +21,15 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -49,14 +53,30 @@ import io.metaloom.utils.hash.SHA512;
  * (there is no byte-ingest endpoint for produced media yet).
  * </p>
  */
+@NodeSpec(nodeId = "imagegen", name = "Image Generation", icon = "auto_awesome", category = NodeCategory.TRANSFORM,
+	description = "Generate an image through the image-generation sidecar - text-to-image from a prompt, or "
+		+ "image-to-image from the source asset. The PNG is written to the worker's local cache; wire it into a "
+		+ "sink to keep it.",
+	// timeoutMs lives on AbstractNodeOptions, where it is hidden because almost no descriptor advertises
+	// it. This node does, and puts it last in the form.
+	parameters = @ParamOverride(key = "timeoutMs", label = "Timeout (ms)", description = "Wall-clock budget per item",
+		min = "1", order = 210))
 public class ImageGenNode extends AbstractMediaNode<ImageGenNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(ImageGenNode.class);
 
+	@PortDoc(label = "Prompt", required = false,
+		description = "Upstream text used instead of the configured prompt - an LLM answer or a caption")
 	public static final InputPort<String> IN_PROMPT = InputPort.one("prompt", ContentTypeRegistry.TEXT_ANY, String.class);
+
+	@PortDoc(label = "Source Image", required = false,
+		description = "The image to remix. Required in REMIX mode and ignored in GENERATE mode")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
 
+	@PortDoc(label = "Image", description = "The generated PNG in the worker's local cache; wire it into a sink to keep it")
 	public static final OutputPort<String> OUT_IMAGE = OutputPort.one("image", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** In-heap skip cache of the generated image path, keyed by media path, to avoid re-generating within this worker's lifetime. The rendered PNG itself

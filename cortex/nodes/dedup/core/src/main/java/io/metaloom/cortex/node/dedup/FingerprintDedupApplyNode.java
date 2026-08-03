@@ -14,12 +14,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.dedup.DedupGroupListResponse;
 import io.metaloom.loom.rest.model.dedup.DedupGroupMemberModel;
@@ -35,9 +41,32 @@ import io.metaloom.utils.fs.FileUtils;
  * duplicate, and is not itself inside the dups folder. Idempotent: an already-moved duplicate is skipped.
  * </p>
  */
+@NodeSpec(nodeId = "fingerprint-dedup-apply", name = "Fingerprint Deduplication (Apply)", icon = "content_copy", category = NodeCategory.OUTPUT,
+	description = "Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.",
+	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
+	parameters = {
+		// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
+		@ParamOverride(key = "processIncomplete", hidden = true),
+		@ParamOverride(key = "retryFailed", hidden = true),
+		// DedupNodeOptions is shared with hash-dedup, whose @ParamDoc says "duplicate files"; this node
+		// only ever moves files a reviewer confirmed, and its descriptor says so.
+		@ParamOverride(key = "dupFolder", label = "Duplicates Folder", description = "Target folder for confirmed duplicate files")
+	})
 public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(FingerprintDedupApplyNode.class);
+
+	/**
+	 * The hash that identifies the asset whose confirmed dedup groups are applied.
+	 *
+	 * <p>
+	 * Declared so the node's own contract states the input its descriptor has always advertised. The
+	 * node looks the asset up by the media handle's SHA-512 rather than reading this port, so wiring it
+	 * is what orders a hash node before this one, not what feeds it.
+	 * </p>
+	 */
+	@PortDoc(label = "Hash", description = "Any content hash; identifies the asset whose confirmed dedup groups are applied")
+	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_ANY, String.class);
 
 	private static final String STATUS_CONFIRMED = "CONFIRMED";
 

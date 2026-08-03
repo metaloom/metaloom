@@ -3,19 +3,34 @@ package io.metaloom.cortex.node.hash;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
+/**
+ * Options shared by all four hash nodes ({@code md5}, {@code sha256}, {@code sha512},
+ * {@code chunk-hash}), which are configured together under the single {@value #KEY} key.
+ *
+ * <p>
+ * The four algorithm flags are worker-scoped switches - each node reads only its own from
+ * {@code isProcessable} - and no descriptor has ever advertised them, so they stay out of the
+ * contract. Surfacing them would put all four switches on all four edit forms.
+ * </p>
+ */
 public class HashNodeOptions extends AbstractNodeOptions<HashNodeOptions> {
 
 	public static final String KEY = "hash";
 
+	@ParamDoc(hidden = true)
 	private boolean md5 = true;
 
+	@ParamDoc(hidden = true)
 	private boolean sha512 = true;
 
+	@ParamDoc(hidden = true)
 	private boolean sha256 = true;
 
+	@ParamDoc(hidden = true)
 	private boolean chunkHash = true;
 
 	@Override

@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.depthmap;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -24,17 +25,23 @@ public class DepthmapNodeOptions extends AbstractNodeOptions<DepthmapNodeOptions
 
 	public static final String KEY = "depthmap";
 
+	@ParamDoc(label = "Sidecar Host", description = "Host of the /v1/depth sidecar", order = 100)
 	private String depthHost = "localhost";
 
 	/** 9120 - 9100 is the TTS sidecar, 9110 sentiment, 9200 imagegen. */
+	@ParamDoc(label = "Sidecar Port", description = "Port of the /v1/depth sidecar", min = "1", order = 110)
 	private int depthPort = 9120;
 
+	@ParamDoc(label = "Depth Mode",
+		description = "RELATIVE orders objects front-to-back; METRIC additionally reports a range in metres", order = 115)
 	private DepthMode mode = DepthMode.RELATIVE;
 
 	/** Explicit checkpoint override, or null to use the sidecar's default for the mode. */
+	@ParamDoc(label = "Model Override", description = "Checkpoint to use instead of the sidecar's default for the selected mode", order = 120)
 	private String model;
 
 	/** Longest side sent to the sidecar. The sidecar clamps this to its own DEPTH_MAX_DIM. */
+	@ParamDoc(label = "Max Dimension", description = "Longest side sent to the sidecar; also the size of the produced map", min = "1", order = 130)
 	private int maxDim = 1024;
 
 	public DepthmapNodeOptions() {

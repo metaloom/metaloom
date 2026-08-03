@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -23,12 +24,28 @@ public class VlmNodeOptions extends AbstractNodeOptions<VlmNodeOptions> {
 	/** Where an OpenAI-compatible vision endpoint is expected by default (the port vLLM serves on). */
 	public static final String DEFAULT_ENDPOINT_URL = "http://127.0.0.1:8000";
 
+	@ParamDoc(label = "Endpoint URL", description = "Base URL of the OpenAI-compatible vision endpoint (e.g. vLLM)")
 	private String endpointUrl = DEFAULT_ENDPOINT_URL;
 
 	/** Bearer token for the endpoint. Usually unset - a local vLLM does not check it. */
+	@ParamDoc(label = "API Key", description = "Bearer token for the endpoint. Usually unset - a local vLLM does not check it")
 	private String apiKey;
 
-	/** Prompt id -&gt; task. Left empty the node falls back to the olmOCR preset. */
+	/**
+	 * Prompt id -&gt; task. Left empty the node falls back to the olmOCR preset.
+	 *
+	 * <p>
+	 * The prompts drive the node's dynamic {@code result_<promptId>} ports. The contract advertises this
+	 * field because it is the only thing that actually configures them: the four per-prompt knobs the
+	 * descriptor used to expose at node level ({@code model}, {@code responseFormat}, {@code maxImageDim},
+	 * {@code maxTokens}) are fields of {@link VlmNodePrompt}, so a value set against the node was bound
+	 * to nothing and silently discarded.
+	 * </p>
+	 */
+	@ParamDoc(label = "Prompts", rows = 8,
+		description = "Prompt id to task, as {\"<id>\": {\"model\": ..., \"prompt\": ..., \"responseFormat\": "
+			+ "TEXT|JSON|OLMOCR, \"maxImageDim\": ..., \"maxTokens\": ...}}. Each entry adds a "
+			+ "result_<id> output port. Left empty the node falls back to the olmOCR preset")
 	private Map<String, VlmNodePrompt> prompts = new LinkedHashMap<>();
 
 	@Override

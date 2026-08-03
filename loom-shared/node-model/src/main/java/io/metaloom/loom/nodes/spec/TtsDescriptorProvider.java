@@ -26,7 +26,7 @@ public class TtsDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("tts")
+				.setNodeId("tts")
 				.setName("Text to Speech")
 				.setDescription("Speak upstream text through the /v1/tts sidecar. German routes to Orpheus/Kartoffel, "
 					+ "English to Kokoro. The WAV is written to the worker's local cache; wire it into a sink to keep it.")

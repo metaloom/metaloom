@@ -3,9 +3,11 @@ package io.metaloom.cortex.node.source.fs;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.fs.FileState;
+import io.metaloom.loom.nodes.spec.ParameterType;
 
 /**
  * Configuration for the {@code filesystem-source} node.
@@ -44,12 +46,23 @@ public class FilesystemSourceNodeOptions extends AbstractNodeOptions<FilesystemS
 	public static final List<String> DEFAULT_EMIT_STATES = List.of(
 		FileState.NEW.name(), FileState.MODIFIED.name(), FileState.MOVED.name());
 
+	@ParamDoc(label = "Path", description = "Root directory to scan for media files. Scanned differentially: "
+		+ "a local index remembers what was seen, so a re-run only picks up changes")
 	private String path;
 
+	// The descriptor advertised no default here, so the empty list stays out of the contract: the
+	// editor showed an empty field, and a mechanical sweep preserves that rather than "fixing" it.
+	@ParamDoc(label = "Path globs", description = "Glob patterns to expand instead of scanning a root, e.g. "
+		+ "[\"/media/**/*.mp4\"]. Takes precedence over Path, and always re-enumerates "
+		+ "every match because differential scanning needs a single root", type = ParameterType.JSON, rows = 3, omitDefault = true)
 	private List<String> pathGlobs = new ArrayList<>();
 
+	@ParamDoc(label = "Emit states", description = "Which changes flow downstream. Only applies when scanning a root",
+		values = { "NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED" })
 	private List<String> emitStates = new ArrayList<>(DEFAULT_EMIT_STATES);
 
+	@ParamDoc(label = "Index directory", description = "Where the per-root scan index is kept. Defaults to a directory "
+		+ "under the worker's metadata path")
 	private String indexPath;
 
 	@Override

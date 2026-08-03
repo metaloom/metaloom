@@ -38,6 +38,7 @@
         <module>quality</module>
         <module>captioning</module>
         <module>image-generation</module>
+        <module>image-manipulation</module>
         <module>video-generation</module>
         <module>watermark</module>
         <module>filter</module>

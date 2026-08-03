@@ -52,8 +52,8 @@ public class PipelineToolTest {
 		when(daos.pipelineVersionDao()).thenReturn(versionDao);
 
 		registry = new NodeDescriptorRegistry();
-		registry.register(new NodeDescriptor().setKind("filesystem-source").setName("File Source").setCategory(NodeCategory.SOURCE));
-		registry.register(new NodeDescriptor().setKind("whisper").setName("Whisper").setCategory(NodeCategory.ANALYSIS));
+		registry.register(new NodeDescriptor().setNodeId("filesystem-source").setName("File Source").setCategory(NodeCategory.SOURCE));
+		registry.register(new NodeDescriptor().setNodeId("whisper").setName("Whisper").setCategory(NodeCategory.ANALYSIS));
 
 		Pipeline pipeline = mock(Pipeline.class);
 		when(pipeline.getUuid()).thenReturn(PIPELINE_UUID);

@@ -24,7 +24,7 @@ public class MetadataDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("metadata")
+				.setNodeId("metadata")
 				.setName("Asset Metadata")
 				.setDescription(
 					"Read the metadata already inside a file - EXIF, IPTC, XMP, PDF and Office properties, ID3 - "

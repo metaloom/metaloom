@@ -21,7 +21,7 @@ public class FingerprintDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("fingerprint")
+				.setNodeId("fingerprint")
 				.setName("Fingerprint")
 				.setDescription("Compute a perceptual fingerprint of the media for deduplication or similarity search.")
 				.setIcon("grain")

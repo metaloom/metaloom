@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.captioning;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -14,23 +15,39 @@ import io.metaloom.cortex.api.option.node.ValidationResult;
 public class CaptioningNodeOptions extends AbstractNodeOptions<CaptioningNodeOptions> {
 
 	// -- Image captioning (SmolVLM still-frame path) ------------------------
+	// None of the fields below are advertised by CaptioningDescriptorProvider, the golden contract for
+	// this node: it declares the three common parameters and nothing else. They are hidden so the
+	// derived contract stays byte-identical to the one the editor already draws - surfacing them is a
+	// contract change and belongs in its own reviewed commit, not in this mechanical sweep.
+	@ParamDoc(hidden = true)
 	private int smolVLMPort = 8000;
+	@ParamDoc(hidden = true)
 	private String smolVLMHost = "localhost";
 
 	// -- Video captioning (OpenAI-compatible VLM) ---------------------------
 	/** Which strategy turns a video into a caption (whole-video / per-scene / native video_url). */
+	@ParamDoc(hidden = true)
 	private VideoCaptioningStrategy videoStrategy = VideoCaptioningStrategy.WHOLE;
+	@ParamDoc(hidden = true)
 	private String videoEndpointUrl = "http://localhost:8000";
+	@ParamDoc(hidden = true)
 	private String videoModel = "qwen25vl-awq";
+	@ParamDoc(hidden = true)
 	private String videoApiKey = "";
 	/** Frames sampled across the whole video (whole strategy) or per scene (scene strategy). */
+	@ParamDoc(hidden = true)
 	private int frameCount = 8;
 	/** Longest-edge pixel size each sampled frame is scaled to before base64 encoding. */
+	@ParamDoc(hidden = true)
 	private int targetFrameSize = 512;
 	/** Upper bound on scenes captioned by the scene strategy (protects against pathological over-segmentation). */
+	@ParamDoc(hidden = true)
 	private int maxScenes = 32;
+	@ParamDoc(hidden = true)
 	private int maxTokens = 256;
+	@ParamDoc(hidden = true)
 	private double temperature = 0.2d;
+	@ParamDoc(hidden = true)
 	private String videoPrompt = "Describe what happens in this video in two or three sentences. Focus on actions, subjects and setting.";
 
 	@Override

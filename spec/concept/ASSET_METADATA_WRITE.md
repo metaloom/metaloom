@@ -9,10 +9,10 @@ MetaLoom's knowledge *back into* asset files — as sidecars, as embedded metada
 > as the file that arrived. Write-back closes the loop: the delivered copy carries its own title,
 > rights, captions and transcript, and says honestly which of those a machine produced.
 
-This is the inverse of [ASSET_METADATA_INGEST.md](ASSET_METADATA_INGEST.md), which is the
-prerequisite: the canonical envelope defined in its §4.2 is what this node serialises back out. Read
-that first — this file does not repeat the vocabulary, the Dublin Core mapping, or the precedence
-rules.
+This is the inverse of the **`metadata` ingest node**, which is the prerequisite and is **built**:
+[../features/nodes/metadata/METADATA_OVERVIEW.md](../features/nodes/metadata/METADATA_OVERVIEW.md). The canonical envelope defined in its §6 is
+what this node serialises back out. Read that first — this file does not repeat the vocabulary, the
+Dublin Core mapping, or the precedence rules.
 
 | Also read | Why |
 |---|---|
@@ -70,7 +70,7 @@ design record says in bold: **"The source file is never modified."**
 | `attachment` already carries provenance columns and an idempotency index | `V2.44`: `node_kind`, `node_id`, `producer_version`, `variant`, `run_uuid`, `task_uuid`; `UNIQUE (asset_uuid, type, node_kind, variant)` |
 | **The node already has almost everything it needs to read.** `AbstractMediaNode.fetchAsset()` does `client().loadAsset(sha512)`, and `AssetResponse` carries `tags`, `annotations`, `collections`, `geo`, `geoComponents`, `image/video/audio/documentComponents`, `hashes`, `locations` | `AbstractMediaNode.java:75-86`, `AssetResponse.java` |
 | Transcripts and JSON components need one extra call each | `listAssetTranscripts(assetUuid)`, `listAssetJsonComps(assetUuid)` |
-| 🟡 There is still **no licence field** anywhere — `AssetResponse` has `// private List<LicenseInfo> licenses` commented out | `AssetResponse.java:40`; see [ASSET_METADATA_INGEST.md §2.4](ASSET_METADATA_INGEST.md) |
+| 🟡 There is still **no licence field** anywhere — `AssetResponse` has `// private List<LicenseInfo> licenses` commented out | `AssetResponse.java:40`; see [METADATA_OVERVIEW.md §5.3](../features/nodes/metadata/METADATA_OVERVIEW.md) |
 | Lineage between two assets: only `asset_remix (asset_a_uuid, asset_b_uuid, meta)` — untyped, undirected, unused by any node | `V2.8__add_asset.sql` |
 
 ---
@@ -225,8 +225,7 @@ marker, it has manufactured a plausible lie and shipped it downstream.
 | Per-field provenance | `metaloom:` namespace block | `metaloom:writtenAt`, `metaloom:sourceSha512`, `metaloom:profile`, `metaloom:fields` → `{"dc.description": {"by": "captioning", "model": "…", "confidence": 0.82}}` |
 
 The `metaloom:fields` block mirrors the ingest envelope's `provenance` block
-([ASSET_METADATA_INGEST.md §4.2](ASSET_METADATA_INGEST.md)) — deliberately, because it is what makes
-the round trip safe.
+([METADATA_OVERVIEW.md §6](../features/nodes/metadata/METADATA_OVERVIEW.md)) — deliberately, because it is what makes the round trip safe.
 
 **C2PA / Content Credentials** is the cryptographically signed version of the same idea (a signed
 manifest in a JUMBF box, with an assertion chain naming the generators). It is where this is
@@ -246,9 +245,11 @@ whisper → transcript in Loom → metadata-write embeds it → file re-scanned
 Each pass degrades. Breaking it is a hard requirement on **both** concepts:
 
 - **Write side**: always emit the `metaloom:` block, including `sourceSha512` of the input.
-- **Read side** ([ASSET_METADATA_INGEST.md §4.3](ASSET_METADATA_INGEST.md) precedence): a field whose
-  `metaloom:fields` entry names a machine producer is ingested with `provenance = "metaloom"` and
-  **must not** be promoted to authored rank. A human who then edits it in Lightroom removes the
+- **Read side** — **already implemented**: [METADATA_OVERVIEW.md §5](../features/nodes/metadata/METADATA_OVERVIEW.md) ranks the `metaloom:`
+  source last in every precedence chain (`MetadataMapper.expand()`), and
+  `MetadataMapperTest.testMetaloomWrittenValuesNeverOutrankAnAuthoredOne` pins it. A field carrying
+  the marker is ingested with `provenance = "metaloom:…"` and **cannot** be promoted to authored
+  rank. A human who then edits it in Lightroom removes the
   marker naturally — which is the correct signal that it became authored.
 - **Test it**: the round-trip test in §9 (`write → ingest → assert the field is still marked
   machine-written`) is the one that keeps this honest. Add it in phase 1, before there is anything to
@@ -342,7 +343,7 @@ reports SUCCESS (a known 🔴 in `NodeContextImpl`).
 
 ## 7. Redaction is the same node
 
-[ASSET_METADATA_INGEST.md §12](ASSET_METADATA_INGEST.md) proposed "strip GPS and maker notes from a
+[METADATA_OVERVIEW.md §11](../features/nodes/metadata/METADATA_OVERVIEW.md) proposed "strip GPS and maker notes from a
 published derivative" as the highest-value near-term case. It is this node with `stripFields` set and
 no additions — same plumbing, same artifact path, same attachment. Ship it as a **named profile**
 (`redact-publish`), not as a second node.
@@ -442,8 +443,8 @@ again after the G1 migration.
 
 ## 11. Progress Assessment
 
-Nothing is built. Depends on [ASSET_METADATA_INGEST.md](ASSET_METADATA_INGEST.md) phase 1 for the
-canonical envelope.
+Nothing is built here. Its one prerequisite — the canonical envelope and the `metaloom:`-ranks-last
+read rule — is **done**: [METADATA_OVERVIEW.md](../features/nodes/metadata/METADATA_OVERVIEW.md).
 
 **Phase 0 — pre-existing defects, buildable now, independent of both concepts**
 
@@ -530,7 +531,7 @@ canonical envelope.
 | Lineage table (untyped, unused) | `asset_remix` in `V2.8__add_asset.sql` |
 | The settled "attachment vs new asset" table | [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §2](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | Transcript storage | `V2.39__rework_asset_transcript_comp.sql` (`transcript_text`, `transcript_json`, `lang`, `stream_index`) |
-| The canonical envelope this node serialises | [ASSET_METADATA_INGEST.md §4.2](ASSET_METADATA_INGEST.md) |
+| The canonical envelope this node serialises | [METADATA_OVERVIEW.md §6](../features/nodes/metadata/METADATA_OVERVIEW.md) |
 | Content-type constants | `loom-shared/node-model/…/nodes/spec/ContentTypeRegistry.java` (`ARTIFACT_FILE`, `STRUCT_JSON`, `TEXT_TRANSCRIPT`) |
 | Descriptor guard tests | `loom-shared/node-model/…/NodeDescriptorServiceLoaderTest.java`, `integration-test/…/NodePortConformanceTest.java` |
 | IPTC digital source type vocabulary | <http://cv.iptc.org/newscodes/digitalsourcetype/> |

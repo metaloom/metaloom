@@ -13,6 +13,9 @@ import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.PortOutput;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.pipeline.api.NodeMode;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
@@ -21,6 +24,7 @@ import io.metaloom.cortex.s3.S3MediaMaterializer;
 import io.metaloom.cortex.s3.S3ObjectRef;
 import io.metaloom.fs.FileState;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.reactivex.rxjava3.core.Flowable;
 
 /**
@@ -38,6 +42,18 @@ import io.reactivex.rxjava3.core.Flowable;
  * task against them. That is what lets a bucket be processed by workers that share no storage -
  * the constraint recorded in {@code MediaRef}'s Javadoc.</p>
  */
+@NodeSpec(nodeId = "s3-source", name = "S3 Source", icon = "cloud", category = NodeCategory.SOURCE,
+	description = "Reads media objects from S3-compatible object storage (AWS S3, MinIO, Ceph) "
+		+ "as pipeline input. Only new and changed objects are picked up on a re-run.",
+	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
+	// A source node implements MediaSourceNode rather than extending AbstractMediaNode, so there is no
+	// generic superclass for the harvester to read the options type from.
+	optionsClass = S3SourceNodeOptions.class,
+	// No source descriptor has ever advertised these two; they are media-processing knobs.
+	parameters = {
+		@ParamOverride(key = "processIncomplete", hidden = true),
+		@ParamOverride(key = "retryFailed", hidden = true)
+	})
 public class S3SourceNode extends AbstractPipelineNode implements MediaSourceNode {
 
 	private static final Logger log = LoggerFactory.getLogger(S3SourceNode.class);
@@ -54,6 +70,7 @@ public class S3SourceNode extends AbstractPipelineNode implements MediaSourceNod
 	 *
 	 * <p>{@code media/*} because the concrete kind is only known once the object is fetched.</p>
 	 */
+	@PortDoc(label = "Media", description = "Every object the bucket listing emitted. The concrete kind is only known once the object is fetched")
 	public static final OutputPort<String> OUT_MEDIA = OutputPort.one("media", ContentTypeRegistry.MEDIA_ANY, String.class);
 
 	private final S3DifferentialScanner scanner;

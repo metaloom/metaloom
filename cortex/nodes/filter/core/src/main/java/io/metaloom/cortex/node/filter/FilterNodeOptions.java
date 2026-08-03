@@ -5,8 +5,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
+import io.metaloom.loom.nodes.spec.ParameterType;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -23,23 +25,31 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 
 	public static final String KEY = "filter";
 
+	@ParamDoc(label = "Filter By", description = "What the buckets are matched against")
 	private FilterBy filterBy = FilterBy.LANGUAGE;
 
 	/** The bucket rows, exactly as the editor's {@code PORT_LIST} widget writes them. */
+	@ParamDoc(label = "Buckets", type = ParameterType.PORT_LIST,
+		description = "One output port per bucket. An 'other' port for everything else is always present")
 	private JsonArray buckets = new JsonArray();
 
+	@ParamDoc(label = "Model", description = "The model asked to classify each item")
 	private String model = "meta-llama/Llama-3.2-3B-Instruct";
 
 	/** Base URL of an OpenAI-compatible backend (llama.cpp, vLLM, Ollama's /v1 endpoint, ...). */
+	@ParamDoc(label = "OpenAI URL", description = "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)")
 	private String openaiUrl = "http://127.0.0.1:8080/v1";
 
 	/**
 	 * How much of the wired text to send. Language is decided by the first paragraph; sending a
 	 * whole transcript would cost tokens per item for no better answer.
 	 */
+	@ParamDoc(label = "Max Text Characters", description = "How much of the text to send to the model", min = "1")
 	private int maxTextChars = 2000;
 
 	/** Classifications below this land in {@code other} instead. */
+	@ParamDoc(label = "Minimum Confidence", description = "Classifications below this confidence are routed to 'other'",
+		min = "0.0", max = "1.0")
 	private double minConfidence = 0;
 
 	public FilterBy getFilterBy() {

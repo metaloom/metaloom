@@ -46,7 +46,7 @@ public class ScriptDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("script")
+				.setNodeId("script")
 				.setName("Script")
 				.setDescription("Run a small script over the media item and its upstream outputs, and emit any "
 					+ "number of declared outputs - texts, numbers, JSON, timeframes or images.")

@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.videogen;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -27,21 +28,54 @@ public class VideoGenNodeOptions extends AbstractNodeOptions<VideoGenNodeOptions
 
 	public static final String KEY = "videogen";
 
+	// Every field carries an explicit order because the node re-documents the inherited timeoutMs and
+	// pins it last: an ordered parameter anywhere sorts the unordered ones behind it.
+	@ParamDoc(label = "Mode",
+		description = "GENERATE ignores the source pixels and works from the prompt; ANIMATE feeds the source image in as the opening frame",
+		order = 100)
 	private VideoGenMode mode = VideoGenMode.GENERATE;
+
+	@ParamDoc(label = "Prompt", description = "What to animate. Used unless the Prompt input port is wired", order = 110)
 	private String prompt = "";
+
+	@ParamDoc(label = "Negative Prompt",
+		description = "What to steer away from. Left empty the sidecar applies its own default", order = 120)
 	private String negativePrompt = "";
 
+	@ParamDoc(label = "Sidecar Host", description = "Host of the video-generation sidecar", order = 130)
 	private String host = "localhost";
+
+	@ParamDoc(label = "Sidecar Port", description = "Port of the video-generation sidecar", min = "1", order = 140)
 	private int port = 9220;
+
+	@ParamDoc(label = "Generate Endpoint", description = "Sidecar path called in GENERATE mode", order = 150)
 	private String generateEndpoint = "/generate";
+
+	@ParamDoc(label = "Animate Endpoint", description = "Sidecar path called in ANIMATE mode", order = 160)
 	private String animateEndpoint = "/animate";
 
+	@ParamDoc(label = "Width (px)", description = "Width of the generated clip; snapped to a multiple of 32 by the sidecar",
+		min = "1", order = 170)
 	private int width = 768;
+
+	@ParamDoc(label = "Height (px)", description = "Height of the generated clip; snapped to a multiple of 32 by the sidecar",
+		min = "1", order = 180)
 	private int height = 512;
+
+	@ParamDoc(label = "Frames", description = "Number of frames; snapped to k*8+1 by the sidecar", min = "1", order = 190)
 	private int numFrames = 49;
+
+	@ParamDoc(label = "FPS", description = "Frame rate of the produced clip", min = "1", order = 200)
 	private int fps = 24;
+
+	@ParamDoc(label = "Steps", description = "Diffusion steps. More steps cost proportionally more time", min = "1", order = 210)
 	private int steps = 40;
+
+	@ParamDoc(label = "Guidance", description = "Prompt guidance scale", min = "0.0", step = "0.5", order = 220)
 	private double guidance = 4.0;
+
+	@ParamDoc(label = "Seed",
+		description = "Fix the seed to make a run reproducible. Left empty the sidecar picks one per item", order = 230)
 	private Integer seed = null;
 
 	public VideoGenNodeOptions() {

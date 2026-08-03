@@ -88,6 +88,13 @@
             <artifactId>cortex-hash-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
+        <!-- Only so NodeSpecGoldenTest can see the dedup nodes; without it the classes are not on the
+             test class path and the golden comparison silently skips them. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-dedup-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-filesystem-source-node</artifactId>
@@ -178,6 +185,14 @@
             <artifactId>cortex-vlm-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
+        <!-- Declared directly rather than relied on through cortex-processor: NodeSpecGoldenTest
+             skips a node whose class is not on the test class path, so a transitive path is one
+             refactoring away from silently unchecking the llm contract. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-llm-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-whisper-node</artifactId>
@@ -186,6 +201,13 @@
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-tts-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <!-- Only so NodeSpecGoldenTest can see CaptioningNode; without it the class is not on the
+             test class path and the golden comparison silently skips it. -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-captioning-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
         <dependency>
@@ -216,6 +238,11 @@
         <dependency>
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-image-generation-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-video-generation-node</artifactId>
             <version>${loom.cortex.version}</version>
         </dependency>
         <dependency>

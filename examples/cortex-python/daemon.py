@@ -79,6 +79,87 @@ PRODUCER_VERSION = "cortex-python/1.0.0"
 # Everything is driven from the environment so the daemon can be dropped into a
 # container unchanged. Defaults point at a local `start-demo.sh` Loom.
 # ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
+# Node contracts
+# --------------------------------------------------------------------------- #
+#
+# What this worker's nodes look like, sent to Loom as NODE_REGISTRATION after it
+# acknowledges our REGISTER. Without it `py-hello` would be *runnable but
+# unauthorable*: Loom would happily dispatch tasks to us, but the pipeline editor
+# could not place the node and the graph parser would reject it as unknown.
+#
+# Java workers derive this by reflecting over the node's port constants. There is
+# nothing to reflect over here, and that is the point: the wire format is plain
+# JSON and language-agnostic, so a hand-written dict is a first-class citizen.
+#
+# The fields are exactly the descriptor Loom serves from
+# /api/v1/pipeline/node-descriptors — one contract type, in both directions.
+NODE_SPECS = {
+    "py-hello": {
+        "nodeId": "py-hello",
+        "version": "1.0.0",
+        "name": "Python Hello",
+        "description": "Example Python node: reports a file's size and a SHA-256 of its first bytes.",
+        # Icon names resolve against a fixed map in the editor; an unknown one
+        # falls back to the category icon, so a custom node cannot ship its own.
+        "icon": "description",
+        "category": "ANALYSIS",
+        "inputPorts": [
+            {
+                "id": "media",
+                "label": "Media",
+                "contentType": "media/*",
+                "cardinality": "ONE",
+                "required": True,
+                "description": "Any media file",
+            }
+        ],
+        "outputPorts": [
+            {
+                "id": "file_size",
+                "label": "File Size",
+                "contentType": "scalar/integer",
+                "cardinality": "ONE",
+                "required": True,
+                "description": "Size of the file in bytes",
+            },
+            {
+                "id": "digest",
+                "label": "Digest",
+                "contentType": "hash/sha256",
+                "cardinality": "ONE",
+                "required": True,
+                "description": "SHA-256 over the first bytes of the file",
+            },
+        ],
+        "inputGroups": [],
+        "outputGroups": [],
+        "dynamicPorts": False,
+        "parameters": [
+            {
+                "key": "enabled",
+                "type": "BOOLEAN",
+                "defaultValue": True,
+                "label": "Enabled",
+                "description": "Whether this node is active in the pipeline",
+            },
+            {
+                "key": "maxBytes",
+                "type": "INTEGER",
+                "defaultValue": 65536,
+                "label": "Max Bytes",
+                "description": "How many leading bytes to digest",
+                "min": 1,
+            },
+        ],
+        "defaultConcurrency": 1,
+        "defaultMode": "PARALLEL",
+        "defaultBlocking": True,
+        "events": ["NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS"],
+    }
+}
+
+
 @dataclass
 class Config:
     host: str = field(default_factory=lambda: os.environ.get("LOOM_HOST", "localhost"))
@@ -423,6 +504,45 @@ class LoomChannel:
         await self._send(ws, "REGISTER", registration)
         log.info("Sent REGISTER (nodeId=%s, kinds=%s)", self.cfg.node_id, self.cfg.node_kinds)
 
+    async def _send_node_registration(self, ws):
+        """Tell Loom what our nodes look like, so they can be authored in the editor.
+
+        Only the kinds this worker actually advertises are announced. Announcing a
+        contract for something we cannot run would put it in the palette and then
+        fail at dispatch.
+        """
+        nodes = [NODE_SPECS[kind] for kind in self.cfg.node_kinds if kind in NODE_SPECS]
+        missing = [kind for kind in self.cfg.node_kinds if kind not in NODE_SPECS]
+        if missing:
+            log.warning(
+                "No contract defined for %s; those nodes will run but stay unauthorable. "
+                "Add them to NODE_SPECS.",
+                missing,
+            )
+        if not nodes:
+            return
+        await self._send(ws, "NODE_REGISTRATION", {"cortexId": self.cfg.node_id, "nodes": nodes})
+        log.info("Announced %d node contract(s): %s", len(nodes), [n["nodeId"] for n in nodes])
+
+    def _log_node_registration_ack(self, body: dict):
+        """Report what Loom made of the announcement.
+
+        Every rejection is logged by name and reason. A silent ack is how an author
+        ends up editing a node's ports, seeing no effect in the editor, and losing
+        an afternoon to it — and this file is what a custom-node author copies.
+        """
+        accepted = body.get("accepted") or []
+        rejected = body.get("rejected") or []
+        log.info("Loom accepted %d node contract(s): %s", len(accepted), accepted)
+        for entry in rejected:
+            reason = entry.get("reason")
+            message = entry.get("message")
+            if reason == "BUILTIN":
+                # Routine: Loom ships its own contract for this node id and it wins.
+                log.info("Node '%s': %s", entry.get("nodeId"), message)
+            else:
+                log.warning("Node '%s' was not adopted (%s): %s", entry.get("nodeId"), reason, message)
+
     async def _heartbeat_loop(self, ws):
         while True:
             await asyncio.sleep(HEARTBEAT_INTERVAL_S)
@@ -446,6 +566,14 @@ class LoomChannel:
         if mtype == "REGISTERED":
             self.registered = True
             log.info("Registration acknowledged by Loom")
+            # Announce *after* REGISTERED, not inside REGISTER. Registration is a
+            # cheap in-memory operation on Loom's side; ingesting contracts
+            # validates and writes to Postgres. Keeping them apart is what stops a
+            # reconnect storm becoming a database problem — and the gap in between
+            # is harmless, because dispatch reads the whitelist, not the registry.
+            await self._send_node_registration(ws)
+        elif mtype == "NODE_REGISTRATION_ACK":
+            self._log_node_registration_ack(body)
         elif mtype == "HEARTBEAT_ACK":
             pass  # keepalive confirmed
         elif mtype == "NODE_TASK":

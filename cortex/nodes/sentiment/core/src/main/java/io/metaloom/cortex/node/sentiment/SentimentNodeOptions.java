@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.sentiment;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -29,17 +30,24 @@ public class SentimentNodeOptions extends AbstractNodeOptions<SentimentNodeOptio
 
 	public static final String LANGUAGE_AUTO = "auto";
 
+	@ParamDoc(label = "Sidecar Host", description = "Host of the /v1/sentiment sidecar")
 	private String sentimentHost = "localhost";
 
 	/** 9110 - the TTS sidecar already owns 9100. */
+	@ParamDoc(label = "Sidecar Port", description = "Port of the /v1/sentiment sidecar", min = "1")
 	private int sentimentPort = 9110;
 
+	@ParamDoc(label = "Language", description = "'de', 'en', or 'auto' to let the sidecar detect it")
 	private String language = LANGUAGE_AUTO;
 
+	@ParamDoc(label = "German Model", description = "Override the sidecar's German checkpoint")
 	private String modelDe;
+
+	@ParamDoc(label = "English Model", description = "Override the sidecar's English checkpoint")
 	private String modelEn;
 
 	/** Upper bound on the text handed to the sidecar. Longer text is truncated before the request. */
+	@ParamDoc(label = "Max Characters", description = "Upper bound on the text sent to the sidecar", min = "1")
 	private int maxChars = 200_000;
 
 	@Override

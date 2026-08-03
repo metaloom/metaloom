@@ -37,43 +37,43 @@ public final class TestDescriptors {
 	public static NodeDescriptorRegistry registry() {
 		NodeDescriptorRegistry registry = new NodeDescriptorRegistry();
 
-		registry.register(new NodeDescriptor().setKind("test-source").setName("Source")
+		registry.register(new NodeDescriptor().setNodeId("test-source").setName("Source")
 			.setCategory(NodeCategory.SOURCE)
 			.setInputPorts(List.of())
 			.setOutputPorts(List.of(PortSpec.one("media", MEDIA_ANY))));
 
 		// One media item in, N texts out: the canonical fan-out driver.
-		registry.register(new NodeDescriptor().setKind("splitter").setName("Splitter")
+		registry.register(new NodeDescriptor().setNodeId("splitter").setName("Splitter")
 			.setCategory(NodeCategory.TRANSFORM)
 			.setInputPorts(List.of(PortSpec.one("media", MEDIA_ANY)))
 			.setOutputPorts(List.of(PortSpec.many("texts", TEXT_PLAIN), PortSpec.one("count", SCALAR_INTEGER))));
 
 		// Media in, one text out - a plain link in a chain.
-		registry.register(new NodeDescriptor().setKind("describe").setName("Describe")
+		registry.register(new NodeDescriptor().setNodeId("describe").setName("Describe")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(PortSpec.one("media", MEDIA_ANY)))
 			.setOutputPorts(List.of(PortSpec.one("text", TEXT_PLAIN))));
 
 		// One text in, one text out. Downstream of a sequence this runs once per element.
-		registry.register(new NodeDescriptor().setKind("worker").setName("Worker")
+		registry.register(new NodeDescriptor().setNodeId("worker").setName("Worker")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(PortSpec.one("text", TEXT_PLAIN)))
 			.setOutputPorts(List.of(PortSpec.one("result", TEXT_PLAIN))));
 
 		// One text in, one structured verdict out - the second branch of the §6.5 scenario.
-		registry.register(new NodeDescriptor().setKind("scorer").setName("Scorer")
+		registry.register(new NodeDescriptor().setNodeId("scorer").setName("Scorer")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(PortSpec.one("text", TEXT_PLAIN)))
 			.setOutputPorts(List.of(PortSpec.one("score", STRUCT_JSON))));
 
 		// A sequence in: this is the gather, and it runs once however long the sequence is.
-		registry.register(new NodeDescriptor().setKind("collector").setName("Collector")
+		registry.register(new NodeDescriptor().setNodeId("collector").setName("Collector")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(PortSpec.many("items", TEXT_ANY)))
 			.setOutputPorts(List.of(PortSpec.one("report", STRUCT_JSON))));
 
 		// Two sequences in, recombined per origin asset - the workunit of §6.5.
-		registry.register(new NodeDescriptor().setKind("gatherer").setName("Gatherer")
+		registry.register(new NodeDescriptor().setNodeId("gatherer").setName("Gatherer")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(
 				PortSpec.many("summaries", TEXT_ANY),
@@ -81,23 +81,23 @@ public final class TestDescriptors {
 			.setOutputPorts(List.of(PortSpec.one("report", STRUCT_JSON))));
 
 		// Two single-element inputs: legal only when both trace to the same fan-out.
-		registry.register(new NodeDescriptor().setKind("zipper").setName("Zipper")
+		registry.register(new NodeDescriptor().setNodeId("zipper").setName("Zipper")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(PortSpec.one("left", TEXT_PLAIN), PortSpec.one("right", TEXT_PLAIN)))
 			.setOutputPorts(List.of(PortSpec.one("result", TEXT_PLAIN))));
 
 		// One element in, a sequence out: fine on its own, nested fan-out below a driver.
-		registry.register(new NodeDescriptor().setKind("resplitter").setName("Resplitter")
+		registry.register(new NodeDescriptor().setNodeId("resplitter").setName("Resplitter")
 			.setCategory(NodeCategory.TRANSFORM)
 			.setInputPorts(List.of(PortSpec.one("text", TEXT_PLAIN)))
 			.setOutputPorts(List.of(PortSpec.many("parts", TEXT_PLAIN))));
 
-		registry.register(new NodeDescriptor().setKind("hasher").setName("Hasher")
+		registry.register(new NodeDescriptor().setNodeId("hasher").setName("Hasher")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(PortSpec.one("digest", HASH_MD5)))
 			.setOutputPorts(List.of(PortSpec.one("text", TEXT_PLAIN))));
 
-		registry.register(new NodeDescriptor().setKind("either").setName("Either")
+		registry.register(new NodeDescriptor().setNodeId("either").setName("Either")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(
 				PortSpec.one("audio", MEDIA_AUDIO).setGroup("media_alt"),
@@ -109,7 +109,7 @@ public final class TestDescriptors {
 		// ports are deliberately NOT selective: a node wired to those runs on every item, whichever
 		// branch the item took, which is what makes "consume the decision rather than the item"
 		// expressible at all.
-		registry.register(new NodeDescriptor().setKind("router").setName("Router")
+		registry.register(new NodeDescriptor().setNodeId("router").setName("Router")
 			.setCategory(NodeCategory.FILTER)
 			.setInputPorts(List.of(PortSpec.one("media", MEDIA_ANY)))
 			.setOutputPorts(List.of(
@@ -120,14 +120,14 @@ public final class TestDescriptors {
 
 		// Consumes a router's decision rather than the item it routed - the shape that must keep
 		// running whichever branch an item took.
-		registry.register(new NodeDescriptor().setKind("noticer").setName("Noticer")
+		registry.register(new NodeDescriptor().setNodeId("noticer").setName("Noticer")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(PortSpec.one("label", SCALAR_STRING)))
 			.setOutputPorts(List.of(PortSpec.one("text", TEXT_PLAIN))));
 
 		// The same, one level down the type system: routes a single text, so downstream of a
 		// splitter it classifies per element.
-		registry.register(new NodeDescriptor().setKind("text-router").setName("Text Router")
+		registry.register(new NodeDescriptor().setNodeId("text-router").setName("Text Router")
 			.setCategory(NodeCategory.FILTER)
 			.setInputPorts(List.of(PortSpec.one("text", TEXT_PLAIN)))
 			.setOutputPorts(List.of(
@@ -135,7 +135,7 @@ public final class TestDescriptors {
 				PortSpec.selectiveOne("b", TEXT_PLAIN),
 				PortSpec.one("verdict", CONTROL_FILTER))));
 
-		registry.register(new NodeDescriptor().setKind("either-optional").setName("Either (optional)")
+		registry.register(new NodeDescriptor().setNodeId("either-optional").setName("Either (optional)")
 			.setCategory(NodeCategory.ANALYSIS)
 			.setInputPorts(List.of(
 				PortSpec.one("audio", MEDIA_AUDIO).setGroup("media_alt"),

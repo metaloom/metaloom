@@ -66,6 +66,17 @@ public class CortexOptions {
 	private Set<String> nodeBlacklist;
 
 	/**
+	 * Whether this worker announces its node contracts to Loom after registering.
+	 *
+	 * <p>On by default, because a custom node that cannot be authored is the defect the announcement
+	 * exists to remove. Turning it off restores exactly the pre-announcement behaviour: the worker
+	 * still registers, still receives work and still runs every node it could before — only its
+	 * contracts stop reaching the editor, so any node Loom does not itself ship becomes unauthorable
+	 * again.</p>
+	 */
+	private boolean nodeSpecAnnounceEnabled = true;
+
+	/**
 	 * Identity this worker registers under.
 	 *
 	 * <p>Generated per process when unset, which means a restarted worker is a
@@ -215,6 +226,18 @@ public class CortexOptions {
 
 	public CortexOptions setNodeBlacklist(Set<String> nodeBlacklist) {
 		this.nodeBlacklist = nodeBlacklist;
+		return this;
+	}
+
+	/**
+	 * @return whether this worker announces its node contracts after registering
+	 */
+	public boolean isNodeSpecAnnounceEnabled() {
+		return nodeSpecAnnounceEnabled;
+	}
+
+	public CortexOptions setNodeSpecAnnounceEnabled(boolean nodeSpecAnnounceEnabled) {
+		this.nodeSpecAnnounceEnabled = nodeSpecAnnounceEnabled;
 		return this;
 	}
 

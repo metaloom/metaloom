@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.tts;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -21,10 +22,18 @@ public class TtsNodeOptions extends AbstractNodeOptions<TtsNodeOptions> {
 
 	public static final String KEY = "tts";
 
+	@ParamDoc(label = "Sidecar Host", description = "Host of the /v1/tts sidecar", order = 100)
 	private String ttsHost = "localhost";
+
+	@ParamDoc(label = "Sidecar Port", description = "Port of the /v1/tts sidecar", min = "1", order = 110)
 	private int ttsPort = 9100;
 
+	@ParamDoc(label = "Language",
+		description = "Selects the synthesis stack inside the sidecar: 'de' uses Orpheus/Kartoffel, 'en' uses Kokoro", order = 120)
 	private String language = "de";
+
+	@ParamDoc(label = "Voice",
+		description = "Voice id offered by the selected stack. A voice from the other language is not substituted", order = 130)
 	private String voice = "Jakob";
 
 	@Override

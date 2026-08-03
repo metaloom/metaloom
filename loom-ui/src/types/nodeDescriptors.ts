@@ -91,7 +91,26 @@ export interface NodeParameter {
 }
 
 export interface NodeDescriptor {
+  /**
+   * The node **type** id — `whisper`, `acme-nsfw`.
+   *
+   * Not the graph-instance id (`PipelineNode.id`, and `nodeId` on the run events), and not the
+   * worker id (`Processor.nodeId`). Three different things wear this name; check which one you have.
+   *
+   * Optional because it genuinely can be absent: the checked-in `node-descriptors.json` snapshot the
+   * offline website editor reads predates the rename and carries only `kind`. Read it through
+   * `nodeIdOf()` rather than directly, and this stays a non-issue.
+   */
+  nodeId?: string;
+  /** @deprecated legacy alias of {@link nodeId}; the backend emits both for one release */
   kind: string;
+  /**
+   * Contract version as announced by the worker offering this node, or absent for a built-in.
+   *
+   * When several workers offer one node on different versions the backend serves the **lowest**, so
+   * a port that only exists on newer workers is not offered until the last old one is gone.
+   */
+  version?: string;
   name: string;
   description: string;
   icon: string;
@@ -130,7 +149,45 @@ export interface ContentType {
   wildcard: boolean;
 }
 
+/**
+ * Runtime fleet state for one node type, served **beside** its contract rather than inside it.
+ *
+ * The separation is deliberate: `NodeDescriptor` is the one contract type — the object a worker
+ * announces, the backend serves, the checked-in snapshot holds and the graph analyzer validates
+ * against. Availability is a fact about the fleet at this instant, and belongs next to it.
+ */
+export interface NodeAvailability {
+  /** `BUILTIN` (compiled into Loom) or `ANNOUNCED` (contributed by a worker). */
+  source?: "BUILTIN" | "ANNOUNCED";
+  /**
+   * Whether a worker offering this node is currently online.
+   *
+   * A state query on the backend, not a timestamp comparison — a worker announces once and then
+   * stays connected for days, so anything derived from "was this seen recently" would grey out the
+   * whole palette one heartbeat after a healthy fleet connected.
+   */
+  available: boolean;
+  /** When a worker offering this node was last seen alive (heartbeat-driven). */
+  lastSeen?: string;
+  /** When the contract last arrived over the socket. Diagnostic only — see {@link lastSeen}. */
+  lastAnnounced?: string;
+  /** Worker ids currently offering it. Only served to a caller with `READ_CORTEX_INSTANCE`. */
+  providedBy?: string[];
+  /** Whether the workers offering this node disagree about its contract or version. */
+  versionSkew?: boolean;
+}
+
+/** Fleet state keyed by node id. */
+export type NodeAvailabilityMap = Record<string, NodeAvailability>;
+
 export interface NodeDescriptorsResponse {
   nodeDescriptors: NodeDescriptor[];
   contentTypes: ContentType[];
+  /**
+   * Absent from the checked-in `node-descriptors.json` the offline website editor reads.
+   *
+   * A missing block — and a missing entry within it — must read as **available**: that editor has no
+   * fleet, and every node in it is authorable.
+   */
+  availability?: NodeAvailabilityMap;
 }

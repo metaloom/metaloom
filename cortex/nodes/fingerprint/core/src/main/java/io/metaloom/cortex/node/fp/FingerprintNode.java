@@ -22,10 +22,13 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompCreateRequest;
 import io.metaloom.video4j.Video4j;
@@ -35,10 +38,14 @@ import io.metaloom.video4j.fingerprint.Fingerprint;
 import io.metaloom.video4j.fingerprint.v2.MultiSectorVideoFingerprinter;
 import io.metaloom.video4j.fingerprint.v2.impl.MultiSectorVideoFingerprinterImpl;
 
+@NodeSpec(nodeId = "fingerprint", name = "Fingerprint", icon = "grain", category = NodeCategory.ANALYSIS,
+	description = "Compute a perceptual fingerprint of the media for deduplication or similarity search.",
+	defaultConcurrency = 2)
 public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(FingerprintNode.class);
 
+	@PortDoc(label = "Video", description = "The video whose frames are sampled into a perceptual hash")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
 
 	/**
@@ -46,8 +53,12 @@ public class FingerprintNode extends AbstractMediaNode<FingerprintNodeOptions> {
 	 * {@code ctx.upstreamOutput("consistency", "is_complete")}, which silently produced nothing
 	 * the moment a pipeline author named the node anything other than {@code consistency}.
 	 */
+	@PortDoc(label = "Is Complete", required = false,
+		description = "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set")
 	public static final InputPort<Boolean> IN_IS_COMPLETE = InputPort.one("is_complete", ContentTypeRegistry.SCALAR_BOOLEAN, Boolean.class);
 
+	@PortDoc(label = "Fingerprint",
+		description = "Perceptual fingerprint that survives re-encoding, so near-duplicates still compare equal")
 	public static final OutputPort<String> OUT_FINGERPRINT = OutputPort.one("fingerprint", ContentTypeRegistry.HASH_FINGERPRINT, String.class);
 
 	/** Identifier of the fingerprint algorithm this node produces; part of the persisted component's natural key. */

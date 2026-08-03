@@ -16,23 +16,30 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.model.asset.info.HashInfo;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.MD5;
 
+@NodeSpec(nodeId = "md5", name = "MD5 Hash", icon = "fingerprint", category = NodeCategory.ANALYSIS,
+	description = "Compute the MD5 hash of the media file.", defaultConcurrency = 4)
 public class MD5Node extends AbstractMediaNode<HashNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(MD5Node.class);
 
+	@PortDoc(label = "Media", description = "The file whose bytes are digested")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
+	@PortDoc(label = "MD5", description = "Lowercase hex MD5 digest over the whole file")
 	public static final OutputPort<String> OUT_HASH = OutputPort.one("hash", ContentTypeRegistry.HASH_MD5, String.class);
 
 	/** In-heap skip cache of computed hashes, keyed by media path, to avoid re-reading a file within this worker's lifetime. Non-durable - the durable

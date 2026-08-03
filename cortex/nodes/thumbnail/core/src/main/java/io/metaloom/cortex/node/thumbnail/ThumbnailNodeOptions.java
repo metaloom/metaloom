@@ -5,6 +5,7 @@ import java.util.List;
 
 import javax.inject.Inject;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -18,10 +19,13 @@ public class ThumbnailNodeOptions extends AbstractNodeOptions<ThumbnailNodeOptio
 
 	public static final String KEY = "thumbnail";
 
+	@ParamDoc(label = "Grid Columns", min = "1", max = "20")
 	private int cols = DEFAULT_COLS;
 
+	@ParamDoc(label = "Grid Rows", min = "1", max = "20")
 	private int rows = DEFAULT_ROWS;
 
+	@ParamDoc(label = "Tile Size (px)", min = "32", max = "1024")
 	private int tileSize = DEFAULT_TILE_SIZE;
 
 	@Inject

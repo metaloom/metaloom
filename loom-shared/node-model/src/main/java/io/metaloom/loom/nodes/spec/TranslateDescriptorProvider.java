@@ -29,7 +29,7 @@ public class TranslateDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("translate")
+				.setNodeId("translate")
 				.setName("Translate")
 				.setDescription("Translate text produced by an upstream node into a target language using a language model.")
 				.setIcon("translate")

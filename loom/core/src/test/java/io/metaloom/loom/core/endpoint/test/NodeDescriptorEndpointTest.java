@@ -3,6 +3,7 @@ package io.metaloom.loom.core.endpoint.test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.concurrent.CompletableFuture;
@@ -71,7 +72,11 @@ public class NodeDescriptorEndpointTest {
 		CompletableFuture<JsonObject> future = new CompletableFuture<>();
 		client.request(HttpMethod.GET, restPort(), "localhost", path)
 			.compose(req -> {
-				req.putHeader("Authorization", "Bearer " + token);
+				// A null token exercises the anonymous path: these routes are deliberately
+				// unauthenticated so the editor can load the palette before login.
+				if (token != null) {
+					req.putHeader("Authorization", "Bearer " + token);
+				}
 				return req.send();
 			})
 			.compose(resp -> resp.body())
@@ -214,6 +219,111 @@ public class NodeDescriptorEndpointTest {
 				JsonArray inputs = desc.getJsonArray("inputPorts");
 				assertTrue(inputs == null || inputs.isEmpty(), kind + " should have no input ports");
 			}
+		} finally {
+			vertx.close();
+		}
+	}
+
+	// ── Node self-registration surface ────────────────────────────────────
+
+	@Test
+	public void testEveryDescriptorCarriesBothNodeIdAndTheDeprecatedKind() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			JsonArray descriptors = nodeDescriptors(vertx, client.getToken());
+
+			// Both names are served for one release so the checked-in node-descriptors.json snapshot,
+			// the TypeScript mirror and the offline website editor do not all break in one commit.
+			for (int i = 0; i < descriptors.size(); i++) {
+				JsonObject desc = descriptors.getJsonObject(i);
+				assertNotNull(desc.getString("nodeId"), "nodeId must be present at index " + i);
+				assertEquals(desc.getString("nodeId"), desc.getString("kind"),
+					"the deprecated alias must agree with nodeId at index " + i);
+			}
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testTheResponseCarriesAnAvailabilityBlock() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			JsonObject response = httpGetObject(vertx, "/api/v1/pipeline/node-descriptors", client.getToken());
+
+			JsonObject availability = response.getJsonObject("availability");
+			assertNotNull(availability, "the editor needs fleet state beside the contracts");
+
+			// Every served contract must have an entry, or the palette has to guess for the rest.
+			JsonArray descriptors = response.getJsonArray("nodeDescriptors");
+			for (int i = 0; i < descriptors.size(); i++) {
+				String nodeId = descriptors.getJsonObject(i).getString("nodeId");
+				assertNotNull(availability.getJsonObject(nodeId), "no availability entry for " + nodeId);
+			}
+
+			// No worker is connected in this test, so nothing can run - but everything is still served.
+			JsonObject whisper = availability.getJsonObject("whisper");
+			assertEquals(false, whisper.getBoolean("available"),
+				"with no worker connected nothing is runnable - and the contract is still returned");
+			assertEquals("BUILTIN", whisper.getString("source"));
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testAvailabilityRouteMatchesTheBlockInTheFullResponse() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			JsonObject full = httpGetObject(vertx, "/api/v1/pipeline/node-descriptors", client.getToken())
+				.getJsonObject("availability");
+			JsonObject presenceOnly = httpGetObject(vertx, "/api/v1/pipeline/node-descriptors/availability",
+				client.getToken());
+
+			// The cheap route exists so a worker restart does not pull ~115 KB through every open tab.
+			// It has to say exactly the same thing, or the two answers drift.
+			assertEquals(full.fieldNames(), presenceOnly.fieldNames());
+			for (String nodeId : full.fieldNames()) {
+				assertEquals(full.getJsonObject(nodeId).getBoolean("available"),
+					presenceOnly.getJsonObject(nodeId).getBoolean("available"), nodeId);
+			}
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testTheUnauthenticatedPaletteNeverNamesAWorker() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try {
+			// The editor loads the palette before anyone has logged in, so this route is unauthenticated
+			// by design - and therefore cannot resolve a caller to check a permission against. Worker
+			// ids are fleet topology, so they are simply never on this response.
+			JsonObject anonymous = httpGetObject(vertx, "/api/v1/pipeline/node-descriptors", null);
+
+			assertNotNull(anonymous.getJsonArray("nodeDescriptors"), "contracts are public");
+			JsonObject availability = anonymous.getJsonObject("availability");
+			assertNotNull(availability, "so is plain availability");
+			for (String nodeId : availability.fieldNames()) {
+				assertNull(availability.getJsonObject(nodeId).getJsonArray("providedBy"),
+					"providedBy names workers, but " + nodeId + " leaked it on the public route");
+			}
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	public void testAnUnknownNodeIdStill404sByTheNewParamName() throws Exception {
+		Vertx vertx = Vertx.vertx();
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			// The path param was renamed :kind -> :nodeId; the route must still resolve.
+			JsonObject desc = httpGetObject(vertx, "/api/v1/pipeline/node-descriptors/whisper", client.getToken());
+			assertEquals("whisper", desc.getString("nodeId"));
 		} finally {
 			vertx.close();
 		}

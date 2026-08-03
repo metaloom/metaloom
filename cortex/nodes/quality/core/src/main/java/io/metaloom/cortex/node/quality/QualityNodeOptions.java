@@ -5,6 +5,7 @@ import java.util.List;
 
 import javax.inject.Inject;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -12,12 +13,16 @@ public class QualityNodeOptions extends AbstractNodeOptions<QualityNodeOptions> 
 
 	public static final String KEY = "quality";
 
+	@ParamDoc(label = "Check Blurriness")
 	private boolean checkBlurriness = true;
 
+	@ParamDoc(label = "Check Resolution")
 	private boolean checkResolution = true;
 
+	@ParamDoc(label = "Check Video Bitrate")
 	private boolean checkVideoBitrate = true;
 
+	@ParamDoc(label = "Check Audio Bitrate")
 	private boolean checkAudioBitrate = true;
 
 	@Inject

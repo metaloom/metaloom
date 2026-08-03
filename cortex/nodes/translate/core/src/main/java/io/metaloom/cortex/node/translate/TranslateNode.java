@@ -22,6 +22,8 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -30,6 +32,7 @@ import io.metaloom.cortex.llm.LlmInvoker;
 import io.metaloom.cortex.llm.TextChunker;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -57,6 +60,8 @@ import io.vertx.core.json.JsonObject;
  * {@code fr} side by side — one row per translate node in the graph.
  * </p>
  */
+@NodeSpec(nodeId = "translate", name = "Translate", icon = "translate", category = NodeCategory.ANALYSIS,
+	description = "Translate text produced by an upstream node into a target language using a language model.")
 public class TranslateNode extends AbstractMediaNode<TranslateNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(TranslateNode.class);
@@ -73,15 +78,19 @@ public class TranslateNode extends AbstractMediaNode<TranslateNodeOptions> {
 	 * {@code text/plain} from tika, ocr or vlm are all assignable to it.
 	 * </p>
 	 */
+	@PortDoc(label = "Text", description = "The prose to translate - a transcript, document body, OCR result or any other upstream text")
 	public static final InputPort<String> IN_TEXT = InputPort.one("text", ContentTypeRegistry.TEXT_ANY, String.class);
 
 	/** The translation itself, ready to be wired into {@code tts} or an s3 sink. */
+	@PortDoc(label = "Translation", description = "The translated text, ready to be spoken by the TTS node or stored")
 	public static final OutputPort<String> OUT_TRANSLATION = OutputPort.one("translation", ContentTypeRegistry.TEXT_PLAIN, String.class);
 
 	/** The target language tag, so a downstream node can pick a voice without repeating the option. */
+	@PortDoc(label = "Language", description = "The target language the text was translated into")
 	public static final OutputPort<String> OUT_LANGUAGE = OutputPort.one("language", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** The full stored payload, including how much text was seen and how many calls it took. */
+	@PortDoc(label = "Result", description = "The stored payload: translation, languages, model and how many chunks it took")
 	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_JSON, String.class);
 
 	private static final int RESULT_CACHE_SIZE = 10_000;

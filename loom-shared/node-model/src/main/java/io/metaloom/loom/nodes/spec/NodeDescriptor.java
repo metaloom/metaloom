@@ -3,19 +3,42 @@ package io.metaloom.loom.nodes.spec;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
 /**
- * Descriptor that fully describes a pipeline node kind to the UI.
+ * Descriptor that fully describes a pipeline node type to the UI.
  * The UI uses this to render the node palette, generate edit forms,
  * validate connections, and display live status indicators.
+ *
+ * <p>
+ * This is <strong>the</strong> contract type. The same object is what a Cortex worker announces over
+ * {@code NODE_REGISTRATION}, what {@code /api/v1/pipeline/node-descriptors} serves, what the checked-in
+ * {@code node-descriptors.json} snapshot holds, and what {@code PortGraphAnalyzer} validates against.
+ * Do not add a second, parallel registration shape — and do not add runtime fleet state (availability,
+ * which worker offers it) here: that is served in a sibling block, keyed by {@link #getNodeId()}.
+ * </p>
  */
+@JsonPropertyOrder({ "nodeId", "kind", "version", "name" })
 public class NodeDescriptor {
 
 	@JsonProperty(required = true)
-	@JsonPropertyDescription("Unique machine-readable kind identifier (e.g. 'facedetect', 'sha512')")
-	private String kind;
+	@JsonPropertyDescription("Unique machine-readable node type identifier (e.g. 'facedetect', 'sha512')")
+	private String nodeId;
+
+	/**
+	 * Contract version, as announced by the worker that offers this node.
+	 *
+	 * <p>
+	 * {@code null} for built-in descriptors and for workers that declare no version — an unversioned
+	 * contract, which disables version-skew detection rather than guessing an order.
+	 * </p>
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	@JsonPropertyDescription("Contract version of this node type, e.g. '1.0.0-SNAPSHOT'. Null means unversioned")
+	private String version;
 
 	@JsonProperty(required = true)
 	@JsonPropertyDescription("Human-readable display name")
@@ -64,12 +87,51 @@ public class NodeDescriptor {
 	public NodeDescriptor() {
 	}
 
-	public String getKind() {
-		return kind;
+	public String getNodeId() {
+		return nodeId;
 	}
 
+	public NodeDescriptor setNodeId(String nodeId) {
+		this.nodeId = nodeId;
+		return this;
+	}
+
+	/**
+	 * The former name of {@link #getNodeId()}.
+	 *
+	 * <p>
+	 * Emitted <em>and</em> accepted alongside {@code nodeId} for one release so the checked-in
+	 * {@code website/static/pipeline-editor/node-descriptors.json}, the TypeScript mirror in
+	 * {@code loom-ui/src/types/nodeDescriptors.ts} and the offline website editor do not all break in
+	 * the same commit. Both names read and write the one field, so a payload carrying either — or both,
+	 * agreeing — deserializes identically.
+	 * </p>
+	 *
+	 * @deprecated use {@link #getNodeId()}
+	 */
+	@Deprecated
+	@JsonProperty("kind")
+	@JsonPropertyDescription("Deprecated alias of nodeId, emitted for one release")
+	public String getKind() {
+		return nodeId;
+	}
+
+	/**
+	 * @deprecated use {@link #setNodeId(String)}
+	 */
+	@Deprecated
+	@JsonProperty("kind")
 	public NodeDescriptor setKind(String kind) {
-		this.kind = kind;
+		this.nodeId = kind;
+		return this;
+	}
+
+	public String getVersion() {
+		return version;
+	}
+
+	public NodeDescriptor setVersion(String version) {
+		this.version = version;
 		return this;
 	}
 

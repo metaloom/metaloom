@@ -20,6 +20,9 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
+import io.metaloom.cortex.api.node.spec.PortGroupDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -27,20 +30,29 @@ import io.metaloom.cortex.media.whisper.TranscriptionSegment;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
+import io.metaloom.loom.nodes.spec.PortGroupMode;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+@NodeSpec(nodeId = "whisper", name = "Whisper (Speech-to-Text)", icon = "mic", category = NodeCategory.ANALYSIS,
+	description = "Transcribe audio/video speech to text using Whisper.",
+	inputGroups = @PortGroupDoc(id = "media_alt", mode = PortGroupMode.XOR, label = "Media"))
 public class WhisperNode extends AbstractMediaNode<WhisperOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(WhisperNode.class);
 
 	/** The two alternatives of the descriptor's {@code media_alt} XOR group - one input, two shapes. */
+	@PortDoc(label = "Audio", description = "An audio file to transcribe", group = "media_alt")
 	public static final InputPort<LoomMedia> IN_AUDIO = InputPort.one("audio", ContentTypeRegistry.MEDIA_AUDIO, LoomMedia.class);
+
+	@PortDoc(label = "Video", description = "A video whose audio track is demuxed and transcribed", group = "media_alt")
 	public static final InputPort<LoomMedia> IN_VIDEO = InputPort.one("video", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
 
+	@PortDoc(label = "Transcript", description = "The recognised speech with per-segment start and end times")
 	public static final OutputPort<String> OUT_TRANSCRIPT = OutputPort.one("transcript", ContentTypeRegistry.TEXT_TRANSCRIPT, String.class);
 
 	/** Upper bound for the in-heap skip cache. Transcription is expensive, so we remember the transcript JSON produced for each media during this

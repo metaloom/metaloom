@@ -20,7 +20,7 @@ public class ConsistencyDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("consistency")
+				.setNodeId("consistency")
 				.setName("Consistency Check")
 				.setDescription("Check media file integrity (zero chunk detection, completeness).")
 				.setIcon("verified")

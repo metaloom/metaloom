@@ -15,6 +15,7 @@
 > | Node lifecycle, the `@StringKey` multibinding, worker whitelist/blacklist | [../features/nodes/NODES.md](../features/nodes/NODES.md) §5, §7 |
 > | Engine, dispatch, definition JSON, `unsupportedNodeKinds` | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
 > | WebSocket framing, auth, reconnect | [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) |
+> | The pipeline editor as built — components, canvas, validation, event surface | [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) |
 > | Definition of done for a code change | [../guidelines/CODING.md](../guidelines/CODING.md) |
 >
 > **Source of truth is the code.** Where this file and the code disagree, the code wins — fix this
@@ -40,13 +41,18 @@ and it still cannot be placed in the editor, because its contract lives nowhere 
 **This plan moves the contract to where the runtime already is.** The worker announces the specs for
 the nodes it can execute; Loom adopts, persists and serves them.
 
-Two facts make this cheaper than it looks:
+Three facts make this cheaper than it looks:
 
 - **`cortex/api` already depends on `loom-node-model`** ([cortex/api/pom.xml:37-39](../../cortex/api/pom.xml#L37-L39)),
   so `NodeDescriptor`, `PortSpec` and `NodeParameter` are already on every worker's classpath.
 - **They are already plain Jackson beans** — `NodeDescriptorEndpoint` just `Json.encode`s them. The
   payload in §3 is what `GET /api/v1/pipeline/node-descriptors` returns today, plus `version`, with
   `kind` renamed to `nodeId`.
+- **The editor's palette is already data-driven.** `NodeRegistryContext` fetches the whole registry
+  over REST and the pickers render whatever comes back — there is no hardcoded node list in
+  `loom-ui`. A descriptor that reaches that endpoint is authorable with no UI change. What the UI
+  lacks is a *refresh* (it fetches once at mount) and any notion of whether a worker offering the node
+  is currently up. That is §7.4, and it is the half a user actually sees.
 
 ---
 
@@ -70,8 +76,9 @@ graph TB
         NRS["NodeRegistrationService ⬜<br/>validate · version rule · conflict"]
         NDR["NodeDescriptorRegistry<br/>BUILTIN layer + ANNOUNCED layer ⬜"]
         DAO[("node_descriptor<br/>node_descriptor_instance ⬜<br/>V2.66")]
-        EP["NodeDescriptorEndpoint<br/>+ source · version · available"]
-        BC["PipelineEventBroadcaster<br/>NODE_DESCRIPTORS_CHANGED ⬜"]
+        EP["NodeDescriptorEndpoint<br/>nodeDescriptors + contentTypes + availability ⬜<br/>/availability (presence only) ⬜"]
+        PR["ProcessorRegistry<br/>cortex_instance.state · last_seen"]
+        BC["PipelineEventBroadcaster<br/>channel NODE_REGISTRY ⬜<br/>DESCRIPTORS_CHANGED · AVAILABILITY_CHANGED"]
         PGA["PortGraphAnalyzer<br/>(unchanged — reads the registry)"]
         PE --> NRS --> NDR
         NRS --> DAO
@@ -79,12 +86,17 @@ graph TB
         NDR --> EP
         NDR --> PGA
         NRS --> BC
+        PR -->|"who is ONLINE — availability<br/>never comes from the spec row"| EP
+        PR --> BC
     end
 
     subgraph UI["loom-ui"]
-        PAL["PipelineEditor palette<br/>greys out available:false"]
-        EP --> PAL
-        BC -->|"/api/v1/pipelines/events/ws"| PAL
+        NRC["NodeRegistryContext ⬜<br/>descriptors + availability + live refresh"]
+        SEL["nodePicker.selectPickerNodes ⬜<br/>one filter+order for both pickers"]
+        PAL["PipelineEditor<br/>picker: offline last · show-offline toggle<br/>canvas: never filtered"]
+        EP --> NRC
+        BC -->|"/api/v1/pipelines/events/ws"| NRC
+        NRC --> SEL --> PAL
     end
 
     LCC -->|"NODE_REGISTRATION frame<br/>over /api/v1/processors/ws"| PE
@@ -96,6 +108,10 @@ last worker went offline keeps validating and saving; it simply cannot *run*, wh
 ([PipelineEndpointService.java:319-331](../../loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEndpointService.java#L319-L331)).
 Deleting specs on disconnect would turn a 30-second worker restart into "your saved pipeline no longer
 validates".
+
+That split is why the two arrows into `NodeDescriptorEndpoint` come from **different** sources: the
+contract from `NodeDescriptorRegistry`, the availability from `ProcessorRegistry`. It is also the whole
+of §7.4's UI rule — the picker may reorder or hide by availability, the canvas never may.
 
 ---
 
@@ -179,12 +195,18 @@ processor socket.
 `NodeDescriptor.kind` is called today, what a definition's `nodes[].type` selects, and what
 `RegistryNodeFactory` keys on.
 
-🔴 **`nodeId` is already taken elsewhere, meaning something else.** In
-[NodeTask](../../loom-shared/pipeline-model/src/main/java/io/metaloom/loom/pipeline/model/NodeTask.java)
-and in `asset_node_result`, `nodeId` is the **graph-instance** id (`pn5`, or an author-chosen name) —
-the thing that lets two `translate` instances write two rows on one asset
-([NODES.md §2](../features/nodes/NODES.md)). Inside this payload there is no instance, so `nodeId` is
-unambiguous *here*; across the codebase it is not.
+🔴 **`nodeId` is already taken elsewhere — twice, meaning two other things.**
+
+| Where | What `nodeId` means there |
+|---|---|
+| **This payload**, `NodeDescriptor`, `node_descriptor` | The **node type** — `whisper` |
+| [NodeTask](../../loom-shared/pipeline-model/src/main/java/io/metaloom/loom/pipeline/model/NodeTask.java), `asset_node_result.node_id`, `daemon.py`'s `post_node_result` | The **graph-instance** id — `pn5`, or an author-chosen name. What lets two `translate` instances write two rows on one asset ([NODES.md §2](../features/nodes/NODES.md)) |
+| `ProcessorRegistration.nodeId`, `ProcessorEventMessage.nodeId`, `Processor.nodeId` (`loom-ui/src/api/processors.ts:27`), `cortex_instance.node_id` | The **worker** id — `cortex-gpu-01`. This is what §3's envelope calls `cortexId` |
+
+Inside this payload there is no instance and no worker, so `nodeId` is unambiguous *here*; across the
+codebase it is not. Note the third row especially: `cortex_instance.node_id` and `node_descriptor.node_id`
+are the *same column name in two tables meaning different things*, so a join written from memory will
+be wrong and will still compile.
 
 Adopted resolution:
 
@@ -197,6 +219,9 @@ Adopted resolution:
   `asset_node_result.node_id`, the `/node-results` request model). Until that lands, a reader seeing
   `nodeId` must check which side of the wire they are on. Do not leave this undone quietly — it is in
   §13.
+- The **worker**-side `nodeId` is left alone. `cortexId` in this payload names it correctly; renaming
+  `ProcessorRegistration.nodeId` too would change the REGISTER frame every existing worker sends,
+  including third-party ones, for a cosmetic gain.
 
 Everything except `nodeId` and `version` is the existing `NodeDescriptor`, serialized exactly as
 `NodeDescriptorEndpoint` already serves it. **Do not invent a second contract shape** — the value of
@@ -508,8 +533,8 @@ CREATE TABLE "node_descriptor" (
   "body_hash"     varchar NOT NULL,
   "source"        varchar NOT NULL,   -- 'ANNOUNCED' (BUILTIN is never persisted)
   "status"        varchar NOT NULL,   -- 'ACTIVE' | 'CONFLICTED'
-  "first_seen"    timestamp WITHOUT TIME ZONE NOT NULL DEFAULT (now()),
-  "last_seen"     timestamp WITHOUT TIME ZONE NOT NULL DEFAULT (now()),
+  "first_seen"       timestamp WITHOUT TIME ZONE NOT NULL DEFAULT (now()),
+  "last_announced"   timestamp WITHOUT TIME ZONE NOT NULL DEFAULT (now()),
   ...audit columns as in V2.33...
   CONSTRAINT "node_descriptor_pkey" PRIMARY KEY ("node_id"),
   CONSTRAINT "node_descriptor_source_check" CHECK ("source" IN ('ANNOUNCED')),
@@ -521,12 +546,26 @@ CREATE TABLE "node_descriptor_instance" (
   "instance_uuid" uuid    NOT NULL,
   "version"       varchar,
   "body_hash"     varchar NOT NULL,
-  "last_seen"     timestamp WITHOUT TIME ZONE NOT NULL DEFAULT (now()),
+  "last_announced" timestamp WITHOUT TIME ZONE NOT NULL DEFAULT (now()),
   CONSTRAINT "node_descriptor_instance_pkey" PRIMARY KEY ("node_id", "instance_uuid"),
   CONSTRAINT "node_descriptor_instance_fkey"
     FOREIGN KEY ("instance_uuid") REFERENCES "cortex_instance" ("uuid") ON DELETE CASCADE
 );
+
+CREATE INDEX "idx_node_descriptor_instance_node_id" ON "node_descriptor_instance" ("node_id");
 ```
+
+🔴 **The column is `last_announced`, not `last_seen`, and the distinction is the whole reason §7's
+availability model works.** A worker announces **once**, right after `REGISTERED`, and then stays
+connected for days. `last_announced` therefore stops moving while the worker is perfectly healthy. The
+column that keeps moving is `cortex_instance.last_seen`, which the heartbeat updates.
+
+A UI that derives "is this node online?" from the descriptor's own timestamp would grey out every node
+in the palette roughly one heartbeat interval after the fleet connected, and the bug would look like a
+worker problem. Naming the column `last_seen` — matching `cortex_instance.last_seen` a join away, and
+matching the `lastSeen` the UI actually wants — is what would cause someone to write that. So: the
+descriptor row records **when the contract last arrived**; liveness is always read from
+`cortex_instance` through `node_descriptor_instance`.
 
 - **`node_descriptor_instance` is what makes §4.2 computable** — it holds each worker's own claimed
   version and body hash, so the active contract is a query, not a cached decision that can rot.
@@ -544,28 +583,191 @@ CREATE TABLE "node_descriptor_instance" (
 
 ## 7. REST and UI surface
 
-`GET /api/v1/pipeline/node-descriptors` keeps its `{nodeDescriptors, contentTypes}` shape. Each entry
-gains:
+### 7.1 The list response — contract and availability are separate blocks
+
+`GET /api/v1/pipeline/node-descriptors` keeps its `{nodeDescriptors, contentTypes}` shape and gains a
+**third sibling block**:
+
+```json
+{
+  "nodeDescriptors": [ { "nodeId": "acme-nsfw", "kind": "acme-nsfw", "version": "1.0.0-SNAPSHOT", "…": "…" } ],
+  "contentTypes":    [ { "id": "struct/nsfw", "label": "Nsfw", "family": "struct", "wildcard": false } ],
+  "availability": {
+    "whisper":   { "source": "BUILTIN",   "available": true,  "lastSeen": "2026-08-03T09:14:02Z",
+                   "providedBy": ["cortex-gpu-01", "cortex-gpu-02"] },
+    "acme-nsfw": { "source": "ANNOUNCED", "available": false, "lastSeen": "2026-07-29T22:41:10Z",
+                   "lastAnnounced": "2026-07-29T22:40:58Z", "providedBy": [] }
+  }
+}
+```
+
+**Why a sibling block and not fields on each descriptor.** §12 forbids a second contract shape: the
+object the worker announces, the object Loom serves, the object the static snapshot holds and the
+object `PortGraphAnalyzer` consumes are *one type*. `available` on `NodeDescriptor` breaks that in
+both directions — a worker could announce `available: true` about itself, and every consumer of the
+type would carry a field that is meaningless outside one HTTP response. `nodeId` and `version` **are**
+contract and do belong on the descriptor. `source`, `available`, `lastSeen`, `providedBy` are runtime
+state about the fleet and belong beside it, keyed by `nodeId`.
 
 | Field | Meaning |
 |---|---|
-| `nodeId` | The type id. `kind` is emitted alongside it for one release (§3.2) |
-| `version` | The active contract's version, `null` for built-ins |
-| `source` | `BUILTIN` \| `ANNOUNCED` |
-| `available` | At least one online worker currently offers it |
-| `providedBy` | `[cortexId]` of online providers — answers "why can't I run this?" |
+| `source` | `BUILTIN` \| `ANNOUNCED` — where the contract came from |
+| `available` | **At least one linked `cortex_instance` is in state `ONLINE`.** Not a timestamp comparison |
+| `lastSeen` | `max(cortex_instance.last_seen)` over the linked workers — heartbeat-driven, so it keeps moving. For an available node it is "seconds ago"; for an unavailable one it is how long ago the last provider was up |
+| `lastAnnounced` | When this contract last arrived over the socket. Diagnostic only — see the §6 warning against confusing the two |
+| `providedBy` | Worker ids currently offering it. Answers "why can't I run this?" in one word |
 
-Additive, so `loom-ui/src/types/nodeDescriptors.ts` and the static snapshot keep parsing. **The palette
-must grey out `available: false` rather than hide it** — hiding a node a saved pipeline already uses
-makes that pipeline unopenable for no stated reason.
+`availability` is **absent** from the checked-in `website/static/pipeline-editor/node-descriptors.json`.
+The UI must treat a missing block, and a missing entry within it, as `available: true` — the offline
+website editor has no fleet and every node in it is authorable.
 
-New `NODE_DESCRIPTORS_CHANGED` event on the existing UI socket (`/api/v1/pipelines/events/ws` →
-`PipelineEventBroadcaster`), emitted **only when the merged registry actually changed**. Without it the
-palette never notices a new worker: it fetches once at mount.
+🔴 **`providedBy` is gated; the rest is not.** The descriptor endpoints are called **without auth**
+today ([PIPELINE_EDITOR.md §8](../loom/ui/PIPELINE_EDITOR.md)) because the editor needs them before any
+token is in hand. `available` and `lastSeen` are safe to serve that way. `providedBy` leaks the fleet's
+internal host identities, so it is emitted **only** when the request carries a token with
+`READ_CORTEX_INSTANCE`, and omitted otherwise. The UI must render a useful message without it.
 
-Admin surface (deferred, but design for it): the cortex-instance page lists each worker's nodes with
-versions and shows `CONFLICTED` / `versionSkew` badges. A conflict nobody can see is a conflict nobody
-will fix.
+Implementation note: [NodeDescriptorEndpoint.java:52-53](../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/NodeDescriptorEndpoint.java#L52-L53)
+builds this response by **string-concatenating** `Json.encode` fragments. Adding a third block by
+appending another `+ ",\"availability\":"` works and is the smallest diff, but three hand-spliced
+blocks is where a missing comma ships. Introduce a real response model instead.
+
+### 7.2 A presence-only endpoint and two distinct events
+
+Presence changes far more often than contracts do — every worker connect, disconnect, restart and
+scale event. The full list response is **114,925 bytes** today
+(`website/static/pipeline-editor/node-descriptors.json`, 34 kinds). Re-fetching all of it on every
+worker state change, in every open browser tab, to learn that one boolean flipped is the obvious thing
+to build and the wrong one.
+
+| Addition | Shape |
+|---|---|
+| `GET /api/v1/pipeline/node-descriptors/availability` | Just the `availability` map above. Small, cheap, same gating rule for `providedBy` |
+| `NODE_DESCRIPTORS_CHANGED` (event) | The descriptor **set or contract** changed — a new node id appeared, a spec's `body_hash` changed, one was deleted. The client re-fetches the full list |
+| `NODE_AVAILABILITY_CHANGED` (event) | **Presence only.** Carries the changed entries inline: `{ channel: "NODE_REGISTRY", type: "NODE_AVAILABILITY_CHANGED", availability: { "acme-nsfw": { available: true, lastSeen: "…", providedBy: ["cortex-gpu-01"] } } }`. The client patches in place and fetches nothing |
+
+Both ride the **existing** UI socket (`/api/v1/pipelines/events/ws` → `PipelineEventBroadcaster`), which
+already multiplexes two channels — pipeline frames carry no `channel`, processor frames carry
+`channel: "PROCESSOR"` ([pipelineEvents.ts:31](../../loom-ui/src/api/pipelineEvents.ts#L31)). Registry
+frames add a third, `channel: "NODE_REGISTRY"`. No new socket, no new reconnect/backoff logic.
+
+Emit `NODE_DESCRIPTORS_CHANGED` **only when the merged registry actually changed** — a worker
+reconnecting and re-announcing an identical spec set is the common case and must be silent, or every
+rolling restart storms every open editor with a 115 KB re-fetch.
+
+### 7.3 Admin surface
+
+The cortex-instance page lists each worker's nodes with versions and shows `CONFLICTED` / `versionSkew`
+badges. A conflict nobody can see is a conflict nobody will fix. `CortexView` already holds the pieces:
+it maps `descriptors` to node ids at
+[CortexView.tsx:382](../../loom-ui/src/features/cortex/CortexView.tsx#L382) for the whitelist editor, and
+already renders per-worker `lastSeen` as a live relative time.
+
+### 7.4 The loom-ui task — the palette must reflect the fleet
+
+Everything above is inert until the editor uses it. This section is the UI half of the plan, and it is
+the half a user actually sees: **a Python worker connects and its node is in the picker within a
+second, without a page reload.**
+
+### 7.4.1 What already works, and the one line that stops it
+
+`NodeRegistryContext` already fetches the whole registry from the REST API and already serves it to the
+editor — the palette is *already* data-driven, and a node added to `node-descriptors` today needs no UI
+change to become authorable. The gap is narrower than it looks:
+
+| Fact | Where | Consequence |
+|---|---|---|
+| The registry is fetched in a mount `useEffect` and never again | [NodeRegistryContext.tsx:57-59](../../loom-ui/src/context/NodeRegistryContext.tsx#L57-L59) | A worker that connects after the tab opened is invisible until F5. `refresh` exists and **nothing calls it** |
+| Lookup is by `kind` | [:62](../../loom-ui/src/context/NodeRegistryContext.tsx#L62), and `d.kind` in the picker and `CortexView` | Follows the §3.2 rename behind the `kind` alias |
+| No notion of availability at all | everywhere | Nothing to grey out, sort or hide yet |
+
+So the UI work is **refresh + availability**, not "make the palette dynamic". It already is.
+
+### 7.4.2 The filter predicate is written three times
+
+The add-node search bar and the `N`-key command palette are separate components, and the *same* filter
+expression appears in **three** places:
+
+- [PipelineEditor.tsx:2079](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L2079) — `CommandPaletteContent`'s list
+- [PipelineEditor.tsx:3229](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L3229) — the search bar's **`onKeyDown`**, recomputed inline
+- [PipelineEditor.tsx:3280](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L3280) — the search bar's **rendered list**, recomputed inline again
+
+🔴 The last two are indexed by the same `addNodeIdx`. They agree today only because the expressions are
+character-identical. Sort offline nodes to the bottom in the rendered list and forget the `onKeyDown`
+copy, and `↑`/`↓` move the highlight down a list ordered one way while `Enter` adds
+`filtered[addNodeIdx]` from a list ordered another. The user watches the highlight land on *Whisper*,
+presses Enter, and gets *Dedup*. Nothing throws; nothing is logged.
+
+**Extract one selector before touching any ordering** — `selectPickerNodes(descriptors, availability,
+{query, showOffline})` in `features/pipeline/nodePicker.ts`, returning the final ordered array. Both
+call sites consume it; the `onKeyDown` copy is deleted. This is pure logic with no DOM, so it is a
+node-env vitest, not a Playwright spec.
+
+### 7.4.3 Ordering and the toggle
+
+Default ordering in the picker: **available first**, then by category and name as today; unavailable
+nodes fall to the bottom, dimmed, with a caption saying why.
+
+- With `providedBy`: *"offline — last provided by cortex-gpu-01, 3d ago"*
+- Without it (unauthenticated, §7.1): *"no worker currently offers this node"*
+
+`showOffline` is a toggle in the picker, persisted in `localStorage`, **default on** (offline nodes
+visible but sorted last). Off hides them entirely. Default-on matters: a fleet that is entirely down
+would otherwise present an empty picker with no explanation, which reads as a broken UI rather than a
+stopped fleet. When the toggle hides entries, say so — *"3 offline nodes hidden"* with the toggle
+next to it.
+
+🔴 **The toggle governs the picker only. It must never touch the canvas.** A saved pipeline containing
+`acme-nsfw` renders that node with its full ports whether or not a worker is up, because
+`nodeConnectors` returns `NO_PORTS` for a descriptor it cannot find
+([PipelineEditor.tsx:158](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L158)) — and a node with
+no ports drops every edge attached to it. Filtering the canvas by availability would silently redraw a
+user's saved graph as disconnected boxes, and saving from that state would persist the damage. This is
+also why §4.4 never deletes a descriptor row: durable contract, live availability.
+
+Running an unavailable node is already handled and needs no UI rule —
+`PipelineEndpointService.unsupportedNodeKinds` returns **503** with a message, and `handleRun` already
+surfaces `dispatched:false` as an info toast.
+
+### 7.4.4 Live updates
+
+`NodeRegistryContext` subscribes to the registry channel (§7.2) alongside its initial fetch:
+
+- `NODE_AVAILABILITY_CHANGED` → merge the entries into `availability` state. No fetch.
+- `NODE_DESCRIPTORS_CHANGED` → call the existing `refresh()`.
+
+Debounce the refresh (~500 ms): a fleet restart emits one frame per worker and each would otherwise
+trigger its own 115 KB GET.
+
+The context value grows `availability`, `isAvailable(nodeId)` and `getAvailability(nodeId)`. Keep
+`descriptors` exactly as it is — every existing consumer (`nodeConnectors`, `validatePorts`, the
+sidebar, `PipelineVersionDiff`) reads the contract and must **not** become availability-aware.
+
+### 7.4.5 Icons for third-party nodes
+
+`ICON_MAP` ([PipelineEditor.tsx:86-119](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L86)) is a
+compile-time map of imported MUI components. A custom node announcing `"icon": "shield"` gets no
+match — and that is already handled: `resolveNodeIcon` falls back to the category icon, then to
+`MemoryOutlined` ([:121](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L121)).
+
+So a third-party node renders sensibly with **no** UI change, but **cannot ship its own icon** — the
+name is only a key into a fixed map. Document that in the custom-node guide (§9): the value must be one
+of the known keys, and anything else silently becomes the category default. Do not "fix" this by
+accepting a URL or inline SVG from an announcement — that is arbitrary third-party content rendered in
+the editor's DOM. If custom icons are wanted later, extend `ICON_MAP` from a vetted icon set.
+
+### 7.4.6 Where each edit lands
+
+| File | Change |
+|---|---|
+| [types/nodeDescriptors.ts](../../loom-ui/src/types/nodeDescriptors.ts) | `nodeId` on `NodeDescriptor` (`kind` kept `@deprecated` for one release, as `FLOAT`/`STRING_LIST` already are), `version`, new `NodeAvailability`, `availability?` on `NodeDescriptorsResponse` |
+| [api/nodeDescriptors.ts](../../loom-ui/src/api/nodeDescriptors.ts) | `fetchNodeAvailability()` |
+| [api/pipelineEvents.ts](../../loom-ui/src/api/pipelineEvents.ts) | `channel: "NODE_REGISTRY"` frames + `subscribeNodeRegistryEvents` |
+| [context/NodeRegistryContext.tsx](../../loom-ui/src/context/NodeRegistryContext.tsx) | availability state, socket subscription, debounced refresh, `isAvailable` |
+| `features/pipeline/nodePicker.ts` ⬜ | The single `selectPickerNodes` selector (§7.4.2) |
+| [features/pipeline/PipelineEditor.tsx](../../loom-ui/src/features/pipeline/PipelineEditor.tsx) | Both pickers consume the selector; offline row styling; the toggle |
+| [features/cortex/CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx) | `d.kind` → `d.nodeId`; per-worker node list (§7.3) |
+| [i18n/locales/en.json](../../loom-ui/src/i18n/locales/en.json) + `de.json` | Toggle label, offline caption, hidden-count string. The editor is fully i18n'd — **both** files, or the German UI shows raw keys |
 
 ---
 
@@ -654,6 +856,10 @@ Some suites need the pooled test DB. Run `./setup-pool.sh` first, and **again af
 migration leaves the pooled databases stale, and `loom/db/flyway` must be installed before the pool is
 rebuilt.
 
+The `loom-ui` rows follow that module's split: **pure logic is a node-env vitest, anything rendering a
+component is a Playwright spec against a mocked API** — there is no jsdom/RTL setup. Invoke the runners
+from `loom-ui/node_modules/.bin/` directly rather than through `npx`.
+
 | Layer | Where | What it proves |
 |---|---|---|
 | `NodeDescriptorDeserializationTest` | `loom-shared/node-model` | A serialized descriptor round-trips back into `NodeDescriptor`. **Fails today** — §12 |
@@ -662,7 +868,11 @@ rebuilt.
 | **`NodeSpecGoldenTest`** | `cortex/nodes/<name>/core` | 🔴 **The sweep's acceptance test**: `harvest(XNode.class)` equals the retired `XDescriptorProvider`'s descriptor, field for field (§5.5) |
 | `NodeRegistrationBuilderTest` | `cortex/cli` | Announced set = harvested ∩ `registeredTypes()`; whitelist/blacklist narrow it; the manifest-version fallback fires |
 | `NodeRegistrationServiceTest` | `loom/services/rest` | Every §8 rejection; built-in shadowing; lowest-version-wins; SNAPSHOT overwrite vs release conflict; unlink on absence; no delete on disconnect |
-| `NodeDescriptorEndpointTest` (extend) | `loom/core` | `nodeId`/`version`/`source`/`available`/`providedBy` served; announced node appears; offline node is `available: false` but still returned |
+| `NodeDescriptorEndpointTest` (extend) | `loom/core` | `nodeId`/`version` on the descriptor; the `availability` block; announced node appears; offline node is `available: false` but **still returned**; `providedBy` present with `READ_CORTEX_INSTANCE` and absent without a token |
+| `NodeAvailabilityEndpointTest` | `loom/core` | `/node-descriptors/availability` matches the block in the full response; `lastSeen` tracks `cortex_instance.last_seen`, **not** `last_announced` — connect a worker, advance its heartbeat, leave the spec untouched, assert `lastSeen` moved |
+| `nodePicker.test.ts` | `loom-ui` (node-env vitest) | Available-first ordering; `showOffline` hides only offline entries; query filtering unchanged; **a missing `availability` block means everything is available** (the static snapshot case) |
+| `pipeline-editor-node-availability.spec.ts` | `loom-ui` (Playwright, mocked API) | Offline node dimmed and last; toggle hides it and shows the hidden count; `↑↓` + `Enter` add the **highlighted** node with offline entries reordered (§7.4.2); a canvas node stays fully wired while its provider is offline |
+| `pipeline-editor-node-live.spec.ts` | `loom-ui` (Playwright, mocked socket) | A `NODE_DESCRIPTORS_CHANGED` frame makes a node that was absent at mount appear in the picker **without a reload**; `NODE_AVAILABILITY_CHANGED` flips a node to available with no second GET |
 | `ProcessorEndpointTest` (extend) | `loom/core` | A frame whose `cortexId` differs from the socket's is `ID_MISMATCH`; the ack lists per-node outcomes |
 | `NodeDescriptorRehydrationTest` | `loom/core` | After a restart with **no worker connected**, an announced node still parses and validates |
 | `CustomNodeRegistrationIntegrationTest` | `integration-test` | A `CortexContainer` running the `hello-world` example reaches the palette response end to end |
@@ -692,6 +902,12 @@ that forgets the registry asserts success against a no-op.
 | **Reject per node, never per frame** | One bad custom node must not unregister a worker's other 34 specs |
 | **Copy existing labels verbatim during the sweep** | The provider prose is already customer-facing and reviewed. Rewriting it while relocating it makes the golden-fixture test useless as a check |
 | **Do not add a second contract type** | The wire payload *is* `NodeDescriptor`. A parallel "registration DTO" with the same fields is the drifting duplicate [NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md) exists to prevent |
+| 🔴 **Availability is a fleet-state query, never a timestamp comparison** | `available` = a linked `cortex_instance` is `ONLINE`. Deriving it from the descriptor's own timestamp greys out the whole palette one heartbeat after a healthy fleet connects — the column is `last_announced` for exactly this reason (§6) |
+| 🔴 **The picker's filter predicate exists three times** | [PipelineEditor.tsx:2079, :3229, :3280](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L2079); two share `addNodeIdx`. Reorder one and `Enter` adds a different node than the one highlighted. Extract `selectPickerNodes` **first** (§7.4.2) |
+| 🔴 **Never filter the canvas by availability** | `nodeConnectors` gives a missing descriptor `NO_PORTS`, which drops every attached edge. Hiding an offline node redraws a saved graph as disconnected boxes, and a save persists it. The toggle is picker-only (§7.4.3) |
+| **`available` does not belong on `NodeDescriptor`** | The descriptor is the one contract type in both directions; a worker must not be able to announce a claim about its own availability. Serve runtime state in the sibling `availability` block (§7.1) |
+| **`providedBy` needs `READ_CORTEX_INSTANCE`** | The descriptor endpoints are unauthenticated so the editor can load before login. Worker ids are fleet topology; `available` and `lastSeen` are not |
+| **A custom node cannot ship an icon** | `ICON_MAP` is a compile-time map of imported components; an unknown name falls back to the category icon. Say so in the docs rather than accepting a URL or SVG from an announcement (§7.4.5) |
 | **`dynamicPorts` announced ⇒ static ports** | No resolver class Loom-side. Accept and degrade; do not reject (§4.7) |
 | **A new content type needs no declaration** | The lattice is structural; `isKnown()` is test-only. But `NodeDescriptorPortsTest` asserts `isKnown` for **built-in** descriptors — scope that assertion to the BUILTIN layer or it starts failing on announced types |
 
@@ -699,61 +915,263 @@ that forgets the registry asserts success against a no-op.
 
 ## 13. Progress Assessment
 
-**Nothing below is built.** Ordered so each step is independently useful.
+**Status: 🟡 the core is built and green; the node sweep and the docs are not finished.** A worker
+announces, Loom validates, adopts, persists and serves, and the editor reflects it live. What remains
+is bulk (annotating the remaining built-in nodes) and prose.
+
+### What was built differently from the design above, and why
+
+| Design said | Built | Why |
+|---|---|---|
+| `NodeRegistrationBuilder` in `cortex/cli`, harvesting `registeredTypes()` | `NodeSpecCatalog` + `NodeSpecSource` in `cortex/api` | The Dagger multibinding hands out `Provider<FilesystemNode>`, and that `Provider` is the thing that keeps nodes uninstantiated at boot — asking it for a class would defeat exactly what it exists for, on all 34 nodes. Discovery runs on class literals via `Class.forName(name, false, loader)`, which does not run static initializers, so §5.4's `Video4j.init()` hazard is closed at discovery rather than merely mitigated. `NodeSpecSource` (ServiceLoader) is how a third-party jar joins in |
+| `NodeSpecGoldenTest` in each `cortex/nodes/<name>/core` | One `NodeSpecGoldenTest` in `integration-test` | That module already sees both class paths — it is why `NodePortConformanceTest` lives there — so the sweep gets one shared gate instead of 29 near-identical files |
+| `node_descriptor` PK `(node_id)` | PK `(uuid)`, `UNIQUE (node_id)`, plus a `meta` column | `CRUDDao`/`AbstractJooqDao` address rows by uuid and `CUDElement` mandates `meta`; a table without them bypasses the whole DAO framework. Mirrors `cortex_instance` exactly |
+| `last_seen` on `node_descriptor` | `last_announced` | Unchanged in meaning, renamed so it cannot be mistaken for liveness (§6) |
+| `providedBy` gated inside the main descriptor response | `providedBy` served **only** from the secured `/availability` route | 🔴 An unsecured route never runs the auth handler, so it cannot resolve a caller — a permission check inside the main response denies *everyone*, including an administrator holding the permission. A gate that is always shut is not a gate. The main response stays loadable before login and simply never names a worker; the editor enriches from the secured route once it has a token |
+| The three common parameters restated per node | Declared once on `AbstractNodeOptions` | All 27 providers worded them identically through a copy-pasted `commonEnabled()` helper, with nothing checking they stayed identical |
+| — | `@ParamDoc(min = "1")` takes a **string** | `setMin(1)` and `setMin(0.0)` serialize differently and both are in use; one numeric attribute would have turned every integer bound in every form into a float |
+
+### 🔴 What the sweep found in the existing descriptors
+
+Deriving a contract from the code turns out to be a very effective audit of the hand-written one. Each
+of these is a **pre-existing defect**, reproduced faithfully so the sweep stays behaviour-preserving,
+and each deserves its own reviewed commit:
+
+| Node | What the descriptor says | What the code says |
+|---|---|---|
+| `ocr` | No `language` parameter at all | `OCRNodeOptions.language` exists — so **the OCR language cannot be set from a pipeline**. That reads like an oversight, not a deliberate hide |
+| `captioning` | Zero node-specific parameters | Twelve real knobs (`videoStrategy`, `frameCount`, `maxScenes`, `maxTokens`, `temperature`, …). The provider looks stale |
+| `scene-layout` | No `minCorePixels` | A real threshold, default 16 |
+| `metadata` | `excludeKeys` typed `STRING` | It is a `List<String>` — the editor renders a one-line text box for a list |
+| `metadata` | `gpsPolicy`, `dateFallback` typed `STRING` with no `values` | Both are Java enums. The descriptions spell the constants out in prose ("KEEP the exact coordinate, ROUND it, or DROP it entirely"), which is the tell that the *type* is wrong, not the prose |
+| `translate` | `promptTemplate` advertises no default | The field initialises to `DEFAULT_PROMPT_TEMPLATE`, so the form shows empty and the node uses something else. Preserved via `@ParamDoc(omitDefault = true)` — the annotation exists to make this expressible, not to bless it |
+| `llm` | Advertises `openaiUrl` but not `contextWindow` | `translate` advertises both, with identical `openaiUrl` prose. Sweeping `llm` will make `contextWindow` appear — expected, but worth knowing before the diff surprises someone |
+| `quality`, `whisper`, `facedetect` | Some parameters have labels but no descriptions | The only ones on those nodes that do; likely unfinished |
+| `facedetect` | `videoScaleSize` and `faceClusterMinimum` carry no `min` | `validate()` rejects non-positive values for both, and `videoChopRate` *does* carry `min = 1` for the identical check |
+| `s3-sink` | Advertises only `enabled`, omitting `processIncomplete`/`retryFailed` | The only node that does. Plausibly deliberate for a sink; nothing records why |
+| `s3-sink` | Duplicates `DEFAULT_KEY_TEMPLATE` as a private constant, commented *"Must match `S3SinkNodeOptions.DEFAULT_KEY_TEMPLATE`"* | Precisely the hand-copied second source of truth this refactor removes. It is now derived from the field, so the constant dies with the provider |
+| `watermark` | `scale` allows `min = 0.0`, `opacity` requires `min = 0.01` | Two sibling fractions disagreeing about whether zero is legal |
+| `fingerprint-dedup` | Advertises a `dupFolder` parameter | 🔴 The node is injected with `FingerprintDedupDiscoverOptions`, which has no such field — **the knob does nothing**. Meanwhile the five options it *does* read (`algorithm`, `scoreThreshold`, `topK`, `allowPartial`, `abortOnLargerDup`) are advertised nowhere, so a pipeline author cannot set the similarity threshold of a similarity node. Not expressible by any annotation; left unannotated pending a decision from whoever owns dedup |
+| `hash-dedup` | Descriptor id is `hash-dedup` | `HashDedupNode.name()` returns `sha512-dedup`, and `name()` is what lands in the node-result ledger — so its ledger rows are keyed by a string the palette never shows |
+| `vlm` | Advertises `model`, `responseFormat`, `maxImageDim`, `maxTokens` | 🔴 All four are fields of `VlmNodePrompt`, **not** `VlmNodeOptions`, which is what a vlm node's config binds into — so anything an author types into those four form fields is **silently discarded**. `responseFormat` is also typed `ENUM` with no `values` list, and its advertised default `OLMOCR` disagrees with the real default `TEXT`. Meanwhile `apiKey` and `prompts` are real fields the contract never mentions. Left out of the golden map: reproducing it would mean inventing options fields to match a broken form |
+| `llm` | Omits `contextWindow` | `LLMNodeOptions.validate()` enforces `contextWindow >= 1`, so the node has a context window an author cannot reach from the editor |
+| `filter` | Omits `processIncomplete` and `retryFailed` | Inherited and settable; the only node besides `s3-sink` to drop them |
+| `script` | `outputs`/`params` typed `JSON` with **string** defaults (`"[{\"key\"…}]"`, `"{}"`) | A JSON editor pre-filled with a quoted string. `filter`'s `buckets` — structurally the same thing — uses a real `[]` |
+| `filesystem-source` | `pathGlobs` typed `JSON` with `rows = 3` | The structurally identical `emitStates` is `ENUM_SET`. A list of globs in a raw JSON textarea is defensible; the pairing reads like an oversight |
+| `dedup` | — | 🔴 **There is no `DedupNode` class.** The catalog's built-in list named one, so it resolved to nothing and neither dedup node was ever discoverable. The module binds `HashDedupNode` (under `hash-dedup` *and* the `sha512-dedup` alias), `FingerprintDedupNode` and `FingerprintDedupApplyNode` |
+
+Everything marked "hidden to match the fixture" (`captioning`'s twelve, `scene-layout`'s
+`minCorePixels`, `ocr`'s `language`) is a `@ParamDoc(hidden = true)` **whose only justification is
+"today's editor form looks like this"**. Un-hiding them is a product decision, not a refactor.
+
+### Template gaps the sweep closed
+
+Eight things the annotations could not express, all fixed centrally rather than worked around per node
+(numbering is not meaningful; they were found in this order):
+
+4. **Enum values leaked past a type override.** `values` was derived from the Java enum even when the
+   author declared the parameter `STRING`. Now derived only when the *resolved* type is `ENUM`/`ENUM_SET`.
+2. **A collection default leaked into a scalar parameter.** A `List<String>` field declared `STRING`
+   emitted `"defaultValue": []`. Aggregate defaults are now kept only for `ENUM_SET`, `JSON` and
+   `PORT_LIST` — the carve-out matters, because `filter`'s `buckets` is a `PORT_LIST` with a deliberate
+   empty default.
+7. **`@ParamDoc(order)` was unusable.** Unordered parameters sort last, so the moment a node ordered
+   one of its own fields the three inherited common ones were pushed behind it. They now carry
+   explicit orders 10/20/30, pinning the position they already had.
+9. **A port constant could not be kept out of the static contract.** `FilterNode` declares
+   `OUT_PASSED`/`OUT_OTHER`/`OUT_BUCKET` because it executes against them, but its descriptor's static
+   `outputPorts` must be empty — `FilterPortResolver` produces the real ones per configured bucket, and
+   `NodeDescriptorPortsTest` enforces that a dynamic node declares no static outputs. New
+   `@PortDoc(hidden = true)`.
+10. **Vert.x JSON defaults serialized as beans.** `JsonArray` is neither a `Collection` nor a `Map`, so
+   an empty `buckets` reached the wire as `{"list":[],"empty":true}` instead of `[]` — and the
+   harvester's own javadoc claimed the opposite. `defaultValueOf` now unwraps Vert.x JSON to its
+   underlying `List`/`Map` first (reflectively, so `cortex/api` gains no vertx dependency).
+11. **A useful default the field cannot hold was inexpressible.** `script`'s body defaults to `null`
+   because a node with no script must fail validation, while the form should open with a runnable
+   example. New `@ParamDoc(defaultValue = "…")` / `@ParamOverride(defaultValue = "…")`, documented as
+   a last resort after `omitDefault`.
+8. **`hidden` on a shared base was final.** A subclass cannot re-annotate a superclass field, so
+   hiding `timeoutMs` on `AbstractNodeOptions` silently removed it from `tts` and `depthmap`, which
+   both advertise it with different defaults, bounds and prose. New `@NodeSpec(parameters =
+   @ParamOverride(...))` re-documents an inherited field per node, in both directions. The same hatch
+   turned out to cover a second shape: `facedetect` and `facedescription` **share** an options class,
+   and only one of them advertises the detection knobs.
+
+### ✅ The three defective contracts — resolved
+
+All three were decided and fixed; every node id in the sweep now has an annotated contract.
+
+| Node | Decision | What changed |
+|---|---|---|
+| `vlm` | **Match the code** | Dropped `model`, `responseFormat`, `maxImageDim`, `maxTokens` — fields of `VlmNodePrompt`, so a value set against the node bound to nothing. Advertised the real ones: `endpointUrl`, `apiKey`, and `prompts` (JSON), which is now the only way to configure the per-prompt settings the four dead knobs pretended to offer |
+| `fingerprint-dedup` | **Match the code** | Dropped `dupFolder` (the discovery node moves nothing and cannot read it). Advertised the five it actually reads: `algorithm`, `scoreThreshold`, `topK`, `allowPartial`, `abortOnLargerDup`. **The similarity threshold of a similarity node is now settable from the editor.** ⚠️ Their labels and descriptions are *new prose*, derived from the fields' own javadoc — the one place in this whole change where wording was written rather than copied. Worth a read |
+| `onedrive-source` | **Split the class** | `GDriveSourceNode` and `OneDriveSourceNode`, two thin subclasses of `CloudSourceNode` carrying one `@NodeSpec` each and adding no behaviour. `CloudSourceNode.create` switches on the provider. Chosen over making `@NodeSpec` repeatable, which would have cost `harvest(Class)` its single answer |
+
+Two things the split taught, both recorded in `OneDriveSourceNode`:
+
+- **Seven of the nine shared parameters differ, not six** — `folderId` too, because a Drive folder id
+  comes from its URL and a OneDrive one does not.
+- **An override replaces the whole parameter**, so `emitStates` had to restate its `values` list; it is
+  not inherited from the `@ParamDoc` being overridden.
+- And the ordering wart bit exactly as predicted: adding `order` to only the overridden parameters
+  pushed the other four to the end of the form. The fix was to remove every `order`, since the shared
+  base declares none and declaration order already matched.
+
+### The one-class-two-ids gap — how it was closed here
+
+Two cases hit the same wall for different reasons, and only one is solved:
+
+| Case | Shape | Status |
+|---|---|---|
+| `hash-dedup` / `sha512-dedup` | A genuine **alias**. One contract, two selector strings; the second exists only so an older pipeline definition still resolves | Annotated as `hash-dedup`. The alias is unannounced, which is harmless — the binding still dispatches |
+| `gdrive-source` / `onedrive-source` | **Two different contracts off one class**: different name, icon and description, different prose on seven of nine shared parameters, and `gdrive-source` has an `exportNativeDocs` parameter the other deliberately refuses | ✅ Resolved by splitting into two thin subclasses (above). Making `@NodeSpec` repeatable remains the more general fix if a third case appears |
+
+What would close it, in ascending order of what it buys:
+
+1. `@NodeSpec(aliases = {"sha512-dedup"})` — emits the same body under a second id. Solves dedup, does nothing for cloud-source.
+2. **Make `@NodeSpec` `@Repeatable`**, one per node id, each with its own `optionsClass` and its own
+   `parameters = @ParamOverride(...)` set. That is what cloud-source needs, and it subsumes (1). The
+   cost is that `harvest(Class)` no longer has a single answer — it becomes `harvest(Class, nodeId)`
+   plus `harvestAll(Class)`, and `NodeSpecCatalog.discover` must let several ids map to one class (it
+   already warns on the inverse).
+
+Note the prose mechanism is *not* missing: the shared base's `@ParamDoc` belongs to one id and the
+other overrides it, which is exactly what `@ParamOverride` already does. The missing piece is only
+"more than one `@NodeSpec` per class".
+
+### 🔴 A pre-existing failure this work did **not** cause
+
+`DemoPipelineDefinitionTest` fails on `master`, before any of this: the `medium` and `complex` demo
+definitions wire `pn2.media → pn3.media`, but `pn2` is a `filter`, and `filter` declares
+`outputPorts: []` with `dynamicPorts: true` — so its ports come entirely from `FilterPortResolver`,
+which produces `other`, `passed`, `bucket` and one port per configured bucket. It never produces
+`media`, and `media` is in the resolver's `RESERVED` set precisely so a bucket cannot claim it.
+
+Verified by checking out `HEAD` into a separate worktree and running the test there unmodified — the
+same two failures, same message. Recorded here because it is the kind of thing a large diff gets
+blamed for. The demo definitions need fixing (wire `pn2.other`, or give the filter a bucket and wire
+that); it is not a node-registration change.
+
+### Known ergonomic wart, deliberately not changed
+
+**`order` is all-or-nothing per class.** An unordered parameter sorts behind every ordered one, so a
+node that wants a single field moved must give an explicit `order` to *all* of them —
+`WatermarkNodeOptions` (10 fields), `ImageGenNodeOptions` (11) and `VideoGenNodeOptions` (14) each
+carry a full ordering to fix one position. A rule where the implicit order is the declaration index
+rather than `Integer.MAX_VALUE` would remove most of that.
+
+Left alone on purpose: 22 nodes now pass against their golden fixtures, and changing the ordering rule
+re-sorts every one of them. It is a cleanup for after the sweep lands, not during it.
+
+**Near-miss worth knowing.** `FacedetectNodeOptions.faceClusterEPS` is a `float`. Round-tripping it
+through Jackson gives `FloatNode`, and `0.05f` widens to `0.05000000074505806` as a double. It compares
+equal today only because both sides stay float-shaped through `canonicalJson` — a float default is one
+refactor away from a spurious body-hash difference between two workers announcing the same contract.
+
+### Ordered so each step is independently useful.
 
 ### Phase 1 — the spec exists next to the node
 
-- [ ] `@NodeSpec` / `@PortDoc` / `@ParamDoc` + `NodeSpecHarvester` in `cortex/api`
+- [x] `@NodeSpec` / `@PortDoc` / `@ParamDoc` / `@PortGroupDoc` + `NodeSpecHarvester` in `cortex/api`
       (`io.metaloom.cortex.api.node.spec`) — **not** in `loom-shared/node-model`; the dependency runs
-      that way (§5.3)
-- [ ] `NodeSpecHarvesterTest`
-- [ ] Pilot: annotate `SentimentNode` by hand, prove `NodeSpecGoldenTest` against
-      `SentimentDescriptorProvider`, review the **template**, only then sweep
-- [ ] **Subagent sweep (§5.5)** — one agent per node module, 6 concurrent, golden-fixture equality as
-      the gate. Special cases last: `llm`/`vlm`/`script`/`filter`, `hash`, `dedup`, the sources
-- [ ] Shared-file edits once at the end: `META-INF/services/…NodeDescriptorProvider`,
-      `NodeDescriptorServiceLoaderTest` literals; delete `NodePortConformanceTest`
+      that way (§5.3). Plus `NodeSpecCatalog` / `NodeSpecSource` for discovery
+- [x] `NodeSpecHarvesterTest` (13 tests)
+- [x] Pilot: `SentimentNode` annotated by hand; `NodeSpecGoldenTest` reproduces
+      `SentimentDescriptorProvider` exactly — 3 outputs, 9 parameters, `min: 1` still an integer, the
+      three inherited common parameters in order, `timeoutMs` correctly absent
+- [x] **Subagent sweep (§5.5)** — **34 node ids done and green**: `sentiment`, `tika`, `ocr`,
+      `thumbnail`, `metadata`, `quality`, `dominant-color`, `consistency`, `whisper` (XOR group),
+      `captioning`, `scene-detection`, `scene-layout`, `tts`, `depthmap`, `translate`. Golden-fixture
+      equality is the gate; each is registered in `NodeSpecGoldenTest.GOLDEN`.
+      …plus `facedetect`, `facedescription`, `fingerprint`, `watermark`, `s3-sink`, `imagegen`,
+      `videogen`, `md5`, `sha256`, `sha512`, `chunk-hash`, `filesystem-source`, `s3-source`,
+      `gdrive-source`, `hash-dedup`, `fingerprint-dedup-apply`.
+      …plus `script`, `filter`, `llm`. **Three ids remain blocked, each on a defect rather than on
+      effort:** `onedrive-source` (needs a repeatable `@NodeSpec`), `fingerprint-dedup` (descriptor
+      wrong in both directions), `vlm` (four advertised parameters have no backing field)
+- [ ] Shared-file edits once at the end: delete the `*DescriptorProvider` classes and their
+      `META-INF/services` registration, update `NodeDescriptorServiceLoaderTest`'s count literals,
+      delete `NodePortConformanceTest`, and switch `NodeDescriptorGenerator` and `RESTModule` to read
+      the harvest. **Unblocked** — every node id now has an annotated contract that the golden test
+      proves equal to its provider. Deliberately left as its own commit: it deletes ~30 files and flips
+      Loom's BUILTIN layer from ServiceLoader to harvest, which wants to be reviewable on its own
 - [ ] `NodeDescriptorGenerator` reads the harvest instead of the ServiceLoader; regenerate
       `website/static/pipeline-editor/node-descriptors.json`
 
 ### Phase 2 — the contract travels
 
-- [ ] Rename `NodeDescriptor.kind` → `nodeId` with `@JsonAlias("kind")` + dual emit (§3.2)
-- [ ] Add `version` to `NodeDescriptor`; `@JsonIgnore` on `PortSpec.isMany()`; round-trip test
-- [ ] `NodeVersions` comparator + test
-- [ ] `ProcessorMessageType.NODE_REGISTRATION` + `NODE_REGISTRATION_ACK` + `rest-model` bodies
-- [ ] `NodeRegistrationBuilder` in `cortex/cli`: harvest ∩ `registeredTypes()`, manifest-version fallback
-- [ ] `LoomControlChannel.sendNodeRegistration()` after `REGISTERED`, gated on `CORTEX_NODE_SPEC_ANNOUNCE`
+- [x] Rename `NodeDescriptor.kind` → `nodeId`, both names emitted **and** accepted for one release
+      (§3.2); 101 call sites migrated
+- [x] Added `version`; `@JsonIgnore` on `PortSpec.isMany()`; `NodeDescriptorDeserializationTest`
+      round-trips **every** built-in descriptor, plus `NodeDescriptors.canonicalJson`/`bodyHash`
+- [x] `NodeVersions` comparator + test (10 tests)
+- [x] `ProcessorMessageType.NODE_REGISTRATION` + `NODE_REGISTRATION_ACK` + `rest-model` bodies
+- [x] `NodeSpecCatalog.harvestRunnable()`: harvest ∩ runnable-after-whitelist, manifest-version fallback (verified: `1.0.0-SNAPSHOT` appears with nobody writing it)
+- [x] `LoomControlChannel.sendNodeRegistration()` after `REGISTERED`, gated on `CORTEX_NODE_SPEC_ANNOUNCE`; the ack is handled and every rejection logged
 
 ### Phase 3 — Loom adopts it (in memory)
 
-- [ ] `NodeDescriptorRegistry`: BUILTIN + ANNOUNCED layers, provenance, `resolveActive(nodeId)`
-- [ ] `NodeRegistrationService`: §8 validation, §4.2 version rule, §4.4 link/unlink, ack assembly
-- [ ] `ProcessorEndpoint` case + `ID_MISMATCH` check
-- [ ] Derived content types (§4.6)
-- [ ] **Milestone: a custom node is authorable.** Lost on Loom restart until phase 4
+- [x] `NodeDescriptorRegistry`: BUILTIN + ANNOUNCED layers, `sourceOf()`, `isBuiltin()`
+- [x] `NodeRegistrationService`: §8 validation, §4.2 version rule, §4.4 link/unlink, ack assembly — **24 tests**
+- [x] `ProcessorEndpoint` case + `ID_MISMATCH` check
+- [x] Derived content types (§4.6) — `struct/nsfw` validates and gets a synthesized label
+- [x] **Milestone: a custom node is authorable.**
 
 ### Phase 4 — durability
 
-- [ ] `V2.66__add_node_descriptor.sql` + jOOQ regen + `./setup-pool.sh`
-- [ ] `NodeDescriptor`/`NodeDescriptorInstance` DAO models + jOOQ impls + delete-cascade tests
-- [ ] Rehydrate the ANNOUNCED layer at boot, before `PipelineRunRecovery` runs
-- [ ] `NodeDescriptorRehydrationTest`
+- [x] `V2.66__add_node_descriptor.sql` + jOOQ regen + `./setup-pool.sh` (all run and verified)
+- [x] `NodeDescriptorRecord`/`NodeDescriptorRecordDao` + jOOQ impl + delete-cascade tests (12 tests). Named `...Record` so it cannot be confused with the wire type of the same simple name
+- [x] `NodeRegistrationService.rehydrate()` called from `RESTService.start()` **before** the router and before recovery
+- [x] `NodeDescriptorRehydrationTest` (6 tests): restores with no worker, a built-in wins after the node graduates, a corrupt row is skipped rather than failing the boot
 
-### Phase 5 — the UI tells the truth
+### Phase 5 — the UI tells the truth (§7, §7.4)
 
-- [ ] `nodeId`/`version`/`source`/`available`/`providedBy` on the response + TS types
-- [ ] `NODE_DESCRIPTORS_CHANGED` broadcast + palette refresh
-- [ ] Palette greys out unavailable nodes and names the missing worker
-- [ ] Cortex-instance page: per-worker nodes, versions, `CONFLICTED` / `versionSkew` badges
+**Loom side**
+
+- [x] Real response model `NodeDescriptorsResponse` replacing the hand-spliced JSON string
+- [x] `NodeAvailabilityService`: `available` from live `ProcessorState.ONLINE`, `lastSeen` from
+      `max(lastSeen)` over providers, `lastAnnounced` separate (§6)
+- [x] `providedBy` only from the **secured** `/availability` route, gated on `READ_CORTEX_INSTANCE`;
+      the public palette response carries `available`/`lastSeen` and never names a worker
+- [x] `GET /pipeline/node-descriptors/availability` (presence only, no 115 KB re-fetch)
+- [x] `channel: "NODE_REGISTRY"` + `NodeRegistryEventPublisher`, which diffs before emitting and
+      excludes `lastSeen` from the diff so a 10-second heartbeat is not a broadcast storm
+- [x] `NodeDescriptorEndpointTest` extended (11 tests) + `NodeRegistrationEndpointTest` (6 tests) —
+      the latter is the end-to-end proof over a real socket: REGISTER → NODE_REGISTRATION → ack →
+      the node is in the palette with its ports, its synthesized content type, and `available: true`
+
+**loom-ui**
+
+- [x] TS types: `nodeId` (optional — the checked-in snapshot still has only `kind`), `version`, `NodeAvailability`, `availability?`
+- [x] 🔴 `selectPickerNodes` extracted to `features/pipeline/nodePicker.ts`, all three inline copies
+      deleted **before** any ordering change (§7.4.2); `nodePicker.test.ts` (19 tests)
+- [x] `NodeRegistryContext`: availability state, `isAvailable`, registry-channel subscription,
+      500 ms debounced `refresh()` — the `refresh` that existed and was never called
+- [x] Both pickers: available-first ordering, dimmed offline rows naming the last provider,
+      `showOffline` toggle (`localStorage`, default on), hidden-count label. **Picker only**
+- [x] `en.json` + `de.json`
+- [x] `CortexView`: `d.kind` → `nodeIdOf(d)`
+- [ ] Cortex-instance page: per-worker node/version list with `CONFLICTED` / `versionSkew` badges
+      (§7.3) — **not built**; `versionSkew` is computed and served, nothing renders it yet
+- [x] The two Playwright specs (§11) — 10 tests, incl. the highlight-vs-Enter regression
+- [x] **Milestone: a worker connects and its node is in the picker with no reload** — asserted in
+      `pipeline-node-live-mocked.spec.ts`
 
 ### Phase 6 — examples and docs (§9)
 
-- [ ] `cortex-custom-node`: `@NodeSpec` on `HelloWorldNode` + README
-- [ ] `cortex-python`: `NODE_SPECS` constant, send after `REGISTERED`, log the ack
-- [ ] `examples/README.md` module table
+- [x] `cortex-custom-node`: `@NodeSpec`/`@PortDoc`/`@ParamDoc` + `HelloWorldNodeSpecSource` + `META-INF/services` + README section
+- [x] `cortex-python`: `NODE_SPECS` constant, sent after `REGISTERED`, ack logged per rejection; the ledger's `nodeId` deliberately untouched
+- [x] `examples/README.md` module table + `cortex-python/README.md`
 - [ ] `website/content/english/docs/nodes/` — "writing a custom node" page (required by
-      [../guidelines/CODING.md](../guidelines/CODING.md))
+      [../guidelines/CODING.md](../guidelines/CODING.md)) — **not written**
+
+### Phase 6b — end to end
+
+- [x] `NodeRegistrationEndpointTest` in `loom/core` — chosen over a `CortexContainer`-based
+      integration test: it exercises the same path over a real socket against a real Loom, in three
+      seconds, with no image build. Covers adoption, the contract outliving its worker, built-in
+      shadowing, `ID_MISMATCH`, per-node rejection, and replace-not-merge
 
 ### Phase 7 — full parity for custom nodes
 
@@ -798,7 +1216,11 @@ that forgets the registry asserts success against a no-op.
 | `ProcessorEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | The socket and its message switch |
 | `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Worker presence and restriction reconcile — the model this plan copies |
 | `NodeRegistrationService` ⬜ | same package | Validation, version rule, persistence, broadcast |
-| `NodeDescriptorEndpoint` | same package as `ProcessorEndpoint` | Serves the merged registry |
+| `NodeDescriptorEndpoint` | same package as `ProcessorEndpoint` | Serves the merged registry — gains the `availability` block and the presence-only route (§7) |
+| `NodeRegistryContext` | `loom-ui/src/context` | Already fetches the whole registry; gains availability + the live subscription. Its unused `refresh` is the fix for "a new worker needs F5" |
+| `nodePicker.ts` ⬜ | `loom-ui/src/features/pipeline` | The one `selectPickerNodes` selector replacing three inline filter copies (§7.4.2) |
+| `PipelineEditor.tsx` | same | Both node pickers, `ICON_MAP`, `nodeConnectors` — the file the §7.4 edits land in |
+| `pipelineEvents.ts` | `loom-ui/src/api` | The shared UI socket; gains the `NODE_REGISTRY` channel next to `PROCESSOR` |
 | `NodeDescriptorGenerator` | `io.metaloom.loom.doc.impl` (`loom/doc`) | Build-time arm of the harvest (§5.3) |
 | `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Carries `NODE_DESCRIPTORS_CHANGED` |
 | `PortGraphAnalyzer` / `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | Consume the registry — **unchanged** by this plan |
@@ -818,6 +1240,10 @@ that forgets the registry asserts success against a no-op.
 | Where a node becomes runnable | `cortex/cli/.../dagger/RegistryNodeRegistrar.java` |
 | The worker-state table this plan mirrors | [V2.33__add_cortex_instance.sql](../../loom/db/flyway/src/main/resources/db/migration/V2.33__add_cortex_instance.sql) |
 | Why an offline node still validates | `PipelineEndpointService.unsupportedNodeKinds` (503 at run time) |
+| How the palette gets its nodes today | [NodeRegistryContext.tsx](../../loom-ui/src/context/NodeRegistryContext.tsx) — one fetch at mount, never refreshed |
+| The two node pickers | `PipelineEditor.tsx` — the search bar (`addNodeOpen`, :3220) and the `N`-key `CommandPaletteContent` (:2066) |
+| How the UI already renders worker liveness | [CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx) — REST snapshot + `PROCESSOR` events, relative `lastSeen`; the model §7.4 copies |
+| The editor's REST/event surface, as built | [../loom/ui/PIPELINE_EDITOR.md §8](../loom/ui/PIPELINE_EDITOR.md) |
 | The port model a spec must respect | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | What already ships of the schema work | [../concept/NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md) §0 |
 | Rules for adding a node | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
@@ -826,7 +1252,12 @@ that forgets the registry asserts success against a no-op.
 ---
 
 _Git HEAD revision: `23746123`_
+_Implementation status: the core is built and green — see §13. Remaining: finish the node sweep, the
+endpoint tests, the cortex-instance skew badges, and the website page._
 _Last updated: 2026-08-03 (new file — Cortex-announced node specs: the `cortexId` + `nodes[]` payload
 keyed by `nodeId`, lowest-version-wins as the active contract, durable specs vs live availability,
 annotation-plus-reflection spec derivation with a subagent sweep over the 34 existing nodes, and the
-example-worker updates)_
+example-worker updates. Then §7: the `availability` sibling block with `available`/`lastSeen`/
+`providedBy`, a presence-only endpoint and a `NODE_REGISTRY` socket channel, and the loom-ui task —
+live palette refresh, available-first ordering, the show-offline toggle, and the single picker
+selector that has to be extracted before any of it)_

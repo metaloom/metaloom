@@ -43,7 +43,7 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("filter")
+				.setNodeId("filter")
 				.setName("Filter")
 				.setDescription("Route each item down one branch per configured bucket. The output port is the branch: a node wired to a port that "
 					+ "carried nothing for an item is skipped for that item.")

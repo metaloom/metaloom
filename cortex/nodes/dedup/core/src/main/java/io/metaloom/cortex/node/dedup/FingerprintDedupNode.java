@@ -13,6 +13,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
+import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
+import io.metaloom.loom.nodes.spec.NodeMode;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -35,7 +42,28 @@ import io.metaloom.loom.rest.model.similarity.SimilarAssetResponse;
  * is larger than the KEEP, and never propose discarding an incomplete/more-complete file. See spec/features/pipeline-nodes/NODE_DEDUP_PLAN.md §3.
  * </p>
  */
+@NodeSpec(nodeId = "fingerprint-dedup", name = "Fingerprint Deduplication", icon = "content_copy",
+	category = NodeCategory.OUTPUT,
+	description = "Detect and move near-duplicate files based on perceptual fingerprint similarity.",
+	defaultMode = NodeMode.SEQUENTIAL,
+	// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
+	parameters = {
+		@ParamOverride(key = "processIncomplete", hidden = true),
+		@ParamOverride(key = "retryFailed", hidden = true) })
 public class FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDiscoverOptions> {
+
+	/**
+	 * The perceptual fingerprint to search on.
+	 *
+	 * <p>
+	 * Declared here for the same reason as on the other dedup nodes: the contract is derived from these
+	 * constants, and the descriptor has always advertised this port.
+	 * </p>
+	 */
+	@PortDoc(label = "Fingerprint",
+		description = "A perceptual fingerprint; files within the similarity threshold count as near-duplicates")
+	public static final InputPort<String> IN_FINGERPRINT = InputPort.one("fingerprint",
+		ContentTypeRegistry.HASH_FINGERPRINT, String.class);
 
 	public static final Logger log = LoggerFactory.getLogger(FingerprintDedupNode.class);
 

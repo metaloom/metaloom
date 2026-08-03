@@ -1,5 +1,6 @@
 {
   "nodeDescriptors" : [ {
+    "nodeId" : "captioning",
     "kind" : "captioning",
     "name" : "Image Captioning",
     "description" : "Generate a textual caption for an image.",
@@ -12,8 +13,7 @@
       "cardinality" : "ONE",
       "required" : true,
       "group" : "media_alt",
-      "description" : "A still image to caption",
-      "many" : false
+      "description" : "A still image to caption"
     }, {
       "id" : "video",
       "label" : "Video",
@@ -21,8 +21,7 @@
       "cardinality" : "ONE",
       "required" : true,
       "group" : "media_alt",
-      "description" : "A video to caption from sampled frames",
-      "many" : false
+      "description" : "A video to caption from sampled frames"
     } ],
     "outputPorts" : [ {
       "id" : "caption",
@@ -30,8 +29,7 @@
       "contentType" : "text/caption",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "One sentence describing what the model sees, suitable for search and alt text",
-      "many" : false
+      "description" : "One sentence describing what the model sees, suitable for search and alt text"
     } ],
     "inputGroups" : [ {
       "id" : "media_alt",
@@ -65,6 +63,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "consistency",
     "kind" : "consistency",
     "name" : "Consistency Check",
     "description" : "Check media file integrity (zero chunk detection, completeness).",
@@ -76,8 +75,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The file to inspect for truncation and holes",
-      "many" : false
+      "description" : "The file to inspect for truncation and holes"
     } ],
     "outputPorts" : [ {
       "id" : "zero_chunk_count",
@@ -85,16 +83,14 @@
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "How many all-zero chunks were found - a strong sign of a truncated or sparse copy",
-      "many" : false
+      "description" : "How many all-zero chunks were found - a strong sign of a truncated or sparse copy"
     }, {
       "id" : "is_complete",
       "label" : "Complete",
       "contentType" : "scalar/boolean",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "False while the file still looks like it is being written",
-      "many" : false
+      "description" : "False while the file still looks like it is being written"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -123,6 +119,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "hash-dedup",
     "kind" : "hash-dedup",
     "name" : "Hash Deduplication",
     "description" : "Detect and move duplicate files based on hash equality.",
@@ -134,8 +131,7 @@
       "contentType" : "hash/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Any content hash. Two files whose hashes match are treated as the same file",
-      "many" : false
+      "description" : "Any content hash. Two files whose hashes match are treated as the same file"
     } ],
     "outputPorts" : [ ],
     "inputGroups" : [ ],
@@ -159,6 +155,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "fingerprint-dedup",
     "kind" : "fingerprint-dedup",
     "name" : "Fingerprint Deduplication",
     "description" : "Detect and move near-duplicate files based on perceptual fingerprint similarity.",
@@ -170,8 +167,7 @@
       "contentType" : "hash/fingerprint",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "A perceptual fingerprint; files within the similarity threshold count as near-duplicates",
-      "many" : false
+      "description" : "A perceptual fingerprint; files within the similarity threshold count as near-duplicates"
     } ],
     "outputPorts" : [ ],
     "inputGroups" : [ ],
@@ -184,17 +180,44 @@
       "label" : "Enabled",
       "description" : "Whether this node is active in the pipeline"
     }, {
-      "key" : "dupFolder",
+      "key" : "algorithm",
       "type" : "STRING",
-      "defaultValue" : "duplicates",
-      "label" : "Duplicates Folder",
-      "description" : "Target folder for duplicate files"
+      "defaultValue" : "metaloom-multisector-v1",
+      "label" : "Algorithm",
+      "description" : "Fingerprint algorithm whose vectors are compared. Must match the algorithm the upstream fingerprint node produced, or nothing will be found similar"
+    }, {
+      "key" : "scoreThreshold",
+      "type" : "NUMBER",
+      "defaultValue" : 0.1,
+      "label" : "Score Threshold",
+      "description" : "Maximum distance at which two fingerprints count as near-duplicates. Lower is stricter; 0 matches only identical fingerprints",
+      "min" : 0.0
+    }, {
+      "key" : "topK",
+      "type" : "INTEGER",
+      "defaultValue" : 10,
+      "label" : "Neighbours",
+      "description" : "How many nearest neighbours to examine per item before deciding a group",
+      "min" : 1
+    }, {
+      "key" : "allowPartial",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Allow Partial Groups",
+      "description" : "Form a group even when no member is known to be complete. Off by default: never propose discarding a file where completeness is unknown"
+    }, {
+      "key" : "abortOnLargerDup",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Abort On Larger Duplicate",
+      "description" : "Abandon a candidate group if any duplicate is larger than the file being kept, so the more complete file is never the one discarded"
     } ],
     "defaultConcurrency" : 1,
     "defaultMode" : "SEQUENTIAL",
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "fingerprint-dedup-apply",
     "kind" : "fingerprint-dedup-apply",
     "name" : "Fingerprint Deduplication (Apply)",
     "description" : "Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.",
@@ -206,8 +229,7 @@
       "contentType" : "hash/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Any content hash; identifies the asset whose confirmed dedup groups are applied",
-      "many" : false
+      "description" : "Any content hash; identifies the asset whose confirmed dedup groups are applied"
     } ],
     "outputPorts" : [ ],
     "inputGroups" : [ ],
@@ -231,6 +253,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "depthmap",
     "kind" : "depthmap",
     "name" : "Depth Map",
     "description" : "Estimate a per-pixel depth map from a single image. The map is written to a local cache as a 16-bit PNG where the brightest pixels are nearest the camera.",
@@ -242,8 +265,7 @@
       "contentType" : "media/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The image to estimate per-pixel depth for",
-      "many" : false
+      "description" : "The image to estimate per-pixel depth for"
     } ],
     "outputPorts" : [ {
       "id" : "meta",
@@ -251,24 +273,21 @@
       "contentType" : "struct/depthmap",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Mode, model, map dimensions and the value range needed to interpret the map",
-      "many" : false
+      "description" : "Mode, model, map dimensions and the value range needed to interpret the map"
     }, {
       "id" : "map",
       "label" : "Depth Map",
       "contentType" : "artifact/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The 16-bit PNG in the worker's local cache; the brightest pixels are nearest the camera",
-      "many" : false
+      "description" : "The 16-bit PNG in the worker's local cache; the brightest pixels are nearest the camera"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -336,6 +355,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "dominant-color",
     "kind" : "dominant-color",
     "name" : "Dominant Colour",
     "description" : "Find the dominant colours of an image by clustering its pixels in CIELAB - for the whole frame, a configured region, and every upstream detection box. Reports each colour as HEX, RGB, HSL and CIELAB plus a readable name in English and German. No model and no GPU required.",
@@ -347,16 +367,14 @@
       "contentType" : "media/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The image whose pixels are clustered in CIELAB",
-      "many" : false
+      "description" : "The image whose pixels are clustered in CIELAB"
     }, {
       "id" : "detections",
       "label" : "Detections",
       "contentType" : "detection/*",
       "cardinality" : "MANY",
       "required" : false,
-      "description" : "Boxes to measure individually. Leave unwired to measure only the whole frame and any fixed region",
-      "many" : true
+      "description" : "Boxes to measure individually. Leave unwired to measure only the whole frame and any fixed region"
     } ],
     "outputPorts" : [ {
       "id" : "result",
@@ -364,48 +382,42 @@
       "contentType" : "struct/color",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Per measured region: the ranked palette with HEX, RGB, HSL and CIELAB values",
-      "many" : false
+      "description" : "Per measured region: the ranked palette with HEX, RGB, HSL and CIELAB values"
     }, {
       "id" : "hex",
       "label" : "Hex",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Dominant colour of the whole frame as #RRGGBB",
-      "many" : false
+      "description" : "Dominant colour of the whole frame as #RRGGBB"
     }, {
       "id" : "term",
       "label" : "Colour Term",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Language-neutral name of the dominant colour, e.g. dark_blue - the stable key to match on",
-      "many" : false
+      "description" : "Language-neutral name of the dominant colour, e.g. dark_blue - the stable key to match on"
     }, {
       "id" : "name_en",
       "label" : "Name (English)",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Readable English name of the dominant colour",
-      "many" : false
+      "description" : "Readable English name of the dominant colour"
     }, {
       "id" : "name_de",
       "label" : "Name (German)",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Readable German name of the dominant colour",
-      "many" : false
+      "description" : "Readable German name of the dominant colour"
     }, {
       "id" : "region_count",
       "label" : "Region Count",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "How many regions were measured, counting the whole frame and the fixed region",
-      "many" : false
+      "description" : "How many regions were measured, counting the whole frame and the fixed region"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -578,6 +590,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "facedetect",
     "kind" : "facedetect",
     "name" : "Face Detection",
     "description" : "Detect and cluster faces in images and video frames.",
@@ -590,8 +603,7 @@
       "cardinality" : "ONE",
       "required" : true,
       "group" : "media_alt",
-      "description" : "A still image to search for faces",
-      "many" : false
+      "description" : "A still image to search for faces"
     }, {
       "id" : "video",
       "label" : "Video",
@@ -599,8 +611,7 @@
       "cardinality" : "ONE",
       "required" : true,
       "group" : "media_alt",
-      "description" : "A video whose frames are sampled and searched",
-      "many" : false
+      "description" : "A video whose frames are sampled and searched"
     } ],
     "outputPorts" : [ {
       "id" : "detections",
@@ -608,24 +619,21 @@
       "contentType" : "detection/face",
       "cardinality" : "MANY",
       "required" : true,
-      "description" : "One element per detected face, so a downstream node can run once per face rather than once per file",
-      "many" : true
+      "description" : "One element per detected face, so a downstream node can run once per face rather than once per file"
     }, {
       "id" : "face_count",
       "label" : "Face Count",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "How many distinct faces survived clustering",
-      "many" : false
+      "description" : "How many distinct faces survived clustering"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ {
       "id" : "media_alt",
@@ -705,6 +713,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "facedescription",
     "kind" : "facedescription",
     "name" : "Face Description",
     "description" : "Generate textual descriptions of detected faces.",
@@ -716,8 +725,7 @@
       "contentType" : "detection/face",
       "cardinality" : "MANY",
       "required" : true,
-      "description" : "The faces to describe, one element each - typically straight from a facedetect node",
-      "many" : true
+      "description" : "The faces to describe, one element each - typically straight from a facedetect node"
     } ],
     "outputPorts" : [ {
       "id" : "descriptions",
@@ -725,8 +733,7 @@
       "contentType" : "text/plain",
       "cardinality" : "MANY",
       "required" : true,
-      "description" : "One description per incoming face, in the same order as the detections",
-      "many" : true
+      "description" : "One description per incoming face, in the same order as the detections"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -755,6 +762,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "filter",
     "kind" : "filter",
     "name" : "Filter",
     "description" : "Route each item down one branch per configured bucket. The output port is the branch: a node wired to a port that carried nothing for an item is skipped for that item.",
@@ -766,16 +774,14 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The item being routed",
-      "many" : false
+      "description" : "The item being routed"
     }, {
       "id" : "text",
       "label" : "Text",
       "contentType" : "text/*",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "The text to classify - a transcript, extracted document text or a caption. Without it every item lands in 'other'",
-      "many" : false
+      "description" : "The text to classify - a transcript, extracted document text or a caption. Without it every item lands in 'other'"
     } ],
     "outputPorts" : [ ],
     "inputGroups" : [ ],
@@ -833,6 +839,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "fingerprint",
     "kind" : "fingerprint",
     "name" : "Fingerprint",
     "description" : "Compute a perceptual fingerprint of the media for deduplication or similarity search.",
@@ -844,16 +851,14 @@
       "contentType" : "media/video",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The video whose frames are sampled into a perceptual hash",
-      "many" : false
+      "description" : "The video whose frames are sampled into a perceptual hash"
     }, {
       "id" : "is_complete",
       "label" : "Is Complete",
       "contentType" : "scalar/boolean",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set",
-      "many" : false
+      "description" : "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set"
     } ],
     "outputPorts" : [ {
       "id" : "fingerprint",
@@ -861,8 +866,7 @@
       "contentType" : "hash/fingerprint",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Perceptual fingerprint that survives re-encoding, so near-duplicates still compare equal",
-      "many" : false
+      "description" : "Perceptual fingerprint that survives re-encoding, so near-duplicates still compare equal"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -891,6 +895,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "md5",
     "kind" : "md5",
     "name" : "MD5 Hash",
     "description" : "Compute the MD5 hash of the media file.",
@@ -902,8 +907,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The file whose bytes are digested",
-      "many" : false
+      "description" : "The file whose bytes are digested"
     } ],
     "outputPorts" : [ {
       "id" : "hash",
@@ -911,8 +915,7 @@
       "contentType" : "hash/md5",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Lowercase hex MD5 digest over the whole file",
-      "many" : false
+      "description" : "Lowercase hex MD5 digest over the whole file"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -941,6 +944,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "sha256",
     "kind" : "sha256",
     "name" : "SHA-256 Hash",
     "description" : "Compute the SHA-256 hash of the media file.",
@@ -952,8 +956,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The file whose bytes are digested",
-      "many" : false
+      "description" : "The file whose bytes are digested"
     } ],
     "outputPorts" : [ {
       "id" : "hash",
@@ -961,8 +964,7 @@
       "contentType" : "hash/sha256",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Lowercase hex SHA-256 digest over the whole file",
-      "many" : false
+      "description" : "Lowercase hex SHA-256 digest over the whole file"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -991,6 +993,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "sha512",
     "kind" : "sha512",
     "name" : "SHA-512 Hash",
     "description" : "Compute the SHA-512 hash of the media file.",
@@ -1002,8 +1005,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The file whose bytes are digested",
-      "many" : false
+      "description" : "The file whose bytes are digested"
     } ],
     "outputPorts" : [ {
       "id" : "hash",
@@ -1011,8 +1013,7 @@
       "contentType" : "hash/sha512",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Lowercase hex SHA-512 digest over the whole file",
-      "many" : false
+      "description" : "Lowercase hex SHA-512 digest over the whole file"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1041,6 +1042,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "chunk-hash",
     "kind" : "chunk-hash",
     "name" : "Chunk Hash",
     "description" : "Compute a hash over fixed-size chunks of the media file.",
@@ -1052,8 +1054,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The file whose bytes are digested chunk by chunk",
-      "many" : false
+      "description" : "The file whose bytes are digested chunk by chunk"
     } ],
     "outputPorts" : [ {
       "id" : "hash",
@@ -1061,8 +1062,7 @@
       "contentType" : "hash/chunk",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Digest over fixed-size chunks, so a file that was only partly rewritten still matches in part",
-      "many" : false
+      "description" : "Digest over fixed-size chunks, so a file that was only partly rewritten still matches in part"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1091,6 +1091,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "imagegen",
     "kind" : "imagegen",
     "name" : "Image Generation",
     "description" : "Generate an image through the image-generation sidecar - text-to-image from a prompt, or image-to-image from the source asset. The PNG is written to the worker's local cache; wire it into a sink to keep it.",
@@ -1102,16 +1103,14 @@
       "contentType" : "text/*",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "Upstream text used instead of the configured prompt - an LLM answer or a caption",
-      "many" : false
+      "description" : "Upstream text used instead of the configured prompt - an LLM answer or a caption"
     }, {
       "id" : "media",
       "label" : "Source Image",
       "contentType" : "media/image",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "The image to remix. Required in REMIX mode and ignored in GENERATE mode",
-      "many" : false
+      "description" : "The image to remix. Required in REMIX mode and ignored in GENERATE mode"
     } ],
     "outputPorts" : [ {
       "id" : "image",
@@ -1119,16 +1118,14 @@
       "contentType" : "artifact/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The generated PNG in the worker's local cache; wire it into a sink to keep it",
-      "many" : false
+      "description" : "The generated PNG in the worker's local cache; wire it into a sink to keep it"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1237,6 +1234,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "llm",
     "kind" : "llm",
     "name" : "LLM (Large Language Model)",
     "description" : "Process media through an LLM served over an OpenAI-compatible API, with configurable prompts.",
@@ -1248,8 +1246,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The media item the configured prompts are asked about",
-      "many" : false
+      "description" : "The media item the configured prompts are asked about"
     } ],
     "outputPorts" : [ ],
     "inputGroups" : [ ],
@@ -1285,6 +1282,146 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "metadata",
+    "kind" : "metadata",
+    "name" : "Asset Metadata",
+    "description" : "Read the metadata already inside a file - EXIF, IPTC, XMP, PDF and Office properties, ID3 - and normalise it onto Dublin Core: title, creator, keywords, date, rights and GPS position.",
+    "icon" : "info",
+    "category" : "ANALYSIS",
+    "inputPorts" : [ {
+      "id" : "media",
+      "label" : "Media",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The file to read metadata from"
+    } ],
+    "outputPorts" : [ {
+      "id" : "metadata",
+      "label" : "Metadata",
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The normalised metadata envelope: Dublin Core, rights, capture settings and position"
+    }, {
+      "id" : "text",
+      "label" : "Text",
+      "contentType" : "text/plain",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Title, description, keywords and creator, newline-joined - ready for any text consumer"
+    }, {
+      "id" : "geo",
+      "label" : "Position",
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Latitude and longitude, emitted only when the file carried a coordinate"
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "processIncomplete",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Process Incomplete",
+      "description" : "Process media files that are still being written"
+    }, {
+      "key" : "retryFailed",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Retry Failed",
+      "description" : "Retry processing media that previously failed"
+    }, {
+      "key" : "includeRaw",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Include Raw Metadata",
+      "description" : "Store every key the file carried, unmapped. Off by default: maker notes can carry serial numbers and owner names"
+    }, {
+      "key" : "rawMaxKeys",
+      "type" : "INTEGER",
+      "defaultValue" : 500,
+      "label" : "Raw Key Limit",
+      "description" : "Maximum number of raw entries stored",
+      "min" : 1
+    }, {
+      "key" : "rawMaxValueBytes",
+      "type" : "INTEGER",
+      "defaultValue" : 4096,
+      "label" : "Raw Value Limit",
+      "description" : "Longer raw values are truncated",
+      "min" : 1
+    }, {
+      "key" : "readXmpSidecar",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Read XMP Sidecar",
+      "description" : "Merge a companion .xmp file when one sits next to the media"
+    }, {
+      "key" : "writeGeoComponent",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Store Position",
+      "description" : "Write the position to the asset's geo component"
+    }, {
+      "key" : "gpsTrackMaxSamples",
+      "type" : "INTEGER",
+      "defaultValue" : 1000,
+      "label" : "Position Sample Limit",
+      "description" : "Upper bound on the position readings kept per asset",
+      "min" : 1
+    }, {
+      "key" : "gpsPolicy",
+      "type" : "STRING",
+      "defaultValue" : "KEEP",
+      "label" : "Position Policy",
+      "description" : "KEEP the exact coordinate, ROUND it, or DROP it entirely"
+    }, {
+      "key" : "gpsRoundDecimals",
+      "type" : "INTEGER",
+      "defaultValue" : 2,
+      "label" : "Position Rounding",
+      "description" : "Decimal places kept when rounding; 2 is roughly 1.1 km",
+      "min" : 0,
+      "max" : 6
+    }, {
+      "key" : "emitText",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Emit Text",
+      "description" : "Produce the plain-text output for downstream text nodes"
+    }, {
+      "key" : "licenseDetection",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Detect Licence",
+      "description" : "Recognise well-known licence URLs and record their identifier"
+    }, {
+      "key" : "dateFallback",
+      "type" : "STRING",
+      "defaultValue" : "NONE",
+      "label" : "Date Fallback",
+      "description" : "NONE, or FILESYSTEM to fall back to the file's modification time"
+    }, {
+      "key" : "excludeKeys",
+      "type" : "STRING",
+      "label" : "Excluded Keys",
+      "description" : "Metadata keys to drop before anything else reads them"
+    } ],
+    "defaultConcurrency" : 4,
+    "defaultMode" : "PARALLEL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
+    "nodeId" : "ocr",
     "kind" : "ocr",
     "name" : "OCR",
     "description" : "Extract text from images using optical character recognition.",
@@ -1296,8 +1433,7 @@
       "contentType" : "media/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The page or frame to read characters from",
-      "many" : false
+      "description" : "The page or frame to read characters from"
     } ],
     "outputPorts" : [ {
       "id" : "text",
@@ -1305,8 +1441,7 @@
       "contentType" : "text/plain",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Everything the OCR engine recognised, in reading order",
-      "many" : false
+      "description" : "Everything the OCR engine recognised, in reading order"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1335,6 +1470,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "quality",
     "kind" : "quality",
     "name" : "Quality Analysis",
     "description" : "Analyze media quality: blurriness, resolution, bitrate.",
@@ -1346,8 +1482,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The image or video to measure",
-      "many" : false
+      "description" : "The image or video to measure"
     } ],
     "outputPorts" : [ {
       "id" : "metrics",
@@ -1355,56 +1490,49 @@
       "contentType" : "struct/quality",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The whole measurement bag - resolution, blurriness and bitrates - for a filter to threshold on",
-      "many" : false
+      "description" : "The whole measurement bag - resolution, blurriness and bitrates - for a filter to threshold on"
     }, {
       "id" : "blurriness",
       "label" : "Blurriness",
       "contentType" : "scalar/number",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Variance of the Laplacian; the lower the value the blurrier the frame",
-      "many" : false
+      "description" : "Variance of the Laplacian; the lower the value the blurrier the frame"
     }, {
       "id" : "width",
       "label" : "Width",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Frame width in pixels",
-      "many" : false
+      "description" : "Frame width in pixels"
     }, {
       "id" : "height",
       "label" : "Height",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Frame height in pixels",
-      "many" : false
+      "description" : "Frame height in pixels"
     }, {
       "id" : "fps",
       "label" : "Frame Rate",
       "contentType" : "scalar/number",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Frames per second; zero for a still image",
-      "many" : false
+      "description" : "Frames per second; zero for a still image"
     }, {
       "id" : "frame_count",
       "label" : "Frame Count",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Total number of frames; one for a still image",
-      "many" : false
+      "description" : "Total number of frames; one for a still image"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1453,6 +1581,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "s3-sink",
     "kind" : "s3-sink",
     "name" : "S3 Sink",
     "description" : "Uploads files produced by upstream nodes - thumbnails, depth maps, generated images, speech audio - into an S3 bucket, and registers each one in Loom as an asset so it becomes retrievable rather than living on a single worker's disk.",
@@ -1464,8 +1593,7 @@
       "contentType" : "artifact/*",
       "cardinality" : "MANY",
       "required" : true,
-      "description" : "Every produced file to upload - thumbnails, depth maps, generated images, speech audio",
-      "many" : true
+      "description" : "Every produced file to upload - thumbnails, depth maps, generated images, speech audio"
     } ],
     "outputPorts" : [ {
       "id" : "result",
@@ -1473,24 +1601,21 @@
       "contentType" : "struct/json",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Per artifact: the object key, its size and whether it was uploaded or skipped as unchanged",
-      "many" : false
+      "description" : "Per artifact: the object key, its size and whether it was uploaded or skipped as unchanged"
     }, {
       "id" : "count",
       "label" : "Uploaded Count",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "How many objects ended up in the bucket",
-      "many" : false
+      "description" : "How many objects ended up in the bucket"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1563,6 +1688,7 @@
     "defaultBlocking" : false,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "scene-detection",
     "kind" : "scene-detection",
     "name" : "Scene Detection",
     "description" : "Detect scene boundaries in video files.",
@@ -1574,8 +1700,7 @@
       "contentType" : "media/video",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The video to cut at its shot boundaries",
-      "many" : false
+      "description" : "The video to cut at its shot boundaries"
     } ],
     "outputPorts" : [ {
       "id" : "scenes",
@@ -1583,8 +1708,7 @@
       "contentType" : "struct/segments",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The detected scene boundaries as time-coded segments",
-      "many" : false
+      "description" : "The detected scene boundaries as time-coded segments"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1613,6 +1737,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "scene-layout",
     "kind" : "scene-layout",
     "name" : "Scene Layout",
     "description" : "Relate detected objects to one another using a depth map: foreground/background bands plus pairwise relations such as in front of, behind, occludes and next to. Requires an upstream depthmap node on the same worker.",
@@ -1624,16 +1749,14 @@
       "contentType" : "struct/depthmap",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Depth metadata from an upstream depthmap node sharing this node's affinity group",
-      "many" : false
+      "description" : "Depth metadata from an upstream depthmap node sharing this node's affinity group"
     }, {
       "id" : "detections",
       "label" : "Detections",
       "contentType" : "detection/*",
       "cardinality" : "MANY",
       "required" : true,
-      "description" : "The boxes to place in the scene - faces, objects or plain regions",
-      "many" : true
+      "description" : "The boxes to place in the scene - faces, objects or plain regions"
     } ],
     "outputPorts" : [ {
       "id" : "result",
@@ -1641,24 +1764,21 @@
       "contentType" : "struct/scene-layout",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Depth band per object plus pairwise relations such as in front of, occludes and next to",
-      "many" : false
+      "description" : "Depth band per object plus pairwise relations such as in front of, occludes and next to"
     }, {
       "id" : "object_count",
       "label" : "Object Count",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "How many boxes were placed in the scene",
-      "many" : false
+      "description" : "How many boxes were placed in the scene"
     }, {
       "id" : "relation_count",
       "label" : "Relation Count",
       "contentType" : "scalar/integer",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "How many pairwise relations were emitted",
-      "many" : false
+      "description" : "How many pairwise relations were emitted"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -1774,6 +1894,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "script",
     "kind" : "script",
     "name" : "Script",
     "description" : "Run a small script over the media item and its upstream outputs, and emit any number of declared outputs - texts, numbers, JSON, timeframes or images.",
@@ -1785,24 +1906,21 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "The media item the script runs over. Leave unwired for a script that only reshapes upstream data",
-      "many" : false
+      "description" : "The media item the script runs over. Leave unwired for a script that only reshapes upstream data"
     }, {
       "id" : "data",
       "label" : "Data",
       "contentType" : "struct/json",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "A structured payload from an upstream node, handed to the script as its input data",
-      "many" : false
+      "description" : "A structured payload from an upstream node, handed to the script as its input data"
     }, {
       "id" : "text",
       "label" : "Text",
       "contentType" : "text/*",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "Text from an upstream node, such as a transcript or extracted document content",
-      "many" : false
+      "description" : "Text from an upstream node, such as a transcript or extracted document content"
     } ],
     "outputPorts" : [ ],
     "inputGroups" : [ ],
@@ -1906,6 +2024,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "sentiment",
     "kind" : "sentiment",
     "name" : "Sentiment Analysis",
     "description" : "Score the polarity (positive/neutral/negative) of text produced by an upstream node. German and English.",
@@ -1917,8 +2036,7 @@
       "contentType" : "text/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The prose to score - a transcript, caption, OCR result or any other upstream text",
-      "many" : false
+      "description" : "The prose to score - a transcript, caption, OCR result or any other upstream text"
     } ],
     "outputPorts" : [ {
       "id" : "label",
@@ -1926,24 +2044,21 @@
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The polarity class: positive, neutral or negative",
-      "many" : false
+      "description" : "The polarity class: positive, neutral or negative"
     }, {
       "id" : "score",
       "label" : "Score",
       "contentType" : "scalar/number",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Polarity in [-1, 1]; its sign agrees with the label",
-      "many" : false
+      "description" : "Polarity in [-1, 1]; its sign agrees with the label"
     }, {
       "id" : "result",
       "label" : "Result",
       "contentType" : "struct/json",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The sidecar's full answer, including the detected language and per-class confidences",
-      "many" : false
+      "description" : "The sidecar's full answer, including the detected language and per-class confidences"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2008,6 +2123,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "filesystem-source",
     "kind" : "filesystem-source",
     "name" : "Filesystem Source",
     "description" : "Reads media files from the filesystem as pipeline input.",
@@ -2020,8 +2136,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Every file the differential scan emitted. The concrete kind is unknown until the file is opened, so this is the family wildcard",
-      "many" : false
+      "description" : "Every file the differential scan emitted. The concrete kind is unknown until the file is opened, so this is the family wildcard"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2061,6 +2176,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "s3-source",
     "kind" : "s3-source",
     "name" : "S3 Source",
     "description" : "Reads media objects from S3-compatible object storage (AWS S3, MinIO, Ceph) as pipeline input. Only new and changed objects are picked up on a re-run.",
@@ -2073,8 +2189,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Every object the bucket listing emitted. The concrete kind is only known once the object is fetched",
-      "many" : false
+      "description" : "Every object the bucket listing emitted. The concrete kind is only known once the object is fetched"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2125,6 +2240,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "gdrive-source",
     "kind" : "gdrive-source",
     "name" : "Google Drive Source",
     "description" : "Reads media files from Google Drive - My Drive or a shared drive - as pipeline input. Only new, changed and moved files are picked up on a re-run.",
@@ -2137,8 +2253,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched",
-      "many" : false
+      "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2212,6 +2327,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "onedrive-source",
     "kind" : "onedrive-source",
     "name" : "OneDrive Source",
     "description" : "Reads media files from OneDrive or a SharePoint document library as pipeline input. Only new, changed and moved files are picked up on a re-run.",
@@ -2224,8 +2340,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched",
-      "many" : false
+      "description" : "Every file the scan emitted. The concrete kind is only known once the file is fetched"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2293,6 +2408,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "loom-fetch",
     "kind" : "loom-fetch",
     "name" : "Loom Fetch",
     "description" : "Fetches media references from the Loom backend.",
@@ -2305,8 +2421,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Every media reference the Loom backend handed out for processing",
-      "many" : false
+      "description" : "Every media reference the Loom backend handed out for processing"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2323,6 +2438,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "thumbnail",
     "kind" : "thumbnail",
     "name" : "Thumbnail Generator",
     "description" : "Generate a thumbnail grid from video or image content.",
@@ -2334,16 +2450,14 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The image or video to render a preview from",
-      "many" : false
+      "description" : "The image or video to render a preview from"
     }, {
       "id" : "is_complete",
       "label" : "Is Complete",
       "contentType" : "scalar/boolean",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set",
-      "many" : false
+      "description" : "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set"
     } ],
     "outputPorts" : [ {
       "id" : "thumbnail",
@@ -2351,16 +2465,14 @@
       "contentType" : "artifact/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The rendered preview grid in the worker's local cache; wire it into a sink to keep it",
-      "many" : false
+      "description" : "The rendered preview grid in the worker's local cache; wire it into a sink to keep it"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2410,6 +2522,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "tika",
     "kind" : "tika",
     "name" : "Tika Extraction",
     "description" : "Extract metadata and text content using Apache Tika.",
@@ -2421,8 +2534,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The document or container file to parse",
-      "many" : false
+      "description" : "The document or container file to parse"
     } ],
     "outputPorts" : [ {
       "id" : "content",
@@ -2430,16 +2542,14 @@
       "contentType" : "text/plain",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The document body Tika extracted, with the markup stripped out",
-      "many" : false
+      "description" : "The document body Tika extracted, with the markup stripped out"
     }, {
       "id" : "flags",
       "label" : "Flags",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing markers recording which parsers Tika ended up using",
-      "many" : false
+      "description" : "Processing markers recording which parsers Tika ended up using"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2468,6 +2578,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "translate",
     "kind" : "translate",
     "name" : "Translate",
     "description" : "Translate text produced by an upstream node into a target language using a language model.",
@@ -2479,8 +2590,7 @@
       "contentType" : "text/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The prose to translate - a transcript, document body, OCR result or any other upstream text",
-      "many" : false
+      "description" : "The prose to translate - a transcript, document body, OCR result or any other upstream text"
     } ],
     "outputPorts" : [ {
       "id" : "translation",
@@ -2488,24 +2598,21 @@
       "contentType" : "text/plain",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The translated text, ready to be spoken by the TTS node or stored",
-      "many" : false
+      "description" : "The translated text, ready to be spoken by the TTS node or stored"
     }, {
       "id" : "language",
       "label" : "Language",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The target language the text was translated into",
-      "many" : false
+      "description" : "The target language the text was translated into"
     }, {
       "id" : "result",
       "label" : "Result",
       "contentType" : "struct/json",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The stored payload: translation, languages, model and how many chunks it took",
-      "many" : false
+      "description" : "The stored payload: translation, languages, model and how many chunks it took"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2584,6 +2691,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "tts",
     "kind" : "tts",
     "name" : "Text to Speech",
     "description" : "Speak upstream text through the /v1/tts sidecar. German routes to Orpheus/Kartoffel, English to Kokoro. The WAV is written to the worker's local cache; wire it into a sink to keep it.",
@@ -2595,8 +2703,7 @@
       "contentType" : "text/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The prose to speak - an LLM answer, a transcript, a caption or any other upstream text",
-      "many" : false
+      "description" : "The prose to speak - an LLM answer, a transcript, a caption or any other upstream text"
     } ],
     "outputPorts" : [ {
       "id" : "audio",
@@ -2604,16 +2711,14 @@
       "contentType" : "artifact/audio",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The synthesised WAV in the worker's local cache; wire it into a sink to keep it",
-      "many" : false
+      "description" : "The synthesised WAV in the worker's local cache; wire it into a sink to keep it"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2674,6 +2779,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "videogen",
     "kind" : "videogen",
     "name" : "Video Generation",
     "description" : "Generate a short video clip through the LTX-2 video sidecar - text-to-video from a prompt, or image-to-video from the source asset. The MP4 (with synchronised audio) is written to the worker's local cache; wire it into a sink to keep it.",
@@ -2685,16 +2791,14 @@
       "contentType" : "text/*",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "Upstream text used instead of the configured prompt - an LLM answer or a caption",
-      "many" : false
+      "description" : "Upstream text used instead of the configured prompt - an LLM answer or a caption"
     }, {
       "id" : "media",
       "label" : "Source Image",
       "contentType" : "media/image",
       "cardinality" : "ONE",
       "required" : false,
-      "description" : "The still image to animate. Required in ANIMATE mode and ignored in GENERATE mode",
-      "many" : false
+      "description" : "The still image to animate. Required in ANIMATE mode and ignored in GENERATE mode"
     } ],
     "outputPorts" : [ {
       "id" : "video",
@@ -2702,16 +2806,14 @@
       "contentType" : "artifact/video",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The generated MP4 in the worker's local cache; wire it into a sink to keep it",
-      "many" : false
+      "description" : "The generated MP4 in the worker's local cache; wire it into a sink to keep it"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -2839,6 +2941,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "vlm",
     "kind" : "vlm",
     "name" : "VLM (Vision-Language Model)",
     "description" : "Read an image with a vision-language model served over an OpenAI-compatible endpoint. Ships an olmOCR preset for transcribing document pages.",
@@ -2850,8 +2953,7 @@
       "contentType" : "media/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The page or frame the configured prompts are asked about",
-      "many" : false
+      "description" : "The page or frame the configured prompts are asked about"
     } ],
     "outputPorts" : [ ],
     "inputGroups" : [ ],
@@ -2882,35 +2984,24 @@
       "label" : "Endpoint URL",
       "description" : "Base URL of the OpenAI-compatible vision endpoint (e.g. vLLM)"
     }, {
-      "key" : "model",
+      "key" : "apiKey",
       "type" : "STRING",
-      "defaultValue" : "allenai/olmOCR-2-7B-1025-FP8",
-      "label" : "Model",
-      "description" : "Model id to select on the endpoint"
+      "label" : "API Key",
+      "description" : "Bearer token for the endpoint. Usually unset - a local vLLM does not check it"
     }, {
-      "key" : "responseFormat",
-      "type" : "ENUM",
-      "defaultValue" : "OLMOCR",
-      "label" : "Response Format",
-      "description" : "How to read the model's answer: TEXT, JSON or OLMOCR front matter"
-    }, {
-      "key" : "maxImageDim",
-      "type" : "INTEGER",
-      "defaultValue" : 1288,
-      "label" : "Max Image Size",
-      "description" : "Longest image side in pixels sent to the model; 0 disables scaling"
-    }, {
-      "key" : "maxTokens",
-      "type" : "INTEGER",
-      "defaultValue" : 4096,
-      "label" : "Max Tokens",
-      "description" : "Output token budget; a full document page needs a few thousand"
+      "key" : "prompts",
+      "type" : "JSON",
+      "defaultValue" : { },
+      "label" : "Prompts",
+      "description" : "Prompt id to task, as {\"<id>\": {\"model\": ..., \"prompt\": ..., \"responseFormat\": TEXT|JSON|OLMOCR, \"maxImageDim\": ..., \"maxTokens\": ...}}. Each entry adds a result_<id> output port. Left empty the node falls back to the olmOCR preset",
+      "rows" : 8
     } ],
     "defaultConcurrency" : 1,
     "defaultMode" : "PARALLEL",
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "watermark",
     "kind" : "watermark",
     "name" : "Watermark",
     "description" : "Composite a configured watermark image onto the asset - a still is redrawn with Graphics2D, a video is re-encoded through the ffmpeg overlay filter with its audio copied untouched. The source file is never modified; the marked copy is written to the worker's local cache, so wire it into a sink to keep it.",
@@ -2922,8 +3013,7 @@
       "contentType" : "media/*",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The image or video to mark. Audio and documents are skipped",
-      "many" : false
+      "description" : "The image or video to mark. Audio and documents are skipped"
     } ],
     "outputPorts" : [ {
       "id" : "image",
@@ -2931,24 +3021,21 @@
       "contentType" : "artifact/image",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The watermarked PNG, written for image items only",
-      "many" : false
+      "description" : "The watermarked PNG, written for image items only"
     }, {
       "id" : "video",
       "label" : "Marked Video",
       "contentType" : "artifact/video",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The watermarked clip in the source container, written for video items only",
-      "many" : false
+      "description" : "The watermarked clip in the source container, written for video items only"
     }, {
       "id" : "flag",
       "label" : "Flag",
       "contentType" : "scalar/string",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "Processing marker recording how this node finished for the item",
-      "many" : false
+      "description" : "Processing marker recording how this node finished for the item"
     } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
@@ -3059,6 +3146,7 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "whisper",
     "kind" : "whisper",
     "name" : "Whisper (Speech-to-Text)",
     "description" : "Transcribe audio/video speech to text using Whisper.",
@@ -3071,8 +3159,7 @@
       "cardinality" : "ONE",
       "required" : true,
       "group" : "media_alt",
-      "description" : "An audio file to transcribe",
-      "many" : false
+      "description" : "An audio file to transcribe"
     }, {
       "id" : "video",
       "label" : "Video",
@@ -3080,8 +3167,7 @@
       "cardinality" : "ONE",
       "required" : true,
       "group" : "media_alt",
-      "description" : "A video whose audio track is demuxed and transcribed",
-      "many" : false
+      "description" : "A video whose audio track is demuxed and transcribed"
     } ],
     "outputPorts" : [ {
       "id" : "transcript",
@@ -3089,8 +3175,7 @@
       "contentType" : "text/transcript",
       "cardinality" : "ONE",
       "required" : true,
-      "description" : "The recognised speech with per-segment start and end times",
-      "many" : false
+      "description" : "The recognised speech with per-segment start and end times"
     } ],
     "inputGroups" : [ {
       "id" : "media_alt",

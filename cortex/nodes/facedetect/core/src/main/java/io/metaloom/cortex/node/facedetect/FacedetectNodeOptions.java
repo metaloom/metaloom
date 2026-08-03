@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -21,37 +22,44 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 	/**
 	 * Process only every nth video frame.
 	 */
+	@ParamDoc(label = "Video Chop Rate", description = "Process every Nth video frame", min = "1")
 	private int videoChopRate = 5;
 
 	/**
 	 * Defines the minimum of detections that may form a dedicated cluster.
 	 */
+	@ParamDoc(label = "Min Cluster Size", description = "Minimum detections to form a cluster")
 	public int faceClusterMinimum = 2;
 
 	/**
 	 * Defines the minimum radius that is being utilized to cluster faces together.
 	 */
+	@ParamDoc(label = "Cluster Radius", description = "DBSCAN cluster radius threshold", min = "0.0", max = "2.0", step = "0.05")
 	public float faceClusterEPS = 0.6f;
 
 	/**
 	 * Defines the size to which every frame will be increased in either width or height before processing. Higher resolution increased detection precision but
 	 * also detection time.
 	 */
+	@ParamDoc(label = "Scale Size (px)", description = "Rescale video frames to this size")
 	private int videoScaleSize = 384;
 
 	/**
 	 * Defines the height factor in respect to the total frame height which controls whether a found face will be processed further.
 	 */
+	@ParamDoc(label = "Min Face Height Factor", min = "0.0", max = "1.0")
 	private float minFaceHeightFactor = 0.05f;
 
 	/**
 	 * Defines the inspireface model pack path.
 	 */
+	@ParamDoc(label = "Model Pack Path")
 	private String inspirefacePackPath = DEFAULT_PACK_PATH;
 
 	/**
 	 * Set of enabled face detection capabilities.
 	 */
+	@ParamDoc(label = "Backends", values = { "INSPIREFACE", "DLIB" })
 	private Set<FacedetectNodeCapabilities> capabilities = Set.of(FacedetectNodeCapabilities.INSPIREFACE);
 
 	public int getVideoChopRate() {

@@ -1,0 +1,54 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-image-manipulation-node</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex-nodes</artifactId>
+        <relativePath>../../pom.xml</relativePath>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: Nodes :: Image Manipulation</name>
+
+    <!--
+      No model, no sidecar, no external binary. Every operation is ImageIO plus
+      Graphics2D arithmetic, which is what keeps the node and its tests runnable on
+      any machine - the same trade watermark and dominant-color make.
+
+      It deliberately does NOT depend on video4j / opencv-ffm: the only thing the
+      OpenCV path would add is Core.rotate + Core.flip, which AffineTransform already
+      does, and it would drag the native runtime in for eight matrices.
+
+      It deliberately does NOT depend on cortex-facedetect-node either. Subject boxes
+      arrive through the `detections` input port as JSON, so the node stays
+      detector-agnostic - a future person detector needs no change here.
+    -->
+
+    <dependencies>
+        <!--
+          EXIF orientation, read directly rather than through Tika. Tika's
+          ImageMetadataExtractor merges EXIF, IPTC and XMP into one namespace and applies
+          its own precedence on the way; the metadata node avoids it for the same reason.
+        -->
+        <dependency>
+            <groupId>com.drewnoakes</groupId>
+            <artifactId>metadata-extractor</artifactId>
+        </dependency>
+
+        <!--
+          Test-only. ExifJpegFixture builds a JPEG carrying a chosen EXIF orientation;
+          writing a second EXIF encoder here would be two to keep correct, and the one
+          exercised by a single test is the one that silently rots.
+        -->
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-metadata-node</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

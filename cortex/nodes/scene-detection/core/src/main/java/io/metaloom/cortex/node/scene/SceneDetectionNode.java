@@ -19,6 +19,8 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -27,17 +29,23 @@ import io.metaloom.cortex.media.scene.SceneDetectionResult;
 import io.metaloom.cortex.node.scene.impl.OpticalFlowSceneDetector;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompCreateRequest;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentEntry;
 import io.metaloom.video4j.VideoFile;
 
+@NodeSpec(nodeId = "scene-detection", name = "Scene Detection", icon = "movie_filter", category = NodeCategory.ANALYSIS,
+	description = "Detect scene boundaries in video files.",
+	defaultConcurrency = 2)
 public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SceneDetectionNode.class);
 
+	@PortDoc(label = "Video", description = "The video to cut at its shot boundaries")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
 
+	@PortDoc(label = "Scenes", description = "The detected scene boundaries as time-coded segments")
 	public static final OutputPort<String> OUT_SCENES = OutputPort.one("scenes", ContentTypeRegistry.STRUCT_SEGMENTS, String.class);
 
 	/** In-heap skip cache of the scene-detection output, keyed by media path, to avoid re-running optical-flow detection within this worker's lifetime.

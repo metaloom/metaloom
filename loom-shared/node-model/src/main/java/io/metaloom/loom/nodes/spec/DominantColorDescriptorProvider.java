@@ -31,7 +31,7 @@ public class DominantColorDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("dominant-color")
+				.setNodeId("dominant-color")
 				.setName("Dominant Colour")
 				.setDescription("Find the dominant colours of an image by clustering its pixels in CIELAB - for the whole "
 					+ "frame, a configured region, and every upstream detection box. Reports each colour as HEX, RGB, HSL "

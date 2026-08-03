@@ -197,6 +197,10 @@ public abstract class JooqLoomDaoBindModule {
 	abstract CortexInstanceDao cortexInstanceDao(CortexInstanceDaoImpl dao);
 
 	@Binds
+	abstract io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao nodeDescriptorDao(
+		io.metaloom.loom.db.jooq.dao.nodes.NodeDescriptorRecordDaoImpl dao);
+
+	@Binds
 	abstract LoomDao loomDao(LoomDaoImpl dao);
 
 }

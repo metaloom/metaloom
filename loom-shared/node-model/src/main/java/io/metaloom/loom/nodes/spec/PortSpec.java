@@ -1,5 +1,6 @@
 package io.metaloom.loom.nodes.spec;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
@@ -188,6 +189,18 @@ public class PortSpec {
 		return this;
 	}
 
+	/**
+	 * Whether this port carries a sequence — derived from {@link #getCardinality()}.
+	 *
+	 * <p>
+	 * {@code @JsonIgnore} because there is no {@code setMany}: these types were only ever
+	 * <em>serialized</em>, so nothing noticed. A worker now announces descriptors that Loom must
+	 * <em>deserialize</em>, and an emitted {@code "many"} with no setter fails the first
+	 * {@code readValue}. It is redundant with {@code cardinality}, which both the editor and the engine
+	 * read instead — so drop it from the wire rather than loosening deserialization globally.
+	 * </p>
+	 */
+	@JsonIgnore
 	public boolean isMany() {
 		return cardinality != null && cardinality.isMany();
 	}

@@ -50,6 +50,7 @@ import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pi
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
+import { hiddenOfflineCount, nodeIdOf, offlineReason, selectPickerNodes, type PickerEntry } from "./nodePicker";
 import type { ContentType, NodeDescriptor, NodeCategory, PortGroup, PortSpec } from "../../types/nodeDescriptors";
 import { contentTypeColor, findContentType, isAssignable, isWildcard } from "./contentTypes";
 import { resolveInputPorts, resolveOutputPorts } from "./portResolvers";
@@ -2062,6 +2063,30 @@ function syntaxHighlightJson(json: string): string {
   );
 }
 
+/**
+ * Whether offline nodes are listed in the pickers, remembered across sessions.
+ *
+ * Defaults to **on**. A fleet that is entirely down would otherwise present an empty picker with no
+ * explanation, which reads as a broken editor rather than a stopped fleet.
+ */
+const SHOW_OFFLINE_KEY = "loom.pipeline.showOfflineNodes";
+
+function readShowOffline(): boolean {
+  try {
+    return window.localStorage.getItem(SHOW_OFFLINE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function writeShowOffline(value: boolean): void {
+  try {
+    window.localStorage.setItem(SHOW_OFFLINE_KEY, String(value));
+  } catch {
+    // A browser with storage disabled still gets a working toggle, it just forgets it.
+  }
+}
+
 // ── Node Command Palette ──────────────────────────────────────────────────
 function CommandPaletteContent({
   descriptors, onAdd, onClose,
@@ -2071,17 +2096,18 @@ function CommandPaletteContent({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const { availability } = useNodeRegistry();
   const [filter, setFilter] = useState("");
+  const [showOffline, setShowOffline] = useState(() => readShowOffline());
   const [selectedIdx, setSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  const filtered = descriptors.filter(d =>
-    !filter ||
-    d.name.toLowerCase().includes(filter.toLowerCase()) ||
-    d.kind.toLowerCase().includes(filter.toLowerCase()) ||
-    d.category.toLowerCase().includes(filter.toLowerCase())
-  );
+  // One selector, shared with the search bar below. The filter used to be written out three times,
+  // twice of them indexed by the same highlight - so any ordering change made Enter add a different
+  // node than the one highlighted.
+  const filtered = selectPickerNodes(descriptors, { query: filter, showOffline, availability });
+  const hidden = hiddenOfflineCount(descriptors, { query: filter, showOffline, availability });
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -2108,7 +2134,7 @@ function CommandPaletteContent({
       setSelectedIdx(i => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (filtered[selectedIdx]) onAdd(filtered[selectedIdx]);
+      if (filtered[selectedIdx]) onAdd(filtered[selectedIdx].descriptor);
     } else if (e.key === "Escape") {
       onClose();
     }
@@ -2145,17 +2171,24 @@ function CommandPaletteContent({
             <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>{t("pipeline.commandPalette.empty")}</Typography>
           </Box>
         )}
-        {filtered.map((d, idx) => {
+        {filtered.map((entry, idx) => {
+          const d = entry.descriptor;
           const cfg = nodeVisualConfig(d);
+          const reason = offlineReason(entry.state);
           return (
             <ListItemButton
-              key={d.kind}
+              key={nodeIdOf(d)}
+              data-testid={`palette-node-${nodeIdOf(d)}`}
+              data-available={entry.available ? "true" : "false"}
               selected={idx === selectedIdx}
               onClick={() => onAdd(d)}
               sx={{
                 py: 0.75,
                 px: 1.5,
                 gap: 1.25,
+                // Dimmed, never disabled: an offline node can still be placed, and running it is
+                // already answered with a 503 that names the missing worker.
+                opacity: entry.available ? 1 : 0.55,
                 "&.Mui-selected": { bgcolor: `${tokens.primary.main}18` },
               }}
             >
@@ -2164,12 +2197,27 @@ function CommandPaletteContent({
               </Box>
               <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600, lineHeight: 1.2 }}>{d.name}</Typography>
-                <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary, display: "block" }}>{d.category} · {d.description.slice(0, 50)}</Typography>
+                <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary, display: "block" }}>
+                  {reason ?? `${d.category} · ${d.description.slice(0, 50)}`}
+                </Typography>
               </Box>
             </ListItemButton>
           );
         })}
       </List>
+      <Box sx={{ px: 1.5, py: 0.75, borderTop: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
+        <Switch
+          size="small"
+          checked={showOffline}
+          data-testid="offline-toggle-palette"
+          onChange={(e) => { setShowOffline(e.target.checked); writeShowOffline(e.target.checked); setSelectedIdx(0); }}
+        />
+        <Typography variant="caption" sx={{ fontSize: "0.65rem", color: tokens.text.tertiary }}>
+          {showOffline
+            ? t("pipeline.palette.showOffline")
+            : t("pipeline.palette.offlineHidden", { count: hidden })}
+        </Typography>
+      </Box>
     </Box>
   );
 }
@@ -2355,7 +2403,7 @@ export default function PipelineEditor() {
   const { activeSpace } = useSpace();
   const { t } = useTranslation();
   const { token } = useAuth();
-  const { descriptors, contentTypes, loading: registryLoading, error: registryError } = useNodeRegistry();
+  const { descriptors, contentTypes, availability, loading: registryLoading, error: registryError } = useNodeRegistry();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selected, setSelected] = useState<Pipeline | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -2369,6 +2417,7 @@ export default function PipelineEditor() {
   const [nodeParameters, setNodeParameters] = useState<Record<string, Record<string, unknown>>>({});
   const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [addNodeIdx, setAddNodeIdx] = useState(0);
+  const [showOfflineNodes, setShowOfflineNodes] = useState(() => readShowOffline());
   const addNodeBarRef = useRef<HTMLDivElement>(null);
   const addNodeInputRef = useRef<HTMLInputElement>(null);
   const [canvasTab, setCanvasTab] = useState<0 | 1>(0); // 0 = Visual, 1 = JSON
@@ -2391,6 +2440,21 @@ export default function PipelineEditor() {
   const [showHelp, setShowHelp] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [nodeFilter, setNodeFilter] = useState("");
+
+  /**
+   * The single ordered list both the search bar's keyboard handler and its rendered Popper read.
+   *
+   * They are indexed by the same `addNodeIdx`, so they must come from the same array - that is the
+   * whole reason `selectPickerNodes` exists.
+   */
+  const pickerEntries: PickerEntry[] = React.useMemo(
+    () => selectPickerNodes(descriptors, { query: nodeFilter, showOffline: showOfflineNodes, availability }),
+    [descriptors, nodeFilter, showOfflineNodes, availability],
+  );
+  const hiddenNodeCount = React.useMemo(
+    () => hiddenOfflineCount(descriptors, { query: nodeFilter, showOffline: showOfflineNodes, availability }),
+    [descriptors, nodeFilter, showOfflineNodes, availability],
+  );
   const [autoArrangeTrigger, setAutoArrangeTrigger] = useState(0);
   const isDraggingLog = useRef(false);
   const logRef = useRef<HTMLDivElement>(null);
@@ -3226,21 +3290,17 @@ export default function PipelineEditor() {
                     onChange={(e) => { setNodeFilter(e.target.value); setAddNodeIdx(0); }}
                     onFocus={() => setAddNodeOpen(true)}
                     onKeyDown={(e) => {
-                      const filtered = descriptors.filter(d =>
-                        !nodeFilter ||
-                        d.name.toLowerCase().includes(nodeFilter.toLowerCase()) ||
-                        d.kind.toLowerCase().includes(nodeFilter.toLowerCase()) ||
-                        d.category.toLowerCase().includes(nodeFilter.toLowerCase())
-                      );
+                      // Reads the *same* list the Popper renders. Recomputing it here is how the
+                      // highlight and Enter used to be able to disagree about which node is selected.
                       if (e.key === "ArrowDown") {
                         e.preventDefault();
-                        setAddNodeIdx(i => Math.min(i + 1, filtered.length - 1));
+                        setAddNodeIdx(i => Math.min(i + 1, pickerEntries.length - 1));
                       } else if (e.key === "ArrowUp") {
                         e.preventDefault();
                         setAddNodeIdx(i => Math.max(i - 1, 0));
                       } else if (e.key === "Enter") {
                         e.preventDefault();
-                        if (filtered[addNodeIdx]) handleAddNode(filtered[addNodeIdx]);
+                        if (pickerEntries[addNodeIdx]) handleAddNode(pickerEntries[addNodeIdx].descriptor);
                       } else if (e.key === "Escape") {
                         setAddNodeOpen(false);
                         addNodeInputRef.current?.blur();
@@ -3276,25 +3336,37 @@ export default function PipelineEditor() {
                         overflow: "auto",
                       }}
                     >
+                      <Box sx={{ px: 1.5, py: 0.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 0.75 }}>
+                        <Switch
+                          size="small"
+                          checked={showOfflineNodes}
+                          data-testid="offline-toggle-searchbar"
+                          onChange={(e) => { setShowOfflineNodes(e.target.checked); writeShowOffline(e.target.checked); setAddNodeIdx(0); }}
+                        />
+                        <Typography variant="caption" sx={{ fontSize: "0.62rem", color: tokens.text.tertiary }}>
+                          {showOfflineNodes
+                            ? t("pipeline.palette.showOffline")
+                            : t("pipeline.palette.offlineHidden", { count: hiddenNodeCount })}
+                        </Typography>
+                      </Box>
                       <List dense sx={{ py: 0.5 }}>
-                        {descriptors
-                          .filter(d =>
-                            !nodeFilter ||
-                            d.name.toLowerCase().includes(nodeFilter.toLowerCase()) ||
-                            d.kind.toLowerCase().includes(nodeFilter.toLowerCase()) ||
-                            d.category.toLowerCase().includes(nodeFilter.toLowerCase())
-                          )
-                          .map((d, idx) => {
+                        {pickerEntries
+                          .map((entry, idx) => {
+                            const d = entry.descriptor;
                             const cfg = nodeVisualConfig(d);
+                            const reason = offlineReason(entry.state);
                             return (
                               <ListItemButton
-                                key={d.kind}
+                                key={nodeIdOf(d)}
+                                data-testid={`add-node-${nodeIdOf(d)}`}
+                                data-available={entry.available ? "true" : "false"}
                                 selected={idx === addNodeIdx}
                                 onClick={() => handleAddNode(d)}
                                 sx={{
                                   py: 0.6,
                                   px: 1.5,
                                   gap: 1,
+                                  opacity: entry.available ? 1 : 0.55,
                                   "&.Mui-selected": { bgcolor: `${tokens.primary.main}18` },
                                 }}
                               >
@@ -3303,7 +3375,9 @@ export default function PipelineEditor() {
                                 </Box>
                                 <Box sx={{ minWidth: 0, flex: 1 }}>
                                   <Typography variant="body2" sx={{ fontSize: "0.78rem", fontWeight: 600, lineHeight: 1.2 }}>{d.name}</Typography>
-                                  <Typography variant="caption" sx={{ fontSize: "0.62rem", color: tokens.text.tertiary, display: "block" }}>{d.category} · {d.description.slice(0, 45)}</Typography>
+                                  <Typography variant="caption" sx={{ fontSize: "0.62rem", color: tokens.text.tertiary, display: "block" }}>
+                                    {reason ?? `${d.category} · ${d.description.slice(0, 45)}`}
+                                  </Typography>
                                 </Box>
                               </ListItemButton>
                             );

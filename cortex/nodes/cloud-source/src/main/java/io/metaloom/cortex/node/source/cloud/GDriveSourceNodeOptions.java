@@ -1,5 +1,6 @@
 package io.metaloom.cortex.node.source.cloud;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.cloud.CloudProviderId;
 
 /**
@@ -21,6 +22,8 @@ public class GDriveSourceNodeOptions extends CloudSourceNodeOptions<GDriveSource
 	 * media pipeline wants. With this off such documents are filtered out during the scan and never
 	 * enter the index.</p>
 	 */
+	@ParamDoc(label = "Export Google Docs", description = "Convert Google Docs, Sheets and Slides so they can be processed. They have "
+		+ "no file to download otherwise. Conversion is limited to 10 MB per document")
 	private boolean exportNativeDocs;
 
 	@Override

@@ -3,8 +3,10 @@ package io.metaloom.cortex.node.watermark;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
+import io.metaloom.loom.nodes.spec.ParameterType;
 
 /**
  * Options for the {@link WatermarkNode}.
@@ -24,18 +26,53 @@ public class WatermarkNodeOptions extends AbstractNodeOptions<WatermarkNodeOptio
 	public static final String KEY = "watermark";
 
 	/** The watermark image. Bare base64 or a full {@code data:image/png;base64,...} URI; see {@link WatermarkImages#decode(String)}. */
+	// Every field carries an explicit order because the node re-documents the inherited timeoutMs and
+	// pins it last: an ordered parameter anywhere sorts the unordered ones behind it.
+	@ParamDoc(label = "Watermark Image (base64)", type = ParameterType.CODE, rows = 6,
+		description = "The overlay image, base64-encoded. A full data:image/png;base64,... URI is accepted too. "
+			+ "Carrying the image here rather than as a path keeps the pipeline runnable on any worker",
+		order = 100)
 	private String watermarkBase64 = "";
 
+	@ParamDoc(label = "Horizontal Position",
+		description = "0.0 is flush left, 1.0 flush right, 0.5 centred. Measured against the space the overlay can slide in, "
+			+ "so it never leaves the frame",
+		min = "0.0", max = "1.0", step = "0.01", order = 110)
 	private double relX = 0.95;
+
+	@ParamDoc(label = "Vertical Position", description = "0.0 is flush top, 1.0 flush bottom, 0.5 centred",
+		min = "0.0", max = "1.0", step = "0.01", order = 120)
 	private double relY = 0.95;
+
+	@ParamDoc(label = "Relative Size",
+		description = "Overlay width as a fraction of the media width, aspect preserved. 0 keeps the overlay's own pixel size, "
+			+ "which makes it look different on every resolution",
+		min = "0.0", max = "1.0", step = "0.01", order = 130)
 	private double scale = 0.20;
+
+	@ParamDoc(label = "Opacity", description = "Scales the overlay's own transparency. 1.0 leaves it as authored",
+		min = "0.01", max = "1.0", step = "0.05", order = 140)
 	private double opacity = 1.0;
 
+	@ParamDoc(label = "Video Codec",
+		description = "Encoder for the video path. An overlay changes pixels, so the video stream must be re-encoded; audio is copied",
+		order = 150)
 	private String videoCodec = "libx264";
+
+	@ParamDoc(label = "Video Quality (CRF)",
+		description = "Constant rate factor. Lower is better quality and a larger file; 0 is lossless",
+		min = "0", max = "51", order = 160)
 	private int videoCrf = 23;
+
+	@ParamDoc(label = "Encoder Preset", description = "Encoder speed/size trade-off, e.g. ultrafast, medium, slow", order = 170)
 	private String videoPreset = "medium";
 
+	@ParamDoc(label = "ffmpeg Path",
+		description = "The ffmpeg executable, resolved on PATH when left as a bare name. Only the video path needs it",
+		order = 180)
 	private String ffmpegPath = "ffmpeg";
+
+	@ParamDoc(label = "ffprobe Path", description = "The ffprobe executable, used to read the video's frame size", order = 190)
 	private String ffprobePath = "ffprobe";
 
 	public WatermarkNodeOptions() {

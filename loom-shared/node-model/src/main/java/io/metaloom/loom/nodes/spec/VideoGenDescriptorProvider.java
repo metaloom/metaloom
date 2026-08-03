@@ -28,7 +28,7 @@ public class VideoGenDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("videogen")
+				.setNodeId("videogen")
 				.setName("Video Generation")
 				.setDescription("Generate a short video clip through the LTX-2 video sidecar - text-to-video from a prompt, or "
 					+ "image-to-video from the source asset. The MP4 (with synchronised audio) is written to the worker's local "

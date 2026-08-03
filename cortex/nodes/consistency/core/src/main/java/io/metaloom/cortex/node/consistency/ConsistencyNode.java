@@ -15,22 +15,31 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.asset.AssetUpdateRequest;
 import io.metaloom.loom.rest.model.asset.info.ConsistencyInfo;
 import io.metaloom.utils.hash.partial.PartialFile;
 
+@NodeSpec(nodeId = "consistency", name = "Consistency Check", icon = "verified", category = NodeCategory.ANALYSIS,
+	description = "Check media file integrity (zero chunk detection, completeness).", defaultConcurrency = 4)
 public class ConsistencyNode extends AbstractMediaNode<ConsistencyNodeOptions> {
 
+	@PortDoc(label = "Media", description = "The file to inspect for truncation and holes")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
+	@PortDoc(label = "Zero Chunks", description = "How many all-zero chunks were found - a strong sign of a truncated or sparse copy")
 	public static final OutputPort<Long> OUT_ZERO_CHUNK_COUNT = OutputPort.one("zero_chunk_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	@PortDoc(label = "Complete", description = "False while the file still looks like it is being written")
 	public static final OutputPort<Boolean> OUT_IS_COMPLETE = OutputPort.one("is_complete", ContentTypeRegistry.SCALAR_BOOLEAN, Boolean.class);
 
 	/** In-heap skip cache of the computed zero-chunk count, keyed by media path, to avoid re-scanning a file within this worker's lifetime. Non-durable

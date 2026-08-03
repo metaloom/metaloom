@@ -14,11 +14,16 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
+import io.metaloom.cortex.api.node.spec.PortGroupDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
+import io.metaloom.loom.nodes.spec.PortGroupMode;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.metaloom.video4j.Video4j;
@@ -35,15 +40,22 @@ import io.vertx.core.json.JsonObject;
  * - images as {@code schemaType=caption}, videos as {@code schemaType=video-caption} (which additionally carries the model, frame count and optional scene
  * breakdown).
  */
+@NodeSpec(nodeId = "captioning", name = "Image Captioning", icon = "image_search", category = NodeCategory.ANALYSIS,
+	description = "Generate a textual caption for an image.",
+	inputGroups = @PortGroupDoc(id = "media_alt", mode = PortGroupMode.XOR, label = "Media"))
 public class CaptioningNode extends AbstractMediaNode<CaptioningNodeOptions> {
 
 	private final SmolVLMClient smolvlmClient;
 	private final VideoCaptioner videoCaptioner;
 
 	/** The two media alternatives of the descriptor's {@code media_alt} XOR group - one input, two shapes. */
+	@PortDoc(label = "Image", description = "A still image to caption", group = "media_alt")
 	public static final InputPort<LoomMedia> IN_IMAGE = InputPort.one("image", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+
+	@PortDoc(label = "Video", description = "A video to caption from sampled frames", group = "media_alt")
 	public static final InputPort<LoomMedia> IN_VIDEO = InputPort.one("video", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
 
+	@PortDoc(label = "Caption", description = "One sentence describing what the model sees, suitable for search and alt text")
 	public static final OutputPort<String> OUT_CAPTION = OutputPort.one("caption", ContentTypeRegistry.TEXT_CAPTION, String.class);
 
 	/** Upper bound for the in-heap skip cache. Captioning via the vision model is expensive, so we remember the caption produced for each media during

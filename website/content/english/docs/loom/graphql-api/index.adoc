@@ -86,4 +86,5 @@ query ListAssets {
 
 * link:../rest-api/[REST API Reference] — the primary external API with full CRUD.
 * link:../java-client/[Java Client] — typed JVM HTTP client.
+* link:../python-client/[Python Client] — typed Python client, no third-party dependencies.
 * link:../authentication/[Authentication] — obtaining a bearer token.

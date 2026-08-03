@@ -33,7 +33,7 @@ public class WatermarkDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("watermark")
+				.setNodeId("watermark")
 				.setName("Watermark")
 				.setDescription("Composite a configured watermark image onto the asset - a still is redrawn with Graphics2D, a video is re-encoded "
 					+ "through the ffmpeg overlay filter with its audio copied untouched. The source file is never modified; the marked copy is "

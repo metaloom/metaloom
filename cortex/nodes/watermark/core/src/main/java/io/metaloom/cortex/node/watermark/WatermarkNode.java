@@ -24,6 +24,9 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -31,6 +34,7 @@ import io.metaloom.cortex.node.watermark.FfmpegRunner.VideoDimensions;
 import io.metaloom.cortex.node.watermark.WatermarkGeometry.Placement;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -55,6 +59,16 @@ import io.metaloom.utils.hash.SHA512;
  * receives nothing for that item, which is how an image-only and a video-only branch are expressed without a filter node.
  * </p>
  */
+@NodeSpec(nodeId = "watermark", name = "Watermark", icon = "branding_watermark", category = NodeCategory.TRANSFORM,
+	description = "Composite a configured watermark image onto the asset - a still is redrawn with Graphics2D, a video is re-encoded "
+		+ "through the ffmpeg overlay filter with its audio copied untouched. The source file is never modified; the marked copy is "
+		+ "written to the worker's local cache, so wire it into a sink to keep it.",
+	// timeoutMs lives on AbstractNodeOptions, where it is hidden because almost no descriptor advertises
+	// it. This node does - a CPU re-encode needs a far larger budget than an API call - so it
+	// re-documents the inherited field here, last in the form as the descriptor had it.
+	parameters = @ParamOverride(key = "timeoutMs", label = "Timeout (ms)",
+		description = "Wall-clock budget per item. A CPU video re-encode is far slower than an image composite",
+		min = "1", order = 200))
 public class WatermarkNode extends AbstractMediaNode<WatermarkNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(WatermarkNode.class);
@@ -62,10 +76,16 @@ public class WatermarkNode extends AbstractMediaNode<WatermarkNodeOptions> {
 	/** Bumped when the compositing itself changes meaning, so a cached or recorded result from an older build is visibly a different producer. */
 	public static final String ALGORITHM_VERSION = "watermark/1";
 
+	@PortDoc(label = "Media", description = "The image or video to mark. Audio and documents are skipped")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
+	@PortDoc(label = "Marked Image", description = "The watermarked PNG, written for image items only")
 	public static final OutputPort<String> OUT_IMAGE = OutputPort.one("image", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+
+	@PortDoc(label = "Marked Video", description = "The watermarked clip in the source container, written for video items only")
 	public static final OutputPort<String> OUT_VIDEO = OutputPort.one("video", ContentTypeRegistry.ARTIFACT_VIDEO, String.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	private static final int RESULT_CACHE_SIZE = 10_000;

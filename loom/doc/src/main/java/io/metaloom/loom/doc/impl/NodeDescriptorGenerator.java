@@ -8,7 +8,6 @@ import java.util.ServiceLoader;
 import org.apache.commons.io.FileUtils;
 
 import io.metaloom.loom.doc.Generator;
-import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeDescriptorProvider;
 import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.vertx.core.json.Json;
@@ -27,6 +26,11 @@ import io.vertx.core.json.JsonObject;
  * <p>
  * Registry population is identical to {@code RESTModule.nodeDescriptorRegistry()}: every {@link NodeDescriptorProvider} discovered
  * via {@link ServiceLoader} contributes its descriptors.
+ *
+ * <p>
+ * The snapshot deliberately carries <strong>no {@code availability} block</strong>. There is no fleet
+ * behind a static file, and the editor reads a missing block as "everything is available" — which is
+ * the right answer for an offline demo where every node is authorable and none of them can run.
  */
 public class NodeDescriptorGenerator implements Generator {
 
@@ -38,9 +42,12 @@ public class NodeDescriptorGenerator implements Generator {
 
 		// Encode via Vert.x Json, exactly like the endpoint, so field names match byte-for-byte
 		// (inputPorts/outputPorts/id/cardinality/…), then pretty-print the combined object.
+		// registry.contentTypes() rather than ContentTypeRegistry.all(): identical for a built-in-only
+		// snapshot, but it is the method the endpoint calls, and it also synthesizes an entry for any
+		// content type a node introduces. Using the same call keeps the snapshot a true mirror.
 		JsonObject snapshot = new JsonObject()
 			.put("nodeDescriptors", new JsonArray(Json.encode(registry.getAll())))
-			.put("contentTypes", new JsonArray(Json.encode(ContentTypeRegistry.all())));
+			.put("contentTypes", new JsonArray(Json.encode(registry.contentTypes())));
 
 		File out = new File("src/main/generated/node-descriptors.json");
 		FileUtils.writeStringToFile(out, snapshot.encodePrettily() + "\n", StandardCharsets.UTF_8, false);

@@ -21,7 +21,7 @@ public class CaptioningDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("captioning")
+				.setNodeId("captioning")
 				.setName("Image Captioning")
 				.setDescription("Generate a textual caption for an image.")
 				.setIcon("image_search")

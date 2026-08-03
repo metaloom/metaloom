@@ -19,11 +19,15 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -47,6 +51,15 @@ import io.metaloom.utils.hash.SHA512;
  * byte-ingest endpoint for produced media yet).
  * </p>
  */
+@NodeSpec(nodeId = "tts", name = "Text to Speech", icon = "record_voice_over", category = NodeCategory.TRANSFORM,
+	description = "Speak upstream text through the /v1/tts sidecar. German routes to Orpheus/Kartoffel, "
+		+ "English to Kokoro. The WAV is written to the worker's local cache; wire it into a sink to keep it.",
+	// timeoutMs lives on AbstractNodeOptions, where it is hidden because almost no descriptor
+	// advertises it. This node does, so it re-documents the inherited field here.
+	parameters = @ParamOverride(key = "timeoutMs", label = "Timeout (ms)",
+		description = "Wall-clock budget per item; 0 leaves it to the worker default", min = "0", order = 9000))
+// One sidecar holds one model on one device, so parallel calls only queue behind each other - hence the
+// default concurrency of 1.
 public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(TtsNode.class);
@@ -61,9 +74,13 @@ public class TtsNode extends AbstractMediaNode<TtsNodeOptions> {
 	 * hand-corrected. A declared port makes the source an edge the author draws.
 	 * </p>
 	 */
+	@PortDoc(label = "Text", description = "The prose to speak - an LLM answer, a transcript, a caption or any other upstream text")
 	public static final InputPort<String> IN_TEXT = InputPort.one("text", ContentTypeRegistry.TEXT_ANY, String.class);
 
+	@PortDoc(label = "Audio", description = "The synthesised WAV in the worker's local cache; wire it into a sink to keep it")
 	public static final OutputPort<String> OUT_AUDIO = OutputPort.one("audio", ContentTypeRegistry.ARTIFACT_AUDIO, String.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** In-heap skip cache of the generated audio path, keyed by media path, to avoid re-synthesizing within this worker's lifetime. The rendered WAV

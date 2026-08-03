@@ -3,8 +3,10 @@ package io.metaloom.cortex.node.metadata;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
+import io.metaloom.loom.nodes.spec.ParameterType;
 
 /**
  * Options for the {@link MetadataNode}.
@@ -23,28 +25,45 @@ public class MetadataNodeOptions extends AbstractNodeOptions<MetadataNodeOptions
 	/** Upper bound on {@link #gpsRoundDecimals}: EXIF itself does not carry more than this usefully. */
 	public static final int MAX_GPS_DECIMALS = 6;
 
+	@ParamDoc(label = "Include Raw Metadata",
+		description = "Store every key the file carried, unmapped. Off by default: maker notes can carry serial numbers and owner names")
 	private boolean includeRaw = false;
 
+	@ParamDoc(label = "Raw Key Limit", description = "Maximum number of raw entries stored", min = "1")
 	private int rawMaxKeys = 500;
 
+	@ParamDoc(label = "Raw Value Limit", description = "Longer raw values are truncated", min = "1")
 	private int rawMaxValueBytes = 4096;
 
+	@ParamDoc(label = "Read XMP Sidecar", description = "Merge a companion .xmp file when one sits next to the media")
 	private boolean readXmpSidecar = true;
 
+	@ParamDoc(label = "Store Position", description = "Write the position to the asset's geo component")
 	private boolean writeGeoComponent = true;
 
+	@ParamDoc(label = "Position Sample Limit", description = "Upper bound on the position readings kept per asset", min = "1")
 	private int gpsTrackMaxSamples = 1000;
 
+	@ParamDoc(label = "Position Policy", description = "KEEP the exact coordinate, ROUND it, or DROP it entirely",
+		type = ParameterType.STRING)
 	private GpsPolicy gpsPolicy = GpsPolicy.KEEP;
 
+	@ParamDoc(label = "Position Rounding", description = "Decimal places kept when rounding; 2 is roughly 1.1 km",
+		min = "0", max = "6")
 	private int gpsRoundDecimals = 2;
 
+	@ParamDoc(label = "Emit Text", description = "Produce the plain-text output for downstream text nodes")
 	private boolean emitText = true;
 
+	@ParamDoc(label = "Detect Licence", description = "Recognise well-known licence URLs and record their identifier")
 	private boolean licenseDetection = true;
 
+	@ParamDoc(label = "Date Fallback", description = "NONE, or FILESYSTEM to fall back to the file's modification time",
+		type = ParameterType.STRING)
 	private DateFallback dateFallback = DateFallback.NONE;
 
+	@ParamDoc(label = "Excluded Keys", description = "Metadata keys to drop before anything else reads them",
+		type = ParameterType.STRING)
 	private List<String> excludeKeys = new ArrayList<>();
 
 	@Override

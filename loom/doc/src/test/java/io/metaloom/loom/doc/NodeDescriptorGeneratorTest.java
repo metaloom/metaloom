@@ -37,7 +37,7 @@ public class NodeDescriptorGeneratorTest {
 	public void shouldCoverEveryProvidedKind() {
 		List<String> providedKinds = new ArrayList<>();
 		ServiceLoader.load(NodeDescriptorProvider.class)
-			.forEach(provider -> provider.getDescriptors().forEach(d -> providedKinds.add(d.getKind())));
+			.forEach(provider -> provider.getDescriptors().forEach(d -> providedKinds.add(d.getNodeId())));
 		assertFalse(providedKinds.isEmpty(), "No node descriptor providers were on the classpath");
 
 		JsonArray descriptors = encodeSnapshot().getJsonArray("nodeDescriptors");

@@ -133,19 +133,20 @@ spec/
 │   ├── CODING.md                      # RULES for code changes (REST/DAO/Docs/Demo/Spec)
 │   └── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
 ├── concept/
-│   ├── ASSET_METADATA_INGEST.md       # 🟢 Phase 1 BUILT: the `metadata` node reads EXIF/XMP/IPTC/
-│   │                                  #   Dublin Core out of asset files into asset_geo_comp +
-│   │                                  #   asset_json_comp. §14 tracks phases 2-3
-│   └── ASSET_METADATA_WRITE.md        # 🔵 CONCEPT: the inverse — a `metadata-write` node emitting
-│                                      #   sidecars / embedded derivatives, incl. marking AI-written
-│                                      #   values (IPTC DigitalSourceType, C2PA). Depends on INGEST
+│   └── ASSET_METADATA_WRITE.md        # 🔵 CONCEPT: a `metadata-write` node emitting sidecars /
+│                                      #   embedded derivatives, incl. marking AI-written values
+│                                      #   (IPTC DigitalSourceType, C2PA). The inverse of the built
+│                                      #   `metadata` node under features/nodes/metadata/
 ├── plans/
 │   ├── TASKS.md                       # Captured, not-yet-scheduled work (TASKS.template.md format)
 │   ├── CLUSTERING.md                  # 🔵 Loom is single-writer; a 2nd instance is destructive
 │   ├── NODE_REGISTRATION_PLAN.md      # 🔵 PLANNED: a Cortex worker announces its node specs
 │   │                                  #   (cortexId + nodes[] keyed by nodeId) so custom nodes reach
-│   │                                  #   the palette without rebuilding Loom. Also §5: deriving the
-│   │                                  #   spec from the node's own code. Nothing built; §13 is the order
+│   │                                  #   the palette without rebuilding Loom. §5 derives the spec from
+│   │                                  #   the node's own code; §7 adds the availability block
+│   │                                  #   (available/lastSeen/providedBy) + the loom-ui task: live
+│   │                                  #   palette refresh, offline nodes last, show-offline toggle.
+│   │                                  #   Nothing built; §13 is the order
 │   └── imagegen-node.md               # ⚠️ superseded draft — NODE_IMAGEGEN_PLAN.md is authoritative
 ├── features/                          # Cross-cutting features (span Loom + Cortex + UI)
 │   ├── DB_SCHEMA_FEEDBACK.md          # Schema audit vs. node results; resolved items marked in place
@@ -163,11 +164,19 @@ spec/
 │   │   ├── HELM_LOOM.md               # Loom chart (helm/loom) — 🔴 two live env-var bugs, see §6
 │   │   └── HELM_CORTEX.md             # Cortex chart (helm/cortex) — custom-image override, StatefulSet id
 │   ├── nodes/
-│   │   └── facedetect/
-│   │       └── FACEDETECTION_OVERVIEW.md  # 🟢 Reference: face model landscape — InsightFace/
-│   │                                  #   InspireFace licensing (🔴 default pack is non-commercial),
-│   │                                  #   reverse-engineered pack format, permissive alternatives
-│   │                                  #   (YuNet/SFace), de-facto standard pipeline
+│   │   ├── NODES.md                   # 🟢 The node system: lifecycle, ports, persistence, caching,
+│   │   │                              #   registration counts, per-node options. Start here
+│   │   ├── SERVICE_TIKA.md            # 🟡 The `tika` node — document body text (🔴 open defects)
+│   │   ├── facedetect/
+│   │   │   └── FACEDETECTION_OVERVIEW.md  # 🟢 Reference: face model landscape — InsightFace/
+│   │   │                              #   InspireFace licensing (🔴 default pack is non-commercial),
+│   │   │                              #   reverse-engineered pack format, permissive alternatives
+│   │   │                              #   (YuNet/SFace), de-facto standard pipeline
+│   │   └── metadata/
+│   │       └── METADATA_OVERVIEW.md   # 🟢 The `metadata` node — EXIF/GPS/IPTC/XMP/container
+│   │                                  #   metadata onto Dublin Core, into asset_json_comp +
+│   │                                  #   asset_geo_comp + search. Precedence rules, envelope
+│   │                                  #   contract, privacy policy; §11 tracks phases 2-3
 │   ├── ops/
 │   │   ├── METRICS.md                 # 🟢 Prometheus /metrics on both components
 │   │   └── MONITORING.md              # 🟢 Health & readiness endpoints
@@ -198,6 +207,8 @@ spec/
 │   │   ├── NODE_DEPTHMAP_PLAN.md      # 🟢 BUILT end to end incl. sidecars/depth (:9120)
 │   │   ├── NODE_DOMINANT_COLOR_PLAN.md# 🟢 BUILT (CIELAB k-means, EN/DE naming)
 │   │   ├── NODE_IMAGEGEN_PLAN.md      # 🟢 BUILT — authoritative over plans/imagegen-node.md
+│   │   ├── NODE_IMAGE_MANIPULATION_PLAN.md # 🔵 PLAN — kind image-manipulation: EXIF autorotate,
+│   │   │                              #   crop, subject crop, aspect/VVS, resize. Images only
 │   │   ├── NODE_S3SINK_PLAN.md        # 🟢 BUILT (phase 1) — kind s3-sink
 │   │   ├── NODE_CLOUDSOURCE_PLAN.md   # 🟢 BUILT — kinds gdrive-source + onedrive-source and the
 │   │   │                              #   shared cortex/cloud-common module (Drive v3 + MS Graph)
@@ -320,7 +331,7 @@ spec/
 | The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
 | The commercial edition / hosted service | ➜ **sibling repo** `metaloom-saas` — see §2.2 |
 | Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](TASKS.template.md) |
-| **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [concept/ASSET_METADATA_INGEST.md](concept/ASSET_METADATA_INGEST.md) — 🟢 **phase 1 built**: the `metadata` node. The node itself is documented in [features/nodes/NODES.md](features/nodes/NODES.md); the concept keeps the standards map, the precedence rules and the phase 2-3 list |
+| **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [features/nodes/metadata/METADATA_OVERVIEW.md](features/nodes/metadata/METADATA_OVERVIEW.md) — 🟢 **built**: the `metadata` node. Also the only place that records the source-precedence rules, the envelope contract, and where a licence should live |
 | **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
 | Dumping a half-formed idea | [METALOOM_NOTES.md](METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
@@ -396,7 +407,7 @@ is the external `io.metaloom.fs` artifact), `llm-common`, `node-runtime`, `nodes
 | `PipelineSegmenter` | `io.metaloom.loom.pipeline.graph` | Groups nodes into affinity segments |
 | `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` | Lexical search over `search_document` (tsvector + pg_trgm) |
 | `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` | Fingerprint HNSW index behind the `SimilarityIndex` SPI |
-| `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **27 providers, 37 kinds**, ServiceLoader-discovered |
+| `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **28 providers, 38 kinds**, ServiceLoader-discovered |
 | `MemoryService` | `io.metaloom.loom.agent.memory` | Scoped markdown memory bank for the chat agent |
 | `CortexImpl` | `io.metaloom.cortex.impl` | Cortex lifecycle; **registers a shutdown hook** that drains in-flight work |
 | `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom: registration, heartbeat, tasks, reconnect |
@@ -598,7 +609,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Every edge carries ports** | `sourcePort` + `targetPort` are **required**; the branch key is `branch` (not `edgeType`). `nodes[].dependencies[]` is **rejected outright** by `PipelineGraphParser` — the old "inline fallback" behaviour is gone |
 | **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Pipeline validation** | *Structural* rules (ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a third copy |
-| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **27 providers declare 37 kinds; 35 kinds are runnable with S3 and both clouds configured, 32 with none** (31 `@StringKey` bindings + `filesystem-source` + `asset-source` + the conditional `s3-source`, `gdrive-source` and `onedrive-source`). Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
+| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **28 providers declare 38 kinds** — the literals asserted by `NodeDescriptorServiceLoaderTest`, matching [NODES.md §5.2](features/nodes/NODES.md). ⚠️ The runnable-kind arithmetic that used to follow here (*"35 runnable with S3 and both clouds, 32 with none, 31 `@StringKey` bindings"*) is stale — there are 33 node `@StringKey` bindings today and the derived totals were never re-checked; recount before quoting them. Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
 | **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). 🔴 MIME/size/date bucketing is not reimplemented on the strategy seam yet |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |

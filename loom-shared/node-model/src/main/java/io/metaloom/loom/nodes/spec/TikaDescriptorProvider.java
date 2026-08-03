@@ -20,7 +20,7 @@ public class TikaDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("tika")
+				.setNodeId("tika")
 				.setName("Tika Extraction")
 				.setDescription("Extract metadata and text content using Apache Tika.")
 				.setIcon("description")

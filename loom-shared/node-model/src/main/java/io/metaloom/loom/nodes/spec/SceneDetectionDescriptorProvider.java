@@ -20,7 +20,7 @@ public class SceneDetectionDescriptorProvider implements NodeDescriptorProvider 
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("scene-detection")
+				.setNodeId("scene-detection")
 				.setName("Scene Detection")
 				.setDescription("Detect scene boundaries in video files.")
 				.setIcon("movie_filter")

@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.cortex.llm.AbstractLlmNodeOptions;
 
@@ -12,6 +13,12 @@ public class LLMNodeOptions extends AbstractLlmNodeOptions<LLMNodeOptions> {
 
 	public static final String KEY = "llm";
 
+	/**
+	 * The prompts drive the node's dynamic {@code result_<promptId>} ports, and the editor authors
+	 * them through those rather than as a JSON blob in the form - which is why the contract has never
+	 * advertised this field.
+	 */
+	@ParamDoc(hidden = true)
 	private Map<String, LLMNodePrompt> prompts = new HashMap<>();
 
 	public Map<String, LLMNodePrompt> getPrompts() {

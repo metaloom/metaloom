@@ -86,6 +86,12 @@ downstream nodes — it is *not* how the data gets saved.
 * The media library readable by this process at the **same path Loom hands out**.
 * A token — a JWT from `POST /api/v1/login`, or a long-lived API key.
 
+TIP: The worker below writes its results with hand-rolled REST calls, so that the whole thing stays
+one readable file with a single dependency. If you would rather not maintain that part, the
+link:../../loom/python-client/[Python Client] covers the same calls — resolving an asset by hash,
+storing a JSON component, and appending the node-result row — and has no third-party dependencies of
+its own. The WebSocket control plane is still yours to write either way.
+
 == Step 1 — Start From the Reference Daemon
 
 `examples/cortex-python/daemon.py` in the source repository is a complete, single-file worker: connect,

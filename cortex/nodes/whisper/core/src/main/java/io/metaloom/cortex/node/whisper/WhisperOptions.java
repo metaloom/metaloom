@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.whisper;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -10,16 +11,22 @@ public class WhisperOptions extends AbstractNodeOptions<WhisperOptions> {
 
 	public static final String KEY = "whisper";
 
+	@ParamDoc(label = "Model Path", description = "Path to the Whisper model file")
 	private String modelPath = "models/ggml-large-v3-turbo.bin";
 
+	@ParamDoc(label = "Temperature", min = "0.0", max = "1.0", step = "0.1")
 	private float temperature = 0.0f;
 
+	@ParamDoc(label = "Temperature Increment", min = "0.0", max = "1.0", step = "0.05")
 	private float temperatureInc = 0.2f;
 
+	@ParamDoc(label = "Language", description = "Target language code (e.g. 'en', 'de')")
 	private String language;
 
+	@ParamDoc(label = "Use GPU")
 	private boolean useGpu = true;
 
+	@ParamDoc(label = "GPU Device Index", min = "0")
 	private int gpuDevice = 0;
 
 	@Override

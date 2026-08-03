@@ -3,8 +3,10 @@ package io.metaloom.cortex.node.color;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
+import io.metaloom.loom.nodes.spec.ParameterType;
 
 /**
  * Options for the {@link DominantColorNode}.
@@ -27,62 +29,107 @@ public class DominantColorNodeOptions extends AbstractNodeOptions<DominantColorN
 	/** Coordinate mode for the statically configured region. */
 	public static final String ABSOLUTE_PIXELS = "ABSOLUTE_PIXELS";
 
+	// Declaration order is the order the editor renders these in - the harvester emits parameters in
+	// field order. Keep the four groups described in the class javadoc together.
+
 	/** How many colours to extract per region. */
+	@ParamDoc(label = "Colours per Region",
+		description = "How many colours to extract from each region, ranked by pixel share",
+		min = "1", max = "16")
 	private int clusterCount = 5;
 
 	/** Upper bound on sampled pixels per region; the sampling stride is derived from it. */
+	@ParamDoc(label = "Max Samples",
+		description = "Upper bound on pixels visited per region; the sampling stride is derived from it",
+		min = "256", max = "1000000")
 	private int maxSamples = 40_000;
 
 	/** Lloyd iteration budget. */
+	@ParamDoc(label = "Max Iterations", description = "Clustering iteration budget", min = "1", max = "500")
 	private int maxIterations = 30;
 
 	/** Convergence threshold on the largest centroid shift, in Lab units. 0.5 is about a JND. */
+	@ParamDoc(label = "Convergence Epsilon",
+		description = "Stop once the largest colour shift falls below this; 0.5 is about the smallest "
+			+ "difference a human can see",
+		min = "0.01", step = "0.1")
 	private double convergenceEpsilon = 0.5d;
 
 	/** k-means++ seed. Fixed by default so the same image always yields the same palette. */
+	@ParamDoc(label = "Seed", description = "Clustering seed. Fixed so the same image always yields the same palette")
 	private long seed = 42L;
 
 	/** Pixels with alpha below this are skipped rather than flattened onto a background. */
+	@ParamDoc(label = "Alpha Threshold",
+		description = "Pixels more transparent than this are ignored rather than blended with a background",
+		min = "0", max = "255")
 	private int alphaThreshold = 128;
 
-	/** Regions covering fewer usable pixels than this are dropped - k-means would be fitting noise. */
-	private int minRegionPixels = 64;
-
-	/** Cap on detection regions. The whole-image and configured regions never count against it. */
-	private int maxRegions = 32;
-
 	/** Measure the whole frame. */
+	@ParamDoc(label = "Measure Whole Image", description = "Report the dominant colour of the full frame")
 	private boolean includeWholeImage = true;
 
 	/** Measure every bounding box wired into the node's {@code detections} port. */
+	@ParamDoc(label = "Measure Detections",
+		description = "Report a colour for every bounding box an upstream detector produced")
 	private boolean useDetections = true;
 
 	/** Static region left edge. */
+	@ParamDoc(label = "Region X", description = "Left edge of a fixed region to measure", min = "0.0", step = "0.05")
 	private double regionX = 0d;
 
 	/** Static region top edge. */
+	@ParamDoc(label = "Region Y", description = "Top edge of a fixed region to measure", min = "0.0", step = "0.05")
 	private double regionY = 0d;
 
 	/** Static region width. Zero disables the static region entirely. */
+	@ParamDoc(label = "Region Width", description = "Width of a fixed region; 0 disables it", min = "0.0", step = "0.05")
 	private double regionW = 0d;
 
 	/** Static region height. Zero disables the static region entirely. */
+	@ParamDoc(label = "Region Height", description = "Height of a fixed region; 0 disables it", min = "0.0", step = "0.05")
 	private double regionH = 0d;
 
 	/** Whether the static region is expressed in [0,1] fractions or in pixels. */
+	@ParamDoc(label = "Region Coordinates",
+		description = "Whether the fixed region is expressed as fractions of the image or in pixels",
+		type = ParameterType.ENUM, values = { NORMALIZED, ABSOLUTE_PIXELS })
 	private String regionCoordinates = NORMALIZED;
 
+	/** Regions covering fewer usable pixels than this are dropped - k-means would be fitting noise. */
+	@ParamDoc(label = "Min Region Pixels",
+		description = "Regions smaller than this are dropped - clustering them would fit noise",
+		min = "1")
+	private int minRegionPixels = 64;
+
+	/** Cap on detection regions. The whole-image and configured regions never count against it. */
+	@ParamDoc(label = "Max Regions",
+		description = "Largest-first cap on detection regions; the whole image and fixed region are exempt",
+		min = "1")
+	private int maxRegions = 32;
+
+	/** Emit the full ranked palette per region, not only the dominant colour. */
+	@ParamDoc(label = "Emit Palette",
+		description = "Emit the full ranked palette per region rather than only the dominant colour")
+	private boolean emitPalette = true;
+
 	/** Chroma below which a colour is named on lightness alone - black, grey or white. */
+	@ParamDoc(label = "Achromatic Threshold",
+		description = "Below this saturation a colour is named black, grey or white instead of by hue",
+		min = "0.0", max = "60.0", step = "1.0")
 	private double achromaticChroma = ColorNamer.DEFAULT_ACHROMATIC_CHROMA;
 
 	/** Lightness below which an achromatic colour is black. */
+	@ParamDoc(label = "Black Threshold",
+		description = "Lightness below which an unsaturated colour is called black",
+		min = "0.0", max = "100.0", step = "1.0")
 	private double blackLightness = ColorNamer.DEFAULT_BLACK_LIGHTNESS;
 
 	/** Lightness at or above which an achromatic colour is white. */
+	@ParamDoc(label = "White Threshold",
+		description = "Lightness above which an unsaturated colour is called white",
+		min = "0.0", max = "100.0", step = "1.0")
 	private double whiteLightness = ColorNamer.DEFAULT_WHITE_LIGHTNESS;
-
-	/** Emit the full ranked palette per region, not only the dominant colour. */
-	private boolean emitPalette = true;
 
 	@Override
 	protected DominantColorNodeOptions self() {

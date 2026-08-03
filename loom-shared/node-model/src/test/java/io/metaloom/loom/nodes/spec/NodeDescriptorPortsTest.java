@@ -43,9 +43,9 @@ public class NodeDescriptorPortsTest {
 	@Test
 	void testPortIdsAreWellFormed() {
 		forEachPort((descriptor, side, port) -> {
-			assertNotNull(port.getId(), descriptor.getKind() + " has a " + side + " port with no id");
+			assertNotNull(port.getId(), descriptor.getNodeId() + " has a " + side + " port with no id");
 			assertTrue(ID.matcher(port.getId()).matches(),
-				descriptor.getKind() + " " + side + " port id '" + port.getId() + "' does not match " + PortSpec.ID_PATTERN);
+				descriptor.getNodeId() + " " + side + " port id '" + port.getId() + "' does not match " + PortSpec.ID_PATTERN);
 		});
 	}
 
@@ -68,7 +68,7 @@ public class NodeDescriptorPortsTest {
 	@Test
 	void testEveryPortDeclaresAKnownContentType() {
 		forEachPort((descriptor, side, port) -> assertTrue(ContentTypeRegistry.isKnown(port.getContentType()),
-			descriptor.getKind() + " " + side + " port '" + port.getId() + "' declares unknown content type '"
+			descriptor.getNodeId() + " " + side + " port '" + port.getId() + "' declares unknown content type '"
 				+ port.getContentType() + "'"));
 	}
 
@@ -80,9 +80,9 @@ public class NodeDescriptorPortsTest {
 	void testEveryPortIsDescribed() {
 		forEachPort((descriptor, side, port) -> {
 			assertFalse(port.getLabel() == null || port.getLabel().isBlank(),
-				descriptor.getKind() + " " + side + " port '" + port.getId() + "' has no label");
+				descriptor.getNodeId() + " " + side + " port '" + port.getId() + "' has no label");
 			assertFalse(port.getDescription() == null || port.getDescription().isBlank(),
-				descriptor.getKind() + " " + side + " port '" + port.getId() + "' has no description");
+				descriptor.getNodeId() + " " + side + " port '" + port.getId() + "' has no description");
 		});
 	}
 
@@ -96,14 +96,14 @@ public class NodeDescriptorPortsTest {
 			for (PortSpec port : descriptor.getInputPorts()) {
 				if (port.getGroup() != null) {
 					assertNotNull(descriptor.inputGroup(port.getGroup()),
-						descriptor.getKind() + " input port '" + port.getId() + "' references undeclared input group '"
+						descriptor.getNodeId() + " input port '" + port.getId() + "' references undeclared input group '"
 							+ port.getGroup() + "'");
 				}
 			}
 			for (PortSpec port : descriptor.getOutputPorts()) {
 				if (port.getGroup() != null) {
 					assertNotNull(descriptor.outputGroup(port.getGroup()),
-						descriptor.getKind() + " output port '" + port.getId() + "' references undeclared output group '"
+						descriptor.getNodeId() + " output port '" + port.getId() + "' references undeclared output group '"
 							+ port.getGroup() + "'");
 				}
 			}
@@ -136,10 +136,10 @@ public class NodeDescriptorPortsTest {
 				continue;
 			}
 			assertTrue(descriptor.getOutputPorts().isEmpty(),
-				"kind '" + descriptor.getKind() + "' sets dynamicPorts but also declares static output ports "
+				"kind '" + descriptor.getNodeId() + "' sets dynamicPorts but also declares static output ports "
 					+ ids(descriptor.getOutputPorts()) + "; the resolver owns the output side");
-			assertNotNull(resolvers.get(descriptor.getKind()),
-				"kind '" + descriptor.getKind() + "' sets dynamicPorts but no NodePortResolver is registered for it in "
+			assertNotNull(resolvers.get(descriptor.getNodeId()),
+				"kind '" + descriptor.getNodeId() + "' sets dynamicPorts but no NodePortResolver is registered for it in "
 					+ "META-INF/services/io.metaloom.loom.nodes.spec.NodePortResolver. Known resolvers: " + resolvers.keySet());
 		}
 	}
@@ -154,7 +154,7 @@ public class NodeDescriptorPortsTest {
 		for (NodeDescriptor descriptor : descriptors()) {
 			for (PortSpec port : descriptor.getInputPorts()) {
 				assertFalse(port.isSelective(),
-					"kind '" + descriptor.getKind() + "' marks input port '" + port.getId()
+					"kind '" + descriptor.getNodeId() + "' marks input port '" + port.getId()
 						+ "' selective; selectivity is an output-side property");
 			}
 		}
@@ -182,7 +182,7 @@ public class NodeDescriptorPortsTest {
 		for (NodeDescriptor descriptor : descriptors()) {
 			for (PortSpec port : descriptor.getOutputPorts()) {
 				assertFalse(port.isSelective(),
-					"kind '" + descriptor.getKind() + "' statically declares selective output '" + port.getId()
+					"kind '" + descriptor.getNodeId() + "' statically declares selective output '" + port.getId()
 						+ "'. If that is intended, extend this test - it exists so routing is never acquired silently");
 			}
 		}
@@ -226,7 +226,7 @@ public class NodeDescriptorPortsTest {
 		Set<String> seen = new HashSet<>();
 		for (PortSpec port : ports) {
 			assertTrue(seen.add(port.getId()),
-				descriptor.getKind() + " declares two " + side + " ports named '" + port.getId() + "'; ports on one side "
+				descriptor.getNodeId() + " declares two " + side + " ports named '" + port.getId() + "'; ports on one side "
 					+ "must be distinguishable, use a group for alternatives");
 		}
 	}
@@ -235,7 +235,7 @@ public class NodeDescriptorPortsTest {
 		for (PortGroup group : groups) {
 			long members = ports.stream().filter(p -> group.getId().equals(p.getGroup())).count();
 			assertTrue(members >= 2,
-				descriptor.getKind() + " " + side + " group '" + group.getId() + "' has " + members
+				descriptor.getNodeId() + " " + side + " group '" + group.getId() + "' has " + members
 					+ " member port(s); a group with fewer than two members is not a choice");
 		}
 	}

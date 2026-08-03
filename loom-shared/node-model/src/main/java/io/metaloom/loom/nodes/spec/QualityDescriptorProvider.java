@@ -20,7 +20,7 @@ public class QualityDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("quality")
+				.setNodeId("quality")
 				.setName("Quality Analysis")
 				.setDescription("Analyze media quality: blurriness, resolution, bitrate.")
 				.setIcon("high_quality")

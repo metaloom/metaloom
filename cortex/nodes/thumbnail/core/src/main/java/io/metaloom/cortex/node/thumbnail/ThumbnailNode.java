@@ -21,11 +21,14 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -34,10 +37,13 @@ import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
 import io.metaloom.video4j.preview.PreviewGenerator;
 
+@NodeSpec(nodeId = "thumbnail", name = "Thumbnail Generator", icon = "grid_view", category = NodeCategory.TRANSFORM,
+	description = "Generate a thumbnail grid from video or image content.", defaultConcurrency = 2)
 public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(ThumbnailNode.class);
 
+	@PortDoc(label = "Media", description = "The image or video to render a preview from")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
 	/**
@@ -45,9 +51,14 @@ public class ThumbnailNode extends AbstractMediaNode<ThumbnailNodeOptions> {
 	 * {@code ctx.upstreamOutput("consistency", "is_complete")}, which silently produced nothing
 	 * the moment a pipeline author named the node anything other than {@code consistency}.
 	 */
+	@PortDoc(label = "Is Complete", required = false,
+		description = "Whether the file is whole; an incomplete one is skipped unless processIncomplete is set")
 	public static final InputPort<Boolean> IN_IS_COMPLETE = InputPort.one("is_complete", ContentTypeRegistry.SCALAR_BOOLEAN, Boolean.class);
 
+	@PortDoc(label = "Thumbnail", description = "The rendered preview grid in the worker's local cache; wire it into a sink to keep it")
 	public static final OutputPort<String> OUT_THUMBNAIL = OutputPort.one("thumbnail", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** In-heap skip cache of the generated thumbnail path, keyed by media path, to avoid re-rendering the contact sheet within this worker's lifetime.

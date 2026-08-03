@@ -23,7 +23,7 @@ Key capabilities:
 * Linked locations (multiple storage locations per file)
 * Embedding storage (vector embeddings for similarity search)
 
-_Read more:_ link:../rest-api/#_assets[REST API — Assets] · link:../java-client/#_working_with_assets[Java Client — Assets] · link:../../ui/#assets[Loom UI — Assets]
+_Read more:_ link:../rest-api/#_assets[REST API — Assets] · link:../java-client/#_working_with_assets[Java Client — Assets] · link:../python-client/#_working_with_assets[Python Client — Assets] · link:../../ui/#assets[Loom UI — Assets]
 
 == Asset Pools
 
@@ -88,7 +88,7 @@ _Read more:_ link:../../ui/#administration[Loom UI — Administration] · link:.
 * Add or remove tags from individual assets
 * Filter assets by one or more tags via the API
 
-_Read more:_ link:../rest-api/#_tags[REST API — Tags] · link:../java-client/#_working_with_tags[Java Client — Tags] · link:../../ui/#_tags[Loom UI — Tags]
+_Read more:_ link:../rest-api/#_tags[REST API — Tags] · link:../java-client/#_working_with_tags[Java Client — Tags] · link:../python-client/#_tags_tasks_and_comments[Python Client — Tags] · link:../../ui/#_tags[Loom UI — Tags]
 
 == Pipelines
 

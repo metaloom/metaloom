@@ -40,6 +40,14 @@
       <groupId>io.metaloom.loom.shared</groupId>
       <artifactId>loom-pipeline-model</artifactId>
     </dependency>
+    <!-- NodeDescriptor, for the NODE_REGISTRATION frame. The contract a worker
+         announces is the same type Loom serves and the engine validates against;
+         a parallel "registration DTO" with the same fields would be the drifting
+         duplicate this whole design exists to avoid. -->
+    <dependency>
+      <groupId>io.metaloom.loom.shared</groupId>
+      <artifactId>loom-node-model</artifactId>
+    </dependency>
     <dependency>
       <groupId>io.metaloom.utils</groupId>
       <artifactId>utils</artifactId>

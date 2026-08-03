@@ -69,17 +69,23 @@ curl http://localhost:8092/api/v1/openapi.yaml   # YAML
 curl http://localhost:8092/api/v1/openapi.json   # JSON
 ----
 
-Generating a typed client from the spec is a one-liner with any OpenAPI generator:
+For a language Loom does not ship a client for, an OpenAPI generator will scaffold one from the
+specification:
 
 [source,bash]
 ----
 openapi-generator-cli generate \
   -i https://metaloom.io/docs/examples/openapi.yaml \
-  -g python -o ./loom-client
+  -g typescript-fetch -o ./loom-client
 ----
 
-TIP: Loom also ships a maintained, typed Java client — see link:../java-client/[Java Client]. Prefer
-it over a generated one when you work in Java.
+NOTE: The specification documents request and response bodies by example rather than by schema, so a
+generated client gives you the routes but leaves the bodies untyped. The maintained clients below do
+not have that limitation.
+
+TIP: Loom ships maintained, typed clients for Java and Python — see
+link:../java-client/[Java Client] and link:../python-client/[Python Client]. Prefer either over a
+generated one.
 
 [[api-explorer]]
 == API Explorer

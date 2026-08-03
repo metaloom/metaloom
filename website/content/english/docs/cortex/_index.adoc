@@ -9,7 +9,8 @@ thumbnails, fingerprints, face embeddings, transcripts, captions and OCR text.
 == Cortex is a Daemon that Serves Nodes
 
 Cortex runs as a **long-running worker daemon**, not a one-shot CLI batch tool. On startup it opens a
-persistent WebSocket to a Loom server, **registers** itself and the node kinds it can run, and then
+persistent WebSocket to a Loom server, **registers** itself and the node kinds it can run,
+**announces what those nodes look like** so they can be authored in the pipeline editor, and then
 waits for work. Loom *pushes* tasks down that connection; Cortex never polls.
 
 Crucially, **the pipeline graph lives on Loom, not on Cortex**. Loom owns the DAG and dispatches
@@ -29,4 +30,6 @@ accordingly.
 * *Monitoring API* — Health and readiness endpoints. See link:monitoring[Monitoring API].
 * *Metrics* — The Prometheus scrape endpoint and the `cortex_*` catalog. See link:metrics[Metrics].
 * *Artifacts* — Maven coordinates and the container image. See link:artifacts[Artifacts].
+* *Writing a Custom Node* — Add a node of your own and have it appear in the pipeline editor by
+  itself, without changing or rebuilding Loom. See link:custom-nodes[Writing a Custom Node].
 * *Examples* — Custom node, custom daemon (Java) and custom worker (Python). See link:examples[Examples].

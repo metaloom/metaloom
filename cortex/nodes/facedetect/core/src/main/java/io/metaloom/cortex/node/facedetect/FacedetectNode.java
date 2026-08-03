@@ -25,6 +25,9 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.payload.BoundingBox;
 import io.metaloom.cortex.api.node.payload.Detection;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
+import io.metaloom.cortex.api.node.spec.PortGroupDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -33,6 +36,8 @@ import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScannerReport;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
+import io.metaloom.loom.nodes.spec.PortGroupMode;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
@@ -44,15 +49,27 @@ import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
 import io.vertx.core.json.JsonObject;
 
+@NodeSpec(nodeId = "facedetect", name = "Face Detection", icon = "face", category = NodeCategory.ANALYSIS,
+	description = "Detect and cluster faces in images and video frames.",
+	defaultConcurrency = 2,
+	inputGroups = @PortGroupDoc(id = "media_alt", mode = PortGroupMode.XOR, label = "Media"))
 public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(FacedetectNode.class);
 
 	/** The two alternatives of the descriptor's {@code media_alt} XOR group - one input, two shapes. */
+	@PortDoc(label = "Image", description = "A still image to search for faces", group = "media_alt")
 	public static final InputPort<LoomMedia> IN_IMAGE = InputPort.one("image", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
+
+	@PortDoc(label = "Video", description = "A video whose frames are sampled and searched", group = "media_alt")
 	public static final InputPort<LoomMedia> IN_VIDEO = InputPort.one("video", ContentTypeRegistry.MEDIA_VIDEO, LoomMedia.class);
 
+	// The descriptor lists the detections first, so the outputs carry explicit orders: the constants are
+	// declared here in the order the class grew, which is not the order the editor draws them in.
+	@PortDoc(label = "Face Count", description = "How many distinct faces survived clustering", order = 20)
 	public static final OutputPort<Long> OUT_FACE_COUNT = OutputPort.one("face_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item", order = 30)
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/**
@@ -94,6 +111,8 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * rescales its boxes back before returning them.
 	 * </p>
 	 */
+	@PortDoc(label = "Face Detections",
+		description = "One element per detected face, so a downstream node can run once per face rather than once per file", order = 10)
 	public static final OutputPort<String> OUT_DETECTIONS = OutputPort.many("detections", ContentTypeRegistry.DETECTION_FACE, String.class);
 
 	/** In-heap skip cache of the face-detection outputs, keyed by media path, to avoid re-scanning within this worker's lifetime.

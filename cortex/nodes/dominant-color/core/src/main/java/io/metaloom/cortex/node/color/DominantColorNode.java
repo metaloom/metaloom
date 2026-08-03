@@ -23,6 +23,8 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.artifact.MediaArtifacts;
 import io.metaloom.cortex.common.cache.LocalResultCache;
@@ -32,6 +34,7 @@ import io.metaloom.cortex.node.color.LabKMeans.Cluster;
 import io.metaloom.cortex.node.color.RegionResolver.Resolution;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonArray;
@@ -72,10 +75,16 @@ import io.vertx.core.json.JsonObject;
  * Video is deliberately out of scope. Per-frame colour needs a frame-extraction path and a
  * {@code variant} scheme to hold the results, which is separate work.
  */
+@NodeSpec(nodeId = "dominant-color", name = "Dominant Colour", icon = "palette", category = NodeCategory.ANALYSIS,
+	description = "Find the dominant colours of an image by clustering its pixels in CIELAB - for the whole "
+		+ "frame, a configured region, and every upstream detection box. Reports each colour as HEX, RGB, HSL "
+		+ "and CIELAB plus a readable name in English and German. No model and no GPU required.",
+	defaultConcurrency = 4)
 public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(DominantColorNode.class);
 
+	@PortDoc(label = "Image", description = "The image whose pixels are clustered in CIELAB")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
 
 	/**
@@ -88,13 +97,27 @@ public class DominantColorNode extends AbstractMediaNode<DominantColorNodeOption
 	 * measuring the whole frame is a perfectly good configuration on its own.
 	 * </p>
 	 */
+	@PortDoc(label = "Detections", required = false,
+		description = "Boxes to measure individually. Leave unwired to measure only the whole frame and any fixed region")
 	public static final InputPort<String> IN_DETECTIONS = InputPort.many("detections", ContentTypeRegistry.DETECTION_ANY, String.class);
 
+	@PortDoc(label = "Colour Result", description = "Per measured region: the ranked palette with HEX, RGB, HSL and CIELAB values")
 	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_COLOR, String.class);
+
+	@PortDoc(label = "Hex", description = "Dominant colour of the whole frame as #RRGGBB")
 	public static final OutputPort<String> OUT_HEX = OutputPort.one("hex", ContentTypeRegistry.SCALAR_STRING, String.class);
+
+	@PortDoc(label = "Colour Term",
+		description = "Language-neutral name of the dominant colour, e.g. dark_blue - the stable key to match on")
 	public static final OutputPort<String> OUT_TERM = OutputPort.one("term", ContentTypeRegistry.SCALAR_STRING, String.class);
+
+	@PortDoc(label = "Name (English)", description = "Readable English name of the dominant colour")
 	public static final OutputPort<String> OUT_NAME_EN = OutputPort.one("name_en", ContentTypeRegistry.SCALAR_STRING, String.class);
+
+	@PortDoc(label = "Name (German)", description = "Readable German name of the dominant colour")
 	public static final OutputPort<String> OUT_NAME_DE = OutputPort.one("name_de", ContentTypeRegistry.SCALAR_STRING, String.class);
+
+	@PortDoc(label = "Region Count", description = "How many regions were measured, counting the whole frame and the fixed region")
 	public static final OutputPort<Long> OUT_REGION_COUNT = OutputPort.one("region_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
 
 	/** The JSON component schema type this node writes. */

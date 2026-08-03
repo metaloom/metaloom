@@ -3,6 +3,7 @@ package io.metaloom.cortex.llm;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 
 /**
@@ -30,8 +31,10 @@ public abstract class AbstractLlmNodeOptions<T extends AbstractLlmNodeOptions<T>
 	/** Matches the value the llm node hardcoded at its call site before this was configurable. */
 	public static final int DEFAULT_CONTEXT_WINDOW = 2048;
 
+	@ParamDoc(label = "OpenAI URL", description = "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)", order = 100)
 	private String openaiUrl = DEFAULT_OPENAI_URL;
 
+	@ParamDoc(label = "Context Window", description = "Tokens the model is told it may use for one call", min = "1", order = 110)
 	private int contextWindow = DEFAULT_CONTEXT_WINDOW;
 
 	public String openaiUrl() {

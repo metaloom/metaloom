@@ -13,23 +13,30 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
 
 import java.util.UUID;
 
+@NodeSpec(nodeId = "ocr", name = "OCR", icon = "text_fields", category = NodeCategory.ANALYSIS,
+	description = "Extract text from images using optical character recognition.", defaultConcurrency = 2)
 public class OCRNode extends AbstractMediaNode<OCRNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(OCRNode.class);
 
+	@PortDoc(label = "Image", description = "The page or frame to read characters from")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
 
+	@PortDoc(label = "Text", description = "Everything the OCR engine recognised, in reading order")
 	public static final OutputPort<String> OUT_TEXT = OutputPort.one("text", ContentTypeRegistry.TEXT_PLAIN, String.class);
 
 	/** In-heap skip cache of recognized text, keyed by media path, to avoid re-running OCR within this worker's lifetime. Non-durable - the durable copy

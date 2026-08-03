@@ -13,6 +13,9 @@ import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.PortOutput;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.cloud.CloudFileRef;
 import io.metaloom.cortex.cloud.CloudLoomMedia;
 import io.metaloom.cortex.cloud.CloudMediaMaterializer;
@@ -22,6 +25,7 @@ import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.fs.FileState;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.reactivex.rxjava3.core.Flowable;
 
 /**
@@ -42,6 +46,15 @@ import io.reactivex.rxjava3.core.Flowable;
  * later runs a node task against them. That is what lets one drive be processed by workers sharing
  * no storage.</p>
  */
+/*
+ * <p>
+ * The scanning is provider-agnostic; only the bound file store differs. The two node <em>contracts</em>
+ * are not, though - {@code gdrive-source} and {@code onedrive-source} differ in name, icon,
+ * description, the prose on six of their nine shared parameters, and one parameter gdrive has that
+ * onedrive deliberately refuses. Each therefore has its own thin subclass to carry its own
+ * {@code @NodeSpec}: {@link GDriveSourceNode} and {@link OneDriveSourceNode}. They add no behaviour.
+ * </p>
+ */
 public class CloudSourceNode extends AbstractPipelineNode implements MediaSourceNode {
 
 	private static final Logger log = LoggerFactory.getLogger(CloudSourceNode.class);
@@ -55,6 +68,7 @@ public class CloudSourceNode extends AbstractPipelineNode implements MediaSource
 	 *
 	 * <p>{@code media/*} because the concrete kind is only known once the file is fetched.</p>
 	 */
+	@PortDoc(label = "Media", description = "Every file the scan emitted. The concrete kind is only known once the file is fetched")
 	public static final OutputPort<String> OUT_MEDIA =
 		OutputPort.one("media", ContentTypeRegistry.MEDIA_ANY, String.class);
 
@@ -208,7 +222,12 @@ public class CloudSourceNode extends AbstractPipelineNode implements MediaSource
 			CloudSelection.parseSuffixes(effectiveSuffixes),
 			CloudSelection.parseMimeTypes(effectiveMimeTypes),
 			states, effectiveUseDelta, effectiveIncludeTrashed, exportDocs);
-		return new CloudSourceNode(id, scanner, materializer, selection);
+		// The subclass carries the contract, not the behaviour: an unknown provider still gets a working
+		// node, it simply has no annotated contract to announce.
+		return switch (provider) {
+			case GDRIVE -> new GDriveSourceNode(id, scanner, materializer, selection);
+			case ONEDRIVE -> new OneDriveSourceNode(id, scanner, materializer, selection);
+		};
 	}
 
 	private static String firstNonBlank(String preferred, String fallback) {

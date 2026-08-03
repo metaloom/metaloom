@@ -153,6 +153,14 @@ public interface DaoCollection {
 
 	CortexInstanceDao cortexInstanceDao();
 
+	/**
+	 * Announced node contracts, and which worker claims which.
+	 *
+	 * <p>What makes a custom node stay authorable while no worker is online: the contract is durable,
+	 * the worker's presence is not.</p>
+	 */
+	io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao nodeDescriptorDao();
+
 	// System
 
 	LoomDao loomDao();

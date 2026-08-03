@@ -51,6 +51,8 @@ import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
+import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptor;
+import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
@@ -406,6 +408,17 @@ public class JooqPublic extends SchemaImpl {
     public final JooqMemoryEntry MEMORY_ENTRY = JooqMemoryEntry.MEMORY_ENTRY;
 
     /**
+     * A node contract announced by a Cortex worker, kept so the node stays
+     * authorable while no worker is online
+     */
+    public final JooqNodeDescriptor NODE_DESCRIPTOR = JooqNodeDescriptor.NODE_DESCRIPTOR;
+
+    /**
+     * Which worker claims which node contract, and at which version
+     */
+    public final JooqNodeDescriptorInstance NODE_DESCRIPTOR_INSTANCE = JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE;
+
+    /**
      * The table <code>public.person</code>.
      */
     public final JooqPerson PERSON = JooqPerson.PERSON;
@@ -633,6 +646,8 @@ public class JooqPublic extends SchemaImpl {
             JooqLoom.LOOM,
             JooqMemoryDenyRule.MEMORY_DENY_RULE,
             JooqMemoryEntry.MEMORY_ENTRY,
+            JooqNodeDescriptor.NODE_DESCRIPTOR,
+            JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE,
             JooqPerson.PERSON,
             JooqPersonImage.PERSON_IMAGE,
             JooqPipeline.PIPELINE,

@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.dedup;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -15,14 +16,30 @@ public class FingerprintDedupDiscoverOptions extends AbstractNodeOptions<Fingerp
 	public static final float DEFAULT_SCORE_THRESHOLD = 0.10f;
 	public static final int DEFAULT_TOPK = 10;
 
+	@ParamDoc(label = "Algorithm", order = 40,
+		description = "Fingerprint algorithm whose vectors are compared. Must match the algorithm the "
+			+ "upstream fingerprint node produced, or nothing will be found similar")
 	private String algorithm = DEFAULT_ALGORITHM;
+
+	@ParamDoc(label = "Score Threshold", min = "0.0", order = 50,
+		description = "Maximum distance at which two fingerprints count as near-duplicates. Lower is "
+			+ "stricter; 0 matches only identical fingerprints")
 	private float scoreThreshold = DEFAULT_SCORE_THRESHOLD;
+
+	@ParamDoc(label = "Neighbours", min = "1", order = 60,
+		description = "How many nearest neighbours to examine per item before deciding a group")
 	private int topK = DEFAULT_TOPK;
 
 	/** Whether a group may be formed when no member is fully complete. Off by default (never discard where completeness is unknown). */
+	@ParamDoc(label = "Allow Partial Groups", order = 70,
+		description = "Form a group even when no member is known to be complete. Off by default: never "
+			+ "propose discarding a file where completeness is unknown")
 	private boolean allowPartial = false;
 
 	/** Abort a candidate group if any DUP is larger than the KEEP (never propose discarding the larger/more-complete file). */
+	@ParamDoc(label = "Abort On Larger Duplicate", order = 80,
+		description = "Abandon a candidate group if any duplicate is larger than the file being kept, so "
+			+ "the more complete file is never the one discarded")
 	private boolean abortOnLargerDup = true;
 
 	public String getAlgorithm() {

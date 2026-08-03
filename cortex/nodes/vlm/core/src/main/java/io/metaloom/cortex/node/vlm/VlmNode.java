@@ -19,11 +19,14 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -42,10 +45,15 @@ import io.vertx.core.json.JsonObject;
  * two-step node persistence template.
  * </p>
  */
+@NodeSpec(nodeId = "vlm", name = "VLM (Vision-Language Model)", icon = "image_search", category = NodeCategory.ANALYSIS,
+	description = "Read an image with a vision-language model served over an OpenAI-compatible endpoint. "
+		+ "Ships an olmOCR preset for transcribing document pages.",
+	dynamicPorts = true)
 public class VlmNode extends AbstractMediaNode<VlmNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(VlmNode.class);
 
+	@PortDoc(label = "Image", description = "The page or frame the configured prompts are asked about")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
 
 	/** Provider label used for the AI call/cache-hit metrics. */

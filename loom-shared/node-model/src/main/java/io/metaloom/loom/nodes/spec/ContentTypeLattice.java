@@ -54,6 +54,43 @@ public final class ContentTypeLattice {
 	}
 
 	/**
+	 * The subtype part of a content type id, i.e. everything after the slash.
+	 *
+	 * @param contentType
+	 *            content type id, e.g. {@code detection/face}
+	 * @return the subtype, e.g. {@code face}; {@code null} when the id is null or has no slash
+	 */
+	public static String subtype(String contentType) {
+		if (contentType == null) {
+			return null;
+		}
+		int slash = contentType.indexOf('/');
+		return slash < 0 ? null : contentType.substring(slash + 1);
+	}
+
+	/**
+	 * Whether the id is structurally well-formed: {@code family/subtype} with both segments non-empty.
+	 *
+	 * <p>
+	 * Note this is <em>not</em> a vocabulary check. Assignability is structural, so an id nobody has
+	 * ever declared still connects correctly — which is exactly what lets a third-party node introduce
+	 * {@code struct/nsfw} without a schema change anywhere. This method is the validation an announced
+	 * port must pass; membership of {@link ContentTypeRegistry} is not.
+	 * </p>
+	 */
+	public static boolean isWellFormed(String contentType) {
+		if (contentType == null) {
+			return false;
+		}
+		int slash = contentType.indexOf('/');
+		if (slash <= 0 || slash == contentType.length() - 1) {
+			return false;
+		}
+		// A second slash would make 'family' ambiguous for the wildcard and colour rules.
+		return contentType.indexOf('/', slash + 1) < 0;
+	}
+
+	/**
 	 * Whether the id is a family wildcard such as {@code media/*}.
 	 */
 	public static boolean isWildcard(String contentType) {

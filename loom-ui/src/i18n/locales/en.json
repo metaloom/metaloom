@@ -1135,6 +1135,11 @@
     "commandPalette": {
       "placeholder": "Search nodes…",
       "empty": "No matching nodes"
+    },
+    "palette": {
+      "showOffline": "Showing offline nodes",
+      "offlineHidden": "{{count}} offline node hidden",
+      "offlineHidden_other": "{{count}} offline nodes hidden"
     }
   },
   "cortex": {

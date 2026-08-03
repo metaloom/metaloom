@@ -26,7 +26,7 @@ public class LlmDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("llm")
+				.setNodeId("llm")
 				.setName("LLM (Large Language Model)")
 				.setDescription("Process media through an LLM served over an OpenAI-compatible API, with configurable prompts.")
 				.setIcon("psychology")

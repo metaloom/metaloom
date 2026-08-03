@@ -143,6 +143,7 @@ public class ProcessorRegistry {
 
 		broadcast(new ProcessorEventMessage(ProcessorEventType.REGISTERED, nodeId)
 			.setProcessor(toResponse(processor)));
+		presenceChanged();
 	}
 
 	/**
@@ -194,6 +195,7 @@ public class ProcessorRegistry {
 			metrics.recordProcessorDisconnected();
 			log.info("Processor unregistered: {} ({})", removed.name, nodeId);
 			broadcast(new ProcessorEventMessage(ProcessorEventType.DISCONNECTED, nodeId));
+			presenceChanged();
 		}
 	}
 
@@ -267,6 +269,7 @@ public class ProcessorRegistry {
 			processor.lastSeen = Instant.now();
 			broadcast(new ProcessorEventMessage(ProcessorEventType.STATE_CHANGED, nodeId)
 				.setProcessor(toResponse(processor)));
+			presenceChanged();
 		}
 	}
 
@@ -277,6 +280,33 @@ public class ProcessorRegistry {
 	private void broadcast(ProcessorEventMessage event) {
 		if (broadcaster != null) {
 			broadcaster.broadcastProcessorEvent(event);
+		}
+	}
+
+	/**
+	 * Called when a worker arrives, leaves or changes state — which is what decides whether the nodes
+	 * it offers can currently run.
+	 *
+	 * <p>A listener rather than a direct call because the answer to "is this node available?" needs
+	 * both this registry and the descriptor registry, and having the presence side depend on the
+	 * contract side (which already depends on this one) would be a cycle. Deliberately <em>not</em>
+	 * fired on heartbeat: a heartbeat changes nothing about availability, and firing six times a
+	 * minute per worker to compute a no-op diff is pure waste.</p>
+	 */
+	private volatile Runnable presenceListener = () -> {
+	};
+
+	public void onPresenceChanged(Runnable listener) {
+		this.presenceListener = listener == null ? () -> {
+		} : listener;
+	}
+
+	private void presenceChanged() {
+		try {
+			presenceListener.run();
+		} catch (RuntimeException e) {
+			// Notifying the editor must never be able to fail a worker's registration.
+			log.warn("Node availability listener failed", e);
 		}
 	}
 

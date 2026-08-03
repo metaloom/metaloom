@@ -300,7 +300,7 @@ public class NodePortResolverTest {
 	// ------------------------------------------------------------------ helpers ---
 
 	private static NodeDescriptor descriptor(String kind) {
-		return new NodeDescriptor().setKind(kind).setDynamicPorts(true);
+		return new NodeDescriptor().setNodeId(kind).setDynamicPorts(true);
 	}
 
 	private static Map<String, Object> options(String key, Object value) {

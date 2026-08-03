@@ -47,7 +47,7 @@ public class PipelineValidationServiceTest {
 
     private NodeDescriptor createDescriptor(String kind, String name, NodeCategory category) {
         return new NodeDescriptor()
-            .setKind(kind)
+            .setNodeId(kind)
             .setName(name)
             .setDescription("Test node: " + name)
             .setIcon("test")

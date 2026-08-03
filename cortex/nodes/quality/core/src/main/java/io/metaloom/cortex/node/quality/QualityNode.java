@@ -22,12 +22,15 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.artifact.MediaArtifacts;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -38,10 +41,13 @@ import io.metaloom.video4j.VideoFile;
 import io.metaloom.video4j.Videos;
 import io.metaloom.video4j.opencv.CVUtils;
 
+@NodeSpec(nodeId = "quality", name = "Quality Analysis", icon = "high_quality", category = NodeCategory.ANALYSIS,
+	description = "Analyze media quality: blurriness, resolution, bitrate.", defaultConcurrency = 4)
 public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(QualityNode.class);
 
+	@PortDoc(label = "Media", description = "The image or video to measure")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
 	/**
@@ -49,18 +55,30 @@ public class QualityNode extends AbstractMediaNode<QualityNodeOptions> {
 	 * item" without wiring six edges. The individual ports below carry the same numbers for
 	 * consumers that only want one.
 	 */
+	@PortDoc(label = "Quality Metrics",
+		description = "The whole measurement bag - resolution, blurriness and bitrates - for a filter to threshold on")
 	public static final OutputPort<String> OUT_METRICS = OutputPort.one("metrics", ContentTypeRegistry.STRUCT_QUALITY, String.class);
 
+	@PortDoc(label = "Blurriness", description = "Variance of the Laplacian; the lower the value the blurrier the frame")
 	public static final OutputPort<Double> OUT_BLURRINESS = OutputPort.one("blurriness", ContentTypeRegistry.SCALAR_NUMBER, Double.class);
 	/**
 	 * Resolution, for images and videos alike. The former split into {@code image_width} and
 	 * {@code video_width} forced every consumer to try both keys and pick whichever was present -
 	 * which is what {@code QualityFilterNode} and {@code AssetAttributeFilterNode} both did.
 	 */
+	@PortDoc(label = "Width", description = "Frame width in pixels")
 	public static final OutputPort<Long> OUT_WIDTH = OutputPort.one("width", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	@PortDoc(label = "Height", description = "Frame height in pixels")
 	public static final OutputPort<Long> OUT_HEIGHT = OutputPort.one("height", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	@PortDoc(label = "Frame Rate", description = "Frames per second; zero for a still image")
 	public static final OutputPort<Double> OUT_FPS = OutputPort.one("fps", ContentTypeRegistry.SCALAR_NUMBER, Double.class);
+
+	@PortDoc(label = "Frame Count", description = "Total number of frames; one for a still image")
 	public static final OutputPort<Long> OUT_FRAME_COUNT = OutputPort.one("frame_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** Upper bound for the in-heap skip cache. Blurriness/resolution analysis decodes frames, so we remember the metric set produced for each media

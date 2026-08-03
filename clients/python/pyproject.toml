@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metaloom-loom-client"
+version = "1.0.0.dev0"
+description = "Python client for the MetaLoom Loom REST API"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE.txt" }
+authors = [{ name = "MetaLoom" }]
+keywords = ["metaloom", "loom", "dam", "digital-asset-management", "rest-client"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+
+# No runtime dependencies. The client is built on the standard library so it can be
+# dropped into a processing node or a container without pulling a dependency tree in.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://metaloom.io"
+Documentation = "https://metaloom.io/docs/loom/python-client/"
+
+[tool.setuptools.packages.find]
+include = ["loom_client*"]
+
+[tool.setuptools.package-data]
+loom_client = ["py.typed"]
+
+# Scoped to this directory on purpose: the repository has no formatter or linter
+# configuration elsewhere, and introducing one repo-wide is not this change's call.
+# The generated model modules do need a deterministic format, though, or every
+# regeneration produces noise in the diff.
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Star-inheriting the 38 method mixins is the point of the class.
+"loom_client/client.py" = ["B903"]

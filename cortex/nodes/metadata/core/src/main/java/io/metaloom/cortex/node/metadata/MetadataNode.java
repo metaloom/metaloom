@@ -19,12 +19,15 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetComponentCreateRequest;
 import io.metaloom.loom.rest.model.asset.AssetComponentType;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
@@ -77,6 +80,10 @@ import io.vertx.core.json.JsonObject;
  * serial numbers and owner names.
  * </p>
  */
+@NodeSpec(nodeId = "metadata", name = "Asset Metadata", icon = "info", category = NodeCategory.ANALYSIS,
+	description = "Read the metadata already inside a file - EXIF, IPTC, XMP, PDF and Office properties, ID3 - "
+		+ "and normalise it onto Dublin Core: title, creator, keywords, date, rights and GPS position.",
+	defaultConcurrency = 4)
 public class MetadataNode extends AbstractMediaNode<MetadataNodeOptions> implements PipelineConfigurable {
 
 	public static final Logger log = LoggerFactory.getLogger(MetadataNode.class);
@@ -91,9 +98,12 @@ public class MetadataNode extends AbstractMediaNode<MetadataNodeOptions> impleme
 
 	private static final int RESULT_CACHE_SIZE = 10_000;
 
+	@PortDoc(label = "Media", description = "The file to read metadata from")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
 	/** The canonical envelope, serialised. */
+	@PortDoc(label = "Metadata",
+		description = "The normalised metadata envelope: Dublin Core, rights, capture settings and position")
 	public static final OutputPort<String> OUT_METADATA = OutputPort.one("metadata", ContentTypeRegistry.STRUCT_JSON, String.class);
 
 	/**
@@ -101,6 +111,8 @@ public class MetadataNode extends AbstractMediaNode<MetadataNodeOptions> impleme
 	 * This is what makes the node compose: it feeds {@code translate}, {@code sentiment}, {@code llm}
 	 * and every other {@code text/*} consumer without any of them knowing what EXIF is.
 	 */
+	@PortDoc(label = "Text",
+		description = "Title, description, keywords and creator, newline-joined - ready for any text consumer")
 	public static final OutputPort<String> OUT_TEXT = OutputPort.one("text", ContentTypeRegistry.TEXT_PLAIN, String.class);
 
 	/**
@@ -113,6 +125,7 @@ public class MetadataNode extends AbstractMediaNode<MetadataNodeOptions> impleme
 	 * delivers nothing downstream - the same shape {@code watermark} uses for its image/video branch.
 	 * </p>
 	 */
+	@PortDoc(label = "Position", description = "Latitude and longitude, emitted only when the file carried a coordinate")
 	public static final OutputPort<String> OUT_GEO = OutputPort.one("geo", ContentTypeRegistry.STRUCT_JSON, String.class);
 
 	/**

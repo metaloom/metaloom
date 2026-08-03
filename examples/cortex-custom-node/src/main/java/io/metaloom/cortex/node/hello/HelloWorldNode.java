@@ -18,10 +18,13 @@ import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -42,8 +45,34 @@ import io.vertx.core.json.JsonObject;
  *   <li>Persisting the result <b>agnostically</b> into the {@code asset_json_comp} table via a thin
  *       Loom REST call ({@code createAssetJsonComp}) — no dedicated component table or DB dependency
  *       required. This is the lightweight, customer-facing persistence path.</li>
+ *   <li>Declaring its <b>contract</b> with {@link NodeSpec}, {@link PortDoc} and
+ *       {@code @ParamDoc}, so the node appears in the pipeline editor automatically — see below.</li>
  * </ul>
+ *
+ * <h2>How this node reaches the pipeline editor</h2>
+ *
+ * <p>
+ * The annotations below are the whole mechanism. At startup the worker reflects over this class,
+ * builds a descriptor from the port constants and the options fields, and announces it to Loom, which
+ * serves it to the editor alongside its own built-in nodes. Nothing has to be added to Loom, and Loom
+ * does not have to be rebuilt.
+ * </p>
+ *
+ * <p>
+ * Note what the annotations do <em>not</em> contain: no port list, no content types, no parameter
+ * names or defaults. Those are read from the declarations right here — the same
+ * {@link #IN_HASH} constant this node executes against — so the contract cannot drift from the code.
+ * The annotations carry only what reflection cannot know: display names, descriptions, an icon and a
+ * palette category.
+ * </p>
+ *
+ * <p>
+ * The class is contributed to the harvest by {@code HelloWorldNodeSpecSource}, registered in
+ * {@code META-INF/services}.
+ * </p>
  */
+@NodeSpec(nodeId = "hello-world", name = "Hello World", icon = "description", category = NodeCategory.ANALYSIS,
+	description = "Example custom node: reports a file's size and estimated word count.")
 public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 
 	private static final Logger log = LoggerFactory.getLogger(HelloWorldNode.class);
@@ -57,12 +86,16 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 	 * neighbour in the editor can no longer silently starve this node.
 	 * </p>
 	 */
+	@PortDoc(label = "Hash", description = "An SHA-256 hash produced upstream. Optional - the node runs without it.",
+		required = false)
 	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_SHA256, String.class);
 
 	/** The file size in bytes. {@code scalar/integer} always arrives as a {@code Long}. */
+	@PortDoc(label = "File Size", description = "Size of the media file in bytes")
 	public static final OutputPort<Long> OUT_FILE_SIZE = OutputPort.one("file_size", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
 
 	/** The estimated word count. */
+	@PortDoc(label = "Word Count", description = "Estimated number of whitespace-separated words in the file")
 	public static final OutputPort<Long> OUT_WORD_COUNT = OutputPort.one("word_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
 
 	/** Schema-type label under which the result payload is stored in {@code asset_json_comp}. */

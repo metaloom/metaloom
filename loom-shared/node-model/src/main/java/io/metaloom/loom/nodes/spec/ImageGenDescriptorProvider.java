@@ -28,7 +28,7 @@ public class ImageGenDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("imagegen")
+				.setNodeId("imagegen")
 				.setName("Image Generation")
 				.setDescription("Generate an image through the image-generation sidecar - text-to-image from a prompt, or "
 					+ "image-to-image from the source asset. The PNG is written to the worker's local cache; wire it into a "

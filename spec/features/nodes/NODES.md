@@ -12,6 +12,15 @@
 > | Cortex module map, startup, Dagger assembly, monitoring, env vars | [../../cortex/CORTEX.md](../../cortex/CORTEX.md) |
 > | **Definition of done for a new node** (rules, not background) | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
 >
+> **Per-node deep dives.** A few nodes carry enough of their own design to warrant a file. The rows
+> in §3.1 stay the index; these hold the reasoning:
+>
+> | Node | Spec |
+> |---|---|
+> | `metadata` — EXIF/IPTC/XMP/container ingest onto Dublin Core | [metadata/METADATA_OVERVIEW.md](metadata/METADATA_OVERVIEW.md) |
+> | `tika` — document body text | [SERVICE_TIKA.md](SERVICE_TIKA.md) |
+> | `facedetect` / `facedescription` — the face model and licensing landscape | [facedetect/FACEDETECTION_OVERVIEW.md](facedetect/FACEDETECTION_OVERVIEW.md) |
+>
 > **Source of truth is the code under `cortex/`.** Where this file and the code disagree, the code
 > wins — fix this file in the same change.
 
@@ -366,6 +375,34 @@ against it at save time and at run start. `NodePortConformanceTest` (29 `NODE_KI
 port constants against `PortSpec`s in both directions; `script`/`llm`/`vlm`/`filter` are exempt on the
 **output** side via `DYNAMIC_KINDS` (inputs are still compared).
 
+### 5.3 Where a descriptor comes from — two layers
+
+The registry has two layers, and the source of a descriptor decides which wins.
+
+| Layer | Source | Lifetime |
+|---|---|---|
+| `BUILTIN` | `ServiceLoader<NodeDescriptorProvider>` at boot, or `NodeSpecHarvester.harvest()` over an annotated node class | Recomputed from the classpath every boot; never persisted |
+| `ANNOUNCED` | A Cortex worker's `NODE_REGISTRATION` frame | Persisted in `node_descriptor`, rehydrated at boot, **never deleted because a worker disconnected** |
+
+A built-in id is never shadowed. An announcement for one is rejected with reason `BUILTIN` and
+reported in the ack — silently ignoring it is how an author loses an afternoon to a fork whose port
+edits appear to do nothing.
+
+**A node declares its own contract.** `@NodeSpec` / `@PortDoc` / `@ParamDoc` (in `cortex/api`,
+package `io.metaloom.cortex.api.node.spec`) sit on the node class, its port constants and its options
+fields; `NodeSpecHarvester` reflects over exactly those declarations. Ids, content types,
+cardinalities, parameter keys, types, defaults and enum values are *derived* — only labels,
+descriptions, icons, categories and bounds are authored. The hand-written
+`<Kind>DescriptorProvider` classes are being replaced by this, one module at a time;
+`NodeSpecGoldenTest` (in `integration-test`) holds each harvest against the provider it replaces, and
+`NodePortConformanceTest` is deleted once no node has two sources left to compare.
+
+🔴 **Announcing is not what makes a node runnable.** Dispatch reads the worker's `nodeWhitelist`, never
+the descriptor registry. A node with no descriptor still runs perfectly and simply cannot be *authored*;
+a node whose workers are all offline is still authorable and simply cannot be *run*, which
+`unsupportedNodeKinds` reports as a 503. See
+[../../plans/NODE_REGISTRATION_PLAN.md](../../plans/NODE_REGISTRATION_PLAN.md).
+
 ---
 
 ## 6. Configuration
@@ -685,6 +722,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | Concept | Path |
 |---|---|
 | A node's implementation | `cortex/nodes/<module>/core/src/main/java/io/metaloom/cortex/node/<pkg>/` |
+| The `metadata` node's design — precedence, envelope, privacy | [metadata/METADATA_OVERVIEW.md](metadata/METADATA_OVERVIEW.md) |
 | Shared LLM plumbing (`llm`, `translate`) | `cortex/llm-common/.../cortex/llm/` — `LLMProviderModule` (the one `LLMProvider` binding), `AbstractLlmNodeOptions`, `LlmInvoker`, `TextChunker` |
 | The lifecycle + ledger helper | `cortex/common/.../node/AbstractMediaNode.java` |
 | `next()`/`abort()`/`skipped()` semantics | `cortex/api/.../node/context/impl/NodeContextImpl.java` |

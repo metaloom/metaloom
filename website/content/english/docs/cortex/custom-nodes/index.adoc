@@ -1,0 +1,168 @@
+---
+title: Writing a Custom Node
+---
+
+A custom node is an ordinary Java class on a Cortex worker's classpath. It runs as soon as the worker
+knows about it, and — because the worker *announces* what it looks like — it appears in the pipeline
+editor by itself. Loom is not changed and is not rebuilt.
+
+== The gap this closes
+
+Adding a node used to be a two-sided change. The node itself lived on the worker, but the description
+of it — its ports, its parameters, its labels — was compiled into Loom. Without that second half a
+node was **runnable but unauthorable**: Loom would dispatch work to it happily, since the worker had
+said it could run that kind, but the pipeline editor could not place it and the graph parser rejected
+it as an unknown type. There was nowhere for a third party to put a description.
+
+Now the worker sends one. After Loom acknowledges the worker's registration, the worker announces the
+contracts for the nodes it can run, and Loom serves them to the editor alongside its own.
+
+== Three annotations
+
+[source,java]
+----
+@NodeSpec(nodeId = "acme-nsfw", name = "NSFW Classifier", icon = "shield",
+    category = NodeCategory.ANALYSIS,
+    description = "Classifies an image against the ACME NSFW taxonomy.")
+public class AcmeNsfwNode extends AbstractMediaNode<AcmeNsfwNodeOptions> {
+
+    @PortDoc(label = "Image", description = "The image to classify")
+    public static final InputPort<String> IN_MEDIA =
+        InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, String.class);
+
+    @PortDoc(label = "Result", description = "Per-class probabilities")
+    public static final OutputPort<String> OUT_RESULT =
+        OutputPort.one("result", "struct/nsfw", String.class);
+}
+----
+
+[source,java]
+----
+public class AcmeNsfwNodeOptions extends AbstractNodeOptions<AcmeNsfwNodeOptions> {
+
+    @ParamDoc(label = "Threshold", description = "Flag anything above this",
+        min = "0.0", max = "1.0", step = "0.05")
+    private double threshold = 0.8;
+}
+----
+
+Notice what the annotations do **not** contain: no port list, no content types, no cardinalities, no
+parameter names, no defaults. All of that is read off the declarations themselves — the same
+`IN_MEDIA` constant the node executes against, and the same `threshold` field it reads at runtime — so
+the description cannot drift from the code. The annotations carry only what no amount of reflection
+could recover: display names, help text, an icon, a palette category, and bounds.
+
+The three parameters every node inherits — `enabled`, `processIncomplete` and `retryFailed` — come
+from `AbstractNodeOptions` and are declared once, there.
+
+== Making the worker find it
+
+Cortex knows its own built-in nodes by name. It finds yours through `ServiceLoader`:
+
+[source,java]
+----
+public class AcmeNodeSpecSource implements NodeSpecSource {
+    public Collection<Class<?>> nodeClasses() {
+        return List.of(AcmeNsfwNode.class);
+    }
+}
+----
+
+…registered in
+`src/main/resources/META-INF/services/io.metaloom.cortex.api.node.spec.NodeSpecSource`.
+
+Return **class literals**, never instances. A class literal does not run the class's static
+initializer, so listing a node here costs nothing even for a node that loads native libraries in a
+static block; only the harvest itself touches the class, and only for nodes the worker is actually
+registered to run.
+
+== What happens when the worker starts
+
+[source]
+----
+worker starts
+  └─ REGISTER              ─▶  "I can run acme-nsfw"        ← this is what dispatch reads
+  ◀─ REGISTERED
+  └─ NODE_REGISTRATION     ─▶  "and here is what it looks like"
+  ◀─ NODE_REGISTRATION_ACK      per node: accepted, or rejected with a reason
+----
+
+The announcement is a second frame rather than part of `REGISTER` on purpose. Registration is a cheap
+in-memory operation; ingesting contracts validates them and writes to the database. Keeping the two
+apart is what stops a fleet-wide reconnect becoming a database problem, and the brief gap between them
+is harmless, because dispatch reads the whitelist and never the contract registry.
+
+== Online, offline, and why your node stays in the palette
+
+Contracts are **durable**; worker presence is **live**.
+
+Stop the worker and your node stays in the palette — sorted to the bottom, dimmed, and labelled
+offline. A pipeline that uses it still opens, still validates, and still saves. It simply cannot
+*run*, which a run request answers with a 503 naming the missing worker.
+
+That split is deliberate. Deleting a contract when its worker disconnects would turn a thirty-second
+rolling restart into "your saved pipeline no longer validates", and a node that vanishes from a saved
+graph takes every edge attached to it along with it.
+
+The editor's node picker has a *show offline nodes* toggle. It affects the picker only: a node already
+on the canvas is always drawn with its full ports, whether or not anything can currently run it.
+
+== Rules worth knowing before you hit them
+
+[options="header",cols="1,3"]
+|===
+| Rule | What it means
+
+| Built-in wins
+| Announcing a contract for a node id that Loom already ships is rejected with reason `BUILTIN` and
+  ignored. The rejection *is* reported in the acknowledgement — if an edit to a forked node seems to
+  have no effect, that is where it will say so.
+
+| Icons come from a fixed set
+| `icon` is a key into a compile-time map in the editor. An unknown name falls back to the category
+  icon, so your node still renders — it just cannot introduce a new icon.
+
+| Content types are open
+| A port may name a content type nobody has ever declared, such as `struct/nsfw`. Compatibility is
+  structural (`family/subtype`), so it connects correctly straight away and Loom synthesizes a label
+  for the editor.
+
+| The lowest version wins
+| When several workers offer the same node on different versions, Loom serves the **lowest**. That is
+  the contract every worker in the fleet can honour, so a saved graph behaves the same wherever its
+  work lands. A port that exists only on newer workers appears once the last old worker is gone.
+
+| Version is usually automatic
+| Leave `@NodeSpec(version = ...)` unset and the jar manifest's `Implementation-Version` is used —
+  which Maven fills in, so `1.0.0-SNAPSHOT` appears without anyone typing it.
+
+| Dynamic ports degrade
+| A node whose ports depend on its configuration is accepted, but resolves to its declared static
+  ports: the resolver class exists only on your worker.
+
+| One bad node costs only itself
+| Validation is per node, not per frame. A malformed contract is rejected by name and reason; the
+  worker's other nodes are adopted normally.
+|===
+
+== Turning it off
+
+[options="header",cols="1,2"]
+|===
+| Variable | Effect
+
+| `CORTEX_NODE_SPEC_ANNOUNCE=false`
+| The worker stops announcing. It still registers and still runs everything it could before — but
+  anything Loom does not itself ship becomes unauthorable again.
+
+| `LOOM_NODE_SPEC_ACCEPT_ANNOUNCED=false`
+| Loom serves built-in contracts only. Announcements are still acknowledged, with every node rejected
+  and a reason given, so an operator can see why the nodes never appeared.
+|===
+
+== A worker in another language
+
+None of this is Java-specific. The Java worker derives its contracts by reflecting over the port
+constants because it can; the wire format is plain JSON. The
+link:../examples/[`cortex-python` example] sends a hand-written `NODE_SPECS` dictionary in exactly the
+same frame, and its node reaches the palette the same way.

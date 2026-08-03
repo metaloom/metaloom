@@ -78,6 +78,9 @@ public final class CortexEnvOptions {
 		// set would read as "run nothing".
 		str("CORTEX_NODE_WHITELIST", value -> options.setNodeWhitelist(set(value)));
 		str("CORTEX_NODE_BLACKLIST", value -> options.setNodeBlacklist(set(value)));
+		// Off restores pre-announcement behaviour exactly: the worker still registers and still runs
+		// every node it could before, but nothing Loom does not itself ship stays authorable.
+		bool("CORTEX_NODE_SPEC_ANNOUNCE", options::setNodeSpecAnnounceEnabled);
 		number("CORTEX_DRAIN_TIMEOUT_MS", options::setDrainTimeoutMs);
 	}
 

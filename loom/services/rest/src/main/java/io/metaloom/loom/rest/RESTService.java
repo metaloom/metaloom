@@ -14,6 +14,7 @@ import io.metaloom.loom.common.service.AbstractService;
 import io.metaloom.loom.rest.dagger.RESTEndpoints;
 import io.metaloom.loom.rest.endpoint.RESTEndpoint;
 import io.metaloom.loom.rest.service.impl.LeaseReaper;
+import io.metaloom.loom.rest.service.impl.NodeRegistrationService;
 import io.metaloom.loom.rest.service.impl.PipelineRunRecovery;
 import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 import io.metaloom.vertx.router.ApiRouter;
@@ -36,11 +37,12 @@ public class RESTService extends AbstractService {
 	private final ServerFailureHandler failureHandler;
 	private final LeaseReaper leaseReaper;
 	private final PipelineRunRecovery runRecovery;
+	private final NodeRegistrationService nodeRegistrations;
 
 	@Inject
 	public RESTService(Vertx vertx, LoomOptions options, HttpServer server, @Named("restApiRouter") ApiRouter router,
 		@RESTEndpoints Set<RESTEndpoint> endpoints, ServerFailureHandler failureHandler, LeaseReaper leaseReaper,
-		PipelineRunRecovery runRecovery) {
+		PipelineRunRecovery runRecovery, NodeRegistrationService nodeRegistrations) {
 		super(vertx, options);
 		this.server = server;
 		this.router = router;
@@ -48,10 +50,17 @@ public class RESTService extends AbstractService {
 		this.failureHandler = failureHandler;
 		this.leaseReaper = leaseReaper;
 		this.runRecovery = runRecovery;
+		this.nodeRegistrations = nodeRegistrations;
 	}
 
 	public void start() {
 		log.info("Setting up REST router");
+
+		// Before the router, and well before recovery: a saved pipeline using an announced-only node
+		// has to parse on a freshly booted Loom with no worker connected. Restoring these after
+		// anything validates a graph would make a restart during an outage turn every such pipeline
+		// unopenable, and recovery would then dead-letter runs it could have resumed.
+		nodeRegistrations.rehydrate();
 
 		setupRouter();
 

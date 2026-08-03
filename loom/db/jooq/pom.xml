@@ -267,6 +267,15 @@
 											<!-- chat.messages holds the chat transcript as a JSON array -->
 											<includeExpression>chat\.messages</includeExpression>
 										</forcedType>
+										<forcedType>
+											<userType>java.lang.String</userType>
+											<converter>io.metaloom.loom.db.jooq.converter.JsonStringConverter</converter>
+											<!-- node_descriptor.descriptor is a serialized NodeDescriptor that goes
+											     straight to and from Jackson. Mapping it to JsonObject would re-parse
+											     and re-encode the whole document on every read for no gain, and would
+											     drag a Vert.x type into loom-db-api. -->
+											<includeExpression>node_descriptor\.descriptor</includeExpression>
+										</forcedType>
 									</forcedTypes>
 								</database>
 								<target>

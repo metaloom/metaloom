@@ -7,6 +7,7 @@ import static io.metaloom.loom.nodes.spec.ParameterType.*;
 import static io.metaloom.loom.nodes.spec.PortSpec.one;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Provides the node descriptor for the VLM (vision-language model) node.
@@ -26,7 +27,7 @@ public class VlmDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("vlm")
+				.setNodeId("vlm")
 				.setName("VLM (Vision-Language Model)")
 				.setDescription("Read an image with a vision-language model served over an OpenAI-compatible endpoint. "
 					+ "Ships an olmOCR preset for transcribing document pages.")
@@ -42,18 +43,17 @@ public class VlmDescriptorProvider implements NodeDescriptorProvider {
 					new NodeParameter().setKey("endpointUrl").setType(STRING)
 						.setDefaultValue("http://127.0.0.1:8000")
 						.setLabel("Endpoint URL").setDescription("Base URL of the OpenAI-compatible vision endpoint (e.g. vLLM)"),
-					new NodeParameter().setKey("model").setType(STRING)
-						.setDefaultValue("allenai/olmOCR-2-7B-1025-FP8")
-						.setLabel("Model").setDescription("Model id to select on the endpoint"),
-					new NodeParameter().setKey("responseFormat").setType(ENUM)
-						.setDefaultValue("OLMOCR")
-						.setLabel("Response Format").setDescription("How to read the model's answer: TEXT, JSON or OLMOCR front matter"),
-					new NodeParameter().setKey("maxImageDim").setType(INTEGER)
-						.setDefaultValue(1288)
-						.setLabel("Max Image Size").setDescription("Longest image side in pixels sent to the model; 0 disables scaling"),
-					new NodeParameter().setKey("maxTokens").setType(INTEGER)
-						.setDefaultValue(4096)
-						.setLabel("Max Tokens").setDescription("Output token budget; a full document page needs a few thousand")))
+					new NodeParameter().setKey("apiKey").setType(STRING)
+						.setLabel("API Key").setDescription("Bearer token for the endpoint. Usually unset - a local vLLM does not check it"),
+					// model / responseFormat / maxImageDim / maxTokens used to be advertised here. They are
+					// fields of VlmNodePrompt, not of VlmNodeOptions, which is what a vlm node's config binds
+					// into - so anything an author set in those four form fields was silently discarded. They
+					// are per-prompt settings and belong in the prompts map below.
+					new NodeParameter().setKey("prompts").setType(JSON).setDefaultValue(Map.of()).setRows(8)
+						.setLabel("Prompts")
+						.setDescription("Prompt id to task, as {\"<id>\": {\"model\": ..., \"prompt\": ..., \"responseFormat\": "
+							+ "TEXT|JSON|OLMOCR, \"maxImageDim\": ..., \"maxTokens\": ...}}. Each entry adds a "
+							+ "result_<id> output port. Left empty the node falls back to the olmOCR preset")))
 				// A single GPU serves one image at a time, so do not pile requests onto the endpoint by default.
 				.setDefaultConcurrency(1)
 				.setDefaultMode(PARALLEL)

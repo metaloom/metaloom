@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.source.s3;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.fs.FileState;
@@ -45,16 +46,29 @@ public class S3SourceNodeOptions extends AbstractNodeOptions<S3SourceNodeOptions
 	public static final List<String> DEFAULT_EMIT_STATES = List.of(
 		FileState.NEW.name(), FileState.MODIFIED.name());
 
+	// Explicit orders throughout: the descriptor lists useEvents before startAfter, which is not the
+	// order the fields are declared in, and the harvester otherwise emits declaration order.
+	@ParamDoc(label = "Bucket", description = "Bucket to read from. Connection settings and credentials are "
+		+ "configured on the worker, not here", order = 40)
 	private String bucket;
 
+	@ParamDoc(label = "Prefix", description = "Key prefix to limit the scan, e.g. 2026/07/. Empty scans the whole bucket", order = 50)
 	private String prefix;
 
+	@ParamDoc(label = "File suffixes", description = "Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything", order = 60)
 	private String suffixes;
 
+	@ParamDoc(label = "Emit states", description = "Which changes flow downstream",
+		values = { "NEW", "MODIFIED", "PRESENT", "DELETED" }, order = 70)
 	private List<String> emitStates = new ArrayList<>(DEFAULT_EMIT_STATES);
 
+	@ParamDoc(label = "Resume from last key", description = "Continue listing after the highest key seen so far. Only correct for "
+		+ "buckets whose keys are added in ascending order and never edited afterwards", order = 90)
 	private boolean startAfter;
 
+	@ParamDoc(label = "Use bucket notifications", description = "Process only the objects the bucket reported as changed, instead of "
+		+ "listing it. Requires notifications to be enabled on the worker. A full listing "
+		+ "still runs periodically, so nothing is missed if a notification is lost", order = 80)
 	private boolean useEvents;
 
 	@Override

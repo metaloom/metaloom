@@ -21,7 +21,7 @@ public class ThumbnailDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("thumbnail")
+				.setNodeId("thumbnail")
 				.setName("Thumbnail Generator")
 				.setDescription("Generate a thumbnail grid from video or image content.")
 				.setIcon("grid_view")

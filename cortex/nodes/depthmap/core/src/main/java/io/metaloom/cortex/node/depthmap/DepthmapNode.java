@@ -21,11 +21,15 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
@@ -59,15 +63,30 @@ import io.vertx.core.json.JsonObject;
  * group in the pipeline definition.
  * </p>
  */
+@NodeSpec(nodeId = "depthmap", name = "Depth Map", icon = "layers", category = NodeCategory.ANALYSIS,
+	description = "Estimate a per-pixel depth map from a single image. The map is written to a local cache as a 16-bit PNG where the brightest "
+		+ "pixels are nearest the camera.",
+	// timeoutMs lives on AbstractNodeOptions, where it is hidden because almost no descriptor
+	// advertises it. This node does, so it re-documents the inherited field here.
+	parameters = @ParamOverride(key = "timeoutMs", label = "Timeout (ms)",
+		description = "HTTP request timeout", min = "1", order = 9000))
+// The sidecar holds one model on one device, so parallel calls from a single worker only queue behind
+// each other and inflate memory - hence the default concurrency of 1.
 public class DepthmapNode extends AbstractMediaNode<DepthmapNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(DepthmapNode.class);
 
+	@PortDoc(label = "Image", description = "The image to estimate per-pixel depth for")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_IMAGE, LoomMedia.class);
 
 	/** The metadata a consumer needs to interpret the map; {@code map} is the worker-local PNG the metadata points at. */
+	@PortDoc(label = "Depth Metadata", description = "Mode, model, map dimensions and the value range needed to interpret the map")
 	public static final OutputPort<String> OUT_META = OutputPort.one("meta", ContentTypeRegistry.STRUCT_DEPTHMAP, String.class);
+
+	@PortDoc(label = "Depth Map", description = "The 16-bit PNG in the worker's local cache; the brightest pixels are nearest the camera")
 	public static final OutputPort<String> OUT_MAP = OutputPort.one("map", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	/** The only convention this node accepts from the sidecar. A mismatch is a hard failure rather than a guess. */

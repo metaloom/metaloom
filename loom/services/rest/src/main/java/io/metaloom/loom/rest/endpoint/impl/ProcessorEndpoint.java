@@ -26,6 +26,8 @@ import io.metaloom.loom.rest.model.processor.SystemStatusInfo;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.rest.model.processor.message.NodeTaskResultMessage;
+import io.metaloom.loom.rest.model.processor.message.NodeRegistration;
+import io.metaloom.loom.rest.model.processor.message.NodeRegistrationAck;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceCompleteMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
@@ -33,6 +35,8 @@ import io.metaloom.loom.rest.model.processor.message.SourceItemsMessage;
 import io.metaloom.loom.rest.model.processor.message.TaskReturnedMessage;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.ProcessorRegistration;
+import io.metaloom.loom.rest.service.impl.NodeRegistrationService;
+import io.metaloom.loom.rest.service.impl.NodeRegistryEventPublisher;
 import io.metaloom.loom.rest.service.impl.PipelineRunRegistry;
 import io.metaloom.loom.rest.service.impl.PipelineRunTracker;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
@@ -70,6 +74,8 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	private final PipelineRunRegistry pipelineRunRegistry;
 	private final ModelExamples examples;
 
+	private final NodeRegistrationService nodeRegistrations;
+
 	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 
 	/**
@@ -81,14 +87,21 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 	@Inject
 	public ProcessorEndpoint(ProcessorRegistry registry, WebSocketAuthenticator authenticator,
 			PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
-			EndpointDependencies deps, ModelExamples examples, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
+			EndpointDependencies deps, ModelExamples examples, io.metaloom.loom.common.metrics.LoomMetrics metrics,
+			NodeRegistrationService nodeRegistrations, NodeRegistryEventPublisher registryEvents) {
 		super(deps);
+		// Injected purely to be constructed: the publisher wires itself onto the registries' change
+		// hooks in its own constructor, and as a lazy @Singleton that nothing else asks for it would
+		// otherwise never exist - so the palette would never hear about a worker arriving. This is the
+		// component whose messages cause both kinds of change, so it is the honest place to anchor it.
+		registryEvents.attach(registry);
 		this.registry = registry;
 		this.pipelineRunRegistry = pipelineRunRegistry;
 		this.authenticator = authenticator;
 		this.pipelineRunTracker = pipelineRunTracker;
 		this.examples = examples;
 		this.metrics = metrics;
+		this.nodeRegistrations = nodeRegistrations;
 	}
 
 	@Override
@@ -230,6 +243,9 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 				case REGISTER:
 					handleRegister(ws, msg, nodeIdHolder);
 					break;
+				case NODE_REGISTRATION:
+					handleNodeRegistration(ws, msg, nodeIdHolder[0]);
+					break;
 				case HEARTBEAT:
 					handleHeartbeat(ws, nodeIdHolder[0]);
 					break;
@@ -312,6 +328,41 @@ public class ProcessorEndpoint extends AbstractEndpoint {
 		ProcessorMessage ack = new ProcessorMessage(ProcessorMessageType.REGISTERED,
 			JsonObject.mapFrom(registry.toResponse(registry.get(reg.getNodeId()))));
 		ws.writeTextMessage(Json.encode(ack));
+	}
+
+	/**
+	 * Adopt the node contracts this worker announces, and answer with the per-node outcome.
+	 *
+	 * <p>
+	 * Deliberately off the REGISTER path. Registration is a cheap synchronous in-memory operation and
+	 * has to stay that way; ingesting contracts validates and persists. The window where a worker is
+	 * registered but its contracts are not yet adopted is harmless — dispatch reads the whitelist, not
+	 * the descriptor registry — whereas putting both on one path would make a reconnect storm a
+	 * database problem.
+	 * </p>
+	 */
+	private void handleNodeRegistration(ServerWebSocket ws, ProcessorMessage msg, String nodeId) {
+		if (nodeId == null) {
+			sendError(ws, "Not registered. Send REGISTER first.");
+			return;
+		}
+		if (msg.getBody() == null) {
+			sendError(ws, "NODE_REGISTRATION message must include a body");
+			return;
+		}
+		NodeRegistration frame;
+		try {
+			frame = msg.getBody().mapTo(NodeRegistration.class);
+		} catch (IllegalArgumentException e) {
+			// A contract this Loom cannot parse is the worker's bug, not a reason to drop its socket -
+			// it is still executing work perfectly well.
+			log.warn("Worker '{}' sent a NODE_REGISTRATION that could not be parsed", nodeId, e);
+			sendError(ws, "NODE_REGISTRATION body could not be parsed: " + e.getMessage());
+			return;
+		}
+		NodeRegistrationAck ack = nodeRegistrations.ingest(nodeId, frame);
+		ws.writeTextMessage(Json.encode(new ProcessorMessage(ProcessorMessageType.NODE_REGISTRATION_ACK,
+			JsonObject.mapFrom(ack))));
 	}
 
 	private void handleHeartbeat(ServerWebSocket ws, String nodeId) {

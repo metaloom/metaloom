@@ -12,21 +12,54 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.cortex.api.node.InputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.loom.client.common.LoomClient;
+import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.utils.fs.FileUtils;
 import io.metaloom.utils.hash.SHA512;
 
+/*
+ * 🔴 One class, two node ids. Dagger binds this node under both "hash-dedup" and "sha512-dedup" (the
+ * name() this node reports); @NodeSpec carries a single nodeId, so it declares the one the descriptor
+ * provider actually describes - "hash-dedup". "sha512-dedup" is a pure alias: the provider has never
+ * described it and it exists only so an older pipeline definition still resolves. See the sweep report.
+ */
+@NodeSpec(nodeId = "hash-dedup", name = "Hash Deduplication", icon = "file_copy", category = NodeCategory.OUTPUT,
+	description = "Detect and move duplicate files based on hash equality.",
+	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
+	// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
+	parameters = {
+		@ParamOverride(key = "processIncomplete", hidden = true),
+		@ParamOverride(key = "retryFailed", hidden = true)
+	})
 public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(HashDedupNode.class);
+
+	/**
+	 * The hash that identifies the file's content.
+	 *
+	 * <p>
+	 * Declared so the node's own contract states the input its descriptor has always advertised. The
+	 * node reads the SHA-512 off the media handle rather than off this port, so wiring it is what
+	 * orders a hash node before this one, not what feeds it.
+	 * </p>
+	 */
+	@PortDoc(label = "Hash", description = "Any content hash. Two files whose hashes match are treated as the same file")
+	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_ANY, String.class);
+
 	private final LoomMediaLoader loader;
 
 	@Inject

@@ -32,9 +32,8 @@ coding agent that has to add or restructure site content, or fix the build/publi
   `[security.exec]`. The marketing pages are **data-driven** from `data/en/*.yml`.
 * Build with `./build.sh` → `dist/`, then two gates: a **localhost-link check** and
   `check-links.mjs` (broken internal links + missing `#anchors`). Both fail the build.
-* **Hugo extended ≥ 0.158 is required.** The system `hugo` on this machine is **0.131 and cannot
-  build the site** — fetch a newer extended binary into the scratchpad (see
-  [Prerequisites](#prerequisites)).
+* **Hugo extended ≥ 0.158 is required.** The system `hugo` is now **0.162.1+extended** and builds the
+  site; it used to be 0.131, which could not (see [Prerequisites](#prerequisites)).
 * Publish is manual: the **sibling `metaloom-website` repo** runs `pull.sh` to copy `website/dist`
   → its `docs/`, served by GitHub Pages at `metaloom.io`.
 * Seven top-level areas besides `/docs/`: `/tour/`, `/features/`, `/studio/`,
@@ -86,8 +85,9 @@ All commands assume `cd website` first.
 
 * **Hugo extended, ≥ 0.158.** `config.toml` uses post-0.158 multilingual keys
   (`[Languages.en] locale`/`label`) and templates use `hugo.Data` / `site.Language.Locale`.
-  **The system binary is 0.131 and will error out** — download an extended ≥ 0.158 release into the
-  scratchpad and call it explicitly.
+  The system binary was 0.131 and could not build the site; it is now **0.162.1+extended**, so
+  `./build.sh` runs as-is. Check `hugo version` first — on a machine still carrying an older build,
+  fetch an extended ≥ 0.158 release into the scratchpad and call it explicitly.
 * **Node + npm/yarn** — the theme has its own `package.json`; `build.sh` prefers `yarn`, falls back
   to `npm`. `yarn install` rewrites `themes/meghna-hugo/yarn.lock`; **restore it** rather than
   committing the churn.
@@ -187,7 +187,7 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 | **top level** | `getting-started/` (weight 1) · `operation/` · `pipeline/` · `ui/` (15 screenshots) · `cli/` · `deployment/` (`_index` + `helm/`) |
 | **`playbooks/`** (weight 3) | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
 | **`nodes/`** | `_index` + **28 node pages**: `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filters · fingerprint · hash · imagegen · llm · ocr · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · thumbnail · tika · tts · videogen · vlm · watermark · whisper` |
-| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
+| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
 | **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
 | **`legal/`** (weight 9) | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
 | **legacy stubs** | `rest/` · `test/` · `configuration/` — unlinked placeholders, candidates for deletion |
@@ -624,8 +624,9 @@ review**.
 - [x] `/announcements/` + the MetaLoom 1.0.0 page, marked **not released yet** in badge, lead and card
 - [x] `/blog/` (6 posts) + `/author/` with the shared reading system
 - [x] Docs landing, Getting Started, Operation, Pipeline, Loom UI (15 screenshots), CLI, Deployment
-- [x] Loom docs: REST API (Swagger UI), GraphQL API (GraphiQL), Java client, auth, configuration,
-      metrics, features, chat (incl. coding sandbox), binary storage, artifacts, containers, helm
+- [x] Loom docs: REST API (Swagger UI), GraphQL API (GraphiQL), Java client, **Python client**, auth,
+      configuration, metrics, features, chat (incl. coding sandbox), binary storage, artifacts,
+      containers, helm
 - [x] Cortex docs: configuration, monitoring, metrics, artifacts, containers, examples
       (Java node, Java daemon, Python worker)
 - [x] **28 node pages** under `docs/nodes/`, each with a generated `nodeviz` diagram + the type legend
@@ -690,5 +691,6 @@ review**.
 
 ---
 
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (the cortex-metrics AI provider label list is now `llm | smolvlm | whisper | tesseract`)_
+_Git HEAD revision: `9a418194`_
+_Last updated: 2026-08-03 (added `docs/loom/python-client/`; the REST API page no longer suggests
+generating a Python client from the schema-less specification)_

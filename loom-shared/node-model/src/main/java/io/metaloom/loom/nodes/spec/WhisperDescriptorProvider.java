@@ -21,7 +21,7 @@ public class WhisperDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("whisper")
+				.setNodeId("whisper")
 				.setName("Whisper (Speech-to-Text)")
 				.setDescription("Transcribe audio/video speech to text using Whisper.")
 				.setIcon("mic")

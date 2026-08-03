@@ -15,7 +15,7 @@ feature:
 
     - title : REST API
       icon : ti-settings
-      content : The Loom server provides a powerful REST API which can be used to manage all resources, including a Java client and a generated OpenAPI specification.
+      content : The Loom server provides a powerful REST API which can be used to manage all resources, including clients for Java and Python and a generated OpenAPI specification.
       link : /docs/loom/rest-api/
 
     - title : Chat & AI Agent

@@ -104,7 +104,7 @@ public class NodePortConformanceTest {
 	private static Map<String, NodeDescriptor> descriptors() {
 		Map<String, NodeDescriptor> byKind = new LinkedHashMap<>();
 		ServiceLoader.load(NodeDescriptorProvider.class)
-			.forEach(provider -> provider.getDescriptors().forEach(d -> byKind.put(d.getKind(), d)));
+			.forEach(provider -> provider.getDescriptors().forEach(d -> byKind.put(d.getNodeId(), d)));
 		return byKind;
 	}
 

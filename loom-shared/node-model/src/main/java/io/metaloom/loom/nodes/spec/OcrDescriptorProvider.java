@@ -20,7 +20,7 @@ public class OcrDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("ocr")
+				.setNodeId("ocr")
 				.setName("OCR")
 				.setDescription("Extract text from images using optical character recognition.")
 				.setIcon("text_fields")

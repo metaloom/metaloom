@@ -288,11 +288,11 @@ The `enabled` / `processIncomplete` / `retryFailed` parameters are re-declared b
 - [ ] 🔴 **Make `MediaTikaParser.parse()` return the extracted body** (`handler.toString()`), with an
       explicit `BodyContentHandler` write limit
 - [ ] 🔴 **Remove the `System.out.println` metadata dump**; route through SLF4J or drop it
-- [x] ~~**Map Tika `Metadata` to something.**~~ **Answered by the `metadata` node** (concept
-      [../../concept/ASSET_METADATA_INGEST.md](../../concept/ASSET_METADATA_INGEST.md), phase 1
-      built): a separate kind reads EXIF/IPTC/XMP/container properties, normalises them onto Dublin
-      Core, and writes `asset_json_comp` (`schemaType=metadata`) plus `asset_geo_comp`. `tika` keeps
-      the body text and stops trying to own metadata as well
+- [x] ~~**Map Tika `Metadata` to something.**~~ **Answered by the `metadata` node**
+      ([metadata/METADATA_OVERVIEW.md](metadata/METADATA_OVERVIEW.md)): a separate kind reads
+      EXIF/IPTC/XMP/container properties, normalises them onto Dublin Core, and writes
+      `asset_json_comp` (`schemaType=metadata`) plus `asset_geo_comp`. `tika` keeps the body text and
+      stops trying to own metadata as well
 - [ ] Tighten `TikaNodeIntegrationTest` to assert non-empty `content`
 - [ ] Add a `MediaTikaParser` unit test per format family (pdf, docx, odt, epub, mp3, mp4, image)
 - [ ] Add a `TikaNodePipelineTest`

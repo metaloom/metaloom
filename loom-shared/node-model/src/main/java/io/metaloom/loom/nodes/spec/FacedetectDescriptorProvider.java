@@ -22,7 +22,7 @@ public class FacedetectDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("facedetect")
+				.setNodeId("facedetect")
 				.setName("Face Detection")
 				.setDescription("Detect and cluster faces in images and video frames.")
 				.setIcon("face")
@@ -65,7 +65,7 @@ public class FacedetectDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("facedescription")
+				.setNodeId("facedescription")
 				.setName("Face Description")
 				.setDescription("Generate textual descriptions of detected faces.")
 				.setIcon("face_retouching_natural")

@@ -167,7 +167,7 @@ public class LoomOpenAPI {
 			ServerFailureHandler failureHandler = null;
 			// Only the router is needed to describe the API; start() - which is what would
 			// use the reaper - is never called here.
-			RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, null, null);
+			RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, null, null, null);
 			rest.setupRouter();
 			return describe(router, DEFAULT_BASE_URL);
 		} finally {
@@ -234,12 +234,12 @@ public class LoomOpenAPI {
 		endpoints.add(new LibraryEndpoint(null, deps, examples));
 		endpoints.add(new LoginEndpoint(deps, null));
 		endpoints.add(new MeEndpoint(null, deps, examples));
-		endpoints.add(new NodeDescriptorEndpoint(null, deps));
+		endpoints.add(new NodeDescriptorEndpoint(null, null, deps));
 		endpoints.add(new OAuth2Endpoint(deps, null));
 		endpoints.add(new PersonEndpoint(null, deps, examples));
 		endpoints.add(new PipelineEndpoint(null, deps, examples));
 		endpoints.add(new PipelineEventEndpoint(null, null, deps));
-		endpoints.add(new ProcessorEndpoint(null, null, null, null, deps, examples, null));
+		endpoints.add(new ProcessorEndpoint(null, null, null, null, deps, examples, null, null, null));
 		endpoints.add(new ReactionEndpoint(null, deps, examples));
 		endpoints.add(new RESTInfoEndpoint(deps, null));
 		endpoints.add(new RoleEndpoint(null, deps, examples));

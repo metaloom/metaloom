@@ -22,11 +22,14 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
@@ -74,18 +77,30 @@ import io.vertx.core.json.JsonObject;
  * summary.
  * </p>
  */
+@NodeSpec(nodeId = "scene-layout", name = "Scene Layout", icon = "schema", category = NodeCategory.ANALYSIS,
+	description = "Relate detected objects to one another using a depth map: foreground/background bands plus pairwise relations such as "
+		+ "in front of, behind, occludes and next to. Requires an upstream depthmap node on the same worker.",
+	// No model and no device to contend for - only CPU, so this can run wider than the model-backed nodes.
+	defaultConcurrency = 4)
 public class SceneLayoutNode extends AbstractMediaNode<SceneLayoutNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SceneLayoutNode.class);
 
 	/** The depth metadata, which also carries the worker-local path of the map itself. */
+	@PortDoc(label = "Depth Metadata", description = "Depth metadata from an upstream depthmap node sharing this node's affinity group")
 	public static final InputPort<String> IN_DEPTH = InputPort.one("depth", ContentTypeRegistry.STRUCT_DEPTHMAP, String.class);
 
 	/** Every detected box to place, from any detector - the node only needs a box and a label. */
+	@PortDoc(label = "Detections", description = "The boxes to place in the scene - faces, objects or plain regions")
 	public static final InputPort<String> IN_DETECTIONS = InputPort.many("detections", ContentTypeRegistry.DETECTION_ANY, String.class);
 
+	@PortDoc(label = "Scene Layout", description = "Depth band per object plus pairwise relations such as in front of, occludes and next to")
 	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_SCENE_LAYOUT, String.class);
+
+	@PortDoc(label = "Object Count", description = "How many boxes were placed in the scene")
 	public static final OutputPort<Long> OUT_OBJECT_COUNT = OutputPort.one("object_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	@PortDoc(label = "Relation Count", description = "How many pairwise relations were emitted")
 	public static final OutputPort<Long> OUT_RELATION_COUNT = OutputPort.one("relation_count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
 
 	/** The depth convention this node understands. Larger = nearer to the camera. */

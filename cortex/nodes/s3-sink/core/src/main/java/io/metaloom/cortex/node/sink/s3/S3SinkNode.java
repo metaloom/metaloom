@@ -19,6 +19,9 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.cortex.common.node.PipelineConfigurable;
@@ -30,6 +33,7 @@ import io.metaloom.cortex.s3.S3Support;
 import io.metaloom.cortex.s3.S3Uri;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetCreateRequest;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.asset.info.FileInfo;
@@ -69,6 +73,16 @@ import io.vertx.core.json.JsonObject;
  * worker</em> fails the node loudly rather than being skipped. Until affinity groups exist, pin
  * producer and sink together with {@code CORTEX_NODE_WHITELIST}.</p>
  */
+@NodeSpec(nodeId = "s3-sink", name = "S3 Sink", icon = "cloud_upload", category = NodeCategory.OUTPUT,
+	description = "Uploads files produced by upstream nodes - thumbnails, depth maps, generated "
+		+ "images, speech audio - into an S3 bucket, and registers each one in Loom as an asset "
+		+ "so it becomes retrievable rather than living on a single worker's disk.",
+	defaultBlocking = false,
+	// A sink runs at the end of a branch and has never advertised the two retry knobs - the descriptor
+	// listed only `enabled`. The base class leaves them visible, so they are dropped here.
+	parameters = {
+		@ParamOverride(key = "processIncomplete", hidden = true),
+		@ParamOverride(key = "retryFailed", hidden = true) })
 public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements PipelineConfigurable {
 
 	public static final String KIND = "s3-sink";
@@ -87,10 +101,18 @@ public class S3SinkNode extends AbstractMediaNode<S3SinkNodeOptions> implements 
 	 * those output keys are author-named. An edge into a typed {@code artifact/*} port says both.
 	 * </p>
 	 */
+	@PortDoc(label = "Artifacts",
+		description = "Every produced file to upload - thumbnails, depth maps, generated images, speech audio")
 	public static final InputPort<String> IN_ARTIFACTS = InputPort.many("artifacts", ContentTypeRegistry.ARTIFACT_ANY, String.class);
 
+	@PortDoc(label = "Upload Report",
+		description = "Per artifact: the object key, its size and whether it was uploaded or skipped as unchanged")
 	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_JSON, String.class);
+
+	@PortDoc(label = "Uploaded Count", description = "How many objects ended up in the bucket")
 	public static final OutputPort<Long> OUT_COUNT = OutputPort.one("count", ContentTypeRegistry.SCALAR_INTEGER, Long.class);
+
+	@PortDoc(label = "Flag", description = "Processing marker recording how this node finished for the item")
 	public static final OutputPort<String> OUT_FLAG = OutputPort.one("flag", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	private final S3Support s3;

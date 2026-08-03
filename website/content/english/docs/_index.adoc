@@ -53,6 +53,7 @@ This page is the quickest way to orient yourself in the platform and jump to the
 				<a href="loom/rest-api/" class="docs-card-link">REST API</a>
 				<a href="loom/graphql-api/" class="docs-card-link">GraphQL API</a>
 				<a href="loom/java-client/" class="docs-card-link">Java Client</a>
+				<a href="loom/python-client/" class="docs-card-link">Python Client</a>
 				<a href="loom/authentication/" class="docs-card-link">Authentication</a>
 				<a href="loom/configuration/" class="docs-card-link">Configuration</a>
 				<a href="loom/chat/" class="docs-card-link">Chat &amp; AI Agent</a>
@@ -172,8 +173,8 @@ The MetaLoom platform revolves around a small set of concepts that appear throug
 	<div class="col-md-6 col-xl-4 mb-4">
 		<div class="note p-4 h-100">
 			<h3>API and Client</h3>
-			<p>Loom exposes a REST API, a Java client and the <code>metaloom</code> command line client for creating assets, authenticating, managing users and orchestrating processing workflows.</p>
-			<p><a href="loom/rest-api/">REST API</a> · <a href="loom/java-client/">Java Client</a> · <a href="cli/">Command Line</a></p>
+			<p>Loom exposes a REST API, clients for Java and Python, and the <code>metaloom</code> command line client for creating assets, authenticating, managing users and orchestrating processing workflows.</p>
+			<p><a href="loom/rest-api/">REST API</a> · <a href="loom/java-client/">Java Client</a> · <a href="loom/python-client/">Python Client</a> · <a href="cli/">Command Line</a></p>
 		</div>
 	</div>
 	<div class="col-md-6 col-xl-4 mb-4">
@@ -199,7 +200,7 @@ Choose the documentation track that matches your task:
 | link:loom/rest-api/[REST API], link:loom/authentication/[Authentication]
 
 | Integrate a client application with Loom
-| link:loom/rest-api/[REST API] or link:loom/java-client/[Java Client]
+| link:loom/rest-api/[REST API], link:loom/java-client/[Java Client] or link:loom/python-client/[Python Client]
 | link:loom/authentication/[Authentication], link:loom/configuration/[Configuration]
 
 | Drive or script Loom from a terminal

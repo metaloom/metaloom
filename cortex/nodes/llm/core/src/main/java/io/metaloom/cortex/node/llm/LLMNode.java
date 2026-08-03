@@ -19,6 +19,9 @@ import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -26,12 +29,29 @@ import io.metaloom.cortex.llm.LlmEndpoint;
 import io.metaloom.cortex.llm.LlmInvoker;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
 
+/**
+ * Asks a language model one question per configured prompt about each media item.
+ *
+ * <p>
+ * The output side is <strong>dynamic</strong>: {@code LlmPortResolver} derives one
+ * {@code result_<promptId>} port from the {@code prompts} option, so there is no static output port
+ * to declare here.
+ * </p>
+ */
+@NodeSpec(nodeId = "llm", name = "LLM (Large Language Model)", icon = "psychology", category = NodeCategory.ANALYSIS,
+	description = "Process media through an LLM served over an OpenAI-compatible API, with configurable prompts.",
+	dynamicPorts = true,
+	// contextWindow is documented on AbstractLlmNodeOptions for the nodes that advertise it; this
+	// node's contract never has, so it is hidden here rather than un-documented on the shared base.
+	parameters = @ParamOverride(key = "contextWindow", hidden = true))
 public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 
+	@PortDoc(label = "Media", description = "The media item the configured prompts are asked about")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
 	/** Metrics provider label. */

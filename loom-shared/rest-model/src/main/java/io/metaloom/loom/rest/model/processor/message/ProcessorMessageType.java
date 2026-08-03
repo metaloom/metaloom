@@ -10,6 +10,17 @@ public enum ProcessorMessageType {
 	/** Initial registration of a processor node */
 	REGISTER,
 
+	/**
+	 * The node contracts this worker offers, sent once after {@code REGISTERED}.
+	 *
+	 * <p>Deliberately a second frame rather than a field on {@code REGISTER}: registration is a cheap
+	 * synchronous in-memory operation and has to stay that way, while ingesting ~115 KB of contracts
+	 * writes to Postgres. Putting the two on one path would turn a reconnect storm into a database
+	 * problem. The window where a worker is online but its specs are not yet ingested is harmless —
+	 * dispatch reads the whitelist, never the descriptor registry.</p>
+	 */
+	NODE_REGISTRATION,
+
 	/** Heartbeat ping from processor */
 	HEARTBEAT,
 
@@ -53,6 +64,12 @@ public enum ProcessorMessageType {
 
 	/** Registration acknowledgement from loom */
 	REGISTERED,
+
+	/**
+	 * Per-node outcome of a {@link #NODE_REGISTRATION}: what was adopted, and why anything else was
+	 * not. Never a single verdict — one malformed custom node must not cost a worker its other specs.
+	 */
+	NODE_REGISTRATION_ACK,
 
 	/** Heartbeat pong from loom */
 	HEARTBEAT_ACK,

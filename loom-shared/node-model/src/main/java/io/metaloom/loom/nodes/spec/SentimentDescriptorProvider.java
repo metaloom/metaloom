@@ -20,7 +20,7 @@ public class SentimentDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("sentiment")
+				.setNodeId("sentiment")
 				.setName("Sentiment Analysis")
 				.setDescription("Score the polarity (positive/neutral/negative) of text produced by an upstream node. German and English.")
 				.setIcon("mood")

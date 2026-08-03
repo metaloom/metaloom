@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -44,22 +45,42 @@ public class S3SinkNodeOptions extends AbstractNodeOptions<S3SinkNodeOptions> {
 	/** Deliberately permissive: S3 itself is stricter, but a gateway may not be. */
 	private static final Pattern BUCKET_PATTERN = Pattern.compile("[a-zA-Z0-9][a-zA-Z0-9._-]{1,62}");
 
+	@ParamDoc(label = "Bucket", description = "Destination bucket. Endpoint, region and credentials are configured "
+		+ "on the worker, not here, so they are never stored in the pipeline")
 	private String bucket;
 
+	@ParamDoc(label = "Key template", description = "Object key. Placeholders: {sha512}, {sha512:N}, {sourceSha512}, "
+		+ "{nodeId}, {sourceNode}, {sourceKey}, {ext}, {filename}, {basename}, "
+		+ "{assetUuid}, {index}, {indexSuffix}. Using {sha512} requires an upstream "
+		+ "hash node")
 	private String keyTemplate = DEFAULT_KEY_TEMPLATE;
 
+	@ParamDoc(label = "Include source media", description = "Also upload the media item itself, which turns this node into an "
+		+ "archiver. Media that already lives in a bucket is not re-uploaded")
 	private boolean includeSource;
 
+	@ParamDoc(label = "Create assets", description = "Register each uploaded file in Loom as its own asset. Turn off to "
+		+ "use this node as a pure uploader")
 	private boolean createAssets = true;
 
+	@ParamDoc(label = "Overwrite", description = "IF_DIFFERENT skips an object already present at the same key with "
+		+ "the same size, which is what makes a re-run cheap")
 	private OverwritePolicy overwrite = OverwritePolicy.IF_DIFFERENT;
 
+	@ParamDoc(label = "Delete after upload", description = "Remove the local file once the object is confirmed in the bucket. "
+		+ "Off by default: nodes such as Scene Layout read the depth map from the same "
+		+ "worker's local cache, and deleting it breaks that chain with a misleading "
+		+ "'depth map not found' skip")
 	private boolean deleteAfterUpload;
 
+	@ParamDoc(label = "Max artifacts", description = "Cap per media item. Exceeding it fails the node rather than "
+		+ "silently uploading only some", min = "1")
 	private int maxArtifacts = DEFAULT_MAX_ARTIFACTS;
 
+	@ParamDoc(label = "Max artifact bytes", description = "Per-file size cap in bytes; 0 is unlimited", min = "0")
 	private long maxArtifactBytes;
 
+	@ParamDoc(label = "Fail on partial", description = "Report the node failed when some artifacts could not be uploaded")
 	private boolean failOnPartial = true;
 
 	@Override

@@ -84,6 +84,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<MemoryEntryDao> memoryEntryDao;
 	private final Lazy<MemoryDenyRuleDao> memoryDenyRuleDao;
 	private final Lazy<CortexInstanceDao> cortexInstanceDao;
+	private final Lazy<io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao> nodeDescriptorDao;
 	private final Lazy<LoomDao> loomDao;
 
 	@Inject
@@ -101,7 +102,8 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao,
 		Lazy<SkillDao> skillDao, Lazy<SkillVersionDao> skillVersionDao,
 		Lazy<ChatSessionDao> chatSessionDao, Lazy<MemoryEntryDao> memoryEntryDao, Lazy<MemoryDenyRuleDao> memoryDenyRuleDao,
-		Lazy<CortexInstanceDao> cortexInstanceDao, Lazy<io.metaloom.loom.db.model.dedup.DedupGroupDao> dedupGroupDao, Lazy<LoomDao> loomDao) {
+		Lazy<CortexInstanceDao> cortexInstanceDao, Lazy<io.metaloom.loom.db.model.dedup.DedupGroupDao> dedupGroupDao, Lazy<LoomDao> loomDao,
+		Lazy<io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao> nodeDescriptorDao) {
 		this.userDao = userDao;
 		this.groupDao = groupDao;
 		this.roleDao = roleDao;
@@ -140,6 +142,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.memoryEntryDao = memoryEntryDao;
 		this.memoryDenyRuleDao = memoryDenyRuleDao;
 		this.cortexInstanceDao = cortexInstanceDao;
+		this.nodeDescriptorDao = nodeDescriptorDao;
 		this.loomDao = loomDao;
 	}
 
@@ -326,6 +329,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public MemoryDenyRuleDao memoryDenyRuleDao() {
 		return memoryDenyRuleDao.get();
+	}
+
+	@Override
+	public io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao nodeDescriptorDao() {
+		return nodeDescriptorDao.get();
 	}
 
 	@Override

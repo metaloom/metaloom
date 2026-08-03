@@ -1126,6 +1126,11 @@
     "commandPalette": {
       "placeholder": "Knoten suchen…",
       "empty": "Keine passenden Knoten"
+    },
+    "palette": {
+      "showOffline": "Offline-Nodes werden angezeigt",
+      "offlineHidden": "{{count}} Offline-Node ausgeblendet",
+      "offlineHidden_other": "{{count}} Offline-Nodes ausgeblendet"
     }
   },
   "cortex": {

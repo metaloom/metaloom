@@ -17,11 +17,14 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonObject;
@@ -49,6 +52,8 @@ import io.vertx.core.json.JsonObject;
  * comes from.
  * </p>
  */
+@NodeSpec(nodeId = "sentiment", name = "Sentiment Analysis", icon = "mood", category = NodeCategory.ANALYSIS,
+	description = "Score the polarity (positive/neutral/negative) of text produced by an upstream node. German and English.")
 public class SentimentNode extends AbstractMediaNode<SentimentNodeOptions> {
 
 	public static final Logger log = LoggerFactory.getLogger(SentimentNode.class);
@@ -64,10 +69,16 @@ public class SentimentNode extends AbstractMediaNode<SentimentNodeOptions> {
 	 * or nothing". A declared port makes the source an edge the author draws and validation checks.
 	 * </p>
 	 */
+	@PortDoc(label = "Text", description = "The prose to score - a transcript, caption, OCR result or any other upstream text")
 	public static final InputPort<String> IN_TEXT = InputPort.one("text", ContentTypeRegistry.TEXT_ANY, String.class);
 
+	@PortDoc(label = "Label", description = "The polarity class: positive, neutral or negative")
 	public static final OutputPort<String> OUT_LABEL = OutputPort.one("label", ContentTypeRegistry.SCALAR_STRING, String.class);
+
+	@PortDoc(label = "Score", description = "Polarity in [-1, 1]; its sign agrees with the label")
 	public static final OutputPort<Double> OUT_SCORE = OutputPort.one("score", ContentTypeRegistry.SCALAR_NUMBER, Double.class);
+
+	@PortDoc(label = "Result", description = "The sidecar's full answer, including the detected language and per-class confidences")
 	public static final OutputPort<String> OUT_RESULT = OutputPort.one("result", ContentTypeRegistry.STRUCT_JSON, String.class);
 
 	/** In-heap skip cache of the scored result JSON, keyed by media path, to avoid re-classifying within this worker's lifetime. Non-durable - the

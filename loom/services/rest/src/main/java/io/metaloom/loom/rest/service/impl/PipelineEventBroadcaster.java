@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.common.metrics.LoomMetrics;
+import io.metaloom.loom.rest.model.nodes.NodeRegistryEventMessage;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.event.ProcessorEventMessage;
 import io.vertx.core.http.ServerWebSocket;
@@ -148,6 +149,32 @@ public class PipelineEventBroadcaster {
 	 * a pipeline still receives fleet-wide processor updates.</p>
 	 */
 	public void broadcastProcessorEvent(ProcessorEventMessage event) {
+		if (subscribers.isEmpty()) {
+			return;
+		}
+		String json = null; // lazy-encode — only serialize once we have a live subscriber
+		for (var entry : subscribers.entrySet()) {
+			ServerWebSocket ws = entry.getKey();
+			Subscriber subscriber = entry.getValue();
+			if (ws.isClosed()) {
+				subscribers.remove(ws);
+				continue;
+			}
+			if (json == null) {
+				json = Json.encode(event);
+			}
+			subscriber.send(json);
+		}
+	}
+
+	/**
+	 * Broadcast a node-registry frame to <b>all</b> subscribers of the UI events socket.
+	 *
+	 * <p>Like processor events, registry events are fleet-wide rather than pipeline-scoped, so the
+	 * per-subscriber {@code ?pipeline=} filter is deliberately bypassed: an editor filtered to one
+	 * pipeline still has a palette, and that palette still has to notice a new worker.</p>
+	 */
+	public void broadcastNodeRegistryEvent(NodeRegistryEventMessage event) {
 		if (subscribers.isEmpty()) {
 			return;
 		}

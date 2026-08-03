@@ -113,8 +113,8 @@ public class NodeDescriptorServiceLoaderTest {
 
 		for (NodeDescriptorProvider provider : loadProviders()) {
 			for (NodeDescriptor descriptor : provider.getDescriptors()) {
-				if (!seen.add(descriptor.getKind())) {
-					duplicates.add(descriptor.getKind() + " (from " + provider.getClass().getSimpleName() + ")");
+				if (!seen.add(descriptor.getNodeId())) {
+					duplicates.add(descriptor.getNodeId() + " (from " + provider.getClass().getSimpleName() + ")");
 				}
 			}
 		}
@@ -129,7 +129,7 @@ public class NodeDescriptorServiceLoaderTest {
 	void testEveryDescriptorHasAKind() {
 		for (NodeDescriptorProvider provider : loadProviders()) {
 			for (NodeDescriptor descriptor : provider.getDescriptors()) {
-				String kind = descriptor.getKind();
+				String kind = descriptor.getNodeId();
 				assertFalse(kind == null || kind.isBlank(),
 					"Descriptor from " + provider.getClass().getSimpleName() + " has a null/blank kind");
 			}

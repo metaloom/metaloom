@@ -38,7 +38,7 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("filesystem-source")
+				.setNodeId("filesystem-source")
 				.setName("Filesystem Source")
 				.setDescription("Reads media files from the filesystem as pipeline input.")
 				.setIcon("folder_open")
@@ -69,7 +69,7 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("s3-source")
+				.setNodeId("s3-source")
 				.setName("S3 Source")
 				.setDescription("Reads media objects from S3-compatible object storage (AWS S3, MinIO, Ceph) "
 					+ "as pipeline input. Only new and changed objects are picked up on a re-run.")
@@ -105,7 +105,7 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("gdrive-source")
+				.setNodeId("gdrive-source")
 				.setName("Google Drive Source")
 				.setDescription("Reads media files from Google Drive - My Drive or a shared drive - as pipeline "
 					+ "input. Only new, changed and moved files are picked up on a re-run.")
@@ -153,7 +153,7 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("onedrive-source")
+				.setNodeId("onedrive-source")
 				.setName("OneDrive Source")
 				.setDescription("Reads media files from OneDrive or a SharePoint document library as pipeline "
 					+ "input. Only new, changed and moved files are picked up on a re-run.")
@@ -197,7 +197,7 @@ public class SourceDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("loom-fetch")
+				.setNodeId("loom-fetch")
 				.setName("Loom Fetch")
 				.setDescription("Fetches media references from the Loom backend.")
 				.setIcon("cloud_download")

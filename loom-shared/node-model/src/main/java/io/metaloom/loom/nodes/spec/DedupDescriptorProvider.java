@@ -20,7 +20,7 @@ public class DedupDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("hash-dedup")
+				.setNodeId("hash-dedup")
 				.setName("Hash Deduplication")
 				.setDescription("Detect and move duplicate files based on hash equality.")
 				.setIcon("file_copy")
@@ -37,8 +37,12 @@ public class DedupDescriptorProvider implements NodeDescriptorProvider {
 				.setDefaultMode(SEQUENTIAL)
 				.setEvents(STANDARD_EVENTS),
 
+			// This node discovers candidate groups; it moves nothing, so it has no dupFolder. It used to
+			// advertise one, which did nothing - the node is injected with FingerprintDedupDiscoverOptions,
+			// which has no such field - while the five options it actually reads were advertised nowhere,
+			// leaving the similarity threshold of a similarity node unreachable from the editor.
 			new NodeDescriptor()
-				.setKind("fingerprint-dedup")
+				.setNodeId("fingerprint-dedup")
 				.setName("Fingerprint Deduplication")
 				.setDescription("Detect and move near-duplicate files based on perceptual fingerprint similarity.")
 				.setIcon("content_copy")
@@ -49,14 +53,31 @@ public class DedupDescriptorProvider implements NodeDescriptorProvider {
 				.setOutputPorts(List.of())
 				.setParameters(List.of(
 					commonEnabled(),
-					new NodeParameter().setKey("dupFolder").setType(STRING).setDefaultValue("duplicates")
-						.setLabel("Duplicates Folder").setDescription("Target folder for duplicate files")))
+					new NodeParameter().setKey("algorithm").setType(STRING).setDefaultValue("metaloom-multisector-v1")
+						.setLabel("Algorithm")
+						.setDescription("Fingerprint algorithm whose vectors are compared. Must match the algorithm the "
+							+ "upstream fingerprint node produced, or nothing will be found similar"),
+					new NodeParameter().setKey("scoreThreshold").setType(NUMBER).setDefaultValue(0.10f)
+						.setLabel("Score Threshold")
+						.setDescription("Maximum distance at which two fingerprints count as near-duplicates. Lower is "
+							+ "stricter; 0 matches only identical fingerprints").setMin(0.0),
+					new NodeParameter().setKey("topK").setType(INTEGER).setDefaultValue(10)
+						.setLabel("Neighbours")
+						.setDescription("How many nearest neighbours to examine per item before deciding a group").setMin(1),
+					new NodeParameter().setKey("allowPartial").setType(BOOLEAN).setDefaultValue(false)
+						.setLabel("Allow Partial Groups")
+						.setDescription("Form a group even when no member is known to be complete. Off by default: never "
+							+ "propose discarding a file where completeness is unknown"),
+					new NodeParameter().setKey("abortOnLargerDup").setType(BOOLEAN).setDefaultValue(true)
+						.setLabel("Abort On Larger Duplicate")
+						.setDescription("Abandon a candidate group if any duplicate is larger than the file being kept, so "
+							+ "the more complete file is never the one discarded")))
 				.setDefaultConcurrency(1)
 				.setDefaultMode(SEQUENTIAL)
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("fingerprint-dedup-apply")
+				.setNodeId("fingerprint-dedup-apply")
 				.setName("Fingerprint Deduplication (Apply)")
 				.setDescription("Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.")
 				.setIcon("content_copy")

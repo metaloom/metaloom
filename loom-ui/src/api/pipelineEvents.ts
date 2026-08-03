@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import type { Processor } from "./processors";
+import type { NodeAvailabilityMap } from "../types/nodeDescriptors";
 
 // --- Types ---
 
@@ -36,6 +37,23 @@ export type ProcessorEventType =
   | "STATUS_UPDATED"
   | "HEARTBEAT"
   | "DISCONNECTED";
+
+/**
+ * Node-registry frames, the third channel on this socket.
+ *
+ * Two distinct types on purpose. The descriptor set changes when someone deploys; presence changes on
+ * every worker connect, disconnect and restart. One combined "something changed" frame would make
+ * every rolling restart pull the ~115 KB descriptor response through every open tab to discover that
+ * one boolean flipped.
+ */
+export type NodeRegistryEventType = "NODE_DESCRIPTORS_CHANGED" | "NODE_AVAILABILITY_CHANGED";
+
+export interface NodeRegistryEventMessage {
+  channel: "NODE_REGISTRY";
+  type: NodeRegistryEventType;
+  /** Present on NODE_AVAILABILITY_CHANGED: only the entries that changed, keyed by node id. */
+  availability?: NodeAvailabilityMap;
+}
 
 export interface ProcessorEventMessage {
   channel: "PROCESSOR";
@@ -141,6 +159,7 @@ function buildWsUrl(token: string | null): string {
 
 type PipelineEventListener = (event: PipelineEventMessage) => void;
 type ProcessorEventListener = (event: ProcessorEventMessage) => void;
+type NodeRegistryEventListener = (event: NodeRegistryEventMessage) => void;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -148,9 +167,10 @@ let reconnectAttempts = 0;
 let currentToken: string | null = null;
 const pipelineListeners = new Set<PipelineEventListener>();
 const processorListeners = new Set<ProcessorEventListener>();
+const nodeRegistryListeners = new Set<NodeRegistryEventListener>();
 
 function totalListeners(): number {
-  return pipelineListeners.size + processorListeners.size;
+  return pipelineListeners.size + processorListeners.size + nodeRegistryListeners.size;
 }
 
 function ensureConnection() {
@@ -174,6 +194,10 @@ function ensureConnection() {
       if (event && event.channel === "PROCESSOR") {
         for (const listener of processorListeners) {
           listener(event as ProcessorEventMessage);
+        }
+      } else if (event && event.channel === "NODE_REGISTRY") {
+        for (const listener of nodeRegistryListeners) {
+          listener(event as NodeRegistryEventMessage);
         }
       } else {
         for (const listener of pipelineListeners) {
@@ -273,6 +297,24 @@ export function subscribeProcessorEvents(listener: ProcessorEventListener, token
   return subscribe(
     () => processorListeners.add(listener),
     () => processorListeners.delete(listener),
+    token,
+  );
+}
+
+/**
+ * Subscribe to node-registry changes.
+ *
+ * This is what stops the palette lying. Without it the editor fetches the registry once at mount and
+ * never looks again, so a worker that connects after the tab opened stays invisible until someone
+ * presses F5 - which is exactly the experience node self-registration exists to remove.
+ */
+export function subscribeNodeRegistryEvents(
+  listener: NodeRegistryEventListener,
+  token: string | null = null,
+): () => void {
+  return subscribe(
+    () => nodeRegistryListeners.add(listener),
+    () => nodeRegistryListeners.delete(listener),
     token,
   );
 }

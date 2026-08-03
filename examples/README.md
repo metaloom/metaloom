@@ -9,9 +9,9 @@ Postgres.
 
 | Module | What it shows |
 |---|---|
-| [`cortex-custom-node`](./cortex-custom-node) | How to **write a custom node** whose result is persisted agnostically into the `asset_json_comp` table via a thin Loom REST call. |
+| [`cortex-custom-node`](./cortex-custom-node) | How to **write a custom node** whose result is persisted agnostically into the `asset_json_comp` table via a thin Loom REST call — and how it **appears in the pipeline editor automatically**. |
 | [`cortex-custom`](./cortex-custom) | How to **assemble a custom Cortex daemon** that *includes* that node and connects to a Loom backend. |
-| [`cortex-python`](./cortex-python) | How to implement a minimal **Cortex worker in Python** that speaks Loom's wire protocol directly — registers, receives `NODE_TASK`s, runs a node, and reports results. |
+| [`cortex-python`](./cortex-python) | How to implement a minimal **Cortex worker in Python** that speaks Loom's wire protocol directly — registers, announces its node contracts, receives `NODE_TASK`s, runs a node, and reports results. |
 
 ## How the two fit together
 
@@ -30,6 +30,10 @@ POST /api/v1/assets/:uuid/json-comps  ──▶  Loom backend  ──▶  asset_
    it in the generic `asset_json_comp` sink keyed by `(asset, node_kind, schema_type, variant)`.
 2. **Assemble an instance** (`cortex-custom`). The daemon registers your node module alongside the
    built-in Cortex nodes, connects to a Loom backend, and runs in the foreground until stopped.
+3. **The node reaches the editor by itself.** After Loom acknowledges the worker's registration, the
+   worker announces what its nodes look like — ports, parameters, labels — and Loom serves those
+   contracts to the pipeline editor next to its own. Nothing is added to Loom and Loom is not
+   rebuilt. See [Reaching the pipeline editor](./cortex-custom-node/README.md#reaching-the-pipeline-editor).
 
 ## The persistence path
 

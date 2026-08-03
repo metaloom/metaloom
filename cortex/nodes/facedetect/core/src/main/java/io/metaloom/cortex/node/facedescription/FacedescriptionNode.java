@@ -32,12 +32,16 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.vertx.core.json.JsonArray;
@@ -47,6 +51,20 @@ import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
 import io.metaloom.video4j.utils.ImageUtils;
 
+@NodeSpec(nodeId = "facedescription", name = "Face Description", icon = "face_retouching_natural", category = NodeCategory.ANALYSIS,
+	description = "Generate textual descriptions of detected faces.",
+	defaultConcurrency = 2,
+	// This node shares FacedetectNodeOptions with the detector, but advertises none of the detection
+	// knobs: it only ever reads the common three. A @ParamDoc on the shared class cannot say that for
+	// one of its two nodes, so each detection field is dropped here instead.
+	parameters = {
+		@ParamOverride(key = "videoChopRate", hidden = true),
+		@ParamOverride(key = "faceClusterMinimum", hidden = true),
+		@ParamOverride(key = "faceClusterEPS", hidden = true),
+		@ParamOverride(key = "videoScaleSize", hidden = true),
+		@ParamOverride(key = "minFaceHeightFactor", hidden = true),
+		@ParamOverride(key = "inspirefacePackPath", hidden = true),
+		@ParamOverride(key = "capabilities", hidden = true) })
 public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 	private static final Logger logger = LoggerFactory.getLogger(FacedescriptionNode.class);
@@ -68,9 +86,12 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 	 * which produced nothing whenever the pipeline author named the detector something else.
 	 * </p>
 	 */
+	@PortDoc(label = "Face Detections",
+		description = "The faces to describe, one element each - typically straight from a facedetect node")
 	public static final InputPort<String> IN_DETECTIONS = InputPort.many("detections", ContentTypeRegistry.DETECTION_FACE, String.class);
 
 	/** One description per input detection, in the same sequence order. */
+	@PortDoc(label = "Descriptions", description = "One description per incoming face, in the same order as the detections")
 	public static final OutputPort<String> OUT_DESCRIPTIONS = OutputPort.many("descriptions", ContentTypeRegistry.TEXT_PLAIN, String.class);
 
 	/** In-heap skip cache of the per-face descriptions, keyed by media path, to avoid re-running the vision LLM within this worker's lifetime.

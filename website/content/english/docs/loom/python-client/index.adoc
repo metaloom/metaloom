@@ -1,0 +1,235 @@
+---
+title: Python Client Usage
+---
+
+The Python client is a synchronous binding for the Loom REST API. It is built entirely
+on the Python standard library and has no third-party dependencies, so it drops into a
+processing script or a container without pulling anything else in.
+
+It requires Python 3.10 or newer.
+
+== Installing
+
+The client lives in the `clients/python/` directory of the source repository and is installed from
+there:
+
+[source,bash]
+----
+pip install ./clients/python
+----
+
+It is not yet published to the Python Package Index.
+
+== Connecting
+
+[source,python]
+----
+from loom_client import LoomClient
+
+with LoomClient(host="localhost", port=8092) as client:
+    client.authenticate("admin", "secret")
+    print(client.rest_info().body().version)
+----
+
+Using the client as a context manager closes the connection when the block ends. If you
+would rather manage it yourself, call `close()`.
+
+You can also read the connection settings from the environment — `LOOM_HOST`,
+`LOOM_PORT`, `LOOM_SCHEME`, `LOOM_TIMEOUT`, `LOOM_TOKEN`, and `LOOM_USER` /
+`LOOM_PASSWORD`:
+
+[source,python]
+----
+client = LoomClient.from_env()
+----
+
+== Authenticating
+
+`authenticate()` logs in and keeps the token for every later call:
+
+[source,python]
+----
+client.authenticate("admin", "secret")
+----
+
+If you already hold a long-lived API token, pass it in directly instead:
+
+[source,python]
+----
+client = LoomClient(host="localhost", port=8092, token=api_token)
+----
+
+== Sending requests
+
+Every method returns a request that has not been sent yet. That is deliberate: it
+leaves room to attach paging and filtering before the call goes out.
+
+[source,python]
+----
+users = client.list_users().limit(50).sort("username").body()
+----
+
+There are two ways to finish a request. `body()` gives you the parsed result, which is
+what you usually want. `execute()` gives you the status code and response headers as
+well:
+
+[source,python]
+----
+user = client.load_user(user_uuid).body()
+
+response = client.load_user(user_uuid).execute()
+print(response.status, response.body.username)
+----
+
+== Working with assets
+
+An asset can be addressed either by its identifier or by the SHA-512 of its content.
+Every asset method accepts both, which means a script that has just hashed a file can
+look the asset up without knowing its identifier first:
+
+[source,python]
+----
+asset = client.load_asset("3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d").body()
+same = client.load_asset("cf83e1357eefb8bd...").body()
+----
+
+Creating, updating and deleting:
+
+[source,python]
+----
+from loom_client.models import AssetCreateRequest, AssetUpdateRequest, FileInfo, HashInfo
+
+created = client.create_asset(
+    AssetCreateRequest(
+        hashes=HashInfo(sha512=digest),
+        file=FileInfo(
+            filename="photo.jpg",
+            mime_type="image/jpeg",
+            size=size_in_bytes,
+            origin="import-script",
+        ),
+    )
+).body()
+
+client.update_asset(created.uuid, AssetUpdateRequest(filename="beach.jpg")).execute()
+client.delete_asset(created.uuid).execute()
+----
+
+An asset needs an origin — the request is rejected without one.
+
+== Uploading and downloading
+
+[source,python]
+----
+asset = client.upload_asset("/path/to/photo.jpg", library_uuid=library_uuid).body()
+
+with client.download_asset_binary(asset.uuid).body() as binary:
+    binary.save("/tmp/photo.jpg")
+----
+
+Downloads are streamed, so use the result as a context manager or close it when you are
+done. Uploads are held in memory while they are sent; the limit is 64 MiB by default.
+
+== Paging through results
+
+Listings are paged. `iter()` walks every page for you:
+
+[source,python]
+----
+for asset in client.list_assets().iter(page_size=100):
+    print(asset.uuid)
+----
+
+If you would rather page yourself, each result carries the total count and a cursor:
+
+[source,python]
+----
+page = client.list_assets().limit(100).body()
+print(page.metainfo.total_count)
+
+next_page = client.list_assets().limit(100).from_(page.metainfo.last_uuid).body()
+----
+
+== Filtering and searching
+
+Filters are built with small helpers and can be combined; results must match all of
+them:
+
+[source,python]
+----
+from loom_client import eq, gte
+
+client.list_users().filter(eq("username", "joedoe")).body()
+client.list_assets().filter(gte("size", "1MB")).body()
+----
+
+Full-text search is separate, and takes its own options:
+
+[source,python]
+----
+results = client.search("aurora", types="asset,transcript", limit=50).body()
+
+for hit in results:
+    print(f"{hit.score:.2f}  {hit.title}")
+----
+
+== Tags, tasks and comments
+
+[source,python]
+----
+from loom_client.models import TagCreateRequest
+
+client.tag_asset(asset_uuid, TagCreateRequest(name="holiday", collection="Travel")).body()
+client.untag_asset(asset_uuid, tag_uuid).execute()
+
+for task in client.list_asset_tasks(asset_uuid).body():
+    print(task.title)
+----
+
+A tag always belongs to a collection.
+
+== Handling errors
+
+Anything other than a successful response raises an error chosen by what went wrong, so
+you can catch exactly the case you care about:
+
+[source,python]
+----
+from loom_client import LoomConnectionError, LoomForbiddenError, LoomNotFoundError
+
+try:
+    asset = client.load_asset(asset_uuid).body()
+except LoomNotFoundError:
+    print("no such asset")
+except LoomForbiddenError as e:
+    print(f"not allowed: {e.message}")
+except LoomConnectionError:
+    print("the server could not be reached")
+----
+
+`LoomError` is the base of all of them, so catching it catches everything the client can
+raise. Every error carries the server's own explanation in `message` and the status code
+in `status`.
+
+== Full replacement
+
+Most updates change only the fields you set. Full replacement is different: it requires
+every replaceable property to be present, and the request is rejected if any are
+missing. Load the element first, change what you need, and send the whole thing back:
+
+[source,python]
+----
+user = client.load_user(user_uuid).body()
+user.email = "new@example.com"
+client.replace_user(user_uuid, user).execute()
+----
+
+== Things to be aware of
+
+* Content addressing works for an asset itself, but not for anything nested under it.
+  Tags, tasks, detections and reactions all need the asset's identifier; passing a hash
+  raises an error rather than sending a request that would fail.
+* Most timestamps are ISO-8601 strings, but a few from search are numbers. Passing
+  either through `parse_instant()` gives you a `datetime`.
+* Fields the client does not recognise are preserved rather than dropped, so reading an
+  element, changing one field and saving it back is safe against a newer server.

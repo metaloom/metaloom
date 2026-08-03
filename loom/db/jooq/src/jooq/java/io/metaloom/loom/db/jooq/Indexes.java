@@ -35,6 +35,7 @@ import io.metaloom.loom.db.jooq.tables.JooqFlywaySchemaHistory;
 import io.metaloom.loom.db.jooq.tables.JooqGroup;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
+import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRunItem;
@@ -117,6 +118,7 @@ public class Indexes {
     public static final Index IDX_EMBEDDING_DETECTION_UUID = Internal.createIndex(DSL.name("idx_embedding_detection_uuid"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.DETECTION_UUID }, false);
     public static final Index IDX_MEMORY_DENY_RULE_ENABLED = Internal.createIndex(DSL.name("idx_memory_deny_rule_enabled"), JooqMemoryDenyRule.MEMORY_DENY_RULE, new OrderField[] { JooqMemoryDenyRule.MEMORY_DENY_RULE.ENABLED }, false);
     public static final Index IDX_MEMORY_ENTRY_SCOPE = Internal.createIndex(DSL.name("idx_memory_entry_scope"), JooqMemoryEntry.MEMORY_ENTRY, new OrderField[] { JooqMemoryEntry.MEMORY_ENTRY.SCOPE, JooqMemoryEntry.MEMORY_ENTRY.SCOPE_UUID }, false);
+    public static final Index IDX_NODE_DESCRIPTOR_INSTANCE_NODE_ID = Internal.createIndex(DSL.name("idx_node_descriptor_instance_node_id"), JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE, new OrderField[] { JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE.NODE_ID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE = Internal.createIndex(DSL.name("idx_pipeline_node_task_expired_lease"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_ITEM_UUID = Internal.createIndex(DSL.name("idx_pipeline_node_task_item_uuid"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_RUN_STATE = Internal.createIndex(DSL.name("idx_pipeline_node_task_run_state"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID, JooqPipelineNodeTask.PIPELINE_NODE_TASK.STATE }, false);

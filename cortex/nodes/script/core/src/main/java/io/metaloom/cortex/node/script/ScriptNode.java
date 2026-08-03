@@ -28,6 +28,9 @@ import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
@@ -43,6 +46,7 @@ import io.metaloom.cortex.node.script.engine.ScriptOutputException;
 import io.metaloom.cortex.node.script.engine.ScriptSignal;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompCreateRequest;
@@ -87,6 +91,16 @@ import io.vertx.core.json.JsonObject;
  * the ledger records them.
  * </p>
  */
+@NodeSpec(nodeId = "script", name = "Script", icon = "code", category = NodeCategory.TRANSFORM,
+	description = "Run a small script over the media item and its upstream outputs, and emit any "
+		+ "number of declared outputs - texts, numbers, JSON, timeframes or images.",
+	// The outputs are declared per instance in the 'outputs' parameter; ScriptPortResolver derives
+	// the handles from it, so there is no static output port here at all.
+	dynamicPorts = true,
+	// timeoutMs is hidden on AbstractNodeOptions because almost no contract advertises it. A script
+	// node's wall-clock budget is a first-class authoring knob, so it is re-documented here.
+	parameters = @ParamOverride(key = "timeoutMs", label = "Timeout (ms)",
+		description = "Wall-clock budget per media item", min = "1", order = 110))
 public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements PipelineConfigurable {
 
 	public static final Logger log = LoggerFactory.getLogger(ScriptNode.class);
@@ -94,6 +108,8 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 	public static final String KIND = "script";
 
 	/** The media item, ambient rather than transported - declared so the graph is fully wired. */
+	@PortDoc(label = "Media", required = false,
+		description = "The media item the script runs over. Leave unwired for a script that only reshapes upstream data")
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
 	/**
@@ -106,6 +122,8 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 	 * now expressed by the graph and by the script's own {@code ctx.skip()}.
 	 * </p>
 	 */
+	@PortDoc(label = "Data", required = false,
+		description = "A structured payload from an upstream node, handed to the script as its input data")
 	public static final InputPort<String> IN_DATA = InputPort.one("data", ContentTypeRegistry.STRUCT_JSON, String.class);
 
 	/**
@@ -118,6 +136,8 @@ public class ScriptNode extends AbstractMediaNode<ScriptNodeOptions> implements 
 	 * it never wanted.
 	 * </p>
 	 */
+	@PortDoc(label = "Text", required = false,
+		description = "Text from an upstream node, such as a transcript or extracted document content")
 	public static final InputPort<String> IN_TEXT = InputPort.one("text", ContentTypeRegistry.TEXT_ANY, String.class);
 	/** Schema type of the JSON component this node writes. */
 	public static final String SCHEMA_TYPE = "script";

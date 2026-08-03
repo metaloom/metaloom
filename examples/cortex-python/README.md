@@ -14,6 +14,47 @@ Everything lives in a **single file** — [`daemon.py`](./daemon.py) — with on
 runtime dependency (`websockets`); the REST calls use the Python standard
 library.
 
+
+## Announcing node contracts
+
+After Loom answers `REGISTER` with `REGISTERED`, the daemon sends a `NODE_REGISTRATION` frame
+carrying the contracts in the `NODE_SPECS` dict at the top of `daemon.py`. That is what puts
+`py-hello` in the pipeline editor's palette — without it the node is *runnable but unauthorable*:
+Loom dispatches tasks to it happily, but the editor cannot place it and the graph parser rejects it
+as an unknown type.
+
+Java workers derive this by reflecting over their nodes' port constants. There is nothing to reflect
+over in Python, and that is the point: **the wire format is plain JSON and language-agnostic**, so a
+hand-written dict is a first-class citizen. The fields are exactly the descriptor Loom serves from
+`GET /api/v1/pipeline/node-descriptors` — one contract type, in both directions.
+
+```python
+NODE_SPECS = {
+    "py-hello": {
+        "nodeId": "py-hello",          # the node TYPE id, what a pipeline's `type` selects
+        "version": "1.0.0",
+        "name": "Python Hello",
+        "category": "ANALYSIS",
+        "inputPorts":  [{"id": "media", "contentType": "media/*", "cardinality": "ONE", "required": True}],
+        "outputPorts": [{"id": "file_size", "contentType": "scalar/integer", "cardinality": "ONE", "required": True}],
+        ...
+    }
+}
+```
+
+The reply, `NODE_REGISTRATION_ACK`, lists what was adopted and why anything else was not — and the
+daemon **logs every rejection**. Do not skip that part when adapting this file: a silent ack is how
+you end up editing a node's ports, seeing no effect in the editor, and losing an afternoon.
+
+Only the kinds in `CORTEX_NODE_KINDS` are announced, so the announced set and the runnable set cannot
+drift. A kind with no entry in `NODE_SPECS` logs a warning and stays unauthorable.
+
+⚠️ **`nodeId` means three different things in this codebase.** In `NODE_SPECS` it is the node *type*
+(`py-hello`). In the `REGISTER` frame it is this *worker's* id. In `post_node_result` it is the
+*graph-instance* id — the node's name inside one pipeline. The REST ledger payload at the bottom of
+`daemon.py` uses that third meaning and is deliberately left alone.
+
+
 ## How a worker talks to Loom
 
 A Cortex worker uses two planes, and this daemon uses both:

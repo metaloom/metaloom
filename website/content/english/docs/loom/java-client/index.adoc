@@ -2,7 +2,7 @@
 title: Java Client Usage
 ---
 
-The `loom-rest-client` module provides a typed HTTP client for JVM applications.
+The `loom-client-rest` module provides a typed HTTP client for JVM applications.
 
 == Maven Dependency
 
@@ -10,122 +10,171 @@ The `loom-rest-client` module provides a typed HTTP client for JVM applications.
 ----
 <dependency>
     <groupId>io.metaloom.loom.client</groupId>
-    <artifactId>loom-rest-client</artifactId>
+    <artifactId>loom-client-rest</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
 ----
 
 == Creating a Client
 
-Use the fluent builder to configure and construct the client:
+Use the builder to configure and construct the client:
 
 [source,java]
 ----
 LoomHttpClient client = LoomHttpClient.builder()
-    .hostname("localhost")
-    .port(8092)
+    .setHostname("localhost")
+    .setPort(8092)
     .build();
 ----
+
+Connect, read and write timeouts default to ten seconds each and can be changed with
+`setConnectTimeout`, `setReadTimeout` and `setWriteTimeout`.
 
 == Authentication
 
 [source,java]
 ----
-// Login and store the token
-AuthLoginRequest loginRequest = new AuthLoginRequest()
-    .setUsername("admin")
-    .setPassword("secret");
-
-AuthLoginResponse loginResponse = client.login(loginRequest).sync();
-client.setToken(loginResponse.getToken());
+AuthLoginResponse login = client.login("admin", "secret").sync().body();
+client.setToken(login.getToken());
 ----
 
 The token is automatically included as a `Bearer` header in all subsequent requests.
 
-== Working with Assets
+== Sending Requests
+
+Every method returns a request that has not been sent yet, which is what allows paging
+and filtering to be attached afterwards. Calling `sync()` sends it and returns a
+response wrapper; `body()` unwraps the model:
 
 [source,java]
 ----
-// Create an asset
-AssetCreateRequest createReq = new AssetCreateRequest()
-    .setFilename("photo.jpg")
-    .setSha512("abc123...");
-AssetResponse asset = client.createAsset(createReq).sync();
+UserResponse user = client.loadUser(userUuid).sync().body();
 
-// Load an asset by UUID
-AssetResponse found = client.loadAsset(UUID.fromString(asset.getUuid())).sync();
-
-// Update an asset
-AssetUpdateRequest updateReq = new AssetUpdateRequest()
-    .setDescription("My photo");
-client.updateAsset(UUID.fromString(asset.getUuid()), updateReq).sync();
-
-// Delete an asset
-client.deleteAsset(UUID.fromString(asset.getUuid())).sync();
-
-// List assets (paged)
-AssetListResponse list = client.listAssets().sync();
+LoomClientResponse<UserResponse> response = client.loadUser(userUuid).sync();
+System.out.println(response.statusCode());
 ----
+
+== Working with Assets
+
+An asset can be addressed by its UUID or by the SHA-512 of its content:
+
+[source,java]
+----
+AssetResponse byUuid = client.loadAsset(assetUuid).sync().body();
+AssetResponse byHash = client.loadAsset(SHA512.fromString(digest)).sync().body();
+----
+
+Creating, updating and deleting:
+
+[source,java]
+----
+AssetCreateRequest createReq = new AssetCreateRequest();
+createReq.setHashes(new HashInfo().setSHA512(SHA512.fromString(digest)));
+createReq.setFile(new FileInfo()
+    .setFilename("photo.jpg")
+    .setMimeType("image/jpeg")
+    .setSize(sizeInBytes)
+    .setOrigin("import-job"));
+
+AssetResponse asset = client.createAsset(createReq).sync().body();
+
+AssetUpdateRequest updateReq = new AssetUpdateRequest().setFilename("beach.jpg");
+client.updateAsset(asset.getUuid(), updateReq).sync();
+
+client.deleteAsset(asset.getUuid()).sync();
+
+AssetListResponse list = client.listAssets().addLimit(50).sync().body();
+----
+
+An asset requires an origin — the request is rejected without one.
 
 == Working with Tags
 
+A tag always belongs to a collection.
+
 [source,java]
 ----
-TagCreateRequest tagReq = new TagCreateRequest().setName("holiday");
-TagResponse tag = client.createTag(tagReq).sync();
+TagCreateRequest tagReq = new TagCreateRequest()
+    .setName("holiday")
+    .setCollection("Travel");
 
-// Add tag to asset
-client.addTagToAsset(assetUuid, UUID.fromString(tag.getUuid())).sync();
+TagResponse tag = client.tagAsset(assetUuid, tagReq).sync().body();
 
-// Remove tag from asset
-client.removeTagFromAsset(assetUuid, UUID.fromString(tag.getUuid())).sync();
+client.untagAsset(assetUuid, tag.getUuid()).sync();
 ----
 
 == Working with Users, Groups and Roles
 
 [source,java]
 ----
-// Create user
-UserCreateRequest userReq = new UserCreateRequest()
-    .setUsername("alice")
-    .setPassword("s3cret");
-UserResponse user = client.createUser(userReq).sync();
+UserCreateRequest userReq = new UserCreateRequest().setUsername("alice");
+UserResponse user = client.createUser(userReq).sync().body();
 
-// Create group and assign user
 GroupCreateRequest groupReq = new GroupCreateRequest().setName("editors");
-GroupResponse group = client.createGroup(groupReq).sync();
+GroupResponse group = client.createGroup(groupReq).sync().body();
 
-// Create role and assign permissions
 RoleCreateRequest roleReq = new RoleCreateRequest().setName("asset-editor");
-RoleResponse role = client.createRole(roleReq).sync();
+RoleResponse role = client.createRole(roleReq).sync().body();
+----
+
+Permissions reach a user through a group that holds a role.
+
+== Paging and Filtering
+
+[source,java]
+----
+UserListResponse page = client.listUsers()
+    .addLimit(50)
+    .sortBy(LoomSortKey.USERNAME)
+    .sync()
+    .body();
+
+// Continue from the last element of the previous page
+UserListResponse next = client.listUsers()
+    .addLimit(50)
+    .addFrom(page.getMetainfo().getLastUuid())
+    .sync()
+    .body();
 ----
 
 == Pipelines
 
 [source,java]
 ----
-// Create a pipeline definition
 PipelineCreateRequest pipelineReq = new PipelineCreateRequest()
     .setName("ingest-pipeline")
     .setEnabled(true);
-PipelineResponse pipeline = client.createPipeline(pipelineReq).sync();
+PipelineResponse pipeline = client.createPipeline(pipelineReq).sync().body();
 
-// List pipelines
-PipelineListResponse pipelines = client.listPipelines().sync();
+PipelineListResponse pipelines = client.listPipelines().sync().body();
 ----
 
-== Async Usage
+== Asynchronous Usage
 
-All methods return a `LoomClientRequest<T>` that supports both synchronous `.sync()` and reactive `.rx()` usage:
+Requests can also be sent asynchronously, returning an RxJava `Single`:
 
 [source,java]
 ----
 // Synchronous
-AssetResponse asset = client.loadAsset(uuid).sync();
+AssetResponse asset = client.loadAsset(assetUuid).sync().body();
 
-// Reactive (RxJava)
-client.loadAsset(uuid).rx()
-    .subscribe(a -> System.out.println("Loaded: " + a.getUuid()));
+// Asynchronous
+client.loadAsset(assetUuid).async()
+    .subscribe(response -> System.out.println("Loaded: " + response.body().getUuid()));
+----
+
+== Error Handling
+
+A response other than 2xx throws a `LoomClientException` carrying the status code and
+the server's message:
+
+[source,java]
+----
+try {
+    client.loadAsset(assetUuid).sync().body();
+} catch (LoomClientException e) {
+    System.out.println(e.getStatusCode() + ": " + e.getStatusMsg());
+}
 ----
 
 == Closing the Client
@@ -134,7 +183,7 @@ The client implements `AutoCloseable`:
 
 [source,java]
 ----
-try (LoomHttpClient client = LoomHttpClient.builder().hostname("localhost").build()) {
+try (LoomHttpClient client = LoomHttpClient.builder().setHostname("localhost").build()) {
     // use client
 }
 ----

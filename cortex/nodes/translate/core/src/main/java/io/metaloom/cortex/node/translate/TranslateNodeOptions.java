@@ -3,6 +3,7 @@ package io.metaloom.cortex.node.translate;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.cortex.llm.AbstractLlmNodeOptions;
 
@@ -42,19 +43,33 @@ public class TranslateNodeOptions extends AbstractLlmNodeOptions<TranslateNodeOp
 		${text}
 		""";
 
+	// The orders interleave these with openaiUrl (100) and contextWindow (110) inherited from
+	// AbstractLlmNodeOptions, which is the order TranslateDescriptorProvider - the golden contract -
+	// declares. Field-declaration order alone would put both inherited knobs ahead of every field here.
+	@ParamDoc(label = "Target Language", description = "Language to translate into; also the variant the result is stored under", order = 40)
 	private String targetLanguage = DEFAULT_TARGET_LANGUAGE;
 
 	/** {@code auto} lets the model work it out; naming it helps when the source is short or mixed. */
+	@ParamDoc(label = "Source Language", description = "Language of the input, or 'auto' to let the model work it out", order = 50)
 	private String sourceLanguage = DEFAULT_SOURCE_LANGUAGE;
 
+	@ParamDoc(label = "Model", description = "Model id asked to translate; also recorded as the producer version", order = 60)
 	private String model = DEFAULT_MODEL;
 
+	// omitDefault reproduces the hand-written descriptor exactly: it advertised no default for this
+	// field even though the field has one. Preserving that is the sweep's job; deciding whether the
+	// editor should pre-fill DEFAULT_PROMPT_TEMPLATE is a separate, reviewable change.
+	@ParamDoc(label = "Prompt Template", description = "Instruction sent with each chunk; must contain the ${text} placeholder",
+		order = 120, omitDefault = true)
 	private String promptTemplate = DEFAULT_PROMPT_TEMPLATE;
 
 	/** Upper bound on one request. Larger documents are split on paragraph and sentence boundaries. */
+	@ParamDoc(label = "Max Chunk Characters",
+		description = "Longer input is split on paragraph and sentence boundaries into chunks of this size", min = "200", order = 130)
 	private int maxChunkChars = 8000;
 
 	/** Upper bound on the whole input, so one pathological asset cannot spend the worker's evening. */
+	@ParamDoc(label = "Max Characters", description = "Upper bound on the total input text", min = "1", order = 140)
 	private int maxChars = 200000;
 
 	public String getTargetLanguage() {

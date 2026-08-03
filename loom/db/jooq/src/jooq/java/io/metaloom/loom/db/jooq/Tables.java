@@ -51,6 +51,8 @@ import io.metaloom.loom.db.jooq.tables.JooqLibraryCollection;
 import io.metaloom.loom.db.jooq.tables.JooqLoom;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
+import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptor;
+import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
@@ -390,6 +392,17 @@ public class Tables {
      * Agent memory bank: scoped markdown notes addressed by a path-like id
      */
     public static final JooqMemoryEntry MEMORY_ENTRY = JooqMemoryEntry.MEMORY_ENTRY;
+
+    /**
+     * A node contract announced by a Cortex worker, kept so the node stays
+     * authorable while no worker is online
+     */
+    public static final JooqNodeDescriptor NODE_DESCRIPTOR = JooqNodeDescriptor.NODE_DESCRIPTOR;
+
+    /**
+     * Which worker claims which node contract, and at which version
+     */
+    public static final JooqNodeDescriptorInstance NODE_DESCRIPTOR_INSTANCE = JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE;
 
     /**
      * The table <code>public.person</code>.

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import io.metaloom.cortex.api.node.spec.ParamDoc;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.metaloom.cortex.cloud.CloudProviderId;
@@ -29,14 +30,40 @@ public abstract class CloudSourceNodeOptions<T extends CloudSourceNodeOptions<T>
 	public static final List<String> DEFAULT_EMIT_STATES =
 		List.of(FileState.NEW.name(), FileState.MODIFIED.name(), FileState.MOVED.name());
 
+	// 🔴 The prose below is gdrive-source's, because @NodeSpec declares one node id and CloudSourceNode
+	// declares gdrive-source. onedrive-source words six of these differently ("Drive ID" rather than
+	// "Shared drive ID", "Include deleted files" rather than "Include trashed files", ...) and there is
+	// no second annotation to carry that, so its hand-written descriptor stays. See the sweep report.
+	@ParamDoc(label = "Shared drive ID", description = "Shared drive to read from. Leave empty for the connected account's own "
+		+ "My Drive. Credentials are configured on the worker, not here")
 	private String driveId;
+
+	@ParamDoc(label = "Folder ID", description = "Folder to scan, taken from its Drive URL. Empty scans the whole drive")
 	private String folderId;
+
+	@ParamDoc(label = "Include sub-folders", description = "Descend into folders below the selected one")
 	private boolean recursive = true;
+
+	@ParamDoc(label = "Maximum depth", description = "How many folder levels to descend. 0 means no limit")
 	private int maxDepth;
+
+	@ParamDoc(label = "File suffixes", description = "Comma-separated suffixes to accept, e.g. mp4,mkv,jpg. Empty accepts everything")
 	private String suffixes;
+
+	@ParamDoc(label = "MIME types", description = "Comma-separated MIME type prefixes to accept, e.g. video/,image/. Drive "
+		+ "reports a real type, so this also catches files with a missing or misleading extension")
 	private String mimeTypes;
+
+	@ParamDoc(label = "Emit states", description = "Which changes flow downstream. Renames and moves are detected, because a "
+		+ "Drive file keeps its identity when it is moved",
+		values = { "NEW", "MODIFIED", "MOVED", "PRESENT", "DELETED" })
 	private List<String> emitStates = new ArrayList<>(DEFAULT_EMIT_STATES);
+
+	@ParamDoc(label = "Use the change feed", description = "Ask Drive what changed instead of listing the folders. Much faster on large "
+		+ "drives. A full scan still runs periodically, so nothing is missed")
 	private boolean useDelta = true;
+
+	@ParamDoc(label = "Include trashed files", description = "Keep files that are in the Drive trash")
 	private boolean includeTrashed;
 
 	/**

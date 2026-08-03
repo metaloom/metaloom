@@ -26,7 +26,7 @@ public class SceneLayoutDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("scene-layout")
+				.setNodeId("scene-layout")
 				.setName("Scene Layout")
 				.setDescription(
 					"Relate detected objects to one another using a depth map: foreground/background bands plus pairwise relations such as "

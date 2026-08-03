@@ -25,8 +25,12 @@ import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.PortOutput;
+import io.metaloom.cortex.api.node.spec.NodeSpec;
+import io.metaloom.cortex.api.node.spec.ParamOverride;
+import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.pipeline.api.node.MediaSourceNode;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
+import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.cortex.pipeline.core.node.AbstractPipelineNode;
 import io.metaloom.fs.FileIndexStore;
 import io.metaloom.fs.FileInfo;
@@ -55,6 +59,17 @@ import io.reactivex.rxjava3.core.Flowable;
  * <p>Corresponds to the {@code filesystem-source} node descriptor in
  * {@code cortex-source-api}.</p>
  */
+@NodeSpec(nodeId = "filesystem-source", name = "Filesystem Source", icon = "folder_open", category = NodeCategory.SOURCE,
+	description = "Reads media files from the filesystem as pipeline input.",
+	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
+	// A source node implements MediaSourceNode rather than extending AbstractMediaNode, so there is no
+	// generic superclass for the harvester to read the options type from.
+	optionsClass = FilesystemSourceNodeOptions.class,
+	// No source descriptor has ever advertised these two; they are media-processing knobs.
+	parameters = {
+		@ParamOverride(key = "processIncomplete", hidden = true),
+		@ParamOverride(key = "retryFailed", hidden = true)
+	})
 public class FilesystemSourceNode extends AbstractPipelineNode implements MediaSourceNode {
 
 	private static final Logger log = LoggerFactory.getLogger(FilesystemSourceNode.class);
@@ -70,6 +85,8 @@ public class FilesystemSourceNode extends AbstractPipelineNode implements MediaS
 	 * an image- or video-specific consumer, with the real check deferred to the runtime boundary.
 	 * </p>
 	 */
+	@PortDoc(label = "Media", description = "Every file the differential scan emitted. The concrete kind is unknown until the file is opened, "
+		+ "so this is the family wildcard")
 	public static final OutputPort<String> OUT_MEDIA = OutputPort.one("media", ContentTypeRegistry.MEDIA_ANY, String.class);
 
 	private final LoomMediaLoader mediaLoader;

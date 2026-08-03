@@ -5,6 +5,7 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -14,13 +15,18 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.cortex.api.node.spec.NodeSpecCatalog;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.api.option.LoomClientOptions;
 import io.metaloom.cortex.common.metrics.CortexMetrics;
+import io.metaloom.loom.nodes.spec.NodeDescriptor;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.SystemStatusInfo;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.SegmentTask;
+import io.metaloom.loom.rest.model.processor.message.NodeRegistration;
+import io.metaloom.loom.rest.model.processor.message.NodeRegistrationAck;
+import io.metaloom.loom.rest.model.processor.message.NodeRegistrationRejection;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceItemsAckMessage;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
@@ -396,6 +402,101 @@ public class LoomControlChannel {
 	}
 
 	/**
+	 * Tell Loom what this worker's nodes look like, so they can be authored in the pipeline editor.
+	 *
+	 * <p>
+	 * Sent <em>after</em> {@code REGISTERED} rather than as part of {@code REGISTER}: registration is a
+	 * cheap synchronous in-memory operation on Loom's side and has to stay that way, while ingesting
+	 * these contracts writes to Postgres. Putting both on one path would turn a reconnect storm into a
+	 * database problem. The window where this worker is online but its contracts are not yet ingested
+	 * is harmless, because dispatch reads the whitelist and never the descriptor registry.
+	 * </p>
+	 *
+	 * <p>
+	 * Announcing is not what makes a node runnable — {@link #announcedNodeWhitelist()} still does that.
+	 * A worker whose announcement is refused keeps executing exactly the same work; it just does not
+	 * contribute a palette entry.
+	 * </p>
+	 */
+	private void sendNodeRegistration() {
+		if (!options.isNodeSpecAnnounceEnabled()) {
+			log.info("Node spec announcement is disabled; this worker's custom nodes will not appear in the editor");
+			return;
+		}
+		List<NodeDescriptor> descriptors;
+		try {
+			// Intersecting with what this worker may run is what keeps the announced set and the
+			// runnable set from drifting - and it is also the mitigation for the class-loading hazard,
+			// since only these nodes get their port constants read.
+			descriptors = NodeSpecCatalog.harvestRunnable(runnableNodeIds(), getClass().getClassLoader());
+		} catch (RuntimeException | LinkageError e) {
+			log.warn("Could not harvest node contracts; this worker will run normally but announce nothing", e);
+			return;
+		}
+		if (descriptors.isEmpty()) {
+			log.debug("No node contracts to announce");
+			return;
+		}
+		NodeRegistration registration = new NodeRegistration(nodeId, descriptors);
+		sendMessage(new ProcessorMessage(ProcessorMessageType.NODE_REGISTRATION, JsonObject.mapFrom(registration)));
+		log.info("Announced {} node contracts to Loom", descriptors.size());
+	}
+
+	/**
+	 * The node types this worker may actually execute, after its whitelist and blacklist.
+	 *
+	 * <p>
+	 * {@link #announcedNodeWhitelist()} returns null for "unrestricted", which is right on the
+	 * registration frame and useless here — an announcement needs the concrete set.
+	 * </p>
+	 */
+	private java.util.Set<String> runnableNodeIds() {
+		java.util.Set<String> runnable;
+		try {
+			runnable = new java.util.LinkedHashSet<>(nodeFactory.get().registeredTypes());
+		} catch (Exception e) {
+			log.warn("Could not determine executable node types; announcing nothing", e);
+			return java.util.Set.of();
+		}
+		java.util.Set<String> whitelist = options.getNodeWhitelist();
+		if (whitelist != null && !whitelist.isEmpty()) {
+			runnable.retainAll(whitelist);
+		}
+		java.util.Set<String> blacklist = options.getNodeBlacklist();
+		if (blacklist != null) {
+			runnable.removeAll(blacklist);
+		}
+		return runnable;
+	}
+
+	/**
+	 * Report what Loom made of the announcement.
+	 *
+	 * <p>
+	 * Every rejection is logged by name and reason. A silent ack is how an author ends up editing a
+	 * forked node's ports, seeing no effect in the editor, and losing an afternoon to it — and it is
+	 * also what every custom-node author would copy from the example worker.
+	 * </p>
+	 */
+	private void handleNodeRegistrationAck(ProcessorMessage message) {
+		if (message.getBody() == null) {
+			return;
+		}
+		NodeRegistrationAck ack = message.getBody().mapTo(NodeRegistrationAck.class);
+		log.info("Loom accepted {} node contracts", ack.getAccepted().size());
+		for (NodeRegistrationRejection rejection : ack.getRejected()) {
+			if (rejection.getReason() == NodeRegistrationRejection.Reason.BUILTIN) {
+				// Routine: Loom ships its own contract for this node and it wins. Worth saying once,
+				// because it is the answer to "why did my edit have no effect".
+				log.info("Node '{}': {}", rejection.getNodeId(), rejection.getMessage());
+			} else {
+				log.warn("Node '{}' was not adopted ({}): {}", rejection.getNodeId(), rejection.getReason(),
+					rejection.getMessage());
+			}
+		}
+	}
+
+	/**
 	 * What this worker tells Loom it can run.
 	 *
 	 * <p>Defaults to what the node factory actually has, so a worker cannot advertise
@@ -484,6 +585,12 @@ public class LoomControlChannel {
 			case REGISTERED:
 				registered.set(true);
 				reconnectAttempts.set(0);
+				// Only now, and on every reconnect: Loom drops the ANNOUNCED links for a worker it has
+				// not heard from, and re-announcing an unchanged set is cheap and silent on its side.
+				sendNodeRegistration();
+				break;
+			case NODE_REGISTRATION_ACK:
+				handleNodeRegistrationAck(message);
 				break;
 			case HEARTBEAT_ACK:
 				lastHeartbeatAckAt = System.currentTimeMillis();

@@ -20,7 +20,7 @@ public class HashDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("md5")
+				.setNodeId("md5")
 				.setName("MD5 Hash")
 				.setDescription("Compute the MD5 hash of the media file.")
 				.setIcon("fingerprint")
@@ -37,7 +37,7 @@ public class HashDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("sha256")
+				.setNodeId("sha256")
 				.setName("SHA-256 Hash")
 				.setDescription("Compute the SHA-256 hash of the media file.")
 				.setIcon("fingerprint")
@@ -54,7 +54,7 @@ public class HashDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("sha512")
+				.setNodeId("sha512")
 				.setName("SHA-512 Hash")
 				.setDescription("Compute the SHA-512 hash of the media file.")
 				.setIcon("fingerprint")
@@ -71,7 +71,7 @@ public class HashDescriptorProvider implements NodeDescriptorProvider {
 				.setEvents(STANDARD_EVENTS),
 
 			new NodeDescriptor()
-				.setKind("chunk-hash")
+				.setNodeId("chunk-hash")
 				.setName("Chunk Hash")
 				.setDescription("Compute a hash over fixed-size chunks of the media file.")
 				.setIcon("fingerprint")

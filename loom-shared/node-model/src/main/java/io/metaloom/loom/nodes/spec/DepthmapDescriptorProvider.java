@@ -23,7 +23,7 @@ public class DepthmapDescriptorProvider implements NodeDescriptorProvider {
 	public List<NodeDescriptor> getDescriptors() {
 		return List.of(
 			new NodeDescriptor()
-				.setKind("depthmap")
+				.setNodeId("depthmap")
 				.setName("Depth Map")
 				.setDescription(
 					"Estimate a per-pixel depth map from a single image. The map is written to a local cache as a 16-bit PNG where the brightest "

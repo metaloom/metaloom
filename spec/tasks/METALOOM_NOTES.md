@@ -8,6 +8,19 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
+- Add a way to visualize the pipeline results in the UI. (e.g. render thumbnails for debugging. Make it possible to play,read,view results.)
+- Add way to add trigger points to "halt" processing.
+ It should be possible to step thru processing pipeline to debug the processor manually
+
+- Video Manipulation Node: the video half of
+  [concept/NODE_IMAGE_MANIPULATION_PLAN.md](../concept/NODE_IMAGE_MANIPULATION_PLAN.md) — autorotate
+  by container rotation side-data, crop, aspect ratio fix, VVS (blurred pad for vertical video).
+  Should reuse that node's `ManipulationGeometry` and `watermark`'s `FfmpegRunner`; would also close
+  watermark's open "rotation/SAR is not handled" item. *(The image half is now specified.)*
+- Focalpoint node? — partly answered: the image-manipulation node's `SUBJECT_CROP` frames upstream
+  `detection/*` boxes, and an open item there proposes emitting the subject centroid as a
+  `focalPoint` output instead of building a second node. Still open for saliency without detections.
+- Chapter extraction from video?
 - Static code analysis
 - code review markdown file with rules
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?

@@ -228,6 +228,10 @@ public interface DaoProvider extends DaoCollection {
 		return daos().cortexInstanceDao();
 	}
 
+	default io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao nodeDescriptorDao() {
+		return daos().nodeDescriptorDao();
+	}
+
 	// System
 
 	default LoomDao loomDao() {
