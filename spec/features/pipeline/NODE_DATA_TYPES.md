@@ -294,6 +294,7 @@ the same shape `watermark` uses for its image/video branch.
 | `imagegen` | `prompt : text/*` *(opt)*, `media : media/image` *(opt)* | `image : artifact/image`, `flag : scalar/string` |
 | `videogen` | `prompt : text/*` *(opt)*, `media : media/image` *(opt)* | `video : artifact/video`, `flag : scalar/string` |
 | `watermark` | `media : media/*` | `image : artifact/image`, `video : artifact/video`, `flag : scalar/string` |
+| `image-manipulation` | `image : media/image`, `detections : detection/*` *(MANY, opt)* | `image : artifact/image`, `geometry : struct/json`, `flag : scalar/string` |
 | `script` | `media : media/*` *(opt)*, `data : struct/json` *(opt)*, `text : text/*` *(opt)* | **dynamic** — from the `outputs` option (§3.4) |
 
 `fingerprint.is_complete` and `thumbnail.is_complete` exist so those nodes stop hard-coding an

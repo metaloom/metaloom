@@ -74,6 +74,7 @@ The built-in nodes fall into four categories.
 | link:scene-detection/[Scene Detection] (`scene-detection`) | Video | Optical-flow scene boundaries
 | link:dominant-color/[Dominant Colour] (`dominant-color`) | Image (optionally with detections connected) | Work out which colours a picture is made of, as HEX and in words (English and German)
 | link:watermark/[Watermark] (`watermark`) | Image, Video | Stamp your own logo or mark onto the asset at a relative position — the original is never modified
+| link:image-manipulation/[Image Manipulation] (`image-manipulation`) | Image (optionally with detections connected) | Straighten by EXIF orientation, crop, reframe to a target ratio (including the blurred vertical-video fix) and resize — the original is never modified
 |===
 
 [#pipeline]
@@ -114,7 +115,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`
 | Google Drive, OneDrive or SharePoint credentials | `gdrive-source`, `onedrive-source`
 | A reachable OpenAI-compatible language model endpoint | `llm`, `translate`, `filter`
-| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `metadata`, `filesystem-source`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), dedup
+| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `metadata`, `filesystem-source`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), `image-manipulation`, dedup
 |===
 
 Pin the heavy kinds to dedicated or GPU workers via `CORTEX_NODE_WHITELIST` — see
@@ -188,6 +189,13 @@ link:watermark/[`watermark`] stamps a logo or mark you supply onto an asset at a
 one setting works across a library of mixed resolutions. Stills are composited in-process; video goes
 through the `ffmpeg` overlay filter, which re-encodes the picture but copies the audio through
 untouched. The original file is never modified — the marked copy is a new artifact.
+
+Image manipulation::
+link:image-manipulation/[`image-manipulation`] straightens, crops and reframes a picture in one pass —
+applying its EXIF orientation so it is upright, cutting it to a fixed region or one built around the
+faces connected to its `detections` port, forcing a target aspect ratio (padding vertical pictures
+with a blurred enlargement of themselves rather than black bars), and bounding the result's size. No
+model or external tool is needed, and the original file is never modified.
 
 Text-to-speech::
 link:tts/[`tts`] turns text connected to its `text` port — an link:llm/[`llm`] summary, a caption, or

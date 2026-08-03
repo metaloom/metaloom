@@ -18,6 +18,7 @@
 > | Node | Spec |
 > |---|---|
 > | `metadata` — EXIF/IPTC/XMP/container ingest onto Dublin Core | [metadata/METADATA_OVERVIEW.md](metadata/METADATA_OVERVIEW.md) |
+> | `image-manipulation` — EXIF autorotate, crop, subject crop, aspect/VVS, resize | [image-manipulation/NODE_IMAGE_MANIPULATION.md](image-manipulation/NODE_IMAGE_MANIPULATION.md) |
 > | `tika` — document body text | [SERVICE_TIKA.md](SERVICE_TIKA.md) |
 > | `facedetect` / `facedescription` — the face model and licensing landscape | [facedetect/FACEDETECTION_OVERVIEW.md](facedetect/FACEDETECTION_OVERVIEW.md) |
 >
@@ -144,8 +145,8 @@ shared `nodeId` / `producerVersion` / `confidence` / `meta`.
 Nodes that produce **new bytes** write them to `metaPath/<name>_bin/<segment>/<sha512>.<ext>`
 (`HashUtils.segmentPath`) and record the ledger with **no `result_ref`**. Live artifact directories:
 `thumbnail_bin`, `tts_bin`, `imagegen_bin`, `videogen_bin`, `depthmap_bin`, `watermark_bin`,
-`script_bin` (plus `s3_bin`, `gdrive_bin` and `onedrive_bin` — the remote materializers' download
-caches, which hold fetched inputs rather than produced outputs).
+`imagemanip_bin`, `script_bin` (plus `s3_bin`, `gdrive_bin` and `onedrive_bin` — the remote
+materializers' download caches, which hold fetched inputs rather than produced outputs).
 
 Loom has **no byte-ingest endpoint for produced media**. Wiring the artifact output port into
 `s3-sink` is the only way to keep the bytes off the worker. 🔴 The sink must run on the **same
@@ -155,7 +156,7 @@ worker** as the producer and nothing enforces that (§10).
 
 ## 3. Node Reference
 
-**30 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
+**31 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
 leftover directory with no `pom.xml` and is not a module — do not list or resurrect it.
 
 Layout is `cortex/nodes/<name>/core/` except `filesystem-source`, `s3-source` and `cloud-source`,
@@ -195,6 +196,7 @@ Port ids only; content types and cardinality are in
 | `imagegen` | `ImageGenNode` · image-generation | image | `prompt`, `media` → `image`, `flag` | ledger only | sidecar `9200`/`9210` |
 | `videogen` | `VideoGenNode` · video-generation | image | `prompt`, `media` → `video`, `flag` | ledger only | sidecar `9220` |
 | `watermark` | `WatermarkNode` · watermark | image, video | `media` → `image` \| `video`, `flag` | ledger only | **`ffmpeg`/`ffprobe`** |
+| `image-manipulation` | `ImageManipulationNode` · image-manipulation | image | `image`, `detections` (MANY, opt) → `image`, `geometry`, `flag` | ledger only | **none** (ImageIO/Graphics2D) |
 | `script` | `ScriptNode` · script | any with a compiled script | `media`, `data`, `text` (all opt) → **declared per instance** | `asset_json_comp` + `asset_segment_comp` | GraalJS (in-process) |
 | `sha512-dedup` | `HashDedupNode` · dedup | any with SHA-512 | — (side effect: moves files) | ledger only | — |
 | `fingerprint-dedup` | `FingerprintDedupNode` · dedup | video | — | `dedup_group` | — |
@@ -299,6 +301,7 @@ Two independent layers — confusing them is a classic mistake.
 |---|---|
 | `dominant-color` | `absolutePath \| sha256(wired detection payloads + every result-affecting option)` — **the model to copy** |
 | `watermark` | `absolutePath \| sha256(watermark bytes, relX/relY, scale, opacity, codec, crf, preset)`, re-checked with `Files.exists` |
+| `image-manipulation` | `absolutePath \| sha256(every result-affecting option + the surviving subject boxes)` — the boxes belong in the key because they change the output pixels; re-checked with `Files.exists` |
 | `script` | `absolutePath \| scriptHash` |
 | `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
 | `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
@@ -321,33 +324,33 @@ Avro indexes instead and `s3-sink` dedups remotely via `OverwritePolicy`.
 flowchart TD
   M["cortex/nodes/&lt;name&gt;/core<br/>XNodeModule"]
   M -->|"@Binds @IntoSet FilesystemNode"| S["Set&lt;FilesystemNode&gt;<br/>(legacy CLI)"]
-  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>30 entries"]
-  NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = 29 node modules)"] --> M
+  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>34 entries"]
+  NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = node modules)"] --> M
   K --> R["RegistryNodeRegistrar.registerAll()"]
   SRC["filesystem-source · asset-source<br/>+ s3-source when s3Support.isActive()<br/>+ gdrive-source / onedrive-source per configured provider"] --> R
-  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>35 kinds (34 without S3)"]
+  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>37 kinds (36 without S3)"]
   F --> W["registeredTypes() → announced nodeWhitelist"]
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>28 NodeDescriptorProviders → 38 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>generated node-descriptors.json → 39 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **33** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **34** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
   `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `tika`, `metadata`,
   `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
   `whisper`, `tts`, `sentiment`, `translate`, `script`, `depthmap`, `scene-layout`,
-  `dominant-color`, `watermark`, `filter`, `s3-sink`.
-  All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java` (29 module classes).
+  `dominant-color`, `watermark`, `image-manipulation`, `filter`, `s3-sink`.
+  All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java`.
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
   `filesystem-source` and `asset-source` always, `s3-source` **only when `s3Support.isActive()`**,
   and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
   configured. The gate is per provider rather than per module, which is the reason the two clouds
   are two kinds sharing one implementation rather than one kind with a `provider` parameter.
-- **Total runnable: 36 with S3 configured, 35 without.**
+- **Total runnable: 37 with S3 configured, 36 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -358,9 +361,14 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **28 providers declare 38 kinds.**
-`NodeDescriptorServiceLoaderTest` asserts both literals — that test failing after you add a node is
-the intended tripwire, not a regression.
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **39 advertised kinds.** Since the
+`d9bbc2dc` refactor the contracts are one generated `node-descriptors.json` served by
+`GeneratedNodeDescriptorProvider` (+ `OrphanNodeDescriptorProvider`), harvested at build time from
+the annotated node classes and regenerated with
+`mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNodeDescriptors=true`.
+`NodeDescriptorServiceLoaderTest` asserts the kind count and `NodeSpecGoldenTest` asserts the
+resource matches the annotations — either failing after you add a node is the intended tripwire, not
+a regression.
 
 Reconciling the two registries:
 

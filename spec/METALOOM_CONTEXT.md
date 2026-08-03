@@ -172,6 +172,10 @@ spec/
 │   │   │                              #   InspireFace licensing (🔴 default pack is non-commercial),
 │   │   │                              #   reverse-engineered pack format, permissive alternatives
 │   │   │                              #   (YuNet/SFace), de-facto standard pipeline
+│   │   ├── image-manipulation/
+│   │   │   └── NODE_IMAGE_MANIPULATION.md  # 🟢 BUILT: the `image-manipulation` node — EXIF
+│   │   │                              #   autorotate, crop, subject crop, aspect/VVS blur-pad,
+│   │   │                              #   resize. Images only, ordered op chain, detections via port
 │   │   └── metadata/
 │   │       └── METADATA_OVERVIEW.md   # 🟢 The `metadata` node — EXIF/GPS/IPTC/XMP/container
 │   │                                  #   metadata onto Dublin Core, into asset_json_comp +
@@ -207,8 +211,6 @@ spec/
 │   │   ├── NODE_DEPTHMAP_PLAN.md      # 🟢 BUILT end to end incl. sidecars/depth (:9120)
 │   │   ├── NODE_DOMINANT_COLOR_PLAN.md# 🟢 BUILT (CIELAB k-means, EN/DE naming)
 │   │   ├── NODE_IMAGEGEN_PLAN.md      # 🟢 BUILT — authoritative over plans/imagegen-node.md
-│   │   ├── NODE_IMAGE_MANIPULATION_PLAN.md # 🔵 PLAN — kind image-manipulation: EXIF autorotate,
-│   │   │                              #   crop, subject crop, aspect/VVS, resize. Images only
 │   │   ├── NODE_S3SINK_PLAN.md        # 🟢 BUILT (phase 1) — kind s3-sink
 │   │   ├── NODE_CLOUDSOURCE_PLAN.md   # 🟢 BUILT — kinds gdrive-source + onedrive-source and the
 │   │   │                              #   shared cortex/cloud-common module (Drive v3 + MS Graph)
@@ -407,7 +409,7 @@ is the external `io.metaloom.fs` artifact), `llm-common`, `node-runtime`, `nodes
 | `PipelineSegmenter` | `io.metaloom.loom.pipeline.graph` | Groups nodes into affinity segments |
 | `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` | Lexical search over `search_document` (tsvector + pg_trgm) |
 | `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` | Fingerprint HNSW index behind the `SimilarityIndex` SPI |
-| `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **28 providers, 38 kinds**, ServiceLoader-discovered |
+| `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **39 kinds** from a generated resource (2 providers since `d9bbc2dc`), ServiceLoader-discovered |
 | `MemoryService` | `io.metaloom.loom.agent.memory` | Scoped markdown memory bank for the chat agent |
 | `CortexImpl` | `io.metaloom.cortex.impl` | Cortex lifecycle; **registers a shutdown hook** that drains in-flight work |
 | `LoomControlChannel` | `io.metaloom.cortex.impl.loom` | WebSocket client to Loom: registration, heartbeat, tasks, reconnect |
@@ -609,7 +611,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Every edge carries ports** | `sourcePort` + `targetPort` are **required**; the branch key is `branch` (not `edgeType`). `nodes[].dependencies[]` is **rejected outright** by `PipelineGraphParser` — the old "inline fallback" behaviour is gone |
 | **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Pipeline validation** | *Structural* rules (ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a third copy |
-| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **28 providers declare 38 kinds** — the literals asserted by `NodeDescriptorServiceLoaderTest`, matching [NODES.md §5.2](features/nodes/NODES.md). ⚠️ The runnable-kind arithmetic that used to follow here (*"35 runnable with S3 and both clouds, 32 with none, 31 `@StringKey` bindings"*) is stale — there are 33 node `@StringKey` bindings today and the derived totals were never re-checked; recount before quoting them. Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
+| **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **39 advertised kinds** — the literal asserted by `NodeDescriptorServiceLoaderTest`. Since the `d9bbc2dc` refactor the descriptors are one generated resource served by two providers (`GeneratedNodeDescriptorProvider` + `OrphanNodeDescriptorProvider`), not one hand-written provider per node. ⚠️ The runnable-kind arithmetic that used to follow here (*"35 runnable with S3 and both clouds, 32 with none, 31 `@StringKey` bindings"*) is stale — there are 34 node `@StringKey` bindings today and the derived totals were never re-checked; recount before quoting them. Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
 | **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). 🔴 MIME/size/date bucketing is not reimplemented on the strategy seam yet |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
