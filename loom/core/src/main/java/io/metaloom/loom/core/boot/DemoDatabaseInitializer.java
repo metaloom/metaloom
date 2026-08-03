@@ -305,7 +305,7 @@ public class DemoDatabaseInitializer {
 
 		// 2) Medium pipeline: Source → Filter → Hash + Fingerprint + Metadata → Output
 		Pipeline mediumPipeline = createPipeline(admin, DEMO_PIPELINE_MEDIUM,
-			"Ingest pipeline with MIME-type filtering, hashing, fingerprinting, and metadata extraction.",
+			"Ingest pipeline with a routing filter, hashing, fingerprinting, and metadata extraction.",
 			true, 5, false,
 			mediumDefinition());
 
@@ -1284,15 +1284,17 @@ public class DemoDatabaseInitializer {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "File Source", "Watch ingest folder", 60, 160))
-					.add(node("pn2", "filter", "MIME Filter", "Accept video and image types", 260, 160))
+					.add(node("pn2", "filter", "Media Filter", "Route each item; unrouted items flow out the 'other' port", 260, 160))
 					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
 					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260))
 					.add(node("pn5", "metadata", "Asset Metadata", "Read the metadata inside each file", 460, 400)))
 				.put("edges", new JsonArray()
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
-					.add(edge("pe2", "pn2", "media", "pn3", "media"))
-					.add(edge("pe3", "pn2", "media", "pn4", "media"))
-					// Straight off the source, deliberately bypassing the MIME filter: this node
+					// The filter routes each item down one branch; with no buckets configured every
+					// item lands on the always-present 'other' port, which is what hashing consumes.
+					.add(edge("pe2", "pn2", "other", "pn3", "media"))
+					.add(edge("pe3", "pn2", "other", "pn4", "media"))
+					// Straight off the source, deliberately bypassing the filter: this node
 					// reads images, documents, audio and video alike, so filtering ahead of it would
 					// only throw away metadata the library wants.
 					.add(edge("pe4", "pn1", "media", "pn5", "media")));
@@ -1302,7 +1304,7 @@ public class DemoDatabaseInitializer {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "File Source", "Watch production folder", 60, 200))
-					.add(node("pn2", "filter", "MIME Filter", "Accept media types", 240, 200))
+					.add(node("pn2", "filter", "Media Filter", "Route each item; unrouted items flow out the 'other' port", 240, 200))
 					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute SHA-256", 440, 40))
 					.add(node("pn4", "fingerprint", "Fingerprint", "Video fingerprint", 440, 150))
 					.add(node("pn5", "facedetect", "Face Detection", "Detect faces with InspireFace", 440, 270))
@@ -1312,11 +1314,13 @@ public class DemoDatabaseInitializer {
 						new JsonObject().put("bucket", "media"))))
 				.put("edges", new JsonArray()
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
-					.add(edge("pe2", "pn2", "media", "pn3", "media"))
-					.add(edge("pe3", "pn2", "media", "pn4", "media"))
-					.add(edge("pe4", "pn2", "media", "pn5", "image"))
+					// One filter fans its 'other' branch out to hashing, fingerprinting, face
+					// detection and thumbnailing: with no buckets configured every item lands there.
+					.add(edge("pe2", "pn2", "other", "pn3", "media"))
+					.add(edge("pe3", "pn2", "other", "pn4", "media"))
+					.add(edge("pe4", "pn2", "other", "pn5", "image"))
 					.add(edge("pe5", "pn5", "detections", "pn6", "detections"))
-					.add(edge("pe6", "pn2", "media", "pn8", "media"))
+					.add(edge("pe6", "pn2", "other", "pn8", "media"))
 					.add(edge("pe7", "pn8", "thumbnail", "pn9", "artifacts")));
 	}
 
@@ -1355,9 +1359,10 @@ public class DemoDatabaseInitializer {
 	 * and translated into English.
 	 *
 	 * <p>
-	 * The MIME filter is what makes this safe to point at a mixed folder — {@code whisper} declares an
-	 * XOR over its audio and video inputs, so a still image arriving on the media port would have
-	 * nothing to bind to.
+	 * The filter sits between the source and {@code whisper} as the place a routing rule belongs —
+	 * {@code whisper} declares an XOR over its audio and video inputs, so once buckets are configured
+	 * the non-audio/video items route elsewhere instead of arriving with nothing to bind to. With no
+	 * buckets set the demo simply passes everything through the {@code other} branch.
 	 * </p>
 	 *
 	 * <p>
@@ -1370,15 +1375,14 @@ public class DemoDatabaseInitializer {
 		return new JsonObject()
 				.put("nodes", new JsonArray()
 					.add(node("pn1", "filesystem-source", "Media Source", "Watch the recordings folder", 60, 160))
-					.add(node("pn2", "filter", "Audio/Video Filter", "Accept audio and video only", 260, 160,
-						new JsonObject().put("mimeTypes", "audio/*,video/*")))
+					.add(node("pn2", "filter", "Media Filter", "Route each item; unrouted items flow out the 'other' port", 260, 160))
 					.add(node("pn3", "whisper", "Transcribe", "Speech to text with Whisper", 480, 160))
 					.add(node("pn4", "sentiment", "Transcript Sentiment", "Score the tone of the transcript", 700, 80))
 					.add(node("pn5", "translate", "Translate to English", "Translate the transcript into English", 700, 240,
 						new JsonObject().put("targetLanguage", "en"))))
 				.put("edges", new JsonArray()
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
-					.add(edge("pe2", "pn2", "media", "pn3", "video"))
+					.add(edge("pe2", "pn2", "other", "pn3", "video"))
 					.add(edge("pe3", "pn3", "transcript", "pn4", "text"))
 					.add(edge("pe4", "pn3", "transcript", "pn5", "text")));
 	}

@@ -8,6 +8,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
+- CliIntegerationTest? What is this? Do we need it?
 - Add a way to visualize the pipeline results in the UI. (e.g. render thumbnails for debugging. Make it possible to play,read,view results.)
 - Add way to add trigger points to "halt" processing.
  It should be possible to step thru processing pipeline to debug the processor manually

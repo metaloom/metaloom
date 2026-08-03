@@ -1042,13 +1042,15 @@ other overrides it, which is exactly what `@ParamOverride` already does. The mis
 
 ### 🔴 Pre-existing failures this work did **not** cause
 
-Two, both about the typed-port refactor that predates this change, both found while running the full
-suites and verified as not mine:
+Two were found while running the full suites, both about the typed-port refactor that predates this
+change and verified as not mine. **`DemoPipelineDefinitionTest` is now fixed** (see below);
+**`CliIntegrationTest` is left open** at the owner's request.
 
-**`CliIntegrationTest`** — six of its cases build a pipeline whose single edge carries no
-`sourcePort`/`targetPort`, and `PipelineGraphParser` (untouched here) rejects exactly that with *"Every
-edge must carry sourcePort and targetPort"*. The test was last edited in an unrelated commit and never
-updated for ports. Its other twelve cases pass.
+**`CliIntegrationTest`** — ⏳ **still open (deferred).** Six of its cases build a pipeline whose single
+edge carries no `sourcePort`/`targetPort`, and `PipelineGraphParser` (untouched here) rejects exactly
+that with *"Every edge must carry sourcePort and targetPort"*. The test was last edited in an unrelated
+commit and never updated for ports. Its other twelve cases pass. The fix is to add ports to those six
+fixtures; it was consciously deferred, not overlooked.
 
 Note also that the container-based tests in `integration-test` fail in a full-module run but pass
 individually (`unexpected port: 0` — containers not starting). That is resource contention in this
@@ -1056,16 +1058,28 @@ environment, not a code failure.
 
 
 
-**`DemoPipelineDefinitionTest`** fails on `master`, before any of this: the `medium` and `complex` demo
-definitions wire `pn2.media → pn3.media`, but `pn2` is a `filter`, and `filter` declares
+**`DemoPipelineDefinitionTest`** — ✅ **fixed.** It failed on `master`, before any of this: the demo
+definitions wired `pn2.media → pn3.media`, but `pn2` is a `filter`, and `filter` declares
 `outputPorts: []` with `dynamicPorts: true` — so its ports come entirely from `FilterPortResolver`,
 which produces `other`, `passed`, `bucket` and one port per configured bucket. It never produces
-`media`, and `media` is in the resolver's `RESERVED` set precisely so a bucket cannot claim it.
+`media`, and `media` is in the resolver's `RESERVED` set precisely so a bucket cannot claim it. Three
+demos were affected — `medium`, `complex` and `transcription` — not two; the assertion-based test
+short-circuited on `medium`, so `transcription`'s identical break was never reached and looked fine.
 
-Verified by checking out `HEAD` into a separate worktree and running the test there unmodified — the
-same two failures, same message. Recorded here because it is the kind of thing a large diff gets
-blamed for. The demo definitions need fixing (wire `pn2.other`, or give the filter a bucket and wire
-that); it is not a node-registration change.
+Two deeper facts surfaced while fixing it. First, the demos labelled these filters "MIME Filter" and
+even passed a `mimeTypes` option, but **no MIME strategy exists** — `FilterBy` has only `LANGUAGE`, and
+`FilterNode.configure()` never reads `mimeTypes`, so that option was silently dropped. Second, a
+configured `buckets` array cannot be the fix in this test: the definitions are built programmatically,
+and a programmatic Vert.x `JsonArray` reaches `FilterPortResolver` as a `JsonArray` (not a
+`java.util.List`), so `asList` drops it and no bucket port is produced — the bucket path only resolves
+for definitions parsed from a JSON string (the production path).
+
+The fix (per the owner's call — keep the capability in the filter node, change the demo) rewires each
+filter's output edges to the always-present `other` catch-all port: with no buckets configured every
+item lands in `other`, and `other` is `media/*`, which is assignable into the `media/image`,
+`media/video` and `media/*` inputs downstream. The dead `mimeTypes` config was removed and the
+"MIME Filter"/"MIME safety" wording in the affected nodes and the transcription javadoc was corrected
+so the demo no longer advertises routing the node cannot do.
 
 ### Known ergonomic wart, deliberately not changed
 
