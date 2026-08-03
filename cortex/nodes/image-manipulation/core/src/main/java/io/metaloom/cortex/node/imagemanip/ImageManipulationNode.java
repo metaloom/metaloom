@@ -144,29 +144,33 @@ public class ImageManipulationNode extends AbstractMediaNode<ImageManipulationNo
 	@Override
 	protected NodeResult compute(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
-		List<Op> chain = options().operationChain();
-
-		BufferedImage source = MediaArtifacts.decodedImage(ctx);
-
-		// Parsed before the cache is consulted: the boxes are a second input that changes the output
-		// pixels, so they belong in the key. Only the boxes that survive filtering are digested - one
-		// that was dropped cannot change the result and must not invalidate the cache.
-		List<Rect> boxes = chain.contains(Op.SUBJECT_CROP)
-			? SubjectBoxes.parse(detections(ctx), options().subjectTypeSet(), options().getMinConfidence(), source.getWidth(), source.getHeight())
-			: List.of();
-
-		String digest = digest(boxes);
-		String cacheKey = media.absolutePath() + "|" + digest;
-
-		CachedResult cached = resultCache.get(cacheKey);
-		if (cached != null && Files.exists(Path.of(cached.artifact()))) {
-			// The file is re-checked, not just the key: an artifact deleted from the cache directory between
-			// runs would otherwise be handed downstream as a path that no longer resolves.
-			emit(ctx, "DONE", cached.artifact(), cached.geometry());
-			return ctx.origin(LOCAL).next();
-		}
 
 		try {
+			List<Op> chain = options().operationChain();
+
+			// Inside the try, not before it: an undecodable file is one of the likeliest failures this node
+			// has, and it must leave the same FAILED ledger row as any other - not escape to
+			// AbstractMediaNode.process(), which reports the failure but records nothing.
+			BufferedImage source = MediaArtifacts.decodedImage(ctx);
+
+			// Parsed before the cache is consulted: the boxes are a second input that changes the output
+			// pixels, so they belong in the key. Only the boxes that survive filtering are digested - one
+			// that was dropped cannot change the result and must not invalidate the cache.
+			List<Rect> boxes = chain.contains(Op.SUBJECT_CROP)
+				? SubjectBoxes.parse(detections(ctx), options().subjectTypeSet(), options().getMinConfidence(), source.getWidth(), source.getHeight())
+				: List.of();
+
+			String digest = digest(boxes);
+			String cacheKey = media.absolutePath() + "|" + digest;
+
+			CachedResult cached = resultCache.get(cacheKey);
+			if (cached != null && Files.exists(Path.of(cached.artifact()))) {
+				// The file is re-checked, not just the key: an artifact deleted from the cache directory between
+				// runs would otherwise be handed downstream as a path that no longer resolves.
+				emit(ctx, "DONE", cached.artifact(), cached.geometry());
+				return ctx.origin(LOCAL).next();
+			}
+
 			Frame frame = new Frame(source, boxes);
 			JsonObject applied = new JsonObject()
 				.put("sourceWidth", source.getWidth())

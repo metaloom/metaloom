@@ -1040,9 +1040,23 @@ Note the prose mechanism is *not* missing: the shared base's `@ParamDoc` belongs
 other overrides it, which is exactly what `@ParamOverride` already does. The missing piece is only
 "more than one `@NodeSpec` per class".
 
-### 🔴 A pre-existing failure this work did **not** cause
+### 🔴 Pre-existing failures this work did **not** cause
 
-`DemoPipelineDefinitionTest` fails on `master`, before any of this: the `medium` and `complex` demo
+Two, both about the typed-port refactor that predates this change, both found while running the full
+suites and verified as not mine:
+
+**`CliIntegrationTest`** — six of its cases build a pipeline whose single edge carries no
+`sourcePort`/`targetPort`, and `PipelineGraphParser` (untouched here) rejects exactly that with *"Every
+edge must carry sourcePort and targetPort"*. The test was last edited in an unrelated commit and never
+updated for ports. Its other twelve cases pass.
+
+Note also that the container-based tests in `integration-test` fail in a full-module run but pass
+individually (`unexpected port: 0` — containers not starting). That is resource contention in this
+environment, not a code failure.
+
+
+
+**`DemoPipelineDefinitionTest`** fails on `master`, before any of this: the `medium` and `complex` demo
 definitions wire `pn2.media → pn3.media`, but `pn2` is a `filter`, and `filter` declares
 `outputPorts: []` with `dynamicPorts: true` — so its ports come entirely from `FilterPortResolver`,
 which produces `other`, `passed`, `bucket` and one port per configured bucket. It never produces
@@ -1090,12 +1104,20 @@ refactor away from a spurious body-hash difference between two workers announcin
       …plus `script`, `filter`, `llm`. **Three ids remain blocked, each on a defect rather than on
       effort:** `onedrive-source` (needs a repeatable `@NodeSpec`), `fingerprint-dedup` (descriptor
       wrong in both directions), `vlm` (four advertised parameters have no backing field)
-- [ ] Shared-file edits once at the end: delete the `*DescriptorProvider` classes and their
-      `META-INF/services` registration, update `NodeDescriptorServiceLoaderTest`'s count literals,
-      delete `NodePortConformanceTest`, and switch `NodeDescriptorGenerator` and `RESTModule` to read
-      the harvest. **Unblocked** — every node id now has an annotated contract that the golden test
-      proves equal to its provider. Deliberately left as its own commit: it deletes ~30 files and flips
-      Loom's BUILTIN layer from ServiceLoader to harvest, which wants to be reviewable on its own
+- [x] **The cutover.** 29 hand-written providers deleted; `NodePortConformanceTest` deleted;
+      `NodeDescriptorServiceLoaderTest` down from 28 providers to 2.
+      - Loom cannot read the annotations — the node classes are in `cortex/` and `loom-shared` must not
+        depend on it — so the harvest runs at **build time** in `integration-test`, the one module that
+        sees both sides, and its output is committed to
+        `loom-shared/node-model/src/main/resources/node-descriptors.json`.
+      - `GeneratedNodeDescriptorProvider` reads that resource. **Loom's boot is unchanged**: still
+        `ServiceLoader<NodeDescriptorProvider>`, so a fresh install still validates saved pipelines and
+        serves a full palette before any worker connects. Only the source of the data moved.
+      - `OrphanNodeDescriptorProvider` keeps `loom-fetch`, the one contract with no node class behind
+        it. Dropping it would have stopped any pipeline naming it from parsing
+      - `NodeSpecGoldenTest` became the staleness guard: it re-harvests and fails if the committed
+        resource differs. Regenerate with
+        `mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNodeDescriptors=true`
 - [ ] `NodeDescriptorGenerator` reads the harvest instead of the ServiceLoader; regenerate
       `website/static/pipeline-editor/node-descriptors.json`
 
