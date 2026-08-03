@@ -34,14 +34,14 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 
 	public static final InputPort<LoomMedia> IN_MEDIA = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
 
-	/** Metrics provider label. Kept as {@code "ollama"} rather than {@code "llm"} so existing dashboards keep resolving. */
-	private static final String METRICS_LABEL = "ollama";
+	/** Metrics provider label. */
+	private static final String METRICS_LABEL = "llm";
 
 	/** In-heap skip cache of the per-prompt LLM outputs, keyed by media path, to avoid re-running the model within this worker's lifetime. Non-durable -
 	 * the durable copy lives in Loom. */
 	private final LocalResultCache<Map<String, String>> resultCache = new LocalResultCache<>(50_000);
 
-	/** The LLM provider (injected). Defaults to Ollama in production; tests inject an OpenAI-compatible provider (e.g. against a mock server). */
+	/** The LLM provider (injected). Speaks the OpenAI chat-completions protocol; tests point it at a mock server. */
 	private final LLMProvider provider;
 
 	@Inject
@@ -55,7 +55,7 @@ public class LLMNode extends AbstractMediaNode<LLMNodeOptions> {
 
 	private Map<String, LLMNodePrompt> defaultPrompts() {
 		LLMNodePrompt prompt = new LLMNodePrompt();
-		prompt.setModel("gemma2:27b");
+		prompt.setModel("google/gemma-2-27b-it");
 		prompt.setPrompt("""
 			Extract metadata from the given filename and output JSON.
 

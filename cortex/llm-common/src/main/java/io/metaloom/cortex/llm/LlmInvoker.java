@@ -39,7 +39,7 @@ public class LlmInvoker {
 	/**
 	 * Ask the model and return its answer as plain text.
 	 *
-	 * @param model        model id, e.g. {@code gemma2:27b}
+	 * @param model        model id, e.g. {@code Qwen/Qwen3-8B}
 	 * @param prompt       the prompt, with its parameters already set
 	 * @param metrics      sink for the call timing
 	 * @param metricsLabel provider label the timing is recorded under
@@ -63,7 +63,7 @@ public class LlmInvoker {
 	}
 
 	private <R> R call(String model, Prompt prompt, CortexMetrics metrics, String metricsLabel, ProviderCall<R> call) {
-		LargeLanguageModel llm = new LargeLanguageModelImpl(model, endpoint.url(), endpoint.contextWindow(), endpoint.providerType());
+		LargeLanguageModel llm = new LargeLanguageModelImpl(model, endpoint.url(), endpoint.contextWindow());
 		LLMContext ctx = LLMContext.ctx(prompt, llm);
 
 		long start = System.currentTimeMillis();

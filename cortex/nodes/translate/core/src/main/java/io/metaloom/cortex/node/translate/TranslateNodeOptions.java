@@ -26,7 +26,7 @@ public class TranslateNodeOptions extends AbstractLlmNodeOptions<TranslateNodeOp
 
 	public static final String DEFAULT_SOURCE_LANGUAGE = "auto";
 
-	public static final String DEFAULT_MODEL = "gemma2:27b";
+	public static final String DEFAULT_MODEL = "google/gemma-2-27b-it";
 
 	/** The placeholder the template must carry, or the source text would never reach the model. */
 	public static final String TEXT_PLACEHOLDER = "${text}";

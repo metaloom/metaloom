@@ -14,7 +14,7 @@ import io.metaloom.cortex.node.llm.LLMNodeOptions;
  * <pre>
  * import static io.metaloom.cortex.node.llm.assertj.LLMNodeAssertions.assertThat;
  *
- * assertThat(options).isValid().hasOllamaUrl("http://localhost:11434").hasPromptCount(2);
+ * assertThat(options).isValid().hasOpenaiUrl("http://localhost:8080/v1").hasPromptCount(2);
  * </pre>
  */
 public class LLMNodeAssertions extends NodeAssertions {

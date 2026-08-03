@@ -43,9 +43,8 @@ s3:
   pathStyleAccess: null
 ai:
   enabled: true
-  providerType: "OLLAMA"
-  url: "http://127.0.0.1:11434"
-  modelId: "gpt-oss:20b"
+  url: "http://127.0.0.1:8080/v1"
+  modelId: "openai/gpt-oss-20b"
   contextWindow: 16384
   maxTurns: 8
   toolTimeoutMs: 30000

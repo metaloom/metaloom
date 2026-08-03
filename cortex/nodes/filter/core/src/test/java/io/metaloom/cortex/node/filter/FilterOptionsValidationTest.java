@@ -39,7 +39,7 @@ class FilterOptionsValidationTest {
 	@Test
 	void testModelAndUrlMustNotBeBlank() {
 		assertThat(options().setModel(" ")).isInvalid().hasError("model must not be empty");
-		assertThat(options().setOllamaUrl("")).isInvalid().hasError("ollamaUrl must not be empty");
+		assertThat(options().setOpenaiUrl("")).isInvalid().hasError("openaiUrl must not be empty");
 	}
 
 	@Test

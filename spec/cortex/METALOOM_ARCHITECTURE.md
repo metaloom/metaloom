@@ -87,7 +87,7 @@ Connect → `REGISTER` → `REGISTERED`, then eligible for work.
 
 | `ProcessorRegistration` field | Value today |
 |---|---|
-| `nodeId` | **configured and mandatory** — `--node-id` / `CORTEX_NODE_ID`. A blank id throws at `LoomControlChannel.start()`; a duplicate of a live worker is closed by Loom with code **4409** |
+| `nodeId` | **configured and mandatory** — `CORTEX_NODE_ID`. Missing ⇒ `CortexMain` exits 2; a blank id throws at `LoomControlChannel.start()`; a duplicate of a live worker is closed by Loom with code **4409** |
 | `name` | hardcoded `"cortex"` |
 | `priority` | hardcoded `100` |
 | `host` | hostname + **monitoring** port |
@@ -285,9 +285,10 @@ them (§8).
 
 ## 8. Running and stopping a worker
 
-`cortex server start` runs in the **foreground** and blocks on a latch — no fork, no
-PID file, no `--daemon`. That is what a container wants; supervision is the
-orchestrator's job. `cortex process run -a hash /path` is the offline one-shot mode.
+The worker runs in the **foreground** and blocks on a latch — no CLI, no subcommand, no
+fork, no PID file, no `--daemon`. That is what a container wants; supervision is the
+orchestrator's job. There is no offline one-shot mode any more: the former
+`cortex process run` subcommand went away with the picocli layer.
 
 **Shutdown is graceful.** `CortexImpl.registerShutdownHook()` installs a
 `cortex-shutdown` thread, so `SIGTERM` runs the ordinary path:
@@ -315,26 +316,27 @@ reconnect attempts, last connect/message/heartbeat-ack timestamps and last error
 
 ### Environment variables (Cortex)
 
-| Variable | CLI flag | Default | Note |
-|---|---|---|---|
-| `LOOM_HOST` | `-h`, `--hostname` | `localhost` | presence selects online mode |
-| `LOOM_PORT` | `-p`, `--port` | `7733` | container + `start-cortex.sh` set **8092** |
-| `LOOM_TOKEN` | — | none | 🔴 env only, no flag |
-| `CORTEX_NODE_ID` | `--node-id` | none | **required for the server**; unique per worker, stable across restarts |
-| `CORTEX_MONITORING_PORT` | `--monitoring-port` | `8093` | health + ready + metrics |
-| `CORTEX_META_PATH` | `--meta-path` | `~/.cache/metaloom/cortex/meta` | |
-| `CORTEX_DRAIN_TIMEOUT_MS` | `--drain-timeout-ms` | `30000` | raise with the orchestrator grace period for long nodes |
-| `CORTEX_NODE_WHITELIST` | `--node-whitelist` | all runnable kinds | comma separated |
-| `CORTEX_NODE_BLACKLIST` | `--node-blacklist` | none | wins over the whitelist |
-| `CORTEX_S3_*` | `--s3-*` | — | endpoint, region, keys, path-style, cache/index paths, size budgets, reconcile interval, events (mode/webhook/secret/queue) |
-| `LOOM_WS_STRICT_AUTH` | — (Loom side) | `false` | reject token-less WebSockets |
-| — | — | `-Xms256m -Xmx512m` | container `JAVA_TOOL_OPTIONS`; low for video work |
+There are no flags — the environment is the whole runtime surface.
 
-> 🔴 **`cortex.yml` is not read on the CLI path.** `CortexCLIMain.parseOptions()`
-> always builds a `CortexOptions`, and `CortexClientModule.options()` consults
-> `CortexOptionsLoader` **only when that object is null**. Anything set only in the
-> YAML file is silently ignored, and the container's `/config` mount compounds it.
-> [CONFIGURATION.md](CONFIGURATION.md) still describes the intended precedence chain.
+| Variable | Default | Note |
+|---|---|---|
+| `LOOM_HOST` | `localhost` | presence selects online mode |
+| `LOOM_PORT` | `7733` | container + `start-cortex.sh` set **8092** |
+| `LOOM_TOKEN` | none | read directly by `LoomControlChannel`, not by `CortexEnvOptions` |
+| `CORTEX_NODE_ID` | none | **required**; unique per worker, stable across restarts |
+| `CORTEX_MONITORING_PORT` | `8093` | health + ready + metrics |
+| `CORTEX_META_PATH` | `~/.cache/metaloom/cortex/meta` | |
+| `CORTEX_DRAIN_TIMEOUT_MS` | `30000` | raise with the orchestrator grace period for long nodes |
+| `CORTEX_NODE_WHITELIST` | all runnable kinds | comma separated |
+| `CORTEX_NODE_BLACKLIST` | none | wins over the whitelist |
+| `CORTEX_S3_*` | — | endpoint, region, keys, path-style, cache/index paths, size budgets, reconcile interval, events (mode/webhook/secret/queue) |
+| `LOOM_WS_STRICT_AUTH` | `false` (Loom side) | reject token-less WebSockets |
+| — | `-Xms256m -Xmx512m` | container `JAVA_TOOL_OPTIONS`; low for video work |
+
+> 🔴 **`cortex.yml` is loaded, but not from where the container mounts it.**
+> `CortexOptionsLoader` reads `${user.home}/.config/metaloom/cortex.yml` and the
+> environment is applied on top; the image's `/config` mount is a different path, so a
+> file placed there is still ignored. See [CONFIGURATION.md](CONFIGURATION.md) §1.2.
 
 Kubernetes deployment is covered by the charts under `helm/loom/` and `helm/cortex/`
 (StatefulSet, per-ordinal stable `nodeId`, probes on `/api/health` + `/api/ready`) —
@@ -422,7 +424,8 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 | `RegistryNodeFactory` | `io.metaloom.cortex.pipeline.loader` (cortex/core) | Kind → producer lookup; `registeredTypes()` backs the announced whitelist |
 | `NodeTaskRunner` | `io.metaloom.cortex.runtime` (cortex/node-runtime) | Runs one node, turns any throw into a `FAILED` `NodeTaskResult` |
 | `NodeDescriptorRegistry` | `io.metaloom.loom.nodes.spec` (loom-shared/node-model) | `ServiceLoader` palette catalogue behind `/api/v1/pipeline/node-descriptors` |
-| `CortexCLI`, `CortexCLIMain`, `EnvDefaultProvider` | `io.metaloom.cortex.cli` (cortex/core, cortex/cli) | Flags, env defaults, options pre-parse |
+| `CortexMain` | `io.metaloom.cortex.cli` (cortex/cli) | Entry point; component build, mandatory `CORTEX_NODE_ID`, blocking run |
+| `CortexEnvOptions`, `CortexOptionsLoader` | `io.metaloom.cortex.common.option` (cortex/common) | `cortex.yml` + environment → `CortexOptions` |
 | `S3MediaMaterializer` | `io.metaloom.cortex.s3` (cortex/s3-common) | Downloads `s3://` locators into the local cache |
 | `ProcessorEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | Loom side of `/api/v1/processors/ws` + processor REST |
 | `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Live worker map, `cortex_instance` reconciliation, `select()` placement |
@@ -446,7 +449,7 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 | Health / ready / metrics | `cortex/core/src/main/java/io/metaloom/cortex/impl/monitoring/` |
 | Which node kinds are executable | each node's `*NodeModule` under `cortex/nodes/*/core/`, collected by `cortex/cli/.../dagger/NodeCollectionModule.java` |
 | Node kind registration into the factory | `cortex/cli/.../dagger/RegistryNodeRegistrar.java` |
-| Cortex flags and env defaults | `cortex/core/.../cli/CortexCLI.java`, `.../cli/EnvDefaultProvider.java` |
+| Cortex env vars and option loading | `cortex/common/.../option/CortexEnvOptions.java`, `.../option/CortexOptionsLoader.java` |
 | Loom side of the socket | `loom/services/rest/.../endpoint/impl/ProcessorEndpoint.java` |
 | Worker registry + placement | `loom/services/rest/.../service/impl/ProcessorRegistry.java` |
 | Run dispatch, 503 precheck, stats | `loom/services/rest/.../service/impl/PipelineEndpointService.java` |
@@ -494,5 +497,5 @@ Run DB-backed tests only after `./setup-pool.sh`.
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (re-verified against code; corrected registration persistence, metrics, shutdown, placement and result write-back)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (Cortex lost its CLI: no flags or subcommands, `CortexMain` is the entry point and `cortex.yml` + env are the configuration surface)_

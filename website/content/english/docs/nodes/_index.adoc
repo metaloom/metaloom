@@ -112,7 +112,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | The `ffmpeg` / `ffprobe` binaries on `PATH` | `watermark` (video only — the image path needs nothing)
 | S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`
 | Google Drive, OneDrive or SharePoint credentials | `gdrive-source`, `onedrive-source`
-| A reachable language model (Ollama by default) | `llm`, `translate`, `filter`
+| A reachable OpenAI-compatible language model endpoint | `llm`, `translate`, `filter`
 | CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `filesystem-source`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), dedup
 |===
 
@@ -161,7 +161,7 @@ AI captioning and enrichment::
 link:captioning/[`captioning`] generates natural-language descriptions of both images and videos with
 a vision-language model — images from a still frame (SmolVLM), videos from their temporal content
 (Qwen2.5-VL), optionally as a per-scene timeline — and link:llm/[`llm`] enriches metadata through an
-LLM provider such as Ollama.
+LLM provider such as llama.cpp or vLLM.
 
 Image generation::
 link:imagegen/[`imagegen`] generates a new image with a diffusion model behind a small HTTP sidecar —

@@ -34,6 +34,12 @@ public class CortexOptionsLoader {
 
 	private static final Logger log = LoggerFactory.getLogger(CortexOptionsLoader.class);
 
+	/** Loom host assumed when neither a config file nor {@code LOOM_HOST} names one. */
+	public static final String DEFAULT_LOOM_HOSTNAME = "localhost";
+
+	/** Loom HTTP / WebSocket port assumed when neither a config file nor {@code LOOM_PORT} names one. */
+	public static final int DEFAULT_LOOM_PORT = 7733;
+
 	private final CortexNodeOptionDeserializer actionOptionsDeserializer;
 
 	@Inject
@@ -77,7 +83,12 @@ public class CortexOptionsLoader {
 
 	/**
 	 * Try to load the loom options from different locations (classpath, config folder). Otherwise a default configuration will be generated.
-	 * 
+	 *
+	 * <p>
+	 * The environment is applied on top of whatever was loaded. Cortex runs as a container and has no command line, so environment variables are the
+	 * only runtime override there is - see {@link CortexEnvOptions}.
+	 * </p>
+	 *
 	 * @return
 	 */
 	public CortexOptions load() {
@@ -90,6 +101,9 @@ public class CortexOptionsLoader {
 			log.info("Loading default configuration.");
 			options = generateDefaultConfig();
 		}
+
+		// 3. Let the environment win over the file / the defaults
+		CortexEnvOptions.applyEnv(options);
 
 		validateOptions(options);
 		return options;
@@ -176,6 +190,11 @@ public class CortexOptionsLoader {
 	public CortexOptions generateDefaultConfig() {
 		CortexOptions options = new CortexOptions();
 		options.setMetaPath(Paths.get(System.getProperty("user.home"), ".cache", "metaloom", "cortex", "meta"));
+		// A worker without a config file talks to a Loom on localhost. True offline mode means
+		// clearing the loom section in cortex.yml - the loaded file is never patched up here.
+		options.getLoom()
+			.setHostname(DEFAULT_LOOM_HOSTNAME)
+			.setPort(DEFAULT_LOOM_PORT);
 		return options;
 	}
 

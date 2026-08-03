@@ -11,10 +11,8 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.ai.genai.llm.omni.OmniProvider;
-import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
-import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
 import io.metaloom.ai.genai.llm.LLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.loom.agent.memory.MemoryService;
 import io.metaloom.loom.agent.sandbox.SandboxOrchestrator;
 import io.metaloom.loom.agent.chat.event.AgentEventSink;
@@ -62,9 +60,9 @@ public class AgentService {
 		this.sandbox = sandbox;
 		this.memoryService = memoryService;
 		this.turnStreamerFactory = () -> {
-			LLMProvider provider = new OmniProvider(new OllamaLLMProvider(), new VLLMLLMProvider());
+			LLMProvider provider = new OpenAILLMProvider();
 			// True token/reasoning streaming is opt-in (LOOM_AI_STREAMING) — the blocking streamer
-			// delivers turn-granular streaming and works with every provider.
+			// delivers turn-granular streaming and is the cheaper default.
 			if (options.getAi().isStreaming()) {
 				return new StreamingTurnStreamer(provider);
 			}

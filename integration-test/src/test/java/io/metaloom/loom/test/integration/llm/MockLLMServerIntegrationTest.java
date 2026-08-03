@@ -10,18 +10,17 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.ai.genai.llm.Chunk;
 import io.metaloom.ai.genai.llm.LLMContext;
 import io.metaloom.ai.genai.llm.LLMProvider;
-import io.metaloom.ai.genai.llm.LLMProviderType;
 import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.llm.impl.LargeLanguageModelImpl;
 import io.metaloom.ai.genai.llm.prompt.Prompt;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
-import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.ai.genai.mockllm.MockLLMServer;
 import io.vertx.core.json.JsonObject;
 
 /**
  * Integration test that drives the real OpenAI-compatible LLM path used by the metaloom chat
- * agent ({@code loom/agent/chat} → {@link VLLMLLMProvider}) against the {@link MockLLMServer},
+ * agent ({@code loom/agent/chat} → {@link OpenAILLMProvider}) against the {@link MockLLMServer},
  * proving that path works end-to-end without a live model backend.
  *
  * <p>This test only exercises the LLM client, so it needs neither the pooled test database nor a
@@ -29,10 +28,10 @@ import io.vertx.core.json.JsonObject;
  */
 class MockLLMServerIntegrationTest {
 
-	private final LLMProvider provider = new VLLMLLMProvider();
+	private final LLMProvider provider = new OpenAILLMProvider();
 
 	private static LargeLanguageModel modelFor(MockLLMServer server) {
-		return new LargeLanguageModelImpl("mock-model", server.baseUrl(), 2048, LLMProviderType.VLLM);
+		return new LargeLanguageModelImpl("mock-model", server.baseUrl(), 2048);
 	}
 
 	private static LLMContext chatCtx(MockLLMServer server, String userMessage) {

@@ -7,7 +7,7 @@ import java.util.function.Function;
 import io.metaloom.ai.genai.llm.Chunk;
 import io.metaloom.ai.genai.llm.LLMContext;
 import io.metaloom.ai.genai.llm.LLMProvider;
-import io.metaloom.ai.genai.llm.LLMProviderType;
+import io.metaloom.ai.genai.llm.StreamEvent;
 import io.metaloom.ai.genai.llm.ToolCallResponse;
 import io.reactivex.rxjava3.core.Flowable;
 import io.vertx.core.json.JsonObject;
@@ -89,7 +89,7 @@ public class StubLLMProvider implements LLMProvider {
 	}
 
 	@Override
-	public LLMProviderType type() {
-		return LLMProviderType.OLLAMA;
+	public Flowable<StreamEvent> generateStreamWithTools(LLMContext ctx) {
+		throw new UnsupportedOperationException("the filter node never streams");
 	}
 }

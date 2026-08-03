@@ -72,7 +72,7 @@ The `ocr` node uses Tesseract to extract text from images and document pages.
 
 == AI Captioning & LLM Enrichment
 
-Cortex integrates with SmolVLM (for captioning) and Ollama (for LLM enrichment) to automatically generate natural-language descriptions of media assets.
+Cortex integrates with SmolVLM (for captioning) and an OpenAI-compatible LLM server (for enrichment) to automatically generate natural-language descriptions of media assets.
 
 == Speech-to-Text
 

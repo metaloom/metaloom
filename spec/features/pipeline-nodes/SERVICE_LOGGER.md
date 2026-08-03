@@ -59,7 +59,6 @@ graph TD
     CONV --> PROV["LoomNameProvider — LOOM_NAME / -Dloom.name / random"]
 
     C1["CliExecutionStrategy.applyLogLevel() -v/--quiet"] -.->|setLevel| LB
-    C2["CortexCLI.setVerbose() -v"] -.->|setLevel| LB
 ```
 
 ---
@@ -118,12 +117,13 @@ There is **no** `LOOM_LOG_LEVEL` / `LOG_LEVEL` variable on the Java side. (`LOG_
 
 ## 5. How the level is controlled at runtime
 
-Verified: **CLI flags only. No REST endpoint, no env var, no admin API.**
+Verified: **Loom CLI flags only. No REST endpoint, no env var, no admin API.** Cortex has no CLI,
+so a Cortex worker's level can only be set through its logback configuration file
+(`-Dlogback.configurationFile=/cortex/logback.xml` in the image).
 
 | Surface | Code | Mapping |
 |---|---|---|
 | Loom CLI | `cli/.../dagger/CliExecutionStrategy.java` `applyLogLevel()` | `--quiet` → `ERROR`; verbosity `0` → `WARN`, `1` → `INFO`, `≥2` → `DEBUG`. Applied via `((ch.qos.logback.classic.Logger) root).setLevel(...)`, guarded by an `instanceof` check and a `catch (NoClassDefFoundError)` so a non-logback binding does not break startup. |
-| Cortex CLI | `cortex/core/.../cli/CortexCLI.java` `setVerbose()` | `@Option(names = "-v", scope = INHERIT)`. Casts the root logger and calls `setLevel`. **Note the logic is buggy**: `verbose.length > 0 → DEBUG` is immediately overwritten by `verbose.length >= 1 → TRACE`, so any `-v` yields `TRACE` and `DEBUG` is unreachable. |
 | File-based | `logback.default.xml` declares `scan="true" scanPeriod="30 seconds"` | An *externally referenced* config file is re-read every 30s, so editing it changes levels live — but only when logback was pointed at it via `-Dlogback.configurationFile`. |
 
 ---
@@ -202,8 +202,9 @@ drag a config onto the test classpath. Pool/database test setup is unrelated and
   anywhere in the repo. All output is human-readable `PatternLayout`.
 - **Levels are per-artifact and drift.** `cortex/container/logback.xml` explicitly documents that it
   mirrors `logback.default.xml`; a level change in one must be mirrored by hand in the other.
-- **The `CortexCLI` `-v` mapping is dead code in its `DEBUG` branch** (§5). Fix both branches
-  together if you touch it, and re-check any test that asserts on `TRACE` output.
+- **Cortex has no runtime level switch.** The old `-v` flag went away with the picocli layer and
+  was not replaced by an env var; changing a worker's level means editing its logback file (which
+  is re-read every 30 s when referenced via `-Dlogback.configurationFile`).
 
 ---
 
@@ -217,7 +218,6 @@ drag a config onto the test classpath. Pool/database test setup is unrelated and
 | `LoomLogNameConverter` | `io.metaloom.loom.log` — `loom/common/src/main/java/io/metaloom/loom/log/LoomLogNameConverter.java` | Logback `ClassicConverter` backing the `%loomName` pattern word. |
 | `logback.default.xml` | `loom/common/src/main/resources/logback.default.xml` | Loom's intended runtime config. Needs `-Dlogback.configurationFile` to be read. |
 | `CliExecutionStrategy` | `io.metaloom.cli.dagger` — `cli/src/main/java/io/metaloom/cli/dagger/CliExecutionStrategy.java` | `applyLogLevel()` maps `-v`/`--quiet` onto the logback root level. |
-| `CortexCLI` | `io.metaloom.cortex.cli` — `cortex/core/src/main/java/io/metaloom/cortex/cli/CortexCLI.java` | `setVerbose()` maps `-v` onto the logback root level. |
 
 ---
 
@@ -234,7 +234,7 @@ drag a config onto the test classpath. Pool/database test setup is unrelated and
 - [ ] Loom **server** container passes `-Dlogback.configurationFile` (demo does, server does not), or
       `logback.default.xml` is renamed to `logback.xml` so it auto-loads and the flag disappears
 - [ ] `STDERR` appender in `logback.default.xml` wired to `<root>` (defined but unreferenced)
-- [ ] `CortexCLI.setVerbose()` `DEBUG` branch fixed (unreachable, always `TRACE`)
+- [x] Cortex `-v` mapping removed together with the picocli layer (logback file only)
 - [ ] `metaloom.cli.loglevel` system property either consumed or removed
 - [ ] Runtime log level change without restart (REST/admin endpoint) — none exists
 - [ ] MDC / correlation ids, and structured (JSON) logging for aggregation — neither exists
@@ -257,7 +257,7 @@ drag a config onto the test classpath. Pool/database test setup is unrelated and
 | The `%loomName` implementation | `loom/common/src/main/java/io/metaloom/loom/log/` |
 | The word lists for random names | `loom/common/src/main/resources/json/{adjectives,names}.json` |
 | Container logging config | `cortex/container/logback.xml`, `loom/containers/{demo,server}/Containerfile` |
-| CLI log level mapping | `cli/.../dagger/CliExecutionStrategy.java`, `cortex/core/.../cli/CortexCLI.java` |
+| CLI log level mapping | `cli/.../dagger/CliExecutionStrategy.java` (Loom CLI only) |
 | Test logging config | `*/src/test/resources/logback-test.xml` and `logback.xml` |
 | `LOOM_NAME` as a config knob | [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md) |
 | Container `CMD` and the `-Dlogback.configurationFile` flag | [../../loom/BUILD.md](../../loom/BUILD.md) |

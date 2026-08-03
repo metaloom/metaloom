@@ -62,8 +62,8 @@ deploy.
 |===
 | Model | License | What the condition means
 
-| `gemma2:27b` (link:../../nodes/llm/[LLM node] default) +
-`gemma3:27b-it-q8_0` (link:../../nodes/facedescription/[Face Description] default)
+| `google/gemma-2-27b-it` (link:../../nodes/llm/[LLM node] default) +
+`google/gemma-3-27b-it` (link:../../nodes/facedescription/[Face Description] default)
 | Gemma Terms of Use
 | Not an OSI license. Commercial use is permitted, but you accept a Prohibited Use Policy and must
   pass the same terms (and the use restrictions) on to anyone you distribute the model or a derivative to.
@@ -151,12 +151,12 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | ⚠️ Conditional
 
 | link:../../nodes/llm/[LLM Enrichment]
-| `gemma2:27b` via an Ollama / OpenAI-compatible provider
+| `google/gemma-2-27b-it` via an OpenAI-compatible provider
 | Gemma Terms of Use — see link:#conditional[conditions]
 | ⚠️ Conditional
 
 | link:../../nodes/facedescription/[Face Description]
-| `gemma3:27b-it-q8_0` via Ollama
+| `google/gemma-3-27b-it` via an OpenAI-compatible vision provider
 | Gemma Terms of Use — see link:#conditional[conditions]
 | ⚠️ Conditional
 
@@ -174,8 +174,8 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 === The Loom chat agent
 
 The link:../../loom/chat/[Chat & AI Agent] is not a pipeline node, but it does run a model. Loom
-talks to an Ollama or OpenAI-compatible provider selected by
-link:../../loom/configuration/[`LOOM_AI_MODEL_ID`], which defaults to **`gpt-oss:20b`**
+talks to an OpenAI-compatible provider selected by
+link:../../loom/configuration/[`LOOM_AI_MODEL_ID`], which defaults to **`openai/gpt-oss-20b`**
 (Apache-2.0). Point it at a hosted provider instead and the applicable terms become that provider's
 API terms of service, not a weight license — which also means your prompts and asset content leave
 your infrastructure.
@@ -246,7 +246,7 @@ Nothing is implicit — every model reference is a configuration value you can r
 | VLM | `VlmNodeOptions.model` + `endpointUrl`
 | OCR | `tessDataPath`
 | Face Detection | `FacedetectNodeOptions.inspirefacePackPath`
-| LLM / Face Description | provider URL + `providerType`, model id in the prompt definition
+| LLM / Face Description | provider URL, model id in the prompt definition
 | Text-to-Speech | `TtsNodeOptions.language` selects the engine; `ORPHEUS_REPO_DE`, `KOKORO_MODEL` and `KOKORO_VOICES` on the sidecar name the checkpoints
 | Captioning | model host / port of the captioning sidecar
 | Chat agent | `LOOM_AI_MODEL_ID` on the Loom server

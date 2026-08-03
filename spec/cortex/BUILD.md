@@ -143,7 +143,10 @@ Base `debian:trixie-slim`; produces `metaloom/cortex-server:${TAG:-latest}`.
 | `cortex-cli.jar`, `logback.xml` → `/cortex` | `container/target/cortex-cli/`, `container/logback.xml` |
 
 CMD:
-`/opt/java25/bin/java -Djna.tmpdir=/tmp/.jna -Duser.dir=/cortex -Dlogback.configurationFile=/cortex/logback.xml --enable-native-access=ALL-UNNAMED -jar cortex-cli.jar server start`
+`/opt/java25/bin/java -Djna.tmpdir=/tmp/.jna -Duser.dir=/cortex -Dlogback.configurationFile=/cortex/logback.xml --enable-native-access=ALL-UNNAMED -jar cortex-cli.jar`
+
+No arguments — Cortex has no CLI. `CortexMain` runs the worker and reads its configuration
+from `cortex.yml` and the environment.
 
 Runs as user `cortex` (uid 1000, group `root`/0). Exposes `8093`.
 Volumes: `/config` (symlinked to `/cortex/config`) and `/meta`.
@@ -173,7 +176,7 @@ paths are `./cortex/container/...`.
 |---|---|---|
 | `LOOM_HOST` | `loom` | Loom server hostname |
 | `LOOM_PORT` | `8092` | Loom server HTTP port |
-| `CORTEX_MONITORING_PORT` | `8093` | Monitoring HTTP port (maps to `--monitoring-port`) |
+| `CORTEX_MONITORING_PORT` | `8093` | Monitoring HTTP port |
 | `HOME` | `/cortex` | Home / working directory |
 | `JAVA_TOOL_OPTIONS` | `-Xms256m -Xmx512m` | JVM heap |
 | `JAVA_HOME` | `/opt/java25` | Temurin JRE 25 |
@@ -181,11 +184,12 @@ paths are `./cortex/container/...`.
 | `PATH` | `/usr/local/cuda-13.2/bin:$PATH` | CUDA tools |
 | `LOOM_TOKEN` | *(unset)* | Bearer token read by `LoomControlChannel` for WebSocket auth |
 
-Runtime option/env mapping beyond these lives in [CONFIGURATION.md](CONFIGURATION.md).
+Runtime env mapping beyond these lives in [CONFIGURATION.md](CONFIGURATION.md). `CORTEX_NODE_ID` is
+**not** baked in and is mandatory: without it `CortexMain` exits with code 2.
 
 ---
 
-## 5. Shaded CLI JAR
+## 5. Shaded worker JAR
 
 `cortex-cli` attaches a shaded artifact with classifier `combined`:
 `cortex/cli/target/cortex-cli-1.0.0-SNAPSHOT-combined.jar`.
@@ -196,10 +200,11 @@ Runtime option/env mapping beyond these lives in [CONFIGURATION.md](CONFIGURATIO
 |---|---|
 | `shadedArtifactAttached` / `shadedClassifierName` | `true` / `combined` — the plain `cortex-cli.jar` stays unshaded |
 | Filter `*:*` excludes | `META-INF/*.SF`, `*.DSA`, `*.RSA` (signature files break the uber JAR) |
-| `ManifestResourceTransformer` | `Main-Class` = `io.metaloom.cortex.cli.CortexCLIMain` |
+| `ManifestResourceTransformer` | `Main-Class` = `io.metaloom.cortex.cli.CortexMain` |
 | `ServicesResourceTransformer` | **Required** — merges `META-INF/services`; without it the AWS SDK `SdkHttpService` entry is overwritten and the shaded JAR fails at runtime with *"Unable to load an HTTP implementation from any provider in the chain"*. Classpath-based tests never catch this. |
 
-Annotation processors on `cortex-cli`: `picocli-codegen` and `dagger-compiler`.
+Annotation processor on `cortex-cli`: `dagger-compiler`. Picocli is no longer a dependency of any
+`cortex/` module.
 
 ---
 
@@ -214,7 +219,7 @@ Native libraries are **not** bundled in the JAR.
 | whisper | whisper.cpp via `asr4j` + GGML model | No — mount/install |
 | ocr | Tesseract via `tess4j` + tessdata | No — install separately |
 | script | GraalVM `js-community` (JVM-embedded) | Ships in the JAR |
-| llm, vlm, tts, sentiment, depthmap, image/video-generation, captioning | HTTP sidecar services (`sidecars/`) or Ollama/llama.cpp | No |
+| llm, vlm, tts, sentiment, depthmap, image/video-generation, captioning | HTTP sidecar services (`sidecars/`) or an OpenAI-compatible server (llama.cpp, vLLM, …) | No |
 | hash, dedup, tika, consistency, watermark, dominant-color, scene-layout, s3-* | Pure Java | n/a |
 
 **Do not** install Debian's `libopencv410*` packages instead of staging 5.1 — the
@@ -287,10 +292,10 @@ database — run `./setup-pool.sh` first (or use `./it.sh`, which does it).
 | External dependency versions | `bom/pom.xml`, root `pom.xml` |
 | Compiler/plugin versions | `maven-parent` (sibling checkout `../maven-parent/pom.xml`) |
 | Shade plugin config | `cortex/cli/pom.xml` |
-| CLI entry point | `cortex/cli/src/main/java/io/metaloom/cortex/cli/CortexCLIMain.java` |
+| Entry point | `cortex/cli/src/main/java/io/metaloom/cortex/cli/CortexMain.java` |
 | Dagger component | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/CortexComponent.java` |
 | Dagger bindings | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/CortexBindModule.java` |
-| Env → CLI option mapping | `cortex/core/src/main/java/io/metaloom/cortex/cli/EnvDefaultProvider.java` |
+| Env → options mapping | `cortex/common/src/main/java/io/metaloom/cortex/common/option/CortexEnvOptions.java` |
 | Containerfile / build script / logging config | `cortex/container/{Containerfile,build-container.sh,logback.xml}` |
 | Full build script | `build.sh` (repo root) |
 | Integration / E2E scripts | `it.sh`, `e2e.sh`, `setup-pool.sh` (repo root) |
@@ -321,5 +326,5 @@ database — run `./setup-pool.sh` first (or use `./it.sh`, which does it).
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-02 (added cortex/cloud-common and the flat cortex/nodes/cloud-source module; noted that the hand-rolled cloud clients carry no ServiceLoader shading hazard)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (model-backed nodes now name an OpenAI-compatible server rather than Ollama)_

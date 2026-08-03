@@ -106,7 +106,7 @@ class TranslateNodePersistenceTest {
 	void testWritesJsonCompAndLedgerOnSuccess() {
 		when(provider.generate(any(LLMContext.class))).thenReturn("The customer service was a disaster.");
 
-		TranslateNodeOptions options = new TranslateNodeOptions().setTargetLanguage("en").setModel("gemma2:27b");
+		TranslateNodeOptions options = new TranslateNodeOptions().setTargetLanguage("en").setModel("google/gemma-2-27b-it");
 		NodeResult result = node(options).process(ctxWithText(GERMAN));
 		assertThat(result).isSuccess();
 
@@ -114,7 +114,7 @@ class TranslateNodePersistenceTest {
 			&& "translation".equals(r.getSchemaType())
 			// The target language is the variant, so en/de/fr rows coexist on one asset.
 			&& "en".equals(r.getVariant())
-			&& "gemma2:27b".equals(r.getProducerVersion())
+			&& "google/gemma-2-27b-it".equals(r.getProducerVersion())
 			&& "The customer service was a disaster.".equals(r.getData().getString("text"))
 			&& "en".equals(r.getData().getString("targetLanguage"))));
 

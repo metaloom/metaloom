@@ -13,23 +13,23 @@ public class LLMNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<LLMNod
 	}
 
 	/**
-	 * Assert that the ollamaUrl is set to the expected value.
+	 * Assert that the openaiUrl is set to the expected value.
 	 */
-	public LLMNodeOptionsAssert hasOllamaUrl(String expectedUrl) {
+	public LLMNodeOptionsAssert hasOpenaiUrl(String expectedUrl) {
 		isNotNull();
-		if (!expectedUrl.equals(actual.ollamaUrl())) {
-			failWithMessage("Expected ollamaUrl to be '%s' but was '%s'", expectedUrl, actual.ollamaUrl());
+		if (!expectedUrl.equals(actual.openaiUrl())) {
+			failWithMessage("Expected openaiUrl to be '%s' but was '%s'", expectedUrl, actual.openaiUrl());
 		}
 		return this;
 	}
 
 	/**
-	 * Assert that the ollamaUrl is not empty.
+	 * Assert that the openaiUrl is not empty.
 	 */
-	public LLMNodeOptionsAssert hasOllamaUrl() {
+	public LLMNodeOptionsAssert hasOpenaiUrl() {
 		isNotNull();
-		if (actual.ollamaUrl() == null || actual.ollamaUrl().isBlank()) {
-			failWithMessage("Expected ollamaUrl to be set but it was empty");
+		if (actual.openaiUrl() == null || actual.openaiUrl().isBlank()) {
+			failWithMessage("Expected openaiUrl to be set but it was empty");
 		}
 		return this;
 	}

@@ -42,9 +42,9 @@ Not every model-backed node ships a sidecar here — several reuse an external s
 | Node | Where the model runs |
 |------|----------------------|
 | `whisper` (ASR) | whisper.cpp, **in-process** in the worker — no sidecar |
-| `llm` | An external **Ollama** endpoint |
-| `captioning` / `vlm` | An external **vLLM** / Ollama endpoint |
-| `facedescription` | An external Ollama endpoint |
+| `llm` | An external **OpenAI-compatible** endpoint (llama.cpp, vLLM, Ollama `/v1`, …) |
+| `captioning` / `vlm` | An external **OpenAI-compatible** vision endpoint |
+| `facedescription` | An external **OpenAI-compatible** vision endpoint |
 
 When one of these grows an in-repo model server (e.g. a future `asr`, `vlm` or `llm` sidecar), add it
 here as `sidecars/<name>/` and list it in the table above. See

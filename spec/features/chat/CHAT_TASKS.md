@@ -17,6 +17,7 @@
 
 - [x] B1–B9 — the full backend chat/skills stack (see the table)
 - [ ] F1 vLLM `generateStreamWithTools` (blocks `LOOM_AI_STREAMING=true` on vLLM)
+- [x] F1 streaming tool calls on the OpenAI provider — **done**, see the F1 entry below
 - [ ] F2 mid-turn abort on the streaming path
 - [ ] F3 transcript normalization (`chat_message` table) — deferred, revisit on pain
 - [ ] F4 group-scoped skill library — deferred
@@ -28,7 +29,7 @@ flowchart LR
   B5[B5 genai-utils<br/>stream+tools] --> B7[B7 AgentLoop]
   B6[B6 MCP reference<br/>envelopes] --> B7
   B3 --> B7 --> B8[B8 SSE endpoint] --> B9[B9 streaming swap-in<br/>+ auto-title]
-  B5 -. Ollama only .-> F1[F1 vLLM tools]
+  B5 --> F1[F1 OpenAI stream+tools]
   B9 -. blockingForEach .-> F2[F2 mid-turn abort]
 ```
 
@@ -40,7 +41,7 @@ flowchart LR
 | B2 Skill DAO stack | ✅ `SkillDao`/`SkillDaoImpl` + `loadByName`; covered by `SkillDaoTest`. |
 | B3 Skill REST + client | ✅ `SkillEndpoint` + owner-scoped service; `SkillEndpointTest` incl. cross-user isolation. |
 | B4 sharing (publish/library/install) | ✅ `GET /skills/library`, `POST /skills/:uuid/install` — copy + `origin_skill_uuid` provenance, name-collision suffix, derived `updateAvailable`; re-install yields a fresh suffixed copy. |
-| B5 genai-utils streaming | ✅ **Ollama only** — `LLMProvider.generateStreamWithTools` default throws; `OllamaLLMProvider` implements it (+ `generateStream` thinking-flag fix). See F1. |
+| B5 genai-utils streaming | ✅ `LLMProvider.generateStreamWithTools` is a plain interface method; `OpenAILLMProvider` implements it for every OpenAI-compatible backend (see F1). |
 | B6 MCP reference envelopes | ✅ `MCPToolResults` helper; loom tools populate `references`; `MCPToolReferencesTest`. |
 | B7 `loom/agent/chat` loop | ✅ `AgentLoop`/`AgentService`/`SkillPromptBuilder`/`ReferenceExtractor`/`load_skill`; `AiOptions` (`LOOM_AI_*`); `AgentLoopTest` with a fake streamer. |
 | B8 SSE stream endpoint | ✅ `ChatStreamEndpoint` (`POST/DELETE /chats/:uuid/stream`) contributed from `loom/agent/chat` via the AI endpoint module; `ChatStreamEndpointTest`. |
@@ -58,29 +59,25 @@ depends on the rest module · `ReferenceExtractor` consumes only the structured 
 
 ## Open Follow-ups
 
-### Task F1: Implement `generateStreamWithTools` for the vLLM provider
+### Task F1: Implement `generateStreamWithTools` for the OpenAI provider — ✅ DONE
 
-**Argumentation Summary:** `LLMProvider.generateStreamWithTools` has a throwing default and only
-`OllamaLLMProvider` overrides it. `StreamingTurnStreamer` calls it unconditionally, so a vLLM
-deployment with `LOOM_AI_STREAMING=true` fails the run terminally and must stay on the turn-granular
-`BlockingTurnStreamer` — token-level streaming is effectively Ollama-only.
+**Argumentation Summary (historical):** `LLMProvider.generateStreamWithTools` had a throwing default
+and only the Ollama provider overrode it, so any other deployment with `LOOM_AI_STREAMING=true`
+failed the run terminally and had to stay on the turn-granular `BlockingTurnStreamer`.
 
-**Improvement Summary:** Implement streamed tool-call accumulation in the vLLM provider so the
-streaming path works on both backends.
+**Outcome:** Resolved together with the Ollama removal. `OpenAILLMProvider.generateStreamWithTools`
+accumulates `delta.tool_calls` fragments per `index` (id/name arrive once, argument JSON arrives in
+slices) via the package-visible `ToolCallAccumulator`, and emits the full `StreamEvent` vocabulary —
+`ReasoningDelta` for both the non-standard `reasoning_content` field and inline `<think>` content,
+`TextDelta`, `ToolCallsComplete`, `Completed`. `generateStreamWithTools` is now a plain interface
+method rather than a throwing default, so the compiler rejects a provider that forgets it.
+`TurnStreamer`/`StreamingTurnStreamer` were not touched — the contract was already
+provider-agnostic.
 
-```
-1. In genai-utils `.../llm/vllm/VLLMLLMProvider.java`, override generateStreamWithTools(LLMContext).
-2. Use the openai-java streaming API; accumulate `delta.tool_calls` fragments per index
-   (id/name arrive once, arguments arrive in fragments) until finish_reason.
-3. Emit the same StreamEvent vocabulary as OllamaLLMProvider (text delta, reasoning delta,
-   tool-call complete, done) — see .../llm/ollama/OllamaLLMProvider.java as the reference.
-4. Do not change TurnStreamer/StreamingTurnStreamer; the contract is already provider-agnostic.
-```
-
-**References:** [CHAT.md §4](../../loom/ui/CHAT.md) · `genai-utils/core/src/main/java/io/metaloom/ai/genai/llm/LLMProvider.java` · B5, B9
-**Test Requirements:** A vLLM-provider streaming unit test in genai-utils asserting fragmented
-argument accumulation, plus `mvn -q test -pl loom/agent/chat -Dtest=StreamingTurnStreamerTest` still
-green.
+**Covered by:** `ToolCallAccumulatorTest` (genai-utils core, fragment reassembly incl. parallel calls
+keyed by index) · `MockLLMServerTest.testStreamingToolCallResponse` / `testStreamingParallelToolCalls`
+/ `testStreamingWithToolsEmitsTextWhenNoToolIsCalled`, driven through `MockLLMServer`, which now
+streams `tool_calls` deltas when the client asks for a stream.
 
 ---
 
@@ -155,10 +152,11 @@ non-member cannot see a group-scoped skill.
 
 ### Task F5: Live-LLM smoke coverage in CI — deferred
 
-**Argumentation Summary:** `MCPServerToolCallTest` / `MCPDirectToolCallTest` need a local Ollama with
-`gpt-oss:20b`, so they never run in CI and real tool-calling regressions are caught only by hand.
+**Argumentation Summary:** `MCPServerToolCallTest` / `MCPDirectToolCallTest` need a local
+OpenAI-compatible server with a tool-calling model, so they never run in CI and real tool-calling
+regressions are caught only by hand.
 
-**Improvement Summary:** A scheduled/optional CI job with an Ollama service that runs just these
+**Improvement Summary:** A scheduled/optional CI job with an LLM service that runs just these
 tests.
 
 ```
@@ -168,7 +166,7 @@ and runs only that tag; keep them excluded from the default build.
 
 **References:** [CHAT.md §10](../../loom/ui/CHAT.md) · B6
 **Test Requirements:** The two tests pass in the scheduled job; the default `mvn test` remains green
-without Ollama.
+without a live model server.
 
 ---
 
@@ -185,7 +183,7 @@ without Ollama.
 | `AiOptions` | `io.metaloom.loom.api.options` | `LOOM_AI_*` configuration incl. `LOOM_AI_STREAMING` |
 | `MCPToolResults` | `io.metaloom.loom.mcp.tool` | Builds the structured tool-result + references envelope |
 | `SkillEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | Skill CRUD + `/library` + `/:uuid/install` |
-| `LLMProvider` / `OllamaLLMProvider` | `io.metaloom.ai.genai.llm[.ollama]` (genai-utils) | Streaming-with-tools contract and its only implementation |
+| `LLMProvider` / `OpenAILLMProvider` | `io.metaloom.ai.genai.llm[.openai]` (genai-utils) | Streaming-with-tools contract and its implementation |
 
 ## Test Setup
 
@@ -197,7 +195,7 @@ mvn -q test -pl loom/db/jooq -Dtest=SkillDaoTest
 mvn -q test -pl loom/core -Dtest=MCPToolReferencesTest
 ```
 
-`MCPServerToolCallTest` / `MCPDirectToolCallTest` need a local Ollama (`gpt-oss:20b`) — see F5.
+`MCPServerToolCallTest` / `MCPDirectToolCallTest` need a local OpenAI-compatible server (`openai/gpt-oss-20b`) — see F5.
 
 ## Conventions & Gotchas
 
@@ -230,5 +228,5 @@ mvn -q test -pl loom/core -Dtest=MCPToolReferencesTest
 | Agent memory bank | [CHAT_MEMORY_PLAN.md](CHAT_MEMORY_PLAN.md) |
 | UI-side task record | [TASK_UI_CHAT.md](../../loom/ui/TASK_UI_CHAT.md) |
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (collapsed B1–B9 to verified one-line outcome records and reformatted the five open follow-ups as F1–F5 template tasks)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (F1 closed — `OpenAILLMProvider.generateStreamWithTools` implemented; Ollama removed from genai-utils)_

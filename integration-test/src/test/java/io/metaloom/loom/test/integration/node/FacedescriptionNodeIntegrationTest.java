@@ -13,10 +13,9 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.metaloom.ai.genai.llm.LLMContext;
-import io.metaloom.ai.genai.llm.LLMProviderType;
 import io.metaloom.ai.genai.llm.impl.LargeLanguageModelImpl;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
-import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.ai.genai.mockllm.MockLLMServer;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -34,7 +33,7 @@ import io.vertx.core.json.JsonObject;
 
 /**
  * Integration test for {@code FacedescriptionNode} driven against the {@link MockLLMServer}. Face detection is mocked ({@link InspireFacedetector}) and the
- * per-face vision LLM call ({@code processFace}) is overridden to fetch its description from the OpenAI-compatible mock instead of a live Ollama backend. The
+ * per-face vision LLM call ({@code processFace}) is overridden to fetch its description from the OpenAI-compatible mock instead of a live model server. The
  * real image, client, persistence and REST read-back all run: the face description must reach the {@code face-description} component and be readable via REST.
  */
 public class FacedescriptionNodeIntegrationTest extends AbstractNodeIntegrationTest {
@@ -47,8 +46,8 @@ public class FacedescriptionNodeIntegrationTest extends AbstractNodeIntegrationT
 			@Override
 			public FaceDescription processFace(BufferedImage image) {
 				LLMContext ctx = LLMContext.ctx(new PromptImpl(FacedescriptionNode.PROMPT),
-					new LargeLanguageModelImpl("mock-model", baseUrl, 2048, LLMProviderType.VLLM));
-				JsonObject json = new VLLMLLMProvider().generateJson(ctx);
+					new LargeLanguageModelImpl("mock-model", baseUrl, 2048));
+				JsonObject json = new OpenAILLMProvider().generateJson(ctx);
 				FaceDescription description = new FaceDescription();
 				description.setHair(json.getString("hair_color"));
 				description.setGender(json.getString("face_gender"));

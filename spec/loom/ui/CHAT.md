@@ -49,10 +49,10 @@
 - [x] UI views: `SkillManagementView`, `ChatSessionsView` / `ChatSessionDetail`, `MemoryView`
 - [x] Tests: `AgentLoopTest`, `StreamingTurnStreamerTest`, `ReferenceExtractorTest`, `VisualExtractorTest`, `SkillPromptBuilderTest`, `ChatStreamEndpointTest`, mocked + backend Playwright specs
 - [ ] **`think` is dead on both ends** — the UI type declares it and `streamChatMessage` forwards it, but no caller ever sets it, and server-side `ChatStreamRequest.think` never reaches `AgentRequest`. The loop always uses `LOOM_AI_THINK_ENABLED` (§4.1, R1)
-- [ ] **`AiOptions.validate()` runs unconditionally** — `providerType`/`url`/`modelId` must be non-blank even with `LOOM_AI_ENABLED=false` (§9, R9)
+- [ ] **`AiOptions.validate()` runs unconditionally** — `url`/`modelId` must be non-blank even with `LOOM_AI_ENABLED=false` (§9, R9)
 - [ ] No endpoint tests for `ChatSessionEndpoint` / `SessionFsEndpoint`
 - [ ] No live-LLM integration test (backend Playwright specs assert CRUD only)
-- [ ] vLLM has no true-streaming path — `LOOM_AI_STREAMING=true` degrades to the blocking streamer behaviour there
+- [x] True token streaming works on every backend — `OpenAILLMProvider.generateStreamWithTools` reassembles streamed `tool_calls` fragments ([CHAT_TASKS.md](../../features/chat/CHAT_TASKS.md) F1)
 
 ## 2. Architecture
 
@@ -70,7 +70,7 @@ graph LR
         CSS --> AS["AgentService<br/>loom/agent/chat"]
         AS -->|executeBlocking| AL[AgentLoop]
         AL -->|streamTurn| TS["TurnStreamer<br/>Blocking | Streaming"]
-        TS --> LLM["OmniProvider<br/>Ollama | vLLM (genai-utils)"]
+        TS --> LLM["OpenAILLMProvider<br/>(genai-utils)"]
         AL -->|"dispatch(name,args,user,ctx)"| MCP["MCPToolRegistry<br/>services/mcp"]
         AL -->|coding tools| SB["SandboxOrchestrator<br/>loom/agent/sandbox"]
         AL -->|index + tools| MEM["MemoryService<br/>loom/agent/memory"]
@@ -377,9 +377,8 @@ reachable as `LoomOptions.getAi()`.
 | Env var | Default | Meaning |
 |---|---|---|
 | `LOOM_AI_ENABLED` | `true` | Enable the chat agent |
-| `LOOM_AI_PROVIDER_TYPE` | `OLLAMA` | `OLLAMA` or `VLLM` (uppercased into `LLMProviderType`) |
-| `LOOM_AI_URL` | `http://127.0.0.1:11434` | LLM provider base url |
-| `LOOM_AI_MODEL_ID` | `gpt-oss:20b` | Model id |
+| `LOOM_AI_URL` | `http://127.0.0.1:8080/v1` | Base URL of the OpenAI-compatible server (llama.cpp, vLLM, Ollama `/v1`, …) |
+| `LOOM_AI_MODEL_ID` | `openai/gpt-oss-20b` | Model id |
 | `LOOM_AI_CONTEXT_WINDOW` | `16384` | Context window handed to the provider |
 | `LOOM_AI_MAX_TURNS` | `8` | Max agentic turns per user message |
 | `LOOM_AI_TOOL_TIMEOUT_MS` | `30000` | Timeout for a single MCP tool dispatch |
@@ -387,7 +386,7 @@ reachable as `LoomOptions.getAi()`.
 | `LOOM_AI_STREAMING` | `false` | `true` → `StreamingTurnStreamer` (true token/reasoning deltas); `false` → `BlockingTurnStreamer` (turn-granular) |
 | `LOOM_AI_TITLE_GENERATION` | `true` | Auto title + description + session capture after the first exchange |
 
-> ⚠️ `AiOptions.validate()` requires `providerType`, `url` and `modelId` to be non-blank
+> ⚠️ `AiOptions.validate()` requires `url` and `modelId` to be non-blank
 > **unconditionally** — it does not short-circuit on `enabled == false`. Blanking any of them
 > to "turn the agent off" fails startup validation; use `LOOM_AI_ENABLED=false` and leave the
 > defaults in place (R9).
@@ -490,5 +489,5 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | R9 | `AiOptions.validate()` demands provider/url/model even when `ai.enabled=false` (§9). | Short-circuit `validate()` on `!enabled`, so a Loom deployment without an LLM needs no dummy provider config. |
 | R10 | This file lives under `spec/loom/ui/` but is ~80% server-side (loop, REST, config, DB). | Move to `spec/features/chat/CHAT.md` next to its sibling chat specs and fix the relative links; `TASK_UI_CHAT.md` stays the UI-side document. |
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified against `loom/agent/chat`; flagged `think` dead end-to-end, unconditional `AiOptions.validate()`, abort-persists semantics and the new `SystemPromptBuilder` signature)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (the agent now uses `OpenAILLMProvider` only; `LOOM_AI_PROVIDER_TYPE` removed and the vLLM true-streaming gap closed (CHAT_TASKS F1))_

@@ -326,7 +326,7 @@ test is an open item in
 
 The rest of the record stands: at the time of the rework `loom/db/jooq` (211 tests),
 `loom/db/api` (8), `loom/services/rest` (161), `loom/services/graphql` (8) and `loom/core`
-(229, 3 skipped without a local Ollama) were green against a freshly provisioned pool. Note
+(229, 3 skipped without a local LLM server) were green against a freshly provisioned pool. Note
 that the migration count quoted there is historical — the schema now runs to **`V2.63`**.
 
 ---
@@ -366,5 +366,5 @@ that the migration count quoted there is historical — the schema now runs to *
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced to a build record: Tasks 1–13 collapsed into an outcome table, the false `DetectionDaoTest` verification corrected, and the stale `dbdiagram.yaml` filed as Task 14)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (the skipped-test note no longer names Ollama)_

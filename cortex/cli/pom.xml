@@ -13,7 +13,7 @@
     <name>MetaLoom // Cortex :: CLI</name>
 
     <properties>
-        <mainClass>io.metaloom.cortex.cli.CortexCLIMain</mainClass>
+        <mainClass>io.metaloom.cortex.cli.CortexMain</mainClass>
     </properties>
 
     <dependencyManagement>
@@ -45,10 +45,6 @@
             <groupId>io.metaloom.cortex</groupId>
             <artifactId>cortex-cloud-common</artifactId>
         </dependency>
-        <dependency>
-            <groupId>info.picocli</groupId>
-            <artifactId>picocli</artifactId>
-        </dependency>
 
         <!--Test-->
         <dependency>
@@ -65,11 +61,6 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
                     <annotationProcessorPaths>
-                        <path>
-                            <groupId>info.picocli</groupId>
-                            <artifactId>picocli-codegen</artifactId>
-                            <version>${pico-cli.version}</version>
-                        </path>
                         <path>
                             <groupId>com.google.dagger</groupId>
                             <artifactId>dagger-compiler</artifactId>

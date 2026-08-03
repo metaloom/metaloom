@@ -3,7 +3,7 @@ package io.metaloom.cortex.llm;
 import dagger.Module;
 import dagger.Provides;
 import io.metaloom.ai.genai.llm.LLMProvider;
-import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 
 /**
  * The single {@link LLMProvider} binding, shared by every node that talks to a language model.
@@ -18,8 +18,8 @@ import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
  * <p>
  * The provider is protocol-level only. <em>Which</em> model answers, and at what URL, is a
  * per-instance decision carried on the node's own options and passed as a
- * {@code LargeLanguageModel} at call time — so an Ollama and a vLLM endpoint can coexist in one
- * worker without a second binding.
+ * {@code LargeLanguageModel} at call time — so several OpenAI-compatible endpoints can coexist in
+ * one worker without a second binding.
  * </p>
  */
 @Module
@@ -27,6 +27,6 @@ public abstract class LLMProviderModule {
 
 	@Provides
 	public static LLMProvider llmProvider() {
-		return new OllamaLLMProvider();
+		return new OpenAILLMProvider();
 	}
 }

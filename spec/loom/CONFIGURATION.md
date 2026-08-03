@@ -82,7 +82,7 @@ auth:       { keystorePassword, initialPassword, tokenExpirationTime,
                         userInfoUrl, callbackUrl, logoutUrl, scope } }
 storage:    { uploadDirectory, maxUploadSize, minFreeSpace }
 s3:         { endpoint, region, accessKey, secretKey, pathStyleAccess }
-ai:         { enabled, providerType, url, modelId, contextWindow, maxTurns,
+ai:         { enabled, url, modelId, contextWindow, maxTurns,
               toolTimeoutMs, thinkEnabled, streaming, titleGeneration }
 sandbox:    { enabled, backend, image, namespace, idleTtlSeconds, maxSessionSeconds,
               execTimeoutSeconds, maxConcurrent, readyTimeoutSeconds,
@@ -186,9 +186,8 @@ Names mirror Cortex's `CORTEX_S3_*` (`S3ClientOptions`).
 | Variable | Default | Options | Purpose |
 |----------|---------|---------|---------|
 | `LOOM_AI_ENABLED` | `true` | `AiOptions` | Enable the chat agent |
-| `LOOM_AI_PROVIDER_TYPE` | `OLLAMA` | `AiOptions` | Provider (`OLLAMA`, `VLLM`) — free-form string, not enum-checked |
-| `LOOM_AI_URL` | `http://127.0.0.1:11434` | `AiOptions` | Provider base URL |
-| `LOOM_AI_MODEL_ID` | `gpt-oss:20b` | `AiOptions` | Model id |
+| `LOOM_AI_URL` | `http://127.0.0.1:8080/v1` | `AiOptions` | Base URL of the OpenAI-compatible server |
+| `LOOM_AI_MODEL_ID` | `openai/gpt-oss-20b` | `AiOptions` | Model id |
 | `LOOM_AI_CONTEXT_WINDOW` | `16384` | `AiOptions` | Context window |
 | `LOOM_AI_MAX_TURNS` | `8` | `AiOptions` | Agentic loop turns per user message |
 | `LOOM_AI_TOOL_TIMEOUT_MS` | `30000` | `AiOptions` | Per-tool-invocation timeout |
@@ -376,7 +375,7 @@ Values of blank/secret fields are never echoed.
 | `auth.oauth2` | `enabled` | `clientId`, `clientSecret`, `scope` non-blank; `authUrl`, `tokenUrl`, `userInfoUrl`, `callbackUrl` absolute http(s); `logoutUrl` optional but validated when set. **Whole block skipped when disabled** |
 | `storage` | always | `uploadDirectory` non-blank; `maxUploadSize` positive or exactly `-1`; `minFreeSpace` ≥ 0 |
 | `s3` | always | `accessKey` and `secretKey` must be set **together** (or neither). Endpoint/region unvalidated |
-| `ai` | **always — even when `enabled: false`** | `providerType`, `url`, `modelId` non-blank. `providerType` is not checked against a known set; no numeric bounds on turns/window/timeout |
+| `ai` | **always — even when `enabled: false`** | `url`, `modelId` non-blank; no numeric bounds on turns/window/timeout |
 | `sandbox` | — | `validate()` is an intentional **no-op**; backends report their own errors at provision time |
 | `memory` | `enabled` | `maxEntryBytes`, `maxEntriesPerScope`, `maxDepth`, `promptMaxEntries`, `promptMaxChars` ≥ 1; `maxScopeBytes` > 0; `mountPath` absolute when `mountEnabled` |
 | `search` | `enabled` | `provider` ∈ {postgres, elasticsearch, none} (case-insensitive); `defaultLimit`/`maxLimit` ≥ 1, `maxOffset` ≥ 0, `bodyMaxBytes` ≥ 1024; `defaultLimit ≤ maxLimit`; `trigramThreshold` ∈ [0,1]; `trigramWeight` ≥ 0; `tsConfig` non-blank |
@@ -570,7 +569,7 @@ enabled/disabled gate, and an assertion that secrets are not echoed
       `loom/containers/server/Containerfile{,.native}` (2026-08-02)
 - [ ] Drop or implement `LOOM_CONF_FILENAME` and `LOOM_AUTH_KEYSTORE_PATH` (chart sets both; nothing reads them)
 - [ ] Guard `AuthModule` against a `null` `baseConfigFolder` (classpath-loaded config NPEs)
-- [ ] Move `ai.*` validation behind `ai.enabled`, or validate `providerType` against the known set
+- [ ] Move `ai.*` validation behind `ai.enabled`
 - [ ] Mark `LOOM_DB_PASSWORD` / `LOOM_INITIAL_PASSWORD` as `isSensitive`
 - [ ] Add `LOOM_DB_ACQUIRE_INCREMENT` and an env var for `auth.keystorePassword`
 - [ ] Promote `LOOM_WS_STRICT_AUTH` into `AuthenticationOptions` so it is validated
@@ -596,5 +595,5 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 
 ---
 
-_Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-02 (dropped the `LOOM_DB_USER` mismatch — the chart and both Containerfiles now emit `LOOM_DB_USERNAME`)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (`LOOM_AI_PROVIDER_TYPE` removed; `LOOM_AI_URL`/`LOOM_AI_MODEL_ID` defaults now name an OpenAI-compatible server)_

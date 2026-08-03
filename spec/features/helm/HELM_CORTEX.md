@@ -56,14 +56,13 @@ restrictions, leases and run attribution on it, and rejects a second worker anno
 in use. The StatefulSet gives each pod a stable name (`cortex-0`, `cortex-1`, …), injected via
 `fieldRef: metadata.name`.
 
-🔴 **A missing id is now a hard, up-front failure, not a silent fallback.**
-`ServerCommand#run` calls `AbstractLoomWorkerCommand#requireNodeId()` before anything starts, so the
-stock image's `CMD … server start` **exits with a picocli `ParameterException`** unless `--node-id` or
-`CORTEX_NODE_ID` is present. A bare `podman run metaloom/cortex-server` therefore fails by design.
-The chart always sets the var, so a chart install is unaffected — but anything that overrides
-`command`/`args`, or a custom `main` that bypasses the CLI (`CortexCustomMain` does), must supply an
-id too; that second path is caught later by `LoomControlChannel` (`IllegalStateException` on a blank
-id at registration time) rather than at startup.
+🔴 **A missing id is a hard, up-front failure, not a silent fallback.**
+`CortexMain` checks the resolved options before the worker starts and **exits with code 2** unless
+`CORTEX_NODE_ID` is set. A bare `podman run metaloom/cortex-server` therefore fails by design. The
+chart always sets the var, so a chart install is unaffected — but a custom `main`
+(`CortexCustomMain` does this) must supply an id too; that path is caught later by
+`LoomControlChannel` (`IllegalStateException` on a blank id at registration time) rather than at
+startup.
 
 ## Custom node image — the override surface
 
@@ -72,38 +71,41 @@ id at registration time) rather than at startup.
 | `image.repository` / `.tag` / `.pullPolicy` | **Point at any worker image** (stock, `metaloom/cortex-custom`, `metaloom/cortex-python`, your own). Empty tag → chart `appVersion`. |
 | `command` / `args` | Entrypoint override. **Neither example needs it** — both bake their own `CMD`. Reserve it for third-party images or for appending flags to the stock CLI. |
 | `extraEnv` | Image-specific env, appended last (also the escape hatch for anything untemplated). |
-| `nodeKinds` | Advertised kinds → both `CORTEX_NODE_WHITELIST` (stock CLI) and `CORTEX_NODE_KINDS` (only the Python example reads this one; it is **not** in `EnvDefaultProvider`). |
+| `nodeKinds` | Advertised kinds → both `CORTEX_NODE_WHITELIST` (stock worker) and `CORTEX_NODE_KINDS` (only the Python example reads this one; it is **not** in `CortexEnvOptions`). |
 | `livenessProbe` / `readinessProbe` | `type: httpGet\|tcpSocket\|exec`, or `enabled: false`. Both probes always target the `monitoring` port. |
 
 The example images:
 
 | Example | Image | Base | Entry point | Probes |
 |---------|-------|------|-------------|--------|
-| `examples/cortex-custom` | `metaloom/cortex-custom` | `metaloom/cortex-server` (thin overlay: adds only the example jars, reuses the base classpath via `-cp`) | own `CMD` → `io.metaloom.cortex.cli.CortexCustomMain` (no picocli, no `server start`) | default HTTP probes work |
+| `examples/cortex-custom` | `metaloom/cortex-custom` | `metaloom/cortex-server` (thin overlay: adds only the example jars, reuses the base classpath via `-cp`) | own `CMD` → `io.metaloom.cortex.cli.CortexCustomMain` (same shape as the stock `CortexMain`, different class) | default HTTP probes work |
 | `examples/cortex-python` | `metaloom/cortex-python` | `python:3.12-slim` | own `CMD ["python","daemon.py"]` | no monitoring port → `readinessProbe.enabled=false` + `livenessProbe.type=tcpSocket` |
 
 ## Environment variables the chart sets
 
-All `LOOM_*`/`CORTEX_*` names below (except `LOOM_TOKEN`) reach the process as **picocli option
-defaults** via `EnvDefaultProvider` — they are not `*Options.overrideWithEnv()` calls as on the Loom
-side. A name absent from `EnvDefaultProvider.OPTION_ENV_MAP` is read by nobody in the stock image.
+All `LOOM_*`/`CORTEX_*` names below (except `LOOM_TOKEN`) are applied by **`CortexEnvOptions`**,
+which writes them onto `CortexOptions` after `cortex.yml` is loaded. Cortex has no CLI, so there are
+no flags behind them. A name absent from `CortexEnvOptions` is read by nobody in the stock image.
 
-| Env | Source | Chart default | Read by |
-|-----|--------|---------------|---------|
-| `LOOM_HOST` / `LOOM_PORT` | `loom.host` / `loom.port` | `loom` / `8092` | `--hostname` / `--port` |
-| `LOOM_TOKEN` | token Secret, key `token`; only if `loom.token` or `loom.existingSecret` | unset (token-less = no result write-back) | `LoomControlChannel#resolveToken` (`System.getenv`) |
-| `CORTEX_MONITORING_PORT` | `monitoring.port` | `8093` | `--monitoring-port` |
-| `CORTEX_META_PATH` | `meta.path` | `/meta` | `--meta-path` |
-| `CORTEX_NODE_ID` | `nodeId`, else pod name via `fieldRef` | pod name | `--node-id` (mandatory) |
-| `CORTEX_NODE_WHITELIST` | `nodeKinds` (comma-joined) | unset = announce everything | `--node-whitelist` |
+| Env | Source | Chart default | Lands on |
+|-----|--------|---------------|----------|
+| `LOOM_HOST` / `LOOM_PORT` | `loom.host` / `loom.port` | `loom` / `8092` | `CortexOptions.loom.hostname` / `.port` |
+| `LOOM_TOKEN` | token Secret, key `token`; only if `loom.token` or `loom.existingSecret` | unset (token-less = no result write-back) | `LoomControlChannel#resolveToken` (`System.getenv`, not `CortexEnvOptions`) |
+| `CORTEX_MONITORING_PORT` | `monitoring.port` | `8093` | `CortexOptions.monitoringPort` |
+| `CORTEX_META_PATH` | `meta.path` | `/meta` | `CortexOptions.metaPath` |
+| `CORTEX_NODE_ID` | `nodeId`, else pod name via `fieldRef` | pod name | `CortexOptions.nodeId` (mandatory) |
+| `CORTEX_NODE_WHITELIST` | `nodeKinds` (comma-joined) | unset = announce everything | `CortexOptions.nodeWhitelist` |
 | `CORTEX_NODE_KINDS` | `nodeKinds` (same value) | unset | **Python example only** |
-| `CORTEX_NODE_BLACKLIST` | `nodeBlacklist` | unset | `--node-blacklist` (wins over the whitelist) |
-| `CORTEX_S3_ENDPOINT` / `_REGION` / `_PATH_STYLE` | `s3.endpoint` / `.region` / `.pathStyleAccess` | — / `us-east-1` / `true` | `--s3-endpoint` / `--s3-region` / `--s3-path-style` |
-| `CORTEX_S3_ACCESS_KEY` / `_SECRET_KEY` | s3 Secret | unset → AWS default credential chain (IRSA) | `--s3-access-key` / `--s3-secret-key` |
-| `CORTEX_GDRIVE_SERVICE_ACCOUNT_JSON` | gdrive Secret | unset → the `gdrive-source` kind is not advertised | `--gdrive-service-account-json` |
-| `CORTEX_ONEDRIVE_CLIENT_SECRET` / `_TENANT_ID` / `_CLIENT_ID` | onedrive Secret / values | unset → the `onedrive-source` kind is not advertised | `--onedrive-*` |
-| `CORTEX_S3_CACHE_PATH` / `_MAX_CACHE_BYTES` / `_RECONCILE_INTERVAL_MS` | `s3.*` | `<meta.path>/s3_bin` / 50Gi / 6h | matching `--s3-*` options |
-| `CORTEX_S3_EVENTS_ENABLED` / `_MODE` / `_QUEUE_URL` / `_WEBHOOK_SECRET` | `s3.events.*` | off / `WEBHOOK` | matching `--s3-events-*` options |
+| `CORTEX_NODE_BLACKLIST` | `nodeBlacklist` | unset | `CortexOptions.nodeBlacklist` (wins over the whitelist) |
+| `CORTEX_S3_ENDPOINT` / `_REGION` / `_PATH_STYLE` | `s3.endpoint` / `.region` / `.pathStyleAccess` | — / `us-east-1` / `true` | `S3ClientOptions` |
+| `CORTEX_S3_ACCESS_KEY` / `_SECRET_KEY` | s3 Secret | unset → AWS default credential chain (IRSA) | `S3ClientOptions` |
+| `CORTEX_GDRIVE_SERVICE_ACCOUNT_JSON` | gdrive Secret | unset → the `gdrive-source` kind is not advertised | `GDriveClientOptions` |
+| `CORTEX_ONEDRIVE_CLIENT_SECRET` / `_TENANT_ID` / `_CLIENT_ID` | onedrive Secret / values | unset → the `onedrive-source` kind is not advertised | `OneDriveClientOptions` |
+| `CORTEX_S3_CACHE_PATH` / `_MAX_CACHE_BYTES` / `_RECONCILE_INTERVAL_MS` | `s3.*` | `<meta.path>/s3_bin` / 50Gi / 6h | `S3ClientOptions` |
+
+⚠️ A blank value counts as unset, and a malformed one (a non-numeric port, a boolean that is not
+`true`/`false`) **aborts the startup** rather than falling back to a default.
+| `CORTEX_S3_EVENTS_ENABLED` / `_MODE` / `_QUEUE_URL` / `_WEBHOOK_SECRET` | `s3.events.*` | off / `WEBHOOK` | `S3EventOptions` |
 
 Everything under `s3.*` is rendered only inside `if .Values.s3.enabled`.
 
@@ -130,22 +132,21 @@ Everything under `s3.*` is rendered only inside `if .Values.s3.enabled`.
 
 | Class | Package (`cortex/…`) | Why it matters here |
 |---|---|---|
-| `EnvDefaultProvider` | `io.metaloom.cortex.cli` (`core`) | **The authoritative env-var list.** If a name is not in `OPTION_ENV_MAP`, the chart setting it does nothing |
-| `CortexCLI` | `io.metaloom.cortex.cli` (`core`) | The `--node-id`, `--meta-path`, `--s3-*` options the env vars feed |
-| `AbstractLoomWorkerCommand#requireNodeId` | `io.metaloom.cortex.cli.cmd` (`core`) | Hard startup failure when no id is configured |
+| `CortexEnvOptions` | `io.metaloom.cortex.common.option` (`common`) | **The authoritative env-var list.** If a name is not here, the chart setting it does nothing |
+| `CortexMain` | `io.metaloom.cortex.cli` (`cli`) | Entry point; hard startup failure (exit 2) when no `CORTEX_NODE_ID` is configured |
 | `LoomControlChannel` | `io.metaloom.cortex.impl.loom` (`core`) | `resolveToken` (`LOOM_TOKEN`), blank-id guard, registration/heartbeat |
 | `CortexOptionsLoader` | `io.metaloom.cortex.common.option` (`common`) | `defaultConfigPath()` = `$HOME/.config/metaloom/cortex.yml` — why `.Values.config` is inert |
 | `HealthEndpoint` | `io.metaloom.cortex.impl.monitoring` (`core`) | Registers `/api/health` and `/api/ready` on the monitoring port |
 | `S3Support` / `S3Module` | `io.metaloom.cortex.s3` (`s3-common`) / `io.metaloom.cortex.cli.dagger` (`core`) | Where the `CORTEX_S3_*` values land; cache-path fallback |
-| `CortexCustomMain` | `io.metaloom.cortex.cli` (`examples/cortex-custom`) | Custom-image entry point that bypasses the CLI |
+| `CortexCustomMain` | `io.metaloom.cortex.cli` (`examples/cortex-custom`) | Custom-image entry point; must enforce the node id itself |
 
 ## Conventions & Gotchas
 
 | Area | Gotcha |
 |------|--------|
 | **Stable node id** | 🔴 StatefulSet, not Deployment: `CORTEX_NODE_ID = metadata.name`. Never inject a random suffix — and never drop the var: the stock image now **refuses to start** without one. |
-| **`.Values.config` is inert** | 🔴 The ConfigMap mounts `/config/cortex.yml`, but `CortexOptionsLoader#defaultConfigPath` only reads `$HOME/.config/metaloom/cortex.yml` (`HOME=/cortex`). The image's `/cortex/config` → `/config` symlink does **not** bridge that. Use `extraEnv`, which the CLI does read. Same class of bug as Loom's B3 ([HELM_LOOM.md](HELM_LOOM.md)). |
-| **Env names are picocli-mapped** | ⚠️ Adding `CORTEX_FOO` to the StatefulSet does nothing unless `EnvDefaultProvider` maps an option to it. `CORTEX_NODE_KINDS` is the deliberate exception — it exists purely for the Python example. |
+| **`.Values.config` is inert** | 🔴 The ConfigMap mounts `/config/cortex.yml`, but `CortexOptionsLoader#defaultConfigPath` only reads `$HOME/.config/metaloom/cortex.yml` (`HOME=/cortex`). The image's `/cortex/config` → `/config` symlink does **not** bridge that. The file *is* loaded when it sits at the loader's path; from a chart, use `extraEnv`. Same class of bug as Loom's B3 ([HELM_LOOM.md](HELM_LOOM.md)). |
+| **Env names are explicitly mapped** | ⚠️ Adding `CORTEX_FOO` to the StatefulSet does nothing unless `CortexEnvOptions` reads it. `CORTEX_NODE_KINDS` is the deliberate exception — it exists purely for the Python example. |
 | **Direction** | Cortex dials **out** to Loom; Loom never connects in. The Service is headless and exists only for health/metrics scraping — it is not a load-balancing target. |
 | **Media by path** | Loom hands the worker a *path*, not bytes. Source/hash/whisper-style nodes need the same media mounted (`media.enabled` with `existingClaim`/`hostPath`/`nfs`) — **unless** the media is `s3://`, in which case `s3.enabled` removes the shared-volume requirement entirely (objects are fetched lazily by whichever worker runs the task). |
 | **S3 is per-worker, not per-node** | ⚠️ Any worker that may execute a task against `s3://` media needs the `s3.*` block — not only the one running the `s3-source` node. |
@@ -161,7 +162,7 @@ Everything under `s3.*` is rendered only inside `if .Values.s3.enabled`.
 |------|---------|
 | Lint | `helm lint helm/cortex` |
 | Render the variants | `helm template t helm/cortex` · `--set image.repository=metaloom/cortex-python --set readinessProbe.enabled=false --set livenessProbe.type=tcpSocket` · `--set s3.enabled=true --set s3.accessKey=a --set s3.secretKey=b` · `--set meta.persistence.enabled=true` · `--set loom.token=x` |
-| Assert env names against the code | `helm template t helm/cortex \| grep -E 'name: (LOOM\|CORTEX)_'` then check each against `EnvDefaultProvider.OPTION_ENV_MAP` |
+| Assert env names against the code | `helm template t helm/cortex \| grep -E 'name: (LOOM\|CORTEX)_'` then check each against `CortexEnvOptions` |
 | Live registration | worker reaches `/api/ready`, then `GET /api/v1/processors` on Loom lists the `CORTEX_NODE_ID` |
 
 No CI gate and no `helm unittest` suite exist for either check.
@@ -172,7 +173,7 @@ No CI gate and no `helm unittest` suite exist for either check.
 |------|-----------|
 | A value's effect | `helm/cortex/values.yaml` (commented) |
 | Env / probe / node-id wiring | `helm/cortex/templates/statefulset.yaml` |
-| Whether an env var is actually read | `cortex/core/.../cli/EnvDefaultProvider.java` |
+| Whether an env var is actually read | `cortex/common/.../option/CortexEnvOptions.java` |
 | Option semantics and defaults | [`../../cortex/CONFIGURATION.md`](../../cortex/CONFIGURATION.md) |
 | Image ref / token + S3 secret helpers | `helm/cortex/templates/_helpers.tpl` |
 | How to build a custom image | `examples/cortex-custom/{Containerfile,build-image.sh}`, `examples/cortex-python/{Containerfile,build-image.sh}` |
@@ -192,7 +193,7 @@ No CI gate and no `helm unittest` suite exist for either check.
 - [x] `helm lint` clean; `helm template` renders across stock/custom/python/S3 variants
 - [x] Chart stays correct under the mandatory `requireNodeId()` — `CORTEX_NODE_ID` is always emitted
 - [ ] 🔴 `.Values.config` is inert — mount at `$HOME/.config/metaloom/cortex.yml` or remove the knob
-- [ ] No automated `helm lint` / `helm template` gate in CI; no rendered-env-vs-`EnvDefaultProvider` check
+- [ ] No automated `helm lint` / `helm template` gate in CI; no rendered-env-vs-`CortexEnvOptions` check
 - [ ] Live registration smoke test (worker reaches `/api/ready` and appears in `GET /api/v1/processors`)
       not yet part of the standard verification
 - [ ] The stock worker still advertises only a subset of node kinds (see the pipeline-node registry
@@ -201,5 +202,5 @@ No CI gate and no `helm unittest` suite exist for either check.
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified every template against the code; added the S3 surface, the mandatory-node-id rule and the inert `.Values.config` mount)_
+_Git HEAD revision: `aab85cb3`_
+_Last updated: 2026-08-02 (env vars now land via `CortexEnvOptions` instead of picocli defaults; the missing-node-id failure is `CortexMain` exiting 2)_

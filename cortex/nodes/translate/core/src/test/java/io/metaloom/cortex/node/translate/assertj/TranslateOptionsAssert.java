@@ -36,10 +36,10 @@ public class TranslateOptionsAssert extends AbstractCortexNodeOptionsAssert<Tran
 		return this;
 	}
 
-	public TranslateOptionsAssert hasOllamaUrl(String expected) {
+	public TranslateOptionsAssert hasOpenaiUrl(String expected) {
 		isNotNull();
-		if (!expected.equals(actual.ollamaUrl())) {
-			failWithMessage("Expected ollamaUrl to be '%s' but was '%s'", expected, actual.ollamaUrl());
+		if (!expected.equals(actual.openaiUrl())) {
+			failWithMessage("Expected openaiUrl to be '%s' but was '%s'", expected, actual.openaiUrl());
 		}
 		return this;
 	}

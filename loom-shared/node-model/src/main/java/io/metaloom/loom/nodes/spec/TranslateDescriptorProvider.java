@@ -50,12 +50,10 @@ public class TranslateDescriptorProvider implements NodeDescriptorProvider {
 						.setLabel("Target Language").setDescription("Language to translate into; also the variant the result is stored under"),
 					new NodeParameter().setKey("sourceLanguage").setType(STRING).setDefaultValue("auto")
 						.setLabel("Source Language").setDescription("Language of the input, or 'auto' to let the model work it out"),
-					new NodeParameter().setKey("model").setType(STRING).setDefaultValue("gemma2:27b")
+					new NodeParameter().setKey("model").setType(STRING).setDefaultValue("google/gemma-2-27b-it")
 						.setLabel("Model").setDescription("Model id asked to translate; also recorded as the producer version"),
-					new NodeParameter().setKey("ollamaUrl").setType(STRING).setDefaultValue("http://127.0.0.1:11434")
-						.setLabel("Ollama URL").setDescription("Base URL of the Ollama or OpenAI-compatible backend"),
-					new NodeParameter().setKey("providerType").setType(STRING).setDefaultValue("OLLAMA")
-						.setLabel("Provider Type").setDescription("Wire protocol spoken at that URL: OLLAMA or VLLM"),
+					new NodeParameter().setKey("openaiUrl").setType(STRING).setDefaultValue("http://127.0.0.1:8080/v1")
+						.setLabel("OpenAI URL").setDescription("Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"),
 					new NodeParameter().setKey("contextWindow").setType(INTEGER).setDefaultValue(2048)
 						.setLabel("Context Window").setDescription("Tokens the model is told it may use for one call").setMin(1),
 					new NodeParameter().setKey("promptTemplate").setType(STRING)

@@ -19,7 +19,7 @@ You configure a list of **buckets**, and the node grows **one output port per bu
 | Applies to | — (routing; sits between other nodes)
 | Input ports | `media` — the item being routed. `text` — the text to classify; optional, and without it every item lands in `other`
 | Output ports | One per configured bucket, plus `other`, `passed` and `bucket`
-| Requirements | A reachable language model (Ollama by default)
+| Requirements | A reachable OpenAI-compatible language model endpoint
 | Persists to | The routing decision, as a JSON component on the asset
 |===
 
@@ -72,7 +72,7 @@ The **Filter by** setting chooses what the buckets are matched against.
 | Language | …language matches the text wired into the node
 |===
 
-Language is decided by a language model, which means it needs a reachable Ollama endpoint but no
+Language is decided by a language model, which means it needs a reachable OpenAI-compatible endpoint but no
 extra model download and no separate service. Wire the `text` port from whatever produced the text:
 a transcript from link:../whisper/[Whisper], extracted document text from link:../tika/[Tika], or
 recognised text from link:../ocr/[OCR].

@@ -55,8 +55,8 @@ Match the framing already used in
 website/content/english/docs/cortex/_index.adoc ("long-running worker daemon, not a
 one-shot CLI batch tool"; "the pipeline graph lives on Loom, not on Cortex") and
 website/content/english/docs/cortex/containers/index.adoc ("deploy it as a Deployment").
-The only offline path that survives is the legacy `cortex process run --actions` CLI;
-name it as legacy rather than as the headline mode.
+There is no offline path left at all: the picocli layer, including
+`cortex process run --actions`, has since been removed and Cortex only runs as a worker.
 ```
 
 **References:** [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md),
@@ -326,9 +326,8 @@ code does.
 contract.
 
 ```
-Existing: --node-id / CORTEX_NODE_ID (CortexCLI, EnvDefaultProvider) is mandatory at server
-startup — AbstractLoomWorkerCommand#requireNodeId, called from ServerCommand, with a second
-guard in LoomControlChannel that throws on a blank id. The id keys cortex_instance, and
+Existing: CORTEX_NODE_ID (CortexEnvOptions) is mandatory at startup — CortexMain exits with
+code 2 when it is missing, with a second guard in LoomControlChannel that throws on a blank id. The id keys cortex_instance, and
 ProcessorRegistry#reconcilePersistedRestriction restores admin-set whitelist/blacklist on
 re-register, so leases and attribution survive a restart when the same id is supplied.
 

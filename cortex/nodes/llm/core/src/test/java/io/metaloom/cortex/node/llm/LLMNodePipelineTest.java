@@ -30,7 +30,7 @@ import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 /**
  * Pipeline integration test for {@link LLMNode}.
  *
- * <p>The actual LLM inference requires an Ollama server, so the
+ * <p>The actual LLM inference requires a running LLM server, so the
  * {@code compute()} method is stubbed to return known JSON output.
  * This tests the pipeline adapter integration, event dispatch, output
  * chaining, and prompt configuration.</p>
@@ -58,13 +58,13 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		options.setEnabled(true);
 
 		LLMNodePrompt prompt = new LLMNodePrompt();
-		prompt.setModel("gemma2:27b");
+		prompt.setModel("google/gemma-2-27b-it");
 		prompt.setPrompt("Extract metadata from ${name}");
 		options.setPrompts(Map.of(promptId, prompt));
 
-		LLMNode node = spy(new LLMNode(null, new CortexOptions(), options, new io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider()));
+		LLMNode node = spy(new LLMNode(null, new CortexOptions(), options, new io.metaloom.ai.genai.llm.openai.OpenAILLMProvider()));
 
-		// Stub the compute method to avoid Ollama HTTP calls
+		// Stub the compute method to avoid LLM HTTP calls
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);
 			for (String id : options.getPrompts().keySet()) {
@@ -110,17 +110,17 @@ class LLMNodePipelineTest extends AbstractNodeChainTest {
 		options.setEnabled(true);
 
 		LLMNodePrompt prompt1 = new LLMNodePrompt();
-		prompt1.setModel("gemma2:27b");
+		prompt1.setModel("google/gemma-2-27b-it");
 		prompt1.setPrompt("Describe ${name}");
 
 		LLMNodePrompt prompt2 = new LLMNodePrompt();
-		prompt2.setModel("gemma2:27b");
+		prompt2.setModel("google/gemma-2-27b-it");
 		prompt2.setPrompt("Categorize ${name}");
 
 		options.setPrompts(Map.of("describe", prompt1, "categorize", prompt2));
 
 		CortexOptions cortexOptions = new CortexOptions();
-		LLMNode node = spy(new LLMNode(null, cortexOptions, options, new io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider()));
+		LLMNode node = spy(new LLMNode(null, cortexOptions, options, new io.metaloom.ai.genai.llm.openai.OpenAILLMProvider()));
 
 		doAnswer(invocation -> {
 			NodeContext<LoomMedia> ctx = invocation.getArgument(0);

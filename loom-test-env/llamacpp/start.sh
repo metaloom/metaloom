@@ -2,8 +2,8 @@
 #
 # Starts the llama.cpp server used by the Cortex LLM node tests.
 #
-# The server speaks the OpenAI-compatible protocol, so the tests drive it through
-# LLMProviderType.VLLM rather than the Ollama provider. See README.md.
+# The server speaks the OpenAI-compatible protocol, which is the only protocol
+# the nodes support. See README.md.
 #
 # Everything below can be overridden from the environment, e.g.
 #   PORT=9999 GPU=1 ./start.sh

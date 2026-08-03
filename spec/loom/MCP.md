@@ -524,8 +524,8 @@ run `./setup-pool.sh` first):
 `MCPTestClient` and `MCPAuthTestSupport` provide the HTTP/WS/SSE client helpers,
 JWT/API-key fixtures and canned JSON-RPC payloads.
 
-The two LLM-driven tests call `OllamaAvailability.assumeRunning()` and are skipped
-unless Ollama serves `gpt-oss:20b` at `http://127.0.0.1:11434`.
+The two LLM-driven tests call `LlmBackendAvailability.assumeRunning()` and are skipped
+unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.0.1:8080/v1`.
 
 ---
 
@@ -636,5 +636,5 @@ Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Verified against `loom/services/mcp`: added the four memory tools, the identity-scoped dispatch model and corrected config keys, auth and test coverage.)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (the two LLM-driven tests now guard on `LlmBackendAvailability` against an OpenAI-compatible server)_

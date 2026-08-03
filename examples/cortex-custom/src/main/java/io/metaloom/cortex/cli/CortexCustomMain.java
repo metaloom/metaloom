@@ -12,7 +12,7 @@ import io.metaloom.cortex.cli.dagger.DaggerCortexComponent;
  * Entry point for the custom Cortex <b>daemon</b> example.
  *
  * <p>
- * Unlike the real Cortex CLI, this example has no command layer. It simply assembles a {@link Cortex} instance that includes the custom
+ * Like the stock worker, this example has no command layer. It simply assembles a {@link Cortex} instance that includes the custom
  * {@code hello-world} node (from the {@code cortex-custom-node} module) and runs it in the foreground until the process is signalled to stop. The worker
  * connects to a Loom backend using the standard environment variables:
  * </p>

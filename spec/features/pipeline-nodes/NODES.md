@@ -165,11 +165,11 @@ Port ids only; content types and cardinality are in
 | `ocr` | `OCRNode` · ocr | image | `media` → `text` | `asset_json_comp` | Tesseract |
 | `tika` | `TikaNode` · tika | image, audio, video, document | `media` → `content`, `flags` | `asset_json_comp` | — |
 | `whisper` | `WhisperNode` · whisper | video, audio | `audio` \| `video` → `transcript` | `asset_transcript_comp` | whisper.cpp |
-| `llm` | `LLMNode` · llm | any (filename-driven) | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | Ollama / OpenAI-compat |
+| `llm` | `LLMNode` · llm | any (filename-driven) | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | OpenAI-compatible |
 | `vlm` | `VlmNode` · vlm | image | `media` → **dynamic** per prompt | `asset_json_comp`/prompt | OpenAI-compat VLM |
 | `captioning` | `CaptioningNode` · captioning | image, video | `image` \| `video` → `caption` | `asset_json_comp` | SmolVLM / Qwen2.5-VL |
 | `sentiment` | `SentimentNode` · sentiment | any with `text` wired | `text` → `label`, `score`, `result` | `asset_json_comp` | sidecar `9110` |
-| `translate` | `TranslateNode` · translate | any with `text` wired | `text` → `translation`, `language`, `result` | `asset_json_comp` (`variant` = target language) | Ollama / OpenAI-compat |
+| `translate` | `TranslateNode` · translate | any with `text` wired | `text` → `translation`, `language`, `result` | `asset_json_comp` (`variant` = target language) | OpenAI-compatible |
 | `tts` | `TtsNode` · tts | any with `text` wired | `text` → `audio`, `flag` | ledger only | sidecar `9100` |
 | `depthmap` | `DepthmapNode` · depthmap | image | `media` → `map`, `meta`, `flag` | ledger only | sidecar `9120` |
 | `scene-layout` | `SceneLayoutNode` · scene-layout | image | `depth`, `detections` (MANY) → `result`, `object_count`, `relation_count` | `asset_json_comp` | **none** (geometry) |
@@ -388,10 +388,10 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `facedetection` | `videoChopRate` (5), `videoScaleSize` (384), `minFaceHeightFactor` (0.05), `inspirefacePackPath`, `capabilities` (`{INSPIREFACE}`), `faceClusterMinimum`, `faceClusterEPS` |
 | `quality` | `checkBlurriness`, `checkResolution`, `checkVideoBitrate`, `checkAudioBitrate` (all true) |
 | `captioning` | `smolVLMHost` (`localhost`), `smolVLMPort` (8000), `videoStrategy` (`WHOLE`), `videoEndpointUrl` (`http://localhost:8000`), `videoModel` (`qwen25vl-awq`), `videoApiKey` (``), `frameCount` (8), `targetFrameSize` (512), `maxScenes` (32), `maxTokens` (256), `temperature` (0.2), `videoPrompt` |
-| `llm` | `ollamaUrl` (`http://127.0.0.1:11434`), `providerType` (`OLLAMA`\|`VLLM`), `prompts` (`Map<String, LLMNodePrompt>`) |
+| `llm` | `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `prompts` (`Map<String, LLMNodePrompt>`) |
 | `vlm` | `endpointUrl`, `apiKey`, `prompts` (`Map<String, VlmNodePrompt>`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | `sentiment` | `sentimentHost` (`localhost`), `sentimentPort` (9110), `language` (`auto`), `modelDe`/`modelEn` (null), `maxChars` (200000) |
-| `translate` | `targetLanguage` (`en`), `sourceLanguage` (`auto`), `model` (`gemma2:27b`), `ollamaUrl` (`http://127.0.0.1:11434`), `providerType` (`OLLAMA`\|`VLLM`), `contextWindow` (2048), `promptTemplate` (must contain `${text}`), `maxChunkChars` (8000), `maxChars` (200000) |
+| `translate` | `targetLanguage` (`en`), `sourceLanguage` (`auto`), `model` (`google/gemma-2-27b-it`), `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `promptTemplate` (must contain `${text}`), `maxChunkChars` (8000), `maxChars` (200000) |
 | `tts` | `ttsHost` (`localhost`), `ttsPort` (9100), `language` (`de`), `voice` (`Jakob`) |
 | `depthmap` | `depthHost` (`localhost`), `depthPort` (9120), `mode` (`RELATIVE`\|`METRIC`), `model` (null), `maxDim` (1024), `timeoutMs` (120000) |
 | `scene-layout` | `allowLoomFallback` (true), `coreInset` (0.25), `minCorePixels` (16), `depthZThreshold` (1.0), `occlusionMinOverlap` (0.05), `containmentRatio` (0.85), `nextToMaxGap` (0.5), `foregroundQuantile` (0.66), `backgroundQuantile` (0.33), `maxObjects` (40), `maxRelations` (200), `emitPhrases` (true) |
@@ -466,7 +466,7 @@ A worker need not run every kind. Restriction is announced, persisted and reconc
 | `nodeWhitelist` | Kinds this worker will run. Null/empty = **anything** (so a pre-whitelist worker keeps receiving work). Defaults to `factory.registeredTypes()` |
 | `nodeBlacklist` | Kinds it refuses. **Takes precedence** over the whitelist. Null/empty = refuse nothing |
 
-CLI `--node-whitelist` / `--node-blacklist` (env `CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST`).
+`CORTEX_NODE_WHITELIST` / `CORTEX_NODE_BLACKLIST`.
 Persisted in `cortex_instance` + `cortex_instance_node_kind (instance_uuid, node_kind, list)` — a
 queryable child table rather than a JSONB blob. On first registration the announced lists are the
 **DEFAULT** and are seeded; on reconnect the persisted lists are the **OVERRIDE** and win, so an admin
@@ -684,8 +684,5 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (added the `gdrive-source` and `onedrive-source` kinds and the shared
-`cortex/cloud-common` module; counts re-derived (27 providers / 37 kinds, 29 node modules,
-34 descriptor-and-runnable). Recorded that MOVED is genuinely detectable on a cloud drive and that a
-drive-wide delta feed needs subtree filtering)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (`ollamaUrl`/`providerType` replaced by `openaiUrl` on the `llm`, `translate` and `filter` nodes)_

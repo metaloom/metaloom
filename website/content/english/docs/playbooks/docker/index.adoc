@@ -334,14 +334,14 @@ listed under link:../../nodes/#requirements[Nodes → Requirements at a glance].
 == Optional: An LLM Provider for the Chat and the `llm` Node
 
 The built-in link:../../loom/chat/[chat agent] is enabled by default but answers nothing without a
-reachable model provider. Ollama on the same network is the simplest option:
+reachable model provider. Any server speaking the OpenAI API works; llama.cpp on the same network
+is the simplest option:
 
 [source,yaml]
 ----
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama:/root/.ollama
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    command: ["-hf", "Qwen/Qwen3-8B-GGUF", "--host", "0.0.0.0", "--port", "8080"]
 ----
 
 Point the server at it:
@@ -349,13 +349,12 @@ Point the server at it:
 [source,yaml]
 ----
     environment:
-      LOOM_AI_PROVIDER_TYPE: OLLAMA
-      LOOM_AI_URL: http://ollama:11434
-      LOOM_AI_MODEL_ID: gpt-oss:20b
+      LOOM_AI_URL: http://llm:8080/v1
+      LOOM_AI_MODEL_ID: Qwen/Qwen3-8B
 ----
 
 The link:../../nodes/llm/[`llm` node] is configured separately — it is the *worker* that calls the
-provider, using `nodes.llm.ollamaUrl` in the worker's `cortex.yml`. Two different settings, two
+provider, using `nodes.llm.openaiUrl` in the worker's `cortex.yml`. Two different settings, two
 different processes.
 
 [#persist]

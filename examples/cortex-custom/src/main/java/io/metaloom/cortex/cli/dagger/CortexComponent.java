@@ -18,8 +18,8 @@ import javax.inject.Singleton;
  * Dagger object graph for the custom Cortex <b>daemon</b>.
  *
  * <p>
- * This example deliberately omits the picocli command layer of the real Cortex CLI: it wires just enough to build a {@link Cortex} instance and hand it
- * back to {@link io.metaloom.cortex.cli.CortexCustomMain}, which runs it as a long-lived worker connected to a Loom backend.
+ * This wires just enough to build a {@link Cortex} instance and hand it back to {@link io.metaloom.cortex.cli.CortexCustomMain}, which runs it as a
+ * long-lived worker connected to a Loom backend - the same shape as the stock {@code CortexMain}.
  * </p>
  *
  * <p>

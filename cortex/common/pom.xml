@@ -142,11 +142,6 @@
                 <configuration>
                     <annotationProcessorPaths>
                         <path>
-                            <groupId>info.picocli</groupId>
-                            <artifactId>picocli-codegen</artifactId>
-                            <version>${pico-cli.version}</version>
-                        </path>
-                        <path>
                             <groupId>com.google.dagger</groupId>
                             <artifactId>dagger-compiler</artifactId>
                             <version>${dagger.version}</version>

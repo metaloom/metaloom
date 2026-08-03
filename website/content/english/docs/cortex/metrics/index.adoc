@@ -95,7 +95,7 @@ results are reaching Loom as fast as the worker produces them.
 [options="header",cols="3,1,2,4"]
 |===
 | Metric | Type | Labels | Meaning
-| `cortex_ai_calls_total` | counter | `provider` = `ollama` \| `smolvlm` \| `whisper` \| `tesseract`, `outcome` = `success` \| `failure` | Calls to an upstream model service.
+| `cortex_ai_calls_total` | counter | `provider` = `llm` \| `smolvlm` \| `whisper` \| `tesseract`, `outcome` = `success` \| `failure` | Calls to an upstream model service.
 | `cortex_ai_call_duration_seconds` | timer | `provider` | Latency of those calls.
 | `cortex_ai_cache_hits_total` | counter | `provider` | Calls avoided by the in-process skip cache.
 |===

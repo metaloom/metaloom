@@ -115,10 +115,10 @@ postgresql:
   resources: {}
 
 # AI chat agent (LOOM_AI_*). Optional — leave enabled false to ship without the
-# assistant. Point url/model at your provider (Ollama, vLLM, llama.cpp, …).
+# assistant. Point url/model at any OpenAI-compatible server (llama.cpp, vLLM,
+# Ollama's /v1 endpoint, …).
 ai:
   enabled: false
-  providerType: ""
   url: ""
   modelId: ""
   # -- Extra LOOM_AI_* / LOOM_AGENT_* env vars as a plain map (name: value).

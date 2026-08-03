@@ -32,7 +32,7 @@ public class LLMNodeOptions extends AbstractLlmNodeOptions<LLMNodeOptions> {
 		List<String> errors = new ArrayList<>();
 		errors.addAll(validateCommon());
 
-		// ollamaUrl must not be empty; contextWindow must be positive
+		// openaiUrl must not be empty; contextWindow must be positive
 		errors.addAll(validateEndpoint());
 
 		// prompts must not be empty

@@ -7,8 +7,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.ai.genai.llm.LLMProviderType;
-import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.ai.genai.mockllm.MockLLMServer;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -21,7 +20,7 @@ import io.vertx.core.json.JsonObject;
 
 /**
  * Integration test for {@code LLMNode} driven against the {@link MockLLMServer}. The node runs its real compute against a real file, but its injected
- * {@link VLLMLLMProvider} points at the OpenAI-compatible mock instead of a live Ollama/vLLM backend. The generated JSON must reach the {@code llm}
+ * {@link OpenAILLMProvider} points at the OpenAI-compatible mock instead of a live model server. The generated JSON must reach the {@code llm}
  * component (variant = prompt id) and be readable back through REST.
  */
 public class LLMNodeIntegrationTest extends AbstractNodeIntegrationTest {
@@ -34,14 +33,13 @@ public class LLMNodeIntegrationTest extends AbstractNodeIntegrationTest {
 				UniqueAsset ua = createUniqueAsset(client, "video/mp4", "llm node payload".getBytes(StandardCharsets.UTF_8));
 
 				LLMNodeOptions options = new LLMNodeOptions();
-				options.setOllamaUrl(llm.baseUrl());
-				options.setProviderType(LLMProviderType.VLLM);
-				LLMNodePrompt prompt = new LLMNodePrompt();
+				options.setOpenaiUrl(llm.baseUrl());
+						LLMNodePrompt prompt = new LLMNodePrompt();
 				prompt.setModel("mock-model");
 				prompt.setPrompt("Extract metadata from ${name}");
 				options.setPrompts(Map.of("default", prompt));
 
-				LLMNode node = new LLMNode(client, cortexOptions(), options, new VLLMLLMProvider());
+				LLMNode node = new LLMNode(client, cortexOptions(), options, new OpenAILLMProvider());
 				NodeResult result = node.process(NodeContext.create(ua.media()));
 				assertThat(result.getState().name()).isEqualTo("SUCCESS");
 

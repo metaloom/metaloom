@@ -77,4 +77,4 @@ WORKDIR /cortex
 VOLUME /config
 VOLUME /meta
 
-CMD [ "/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "-Dlogback.configurationFile=/cortex/logback.xml", "--enable-native-access=ALL-UNNAMED", "-jar", "cortex-cli.jar", "server", "start"]
+CMD [ "/opt/java25/bin/java", "-Djna.tmpdir=/tmp/.jna", "-Duser.dir=/cortex", "-Dlogback.configurationFile=/cortex/logback.xml", "--enable-native-access=ALL-UNNAMED", "-jar", "cortex-cli.jar"]

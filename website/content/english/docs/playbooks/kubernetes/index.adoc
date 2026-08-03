@@ -537,9 +537,8 @@ serviceAccount:
 
 ai:                                  # chat agent; needs a reachable provider to answer
   enabled: true
-  providerType: OLLAMA
-  url: http://ollama.loom.svc:11434
-  modelId: gpt-oss:20b
+  url: http://llm.loom.svc:8080/v1     # any OpenAI-compatible server
+  modelId: Qwen/Qwen3-8B
 
 sandbox:                             # renders the RBAC, quota, LimitRange and NetworkPolicy
   enabled: false

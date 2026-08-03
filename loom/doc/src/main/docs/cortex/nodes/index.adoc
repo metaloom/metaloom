@@ -143,12 +143,12 @@ Generates a natural-language caption for an image or video frame using the SmolV
 
 === `llm`
 
-Sends asset metadata to a large language model (LLM) via Ollama for enrichment.
+Sends asset metadata to a large language model (LLM) over an OpenAI-compatible API for enrichment.
 The default prompt asks the model to classify and describe the asset.
 
 * Output key: LLM-generated JSON response
-* Default model: `gemma2:27b`
-* Requires: Ollama service
+* Default model: `google/gemma-2-27b-it`
+* Requires: An OpenAI-compatible LLM server
 
 == Consistency
 

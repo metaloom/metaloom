@@ -28,7 +28,7 @@ public class LlmDescriptorProvider implements NodeDescriptorProvider {
 			new NodeDescriptor()
 				.setKind("llm")
 				.setName("LLM (Large Language Model)")
-				.setDescription("Process media through an LLM (e.g. Ollama) with configurable prompts.")
+				.setDescription("Process media through an LLM served over an OpenAI-compatible API, with configurable prompts.")
 				.setIcon("psychology")
 				.setCategory(ANALYSIS)
 				.setInputPorts(List.of(
@@ -38,9 +38,9 @@ public class LlmDescriptorProvider implements NodeDescriptorProvider {
 				.setDynamicPorts(true)
 				.setParameters(List.of(
 					commonEnabled(), commonProcessIncomplete(), commonRetryFailed(),
-					new NodeParameter().setKey("ollamaUrl").setType(STRING)
-						.setDefaultValue("http://127.0.0.1:11434")
-						.setLabel("Ollama URL").setDescription("URL of the Ollama service")))
+					new NodeParameter().setKey("openaiUrl").setType(STRING)
+						.setDefaultValue("http://127.0.0.1:8080/v1")
+						.setLabel("OpenAI URL").setDescription("Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)")))
 				.setDefaultConcurrency(1)
 				.setDefaultMode(PARALLEL)
 				.setEvents(STANDARD_EVENTS)

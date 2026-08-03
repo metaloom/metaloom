@@ -108,7 +108,7 @@ WebSocket. Cortex holds no database and runs one task at a time per slot. Nodes 
 [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md).
 
 **Key technologies** — Backend: Vert.x 5, Dagger 2, jOOQ, Flyway, PostgreSQL, RxJava 3. Processing:
-OpenCV, InspireFace, whisper.cpp, Tesseract, Tika, Ollama, vLLM/llama.cpp, Lucene. Frontend: React
+OpenCV, InspireFace, whisper.cpp, Tesseract, Tika, vLLM/llama.cpp (OpenAI-compatible), Lucene. Frontend: React
 18, Vite, TypeScript, MUI v5, React Flow, i18next. Testing: JUnit 5, Testcontainers, AssertJ,
 Playwright.
 
@@ -132,6 +132,10 @@ spec/
 ├── guidelines/
 │   ├── CODING.md                      # RULES for code changes (REST/DAO/Docs/Demo/Spec)
 │   └── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
+├── concept/
+│   └── ASSET_METADATA_INGEST.md       # 🔵 CONCEPT: a `metadata` node reading EXIF/XMP/IPTC/Dublin
+│                                      #   Core out of asset files into asset_geo_comp +
+│                                      #   asset_json_comp. Nothing built; §7 is the build list
 ├── plans/
 │   ├── TASKS.md                       # Captured, not-yet-scheduled work (TASKS.template.md format)
 │   └── imagegen-node.md               # ⚠️ superseded draft — NODE_IMAGEGEN_PLAN.md is authoritative
@@ -308,6 +312,7 @@ spec/
 | The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
 | The commercial edition / hosted service | ➜ **sibling repo** `metaloom-saas` — see §2.2 |
 | Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](TASKS.template.md) |
+| **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [concept/ASSET_METADATA_INGEST.md](concept/ASSET_METADATA_INGEST.md) — 🔵 **concept, nothing built**. Also the only place that records why `asset_geo_comp` is empty and where a licence should live |
 | Dumping a half-formed idea | [METALOOM_NOTES.md](METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
 ### 2.2 The `metaloom-saas` sibling project
@@ -354,7 +359,7 @@ where to go and what to run.
 | Component | Read | Notes |
 |-----------|------|-------|
 | **Loom** (`loom/`) | [loom/LOOM.md](loom/LOOM.md) — architecture, module layout, lifecycle, Dagger DI | Pipeline execution is in [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md); authorization in [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) — **not** in the component files |
-| **Cortex** (`cortex/`) | [cortex/CORTEX.md](cortex/CORTEX.md) — module map, startup, CLI, online/offline | Online when `LOOM_HOST`+`LOOM_PORT` are set (registers over the processor WS); offline is CLI-driven via `cortex process run` |
+| **Cortex** (`cortex/`) | [cortex/CORTEX.md](cortex/CORTEX.md) — module map, startup, online/offline | Online when `LOOM_HOST`+`LOOM_PORT` are set (registers over the processor WS). Cortex has no CLI — it is a container configured by env + `cortex.yml`, and offline means it simply idles |
 | **CLI** (`cli/`) | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) | Replaced the dead `loom/cli` stub. ⚠️ `./build.sh` does **not** invoke `cli/build-native.sh` — build the native image yourself |
 | **loom-ui** (`loom-ui/`) | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) + `TASK_UI_*.md` | Component tests are Playwright **mocked** e2e specs; pure logic uses node-env vitest. No RTL/jsdom. ⚠️ `npx` stalls in the sandbox — use `./node_modules/.bin/{vitest,playwright}` |
 | **website** (`website/`) | [website/WEBSITE.md](website/WEBSITE.md) | 🔴 New customer-facing features **must** get a page under `website/content/english/docs` |
@@ -483,8 +488,8 @@ options classes in `loom-shared/api/.../options/`.
 
 ### 4.5 Cortex environment variables
 
-Full list: [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md). CLI flags map to env vars in
-`EnvDefaultProvider`.
+Full list: [cortex/CONFIGURATION.md](cortex/CONFIGURATION.md). Cortex has no CLI; the variables are
+applied onto `CortexOptions` by `CortexEnvOptions`.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
@@ -682,5 +687,5 @@ wins** — and fix the spec in the same change.
 
 ---
 
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (registered loom/ui/LOOM_UI_UPLOAD.md — dedicated upload screen and background upload queue; corrected the stale file count 80 → 95, verified against `find spec -name "*.md"`)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (Ollama dropped from the technology list — LLM access is OpenAI-compatible only)_

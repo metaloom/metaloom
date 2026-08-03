@@ -821,9 +821,9 @@ setters, wired in `PipelineEndpointService`.
 | Result flush tick | `PipelineTaskHandler.BATCH_FLUSH_INTERVAL_MS` | `250` ms |
 | Node concurrency / mode / blocking / `timeoutMs` | definition JSON, else `CortexOptions.getDefaultTimeoutMs(kind)` | `PARALLEL`, blocking `true`, concurrency `1`, timeout `0` |
 | Control-channel endpoint | `LoomControlChannel.resolveEndpoint()` from `LoomClientOptions` | unset ⇒ disabled |
-| S3 (gates `s3-source`) | `CORTEX_S3_*` / `--s3-*`; index dir needs `--s3-index-path` or `--meta-path` | inactive |
+| S3 (gates `s3-source`) | `CORTEX_S3_*`; the index dir needs `CORTEX_S3_INDEX_PATH` or `CORTEX_META_PATH` | inactive |
 
-Config precedence: CLI flags → env (`EnvDefaultProvider`, picocli) → YAML
+Config precedence: env (`CortexEnvOptions`) → `cortex.yml` → code defaults
 (`~/.config/metaloom/cortex.yml`) → defaults. Details:
 [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md).
 

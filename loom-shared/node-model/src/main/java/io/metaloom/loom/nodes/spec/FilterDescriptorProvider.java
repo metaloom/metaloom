@@ -72,12 +72,12 @@ public class FilterDescriptorProvider implements NodeDescriptorProvider {
 						.setLabel("Buckets")
 						.setDescription("One output port per bucket. An 'other' port for everything else is always present"),
 					new NodeParameter().setKey("model").setType(STRING)
-						.setDefaultValue("llama3.2")
+						.setDefaultValue("meta-llama/Llama-3.2-3B-Instruct")
 						.setLabel("Model")
 						.setDescription("The model asked to classify each item"),
-					new NodeParameter().setKey("ollamaUrl").setType(STRING)
-						.setDefaultValue("http://127.0.0.1:11434")
-						.setLabel("Ollama URL").setDescription("URL of the Ollama service"),
+					new NodeParameter().setKey("openaiUrl").setType(STRING)
+						.setDefaultValue("http://127.0.0.1:8080/v1")
+						.setLabel("OpenAI URL").setDescription("Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"),
 					new NodeParameter().setKey("maxTextChars").setType(ParameterType.INTEGER)
 						.setDefaultValue(2000).setMin(1)
 						.setLabel("Max Text Characters")

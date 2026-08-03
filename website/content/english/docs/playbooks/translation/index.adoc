@@ -82,7 +82,7 @@ routes that are still the right answer for a one-off backfill or a human-reviewe
 
 [IMPORTANT]
 ====
-`translate` needs a reachable language model — any Ollama or OpenAI-compatible endpoint — on the
+`translate` needs a reachable language model — any OpenAI-compatible endpoint — on the
 worker that runs it. A kind no online worker advertises makes the run fail with a `503`; see
 link:../#node-availability[Which node kinds a worker can actually run].
 ====
@@ -126,7 +126,7 @@ from.
 [source,json]
 ----
 { "id": "translate", "type": "translate", "name": "Translate to English",
-  "options": { "targetLanguage": "en", "model": "gemma2:27b" } }
+  "options": { "targetLanguage": "en", "model": "google/gemma-2-27b-it" } }
 ----
 
 [NOTE]
@@ -183,12 +183,13 @@ ASSET=<asset-uuid>
 curl -s -H "Authorization: Bearer $TOKEN" \
   $LOOM/api/v1/assets/$ASSET/transcripts | jq -r '.[0].text' > source.txt
 
-# 2. Translate it with your provider (Ollama shown; any OpenAI-compatible endpoint works)
-TRANSLATION=$(curl -s http://ollama:11434/api/generate -d "{
-  \"model\": \"gpt-oss:20b\",
-  \"stream\": false,
-  \"prompt\": $(jq -Rs '"Translate the following text into English. Return only the translation.\n\n" + .' source.txt)
-}" | jq -r .response)
+# 2. Translate it with your provider (any OpenAI-compatible endpoint works)
+TRANSLATION=$(curl -s http://llm:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' -d "{
+  \"model\": \"google/gemma-2-27b-it\",
+  \"messages\": [{ \"role\": \"user\", \"content\":
+     $(jq -Rs '"Translate the following text into English. Return only the translation.\n\n" + .' source.txt) }]
+}" | jq -r '.choices[0].message.content')
 
 # 3. Store it back on the asset, in the same shape the node writes
 curl -s -X POST $LOOM/api/v1/assets/$ASSET/json-comps \
@@ -197,7 +198,7 @@ curl -s -X POST $LOOM/api/v1/assets/$ASSET/json-comps \
         nodeKind: "translate",
         schemaType: "translation",
         variant: "en",
-        producerVersion: "gpt-oss:20b",
+        producerVersion: "google/gemma-2-27b-it",
         data: { targetLanguage: "en", text: $t }
       }')"
 ----

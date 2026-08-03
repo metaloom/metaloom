@@ -11,7 +11,7 @@ import io.metaloom.ai.genai.llm.ToolCall;
 
 /**
  * Turn streamer backed by {@code generateStreamWithTools} — relays real token and reasoning deltas to the listener as they arrive from the provider.
- * Selected via {@code LOOM_AI_STREAMING=true}; requires provider support (Ollama), otherwise the provider throws and the run fails terminally — use the
+ * Selected via {@code LOOM_AI_STREAMING=true}; requires a backend that streams tool calls, otherwise the run fails terminally — use the
  * {@link BlockingTurnStreamer} fallback in that case.
  */
 public class StreamingTurnStreamer implements TurnStreamer {

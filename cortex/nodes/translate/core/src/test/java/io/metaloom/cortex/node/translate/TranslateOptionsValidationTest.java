@@ -18,26 +18,26 @@ class TranslateOptionsValidationTest {
 			.isValid()
 			.hasTargetLanguage("en")
 			.hasSourceLanguage("auto")
-			.hasModel("gemma2:27b")
-			.hasOllamaUrl("http://127.0.0.1:11434")
+			.hasModel("google/gemma-2-27b-it")
+			.hasOpenaiUrl("http://127.0.0.1:8080/v1")
 			.hasMaxChunkChars(8000)
 			.hasMaxChars(200000);
 	}
 
 	@Test
-	void testEmptyOllamaUrlIsInvalid() {
+	void testEmptyOpenaiUrlIsInvalid() {
 		TranslateNodeOptions options = new TranslateNodeOptions();
-		options.setOllamaUrl("");
+		options.setOpenaiUrl("");
 
-		assertThat(options).isInvalid().hasError("ollamaUrl must not be empty").hasErrorCount(1);
+		assertThat(options).isInvalid().hasError("openaiUrl must not be empty").hasErrorCount(1);
 	}
 
 	@Test
-	void testNullOllamaUrlIsInvalid() {
+	void testNullOpenaiUrlIsInvalid() {
 		TranslateNodeOptions options = new TranslateNodeOptions();
-		options.setOllamaUrl(null);
+		options.setOpenaiUrl(null);
 
-		assertThat(options).isInvalid().hasError("ollamaUrl must not be empty");
+		assertThat(options).isInvalid().hasError("openaiUrl must not be empty");
 	}
 
 	@Test
@@ -103,7 +103,7 @@ class TranslateOptionsValidationTest {
 			.setTargetLanguage("")
 			.setModel("")
 			.setMaxChars(0);
-		options.setOllamaUrl("");
+		options.setOpenaiUrl("");
 
 		assertThat(options).isInvalid().hasErrorCount(4);
 	}

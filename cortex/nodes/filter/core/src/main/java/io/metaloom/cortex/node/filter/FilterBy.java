@@ -17,7 +17,7 @@ public enum FilterBy {
 	 *
 	 * <p>
 	 * A model rather than a detector library is a deliberate starting point, not a conclusion: it
-	 * costs one round trip per item and needs a reachable Ollama. See the node's website page for
+	 * costs one round trip per item and needs a reachable LLM backend. See the node's website page for
 	 * the alternatives that were considered.
 	 * </p>
 	 */

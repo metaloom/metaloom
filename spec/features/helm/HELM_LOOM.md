@@ -113,7 +113,7 @@ Not templated at all: `LOOM_SIMILARITY_*` (see [`../../CLUSTERING.md`](../../CLU
 | `auth.initialPassword` / `.existingSecret` / `.keystorePath` | `changeme` / `""` / `/keystore/keystore.jks` | the last one is 🔴 B2 |
 | `ingress.{enabled,className,host,path,pathType,tls,annotations}` | off, `loom.example.com`, `/`, `Prefix` | routes to the REST port only |
 | `sandbox.{enabled,namespace,createNamespace,rbac,resourceQuota,limitRange,networkPolicy}` | off, `loom-runners`, off, on, on, on, on | one unit — see gotchas |
-| `ai.{enabled,providerType,url,modelId}`, `memory.{enabled,mountPath}` | off | |
+| `ai.{enabled,url,modelId}`, `memory.{enabled,mountPath}` | off | |
 | `livenessProbe` / `readinessProbe` | on, `/api/v1/health`, 30s/15s initial delay | values-overridable path, no port choice (always `rest`) |
 | `podSecurityContext` | `runAsUser 1000`, `runAsGroup 0`, `fsGroup 0` | matches the image user |
 | `resources.requests` | `500m` / `768Mi` | no limits by default |
@@ -196,5 +196,5 @@ There is **no CI gate** for any of this yet, and no `helm unittest` suite.
 
 ---
 
-_Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-02 (B1 fixed — chart and both Containerfiles now emit `LOOM_DB_USERNAME`; B2 `LOOM_AUTH_KEYSTORE_PATH` and B3 `LOOM_CONF_FILENAME` remain open)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (`ai.providerType` removed from the chart)_

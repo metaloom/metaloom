@@ -5,7 +5,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import io.metaloom.ai.genai.llm.LLMProviderType;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 import io.vertx.core.json.JsonArray;
@@ -29,12 +28,10 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 	/** The bucket rows, exactly as the editor's {@code PORT_LIST} widget writes them. */
 	private JsonArray buckets = new JsonArray();
 
-	private String model = "llama3.2";
+	private String model = "meta-llama/Llama-3.2-3B-Instruct";
 
-	private String ollamaUrl = "http://127.0.0.1:11434";
-
-	/** The LLM backend protocol. Defaults to Ollama; set to {@code VLLM} for an OpenAI-compatible endpoint. */
-	private LLMProviderType providerType = LLMProviderType.OLLAMA;
+	/** Base URL of an OpenAI-compatible backend (llama.cpp, vLLM, Ollama's /v1 endpoint, ...). */
+	private String openaiUrl = "http://127.0.0.1:8080/v1";
 
 	/**
 	 * How much of the wired text to send. Language is decided by the first paragraph; sending a
@@ -72,21 +69,12 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 		return this;
 	}
 
-	public String ollamaUrl() {
-		return ollamaUrl;
+	public String openaiUrl() {
+		return openaiUrl;
 	}
 
-	public FilterNodeOptions setOllamaUrl(String ollamaUrl) {
-		this.ollamaUrl = ollamaUrl;
-		return this;
-	}
-
-	public LLMProviderType providerType() {
-		return providerType;
-	}
-
-	public FilterNodeOptions setProviderType(LLMProviderType providerType) {
-		this.providerType = providerType;
+	public FilterNodeOptions setOpenaiUrl(String openaiUrl) {
+		this.openaiUrl = openaiUrl;
 		return this;
 	}
 
@@ -148,8 +136,8 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 		if (filterBy == null) {
 			errors.add("filterBy must be set");
 		}
-		if (ollamaUrl == null || ollamaUrl.isBlank()) {
-			errors.add("ollamaUrl must not be empty");
+		if (openaiUrl == null || openaiUrl.isBlank()) {
+			errors.add("openaiUrl must not be empty");
 		}
 		if (model == null || model.isBlank()) {
 			errors.add("model must not be empty");

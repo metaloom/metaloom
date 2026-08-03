@@ -11,10 +11,9 @@ import org.slf4j.LoggerFactory;
  * Endpoint and guard for the tests that need a local LLM.
  *
  * <p>
- * The backing server is the llama.cpp container from {@code loom-test-env/llamacpp/start.sh}. It
- * speaks the OpenAI protocol, so the node talks to it through {@code LLMProviderType.VLLM} rather
- * than the Ollama provider — the endpoint just has to be OpenAI-compatible, and llama.cpp is the
- * cheapest one to stand up for a test.
+ * The backing server is the llama.cpp container from {@code loom-test-env/llamacpp/start.sh}. The
+ * endpoint just has to speak the OpenAI protocol, and llama.cpp is the cheapest one to stand up for
+ * a test.
  * </p>
  *
  * <p>
@@ -29,7 +28,7 @@ public final class TestEnv {
 
 	public static final String HOST = System.getProperty("loom.test.llm.host", "127.0.0.1");
 
-	/** Not 11434 (Ollama) and not 8888 — see the port note in llamacpp/start.sh. */
+	/** Not 8888 — see the port note in llamacpp/start.sh. */
 	public static final int PORT = Integer.getInteger("loom.test.llm.port", 8899);
 
 	/** OpenAI API root. The OpenAI client appends {@code chat/completions}, so {@code /v1} belongs here. */

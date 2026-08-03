@@ -81,7 +81,7 @@ public class LanguageFilterStrategy implements FilterStrategy {
 			+ (buckets.isEmpty() ? "" : "\n") + Classification.OTHER + " (anything else)";
 		String excerpt = text.length() > options.getMaxTextChars() ? text.substring(0, options.getMaxTextChars()) : text;
 
-		LargeLanguageModel model = new LargeLanguageModelImpl(options.getModel(), options.ollamaUrl(), 2048, options.providerType());
+		LargeLanguageModel model = new LargeLanguageModelImpl(options.getModel(), options.openaiUrl(), 2048);
 		Prompt prompt = new PromptImpl(PROMPT);
 		prompt.set("buckets", menu);
 		prompt.set("text", excerpt);

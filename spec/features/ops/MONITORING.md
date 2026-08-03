@@ -36,7 +36,7 @@ Package `io.metaloom.cortex.impl.monitoring`.
 - `MonitoringService` (`@Singleton`) creates a Vert.x `HttpServer`, mounts a `Router`, and registers
   **three** things in order: `HealthEndpoint`, `MetricsEndpoint`, `WebhookS3EventSource`.
 - Started by `CortexBootstrapInitializer` during `cortex.run()`. `init()` defaults to `8093`
-  (`CortexCLI.DEFAULT_MONITORING_PORT`); the CLI/options pass `CORTEX_MONITORING_PORT`.
+  (`CortexOptions.monitoringPort` default); `CORTEX_MONITORING_PORT` overrides it.
 - `actualMonitoringPort()` returns the bound port, or **`null`** when the server has not started
   (useful with `init(0)` in tests).
 - `deinit()` closes the server on shutdown.
@@ -160,7 +160,7 @@ flowchart TB
 
 | Setting | Default | Env | Constant | What it serves |
 |---|---|---|---|---|
-| Cortex monitoring port | `8093` | `CORTEX_MONITORING_PORT` | `CortexCLI.DEFAULT_MONITORING_PORT` | health + ready + `/metrics` (+ optional S3 webhook) |
+| Cortex monitoring port | `8093` | `CORTEX_MONITORING_PORT` | `CortexOptions.monitoringPort` | health + ready + `/metrics` (+ optional S3 webhook) |
 | Loom monitoring port | `8989` | `LOOM_SERVER_MON_PORT` | `ServerOptions.DEFAULT_MONITORING_PORT` | `/metrics` only |
 | Loom REST port | `8092` | `LOOM_SERVER_REST_PORT` | — | `/api/v1/health` + the whole REST API |
 | Loom MCP port | `4041` | `LOOM_SERVER_MCP_PORT` | — | MCP (not monitoring) |
@@ -255,7 +255,7 @@ No database is involved for the Cortex tests. `./setup-pool.sh` **is** required 
 | Loom health DTO | `loom-shared/rest-model/.../rest/model/health/HealthCheckResponse.java` |
 | Loom monitoring server | `loom/services/monitoring/src/main/java/io/metaloom/loom/monitoring/MonitoringService.java` |
 | Loom monitoring start/stop wiring | `loom/core/src/main/java/io/metaloom/loom/core/boot/BootstrapInitializer.java` |
-| Port defaults & validation | `loom-shared/api/.../options/ServerOptions.java`, `cortex/core/.../cli/CortexCLI.java` |
+| Port defaults & validation | `loom-shared/api/.../options/ServerOptions.java`, `cortex/api/.../option/CortexOptions.java` |
 | Meter names / catalogs / instrumentation | [METRICS.md](METRICS.md) |
 | Customer-facing doc (health/ready) | `website/content/english/docs/cortex/monitoring/index.adoc` |
 

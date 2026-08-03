@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.ai.genai.llm.ChatMessage;
 import io.metaloom.ai.genai.llm.LLMContext;
-import io.metaloom.ai.genai.llm.LLMProviderType;
 import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.llm.ToolCall;
 import io.metaloom.ai.genai.llm.ToolDefinition;
@@ -593,11 +592,6 @@ public class AgentLoop {
 			@Override
 			public long contextWindow() {
 				return options.getContextWindow();
-			}
-
-			@Override
-			public LLMProviderType providerType() {
-				return LLMProviderType.valueOf(options.getProviderType().toUpperCase());
 			}
 		};
 	}

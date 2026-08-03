@@ -140,7 +140,7 @@ instead of returns has workers dying rather than draining.
 
 | Provider | Node |
 |---|---|
-| `ollama` | `LLMNode` |
+| `llm` | `LLMNode` |
 | `smolvlm`, `video-vlm` | `CaptioningNode` |
 | `vlm` | `VlmNode` (`METRICS_PROVIDER` constant) |
 | `whisper` | `WhisperNode` |
@@ -154,7 +154,7 @@ instead of returns has workers dying rather than draining.
 Each node follows the same shape: `recordAiCacheHit(provider)` on the skip-cache path, then
 `recordAiCall(provider, success, System.currentTimeMillis() - aiStart)` on both the success and the
 failure branch. **AI-provider instrumentation stays on the Cortex node side** — the providers
-(`OllamaLLMProvider`, `SmolVLMClient`, …) live in the separate **genai-utils** repo, so wrap the call
+(`OpenAILLMProvider`, `SmolVLMClient`, …) live in the separate **genai-utils** repo, so wrap the call
 in the node rather than editing genai-utils.
 
 ---
@@ -204,7 +204,7 @@ never appears in a scrape.
 
 | Setting | Default | Env | Serves `/metrics`? |
 |---|---|---|---|
-| Cortex monitoring port | `8093` (`CortexCLI.DEFAULT_MONITORING_PORT`) | `CORTEX_MONITORING_PORT` | ✅ shared with health/ready |
+| Cortex monitoring port | `8093` (`CortexOptions.monitoringPort` default) | `CORTEX_MONITORING_PORT` | ✅ shared with health/ready |
 | Loom monitoring port | `8989` (`ServerOptions.DEFAULT_MONITORING_PORT`) | `LOOM_SERVER_MON_PORT` | ✅ dedicated server, `/metrics` only |
 | Loom REST port | `8092` | `LOOM_SERVER_REST_PORT` | ❌ app surface |
 | Loom MCP port | `4041` | `LOOM_SERVER_MCP_PORT` | ❌ |
@@ -312,7 +312,7 @@ any Loom REST/DAO test you add alongside). No Flyway migration is involved, so n
 | Most Cortex task/node-op instrumentation | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java` |
 | Cortex resource gauges | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java` (:230-247) |
 | How an AI node instruments a provider call | `cortex/nodes/llm/core/.../LLMNode.java` (:106-130) — the reference shape |
-| Port defaults / validation | `loom-shared/api/.../options/ServerOptions.java`, `cortex/core/.../cli/CortexCLI.java` |
+| Port defaults / validation | `loom-shared/api/.../options/ServerOptions.java`, `cortex/api/.../option/CortexOptions.java` |
 | Health & readiness (not metrics) | [MONITORING.md](MONITORING.md) |
 | Customer-facing metric catalogs | `website/content/english/docs/loom/metrics/index.adoc`, `website/content/english/docs/cortex/metrics/index.adoc` |
 
@@ -357,5 +357,5 @@ any Loom REST/DAO test you add alongside). No Flyway migration is involved, so n
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (audited every meter against its call site; 12 undelivered meters moved into a new "declared but never recorded" section)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (the `cortex_ai_calls_total` provider label for `LLMNode` is now `llm`)_

@@ -74,7 +74,7 @@ public interface CortexMetrics {
 
 	// ---- Upstream AI calls ------------------------------------------------------------------
 
-	/** An upstream AI provider call (ollama|smolvlm|whisper|tesseract) completed. */
+	/** An upstream AI provider call (llm|smolvlm|whisper|tesseract) completed. */
 	void recordAiCall(String provider, boolean success, long durationMs);
 
 	/** A node served a result from its in-heap skip cache instead of calling the AI provider. */

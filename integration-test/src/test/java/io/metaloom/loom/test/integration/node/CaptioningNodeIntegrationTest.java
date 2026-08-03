@@ -7,10 +7,9 @@ import java.awt.image.BufferedImage;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.ai.genai.llm.LLMContext;
-import io.metaloom.ai.genai.llm.LLMProviderType;
 import io.metaloom.ai.genai.llm.impl.LargeLanguageModelImpl;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
-import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.ai.genai.mockllm.MockLLMServer;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.node.captioning.CaptioningNode;
@@ -45,8 +44,8 @@ public class CaptioningNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			@Override
 			public String captionByImage(BufferedImage image, int targetSize) {
 				LLMContext ctx = LLMContext.ctx(new PromptImpl("Caption this image"),
-					new LargeLanguageModelImpl("mock-model", baseUrl, 2048, LLMProviderType.VLLM));
-				return new VLLMLLMProvider().generate(ctx);
+					new LargeLanguageModelImpl("mock-model", baseUrl, 2048));
+				return new OpenAILLMProvider().generate(ctx);
 			}
 		};
 	}

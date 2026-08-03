@@ -94,10 +94,6 @@ spec:
             {{- if .Values.ai.enabled }}
             - name: LOOM_AI_ENABLED
               value: "true"
-            {{- if .Values.ai.providerType }}
-            - name: LOOM_AI_PROVIDER_TYPE
-              value: {{ .Values.ai.providerType | quote }}
-            {{- end }}
             {{- if .Values.ai.url }}
             - name: LOOM_AI_URL
               value: {{ .Values.ai.url | quote }}

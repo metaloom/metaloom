@@ -16,8 +16,8 @@ FROM metaloom/cortex-server:latest
 ADD --chown=1000:0 cortex-custom.jar /cortex/custom/cortex-custom.jar
 ADD --chown=1000:0 cortex-custom-node.jar /cortex/custom/cortex-custom-node.jar
 
-# CortexCustomMain runs the daemon directly (there is no picocli "server start"
-# subcommand as on the stock image). The classpath puts the example's classes first,
+# CortexCustomMain runs the daemon directly, exactly as CortexMain does on the stock
+# image - only the entry class differs. The classpath puts the example's classes first,
 # then the stock uber-jar for cortex-core, the pipeline engine and every built-in node.
 CMD [ "/opt/java25/bin/java", \
       "-Djna.tmpdir=/tmp/.jna", \

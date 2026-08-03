@@ -28,8 +28,7 @@ one answer they care about rather than to the node as a whole.
 [options="header",cols="1,2"]
 |===
 | Option | Meaning
-| provider URL | Base URL of the LLM provider service
-| `providerType` | Provider protocol — the default local provider, or `VLLM` for an OpenAI-compatible endpoint
+| `openaiUrl` | Base URL of the OpenAI-compatible LLM server (llama.cpp, vLLM, Ollama `/v1`, …)
 | `prompts` | A map of prompt definitions. Each one adds a `result_{promptId}` output port, which appears on the node in the editor as soon as the prompt is defined
 |===
 

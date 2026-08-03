@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
  * <p>
  * Without one those tests failed the build with a bare connection error, which is indistinguishable
  * from a real regression. Assuming the prerequisite skips them on machines that do not have it and
- * still runs them where it is present — the same pattern as {@code OllamaAvailability} in
+ * still runs them where it is present — the same pattern as {@code TestEnv} in
  * {@code loom/core} and {@code TestEnv} in the llm node.
  * </p>
  */

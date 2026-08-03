@@ -73,10 +73,10 @@ REST auth handler uses.
 |---|---|---|---|
 | `LOOM_WS_STRICT_AUTH` / `-Dloom.ws.strictAuth` | `false` | Loom | Require a token on every WS handshake |
 | `LOOM_TOKEN` / `--loom-token` | none | Cortex | JWT the worker appends as `?token=` |
-| `LOOM_HOST` / `--hostname` | none | Cortex | Loom host; unset ⇒ control channel disabled |
+| `LOOM_HOST` | none | Cortex | Loom host; unset ⇒ control channel disabled |
 | `LOOM_PORT` / `--port` | none | Cortex | Loom port; `<= 0` ⇒ control channel disabled |
-| `CORTEX_NODE_ID` / `--node-id` | none | Cortex | Registration identity; blank ⇒ `start()` throws |
-| `CORTEX_DRAIN_TIMEOUT_MS` / `--drain-timeout-ms` | `30000` | Cortex | Grace period before outstanding tasks are handed back |
+| `CORTEX_NODE_ID` | none | Cortex | Registration identity; missing ⇒ `CortexMain` exits 2, blank ⇒ `start()` throws |
+| `CORTEX_DRAIN_TIMEOUT_MS` | `30000` | Cortex | Grace period before outstanding tasks are handed back |
 
 ---
 
@@ -272,7 +272,7 @@ merely *slow* worker. A drain closes that gap (`LoomControlChannel.drain`):
 2. **Refuse.** A dispatch already on the wire still arrives;
    `PipelineTaskHandler.beginDrain()` makes the worker answer it with
    `TASK_RETURNED` instead of starting it.
-3. **Finish.** Running tasks get `--drain-timeout-ms` (default 30 000, matching
+3. **Finish.** Running tasks get `CORTEX_DRAIN_TIMEOUT_MS` (default 30 000, matching
    Kubernetes' termination grace period).
 4. **Return.** Whatever is still running at the deadline is named in a
    `TASK_RETURNED`. It keeps running locally — a node cannot be interrupted —

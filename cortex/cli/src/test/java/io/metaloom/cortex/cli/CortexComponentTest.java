@@ -12,7 +12,6 @@ import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.cli.dagger.CortexComponent;
 import io.metaloom.cortex.cli.dagger.DaggerCortexComponent;
-import picocli.CommandLine;
 
 public class CortexComponentTest {
 
@@ -22,9 +21,7 @@ public class CortexComponentTest {
 		options.setMetaPath(Paths.get("target/test-meta"));
 		CortexComponent component = DaggerCortexComponent.builder().options(options).build();
 		Cortex cortex = component.cortex();
-		// cortex.checkNodes();
-		CommandLine cli = component.cli();
-		cli.execute("-help");
+		assertNotNull(cortex, "The component must provide a Cortex instance");
 	}
 	
 	@Test

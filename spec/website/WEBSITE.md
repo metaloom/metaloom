@@ -645,7 +645,7 @@ review**.
       (`recordSourceAckTimeout`, likewise uncalled). The PromQL example under the table —
       `rate(cortex_results_sent_total)` vs `rate(cortex_node_operations_total)` — therefore always
       reads zero on the numerator. **Either wire the meters or delete the rows and the example.**
-      The `provider` label list in the same page's AI table (`ollama | smolvlm | whisper |
+      The `provider` label list in the same page's AI table (`llm | smolvlm | whisper |
       tesseract`) is also incomplete — `tts` and `sentiment` are emitted too.
 - [ ] **`docs/legal/model-licenses/` still calls `imagegen` a *planned* node.** It shipped —
       `cortex/nodes/image-generation/` with a registered `ImageGenDescriptorProvider`, and
@@ -690,5 +690,5 @@ review**.
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (cut ~70% of restating prose, rebuilt the page inventory against the tree, and recorded the cortex-metrics, imagegen-"planned", gRPC-"planned" and missing-MCP/gRPC/loom-node doc defects)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (the cortex-metrics AI provider label list is now `llm | smolvlm | whisper | tesseract`)_

@@ -48,11 +48,11 @@ different port so it can run alongside one rather than fighting it for the bind.
 
 ## How the tests reach it
 
-llama.cpp speaks the OpenAI protocol, so the node talks to it through
-`LLMProviderType.VLLM` (not the Ollama provider) against `/v1`. The endpoint and
-the skip-guard live in `TestEnv` in the llm node's test sources; override the
-target with `-Dloom.test.llm.host` / `-Dloom.test.llm.port`.
+llama.cpp speaks the OpenAI protocol against `/v1`, which is the only protocol
+the nodes support. The endpoint and the skip-guard live in `TestEnv` in the llm
+node's test sources; override the target with `-Dloom.test.llm.host` /
+`-Dloom.test.llm.port`.
 
 Tests **skip** rather than fail when nothing is listening, following the same
-pattern as `OllamaAvailability` in `loom/core`. A green build therefore does not
+pattern as `LlmBackendAvailability` in `loom/core`. A green build therefore does not
 by itself prove the llm tests ran — check for skips if that matters.

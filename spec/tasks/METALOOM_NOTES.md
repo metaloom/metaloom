@@ -8,10 +8,14 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
-
-- Create Market analysis of metaloom. Are there comperable offerings?
-- Metadata ingestion: Tika? Dublin Core - https://de.wikipedia.org/wiki/Dublin_Core, exif
-- Metadata writeback: (Dublin Core - https://de.wikipedia.org/wiki/Dublin_Core) - Check how many there are. Investigate (Images have exif data)
+- Static code analysis
+- code review markdown file with rules
+- Metadata **ingest** (Dublin Core / EXIF / XMP / IPTC) → promoted to
+  [../concept/ASSET_METADATA_INGEST.md](../concept/ASSET_METADATA_INGEST.md). Dublin Core is 15
+  elements (~55 with `dcterms:` refinements); the `tika` node already reads EXIF-adjacent metadata
+  and prints it to `System.out`, and `asset_geo_comp` is already shaped for it. Metadata
+  **write-back** stays open here — see §12 of that concept for why it is a separate, harder node
+  (it changes the content hash, so it produces a derivative rather than editing in place).
 - How can nodes register themself onto loom? How can custom nodes automatically be picked up and how can the UI allow those nodes to be used for pipelines
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
 - Add way of viewing notifications in the UI (How are notifications tracked in loom?)
@@ -36,7 +40,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
   See [loom/MCP.md](loom/MCP.md), [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md).
 
 * **llama.cpp and VLM sidecars.** `sidecars/` covers tts, sentiment, depth, imagegen (×2) and
-  videogen; the `llm`, `vlm` and `captioning` nodes still call an *external* Ollama / vLLM endpoint.
+  videogen; the `llm`, `vlm` and `captioning` nodes still call an *external* OpenAI-compatible endpoint.
   Add in-repo sidecars for llama.cpp and a VLM (scratch attempt lives in untracked
   `loom-test-env/llamacpp/`). Two loose ends either way: sidecars are documented only in
   `sidecars/README.md` — nothing on the website — and neither Helm chart has a
@@ -78,7 +82,7 @@ Mostly cleared 2026-08-01 — what was written off as environmental noise was la
   instantly.
 - **No local LLM endpoint** — the llm node tests now run against the llama.cpp server in
   [../loom-test-env/llamacpp](../loom-test-env/llamacpp) and *skip* rather than fail when it is
-  not up, matching the `OllamaAvailability` pattern in `loom/core`.
+  not up, matching the `LlmBackendAvailability` pattern in `loom/core`.
 
 - **No local SmolVLM endpoint** — `SmolVLMClientTest` now skips via `SmolVLMAvailability` instead of
   failing, and asserts a non-blank caption rather than printing one. Override with
@@ -113,13 +117,14 @@ against a scanner hard-capped at 10, and the `InspirefaceTest` session asked for
 embeddings without enabling `ENABLE_FACE_ATTRIBUTE` / `ENABLE_FACE_RECOGNITION` (a session opened
 without them still detects faces, but returns empty attributes).
 
-`FacedescriptionNodeTest.testProcessImage` needs a local Ollama vision model
-(`gemma3:27b-q8` at 11434) and now skips via `OllamaVisionAvailability` instead of failing on the
+`FacedescriptionNodeTest.testProcessImage` needs a local vision model
+(`google/gemma-3-27b-it` on an OpenAI-compatible server at 8080) and now skips via
+`VisionBackendAvailability` instead of failing on the
 `null` that `processFace()` returns after three failed calls.
 
 Module result: 45 tests, 0 failures, 1 skipped.
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (dropped notes already implemented in code, kept the five still-open ideas)_
+_Git HEAD revision: `4dc0390a`_
+_Last updated: 2026-08-03 (notes re-pointed at the OpenAI-compatible provider and the renamed availability guards)_

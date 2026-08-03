@@ -1,21 +1,22 @@
 package io.metaloom.cortex.node.facedescription;
 
-import io.metaloom.ai.genai.llm.LLMProviderType;
 import io.metaloom.ai.genai.llm.LargeLanguageModel;
 
+/**
+ * The vision models {@code FacedescriptionNode} is known to work with. The URL points at an
+ * OpenAI-compatible server (llama.cpp with {@code --mmproj}, vLLM, Ollama's {@code /v1} endpoint);
+ * the id is whatever that server advertises the model under.
+ */
 public enum FaceDescriptionModel implements LargeLanguageModel {
 
-	OLLAMA_GEMMA3_12B_Q8("gemma3:12b-it-q8_0", LLMProviderType.OLLAMA),
+	GEMMA3_12B_IT("google/gemma-3-12b-it"),
 
-	OLLAMA_GEMMA3_27B_Q8("gemma3:27b-it-q8_0", LLMProviderType.OLLAMA);
+	GEMMA3_27B_IT("google/gemma-3-27b-it");
 
 	private String id;
 
-	private LLMProviderType providerType;
-
-	FaceDescriptionModel(String id, LLMProviderType type) {
+	FaceDescriptionModel(String id) {
 		this.id = id;
-		this.providerType = type;
 	}
 
 	@Override
@@ -29,13 +30,8 @@ public enum FaceDescriptionModel implements LargeLanguageModel {
 	}
 
 	@Override
-	public LLMProviderType providerType() {
-		return providerType;
-	}
-
-	@Override
 	public String url() {
-		return "http://localhost:11434";
+		return FacedescriptionNode.URL;
 	}
 
 }

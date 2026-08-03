@@ -114,13 +114,13 @@ public class LoomControlChannel {
 			return;
 		}
 
-		// Going online requires a stable identity. The CLI already refuses to start the server
-		// without one (ServerCommand#requireNodeId); this guards any other path that reaches an
-		// online start, refusing to register under a blank/generated id rather than churning a
-		// fresh cortex_instance on every restart or colliding with a live worker.
+		// Going online requires a stable identity. CortexMain already refuses to start a worker
+		// without one; this guards any other path that reaches an online start, refusing to
+		// register under a blank/generated id rather than churning a fresh cortex_instance on
+		// every restart or colliding with a live worker.
 		if (nodeId == null || nodeId.isBlank()) {
 			started.set(false);
-			throw new IllegalStateException("No Cortex node id configured. Set --node-id (env CORTEX_NODE_ID) to a "
+			throw new IllegalStateException("No Cortex node id configured. Set CORTEX_NODE_ID to a "
 				+ "value that is unique per worker and stable across restarts; Loom keys registration, leases and "
 				+ "attribution on it and rejects a blank or duplicate id.");
 		}

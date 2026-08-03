@@ -5,11 +5,10 @@ package io.metaloom.loom.api.options;
  */
 public class AiOptions implements Option {
 
-	public static final String DEFAULT_PROVIDER_TYPE = "OLLAMA";
+	/** Where llama.cpp's {@code llama-server} serves the OpenAI-compatible API by default. */
+	public static final String DEFAULT_URL = "http://127.0.0.1:8080/v1";
 
-	public static final String DEFAULT_URL = "http://127.0.0.1:11434";
-
-	public static final String DEFAULT_MODEL_ID = "gpt-oss:20b";
+	public static final String DEFAULT_MODEL_ID = "openai/gpt-oss-20b";
 
 	public static final int DEFAULT_CONTEXT_WINDOW = 16384;
 
@@ -20,10 +19,7 @@ public class AiOptions implements Option {
 	@EnvironmentVariable(name = "LOOM_AI_ENABLED", description = "Override the flag which enables the chat agent.")
 	private boolean enabled = true;
 
-	@EnvironmentVariable(name = "LOOM_AI_PROVIDER_TYPE", description = "Override the LLM provider type (OLLAMA, VLLM).")
-	private String providerType = DEFAULT_PROVIDER_TYPE;
-
-	@EnvironmentVariable(name = "LOOM_AI_URL", description = "Override the LLM provider server url.")
+	@EnvironmentVariable(name = "LOOM_AI_URL", description = "Override the URL of the OpenAI-compatible LLM server.")
 	private String url = DEFAULT_URL;
 
 	@EnvironmentVariable(name = "LOOM_AI_MODEL_ID", description = "Override the model id used by the chat agent.")
@@ -41,7 +37,7 @@ public class AiOptions implements Option {
 	@EnvironmentVariable(name = "LOOM_AI_THINK_ENABLED", description = "Override the flag which enables reasoning/think mode for the chat agent.")
 	private boolean thinkEnabled = true;
 
-	@EnvironmentVariable(name = "LOOM_AI_STREAMING", description = "Override the flag which enables true token/reasoning streaming (requires provider support; falls back to turn-granular streaming when disabled).")
+	@EnvironmentVariable(name = "LOOM_AI_STREAMING", description = "Override the flag which enables true token/reasoning streaming (requires a backend that streams tool calls; falls back to turn-granular streaming when disabled).")
 	private boolean streaming = false;
 
 	@EnvironmentVariable(name = "LOOM_AI_TITLE_GENERATION", description = "Override the flag which enables automatic chat title generation.")
@@ -53,15 +49,6 @@ public class AiOptions implements Option {
 
 	public AiOptions setEnabled(boolean enabled) {
 		this.enabled = enabled;
-		return this;
-	}
-
-	public String getProviderType() {
-		return providerType;
-	}
-
-	public AiOptions setProviderType(String providerType) {
-		this.providerType = providerType;
 		return this;
 	}
 
@@ -139,7 +126,6 @@ public class AiOptions implements Option {
 
 	@Override
 	public void validate(OptionErrors errors) {
-		errors.notBlank("providerType", providerType);
 		errors.notBlank("url", url);
 		errors.notBlank("modelId", modelId);
 	}
@@ -147,7 +133,6 @@ public class AiOptions implements Option {
 	@Override
 	public void overrideWithEnv() {
 		OptionUtils.applyEnvBoolean("LOOM_AI_ENABLED", this::setEnabled);
-		OptionUtils.applyEnv("LOOM_AI_PROVIDER_TYPE", this::setProviderType);
 		OptionUtils.applyEnv("LOOM_AI_URL", this::setUrl);
 		OptionUtils.applyEnv("LOOM_AI_MODEL_ID", this::setModelId);
 		OptionUtils.applyEnvInt("LOOM_AI_CONTEXT_WINDOW", this::setContextWindow);

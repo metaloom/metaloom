@@ -12,10 +12,9 @@ import io.metaloom.cortex.common.media.LoomMediaLoader;
 import io.metaloom.cortex.common.option.CortexOptionsLoader;
 import io.metaloom.cortex.pipeline.loader.NodeFactory;
 import io.metaloom.cortex.pipeline.loader.NodeRegistrar;
-import picocli.CommandLine;
 
 @Singleton
-@Component(modules = { CortexBindModule.class, CortexMediaModule.class, PicoCLIModule.class,
+@Component(modules = { CortexBindModule.class, CortexMediaModule.class,
 	PipelineNodeFactoryModule.class, CortexClientModule.class, S3Module.class, CloudModule.class,
 	MediaResolverModule.class })
 public interface CortexComponent {
@@ -33,13 +32,6 @@ public interface CortexComponent {
 
 	/** Populates {@link #nodeFactory()} with the executable node kinds. */
 	NodeRegistrar nodeRegistrar();
-
-	/**
-	 * Reference to the Pico CLI instance.
-	 * 
-	 * @return
-	 */
-	CommandLine cli();
 
 	@Component.Builder
 	interface Builder {

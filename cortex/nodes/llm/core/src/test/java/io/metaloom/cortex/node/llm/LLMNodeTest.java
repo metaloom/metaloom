@@ -6,8 +6,7 @@ import java.io.IOException;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.ai.genai.llm.LLMProviderType;
-import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.option.CortexOptions;
@@ -57,10 +56,9 @@ public class LLMNodeTest extends AbstractBasicNodeTest<LLMNode> {
 		TestEnv.assumeRunning();
 
 		LLMNodeOptions options = new LLMNodeOptions();
-		options.setOllamaUrl(TestEnv.LLM_URL);
-		options.setProviderType(LLMProviderType.VLLM);
+		options.setOpenaiUrl(TestEnv.LLM_URL);
 		options.setEnabled(true);
-		return new LLMNode(null, cortexOptions, options, new VLLMLLMProvider());
+		return new LLMNode(null, cortexOptions, options, new OpenAILLMProvider());
 	}
 
 }

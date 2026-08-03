@@ -22,28 +22,28 @@ public class LLMNodeOptionsValidationTest {
 	}
 
 	@Test
-	public void testEmptyOllamaUrlInvalid() {
+	public void testEmptyOpenaiUrlInvalid() {
 		LLMNodeOptions options = new LLMNodeOptions();
-		options.setOllamaUrl("");
+		options.setOpenaiUrl("");
 		options.setPrompts(java.util.Map.of("test", new LLMNodePrompt()));
-		assertThat(options).isInvalid().hasErrorCount(1).hasError("ollamaUrl must not be empty");
+		assertThat(options).isInvalid().hasErrorCount(1).hasError("openaiUrl must not be empty");
 	}
 
 	@Test
-	public void testNullOllamaUrlInvalid() {
+	public void testNullOpenaiUrlInvalid() {
 		LLMNodeOptions options = new LLMNodeOptions();
-		options.setOllamaUrl(null);
+		options.setOpenaiUrl(null);
 		options.setPrompts(java.util.Map.of("test", new LLMNodePrompt()));
-		assertThat(options).isInvalid().hasError("ollamaUrl must not be empty");
+		assertThat(options).isInvalid().hasError("openaiUrl must not be empty");
 	}
 
 	@Test
-	public void testCustomOllamaUrlValid() {
+	public void testCustomOpenaiUrlValid() {
 		LLMNodeOptions options = new LLMNodeOptions();
-		options.setOllamaUrl("http://localhost:11434");
+		options.setOpenaiUrl("http://localhost:9090/v1");
 		options.setPrompts(java.util.Map.of("test", new LLMNodePrompt()));
 		assertThat(options)
-			.isValid().hasOllamaUrl("http://localhost:11434");
+			.isValid().hasOpenaiUrl("http://localhost:9090/v1");
 	}
 
 	@Test
@@ -83,11 +83,11 @@ public class LLMNodeOptionsValidationTest {
 	@Test
 	public void testValidationResultDirect() {
 		LLMNodeOptions options = new LLMNodeOptions();
-		options.setOllamaUrl("");
+		options.setOpenaiUrl("");
 		options.setPrompts(java.util.Map.of("test", new LLMNodePrompt()));
 		
 		ValidationResult result = options.validate();
-		assertThat(result).isInvalid().hasErrorCount(1).hasError("ollamaUrl must not be empty");
+		assertThat(result).isInvalid().hasErrorCount(1).hasError("openaiUrl must not be empty");
 		
 		LLMNodeOptions validOptions = new LLMNodeOptions();
 		validOptions.setPrompts(java.util.Map.of("test", new LLMNodePrompt()));

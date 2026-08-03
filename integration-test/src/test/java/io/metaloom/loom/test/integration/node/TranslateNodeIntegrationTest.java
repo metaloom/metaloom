@@ -6,8 +6,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 
-import io.metaloom.ai.genai.llm.LLMProviderType;
-import io.metaloom.ai.genai.llm.vllm.VLLMLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.ai.genai.mockllm.MockLLMServer;
 import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
@@ -18,8 +17,8 @@ import io.metaloom.loom.rest.model.jsoncomp.JsonCompResponse;
 
 /**
  * Integration test for {@code TranslateNode} driven against the {@link MockLLMServer}. The node runs
- * its real compute against a real file and a real Loom, but its injected {@link VLLMLLMProvider}
- * points at the OpenAI-compatible mock instead of a live Ollama backend. The translation must reach
+ * its real compute against a real file and a real Loom, but its injected {@link OpenAILLMProvider}
+ * points at the OpenAI-compatible mock instead of a live model server. The translation must reach
  * the {@code translation} component (variant = target language) and be readable back through REST.
  */
 public class TranslateNodeIntegrationTest extends AbstractNodeIntegrationTest {
@@ -33,8 +32,7 @@ public class TranslateNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			.setTargetLanguage(targetLanguage)
 			.setSourceLanguage("de")
 			.setModel("mock-model");
-		options.setOllamaUrl(llm.baseUrl());
-		options.setProviderType(LLMProviderType.VLLM);
+		options.setOpenaiUrl(llm.baseUrl());
 		return options;
 	}
 
@@ -44,7 +42,7 @@ public class TranslateNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			withLoom(client -> {
 				UniqueAsset ua = createUniqueAsset(client, "video/mp4", "translate node payload".getBytes(StandardCharsets.UTF_8));
 
-				TranslateNode node = new TranslateNode(client, cortexOptions(), options(llm, "en"), new VLLMLLMProvider());
+				TranslateNode node = new TranslateNode(client, cortexOptions(), options(llm, "en"), new OpenAILLMProvider());
 				NodeInputs inputs = NodeInputs.builder().input(TranslateNode.IN_TEXT, GERMAN).build();
 				NodeResult result = node.process(NodeContext.create(ua.media(), inputs));
 
@@ -73,9 +71,9 @@ public class TranslateNodeIntegrationTest extends AbstractNodeIntegrationTest {
 				UniqueAsset ua = createUniqueAsset(client, "video/mp4", "bilingual payload".getBytes(StandardCharsets.UTF_8));
 				NodeInputs inputs = NodeInputs.builder().input(TranslateNode.IN_TEXT, GERMAN).build();
 
-				new TranslateNode(client, cortexOptions(), options(llm, "en"), new VLLMLLMProvider())
+				new TranslateNode(client, cortexOptions(), options(llm, "en"), new OpenAILLMProvider())
 					.process(NodeContext.create(ua.media(), inputs));
-				new TranslateNode(client, cortexOptions(), options(llm, "fr"), new VLLMLLMProvider())
+				new TranslateNode(client, cortexOptions(), options(llm, "fr"), new OpenAILLMProvider())
 					.process(NodeContext.create(ua.media(), inputs));
 
 				var comps = client.listAssetJsonComps(ua.asset().getUuid()).sync().body().getData().stream()

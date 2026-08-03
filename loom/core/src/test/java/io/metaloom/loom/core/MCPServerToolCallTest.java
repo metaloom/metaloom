@@ -20,7 +20,7 @@ import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.llm.ToolCall;
 import io.metaloom.ai.genai.llm.ToolCallResponse;
 import io.metaloom.ai.genai.llm.ToolDefinition;
-import io.metaloom.ai.genai.llm.ollama.OllamaLLMProvider;
+import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.ai.genai.llm.prompt.Prompt;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
 import io.metaloom.loom.mcp.MCPService;
@@ -42,8 +42,8 @@ import io.vertx.core.json.JsonObject;
  *
  * <p>Requires:
  * <ul>
- *   <li>A running Ollama instance at {@code http://127.0.0.1:11434}
- *       with the {@code gpt-oss:20b} model</li>
+ *   <li>A running OpenAI-compatible LLM server at {@code http://127.0.0.1:8080/v1}
+ *       serving a tool-calling model</li>
  *   <li>The test database pool provider (see {@code PoolSetupActionTest})</li>
  * </ul></p>
  */
@@ -99,7 +99,7 @@ public class MCPServerToolCallTest {
 	 */
 	@Test
 	public void testServerToolCallLoopWithLLM() throws Exception {
-		OllamaAvailability.assumeRunning();
+		LlmBackendAvailability.assumeRunning();
 		int port = mcpPort();
 
 		// 1. Discover tools via MCP server
@@ -126,7 +126,7 @@ public class MCPServerToolCallTest {
 		List<ChatMessage> history = new ArrayList<>();
 		history.add(ChatMessage.user(prompt.input()));
 
-		LLMProvider provider = new OllamaLLMProvider();
+		LLMProvider provider = new OpenAILLMProvider();
 		int maxIterations = 8;
 		int jsonRpcId = 10;
 
@@ -223,22 +223,17 @@ public class MCPServerToolCallTest {
 		return new LargeLanguageModel() {
 			@Override
 			public String id() {
-				return "gpt-oss:20b";
+				return "openai/gpt-oss-20b";
 			}
 
 			@Override
 			public String url() {
-				return "http://127.0.0.1:11434";
+				return LlmBackendAvailability.URL;
 			}
 
 			@Override
 			public long contextWindow() {
 				return 4096;
-			}
-
-			@Override
-			public io.metaloom.ai.genai.llm.LLMProviderType providerType() {
-				return io.metaloom.ai.genai.llm.LLMProviderType.OLLAMA;
 			}
 		};
 	}

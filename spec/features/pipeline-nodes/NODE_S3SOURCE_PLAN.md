@@ -42,7 +42,7 @@ Read alongside [NODES.md](NODES.md) (the node system, the capability matrix, kin
 | Dagger module collection | `cortex/cli/…/dagger/NodeCollectionModule.java` |
 | S3 wiring / `S3Support` provider | `cortex/core/…/cli/dagger/S3Module.java` |
 | Worker-level options (16 flags) | `cortex/api/…/option/S3ClientOptions.java`, `…/S3EventOptions.java` |
-| CLI flags + env mapping | `cortex/core/…/cli/CortexCLI.java`, `…/cli/EnvDefaultProvider.java` |
+| Env var mapping | `cortex/common/…/option/CortexEnvOptions.java` |
 | Descriptor (7 parameters, icon `cloud`, `SOURCE`, one `media` output) | `loom-shared/node-model/…/spec/SourceDescriptorProvider.java` |
 | Event sources started at boot | `cortex/core/…/impl/boot/CortexBootstrapInitializer.java` |
 | Webhook route `POST /s3-events` on the monitoring router (port 8093) | `cortex/s3-common/…/s3/event/WebhookS3EventSource.java` — see [../ops/MONITORING.md](../ops/MONITORING.md) |
@@ -363,7 +363,7 @@ run 2 emits nothing; a fresh `mc cp` makes run 3 process exactly one item;
 | The `s3://` cache layout | `…/s3/S3MediaMaterializer.java` |
 | Conditional kind registration | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/RegistryNodeRegistrar.java` |
 | `S3Support` provisioning | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/S3Module.java` |
-| Worker options + env mapping | `cortex/api/…/option/S3ClientOptions.java`, `cortex/core/…/cli/EnvDefaultProvider.java` |
+| Worker options + env mapping | `cortex/api/…/option/S3ClientOptions.java`, `cortex/common/…/option/CortexEnvOptions.java` |
 | The webhook route | `cortex/s3-common/…/s3/event/WebhookS3EventSource.java` |
 | UI descriptor | `loom-shared/node-model/…/spec/SourceDescriptorProvider.java` |
 | The template source node | `cortex/nodes/filesystem-source/…/FilesystemSourceNode.java` |

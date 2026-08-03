@@ -803,15 +803,15 @@
     }, {
       "key" : "model",
       "type" : "STRING",
-      "defaultValue" : "llama3.2",
+      "defaultValue" : "meta-llama/Llama-3.2-3B-Instruct",
       "label" : "Model",
       "description" : "The model asked to classify each item"
     }, {
-      "key" : "ollamaUrl",
+      "key" : "openaiUrl",
       "type" : "STRING",
-      "defaultValue" : "http://127.0.0.1:11434",
-      "label" : "Ollama URL",
-      "description" : "URL of the Ollama service"
+      "defaultValue" : "http://127.0.0.1:8080/v1",
+      "label" : "OpenAI URL",
+      "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
     }, {
       "key" : "maxTextChars",
       "type" : "INTEGER",
@@ -1239,7 +1239,7 @@
   }, {
     "kind" : "llm",
     "name" : "LLM (Large Language Model)",
-    "description" : "Process media through an LLM (e.g. Ollama) with configurable prompts.",
+    "description" : "Process media through an LLM served over an OpenAI-compatible API, with configurable prompts.",
     "icon" : "psychology",
     "category" : "ANALYSIS",
     "inputPorts" : [ {
@@ -1274,11 +1274,11 @@
       "label" : "Retry Failed",
       "description" : "Retry processing media that previously failed"
     }, {
-      "key" : "ollamaUrl",
+      "key" : "openaiUrl",
       "type" : "STRING",
-      "defaultValue" : "http://127.0.0.1:11434",
-      "label" : "Ollama URL",
-      "description" : "URL of the Ollama service"
+      "defaultValue" : "http://127.0.0.1:8080/v1",
+      "label" : "OpenAI URL",
+      "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
     } ],
     "defaultConcurrency" : 1,
     "defaultMode" : "PARALLEL",
@@ -2543,21 +2543,15 @@
     }, {
       "key" : "model",
       "type" : "STRING",
-      "defaultValue" : "gemma2:27b",
+      "defaultValue" : "google/gemma-2-27b-it",
       "label" : "Model",
       "description" : "Model id asked to translate; also recorded as the producer version"
     }, {
-      "key" : "ollamaUrl",
+      "key" : "openaiUrl",
       "type" : "STRING",
-      "defaultValue" : "http://127.0.0.1:11434",
-      "label" : "Ollama URL",
-      "description" : "Base URL of the Ollama or OpenAI-compatible backend"
-    }, {
-      "key" : "providerType",
-      "type" : "STRING",
-      "defaultValue" : "OLLAMA",
-      "label" : "Provider Type",
-      "description" : "Wire protocol spoken at that URL: OLLAMA or VLLM"
+      "defaultValue" : "http://127.0.0.1:8080/v1",
+      "label" : "OpenAI URL",
+      "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
     }, {
       "key" : "contextWindow",
       "type" : "INTEGER",

@@ -16,13 +16,13 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.ImageContent;
-import dev.langchain4j.data.message.TextContent;
-import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.response.ChatResponse;
-import dev.langchain4j.model.ollama.OllamaChatModel;
-import dev.langchain4j.model.ollama.OllamaChatModel.OllamaChatModelBuilder;
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.chat.completions.ChatCompletionContentPart;
+import com.openai.models.chat.completions.ChatCompletionContentPartImage;
+import com.openai.models.chat.completions.ChatCompletionContentPartText;
+import com.openai.models.chat.completions.ChatCompletionCreateParams;
+
 import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.utils.TextUtils;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
@@ -51,7 +51,7 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 
 	private static final Logger logger = LoggerFactory.getLogger(FacedescriptionNode.class);
 
-	private static final LargeLanguageModel MODEL = FaceDescriptionModel.OLLAMA_GEMMA3_27B_Q8;
+	private static final LargeLanguageModel MODEL = FaceDescriptionModel.GEMMA3_27B_IT;
 
 	/**
 	 * The faces to describe, as emitted by {@code facedetect} - one element per face.
@@ -96,7 +96,8 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 		}
 		""";
 
-	public static final String URL = "http://127.0.0.1:11434";
+	/** Base URL of the OpenAI-compatible vision backend serving {@link #MODEL}. */
+	public static final String URL = "http://127.0.0.1:8080/v1";
 
 	private final ObjectMapper mapper;
 	private final InspireFacedetector inspireface;
@@ -267,25 +268,45 @@ public class FacedescriptionNode extends AbstractMediaNode<FacedetectNodeOptions
 		return image.getSubimage(x, y, w, h);
 	}
 
+	/**
+	 * Ask the vision model to describe one cropped face.
+	 *
+	 * <p>
+	 * The call goes over the OpenAI chat-completions protocol, so any backend serving it works —
+	 * llama.cpp with {@code --mmproj}, vLLM, Ollama's {@code /v1} endpoint. The crop travels as an
+	 * {@code image_url} content part holding a base64 JPEG data URI, which is how that protocol
+	 * carries an image.
+	 * </p>
+	 *
+	 * @return the parsed description, or {@code null} when three attempts all failed
+	 */
 	public FaceDescription processFace(BufferedImage image) throws IOException {
 
-		OllamaChatModelBuilder builder = OllamaChatModel.builder()
+		OpenAIClient client = OpenAIOkHttpClient.builder()
 			.baseUrl(URL)
+			.apiKey("bogus")
 			.timeout(Duration.ofMinutes(15))
-			.modelName(MODEL.id())
-			.numPredict(2048)
-			.temperature(0.6);
-		OllamaChatModel chat = builder.build();
+			.build();
 
-		String base64 = ImageUtils.toBase64JPG(image);
-		TextContent q = TextContent.from(PROMPT);
-		ImageContent img = ImageContent.from(base64, "image/jpeg");
-		ChatMessage msg = UserMessage.from(q, img);
+		String dataUri = "data:image/jpeg;base64," + ImageUtils.toBase64JPG(image);
+		ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+			.model(MODEL.id())
+			.temperature(0.6)
+			.maxCompletionTokens(2048)
+			.addUserMessageOfArrayOfContentParts(List.of(
+				ChatCompletionContentPart.ofText(
+					ChatCompletionContentPartText.builder().text(PROMPT).build()),
+				ChatCompletionContentPart.ofImageUrl(
+					ChatCompletionContentPartImage.builder()
+						.imageUrl(ChatCompletionContentPartImage.ImageUrl.builder().url(dataUri).build())
+						.build())))
+			.build();
+
 		String json = null;
 		for (int i = 0; i < 3; i++) {
 			try {
-				ChatResponse out = chat.chat(msg);
-				json = out.aiMessage().text();
+				json = client.chat().completions().create(params)
+					.choices().getFirst().message().content().orElse(null);
 				json = TextUtils.extractJson(json);
 				FaceDescription description = mapper.readValue(json, FaceDescription.class);
 				return description;

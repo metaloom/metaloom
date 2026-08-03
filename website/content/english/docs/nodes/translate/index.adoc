@@ -9,7 +9,7 @@ content, an link:../ocr/[OCR] result or a link:../vlm/[VLM] answer can all be co
 comes out is plain prose on a `translation` port, ready to be wired into link:../tts/[TTS] for
 narration or stored alongside the original.
 
-Translation runs on a language model you already operate — any Ollama or OpenAI-compatible endpoint —
+Translation runs on a language model you already operate — any OpenAI-compatible endpoint —
 so the node stays a pure client with no model runtime of its own.
 
 ++++
@@ -23,7 +23,7 @@ so the node stays a pure client with no model runtime of its own.
 | Input ports | `text` — accepts any text type, so a transcript, a document body, an OCR result or a caption can all be wired into it
 | Output ports | `translation` (Text), `language` (String), `result` (the structure below)
 | Languages | Whatever the configured model speaks; the target is named in plain words or as a language tag
-| Requirements | An **Ollama or OpenAI-compatible endpoint** serving the configured model
+| Requirements | An **OpenAI-compatible endpoint** serving the configured model
 | Persists to | `asset_json_comp` — one row per target language
 |===
 
@@ -35,7 +35,7 @@ so the node stays a pure client with no model runtime of its own.
   "text": "The customer service was a disaster.",
   "targetLanguage": "en",
   "sourceLanguage": "auto",
-  "model": "gemma2:27b",
+  "model": "google/gemma-2-27b-it",
   "chunkCount": 3,
   "sourceChars": 18422,
   "translatedChars": 17980
@@ -82,9 +82,8 @@ more.
 | Option | Meaning
 | `targetLanguage` | The language to translate into (default `en`). Also the key the result is stored under
 | `sourceLanguage` | The language of the input, or `auto` to let the model work it out (default `auto`)
-| `model` | The model asked to translate (default `gemma2:27b`). Recorded with every result
-| `ollamaUrl` | Base URL of the backend (default `http://127.0.0.1:11434`)
-| `providerType` | `OLLAMA` or `VLLM` for an OpenAI-compatible endpoint
+| `model` | The model asked to translate (default `google/gemma-2-27b-it`). Recorded with every result
+| `openaiUrl` | Base URL of the OpenAI-compatible backend (default `http://127.0.0.1:8080/v1`)
 | `contextWindow` | Tokens the model is told it may use for one call (default `2048`)
 | `promptTemplate` | The instruction sent with each chunk. Must contain `${text}`; `${targetLanguage}` and `${sourceLanguage}` are also filled in
 | `maxChunkChars` | Longer input is split into chunks of this size (default `8000`)
