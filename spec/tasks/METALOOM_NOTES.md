@@ -9,9 +9,6 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 ## Tasks
 
 - CliIntegerationTest? What is this? Do we need it?
-- Add a way to visualize the pipeline results in the UI. (e.g. render thumbnails for debugging. Make it possible to play,read,view results.)
-- Add way to add trigger points to "halt" processing.
- It should be possible to step thru processing pipeline to debug the processor manually
 
 - Video Manipulation Node: the video half of
   [concept/NODE_IMAGE_MANIPULATION_PLAN.md](../concept/NODE_IMAGE_MANIPULATION_PLAN.md) — autorotate
@@ -25,9 +22,10 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 - Static code analysis
 - code review markdown file with rules
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
-- Add way of viewing notifications in the UI (How are notifications tracked in loom?)
 - Add semantic ingestion node. This allows constructed semantic data to be ingested into loom
-- Add tag node. The node should be able to automatically be able to tag an asset
+- ~~Add tag node~~ → specified in [concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md).
+  🔴 It also records why the node cannot be built yet: `POST /assets/:uuid/tags` always INSERTs a new
+  `tag` row, so the second asset tagged with one name violates `UNIQUE (name, collection)`.
 - Would a merge node be useful to combine assets in a reactive pipeline? (e.g. zip them)
 
 
@@ -46,12 +44,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
   needs `create_pipeline` / `validate_pipeline` tools plus a dry-run/validation path.
   See [loom/MCP.md](loom/MCP.md), [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md).
 
-* **llama.cpp and VLM sidecars.** `sidecars/` covers tts, sentiment, depth, imagegen (×2) and
-  videogen; the `llm`, `vlm` and `captioning` nodes still call an *external* OpenAI-compatible endpoint.
-  Add in-repo sidecars for llama.cpp and a VLM (scratch attempt lives in untracked
-  `loom-test-env/llamacpp/`). Two loose ends either way: sidecars are documented only in
-  `sidecars/README.md` — nothing on the website — and neither Helm chart has a
-  sidecar / `extraContainers` hook.
+
 
 * **Binary delivery to the frontend.** How do asset bytes and derivatives reach a browser at scale —
   CDN in front of the pool, pre-encoded renditions, signed URLs, range/HLS?

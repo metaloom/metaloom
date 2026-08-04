@@ -92,6 +92,25 @@ failure never fails the node), a no-op offline, and the row **upserts** on
 Also record a FAILED ledger row on the failure path. `producerVersion` should change whenever the
 meaning of the output changes — `watermark` uses `"watermark/1:<digest of the logo>"`.
 
+### 1.2a Previews (optional, but cheap)
+
+Two independent things make a node's output visible in the editor's debug view, and **neither is
+required** — a node that does nothing here still renders from its declared content types.
+
+- **Images are automatic.** A run started in debug mode asks the worker for previews, and
+  `NodePreviews` (cortex/node-runtime) downsamples any `artifact/image` or `media/image` port whose
+  value is a readable local path. `thumbnail` and `image-manipulation` needed no code change for
+  this. It is the only way produced media becomes visible: the port carries a path Loom cannot reach.
+- **`ctx.preview(port, markdown)`** is the escape hatch. Call it when the node knows something the
+  content type does not — that these four numbers are a bounding box, that these elements are
+  one-per-face. `FacedetectNode.detectionsMarkdown` is the reference: a GFM table of confidence and
+  box beats a column of raw JSON documents. It is discarded at the result boundary unless the run
+  asked for previews, so calling it unconditionally is fine.
+
+A preview must never be able to fail the node. `detectionsMarkdown` returns a plain sentence rather
+than throwing when an element will not parse, and the generator turns every failure into a
+`skippedReason` the UI shows.
+
 ### 1.3 Dagger bindings (`XNodeModule`)
 
 Exactly as in every sibling module — **all of it lives in the node's own module**:

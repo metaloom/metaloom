@@ -285,9 +285,15 @@ routes.
 | `/pipelines/:uuid/runs` | GET | Paged run history |
 | `/pipelines/:uuid/runs/:runUuid` | GET | One run |
 | `/pipelines/:uuid/runs/:runUuid/items` | GET | Paged items of a run |
+| `/pipelines/:uuid/runs/:runUuid/items/:itemUuid/tasks` | GET | Node executions of one item, **with the `outputs` each node emitted** (keyed by output port id). Unpaged: bounded by the graph, and every caller wants the whole set |
+| `/pipelines/:uuid/runs/:runUuid/items/:itemUuid/tasks/:taskUuid/previews/:portId` | GET | Bytes of one debugging preview. `image/jpeg` with an ETag; `304` on a conditional re-fetch; `404` when the run did not request previews or the preview was capped |
 | `/pipelines/:uuid/runs/:runUuid/cancel` | POST | Terminal, cannot be undone |
 | `/pipelines/:uuid/runs/:runUuid/pause` | POST | `RUNNING` → `PAUSED` |
 | `/pipelines/:uuid/runs/:runUuid/resume` | POST | `PAUSED` → `RUNNING` |
+| `/pipelines/:uuid/runs/:runUuid/breakpoints` | GET | What the run is armed to halt at (`nodeIds`) and what it is currently holding (`held[{nodeId,itemUuid,elementSeq}]`). `READ_PIPELINE_RUN` |
+| `/pipelines/:uuid/runs/:runUuid/breakpoints` | PUT | Replace the armed set. Whole-set, not a delta; `[]` disarms and releases. 400 names an unknown node id |
+| `/pipelines/:uuid/runs/:runUuid/breakpoints/:nodeId/continue` | POST | Release everything that node is holding. The breakpoint **stays armed** |
+| `/pipelines/:uuid/runs/:runUuid/steps` | POST | Release exactly one held execution. 409 when nothing is held |
 | `/pipelines/:uuid/versions` | GET | Paged history |
 | `/pipelines/:uuid/versions/:version` | GET | One historic version (`:version` is an int) |
 | `/pipelines/:uuid/versions/:version/restore` | POST | Copies into a **new** latest version, returns 201 |
@@ -307,6 +313,19 @@ differential index-backed scan; `pathGlobs` forces a full re-walk. Merge logic l
 or cancelled. Pausing stops node dispatch *and* withholds the source acknowledgement, so the scan
 itself halts. 409 on: pausing a terminal or already-paused run; resuming a run that is not paused;
 resuming a run with no live engine on the server (which would create a run nothing advances).
+
+**Breakpoints.** A breakpoint holds a node's *completed* executions back from its dependents: the
+node runs, its result is persisted and readable through the `/tasks` route above, and only the
+downstream dispatch is blocked. Everything but the GET requires `UPDATE_PIPELINE_RUN`.
+
+All four need a **live engine** and answer 409 without one, mirroring `resume` — a breakpoint that
+nothing will ever honour is worse than a refusal. The single exception is the GET, which reports an
+empty set instead: a run lost to a restart genuinely arms nothing and holds nothing.
+
+⚠️ Breakpoints are **run state, never definition state**. They are set on a run that is already
+going (or passed as `breakpoints[]` on `PipelineRunRequest` so a run can start armed), and are never
+written back into the stored pipeline — debugging a run must not change the pipeline everyone else
+runs. `PipelineRunBreakpointEndpointTest` asserts that arming one creates no new pipeline version.
 
 **Flattened version model.** Persistence keeps `pipeline` and `pipeline_version` as two tables with
 `pipeline.latest_version_uuid` pointing at the current revision; every mutation appends a row rather
@@ -561,6 +580,8 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 - [x] Reactions on tasks, comments, annotations and assets
 - [x] Pipeline run with `SOURCE_TASK` dispatch + engine-driven `NODE_TASK`s
 - [x] Pipeline run control: `pause`, `resume`, `cancel`, `runs/:runUuid/items`, `runs/stats`
+- [x] Per-node execution state and outputs: `runs/:runUuid/items/:itemUuid/tasks`
+- [x] Debugging preview bytes for produced media: `…/tasks/:taskUuid/previews/:portId`
 - [x] Pipeline versions with flattened `PipelineResponse` and version restore
 - [x] Skill library, install and versioning; owner-scoped skill CRUD
 - [x] Chat SSE streaming endpoint (`/chats/:uuid/stream`) with cancel
@@ -681,5 +702,5 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 
 ---
 
-_Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-02 (annotation comment sub-resource shipped: `GET`/`POST /annotations/:annotationUuid/comments` registered, client path corrected; role `permissions` is now persisted and returned)_
+_Git HEAD revision: `827cd2cb`_
+_Last updated: 2026-08-04 (Pipeline debugging routes: the run-item `/tasks` and preview routes, and the four breakpoint/stepping routes. Earlier: annotation comment sub-resource; role `permissions` persisted and returned)_

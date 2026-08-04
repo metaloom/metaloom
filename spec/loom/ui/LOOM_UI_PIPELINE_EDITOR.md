@@ -42,6 +42,36 @@ validates it client-side, and persists a pipeline **definition JSON** that
       only `nodeAffinities`; `handleRestoreVersion` (2495) clears display names and affinities but
       not parameters
 - [x] Pipeline CRUD: create, clone, update (new version per save), delete, run, cancel run
+- [x] Run **pause / resume** controls on the banner and on every live run row; `PAUSED` is
+      non-terminal so Cancel stays offered alongside them
+- [x] Controls reconciled from the `RUN_PAUSED` / `RUN_RESUMED` frames, so a pause issued from
+      the CLI or a second tab flips this editor's button without a click
+- [x] **Debug mode** toggle (`pipeline-debug-toggle`), persisted to `localStorage` under
+      `loom-ui-pipeline-debug`; every diagnostic affordance hangs off it, so the editor is
+      unchanged with it off
+- [x] Live per-node counters from `NODE_STATS` (active/pending/processed/failed/skipped),
+      rendered as a node footer in debug mode
+- [x] **Per-node results**: selecting a run item loads its node executions
+      (`GET …/items/:itemUuid/tasks`) and paints each node's outputs onto its card, one line
+      per output port, via `NodeResultStrip.tsx` + `resultRenderers.ts`
+- [x] Node detail sidebar has a real **Results** tab (attempt count, dead-letter badge, error,
+      per-port summaries) — it replaced a hardcoded fake log, and the JSON tab's invented
+      `metrics` block is gone with it
+- [x] **Enlarged detail view** (`NodeResultDetail.tsx`): click a port on a node card to open it.
+      Tabs are offered by *what the payload actually carries*, not by its declared family, and
+      the first one opens — a node's own Markdown description outranks every default, then the
+      image preview, then a table, then the value, with **Raw always present and always last**
+- [x] **Thumbnails for produced media**: a run started with the Debug toggle on asks workers for
+      capped previews of their image outputs, which the strip renders inline. A capped preview
+      shows a marker and its reason rather than looking like a port that emitted nothing
+- [x] **Breakpoints and stepping**: a gutter dot per node arms a halt; the run stops *after* the
+      node ran, so its result is already readable while nothing downstream starts. Held nodes get
+      a steady amber ring, and the toolbar grows **Step** / **Continue** / a held count once
+      something is actually held
+- [x] A hold auto-opens the stopped item's results — stopping somewhere and not being shown what
+      is there would defeat the point
+- [ ] Breakpoints are not restored after a Loom restart (the engine holds them in memory; see
+      [../../features/pipeline/PIPELINE.md](../../features/pipeline/PIPELINE.md) §6.4a)
 - [x] Version history: list, diff (`PipelineVersionDiff.tsx`), restore
 - [x] Run history + run-item drill-down drawer
 - [x] Live node pulsing / last-result tinting from the pipeline-events WebSocket
@@ -125,6 +155,9 @@ All in `loom-ui/src/features/pipeline/PipelineEditor.tsx` unless noted. Line num
 | `validatePipeline` | 2255 | Graph rules (ids, unknown kind, cycles) + `validatePorts` |
 | `PipelineEditor` (default export) | 2313 | Orchestration, state, REST, events, dialogs |
 | `contentTypes.ts` | — | Mirror of Java `ContentTypeLattice`: `family`, `isAssignable`, `isProvisional`, `FAMILY_COLORS` |
+| `resultRenderers.ts` | — | `previewKind` / `summarizePayload` / `payloadToMarkdownTable`. Switches on the **content-type family**, never the node kind, so an unreleased node still renders |
+| `NodeResultStrip.tsx` | — | The per-port readout on a node card. Sums element counts across a fan-out's tasks; caps at 3 ports with a `+n more` |
+| `NodeResultDetail.tsx` | — | The enlarged view. `viewersFor()` is exported and unit-tested: it decides which tabs a port can offer and in what order |
 | `portResolvers.ts` | — | Mirrors of `ScriptPortResolver` / `PromptPortResolver` for `dynamicPorts` kinds |
 | `pipelineDiff.ts` / `PipelineVersionDiff.tsx` | — | Node/edge diff between two versions |
 | `types/nodeDescriptors.ts` | — | `NodeDescriptor`, `PortSpec`, `PortGroup`, `ContentType`, `NodeParameter` |
@@ -254,6 +287,22 @@ The port model itself is specified in
   to the handle `title`. The canvas pushes `wiredInputs`/`wiredOutputs` (port ids carrying an edge)
   into node data so the renderer can compute this.
 - Handles are laid out down the node edge at `30% + idx*40/(n-1)`, or dead centre for a single port.
+- The node root carries `data-processed` / `data-failed` whenever a `NODE_STATS` frame has been
+  seen for it. These are set **regardless of debug mode** — the counters are state, and only their
+  *rendering* is gated — which is what lets a spec assert the frame was applied without toggling
+  the UI.
+- The node root also carries `data-breakpoint` and `data-held` (both always `"true"`/`"false"`).
+  They mean different things and neither implies the other: *breakpoint* is what the operator
+  armed, *held* is whether this node has actually stopped. A breakpoint no item has reached yet is
+  armed and holding nothing.
+- Visual encoding of a hold: a **steady amber ring** plus a `HELD` badge
+  (`pipeline-node-held-<id>`), deliberately **not** a pulse — the green pulse means "working", and
+  a held node is the opposite of working, so motion would say exactly the wrong thing. A hold also
+  clears `isActive`, so `data-active` goes back to `"false"`.
+- The breakpoint gutter (`pipeline-node-breakpoint-<id>`) sits in the left margin, where a
+  debugger's would. It is rendered for **every** node while debug mode is on — faint when unarmed —
+  because an affordance that only appears once used cannot be discovered. Its click handler calls
+  `stopPropagation()`: the canvas selects a node on click, and arming a breakpoint is not selecting.
 
 ---
 
@@ -314,10 +363,18 @@ Bearer token from `useAuth()`; the descriptor endpoints are called **without** a
 | Create / clone | `POST /pipelines` | `handleCreateConfirm` |
 | **Save** | `POST /pipelines/:uuid` | `handleSave` — server mints a new version; response `versionUuid`/`versionNumber` adopted, canvas untouched |
 | Delete | `DELETE /pipelines/:uuid` | `handleDeletePipeline` |
-| Run | `POST /pipelines/:uuid/run` | `handleRun` (`dispatched:false` → info toast with `message`) |
+| Run | `POST /pipelines/:uuid/run` | `handleRun`, body `{dryRun, debug}` plus `breakpoints[]` when debug is on and any are armed — arming them *after* pressing Run would always be a race (`dispatched:false` → info toast with `message`) |
 | Run history | `GET /pipelines/:uuid/runs` | selection effect |
 | Run items | `GET /pipelines/:uuid/runs/:runUuid/items` | `openRunDetail` → `RunDetailDrawer` |
+| Preview bytes | `GET …/tasks/:taskUuid/previews/:portId` | `previewSrc()` → `<img src>` in `NodeResultStrip`. Server-absolute path resolved against `API_BASE_URL` with the shared `/api/v1` prefix dropped |
+| **Node executions of an item** | `GET /pipelines/:uuid/runs/:runUuid/items/:itemUuid/tasks` | `inspectItem` → `tasksByNode` → node cards + Results tab. Unpaged: the set is bounded by the graph and the canvas needs all of it |
 | Cancel run | `POST /pipelines/:uuid/runs/:runUuid/cancel` | `handleCancelRun` |
+| Read breakpoints | `GET /pipelines/:uuid/runs/:runUuid/breakpoints` | effect on `liveRun` — reconciles what the run is *really* holding after a reload or in a second tab, which no frame can cover |
+| Arm breakpoints | `PUT /pipelines/:uuid/runs/:runUuid/breakpoints` | `handleToggleBreakpoint` — sends the whole armed set, never a delta |
+| Continue a node | `POST …/breakpoints/:nodeId/continue` | `handleContinueNode` |
+| Step | `POST /pipelines/:uuid/runs/:runUuid/steps` | `handleStep` — a 409 means nothing was held, and is surfaced rather than swallowed |
+| Pause run | `POST /pipelines/:uuid/runs/:runUuid/pause` | `handlePauseRun` |
+| Resume run | `POST /pipelines/:uuid/runs/:runUuid/resume` | `handleResumeRun` — a 409 here means the run is no longer live and must be started again |
 | Single run | `GET /pipelines/:uuid/runs/:runUuid` | `loadPipelineRun` — **defined, never called** |
 | Versions | `GET /pipelines/:uuid/versions` · `GET .../versions/:n` · `POST .../versions/:n/restore` | `PipelineVersionBadge`, `PipelineVersionDiff`, `handleRestoreVersion` |
 | Descriptors | `GET /pipeline/node-descriptors` (also `/:kind`, `/content-types`) | `NodeRegistryContext`, once at startup |
@@ -326,6 +383,23 @@ Bearer token from `useAuth()`; the descriptor endpoints are called **without** a
 Event frames drive the canvas: `PIPELINE_STARTED`/`PIPELINE_COMPLETED` refresh the run banner and
 history; `NODE_STARTED` adds to `activeNodeIds` (pulsing node), `NODE_COMPLETED`/`NODE_FAILED` set
 `nodeResults[nodeId]` (green/red side borders), `NODE_SKIPPED` clears activity.
+
+`RUN_PAUSED`/`RUN_RESUMED` patch the matching run's `status` in `pipelineRuns` **locally first**
+and then call `loadRuns()`: the local patch is what makes a control issued elsewhere flip
+immediately instead of lagging a whole round trip, and the refetch is what makes the server
+authoritative.
+
+`NODE_BREAKPOINT_HELD`/`NODE_BREAKPOINT_RELEASED` add to and remove from `heldExecutions`, keyed
+by `(nodeId, itemUuid, elementSeq)` — a fanned-out node is held once per element, so the node id
+alone would not identify which. A hold also **clears `isActive`** and, when nothing else is being
+looked at, calls `inspectItem` for the held item: stopping somewhere and not being shown what is
+there would defeat the point of stopping. It does not steal focus from a result already open —
+silently swapping out something the operator is mid-read would be worse.
+
+`NODE_STATS` is no longer read for its `nodeId` alone. Its counters populate
+`nodeStats[nodeId]` (rendered in debug mode) and its `activeCount` is now **authoritative for the
+pulse** — previously any `NODE_STATS` frame cleared `isActive` unconditionally, so a node that was
+still working stopped pulsing on the next 1s tick.
 
 ### Environment variables
 
@@ -348,6 +422,7 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
 | Keyboard | `H` help overlay · `N` palette · `A` auto-arrange · `Delete` delete selected node (confirm dialog) · `Escape` close · `↑/↓/Enter` in palette |
 | Auto-arrange | Kahn topological columns, 200×80 node box, 80/40 gaps, then `fitView({padding:0.3})` |
 | Edge menu | Click an edge → PASS / REJECT / ANY; updates edge style, `data.branch`, and the definition edge |
+| Breakpoints | Debug mode only. Click a node's left-margin gutter dot to arm/disarm. Once something is actually held, the toolbar grows a held-count chip, **Step** (release one) and **Continue** (release every holding node). The transport is hidden while nothing is held — controls that are almost always disabled are just clutter |
 | Node detail sidebar | 280px; tabs Config / Log (mock) / JSON. Parameter editors by `ParameterType`: `ENUM`→select, `BOOLEAN`→switch, `INTEGER`/`NUMBER`(+`FLOAT`)→numeric field, `ENUM_SET`(+`STRING_LIST`)→comma-separated, `PORT_LIST`→`BucketListEditor` repeatable rows (see below), `CODE`/`JSON`→multiline with per-parameter parse-error flag, else text |
 | Dirty tracking | Any canvas change, parameter/affinity/edge edit, node add/delete → `dirty`. Switching pipelines while dirty opens a discard-confirm (`pipeline-switch-confirm`). Leaving the route does not. |
 | i18n | All user-visible strings under the `pipeline.*` namespace in `loom-ui/src/i18n/locales/{en,de}.json` |
@@ -357,6 +432,28 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
 
 ## 10. Conventions and Gotchas
 
+- **A test cannot positionally click a node under the minimap.** React Flow's minimap floats over
+  the bottom-right of the canvas, so a right-hand node's result rows are covered — even a forced
+  click is received by the minimap. `e2e/pipeline-node-results-mocked.spec.ts` uses
+  `dispatchEvent("click")`, which still bubbles into React's handler.
+- **`page.routeWebSocket` must be awaited before the page navigates.** It returns a promise, and a
+  route registered after the app has already opened its socket intercepts nothing — the helper's
+  `sockets` array then stays empty forever and `waitForSocket` times out. Every events spec
+  destructures `registered` for exactly this reason. The failure is load-dependent: the gap is
+  invisible when a spec runs alone and wide enough to hit under a full-suite run, so a spec that
+  forgets the await looks perfectly healthy in isolation.
+- **A frame pushed into that gap is dropped**, so a test asserting an *intermediate* state (rather
+  than a settled one) should re-push inside an `expect.poll` rather than send once and wait.
+- **Results are per run item, not per run.** "What did whisper emit" has no answer until you
+  say *for which file*. `inspectedItem` supplies that, and it is cleared on a pipeline switch
+  because node ids repeat across pipelines and would otherwise paint one graph's outputs onto
+  another's same-named node. Closing the run drawer deliberately does **not** clear it — that
+  is how you get the graph back into view — so the toolbar chip owns and clears it instead.
+- **Run state must never reach `getGraphJson()`.** `nodeStats`, `debug`, `nodeTasks` and
+  `onSelectPort` are in `RESERVED`
+  (1823) alongside `isActive`/`lastResult`. They are per-run, per-session facts; leaking them into
+  a node's `options` would persist a counter — or a whole result payload, or a React callback —
+  into the pipeline *definition* and mint a new version every time a run ticked.
 - **`getGraphJson()` is the only serialiser.** `selected.definition` is a mirror for the sidebar and
   for cloning; it is *not* what gets saved once the canvas has produced a `graphJson`.
 - **Clone reads `selected.definition`, not `graphJson`** — deliberate: the definition preserves the
@@ -417,25 +514,43 @@ yarn playwright test e2e/pipeline-crud-mocked.spec.ts
 |---|---|
 | `src/features/pipeline/contentTypes.test.ts` | `isAssignable`/`isProvisional`/family colours, pinned against the Java `ContentTypeLatticeTest` fixture |
 | `src/features/pipeline/portResolvers.test.ts` | `script`/`llm`/`vlm` port resolution, pinned against `NodePortResolverTest` |
+| `src/features/pipeline/resultRenderers.test.ts` | One case per content-type family; hash/path truncation; MANY summarisation; empty selective port; markdown-table key union, pipe/newline escaping and origin-seq numbering |
+| `src/features/pipeline/nodeResultDetail.test.ts` | `viewersFor()`: Raw always offered, a node's description outranking its own image, no one-row table for a lone scalar, a player only for a playable `media/*` value, a capped preview adding no image tab |
 | `e2e/pipeline-ports-mocked.spec.ts` | Valid port-to-port connect; typed rejection toast; XOR sibling disabling; **save → reload → save round trip preserving ports and `branch`** |
 | `e2e/pipeline-crud-mocked.spec.ts` | Create / clone / delete / unsaved-switch guard |
 | `e2e/pipeline-run-mocked.spec.ts`, `pipeline-run-cancel-mocked.spec.ts`, `pipeline-run-items-mocked.spec.ts` | Run dispatch, cancel, item drill-down |
 | `e2e/pipeline-versions-mocked.spec.ts`, `pipeline-versions.spec.ts`, `pipeline-diff-backend.spec.ts` | Version badge, restore, diff |
-| `e2e/pipeline-events-mocked.spec.ts` | Node pulsing / last-result tinting from WS frames |
+| `e2e/pipeline-events-mocked.spec.ts` | Node pulsing / last-result tinting from WS frames; `NODE_STATS` counters rendering **only** in debug mode, and `activeCount` driving the pulse |
+| `e2e/pipeline-run-pause-mocked.spec.ts` | Pause → Resume swap, both POSTs, Cancel surviving `PAUSED`, and a `RUN_PAUSED` frame flipping the control with no local click |
+| `e2e/pipeline-node-results-mocked.spec.ts` | Selecting an item fetches its tasks and paints per-port results; results hidden with debug off; the inspected-item chip clears them; the Results tab shows a FAILED node's error, retry count and (retained) outputs; thumbnails for produced images and a marker for a capped one; the detail view opening on a node-authored description, on an image, and offering no pointless table for a scalar |
+| `src/api/pipelineRunControls.test.ts` | pause/resume/cancel clients: path, verb, bearer header, uuid encoding, and the server message surviving into the thrown error |
+| `src/api/pipelineBreakpoints.test.ts` | The four breakpoint clients, and the asymmetry that matters: a **read** degrades to "nothing armed, nothing held" because a run whose engine is gone genuinely is holding nothing, while a **write** throws and carries the server's message |
+| `e2e/pipeline-breakpoints-mocked.spec.ts` | Gutter only in debug mode; arm/disarm sending the whole set; arming not selecting the node; a `NODE_BREAKPOINT_HELD` frame ringing the node with no click and clearing the pulse; the hold loading the stopped item's results; the transport appearing only once something is held; Step and Continue reaching their routes; a release frame clearing the ring; a run started armed carrying `breakpoints[]`; debug off carrying none; and a run already stopped being adopted on open |
 | `e2e/pipeline-affinity-mocked.spec.ts` | Affinity editing, badge, serialisation |
 | `e2e/pipeline-backend.spec.ts`, `pipeline-loading.spec.ts` | Live backend smoke: descriptors load, palette, node add |
 | `e2e/chat-pipeline-graph-mocked.spec.ts` | Pipeline graph rendered inside the chat workspace |
 
-Thirteen `pipeline*` e2e specs exist in `loom-ui/e2e/`; all but `pipeline-backend.spec.ts`,
-`pipeline-loading.spec.ts` and `pipeline-diff-backend.spec.ts` are fully mocked. The two vitest
+Sixteen `pipeline*` e2e specs exist in `loom-ui/e2e/`; all but `pipeline-backend.spec.ts`,
+`pipeline-loading.spec.ts` and `pipeline-diff-backend.spec.ts` are fully mocked. The vitest
 files run in the **node** environment (`vitest.config`, `environment: "node"`) — they are pure logic
 mirrors with no DOM; component behaviour is covered by Playwright, not by RTL/jsdom.
 
 Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / `data-result` /
-`data-affinity`), `pipeline-connection-error`, `pipeline-create-button|dialog|name|confirm`,
+`data-affinity` / `data-processed` / `data-failed` / `data-breakpoint` / `data-held`),
+`pipeline-node-breakpoint-{id}`, `pipeline-node-held-{id}`, `pipeline-debug-step`,
+`pipeline-debug-continue`, `pipeline-debug-held-count`, `pipeline-connection-error`, `pipeline-create-button|dialog|name|confirm`,
 `pipeline-clone-button`, `pipeline-delete-button|confirm`, `pipeline-switch-confirm`,
 `pipeline-version-badge|empty|restore-confirm`, `pipeline-inspector-version`,
-`pipeline-run-banner[-cancel]`, `pipeline-run-detail-drawer|close`, `pipeline-run-item[-error]`,
+`pipeline-run-banner[-cancel|-pause|-resume]`, `pipeline-run-{cancel|pause|resume}-<runUuid>`,
+`pipeline-debug-toggle` (with `data-enabled`), `pipeline-node-stats-<nodeId>`,
+`pipeline-inspected-item`, `node-result-strip`, `node-result-port-<portId>` (with
+`data-content-type` / `data-empty`), `node-result-task` (`data-state`), `node-result-error`,
+`node-result-attempts`, `node-result-dead-letter`, `node-results-no-item|empty`,
+`node-result-thumb-<portId>`, `node-result-preview-skipped-<portId>`,
+`pipeline-result-detail[-close]`, `result-tab-{image|markdown|media|json|raw}`,
+`result-view-{…}`,
+`pipeline-run-item` (now also `data-selected`),
+`pipeline-run-detail-drawer|close`, `pipeline-run-item[-error]`,
 `pipeline-run-items-loading|empty`, `pipeline-log-status`.
 
 ---
@@ -463,5 +578,5 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 
 ---
 
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (PORT_LIST parameter type + BucketListEditor, filter dynamic ports, selective handles, edge pruning on a vanished port)_
+_Git HEAD revision: `827cd2cb`_
+_Last updated: 2026-08-04 (Debugging phases 1–4 — run pause/resume, debug mode, NODE_STATS counters, per-node result inspection, previews, the enlarged detail view, and breakpoints + stepping)_

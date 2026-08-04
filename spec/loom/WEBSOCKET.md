@@ -243,6 +243,7 @@ URI. `mediaType` is best-effort (`image`/`video`/`audio`/`document`/`unknown`).
 | `inputs` | Map\<String, `PortPayload`\> | **Keyed by the receiving node's own input port ids**, not by upstream node id |
 | `demandedOutputs` | Set\<String\> | Output ports something is wired to; a hint, not a restriction |
 | `resultBatchSize` | int | How many results the worker may accumulate before sending; `1` ⇒ send each |
+| `capturePreviews` | boolean | Ask the worker to attach small renderings of what each output port carried. **False on every ordinary run** — set only for a run started with `debug`. Absent from an older Loom, which reads as false |
 
 `PortPayload` is `{ contentType, cardinality, elements[] }` — the typed
 replacement for the old untyped `Map<String,Object>`. For the port lattice and
@@ -254,6 +255,16 @@ and [../cortex/METALOOM_ARCHITECTURE.md](../cortex/METALOOM_ARCHITECTURE.md).
 `message`, `outputs` (Map\<String, `PortPayload`\> keyed by **output** port id).
 Outputs are **kept on `SKIPPED` and `FAILED`** results — discarding them threw
 away the diagnostics that explain the non-completion.
+
+`previews` (Map\<String, `NodePreview`\>, keyed by **output** port id) rides alongside
+`outputs` when the task asked for it. `NodePreview` is
+`{mimeType, width, height, data}`, `{markdown}` or `{skippedReason}` — bytes as base64,
+capped at 96 KiB with the longest edge at 512 px, and **dropped rather than truncated**
+past the cap. A port can carry both bytes and Markdown: the image comes from
+`NodePreviews`, the Markdown from the node's own `ctx.preview(port, …)`, and neither
+displaces the other. It exists because an `artifact/image` port carries a worker-local *path*, which
+Loom cannot resolve into anything anyone can look at. Generating one is never allowed
+to fail the task that produced the real output.
 
 `SegmentTask` carries `taskUuid`, `runUuid`, `itemId`, `segmentId`, `affinity`,
 `media`, `nodes[]` (`SegmentNode`) and `inputs` — only what comes from *outside*
@@ -383,10 +394,38 @@ still sees fleet-wide processor updates.
 
 `type`, `pipelineName`, `pipelineRunUuid`, `nodeId`, `mediaPath`, `timestamp`
 (epoch millis), `durationMs`, `message`, and the aggregate counters
-`activeCount`, `pendingCount`, `processedCount`, `failedCount`, `skippedCount`.
+`activeCount`, `pendingCount`, `processedCount`, `failedCount`, `skippedCount`,
+plus `itemUuid` and `elementSeq` on the breakpoint frames.
 
-`PipelineEventType`: `PIPELINE_STARTED`, `PIPELINE_COMPLETED`, `NODE_STARTED`,
-`NODE_COMPLETED`, `NODE_FAILED`, `NODE_SKIPPED`, `NODE_BUFFERED`, `NODE_STATS`.
+`PipelineEventType`: `PIPELINE_STARTED`, `PIPELINE_COMPLETED`, `RUN_PAUSED`,
+`RUN_RESUMED`, `NODE_STARTED`, `NODE_COMPLETED`, `NODE_FAILED`, `NODE_SKIPPED`,
+`NODE_BUFFERED`, `NODE_BREAKPOINT_HELD`, `NODE_BREAKPOINT_RELEASED`, `NODE_STATS`.
+
+**Run-level frames come from `PipelineEndpointService`, not `RunStatsAggregator`**
+(§4.5). The aggregator only ever sees *node settles*, so it cannot know that a run
+started, was paused, or was cancelled. The four run-level types carry no counters —
+a client wanting numbers reads the next `NODE_STATS` tick or refetches the run.
+
+| Type | Emitted from | Why it cannot come from anywhere else |
+|---|---|---|
+| `PIPELINE_STARTED` | `dispatchRun`, right after `engine.start()` | Loom owns the graph; a worker holds none |
+| `PIPELINE_COMPLETED` | `engine.onCompletion`, **plus** `cancelRun` and the undispatchable-run path | `engine.cancel()` sets `runComplete` without invoking the completion callbacks, and an unreachable processor unregisters the engine before it ever completes. Without those two extra emissions a cancelled run would be the one terminal outcome the socket never reports |
+| `RUN_PAUSED` | `pauseRun`, **after** the engine gate is applied | A pause is an operator decision, never something the run discovers about itself |
+| `RUN_RESUMED` | `resumeRun`, after `engine.unpause()` | as above |
+| `NODE_BREAKPOINT_HELD` | the engine's `BreakpointListener`, from the settle path | Only the engine knows an execution finished and was withheld; nothing else in the system can observe the moment |
+| `NODE_BREAKPOINT_RELEASED` | the same listener, from `releaseNode` / `stepOne` / disarming | Without it a node released from another tab stays ringed forever |
+
+**The two breakpoint frames are the third exception to aggregation**, after `NODE_FAILED`
+and the run-level types. A hold happens because a person asked for it, is individually
+actionable, and is worthless a second late — folding it into the 1 s `NODE_STATS` tick
+would leave a stopped node looking busy for up to a second. They carry `itemUuid` and
+`elementSeq` on top of `nodeId`, because a node downstream of a fan-out is held once per
+element and the debug view has to open the right result.
+
+Ordering is load-bearing on both suspension frames: the frame goes out only once the
+gate is really applied, so a client acting on it can never observe a run that calls
+itself paused while dispatch is still running. A **refused** pause or resume (409)
+broadcasts nothing.
 
 ### 4.4 `ProcessorEventMessage` (`channel: "PROCESSOR"`)
 
@@ -402,7 +441,8 @@ the UI can show the card as "offline (persisted)" rather than dropping it.
 
 A worker holds no pipeline graph — it answers `NODE_TASK`, `SEGMENT_TASK` and
 `SOURCE_TASK` — so it has nothing to say at pipeline-event granularity.
-`RunStatsAggregator` is the single source:
+`RunStatsAggregator` is the single source **of node-level frames**; run-level
+lifecycle comes from `PipelineEndpointService` (§4.3):
 
 - **Successes and skips** are counted per node and flushed as `NODE_STATS` on a
   timer (`PipelineEndpointService.STATS_INTERVAL_MS` = **1000 ms**, plus a final
@@ -486,6 +526,8 @@ Gauges: `cortex_loom_connected`, `cortex_loom_registered`,
 |---|---|---|
 | Registration, duplicate `nodeId`, heartbeat, pre-register guard, status, state, invalid frames, restrictions, persisted-offline listing, forget | `ProcessorEndpointTest` (14) | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` |
 | Connect, `PIPELINE_EVENT` drop paths, envelope errors | `PipelineEventEndpointTest` (6) | same |
+| Pause/resume guards **and** the `RUN_PAUSED` / `PIPELINE_COMPLETED` broadcasts (incl. "a refused pause broadcasts nothing") | `PipelineRunPauseEndpointTest` (15) | same |
+| Breakpoint routes, guards, and the `NODE_BREAKPOINT_HELD` / `_RELEASED` broadcasts | `PipelineRunBreakpointEndpointTest` (20) | same |
 | Fan-out, `?run=` filter, closed-subscriber pruning, full-write-queue drop | `PipelineEventBroadcasterTest` (4) | `loom/services/rest/src/test/java/io/metaloom/loom/rest/service/` |
 | Run completion over the socket | `PipelineRunCompletionEndpointTest` | `loom/core/src/test/.../endpoint/test/` |
 | UI socket, mocked | `cortex-mocked.spec.ts`, `pipeline-events-mocked.spec.ts` | `loom-ui/e2e/` |
@@ -531,6 +573,8 @@ Run the pooled-DB setup before the Java suites — see
 
 ### 7.3 Broadcasting
 
+- [x] Run-level lifecycle frames actually emitted: `PIPELINE_STARTED` / `PIPELINE_COMPLETED` / `RUN_PAUSED` / `RUN_RESUMED`
+- [x] Breakpoint frames emitted immediately rather than aggregated: `NODE_BREAKPOINT_HELD` / `NODE_BREAKPOINT_RELEASED`
 - [x] Pipeline-name and run-uuid filters, ANDed
 - [x] Lazy JSON encoding; lazy pruning of closed sockets
 - [x] Write-queue-full drop with counter, throttled log and metric
@@ -573,6 +617,9 @@ Run the pooled-DB setup before the Java suites — see
    upstream node id — renaming a node in the editor must not break downstream
    lookups. The old `upstreamOutputs` name is gone.
 5. **Outputs survive `SKIPPED` and `FAILED`.** Do not reintroduce the clearing.
+5a. **A preview is never truncated to fit and never fails a task.** Half a JPEG is not a
+    smaller JPEG, and a node that did its real work correctly must not be reported as
+    failed because a thumbnail could not be encoded.
 6. **An empty `nodeWhitelist` means "accepts anything."** A worker that fails to
    determine its kinds registers unrestricted rather than dropping out.
 7. **A message for an unknown run is ignored, not an error.** Answering with
@@ -585,6 +632,11 @@ Run the pooled-DB setup before the Java suites — see
     merge them.
 11. **Close the socket only after flushing.** A queued frame is lost on close,
     which is exactly the hand-back the drain exists to deliver.
+11a. **A cancel and an undispatchable run must broadcast `PIPELINE_COMPLETED`
+    explicitly.** Neither path runs the engine's completion callbacks —
+    `engine.cancel()` sets `runComplete` directly, and an unreachable processor
+    unregisters the engine first — so both emit the closing frame themselves. Drop
+    either and a run silently never closes for every connected client.
 12. **`order(-1000)` is needed on the pipelines socket only**, because of the
     `/api/v1/pipelines*` wildcard auth route.
 
@@ -638,5 +690,5 @@ Run the pooled-DB setup before the Java suites — see
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Rewritten against the code: corrected the backpressure and reconnect claims, the NodeTask/PortPayload wire model, and the message vocabulary.)_
+_Git HEAD revision: `827cd2cb`_
+_Last updated: 2026-08-04 (Added `NODE_BREAKPOINT_HELD`/`NODE_BREAKPOINT_RELEASED` and the `itemUuid`/`elementSeq` fields they carry. Earlier the same day: the run-level lifecycle frames `RUN_PAUSED`/`RUN_RESUMED` and the previously-declared-but-never-emitted `PIPELINE_STARTED`/`PIPELINE_COMPLETED`.)_

@@ -69,7 +69,7 @@ that.
 | **loom-ui** | React / Vite / MUI web front end | `loom-ui/` |
 | **loom-app** | Electron desktop wrapper — experiment, in no build ([loom-app/LOOM_APP.md](loom-app/LOOM_APP.md)) | `loom-app/` |
 | **website** | Hugo marketing + customer documentation site | `website/` |
-| **sidecars** | Python HTTP model servers ([sidecars/SIDECARS.md](sidecars/SIDECARS.md)) — none deployable yet | `sidecars/` |
+| **sidecars** | HTTP model servers ([sidecars/SIDECARS.md](sidecars/SIDECARS.md)) — six Python, one (`llamacpp`) a container; none in Helm yet | `sidecars/` |
 
 Top-level reactor modules: `bom, loom-test-env, loom-shared, loom-client, cortex, loom, cli,
 examples, integration-test, e2e-test, website`.
@@ -133,10 +133,15 @@ spec/
 │   ├── CODING.md                      # RULES for code changes (REST/DAO/Docs/Demo/Spec)
 │   └── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
 ├── concept/
-│   └── ASSET_METADATA_WRITE.md        # 🔵 CONCEPT: a `metadata-write` node emitting sidecars /
-│                                      #   embedded derivatives, incl. marking AI-written values
-│                                      #   (IPTC DigitalSourceType, C2PA). The inverse of the built
-│                                      #   `metadata` node under features/nodes/metadata/
+│   ├── ASSET_METADATA_WRITE.md        # 🔵 CONCEPT: a `metadata-write` node emitting sidecars /
+│   │                                  #   embedded derivatives, incl. marking AI-written values
+│   │                                  #   (IPTC DigitalSourceType, C2PA). The inverse of the built
+│   │                                  #   `metadata` node under features/nodes/metadata/
+│   └── NODE_TAG_CONCEPT.md            # 🔵 CONCEPT: a `tag` node that tags an asset by declarative
+│                                      #   rules over wired ports (a `TagBy` seam like `FilterBy`).
+│                                      #   🔴 Records two blocking defects in the existing write path:
+│                                      #   POST /assets/:uuid/tags always INSERTs a new tag row, so a
+│                                      #   second asset violates UNIQUE (name, collection)
 ├── plans/
 │   ├── TASKS.md                       # Captured, not-yet-scheduled work (TASKS.template.md format)
 │   ├── CLUSTERING.md                  # 🔵 Loom is single-writer; a 2nd instance is destructive
@@ -285,11 +290,13 @@ spec/
 ├── loom-app/
 │   └── LOOM_APP.md                    # ⚪ Electron desktop shell — experiment, not in any build;
 │                                      #   app:// scheme serves a copied loom-ui build
-├── sidecars/                          # Python HTTP model servers. NONE is containerised, in Helm,
-│   │                                  #   or covered by a Python test — see SIDECARS.md
+├── sidecars/                          # HTTP model servers. NONE is in Helm or covered by a test;
+│   │                                  #   only llamacpp is containerised — see SIDECARS.md
 │   ├── SIDECARS.md                    # Index: ports, consumers, deployment status
 │   ├── DEPTH_SIDECAR.md               # :9120 — Depth-Anything-V2 / ZoeDepth → NEARNESS map
 │   ├── IDEOGRAM_SIDECAR.md            # :9200 — SDXL-Turbo / Ideogram-4 nf4 image generation
+│   ├── LLAMACPP_SIDECAR.md            # :8080 — llama.cpp official image (docker OR podman), the
+│   │                                  #   llm/translate backend. No Python; verified live
 │   ├── LTX2_SIDECAR.md                # :9220 — LTX-2 video+audio generation (dual nf4, 24 GB)
 │   ├── MAGE_FLOW_SIDECAR.md           # :9210 — Mage-Flow 4B, MIT weights; imagegen's other backend
 │   ├── SENTIMENT_SIDECAR.md           # :9110 — DE/EN/multilingual 3-class sentiment
@@ -335,6 +342,7 @@ spec/
 | Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](TASKS.template.md) |
 | **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [features/nodes/metadata/METADATA_OVERVIEW.md](features/nodes/metadata/METADATA_OVERVIEW.md) — 🟢 **built**: the `metadata` node. Also the only place that records the source-precedence rules, the envelope contract, and where a licence should live |
 | **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
+| **Tagging assets automatically** — a rule-driven `tag` node, and the tag write path in general | [concept/NODE_TAG_CONCEPT.md](concept/NODE_TAG_CONCEPT.md) — 🔵 **concept, nothing built**. 🔴 Read §2 first: `POST /assets/:uuid/tags` cannot tag two assets with the same tag name today |
 | Dumping a half-formed idea | [METALOOM_NOTES.md](METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
 ### 2.2 The `metaloom-saas` sibling project
@@ -574,6 +582,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | Shared cloud-drive support for nodes | `cortex/cloud-common/` — the provider seam, the hand-rolled Drive/Graph clients, the OAuth token sources and the lazy materializer (design in `NODE_CLOUDSOURCE_PLAN.md`) |
 | Shared LLM support for nodes | `cortex/llm-common/` — the one `LLMProvider` Dagger binding (`LLMProviderModule`), the endpoint options, `LlmInvoker`, `TextChunker`. Used by `llm` and `translate` |
 | Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
+| The LLM backend those `llm`/`translate` options point at | `sidecars/llamacpp/` — llama.cpp's official image on :8080, docker or podman ([sidecars/LLAMACPP_SIDECAR.md](sidecars/LLAMACPP_SIDECAR.md)) |
 | **Lexical search** | `loom/db/jooq/.../search/PostgresSearchProvider.java`, `loom/core/.../dagger/SearchModule.java`, `loom/services/rest/.../endpoint/impl/SearchEndpoint.java` |
 | Search schema | `V2.57__add_search_permission.sql`, `V2.58__add_search_document.sql`, `V2.59__add_search_triggers.sql` |
 | **Fingerprint similarity** | `loom/services/lucene/.../similarity/`, `loom/core/.../dagger/SimilarityModule.java`, `SimilarityIndexEndpoint` |

@@ -39,11 +39,12 @@ links here; **do not duplicate the detail below into it**.
   `{nodeDescriptors, contentTypes}` shape as `GET /api/v1/pipeline/node-descriptors`. Currently
   **41 node kinds** and **39 content types**. Regenerate with `loom/doc`'s `ExampleGenerator`
   (see [Regenerating the snapshot](#regenerating-the-snapshot)) — never hand-edit it.
-* 🔴 **All three shipped demos are currently broken.** Every `DEMOS` entry wires a sink node of
-  `type: "loom"`, and **`loom` is not a kind in the snapshot** — no `LoomDescriptorProvider` is
-  registered in the `NodeDescriptorProvider` service file, so the kind never reaches the generator.
-  `loadDemo(0)` runs on boot, so the page's *first impression* is a `(?)` node, an `unknownKind`
-  error and a disabled **Play** button. See [Progress Assessment](#progress-assessment).
+* The demos are **verified against the staged snapshot** — every kind and port id they name
+  resolves, with Play enabled and no design errors. Nothing automated checks this; re-verify after
+  any descriptor rename. See [Demo pipelines](#demo-pipelines) for the two blockers this replaced.
+* The simulator has **breakpoints**: a gutter dot halts the timeline at a node *after* it has run,
+  with Step and Continue, result strips per output port, and a click-to-enlarge detail overlay —
+  the same interaction model as the product's debug mode.
 * The snapshot URL reaches the JS through a **`data-descriptors`** attribute whose value is a
   `relURL`. That attribute name is deliberately *not* one of the names `build.sh` and
   `check-links.mjs` grep, so the localhost check never trips on it — and, as a consequence, a broken
@@ -211,7 +212,7 @@ they change:
 | Filters | the eight `filter-*` kinds: `asset-attribute`, `blacklist`, `date`, `duplicate`, `mimetype`, `quality`, `size`, `threshold` |
 | Transforms | `imagegen`, `script`, `thumbnail`, `tts`, `videogen`, `watermark` |
 | Sinks (`OUTPUT`) | `s3-sink`, `hash-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` |
-| **Absent** | ⚠️ **no `loom` kind** — the Loom write-back sink exists in Cortex (`cortex/nodes/loom/`) but has no `NodeDescriptorProvider`, so it is missing from the snapshot and from the palette. All three demos still reference it. |
+| **Absent** | ⚠️ **no `loom` kind**, and there should not be one — writing a node's output back to Loom is a per-node `syncToLoom` flag, not a downstream node. A pipeline that persists therefore has no visible sink, which is correct but surprising; the demos end on their last real node. |
 | Content types | **39** across **8 families**, each with a `<family>/*` wildcard: `media` 5, `text` 4, `detection` 4, `hash` 6, `scalar` 5, `struct` 8, `artifact` 5, `control` 2 |
 | Port groups declared | three `XOR` `media_alt` input groups (`whisper`, `facedetect`, `captioning`); **every** `outputGroups` array is empty — no `EXCLUSIVE` output group exists yet |
 | `dynamicPorts: true` | `llm`, `script`, `vlm` |
@@ -249,7 +250,7 @@ cp loom/doc/src/main/generated/node-descriptors.json \
   `NodeDescriptorProvider` registration in
   `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`
   before it can appear here** — 26 providers are registered today, and a Cortex node without one
-  (the `loom` sink) is simply invisible to this page, to the palette and to the live endpoint.
+  is simply invisible to this page, to the palette and to the live endpoint.
 
 `NodeDescriptorGeneratorTest` (in `loom/doc`) fails the build when the snapshot misses a kind the SPI
 provides, and pins the port-model field names (`inputPorts`/`outputPorts`/`contentType`/`cardinality`,
@@ -258,9 +259,10 @@ kind or content type, so a temporarily stale snapshot never breaks the page — 
 the palette, which no check catches.
 
 > ⚠️ **The guard only covers kinds the SPI *provides*.** A Cortex node with no
-> `NodeDescriptorProvider` is not "missing" as far as the test is concerned — it never existed. That
-> is exactly how the `loom` sink fell out of the catalogue while the demos kept referencing it, with
-> a green build on both sides.
+> `NodeDescriptorProvider` is not "missing" as far as the test is concerned — it never existed. Nor
+> does it cover *ports*: a kind whose ports are resolved from configuration ships with an empty
+> `outputPorts`, which is how `filter` sat in the palette unwireable, with a green build on both
+> sides. Neither gap is visible to anything except opening the page.
 
 ## The type engine mirror
 
@@ -441,6 +443,35 @@ animation. This is a real path, not a decoration; keep it working.
 `fmtTime` renders a firing's tick as `mm:ss.mmm` using `MS_PER_TICK`, which is why the log's
 timestamps look like a real run.
 
+### Debugging: halts, results, detail
+
+The simulator mirrors the product's debugging affordances, in the same visual language, so the page
+teaches an interaction a visitor will meet again in Loom itself.
+
+- **Breakpoint gutter** (`.pe-bp`, `data-bp="<nodeId>"`) in each node's left margin, where a
+  debugger's would be. Drawn for every node, faint until armed — an affordance that only appears
+  once used cannot be discovered. Its pointer branch sits *before* the node-drag branch in
+  `onPointerDown`, or arming one would select and drag the node.
+- **`sim.hold(firing)`** is applied inside `flushFirings`, the single place a firing becomes
+  visible, and *after* the firing is logged and its results painted. That ordering is the product's
+  semantics: the node ran, what it produced is on screen, and only what comes next is withheld. The
+  clock is wound back to the held firing so resuming does not skip work.
+- A held node gets a **steady amber ring**, deliberately not a pulse: the firing flash means
+  "working" and a held node is the opposite of working, so motion would say the wrong thing.
+- **Continue** (`.pe-btn.is-held`) and the held chip appear only while something is held. `Step`
+  releases the held firing and stops at the next event boundary — which, if the next node is also
+  armed, is the next hold. Disarming the node that is holding releases it, so clearing a breakpoint
+  can never strand the simulation.
+- **Result strips** (`.pe-result-row`) render each firing's outputs under its node, one row per
+  output port, and are remembered in `lastResults` so a drag or a selection change does not wipe
+  them — `renderNodes()` rebuilds the whole layer.
+- Clicking a row opens **`openResultDetail`**, an overlay whose tabs are chosen by *what the payload
+  carries* rather than by its declared family, exactly as the product does: Table only for a real
+  sequence, Preview for a media/artifact port, then Value, then **Raw, always present and always
+  last**. `Escape` and a backdrop click close it.
+
+Breakpoints survive `Reset`: they are how a visitor sets the run up *before* pressing Play.
+
 <a id="where-the-simulator-diverges-from-the-engine"></a>
 ### Where the simulator diverges from the engine
 
@@ -455,9 +486,13 @@ honesty contract of the whole page.
 | `NodeExecState.isSettled()` is the gather barrier (`elementCount` from the driver) | The gather is implicit in how `build()` accumulates aggregate outputs |
 | Filter verdicts come from node options over real data | Seeded pseudo-random, ~72 % pass |
 | Nodes run in Cortex workers, results persist to Loom (`asset_node_result` ledger) | Nothing runs, nothing persists |
-| `NodePortResolver` derives ports for `llm`/`script`/`vlm` from their configuration | Only the static declared ports are shown |
+| `NodePortResolver` derives ports for `llm`/`script`/`vlm`/`filter` from their configuration | Only `filter`'s three **fixed** ports are mirrored (`withResolvedPorts`), because without them the node cannot be wired at all. Bucket ports and the `llm`/`script`/`vlm` resolvers are still not modelled |
 | Node parameters drive behaviour | `parameters` are not even rendered |
 | Retries, failures, skips, `NODE_*` events | Not modelled; every firing succeeds |
+| A breakpoint holds a node's outputs from its **dependents** while other items keep flowing to their own halts | The whole timeline stops at the held firing. One clock, one halt — there is no per-item scheduler to hold selectively |
+| Held state is per element, and `stepOne()` releases the oldest across the run | `Step` releases the one firing that is held |
+| Previews are real bytes, encoded by the worker that produced the file | The Preview tab says so and shows the path. **No image is ever rendered** — the page has no worker and no files |
+| Disabling segment fusion around a breakpoint costs a round trip per node | No segments exist here, so nothing changes |
 
 ## Persistence and JSON round-trip
 
@@ -494,27 +529,34 @@ textarea **and** a file picker, reporting parse errors inline (`.pe-modal-err`).
 
 `DEMOS` holds three graphs; `loadDemo(0)` runs at boot so the canvas is never empty.
 
-| # | Name | Teaches | Sink |
+| # | Name | Teaches | Terminal node |
 |---|---|---|---|
-| 0 | **Basic — hash & sync** | `filesystem-source → sha512 → loom`: one asset, three nodes, the `hash/sha512` → `loom.sha512` port binding | `loom` |
-| 1 | **Complex — faces (fan-out & gather)** | `filter` bucket branch feeding two routes; `facedetect` `MANY detections` fanning out into `facedescription`'s gather; 3 asset groups | `loom` |
-| 2 | **Use-case — transcribe & sentiment** | `whisper → sentiment` on the audio route, `md5 → loom` on the identity route; 3 asset groups | `loom` |
+| 0 | **Basic — hash & sync** | `filesystem-source → sha512`: one asset, two nodes, the `media/*` → `sha512.media` port binding | `sha512` |
+| 1 | **Complex — faces (fan-out & gather)** | `filter.other` feeding two routes; `facedetect`'s `MANY detections` fanning out into `facedescription`'s gather; 3 asset groups | `facedescription`, `sha512` |
+| 2 | **Use-case — transcribe & sentiment** | `whisper → sentiment` on the audio route, `md5` on the identity route; 3 asset groups | `sentiment`, `md5` |
 
 > Every kind and port id a demo names must exist in the snapshot, or the demo loads with an
 > `unknownKind` error and the page's first impression is a red error list. **Re-verify after any
 > descriptor rename — nothing automated does.**
->
-> 🔴 **This is currently failing.** Verified against the staged snapshot at this revision:
-> `filesystem-source.media`, `sha512.media`/`hash`, `md5.media`/`hash`, `filter.media`,
-> `facedetect.image`/`detections`, `facedescription.detections`, `whisper.audio`/`transcript` and
-> `sentiment.text` all resolve — but **`loom` does not exist**, so `loom.sha512` and `loom.md5` are
-> dangling and every demo boots into an `unknownKind` error with **Play** disabled.
-> Two ways out, pick one and do it in the same change:
-> 1. register a `LoomDescriptorProvider` in
->    `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider`,
->    regenerate the snapshot and re-stage it (the honest fix — the sink is a real node); or
-> 2. repoint the demos at a sink that *is* in the catalogue (`s3-sink`) and drop the `loom.*` port
->    references.
+
+**✅ Fixed 2026-08-04.** All three demos previously booted into a red error list with **Play**
+disabled, for two independent reasons. Both are worth recording, because both were invisible to
+anything automated and both were the page's *first impression*.
+
+1. **There is no `loom` node kind, and there never should be.** Writing a node's output back to
+   Loom is a per-node flag (`syncToLoom`), not a downstream node — so the earlier suggestion to
+   register a `LoomDescriptorProvider` would have invented a concept the engine does not have, and
+   repointing at `s3-sink` would have taught a different pipeline than the one intended. The sink
+   nodes and their edges are simply gone; a hash node is legitimately terminal.
+2. **`filter` had no output ports at all.** Its ports are resolved from its configuration, so the
+   served descriptor declares none, and the editor read `descriptor.outputPorts` directly. The demos
+   wired `filter.media`, which has never existed — but nothing else could have been wired either,
+   including a `filter` dragged in from the palette. `withResolvedPorts()` now mirrors
+   `FilterPortResolver`'s three fixed ports (`other`, `passed`, `bucket`) for the unconfigured case,
+   and the demos route media through `other`.
+
+Verified in a headless browser against the built site: three demos, zero design errors, **Play**
+enabled, and a full Play → halt → Step → Continue cycle on each with no page errors.
 
 ## Configuration knobs
 
@@ -570,13 +612,15 @@ grep -o 'data-descriptors="[^"]*"' website/dist/pipeline-editor/index.html
 ### 3. Manual acceptance pass (`/pipeline-editor/`)
 
 1. **Boot** — demo 0 loads, palette shows all five category groups, *"✓ No design errors"*, **Play**
-   enabled. The browser console must be silent.
-   🔴 *Currently fails*: the demo's `loom` sink is not in the snapshot, so boot shows a `(?)` node
-   and an `unknownKind` error with **Play** disabled. This step is the acceptance criterion for the
-   fix, not a description of today's behaviour.
-2. **Type checking** — drag from `sha512.hash` and confirm `loom.sha512` highlights as a candidate
-   while, say, `whisper.audio` is marked incompatible; release on the incompatible port and read the
-   toast.
+   enabled. The browser console must be silent. Repeat for demos 1 and 2.
+2. **Type checking** — drag from `filesystem-source.media` and confirm `sha512.media` highlights as a
+   candidate while, say, `sentiment.text` is marked incompatible; release on the incompatible port
+   and read the toast.
+2a. **Halting** — click a node's left-margin gutter dot, press **Play**, and confirm the run stops
+   *after* that node has run: the node is amber-ringed, its outputs are listed under the card, and
+   nothing downstream has produced anything. Click a result row for the enlarged view (`Escape`
+   closes). **Step** releases one firing, **Continue** releases and runs on, and clicking the dot
+   again while held both disarms and releases.
 3. **Cardinality** — wire a second edge into a `ONE` input: refused at drag time. Wire
    `facedetect.detections` (MANY) into `facedescription.detections` and confirm it is accepted.
 4. **XOR group** — wire `facedetect.image`, then confirm `facedetect.video` renders `.is-blocked`; wire
@@ -675,17 +719,18 @@ cd loom-ui && npx vitest run src/features/pipeline/contentTypes.test.ts
 ## Progress Assessment
 
 The page is **built and shipping**. Everything unchecked below is a known gap, not a regression —
-**except the first item, which is a live defect.**
+and the demo blockers recorded below are now closed.
 
-### 🔴 Live defect — the demos name a kind that is not in the catalogue
+### Demos — fixed 2026-08-04
 
-- [ ] All three `DEMOS` wire a `type: "loom"` sink; `loom` has no `NodeDescriptorProvider`, so it is
-      absent from the snapshot. `loadDemo(0)` runs on boot → `(?)` node, `unknownKind` error,
-      **Play** disabled on first paint. Fix by registering `LoomDescriptorProvider` and regenerating
-      the snapshot, **or** by repointing the demos at `s3-sink`. Then re-run acceptance step 1.
-- [ ] Nothing would have caught this: `NodeDescriptorGeneratorTest` only checks SPI-provided kinds,
-      and no test loads the demos. A cheap guard is a `loom/doc` (or Node) assertion that every
-      `type` and port id named in `DEMOS` resolves against the staged snapshot.
+- [x] The `type: "loom"` sinks are gone. There is no `loom` node kind and there should not be one:
+      writing back to Loom is a per-node `syncToLoom` flag, so a hash node is legitimately terminal
+- [x] `filter` had **no output ports at all** — they are resolved from configuration, so the served
+      descriptor declares none. `withResolvedPorts()` mirrors `FilterPortResolver`'s three fixed
+      ports, which also makes a `filter` dragged from the palette wireable for the first time
+- [ ] Still nothing automated would catch a recurrence: `NodeDescriptorGeneratorTest` only checks
+      SPI-provided kinds, and no test loads the demos. A cheap guard is a `loom/doc` (or Node)
+      assertion that every `type` and port id named in `DEMOS` resolves against the staged snapshot
 
 ### Page and wiring
 
@@ -701,14 +746,16 @@ The page is **built and shipping**. Everything unchecked below is a known gap, n
 - [x] `NodeDescriptorGenerator` writes the endpoint-shaped snapshot; `ExampleGenerator` drives it
 - [x] `NodeDescriptorGeneratorTest` pins kind coverage and the port-model field names
 - [x] 34 kinds / 39 content types (8 families) staged; graceful degradation on an unknown kind or type
-- [ ] The Loom write-back sink (`cortex/nodes/loom/`) has no descriptor provider, so the palette has
-      no way to end a pipeline at Loom — the only `OUTPUT` kinds are `s3-sink` and the three dedup
-      nodes
+- [x] ~~The Loom write-back sink has no descriptor provider~~ — not a gap: persisting to Loom is a
+      per-node `syncToLoom` flag, so there is no sink kind to register. The only `OUTPUT` kinds are
+      `s3-sink` and the three dedup nodes, and that is correct
 - [ ] Staging is a manual `cp` — the snapshot can go stale against `loom/doc`'s generated copy with
       nothing failing. A `build.sh` freshness check (or a Maven step that copies it) would close this
-- [ ] `dynamicPorts` kinds (`llm`, `script`, `vlm`) show only their static ports; the
-      `NodePortResolver` mirrors already exist in `loom-ui/src/features/pipeline/portResolvers.ts` and
-      could be ported
+- [x] `filter`'s three fixed output ports are mirrored (`withResolvedPorts`) — without them the kind
+      could not be wired to anything
+- [ ] The other `dynamicPorts` kinds (`llm`, `script`, `vlm`) still show only their static ports, as
+      do a filter's per-bucket ports; the `NodePortResolver` mirrors already exist in
+      `loom-ui/src/features/pipeline/portResolvers.ts` and could be ported
 - [ ] `parameters` are ignored — there is no node inspector, so `options` only survive a JSON
       round-trip and never influence the simulation
 
@@ -753,5 +800,5 @@ The page is **built and shipping**. Everything unchecked below is a known gap, n
 
 ---
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified the snapshot counts and found the live defect: all three demos wire a `loom` sink that is not in the catalogue)_
+_Git HEAD revision: `827cd2cb`_
+_Last updated: 2026-08-04 (Fixed both demo blockers — the non-existent `loom` sink and `filter`'s missing output ports — and added the debugging affordances: breakpoint gutter, hold, Step/Continue, result strips and the detail overlay)_
