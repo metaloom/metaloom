@@ -13,7 +13,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -82,8 +81,9 @@ class TagNodePersistenceTest {
 	void setup() throws Exception {
 		cortexOptions = new CortexOptions().setMetaPath(tempDir.toPath());
 		client = mock(LoomHttpClient.class);
+		// No previous verdict by default. Note the list body carries a null data array in that case,
+		// which is exactly what Loom returns for an asset with no components.
 		existingComps = new JsonCompListResponse();
-		existingComps.setData(List.of());
 
 		AssetResponse asset = new AssetResponse().setUuid(assetUuid);
 		LoomClientRequest<AssetResponse> assetReq = mock(LoomClientRequest.class);
@@ -102,7 +102,7 @@ class TagNodePersistenceTest {
 		});
 
 		LoomClientRequest<NoResponse> untagReq = mock(LoomClientRequest.class);
-		when(untagReq.sync()).thenReturn(new LoomClientResponseImpl<>(new NoResponse(), 204, "No Content", Map.of()));
+		when(untagReq.sync()).thenReturn(new LoomClientResponseImpl<>(null, 204, "No Content", Map.of()));
 		when(client.untagAsset(any(UUID.class), any(UUID.class))).thenReturn(untagReq);
 
 		LoomClientRequest<JsonCompListResponse> listReq = mock(LoomClientRequest.class);
@@ -168,7 +168,8 @@ class TagNodePersistenceTest {
 		comp.setSchemaType(TagNode.SCHEMA_TYPE);
 		comp.setVariant(variant);
 		comp.setData(new JsonObject().put("applied", applied));
-		existingComps.setData(List.of(comp));
+		existingComps = new JsonCompListResponse();
+		existingComps.add(comp);
 	}
 
 	@Test
@@ -267,7 +268,8 @@ class TagNodePersistenceTest {
 		comp.setSchemaType(TagNode.SCHEMA_TYPE);
 		comp.setVariant("quality-tags");
 		comp.setData(new JsonObject().put("applied", applied));
-		existingComps.setData(List.of(comp));
+		existingComps = new JsonCompListResponse();
+		existingComps.add(comp);
 
 		assertThat(run(node(nodeDef("quality-tags", "blurry").put("removeWithdrawn", true)))).isSuccess();
 

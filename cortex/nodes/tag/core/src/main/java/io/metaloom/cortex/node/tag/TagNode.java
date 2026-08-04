@@ -406,7 +406,11 @@ public class TagNode extends AbstractMediaNode<TagNodeOptions> implements Pipeli
 			return previous;
 		}
 		try {
-			for (JsonCompResponse comp : client().listAssetJsonComps(asset.getUuid()).sync().body().getData()) {
+			List<JsonCompResponse> comps = client().listAssetJsonComps(asset.getUuid()).sync().body().getData();
+			if (comps == null) {
+				return previous;
+			}
+			for (JsonCompResponse comp : comps) {
 				if (!SCHEMA_TYPE.equals(comp.getSchemaType()) || !nodeId.equals(comp.getVariant()) || comp.getData() == null) {
 					continue;
 				}
