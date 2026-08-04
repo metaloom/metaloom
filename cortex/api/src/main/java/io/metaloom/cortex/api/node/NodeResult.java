@@ -28,6 +28,7 @@ public class NodeResult {
 	private final long durationMs;
 	private final String message;
 	private final Map<String, PortOutput> outputs;
+	private final Map<String, String> previews;
 
 	/**
 	 * Canonical constructor.
@@ -39,11 +40,34 @@ public class NodeResult {
 	 * @param outputs    the port outputs (may be {@code null}, treated as empty)
 	 */
 	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, PortOutput> outputs) {
+		this(nodeId, state, durationMs, message, outputs, null);
+	}
+
+	/**
+	 * Canonical constructor.
+	 *
+	 * @param previews node-authored Markdown per output port id, from {@code ctx.preview(...)}; may be {@code null}
+	 */
+	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, PortOutput> outputs,
+		Map<String, String> previews) {
 		this.nodeId = nodeId;
 		this.state = state;
 		this.durationMs = durationMs;
 		this.message = message;
 		this.outputs = outputs != null ? Collections.unmodifiableMap(new LinkedHashMap<>(outputs)) : Collections.emptyMap();
+		this.previews = previews != null ? Collections.unmodifiableMap(new LinkedHashMap<>(previews)) : Collections.emptyMap();
+	}
+
+	/**
+	 * A node's own Markdown descriptions of its ports, keyed by output port id.
+	 *
+	 * <p>
+	 * Empty unless the node called {@code ctx.preview(...)}. Discarded at the wire boundary unless the
+	 * run asked for previews.
+	 * </p>
+	 */
+	public Map<String, String> getPreviews() {
+		return previews;
 	}
 
 	public NodeResult(ResultState state) {
@@ -116,7 +140,7 @@ public class NodeResult {
 	 * attach DAG identity to a result minted by a {@code CortexNode} (which does not know its own pipeline id).
 	 */
 	public NodeResult withNode(String nodeId, long durationMs) {
-		return new NodeResult(nodeId, state, durationMs, message, outputs);
+		return new NodeResult(nodeId, state, durationMs, message, outputs, previews);
 	}
 
 	// --- Node-level factories (no pipeline id) ---

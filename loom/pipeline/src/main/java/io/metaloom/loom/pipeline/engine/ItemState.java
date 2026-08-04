@@ -194,6 +194,25 @@ public class ItemState {
 		return state != null && state.isSettled(seq);
 	}
 
+	/**
+	 * Whether a breakpoint is withholding any execution of this node.
+	 *
+	 * <p>
+	 * Answered over the whole node on purpose, so it composes with {@link #isSettled(String)} — the
+	 * gather barrier. A dependent of a fanned-out node consumes the <em>sequence</em>, so it may not
+	 * start until every element of that sequence has been released, exactly as it may not start
+	 * until every element has settled.
+	 * </p>
+	 */
+	boolean isHeld(String nodeId) {
+		NodeExecState state = execs.get(nodeId);
+		return state != null && state.isHeld();
+	}
+
+	int heldCount() {
+		return execs.values().stream().mapToInt(NodeExecState::heldCount).sum();
+	}
+
 	boolean isInFlight(String nodeId) {
 		NodeExecState state = execs.get(nodeId);
 		return state != null && state.hasInFlight();

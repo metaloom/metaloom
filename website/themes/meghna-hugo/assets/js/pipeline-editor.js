@@ -96,6 +96,10 @@
 	var selection = { nodeId: null, edgeId: null };
 	var view = { tx: 40, ty: 40, scale: 1 };
 	var els = {};                 // cached DOM
+	/** Most recent firing per node, so results survive a re-render (a drag, a selection change). */
+	var lastResults = {};
+	/** Result rows shown on a node card before the "+n more" chip takes over. */
+	var MAX_RESULT_ROWS = 3;
 	var validationErrors = [];
 
 	function nodeGeom(node) {
@@ -121,6 +125,33 @@
 	function ctLabel(ct) { var c = contentTypesById[ct]; return (c && c.label) || ct || ""; }
 
 	// ---------------------------------------------------------------- model mutation
+	/**
+	 * Fill in ports a node kind resolves at runtime rather than declaring.
+	 *
+	 * A few kinds compute their ports from their configuration, so the served descriptor carries
+	 * none — `filter` is the one that matters here, and with an empty `outputPorts` it could not be
+	 * wired to anything at all, in the demos or from the palette. This mirrors
+	 * `FilterPortResolver.resolveOutputPorts` for the unconfigured case.
+	 *
+	 * Only the *fixed* ports are mirrored. The product also gives a filter one selective port per
+	 * configured bucket; this editor has no bucket editor, so there are never any to add.
+	 */
+	function withResolvedPorts(d) {
+		if (d.kind !== "filter" || (d.outputPorts && d.outputPorts.length)) { return d; }
+		var copy = {};
+		Object.keys(d).forEach(function (k) { copy[k] = d[k]; });
+		copy.outputPorts = [
+			// `other` is selective: with no buckets configured every item goes down it, which is
+			// what makes it the way to pass an asset through a filter.
+			{ id: "other", label: "Other", contentType: "media/*", cardinality: "ONE", required: true, selective: true, description: "Items that matched no bucket" },
+			// These two carry a value for every item, so a node wired to them runs whichever way
+			// the decision went — the escape hatch for "I want the verdict, not the item".
+			{ id: "passed", label: "Passed", contentType: "control/verdict", cardinality: "ONE", required: true, description: "Whether the item passed" },
+			{ id: "bucket", label: "Bucket", contentType: "scalar/string", cardinality: "ONE", required: true, description: "Which bucket the item landed in" }
+		];
+		return copy;
+	}
+
 	function genId(prefix) { return prefix + (model.seq++); }
 	function addNode(kind, x, y, opts) {
 		var d = descriptorsByKind[kind];
@@ -449,9 +480,17 @@
 		els.pauseBtn.addEventListener("click", function () { sim.pause(); });
 		els.stepBtn.addEventListener("click", function () { sim.step(); });
 		els.resetBtn.addEventListener("click", function () { sim.reset(); });
+		// Only shown while the run is actually halted — a control that is almost always
+		// meaningless is just clutter.
+		els.continueBtn = H("button", { class: "pe-btn is-held", text: "▷ Continue" });
+		els.continueBtn.hidden = true;
+		els.continueBtn.addEventListener("click", function () { sim.release(); });
+		els.heldChip = H("span", { class: "pe-held-chip" });
+		els.heldChip.hidden = true;
 		var speed = H("input", { class: "pe-slider", type: "range", min: "0.3", max: "3", step: "0.1", value: "1", title: "Simulation speed" });
 		speed.addEventListener("input", function () { sim.speed = parseFloat(speed.value); });
-		gSim.appendChild(els.playBtn); gSim.appendChild(els.pauseBtn); gSim.appendChild(els.stepBtn); gSim.appendChild(els.resetBtn); gSim.appendChild(speed);
+		gSim.appendChild(els.playBtn); gSim.appendChild(els.pauseBtn); gSim.appendChild(els.stepBtn); gSim.appendChild(els.resetBtn);
+		gSim.appendChild(els.continueBtn); gSim.appendChild(els.heldChip); gSim.appendChild(speed);
 
 		tb.appendChild(gFile); tb.appendChild(gSrc); tb.appendChild(gSim);
 		wrap.appendChild(tb);
@@ -576,7 +615,27 @@
 			g.ins.forEach(function (p, i) { grp.appendChild(portGroup(n, p, i, false)); });
 			g.outs.forEach(function (p, i) { grp.appendChild(portGroup(n, p, i, true)); });
 
+			// Breakpoint gutter, in the left margin where a debugger's would be. Always drawn —
+			// faint when unarmed — because an affordance that only appears once used cannot be
+			// discovered.
+			var armed = !!sim.breakpoints[id];
+			var gut = E("g", { "class": "pe-bp" + (armed ? " is-armed" : ""), "data-bp": id, transform: "translate(-14,14)" });
+			gut.appendChild(E("rect", { x: -6, y: -7, width: 16, height: 16, rx: 4, opacity: 0 }));
+			gut.appendChild(E("circle", { "class": "pe-bp-dot", cx: 1, cy: 1, r: 5 }));
+			var bt = E("title"); bt.textContent = armed
+				? "Stop halting here"
+				: "Halt here — the node still runs, but nothing downstream starts until you continue";
+			gut.appendChild(bt);
+			grp.appendChild(gut);
+
+			if (sim.heldFiring && sim.heldFiring.nodeId === id) { grp.classList.add("is-held"); }
+
 			els.gNodes.appendChild(grp);
+		});
+		// Repaint whatever each node last produced. renderNodes() rebuilds the whole layer, so
+		// without this every drag would wipe the results the simulation just showed.
+		Object.keys(lastResults).forEach(function (id) {
+			if (model.nodes[id]) { sim.showResults(lastResults[id]); }
 		});
 	}
 
@@ -674,7 +733,7 @@
 		Object.keys(model.nodes).forEach(function (id) { model.nodes[id].descriptor = descriptorsByKind[model.nodes[id].kind] || null; model.nodes[id].unknownKind = !model.nodes[id].descriptor; });
 		validationErrors = validate();
 		renderErrors();
-		if (sim.state === "idle") { els.playBtn.disabled = hasBlockingErrors(); }
+		if (sim.state === "idle") { sim.syncControls(); }
 	}
 
 	// ---------------------------------------------------------------- toast
@@ -735,6 +794,18 @@
 		}
 		var delEl = t.closest ? t.closest(".pe-node-del") : null;
 		if (delEl) { ev.preventDefault(); removeNode(delEl.getAttribute("data-del")); commit(); renderAll(); return; }
+
+		// Both of these live inside .pe-node, so they must be handled before the node-drag
+		// branch below — otherwise arming a breakpoint would select and drag the node.
+		var bpEl = t.closest ? t.closest(".pe-bp") : null;
+		if (bpEl) { ev.preventDefault(); sim.toggleBreakpoint(bpEl.getAttribute("data-bp")); return; }
+
+		var resEl = t.closest ? t.closest(".pe-result-row") : null;
+		if (resEl) {
+			ev.preventDefault();
+			openResultDetail(resEl.getAttribute("data-node"), resEl.getAttribute("data-port"));
+			return;
+		}
 
 		var nodeEl = t.closest ? t.closest(".pe-node") : null;
 		if (nodeEl && !portInfo) {
@@ -997,11 +1068,17 @@
 			else if (d.category === "OUTPUT") { desc = "Synced to " + node.label; }
 			else { desc = node.label; }
 
-			this.pushFiring(id, t, node.label + (elemIdx != null ? " [" + (elemIdx + 1) + "]" : ""), desc, inSummary, outSummary.join("  ") || "—");
+			// The structured outputs travel with the firing, not just their one-line summary: the
+			// result strip and the detail overlay both need the elements themselves.
+			var ports = {};
+			(d.outputPorts || []).forEach(function (p) {
+				ports[p.id] = { contentType: p.contentType, cardinality: p.cardinality || "ONE", elements: (out[id][g][p.id] || []).slice() };
+			});
+			this.pushFiring(id, t, node.label + (elemIdx != null ? " [" + (elemIdx + 1) + "]" : ""), desc, inSummary, outSummary.join("  ") || "—", ports);
 		},
 
-		pushFiring: function (id, t, name, desc, inS, outS) {
-			this.firings.push({ nodeId: id, t: t, name: name, desc: desc, input: inS, output: outS, logged: false });
+		pushFiring: function (id, t, name, desc, inS, outS, ports) {
+			this.firings.push({ nodeId: id, t: t, name: name, desc: desc, input: inS, output: outS, ports: ports || {}, logged: false, released: false });
 		},
 
 		// create travelling-token animations for each outgoing edge of a node firing
@@ -1026,16 +1103,21 @@
 
 		play: function () {
 			if (hasBlockingErrors()) { toast("Fix design errors before running", 20, 20); return; }
+			// Play on a held run means "carry on from here", which is what Continue does.
+			if (this.state === "held") { this.release(); return; }
 			if (this.state === "idle") { this.reset(true); this.build(); if (!this.firings.length) { toast("Nothing to simulate — add a source", 20, 20); return; } }
 			this.state = "running";
-			els.playBtn.disabled = true;
+			this.syncControls();
 			if (reduceMotion) { this.clock = this.maxT; this.flushFirings(); this.drawTokens(); this.finish(); return; }
 			this.lastTs = null;
 			this.loop();
 		},
-		pause: function () { if (this.state === "running") { this.state = "paused"; els.playBtn.disabled = false; els.playBtn.textContent = "▶ Play"; if (this.raf) { cancelAnimationFrame(this.raf); } } },
+		pause: function () { if (this.state === "running") { this.state = "paused"; els.playBtn.textContent = "▶ Play"; this.syncControls(); if (this.raf) { cancelAnimationFrame(this.raf); } } },
 		step: function () {
 			if (this.state === "idle") { this.reset(true); this.build(); if (!this.firings.length) { return; } this.state = "paused"; }
+			// A step out of a hold lets exactly that one firing through and stops at the next
+			// event boundary — which, if the next node is also halted, is the next hold.
+			if (this.state === "held") { this.heldFiring.released = true; this.clearHold(); this.state = "paused"; }
 			// advance to the next event boundary (next firing or token end after clock)
 			var next = this.maxT;
 			this.firings.forEach(function (f) { if (f.t > this.clock + 1e-6 && f.t < next) { next = f.t; } }, this);
@@ -1043,19 +1125,27 @@
 			this.clock = next;
 			this.flushFirings();
 			this.drawTokens();
-			els.playBtn.disabled = false; els.playBtn.textContent = "▶ Play";
-			if (this.clock >= this.maxT - 1e-6) { this.finish(); }
+			els.playBtn.textContent = "▶ Play";
+			this.syncControls();
+			if (this.state !== "held" && this.clock >= this.maxT - 1e-6) { this.finish(); }
 		},
 		reset: function (keepState) {
 			if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
 			this.clock = 0; this.tokens = []; this.firings = []; this.firedCount = 0;
 			els.gTokens.innerHTML = "";
 			els.logBody.innerHTML = "";
+			this.clearHold();
+			this.clearResults();
 			Array.prototype.forEach.call(els.gNodes.querySelectorAll(".pe-node.is-firing"), function (n) { n.classList.remove("is-firing"); });
-			if (!keepState) { this.state = "idle"; els.playBtn.disabled = hasBlockingErrors(); els.playBtn.textContent = "▶ Play"; }
+			if (!keepState) { this.state = "idle"; els.playBtn.textContent = "▶ Play"; }
+			// Breakpoints survive a reset. They are how you set the run up before pressing Play,
+			// so clearing them here would make arming one before a run impossible.
+			this.syncControls();
 		},
 		finish: function () {
-			this.state = "idle"; els.playBtn.disabled = hasBlockingErrors(); els.playBtn.textContent = "▶ Play";
+			this.state = "idle"; els.playBtn.textContent = "▶ Play";
+			this.clearHold();
+			this.syncControls();
 			if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
 			els.gTokens.innerHTML = "";
 		},
@@ -1074,15 +1164,88 @@
 			}
 			self.raf = requestAnimationFrame(frame);
 		},
+		/**
+		 * Log every firing the clock has reached — and stop at the first one a breakpoint holds.
+		 *
+		 * The halt lands *after* the firing is logged and its results are painted, mirroring the
+		 * product: the node ran, what it produced is on screen, and only what comes next is
+		 * withheld. The clock is wound back to the held firing so resuming does not skip work
+		 * that would have happened in the meantime.
+		 */
 		flushFirings: function () {
 			var self = this;
+			var held = null;
 			this.firings.forEach(function (f) {
+				if (held) { return; }
 				if (!f.logged && f.t <= self.clock + 1e-6) {
 					f.logged = true;
 					self.appendLog(f);
 					self.flashNode(f.nodeId);
+					self.showResults(f);
+					if (self.breakpoints[f.nodeId] && !f.released) { held = f; }
 				}
 			});
+			if (held) { this.hold(held); }
+		},
+
+		/** Node ids the simulator halts at, as a set. */
+		breakpoints: {},
+		/** The firing currently being held, or null. */
+		heldFiring: null,
+
+		hold: function (f) {
+			this.heldFiring = f;
+			this.state = "held";
+			this.clock = f.t;
+            if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
+			els.gTokens.innerHTML = "";
+			var g = els.gNodes.querySelector('[data-node="' + f.nodeId + '"]');
+			if (g) { g.classList.add("is-held"); }
+			this.syncControls();
+		},
+
+		/** Let the held firing through and carry on at full speed. */
+		release: function () {
+			if (!this.heldFiring) { return; }
+			this.heldFiring.released = true;
+			this.clearHold();
+			this.state = "paused";
+			this.play();
+		},
+
+		clearHold: function () {
+			if (this.heldFiring) {
+				var g = els.gNodes.querySelector('[data-node="' + this.heldFiring.nodeId + '"]');
+				if (g) { g.classList.remove("is-held"); }
+			}
+			this.heldFiring = null;
+		},
+
+		toggleBreakpoint: function (nodeId) {
+			if (this.breakpoints[nodeId]) { delete this.breakpoints[nodeId]; }
+			else { this.breakpoints[nodeId] = true; }
+			// Disarming the node currently holding must let the run continue, or clearing a
+			// breakpoint would strand the simulation with nothing left on screen to explain it.
+			if (!this.breakpoints[nodeId] && this.heldFiring && this.heldFiring.nodeId === nodeId) {
+				this.heldFiring.released = true;
+				this.clearHold();
+				this.state = "paused";
+			}
+			renderNodes();
+			this.syncControls();
+		},
+
+		/** Enable exactly the controls that mean something in the current state. */
+		syncControls: function () {
+			// Called from renderErrors, which can run before the toolbar exists on first paint.
+			if (!els.playBtn || !els.continueBtn) { return; }
+			var isHeld = this.state === "held";
+			els.playBtn.disabled = isHeld ? true : (this.state === "running" || hasBlockingErrors());
+			els.continueBtn.hidden = !isHeld;
+			els.heldChip.hidden = !isHeld;
+			if (isHeld && this.heldFiring) {
+				els.heldChip.textContent = "‖ held at " + this.heldFiring.name;
+			}
 		},
 		appendLog: function (f) {
 			var tr = H("tr", {});
@@ -1100,6 +1263,51 @@
 			g.classList.add("is-firing");
 			setTimeout(function () { g.classList.remove("is-firing"); }, 450);
 		},
+		/**
+		 * Paint a firing's outputs onto its node, one row per output port.
+		 *
+		 * The same idea as the product's node result strip, and deliberately the same visual
+		 * language: a family-coloured dot, the port id, and a short rendering of the value. What
+		 * differs is only that these values are synthetic — see `synthValue`.
+		 */
+		showResults: function (f) {
+			var g = els.gNodes.querySelector('[data-node="' + f.nodeId + '"]');
+			if (!g) { return; }
+			var old = g.querySelector(".pe-results");
+			if (old) { g.removeChild(old); }
+			var portIds = Object.keys(f.ports).filter(function (k) { return f.ports[k].elements.length; });
+			if (!portIds.length) { return; }
+			var geom = nodeGeom(model.nodes[f.nodeId]);
+			var strip = E("g", { "class": "pe-results", transform: "translate(0," + (geom.h + 6) + ")" });
+			portIds.slice(0, MAX_RESULT_ROWS).forEach(function (portId, i) {
+				var port = f.ports[portId];
+				var row = E("g", { "class": "pe-result-row", "data-node": f.nodeId, "data-port": portId, transform: "translate(0," + (i * 15) + ")" });
+				row.appendChild(E("rect", { "class": "pe-result-hit", x: 0, y: -10, width: geom.w, height: 14, rx: 3 }));
+				row.appendChild(E("circle", { "class": "pe-result-dot", cx: 8, cy: -3, r: 3, fill: ctColor(port.contentType) }));
+				var label = E("text", { "class": "pe-result-label", x: 16, y: 0 });
+				label.textContent = portId + " " + summarize(port.elements);
+				row.appendChild(label);
+				var tt = E("title"); tt.textContent = portId + " · " + port.contentType + " — click to enlarge";
+				row.appendChild(tt);
+				strip.appendChild(row);
+			});
+			if (portIds.length > MAX_RESULT_ROWS) {
+				var more = E("text", { "class": "pe-result-more", x: 16, y: MAX_RESULT_ROWS * 15 });
+				more.textContent = "+" + (portIds.length - MAX_RESULT_ROWS) + " more";
+				strip.appendChild(more);
+			}
+			g.appendChild(strip);
+			// Remembered per node so a re-render (a drag, a selection) does not wipe the results.
+			lastResults[f.nodeId] = f;
+		},
+
+		clearResults: function () {
+			lastResults = {};
+			Array.prototype.forEach.call(els.gNodes.querySelectorAll(".pe-results"), function (n) {
+				n.parentNode.removeChild(n);
+			});
+		},
+
 		drawTokens: function () {
 			els.gTokens.innerHTML = "";
 			var self = this;
@@ -1114,6 +1322,121 @@
 			});
 		}
 	};
+	// ---------------------------------------------------------------- result detail overlay
+
+	/**
+	 * Enlarge one output port, mirroring the product's detail view.
+	 *
+	 * Which tabs are offered is decided by *what the payload carries*, not by its declared
+	 * family — the same rule the product uses, and for the same reason: a `media/*` port that
+	 * produced nothing has no player to offer. Raw is always present and always last, because
+	 * whatever else failed to apply the payload is still readable.
+	 */
+	function openResultDetail(nodeId, portId) {
+		var f = lastResults[nodeId];
+		if (!f || !f.ports[portId]) { return; }
+		var port = f.ports[portId];
+		closeResultDetail();
+
+		var views = [];
+		if (port.elements.length > 1) { views.push({ id: "table", label: "Table" }); }
+		if (family(port.contentType) === "media" || family(port.contentType) === "artifact") {
+			views.push({ id: "image", label: "Preview" });
+		}
+		if (port.elements.length) { views.push({ id: "value", label: "Value" }); }
+		views.push({ id: "raw", label: "Raw" });
+
+		var ov = H("div", { class: "pe-detail" });
+		var card = H("div", { class: "pe-detail-card" });
+
+		var head = H("div", { class: "pe-detail-head" });
+		var dot = H("span", { class: "pe-detail-dot" });
+		dot.style.background = ctColor(port.contentType);
+		head.appendChild(dot);
+		var titles = H("div", { class: "pe-detail-titles" });
+		titles.appendChild(H("div", { class: "pe-detail-title", text: f.name + " · " + portId }));
+		titles.appendChild(H("div", {
+			class: "pe-detail-sub",
+			text: port.contentType + " · " + port.cardinality
+				+ (port.elements.length > 1 ? " · " + port.elements.length + " elements" : "")
+		}));
+		head.appendChild(titles);
+		var close = H("button", { class: "pe-btn pe-detail-close", text: "×", title: "Close" });
+		close.addEventListener("click", closeResultDetail);
+		head.appendChild(close);
+		card.appendChild(head);
+
+		var tabs = H("div", { class: "pe-detail-tabs" });
+		var bodyEl = H("div", { class: "pe-detail-body" });
+		views.forEach(function (v, i) {
+			var b = H("button", { class: "pe-detail-tab" + (i === 0 ? " is-active" : ""), text: v.label });
+			b.addEventListener("click", function () {
+				Array.prototype.forEach.call(tabs.children, function (c) { c.classList.remove("is-active"); });
+				b.classList.add("is-active");
+				renderDetailView(bodyEl, v.id, port);
+			});
+			tabs.appendChild(b);
+		});
+		if (views.length > 1) { card.appendChild(tabs); }
+		card.appendChild(bodyEl);
+		renderDetailView(bodyEl, views[0].id, port);
+
+		ov.appendChild(card);
+		// A click on the backdrop closes; a click inside must not.
+		ov.addEventListener("click", function (ev) { if (ev.target === ov) { closeResultDetail(); } });
+		document.body.appendChild(ov);
+		els.detail = ov;
+		document.addEventListener("keydown", detailKeyHandler);
+	}
+
+	function detailKeyHandler(ev) { if (ev.key === "Escape") { closeResultDetail(); } }
+
+	function closeResultDetail() {
+		if (els.detail && els.detail.parentNode) { els.detail.parentNode.removeChild(els.detail); }
+		els.detail = null;
+		document.removeEventListener("keydown", detailKeyHandler);
+	}
+
+	function renderDetailView(host, viewId, port) {
+		host.innerHTML = "";
+		if (viewId === "table") {
+			var tbl = H("table", { class: "pe-detail-table" });
+			var thead = H("thead", {});
+			var hr = H("tr", {});
+			hr.appendChild(H("th", { text: "#" }));
+			hr.appendChild(H("th", { text: "value" }));
+			thead.appendChild(hr); tbl.appendChild(thead);
+			var tb = H("tbody", {});
+			port.elements.forEach(function (el, i) {
+				var tr = H("tr", {});
+				tr.appendChild(H("td", { text: String(el.seq != null ? el.seq : i) }));
+				tr.appendChild(H("td", { text: String(el.value) }));
+				tb.appendChild(tr);
+			});
+			tbl.appendChild(tb);
+			host.appendChild(tbl);
+			return;
+		}
+		if (viewId === "image") {
+			// No bytes exist here — this editor has no worker and no files. Saying so beats a
+			// permanently broken image, and it is exactly what the product shows for a port whose
+			// value is a path on a machine the browser cannot reach.
+			host.appendChild(H("div", { class: "pe-detail-note", text: "In a real run this is a thumbnail of what the node produced, sent back by the worker that made it. Nothing is rendered here — the browser editor has no files." }));
+			host.appendChild(H("div", { class: "pe-detail-path", text: String(port.elements.length ? port.elements[0].value : "") }));
+			return;
+		}
+		if (viewId === "value") {
+			host.appendChild(H("pre", {
+				class: "pe-detail-pre",
+				text: port.elements.length === 1
+					? String(port.elements[0].value)
+					: JSON.stringify(port.elements.map(function (e) { return e.value; }), null, 2)
+			}));
+			return;
+		}
+		host.appendChild(H("pre", { class: "pe-detail-pre", text: JSON.stringify(port, null, 2) }));
+	}
+
 	function fmtTime(t) {
 		var ms = Math.round(t * MS_PER_TICK);
 		var s = Math.floor(ms / 1000), mm = Math.floor(s / 60);
@@ -1201,6 +1524,11 @@
 	}
 
 	// ---------------------------------------------------------------- demo pipelines
+	//
+	// Note there is no "sink" node. Writing a node's output back to Loom is a per-node flag
+	// (`syncToLoom`) and not a downstream node kind, so a hash node is legitimately terminal.
+	// The demos used to end in a node of kind "loom", which is not in the descriptor snapshot:
+	// every demo opened with a "(?)" node, an unknownKind error and a disabled Play button.
 	var DEMOS = [
 		{
 			name: "Basic — hash & sync",
@@ -1208,12 +1536,10 @@
 				meta: { sourceMode: "single", sourceCount: 1 },
 				nodes: [
 					{ id: "src", type: "filesystem-source", position: { x: 40, y: 120 } },
-					{ id: "h", type: "sha512", position: { x: 320, y: 120 } },
-					{ id: "sink", type: "loom", position: { x: 600, y: 120 } }
+					{ id: "h", type: "sha512", position: { x: 320, y: 120 } }
 				],
 				edges: [
-					{ id: "e1", source: "src", sourcePort: "media", target: "h", targetPort: "media", branch: "ANY" },
-					{ id: "e2", source: "h", sourcePort: "hash", target: "sink", targetPort: "sha512", branch: "ANY" }
+					{ id: "e1", source: "src", sourcePort: "media", target: "h", targetPort: "media", branch: "ANY" }
 				]
 			}
 		},
@@ -1226,15 +1552,13 @@
 					{ id: "mime", type: "filter", position: { x: 270, y: 200 } },
 					{ id: "fd", type: "facedetect", position: { x: 520, y: 80 } },
 					{ id: "fdesc", type: "facedescription", position: { x: 780, y: 80 } },
-					{ id: "h", type: "sha512", position: { x: 520, y: 330 } },
-					{ id: "sink", type: "loom", position: { x: 780, y: 330 } }
+					{ id: "h", type: "sha512", position: { x: 520, y: 330 } }
 				],
 				edges: [
 					{ id: "e1", source: "src", sourcePort: "media", target: "mime", targetPort: "media", branch: "ANY" },
-					{ id: "e2", source: "mime", sourcePort: "media", target: "fd", targetPort: "image", branch: "PASS" },
+					{ id: "e2", source: "mime", sourcePort: "other", target: "fd", targetPort: "image", branch: "ANY" },
 					{ id: "e3", source: "fd", sourcePort: "detections", target: "fdesc", targetPort: "detections", branch: "ANY" },
-					{ id: "e4", source: "mime", sourcePort: "media", target: "h", targetPort: "media", branch: "PASS" },
-					{ id: "e5", source: "h", sourcePort: "hash", target: "sink", targetPort: "sha512", branch: "ANY" }
+					{ id: "e4", source: "mime", sourcePort: "other", target: "h", targetPort: "media", branch: "ANY" }
 				]
 			}
 		},
@@ -1247,15 +1571,13 @@
 					{ id: "mime", type: "filter", position: { x: 270, y: 200 } },
 					{ id: "w", type: "whisper", position: { x: 520, y: 80 } },
 					{ id: "sent", type: "sentiment", position: { x: 790, y: 80 } },
-					{ id: "h", type: "md5", position: { x: 520, y: 340 } },
-					{ id: "sink", type: "loom", position: { x: 790, y: 340 } }
+					{ id: "h", type: "md5", position: { x: 520, y: 340 } }
 				],
 				edges: [
 					{ id: "e1", source: "src", sourcePort: "media", target: "mime", targetPort: "media", branch: "ANY" },
-					{ id: "e2", source: "mime", sourcePort: "media", target: "w", targetPort: "audio", branch: "PASS" },
+					{ id: "e2", source: "mime", sourcePort: "other", target: "w", targetPort: "audio", branch: "ANY" },
 					{ id: "e3", source: "w", sourcePort: "transcript", target: "sent", targetPort: "text", branch: "ANY" },
-					{ id: "e4", source: "mime", sourcePort: "media", target: "h", targetPort: "media", branch: "PASS" },
-					{ id: "e5", source: "h", sourcePort: "hash", target: "sink", targetPort: "md5", branch: "ANY" }
+					{ id: "e4", source: "mime", sourcePort: "other", target: "h", targetPort: "media", branch: "ANY" }
 				]
 			}
 		}
@@ -1270,7 +1592,7 @@
 
 	// ---------------------------------------------------------------- bootstrap
 	function init(data) {
-		(data.nodeDescriptors || []).forEach(function (d) { descriptorsByKind[d.kind] = d; });
+		(data.nodeDescriptors || []).forEach(function (d) { descriptorsByKind[d.kind] = withResolvedPorts(d); });
 		(data.contentTypes || []).forEach(function (c) { contentTypesById[c.id] = c; });
 		buildShell();
 		loadDemo(0);

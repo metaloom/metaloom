@@ -4,7 +4,8 @@ import { test, expect, Page, WebSocketRoute } from "@playwright/test";
  * Mocked tests for the pipeline run-trigger (`POST /run`) path.
  *
  * Clicking the Run control invokes `runPipeline` → `POST /api/v1/pipelines/:uuid/run`
- * with a `{ dryRun }` body derived from the selected pipeline. On a dispatched
+ * with a `{ dryRun, debug }` body — `dryRun` from the selected pipeline, `debug` from the
+ * editor's Debug toggle. On a dispatched
  * response the editor shows the "run dispatched" success toast and refreshes the run
  * history (`GET .../runs`); a non-dispatched response surfaces an info toast (no
  * processor) without a refetch, and a 4xx surfaces an error toast — never a silent
@@ -148,7 +149,9 @@ test.describe("Pipeline run trigger – mocked", () => {
     await expect.poll(() => runTrigger.calls, { timeout: 5_000 }).toBe(1);
     expect(runTrigger.lastMethod).toBe("POST");
     expect(runTrigger.lastPath).toContain(`/pipelines/${PIPELINE_UUID}/run`);
-    expect(runTrigger.lastBody).toEqual({ dryRun: false });
+    // `debug` rides along on every dispatch and is false unless the Debug toggle is on, so a
+    // run started from a clean editor asks for no previews and costs the worker nothing.
+    expect(runTrigger.lastBody).toEqual({ dryRun: false, debug: false });
 
     // Success toast.
     await expect(page.getByText("Pipeline run dispatched")).toBeVisible({ timeout: 5_000 });
@@ -168,8 +171,23 @@ test.describe("Pipeline run trigger – mocked", () => {
     await page.getByText("Dry Run", { exact: true }).click();
 
     await expect.poll(() => runTrigger.calls, { timeout: 5_000 }).toBe(1);
-    expect(runTrigger.lastBody).toEqual({ dryRun: true });
+    expect(runTrigger.lastBody).toEqual({ dryRun: true, debug: false });
     await expect(page.getByText("Pipeline run dispatched")).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("turning Debug on asks the run for previews", async ({ page }) => {
+    // Previews are the only way to look at media a node produced, and they are opt-in per run
+    // because encoding one per image per item is a cost a production run must not pay.
+    const { runTrigger } = await mockBackend(page);
+    const { registered } = mockEventsSocket(page);
+    await registered;
+    await loginAndOpenEditor(page);
+
+    await page.getByTestId("pipeline-debug-toggle").click();
+    await page.getByText("Run", { exact: true }).click();
+
+    await expect.poll(() => runTrigger.calls, { timeout: 5_000 }).toBe(1);
+    expect(runTrigger.lastBody).toEqual({ dryRun: false, debug: true });
   });
 
   test("a not-dispatched response surfaces the no-processor info toast without a history refresh", async ({ page }) => {

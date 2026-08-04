@@ -957,6 +957,8 @@
       "runDispatched": "Pipeline-Lauf gestartet",
       "runNoProcessor": "Kein Prozessor verfügbar",
       "runCancelled": "Pipeline-Lauf abgebrochen",
+      "runPaused": "Pipeline-Lauf pausiert",
+      "runResumed": "Pipeline-Lauf fortgesetzt",
       "newPipeline": "Neue Pipeline",
       "newPipelineTitle": "Neue Pipeline",
       "clonePipelineTitle": "Pipeline klonen",
@@ -1075,7 +1077,37 @@
       "errors": "Fehler",
       "noRuns": "Noch keine Läufe aufgezeichnet",
       "loading": "Läufe werden geladen…",
-      "cancel": "Lauf abbrechen"
+      "cancel": "Lauf abbrechen",
+      "pause": "Lauf pausieren",
+      "resume": "Lauf fortsetzen"
+    },
+    "resultDetail": {
+      "tab": {
+        "image": "Bild",
+        "markdown": "Beschreibung",
+        "table": "Tabelle",
+        "media": "Medien",
+        "json": "Wert",
+        "raw": "Rohdaten"
+      },
+      "previewNote": "Verkleinerte Vorschau, nicht die Originaldatei",
+      "previewSkipped": "Keine Vorschau",
+      "mediaUnavailable": "Diese Datei liegt auf dem Worker, der sie erzeugt hat, und kann hier nicht abgespielt werden."
+    },
+    "debug": {
+      "toggle": "Debug",
+      "toggleTooltip": "Live-Zähler und Ergebnisse pro Node auf der Arbeitsfläche anzeigen",
+      "inspectingTooltip": "Die auf der Arbeitsfläche gezeigten Node-Ergebnisse gehören zu diesem Lauf-Eintrag. Mit × entfernen.",
+      "setBreakpoint": "Hier anhalten — der Knoten läuft weiterhin, aber nachgelagerte Knoten starten erst, wenn Sie fortfahren",
+      "clearBreakpoint": "Hier nicht mehr anhalten",
+      "heldBadge": "ANGEHALTEN",
+      "heldCount_one": "{{count}} angehalten",
+      "heldCount_other": "{{count}} angehalten",
+      "heldTooltip": "Ausführungen, die fertig sind und auf Sie warten, bevor nachgelagerte Knoten starten",
+      "step": "Schritt",
+      "stepTooltip": "Eine wartende Ausführung freigeben",
+      "continue": "Fortfahren",
+      "continueTooltip": "Alle wartenden Ausführungen freigeben. Der Haltepunkt bleibt gesetzt, das nächste Medium hält hier erneut"
     },
     "runDetail": {
       "title": "Lauf-Detail",
@@ -1090,6 +1122,7 @@
       "priority": "Priorität",
       "dryRun": "Probelauf",
       "runningNow": "Läuft gerade",
+      "pausedNow": "Pausiert",
       "lastRun": "Letzter Lauf:"
     },
     "nodeDetail": {
@@ -1097,7 +1130,7 @@
       "collapse": "Bereich einklappen",
       "tab": {
         "config": "Konfiguration",
-        "log": "Protokoll",
+        "results": "Ergebnisse",
         "json": "JSON"
       },
       "displayName": "Anzeigename",
@@ -1107,7 +1140,13 @@
       "affinityHelp": "Knoten derselben Gruppe werden gemeinsam als ein Segment ausgeführt.",
       "configuration": "Konfiguration",
       "nodeId": "Knoten-ID",
-      "processingLog": "Verarbeitungsprotokoll",
+      "results": "Node-Ergebnisse",
+      "resultsNoItem": "Wähle im Lauf-Detail einen Eintrag aus, um zu sehen, was dieser Node dafür erzeugt hat.",
+      "resultsLoading": "Node-Ergebnisse werden geladen…",
+      "resultsNone": "Dieser Node wurde für den gewählten Eintrag nicht ausgeführt.",
+      "resultsNoOutputs": "Keine Ausgaben aufgezeichnet.",
+      "retries": "Verbrauchte Versuche vom erlaubten Maximum",
+      "deadLetter": "Dead Letter",
       "nodeState": "Knotenstatus (JSON)",
       "emptyHint": "Klicken Sie auf einen Knoten im Canvas, um seine Details anzuzeigen und zu bearbeiten",
       "parameters": "Parameter",

@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,9 @@ import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.WebSocket;
+import io.vertx.core.http.WebSocketClient;
+import io.vertx.core.http.WebSocketConnectOptions;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -321,6 +326,139 @@ public class PipelineRunPauseEndpointTest {
 		} finally {
 			vertx.close();
 		}
+	}
+
+	// ── Event broadcast ──────────────────────────────────────────────────
+
+	@Test
+	@DisplayName("Pausing broadcasts RUN_PAUSED on the UI events socket")
+	void testPauseBroadcastsRunPaused() throws Exception {
+		// A run can be paused from the CLI or a second browser tab, and every other client
+		// has to learn about it - otherwise their control keeps offering "Pause" for a run
+		// that is already suspended. Loom is the only party that can say so: the pause never
+		// reaches a worker, so nothing else could emit this.
+		Vertx vertx = Vertx.vertx();
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PipelineRun run = createRun("RUNNING");
+
+			List<JsonObject> frames = new CopyOnWriteArrayList<>();
+			WebSocket ws = connectPipelineEventsWs(vertx);
+			ws.textMessageHandler(text -> frames.add(new JsonObject(text)));
+
+			int[] status = new int[1];
+			httpSend(vertx, HttpMethod.POST, pausePath(run.getPipelineUuid(), run.getUuid()),
+				client.getToken(), null, status);
+			assertEquals(200, status[0]);
+
+			JsonObject frame = awaitFrame(frames, "RUN_PAUSED", run.getUuid());
+			assertThat(frame).as("a pause must announce itself on the events socket").isNotNull();
+			assertThat(frame.getString("pipelineRunUuid")).isEqualTo(run.getUuid().toString());
+			assertThat(frame.getString("pipelineName"))
+				.as("the frame must be attributable to a pipeline, since subscribers filter on it")
+				.isNotBlank();
+			ws.close();
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	@DisplayName("A refused pause broadcasts nothing")
+	void testRefusedPauseBroadcastsNothing() throws Exception {
+		// The frame is emitted after the gate is applied, so a 409 must leave the socket
+		// silent. Announcing a pause that did not happen would flip every other client's
+		// control to Resume for a run that is still running.
+		Vertx vertx = Vertx.vertx();
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PipelineRun run = createRun("SUCCESS");
+
+			List<JsonObject> frames = new CopyOnWriteArrayList<>();
+			WebSocket ws = connectPipelineEventsWs(vertx);
+			ws.textMessageHandler(text -> frames.add(new JsonObject(text)));
+
+			int[] status = new int[1];
+			httpSend(vertx, HttpMethod.POST, pausePath(run.getPipelineUuid(), run.getUuid()),
+				client.getToken(), null, status);
+			assertEquals(409, status[0]);
+
+			Thread.sleep(QUIET_WINDOW_MS);
+			assertThat(frames.stream().anyMatch(f -> "RUN_PAUSED".equals(f.getString("type"))))
+				.as("a refused pause must not be announced")
+				.isFalse();
+			ws.close();
+		} finally {
+			vertx.close();
+		}
+	}
+
+	@Test
+	@DisplayName("Cancelling a run broadcasts PIPELINE_COMPLETED")
+	void testCancelBroadcastsPipelineCompleted() throws Exception {
+		// engine.cancel() sets runComplete without invoking the completion callbacks, so
+		// without an explicit broadcast here a cancelled run would be the one terminal
+		// outcome the events socket never reports.
+		Vertx vertx = Vertx.vertx();
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PipelineRun run = createRun("RUNNING");
+
+			List<JsonObject> frames = new CopyOnWriteArrayList<>();
+			WebSocket ws = connectPipelineEventsWs(vertx);
+			ws.textMessageHandler(text -> frames.add(new JsonObject(text)));
+
+			int[] status = new int[1];
+			httpSend(vertx, HttpMethod.POST,
+				"/api/v1/pipelines/" + run.getPipelineUuid() + "/runs/" + run.getUuid() + "/cancel",
+				client.getToken(), null, status);
+			assertEquals(200, status[0]);
+
+			assertThat(awaitFrame(frames, "PIPELINE_COMPLETED", run.getUuid()))
+				.as("a cancel must close the run out on the events socket")
+				.isNotNull();
+			ws.close();
+		} finally {
+			vertx.close();
+		}
+	}
+
+	/** How long to wait before concluding that no frame is coming. */
+	private static final long QUIET_WINDOW_MS = 2000;
+
+	/**
+	 * Poll the collected frames for one of the given type and run.
+	 *
+	 * <p>Frames are collected rather than awaited one-by-one because the socket is
+	 * multiplexed - a {@code channel:"PROCESSOR"} frame can arrive in between and would
+	 * otherwise satisfy a naive "next message" future.</p>
+	 *
+	 * @return the matching frame, or null if none arrived within the window
+	 */
+	private JsonObject awaitFrame(List<JsonObject> frames, String type, UUID runUuid) throws Exception {
+		long deadline = System.currentTimeMillis() + QUIET_WINDOW_MS;
+		while (System.currentTimeMillis() < deadline) {
+			for (JsonObject frame : frames) {
+				if (type.equals(frame.getString("type")) && runUuid.toString().equals(frame.getString("pipelineRunUuid"))) {
+					return frame;
+				}
+			}
+			Thread.sleep(50);
+		}
+		return null;
+	}
+
+	private WebSocket connectPipelineEventsWs(Vertx vertx) throws Exception {
+		WebSocketClient wsClient = vertx.createWebSocketClient();
+		CompletableFuture<WebSocket> future = new CompletableFuture<>();
+		WebSocketConnectOptions opts = new WebSocketConnectOptions()
+			.setHost("localhost")
+			.setPort(restPort())
+			.setURI("/api/v1/pipelines/events/ws");
+		wsClient.connect(opts)
+			.onSuccess(future::complete)
+			.onFailure(future::completeExceptionally);
+		return future.get(10, TimeUnit.SECONDS);
 	}
 
 	// ── HTTP helper ──────────────────────────────────────────────────────

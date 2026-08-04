@@ -20,12 +20,13 @@ import {
   ErrorOutline, CloudUploadOutlined, FilterAltOutlined,
   SettingsOutlined, CloudDownloadOutlined, MemoryOutlined,
   CircleOutlined, AccessTimeOutlined, BarChartOutlined, StopCircleOutlined,
+  PauseCircleOutlined, PlayCircleOutlined,
   TerminalOutlined, ExpandLessOutlined, ExpandMoreOutlined,
   ChevronRightOutlined, ChevronLeftOutlined,
   AddOutlined, CenterFocusStrongOutlined, VideocamOutlined,
   MovieFilterOutlined, FolderOpenOutlined, AutoAwesomeOutlined,
   LocalOfferOutlined, ImageOutlined, SubtitlesOutlined,
-  DataObjectOutlined, BugReportOutlined,
+  DataObjectOutlined, BugReportOutlined, SkipNextOutlined,
   Fingerprint, Mic, Psychology, Tune, HighQuality, Grain,
   TextFields, GridView, LinearScale, Straighten, ContentCopy,
   DateRange, Block, VerifiedOutlined, PlaylistRemoveOutlined,
@@ -40,11 +41,15 @@ import { tokens } from "../../theme";
 import { Pipeline, PipelineNode, EdgeKind, pipelineNodeOptions } from "../../types";
 import {
   listPipelines, PipelineResponse,
-  updatePipeline, runPipeline, cancelPipelineRun, listPipelineRuns, type PipelineUpdateRequest,
+  updatePipeline, runPipeline, cancelPipelineRun, pausePipelineRun, resumePipelineRun,
+  listPipelineRuns, type PipelineUpdateRequest,
   createPipeline, deletePipeline, type PipelineCreateRequest,
   type PipelineRunRecord,
   listPipelineRunItems, type PipelineRunItemRecord,
+  listPipelineRunItemTasks, type PipelineNodeTaskRecord, type PortPayload,
   listPipelineVersions, restorePipelineVersion,
+  loadPipelineRunBreakpoints, setPipelineRunBreakpoints, continuePipelineRunBreakpoint,
+  stepPipelineRun, type HeldExecution,
 } from "../../api/pipelines";
 import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pipelineEvents";
 import { useAuth } from "../../context/AuthContext";
@@ -55,11 +60,36 @@ import type { ContentType, NodeDescriptor, NodeCategory, PortGroup, PortSpec } f
 import { contentTypeColor, findContentType, isAssignable, isWildcard } from "./contentTypes";
 import { resolveInputPorts, resolveOutputPorts } from "./portResolvers";
 import BucketListEditor, { type Bucket } from "./BucketListEditor";
+import NodeResultStrip from "./NodeResultStrip";
+import NodeResultDetail from "./NodeResultDetail";
+import { summarizePayload } from "./resultRenderers";
 import { PipelineVersionDiff } from "./PipelineVersionDiff";
 
 // Default affinity group name. Mirrors PipelineGraphNode.DEFAULT_AFFINITY on the
 // Loom side: a null/blank affinity collapses to "default" (one group per node).
 const DEFAULT_AFFINITY = "default";
+
+/**
+ * Live per-node counters carried by a `NODE_STATS` frame.
+ *
+ * `active` and `pending` are a snapshot of the present — only the engine knows them — while
+ * the other three are cumulative totals for the run. Do not add them up expecting the item
+ * count: one item settles once per node.
+ */
+export interface NodeStats {
+  active: number;
+  pending: number;
+  processed: number;
+  failed: number;
+  skipped: number;
+}
+
+/** Run statuses the server treats as non-terminal, so a control may still act on them. */
+const RUN_STATUS_RUNNING = "RUNNING";
+const RUN_STATUS_PAUSED = "PAUSED";
+
+/** localStorage key for the debug-mode toggle, alongside the theme's own key. */
+const DEBUG_STORAGE_KEY = "loom-ui-pipeline-debug";
 
 // Derive a stable colour for a non-default affinity group from its name, so nodes
 // sharing a group visibly share a colour on the canvas. Returns null for the
@@ -209,11 +239,26 @@ function portBlockedReason(port: PortSpec, ports: PortSpec[], groups: PortGroup[
 
 // ── Custom Pipeline Node Component ────────────────────────────────────────
 function PipelineNodeComponent({ data, selected, id }: NodeProps) {
+  const { t } = useTranslation();
   const category = (data.category as NodeCategory) ?? "ANALYSIS";
   const cfg = categoryConfig[category] ?? categoryConfig.ANALYSIS;
   const nodeIcon = data.nodeIcon as React.ReactNode | undefined;
   const isActive = data.isActive as boolean | undefined;
   const lastResult = data.lastResult as "completed" | "failed" | undefined;
+  const stats = data.nodeStats as NodeStats | undefined;
+  const debug = data.debug as boolean | undefined;
+  const nodeTasks = (data.nodeTasks as PipelineNodeTaskRecord[] | undefined) ?? [];
+  const onSelectPort = data.onSelectPort as
+    ((task: PipelineNodeTaskRecord, portId: string, payload: PortPayload) => void) | undefined;
+  // Breakpoint state. `breakpoint` is what the operator armed; `held` is whether this node has
+  // actually stopped. They are separate because a breakpoint no item has reached yet is armed
+  // and holding nothing, and the two look completely different on the canvas.
+  const breakpoint = data.breakpoint as boolean | undefined;
+  const held = data.held as boolean | undefined;
+  const onToggleBreakpoint = data.onToggleBreakpoint as ((nodeId: string) => void) | undefined;
+  // Only render the counter footer once the node has actually done something. An idle
+  // canvas — the state the editor is in almost all of the time — is left untouched.
+  const showStats = !!debug && !!stats && (stats.processed > 0 || stats.failed > 0 || stats.skipped > 0 || stats.active > 0 || stats.pending > 0);
   // Handle ids are port ids. There is deliberately no invented fallback port: a handle the server
   // has no port for would author an edge it must then reject.
   const inputs = (data.portsIn as PortSpec[] | undefined) ?? [];
@@ -236,7 +281,12 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
   // When the node is not currently processing, tint its side borders to reflect
   // the last result received over the pipeline-events socket.
   const resultColor = lastResult === "completed" ? tokens.accent.green : lastResult === "failed" ? tokens.accent.red : null;
-  const sideBorderColor = selected ? cfg.color : (!isActive && resultColor) ? resultColor : tokens.border.default;
+  // A held node outranks its last result: "stopped here, waiting for you" is the most important
+  // thing the card can say, and amber reads as stopped where the green pulse reads as running.
+  const sideBorderColor = held ? tokens.accent.amber
+    : selected ? cfg.color
+    : (!isActive && resultColor) ? resultColor
+    : tokens.border.default;
 
   return (
     <Box
@@ -244,6 +294,10 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
       data-active={isActive ? "true" : "false"}
       data-result={lastResult ?? "none"}
       data-affinity={affinity}
+      data-processed={stats ? String(stats.processed) : undefined}
+      data-failed={stats ? String(stats.failed) : undefined}
+      data-breakpoint={breakpoint ? "true" : "false"}
+      data-held={held ? "true" : "false"}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       sx={{
@@ -267,12 +321,19 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
           outline: `2px dashed ${groupColor}`,
           outlineOffset: 3,
         }),
-        ...(isActive && {
+        ...(isActive && !held && {
           animation: "pulse-active 2s ease-in-out infinite",
           "@keyframes pulse-active": {
             "0%, 100%": { boxShadow: `0 0 8px ${cfg.color}33` },
             "50%": { boxShadow: `0 0 22px ${cfg.color}66, 0 0 8px ${cfg.color}44` },
           },
+        }),
+        // A steady amber ring, deliberately not a pulse: the green pulse means "working", and a
+        // held node is the opposite of working. Motion here would say exactly the wrong thing.
+        ...(held && {
+          outline: `2px solid ${tokens.accent.amber}`,
+          outlineOffset: 2,
+          boxShadow: `0 0 16px ${tokens.accent.amber}55`,
         }),
       }}
     >
@@ -307,8 +368,65 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
           {affinity}
         </Box>
       )}
+      {/* Breakpoint gutter, in debug mode only — a debugger's margin, in the same place.
+          Always rendered while debugging (faint when unarmed) so there is something to aim at;
+          an affordance that only appears once used cannot be discovered. */}
+      {debug && (
+        <Tooltip title={t(breakpoint ? "pipeline.debug.clearBreakpoint" : "pipeline.debug.setBreakpoint")}>
+          <Box
+            data-testid={`pipeline-node-breakpoint-${id}`}
+            onClick={(e) => {
+              // The canvas selects a node on click; arming a breakpoint is not selecting.
+              e.stopPropagation();
+              onToggleBreakpoint?.(id);
+            }}
+            sx={{
+              position: "absolute",
+              top: 10,
+              left: -13,
+              width: 11,
+              height: 11,
+              borderRadius: "50%",
+              cursor: "pointer",
+              zIndex: 11,
+              bgcolor: breakpoint ? tokens.accent.red : "transparent",
+              border: `1.5px solid ${breakpoint ? tokens.accent.red : tokens.border.default}`,
+              opacity: breakpoint ? 1 : 0.45,
+              transition: "opacity 120ms ease, background-color 120ms ease",
+              "&:hover": { opacity: 1 },
+            }}
+          />
+        </Tooltip>
+      )}
+      {/* Held glyph: the node stopped and is waiting. Distinct from the green activity dot,
+          which sits on the other corner and means the opposite. */}
+      {held && (
+        <Box
+          data-testid={`pipeline-node-held-${id}`}
+          sx={{
+            position: "absolute",
+            top: -7,
+            right: 8,
+            px: 0.6,
+            height: 15,
+            display: "flex",
+            alignItems: "center",
+            gap: 0.3,
+            borderRadius: 999,
+            bgcolor: tokens.accent.amber,
+            color: "#1a1206",
+            fontSize: "0.55rem",
+            fontWeight: 800,
+            letterSpacing: "0.03em",
+            lineHeight: 1,
+            zIndex: 11,
+          }}
+        >
+          ‖ {t("pipeline.debug.heldBadge")}
+        </Box>
+      )}
       {/* Active indicator dot */}
-      {isActive && !hovered && (
+      {isActive && !held && !hovered && (
         <Box
           sx={{
             position: "absolute",
@@ -367,6 +485,37 @@ function PipelineNodeComponent({ data, selected, id }: NodeProps) {
           </Typography>
         </Box>
       </Box>
+
+      {/* Live counters from the NODE_STATS frames. Debug mode only. */}
+      {showStats && stats && (
+        <Box
+          data-testid={`pipeline-node-stats-${id}`}
+          sx={{
+            px: 1.5, pb: 0.75, mt: -0.5,
+            display: "flex", alignItems: "center", gap: 0.75,
+            fontSize: "0.62rem", fontFamily: "monospace", color: tokens.text.tertiary,
+          }}
+        >
+          {stats.active > 0 && (
+            <Box component="span" sx={{ color: tokens.accent.amber }} title="active">▶ {stats.active}</Box>
+          )}
+          {stats.pending > 0 && (
+            <Box component="span" title="pending">⋯ {stats.pending}</Box>
+          )}
+          <Box component="span" sx={{ color: tokens.accent.green }} title="processed">✓ {stats.processed}</Box>
+          {stats.failed > 0 && (
+            <Box component="span" sx={{ color: tokens.accent.red }} title="failed">✕ {stats.failed}</Box>
+          )}
+          {stats.skipped > 0 && (
+            <Box component="span" title="skipped">⊘ {stats.skipped}</Box>
+          )}
+        </Box>
+      )}
+
+      {/* What this node actually emitted for the inspected run item. Debug mode only. */}
+      {debug && nodeTasks.length > 0 && (
+        <NodeResultStrip tasks={nodeTasks} onSelectPort={onSelectPort} />
+      )}
 
       {/* Input handles — one per declared input port, keyed by port id */}
       {inputs.map((port, idx) => {
@@ -500,7 +649,24 @@ const nodeTypes = { pipelineNode: PipelineNodeComponent };
 
 // ── Convert pipeline nodes to React Flow format ───────────────────────────
 
-function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[], contentTypes: ContentType[], onDelete?: (nodeId: string) => void, activeNodeIds?: Set<string>, nodeResults?: Record<string, "completed" | "failed">): RFNode[] {
+/**
+ * Everything the breakpoint UI needs, in one bag.
+ *
+ * Grouped rather than added as three more positional parameters to `toRFNodes`, which already
+ * takes eleven — the next reader should not have to count commas to see which boolean is which.
+ */
+export interface NodeDebugState {
+  /** Node ids the run is armed to halt at. */
+  breakpoints: Set<string>;
+  /** Node ids that have actually stopped and are waiting to be released. */
+  heldNodes: Set<string>;
+  onToggleBreakpoint?: (nodeId: string) => void;
+}
+
+function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptors: NodeDescriptor[], contentTypes: ContentType[], onDelete?: (nodeId: string) => void, activeNodeIds?: Set<string>, nodeResults?: Record<string, "completed" | "failed">, nodeStats?: Record<string, NodeStats>, debug?: boolean,
+  tasksByNode?: Record<string, PipelineNodeTaskRecord[]>,
+  onSelectPort?: (task: PipelineNodeTaskRecord, portId: string, payload: PortPayload) => void,
+  debugState?: NodeDebugState): RFNode[] {
   // Build a lookup map once
   const descMap = new Map(descriptors.map(d => [d.kind, d]));
 
@@ -531,6 +697,13 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
         onDelete,
         isActive: activeNodeIds?.has(n.id) ?? false,
         lastResult: nodeResults?.[n.id],
+        nodeStats: nodeStats?.[n.id],
+        debug: debug ?? false,
+        nodeTasks: tasksByNode?.[n.id],
+        onSelectPort,
+        breakpoint: debugState?.breakpoints.has(n.id) ?? false,
+        held: debugState?.heldNodes.has(n.id) ?? false,
+        onToggleBreakpoint: debugState?.onToggleBreakpoint,
         // Affinity is a top-level field on the definition node; surface it in the
         // React Flow node data so the renderer and getGraphJson can see it.
         affinity: n.affinity ?? DEFAULT_AFFINITY,
@@ -571,7 +744,14 @@ function toRFEdges(edges: Pipeline["definition"]["edges"]): RFEdge[] {
 }
 
 // ── Run History Panel ─────────────────────────────────────────────────────
-function RunHistory({ runs, loading, onCancel, onSelect }: { runs: PipelineRunRecord[]; loading?: boolean; onCancel?: (runUuid: string) => void; onSelect?: (run: PipelineRunRecord) => void }) {
+function RunHistory({ runs, loading, onCancel, onPause, onResume, onSelect }: {
+  runs: PipelineRunRecord[];
+  loading?: boolean;
+  onCancel?: (runUuid: string) => void;
+  onPause?: (runUuid: string) => void;
+  onResume?: (runUuid: string) => void;
+  onSelect?: (run: PipelineRunRecord) => void;
+}) {
   const { t } = useTranslation();
   if (loading) {
     return (
@@ -607,7 +787,11 @@ function RunHistory({ runs, loading, onCancel, onSelect }: { runs: PipelineRunRe
         const isSuccess = status === "success" || status === "completed";
         const isFailed = status === "failed" || status === "error";
         const isRunning = status === "running" || status === "active";
+        const isPaused = status === "paused";
         const isCancelled = status === "cancelled" || status === "canceled";
+        // PAUSED is non-terminal: cancel stays available, and the pause control becomes
+        // a resume rather than disappearing.
+        const isLive = isRunning || isPaused;
         const dateStr = r.started ? new Date(r.started).toLocaleString() : "";
         return (
           <Paper
@@ -628,10 +812,11 @@ function RunHistory({ runs, loading, onCancel, onSelect }: { runs: PipelineRunRe
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
               {isSuccess ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
                 isFailed ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
-                  isRunning ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber }} /> :
-                    isCancelled ? <Block sx={{ fontSize: 14, color: tokens.text.tertiary }} /> :
-                      <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
-              <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: isSuccess ? tokens.accent.green : isFailed ? tokens.accent.red : isRunning ? tokens.accent.amber : tokens.text.tertiary }}>
+                  isPaused ? <PauseCircleOutlined sx={{ fontSize: 14, color: tokens.accent.blue }} /> :
+                    isRunning ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber }} /> :
+                      isCancelled ? <Block sx={{ fontSize: 14, color: tokens.text.tertiary }} /> :
+                        <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+              <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: isSuccess ? tokens.accent.green : isFailed ? tokens.accent.red : isPaused ? tokens.accent.blue : isRunning ? tokens.accent.amber : tokens.text.tertiary }}>
                 {r.status}
               </Typography>
               {r.dryRun && (
@@ -640,7 +825,33 @@ function RunHistory({ runs, loading, onCancel, onSelect }: { runs: PipelineRunRe
               <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
                 {dateStr}
               </Typography>
-              {isRunning && onCancel && (
+              {isRunning && onPause && (
+                <Tooltip title={t("pipeline.runHistory.pause") || "Pause run"}>
+                  <IconButton
+                    data-testid={`pipeline-run-pause-${r.uuid}`}
+                    aria-label={t("pipeline.runHistory.pause") || "Pause run"}
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); onPause(r.uuid); }}
+                    sx={{ width: 20, height: 20, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.blue } }}
+                  >
+                    <PauseCircleOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {isPaused && onResume && (
+                <Tooltip title={t("pipeline.runHistory.resume") || "Resume run"}>
+                  <IconButton
+                    data-testid={`pipeline-run-resume-${r.uuid}`}
+                    aria-label={t("pipeline.runHistory.resume") || "Resume run"}
+                    size="small"
+                    onClick={(e) => { e.stopPropagation(); onResume(r.uuid); }}
+                    sx={{ width: 20, height: 20, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.green } }}
+                  >
+                    <PlayCircleOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {isLive && onCancel && (
                 <Tooltip title={t("pipeline.runHistory.cancel") || "Cancel run"}>
                   <IconButton
                     data-testid={`pipeline-run-cancel-${r.uuid}`}
@@ -690,11 +901,14 @@ function runItemStateColor(state: string): string {
   }
 }
 
-function RunDetailDrawer({ run, items, loading, onClose }: {
+function RunDetailDrawer({ run, items, loading, onClose, onSelectItem, selectedItemUuid }: {
   run: PipelineRunRecord | null;
   items: PipelineRunItemRecord[];
   loading?: boolean;
   onClose: () => void;
+  /** Inspect one item: loads its node executions and paints them onto the canvas. */
+  onSelectItem?: (item: PipelineRunItemRecord) => void;
+  selectedItemUuid?: string | null;
 }) {
   const { t } = useTranslation();
   const open = !!run;
@@ -755,7 +969,16 @@ function RunDetailDrawer({ run, items, loading, onClose }: {
                   elevation={0}
                   data-testid="pipeline-run-item"
                   data-state={item.state}
-                  sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, p: 1.25 }}
+                  data-selected={selectedItemUuid === item.uuid ? "true" : "false"}
+                  onClick={onSelectItem ? () => onSelectItem(item) : undefined}
+                  sx={{
+                    bgcolor: tokens.bg.overlay,
+                    border: `1px solid ${selectedItemUuid === item.uuid ? tokens.primary.main : tokens.border.subtle}`,
+                    borderRadius: tokens.radius.md,
+                    p: 1.25,
+                    cursor: onSelectItem ? "pointer" : "default",
+                    ...(onSelectItem ? { "&:hover": { borderColor: tokens.border.strong } } : {}),
+                  }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
                     <Chip
@@ -1015,7 +1238,15 @@ function PipelineVersionBadge({
 }
 
 // ── Pipeline Inspector (right stats panel) ────────────────────────────────
-function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onSelectRun }: { pipeline: Pipeline | null; runs: PipelineRunRecord[]; runsLoading: boolean; onCancelRun?: (runUuid: string) => void; onSelectRun?: (run: PipelineRunRecord) => void }) {
+function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onPauseRun, onResumeRun, onSelectRun }: {
+  pipeline: Pipeline | null;
+  runs: PipelineRunRecord[];
+  runsLoading: boolean;
+  onCancelRun?: (runUuid: string) => void;
+  onPauseRun?: (runUuid: string) => void;
+  onResumeRun?: (runUuid: string) => void;
+  onSelectRun?: (run: PipelineRunRecord) => void;
+}) {
   const { t } = useTranslation();
   if (!pipeline) {
     return (
@@ -1027,11 +1258,13 @@ function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onSelectR
   }
 
   const latestRun = runs[0];
-  const runStatusColor: Record<string, string> = { success: tokens.accent.green, failed: tokens.accent.red, running: tokens.accent.amber, cancelled: tokens.text.tertiary, idle: tokens.text.tertiary, paused: tokens.text.tertiary };
+  const runStatusColor: Record<string, string> = { success: tokens.accent.green, failed: tokens.accent.red, running: tokens.accent.amber, cancelled: tokens.text.tertiary, idle: tokens.text.tertiary, paused: tokens.accent.blue };
   // Normalise like RunHistory already does, so the banner is robust to the server's
   // upper-case status vocabulary (RUNNING / CANCELLED / …) as well as mocked lower-case.
   const latestStatus = latestRun ? latestRun.status.toLowerCase() : "";
   const latestIsRunning = latestStatus === "running" || latestStatus === "active";
+  const latestIsPaused = latestStatus === "paused";
+  const latestIsLive = latestIsRunning || latestIsPaused;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -1054,16 +1287,45 @@ function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onSelectR
         <Box data-testid="pipeline-run-banner" data-status={latestRun.status} sx={{ px: 2, py: 1, bgcolor: `${runStatusColor[latestStatus] ?? runStatusColor.idle}0a`, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", gap: 1 }}>
           {latestStatus === "success" || latestStatus === "completed" ? <CheckCircleOutline sx={{ fontSize: 14, color: tokens.accent.green }} /> :
             latestStatus === "failed" || latestStatus === "error" ? <ErrorOutline sx={{ fontSize: 14, color: tokens.accent.red }} /> :
-              latestIsRunning ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
-                latestStatus === "cancelled" || latestStatus === "canceled" ? <Block sx={{ fontSize: 14, color: tokens.text.tertiary }} /> :
-                  <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
+              latestIsPaused ? <PauseCircleOutlined sx={{ fontSize: 14, color: tokens.accent.blue }} /> :
+                latestIsRunning ? <CircleOutlined sx={{ fontSize: 14, color: tokens.accent.amber, animation: "spin 1s linear infinite", "@keyframes spin": { from: { transform: "rotate(0deg)" }, to: { transform: "rotate(360deg)" } } }} /> :
+                  latestStatus === "cancelled" || latestStatus === "canceled" ? <Block sx={{ fontSize: 14, color: tokens.text.tertiary }} /> :
+                    <CircleOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} />}
           <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.75rem", color: runStatusColor[latestStatus] ?? tokens.text.tertiary }}>
-            {latestIsRunning ? t("pipeline.inspector.runningNow") : `${t("pipeline.inspector.lastRun")} ${latestRun.status}`}
+            {latestIsPaused ? t("pipeline.inspector.pausedNow")
+              : latestIsRunning ? t("pipeline.inspector.runningNow")
+                : `${t("pipeline.inspector.lastRun")} ${latestRun.status}`}
           </Typography>
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
             · {latestRun.successCount} / {latestRun.mediaCount} {t("pipeline.runHistory.assets")}
           </Typography>
-          {latestIsRunning && onCancelRun && (
+          {latestIsRunning && onPauseRun && (
+            <Tooltip title={t("pipeline.runHistory.pause") || "Pause run"}>
+              <IconButton
+                data-testid="pipeline-run-banner-pause"
+                aria-label={t("pipeline.runHistory.pause") || "Pause run"}
+                size="small"
+                onClick={() => onPauseRun(latestRun.uuid)}
+                sx={{ width: 20, height: 20, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.blue } }}
+              >
+                <PauseCircleOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {latestIsPaused && onResumeRun && (
+            <Tooltip title={t("pipeline.runHistory.resume") || "Resume run"}>
+              <IconButton
+                data-testid="pipeline-run-banner-resume"
+                aria-label={t("pipeline.runHistory.resume") || "Resume run"}
+                size="small"
+                onClick={() => onResumeRun(latestRun.uuid)}
+                sx={{ width: 20, height: 20, color: tokens.text.tertiary, "&:hover": { color: tokens.accent.green } }}
+              >
+                <PlayCircleOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {latestIsLive && onCancelRun && (
             <Tooltip title={t("pipeline.runHistory.cancel") || "Cancel run"}>
               <IconButton
                 data-testid="pipeline-run-banner-cancel"
@@ -1081,7 +1343,7 @@ function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onSelectR
 
       {/* Scrollable run history */}
       <Box sx={{ flex: 1, overflow: "auto" }}>
-        <RunHistory runs={runs} loading={runsLoading} onCancel={onCancelRun} onSelect={onSelectRun} />
+        <RunHistory runs={runs} loading={runsLoading} onCancel={onCancelRun} onPause={onPauseRun} onResume={onResumeRun} onSelect={onSelectRun} />
       </Box>
     </Box>
   );
@@ -1090,6 +1352,7 @@ function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onSelectR
 // ── Node Detail Sidebar (second collapsible right panel) ──────────────────
 function NodeDetailSidebar({
   nodeId, pipeline, open, onClose, onDisplayNameChange, onParameterChange, onAffinityChange,
+  tasks, tasksLoading, inspectedItem,
 }: {
   nodeId: string | null;
   pipeline: Pipeline | null;
@@ -1098,6 +1361,10 @@ function NodeDetailSidebar({
   onDisplayNameChange?: (nodeId: string, name: string) => void;
   onParameterChange?: (nodeId: string, key: string, value: unknown) => void;
   onAffinityChange?: (nodeId: string, value: string) => void;
+  /** This node's executions for the inspected run item; empty when no item is inspected. */
+  tasks?: PipelineNodeTaskRecord[];
+  tasksLoading?: boolean;
+  inspectedItem?: PipelineRunItemRecord | null;
 }) {
   const { getDescriptor } = useNodeRegistry();
   const node = (nodeId && pipeline) ? pipeline.definition.nodes.find(n => n.id === nodeId) ?? null : null;
@@ -1155,7 +1422,7 @@ function NodeDetailSidebar({
             {/* Tabs */}
             <Tabs value={detailTab} onChange={(_, v) => setDetailTab(v)} sx={{ minHeight: 32, borderBottom: `1px solid ${tokens.border.subtle}`, px: 1 }}>
               <Tab label={t("pipeline.nodeDetail.tab.config")} sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
-              <Tab label={t("pipeline.nodeDetail.tab.log")} sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+              <Tab label={t("pipeline.nodeDetail.tab.results")} sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
               <Tab label={t("pipeline.nodeDetail.tab.json")} sx={{ fontSize: "0.7rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
             </Tabs>
 
@@ -1391,30 +1658,114 @@ function NodeDetailSidebar({
               <Box sx={{ p: 1.5, flex: 1, overflow: "auto" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
                   <BugReportOutlined sx={{ fontSize: 14, color: tokens.primary.main }} />
-                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>{t("pipeline.nodeDetail.processingLog")}</Typography>
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.72rem" }}>
+                    {t("pipeline.nodeDetail.results")}
+                  </Typography>
                 </Box>
-                <Box sx={{ bgcolor: tokens.bg.base, borderRadius: tokens.radius.sm, p: 1, border: `1px solid ${tokens.border.subtle}` }}>
-                  {[
-                    { ts: "14:32:01.243", level: "info", msg: `[${node.label}] Node initialized` },
-                    { ts: "14:32:01.501", level: "info", msg: `[${node.label}] Processing asset batch (3 items)` },
-                    { ts: "14:32:02.118", level: "info", msg: `[${node.label}] Asset a1 — completed in 617ms` },
-                    { ts: "14:32:02.834", level: "info", msg: `[${node.label}] Asset a3 — completed in 716ms` },
-                    { ts: "14:32:03.290", level: "warn", msg: `[${node.label}] Asset a4 — slow processing (>1s)` },
-                    { ts: "14:32:04.501", level: "info", msg: `[${node.label}] Asset a4 — completed in 1667ms` },
-                    { ts: "14:32:04.502", level: "info", msg: `[${node.label}] Batch complete. 3/3 succeeded.` },
-                  ].map((entry, i) => (
-                    <Typography key={i} sx={{
-                      fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "0.68rem", lineHeight: 1.7, display: "block",
-                      color: entry.level === "warn" ? tokens.accent.amber : entry.level === "error" ? tokens.accent.red : tokens.text.secondary,
-                    }}>
-                      <Box component="span" sx={{ color: tokens.text.tertiary, mr: 1 }}>{entry.ts}</Box>
-                      <Box component="span" sx={{ color: entry.level === "warn" ? tokens.accent.amber : entry.level === "error" ? tokens.accent.red : tokens.primary.main, mr: 1, fontWeight: 600 }}>
-                        {entry.level.toUpperCase()}
-                      </Box>
-                      {entry.msg}
+
+                {!inspectedItem ? (
+                  // Results are per item. Saying so beats the fabricated log that used to live
+                  // here, which showed the same seven lines for every node in every pipeline.
+                  <Typography
+                    variant="caption"
+                    data-testid="node-results-no-item"
+                    sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}
+                  >
+                    {t("pipeline.nodeDetail.resultsNoItem")}
+                  </Typography>
+                ) : tasksLoading ? (
+                  <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+                    {t("pipeline.nodeDetail.resultsLoading")}
+                  </Typography>
+                ) : !tasks || tasks.length === 0 ? (
+                  <Typography
+                    variant="caption"
+                    data-testid="node-results-empty"
+                    sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}
+                  >
+                    {t("pipeline.nodeDetail.resultsNone")}
+                  </Typography>
+                ) : (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }} data-testid="node-results">
+                    <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem", wordBreak: "break-all" }}>
+                      {inspectedItem.mediaPath}
                     </Typography>
-                  ))}
-                </Box>
+                    {tasks.map(task => {
+                      const stateColor = runItemStateColor(task.state === "DONE" ? "SUCCESS" : task.state);
+                      const ports = Object.entries(task.outputs ?? {});
+                      return (
+                        <Box
+                          key={task.uuid}
+                          data-testid="node-result-task"
+                          data-state={task.state}
+                          sx={{ bgcolor: tokens.bg.overlay, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.sm, p: 1 }}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.5 }}>
+                            <Chip
+                              label={task.state}
+                              size="small"
+                              sx={{ height: 16, fontSize: "0.58rem", bgcolor: `${stateColor}22`, color: stateColor, fontWeight: 700 }}
+                            />
+                            {/* Only meaningful for a fanned-out node, where every element is
+                                its own execution — so it is only shown there. */}
+                            {tasks.length > 1 && (
+                              <Typography sx={{ fontSize: "0.6rem", color: tokens.text.tertiary, fontFamily: "monospace" }}>
+                                #{task.elementSeq}
+                              </Typography>
+                            )}
+                            {task.attempt > 1 && (
+                              <Tooltip title={t("pipeline.nodeDetail.retries")}>
+                                <Typography data-testid="node-result-attempts" sx={{ fontSize: "0.6rem", color: tokens.accent.amber }}>
+                                  ↻ {task.attempt}/{task.maxAttempts}
+                                </Typography>
+                              </Tooltip>
+                            )}
+                            {task.state === "DEAD_LETTER" && (
+                              <Chip
+                                label={t("pipeline.nodeDetail.deadLetter")}
+                                size="small"
+                                data-testid="node-result-dead-letter"
+                                sx={{ height: 16, fontSize: "0.55rem", bgcolor: `${tokens.accent.red}22`, color: tokens.accent.red, fontWeight: 700 }}
+                              />
+                            )}
+                            {task.durationMs != null && (
+                              <Typography sx={{ fontSize: "0.6rem", color: tokens.text.tertiary, ml: "auto", fontFamily: "monospace" }}>
+                                {task.durationMs}ms
+                              </Typography>
+                            )}
+                          </Box>
+
+                          {task.errorMessage && (
+                            <Typography
+                              data-testid="node-result-error"
+                              sx={{ fontSize: "0.62rem", color: tokens.accent.red, fontFamily: "monospace", wordBreak: "break-all", mb: 0.5 }}
+                            >
+                              {task.errorMessage}
+                            </Typography>
+                          )}
+
+                          {ports.length === 0 ? (
+                            <Typography sx={{ fontSize: "0.62rem", color: tokens.text.tertiary }}>
+                              {t("pipeline.nodeDetail.resultsNoOutputs")}
+                            </Typography>
+                          ) : ports.map(([portId, payload]) => {
+                            const summary = summarizePayload(payload);
+                            const color = contentTypeColor(payload.contentType, tokens.text.tertiary);
+                            return (
+                              <Box key={portId} data-testid={`node-result-detail-${portId}`} sx={{ display: "flex", alignItems: "baseline", gap: 0.5, mt: 0.25 }}>
+                                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: color, flexShrink: 0, alignSelf: "center" }} />
+                                <Typography sx={{ fontSize: "0.62rem", color: tokens.text.tertiary, flexShrink: 0 }}>{portId}</Typography>
+                                <Typography sx={{ fontSize: "0.62rem", fontFamily: "monospace", color: tokens.text.secondary, wordBreak: "break-all" }}>
+                                  {summary.label}{summary.many ? ` \u00d7${summary.count}` : ""}
+                                </Typography>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
               </Box>
             )}
 
@@ -1429,7 +1780,11 @@ function NodeDetailSidebar({
                     fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: "0.68rem", lineHeight: 1.6,
                     color: tokens.text.secondary, whiteSpace: "pre-wrap", wordBreak: "break-word", m: 0,
                   }}>
-                    {JSON.stringify({ id: node.id, type: node.type, label: node.label, description: node.description, config: pipelineNodeOptions(node), status: "idle", lastRun: null, metrics: { processedCount: 3, avgLatencyMs: 1000, errorRate: 0 } }, null, 2)}
+                    {/* The definition node as the editor holds it. `status`, `lastRun` and a
+                        `metrics` block used to be spliced in here with hardcoded numbers,
+                        which read as live telemetry and never was — the Results tab is where
+                        the real execution state lives now. */}
+                    {JSON.stringify({ id: node.id, type: node.type, label: node.label, description: node.description, options: pipelineNodeOptions(node), affinity: node.affinity ?? DEFAULT_AFFINITY }, null, 2)}
                   </Typography>
                 </Box>
               </Box>
@@ -1449,7 +1804,8 @@ function NodeDetailSidebar({
 // ── Canvas ────────────────────────────────────────────────────────────────
 function PipelineCanvas({
   pipeline, onNodeSelect, externalNodes, nodeDisplayNames, nodeAffinities, nodeParameters, descriptors, contentTypes,
-  onDeleteNode, activeNodeIds, nodeResults, onGraphChange, removalTrigger, autoArrangeTrigger,
+  onDeleteNode, activeNodeIds, nodeResults, nodeStats, debug, tasksByNode, onSelectPort, debugState,
+  onGraphChange, removalTrigger, autoArrangeTrigger,
   onEdgeTypeChange, reloadKey,
 }: {
   pipeline: Pipeline | null;
@@ -1464,6 +1820,15 @@ function PipelineCanvas({
   onDeleteNode?: (nodeId: string, label: string) => void;
   activeNodeIds?: Set<string>;
   nodeResults?: Record<string, "completed" | "failed">;
+  /** Per-node counters from the `NODE_STATS` frames; rendered only in debug mode. */
+  nodeStats?: Record<string, NodeStats>;
+  /** Debug mode. Gates every diagnostic affordance the canvas draws. */
+  debug?: boolean;
+  /** Node executions of the inspected run item, grouped by graph node id. */
+  tasksByNode?: Record<string, PipelineNodeTaskRecord[]>;
+  onSelectPort?: (task: PipelineNodeTaskRecord, portId: string, payload: PortPayload) => void;
+  /** Armed breakpoints, held nodes and the toggle callback. Only meaningful in debug mode. */
+  debugState?: NodeDebugState;
   onGraphChange?: (json: any) => void;
   removalTrigger?: { nodeId: string; key: number } | null;
   autoArrangeTrigger?: number;
@@ -1493,7 +1858,7 @@ function PipelineCanvas({
   // explicitly asks for a reload (version restore).
   useEffect(() => {
     if (!pipeline) { setNodes([]); setEdges([]); return; }
-    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, contentTypes, handleNodeDelete, activeNodeIds, nodeResults));
+    setNodes(toRFNodes(pipeline.definition.nodes, null, descriptors, contentTypes, handleNodeDelete, activeNodeIds, nodeResults, nodeStats, debug, tasksByNode, onSelectPort, debugState));
     setEdges(toRFEdges(pipeline.definition.edges));
     setSelectedId(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1564,14 +1929,26 @@ function PipelineCanvas({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoArrangeTrigger]);
 
-  // Keep onDelete callback and live run state (isActive / lastResult) up to date
-  // without resetting node positions.
+  // Keep onDelete callback and live run state (isActive / lastResult / nodeStats) up to
+  // date without resetting node positions.
   useEffect(() => {
     setNodes(nds => nds.map(n => ({
       ...n,
-      data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false, lastResult: nodeResults?.[n.id], contentTypes },
+      data: {
+        ...n.data, onDelete: handleNodeDelete,
+        isActive: activeNodeIds?.has(n.id) ?? false,
+        lastResult: nodeResults?.[n.id],
+        nodeStats: nodeStats?.[n.id],
+        debug,
+        nodeTasks: tasksByNode?.[n.id],
+        onSelectPort,
+        breakpoint: debugState?.breakpoints.has(n.id) ?? false,
+        held: debugState?.heldNodes.has(n.id) ?? false,
+        onToggleBreakpoint: debugState?.onToggleBreakpoint,
+        contentTypes,
+      },
     })));
-  }, [handleNodeDelete, activeNodeIds, nodeResults, contentTypes, setNodes]);
+  }, [handleNodeDelete, activeNodeIds, nodeResults, nodeStats, debug, tasksByNode, onSelectPort, debugState, contentTypes, setNodes]);
 
   // Push the set of already-wired port ids into each node, so a wired XOR member can grey out its
   // siblings (and an EXCLUSIVE output member its own). Recomputed from the live edges rather than
@@ -1601,12 +1978,18 @@ function PipelineCanvas({
         const existingIds = new Set(prev.map(n => n.id));
         const newOnes = externalNodes.filter(n => !existingIds.has(n.id)).map(n => ({
           ...n,
-          data: { ...n.data, onDelete: handleNodeDelete, isActive: activeNodeIds?.has(n.id) ?? false, lastResult: nodeResults?.[n.id] },
+          data: {
+            ...n.data, onDelete: handleNodeDelete,
+            isActive: activeNodeIds?.has(n.id) ?? false,
+            lastResult: nodeResults?.[n.id],
+            nodeStats: nodeStats?.[n.id],
+            debug,
+          },
         }));
         return newOnes.length > 0 ? [...prev, ...newOnes] : prev;
       });
     }
-  }, [externalNodes, setNodes, handleNodeDelete, activeNodeIds, nodeResults]);
+  }, [externalNodes, setNodes, handleNodeDelete, activeNodeIds, nodeResults, nodeStats, debug]);
 
   // Update selection state without resetting positions
   useEffect(() => {
@@ -1864,6 +2247,10 @@ function PipelineCanvas({
     // persisted rather than mistaken for editor state and stripped.
     const RESERVED = [
       "label", "description", "category", "kind", "nodeIcon", "onDelete", "isActive", "lastResult",
+      "nodeStats", "debug", "nodeTasks", "onSelectPort",
+      // Breakpoints are run state, not definition state. If they reached getGraphJson they
+      // would be saved into the pipeline, and debugging a run would change it for everyone.
+      "breakpoint", "held", "onToggleBreakpoint",
       "displayName", "affinity",
       "portsIn", "portsOut", "portGroupsIn", "portGroupsOut", "wiredInputs", "wiredOutputs", "contentTypes",
     ];
@@ -2435,6 +2822,15 @@ export default function PipelineEditor() {
   // tints a node green/red once it completes/fails.
   const [activeNodeIds, setActiveNodeIds] = useState<Set<string>>(() => new Set());
   const [nodeResults, setNodeResults] = useState<Record<string, "completed" | "failed">>({});
+  /**
+   * Per-node counters from the `NODE_STATS` frames.
+   *
+   * The server aggregates these on a 1s timer precisely so the UI can show them — a run
+   * over 100k items settles a million nodes and one frame per settle would be unrenderable.
+   * Before this they were received and thrown away: the frame was read only for its
+   * `nodeId`, to clear the pulsing state.
+   */
+  const [nodeStats, setNodeStats] = useState<Record<string, NodeStats>>({});
   const [removalTrigger, setRemovalTrigger] = useState<{ nodeId: string; key: number } | null>(null);
   const removalKeyRef = useRef(0);
   const [showHelp, setShowHelp] = useState(false);
@@ -2468,6 +2864,26 @@ export default function PipelineEditor() {
   const [selectedRun, setSelectedRun] = useState<PipelineRunRecord | null>(null);
   const [runItems, setRunItems] = useState<PipelineRunItemRecord[]>([]);
   const [runItemsLoading, setRunItemsLoading] = useState(false);
+  /**
+   * The run item whose node executions are painted onto the canvas.
+   *
+   * Results are per item, not per run: "what did whisper emit" only has an answer once you
+   * have said *for which file*. Picking one in the drawer is what supplies that.
+   */
+  const [inspectedItem, setInspectedItem] = useState<PipelineRunItemRecord | null>(null);
+  const [nodeTasks, setNodeTasks] = useState<PipelineNodeTaskRecord[]>([]);
+  const [nodeTasksLoading, setNodeTasksLoading] = useState(false);
+
+  /**
+   * Nodes the operator armed, and the executions actually stopped there.
+   *
+   * Kept apart on purpose. `breakpointNodes` is an intention that survives between runs — you
+   * arm `thumbnail`, start a run, and it holds. `heldExecutions` is a fact about the run in
+   * front of you and is cleared when it ends. Merging them would mean disarming a breakpoint
+   * whenever a run finished.
+   */
+  const [breakpointNodes, setBreakpointNodes] = useState<Set<string>>(new Set());
+  const [heldExecutions, setHeldExecutions] = useState<HeldExecution[]>([]);
 
   // Version history
   const [versions, setVersions] = useState<PipelineResponse[]>([]);
@@ -2483,6 +2899,26 @@ export default function PipelineEditor() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  /**
+   * Debug mode. Off by default and persisted, so the editor a designer opens looks exactly
+   * as it always has and an operator's choice survives a reload. Everything the debugging
+   * work adds hangs off this one flag rather than appearing unconditionally.
+   */
+  const [debug, setDebug] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(DEBUG_STORAGE_KEY) === "true";
+    } catch {
+      // Private-mode / disabled storage. Defaulting to off matches the unset case.
+      return false;
+    }
+  });
+  const toggleDebug = useCallback(() => {
+    setDebug(prev => {
+      const next = !prev;
+      try { window.localStorage.setItem(DEBUG_STORAGE_KEY, String(next)); } catch { /* not worth failing the toggle over */ }
+      return next;
+    });
+  }, []);
   const [snack, setSnack] = useState<{ open: boolean; severity: "success" | "error" | "info"; message: string }>({
     open: false, severity: "info", message: "",
   });
@@ -2514,6 +2950,40 @@ export default function PipelineEditor() {
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
 
+  /** Inspect one run item: load every node execution recorded for it. */
+  /**
+   * The inspected item, readable from the socket handler without re-subscribing.
+   *
+   * The handler is registered once per run; closing over the state directly would pin it to
+   * whatever was inspected when the subscription was made.
+   */
+  const inspectedItemRef = useRef<PipelineRunItemRecord | null>(null);
+  useEffect(() => { inspectedItemRef.current = inspectedItem; }, [inspectedItem]);
+
+  const inspectItem = useCallback((item: PipelineRunItemRecord) => {
+    setInspectedItem(item);
+    if (!token || !selected) { setNodeTasks([]); return; }
+    setNodeTasksLoading(true);
+    listPipelineRunItemTasks(token, selected.id, item.runUuid, item.uuid)
+      .then(setNodeTasks)
+      .catch(() => setNodeTasks([]))
+      .finally(() => setNodeTasksLoading(false));
+  }, [token, selected?.id]);
+
+  /**
+   * Node executions grouped by graph node id.
+   *
+   * A node downstream of a fan-out has one entry per element, so this is a list per node and
+   * never a single task — collapsing it would hide which element of a fan-out failed.
+   */
+  const tasksByNode = React.useMemo(() => {
+    const byNode: Record<string, PipelineNodeTaskRecord[]> = {};
+    for (const task of nodeTasks) {
+      (byNode[task.nodeId] ??= []).push(task);
+    }
+    return byNode;
+  }, [nodeTasks]);
+
   // Open the run-detail drawer for a run and fetch its items.
   const openRunDetail = useCallback((run: PipelineRunRecord) => {
     setSelectedRun(run);
@@ -2528,6 +2998,24 @@ export default function PipelineEditor() {
   const closeRunDetail = useCallback(() => {
     setSelectedRun(null);
     setRunItems([]);
+    // The inspected item deliberately survives: closing the drawer is how you get the graph
+    // back into view, and losing the results at that moment would defeat the point of having
+    // painted them onto it. The toolbar chip owns them and is how they are cleared.
+  }, []);
+
+  /** The port raised for the enlarged view, or null when the modal is closed. */
+  const [detailPort, setDetailPort] = useState<
+    { task: PipelineNodeTaskRecord; portId: string; payload: PortPayload } | null
+  >(null);
+
+  const handleSelectPort = useCallback(
+    (task: PipelineNodeTaskRecord, portId: string, payload: PortPayload) => {
+      setDetailPort({ task, portId, payload });
+    }, []);
+
+  const clearInspectedItem = useCallback(() => {
+    setInspectedItem(null);
+    setNodeTasks([]);
   }, []);
 
   // Reset live run state and subscribe to the pipeline-events WebSocket while a
@@ -2537,6 +3025,11 @@ export default function PipelineEditor() {
   useEffect(() => {
     setActiveNodeIds(new Set());
     setNodeResults({});
+    setNodeStats({});
+    // Results are keyed by node id, and node ids repeat across pipelines. Carrying them over
+    // would paint one pipeline's outputs onto a same-named node of another.
+    setInspectedItem(null);
+    setNodeTasks([]);
     if (!selected) return;
     const selectedName = selected.name;
     const handleEvent = (event: PipelineEventMessage) => {
@@ -2559,17 +3052,92 @@ export default function PipelineEditor() {
           break;
         case "NODE_SKIPPED":
         case "NODE_BUFFERED":
-        case "NODE_STATS":
           if (event.nodeId) setActiveNodeIds(prev => { const next = new Set(prev); next.delete(event.nodeId!); return next; });
+          break;
+        case "NODE_STATS":
+          if (event.nodeId) {
+            // `activeCount` is authoritative for whether the node is still working, so the
+            // pulse follows it rather than being cleared unconditionally as it was before.
+            const active = event.activeCount ?? 0;
+            setActiveNodeIds(prev => {
+              const next = new Set(prev);
+              if (active > 0) next.add(event.nodeId!); else next.delete(event.nodeId!);
+              return next;
+            });
+            setNodeStats(prev => ({
+              ...prev,
+              [event.nodeId!]: {
+                active,
+                pending: event.pendingCount ?? 0,
+                processed: event.processedCount ?? 0,
+                failed: event.failedCount ?? 0,
+                skipped: event.skippedCount ?? 0,
+              },
+            }));
+          }
           break;
         case "PIPELINE_STARTED":
           setNodeResults({});
+          setNodeStats({});
           loadRuns();
           break;
         case "PIPELINE_COMPLETED":
           setActiveNodeIds(new Set());
           loadRuns();
           break;
+        case "RUN_PAUSED":
+        case "RUN_RESUMED": {
+          // Patch the known run locally so a control issued from another tab or the CLI
+          // flips immediately, then refetch for authority. Without the local patch the
+          // button would lag by a whole round trip.
+          const status = event.type === "RUN_PAUSED" ? RUN_STATUS_PAUSED : RUN_STATUS_RUNNING;
+          if (event.pipelineRunUuid) {
+            setPipelineRuns(prev => prev.map(r => (r.uuid === event.pipelineRunUuid ? { ...r, status } : r)));
+            setSelectedRun(prev => (prev && prev.uuid === event.pipelineRunUuid ? { ...prev, status } : prev));
+          }
+          loadRuns();
+          break;
+        }
+        case "NODE_BREAKPOINT_HELD": {
+          if (!event.nodeId || !event.itemUuid) break;
+          const entry: HeldExecution = {
+            nodeId: event.nodeId,
+            itemUuid: event.itemUuid,
+            elementSeq: event.elementSeq ?? 0,
+          };
+          // Stopping somewhere and not being shown what is there would defeat the point, so the
+          // held item's results are loaded straight away. Only when nothing else is being looked
+          // at: silently swapping out a result the operator is mid-read would be worse.
+          if (event.pipelineRunUuid && !inspectedItemRef.current) {
+            inspectItem({
+              uuid: event.itemUuid,
+              runUuid: event.pipelineRunUuid,
+              itemSeq: 0,
+              mediaPath: event.mediaPath,
+              state: "RUNNING",
+            });
+          }
+          setHeldExecutions(prev => (
+            prev.some(h => h.nodeId === entry.nodeId && h.itemUuid === entry.itemUuid && h.elementSeq === entry.elementSeq)
+              ? prev
+              : [...prev, entry]
+          ));
+          // A held node stops looking busy: the pulse means "working", and this is the opposite.
+          setActiveNodeIds(prev => {
+            const next = new Set(prev);
+            next.delete(event.nodeId!);
+            return next;
+          });
+          break;
+        }
+        case "NODE_BREAKPOINT_RELEASED": {
+          if (!event.nodeId || !event.itemUuid) break;
+          setHeldExecutions(prev => prev.filter(h => !(
+            h.nodeId === event.nodeId
+            && h.itemUuid === event.itemUuid
+            && h.elementSeq === (event.elementSeq ?? 0))));
+          break;
+        }
       }
     };
     return subscribePipelineEvents(handleEvent, token);
@@ -2883,7 +3451,15 @@ export default function PipelineEditor() {
     if (!token || !selected || running) return;
     setRunning(true);
     try {
-      const resp = await runPipeline(token, selected.id, { dryRun: selected.dryRun });
+      // Debug mode is asked for per run: it makes workers attach previews of what each node
+      // emitted, which is the only way to see media a node produced. Off, it costs nothing.
+      // Breakpoints go out with the run so the first item cannot slip past one that was armed
+      // before Run was pressed — arming them afterwards would always be a race.
+      const resp = await runPipeline(token, selected.id, {
+        dryRun: selected.dryRun,
+        debug,
+        ...(debug && breakpointNodes.size > 0 ? { breakpoints: [...breakpointNodes] } : {}),
+      });
       notify(
         resp.dispatched ? "success" : "info",
         resp.dispatched
@@ -2898,7 +3474,7 @@ export default function PipelineEditor() {
     } finally {
       setRunning(false);
     }
-  }, [token, selected, running, notify, t, loadRuns]);
+  }, [token, selected, running, notify, t, loadRuns, debug, breakpointNodes]);
 
   const handleCancelRun = useCallback(async (runUuid: string) => {
     if (!token || !selected) return;
@@ -2911,6 +3487,122 @@ export default function PipelineEditor() {
       notify("error", (err as Error).message || "Cancel failed");
     }
   }, [token, selected, notify, t, loadRuns]);
+
+  const handlePauseRun = useCallback(async (runUuid: string) => {
+    if (!token || !selected) return;
+    try {
+      await pausePipelineRun(token, selected.id, runUuid);
+      notify("success", t("pipeline.editor.runPaused") || "Pipeline run paused");
+      loadRuns();
+    } catch (err) {
+      notify("error", (err as Error).message || "Pause failed");
+    }
+  }, [token, selected, notify, t, loadRuns]);
+
+  const handleResumeRun = useCallback(async (runUuid: string) => {
+    if (!token || !selected) return;
+    try {
+      await resumePipelineRun(token, selected.id, runUuid);
+      notify("success", t("pipeline.editor.runResumed") || "Pipeline run resumed");
+      loadRuns();
+    } catch (err) {
+      // The most likely failure is a 409: the run is no longer live, so it cannot be
+      // resumed and must be started again. The server's own message says exactly that.
+      notify("error", (err as Error).message || "Resume failed");
+    }
+  }, [token, selected, notify, t, loadRuns]);
+
+  // ── Breakpoints ────────────────────────────────────────────────────────
+
+  /**
+   * The run the debug controls act on: the newest one that is still going.
+   *
+   * There is no separate "which run am I debugging" selector, deliberately. A pipeline has at
+   * most one live run in practice, and asking the operator to pick one before they can press
+   * Step would be a question with one possible answer.
+   */
+  const liveRun = React.useMemo(
+    () => pipelineRuns.find(r => r.status === RUN_STATUS_RUNNING || r.status === RUN_STATUS_PAUSED) ?? null,
+    [pipelineRuns],
+  );
+
+  /** Nodes with at least one execution currently held, for the amber ring. */
+  const heldNodes = React.useMemo(() => new Set(heldExecutions.map(h => h.nodeId)), [heldExecutions]);
+
+  /**
+   * Arm or disarm a breakpoint.
+   *
+   * The local set is updated first so the gutter dot responds to the click even with no run in
+   * flight — breakpoints are armed *before* pressing Run as often as during. When a run is live
+   * the new set is pushed to it, and the server's answer wins.
+   */
+  const handleToggleBreakpoint = useCallback(async (nodeId: string) => {
+    const next = new Set(breakpointNodes);
+    if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
+    setBreakpointNodes(next);
+    if (!token || !selected || !liveRun) return;
+    try {
+      const result = await setPipelineRunBreakpoints(token, selected.id, liveRun.uuid, [...next]);
+      setBreakpointNodes(new Set(result.nodeIds));
+      setHeldExecutions(result.held);
+    } catch (err) {
+      // Put the local set back: leaving the dot lit for a breakpoint the run refused would be
+      // worse than not showing it at all.
+      setBreakpointNodes(breakpointNodes);
+      notify("error", (err as Error).message || "Could not set the breakpoint");
+    }
+  }, [breakpointNodes, token, selected, liveRun, notify]);
+
+  /** Let one node's held executions through. The breakpoint stays armed. */
+  const handleContinueNode = useCallback(async (nodeId: string) => {
+    if (!token || !selected || !liveRun) return;
+    try {
+      await continuePipelineRunBreakpoint(token, selected.id, liveRun.uuid, nodeId);
+      setHeldExecutions(prev => prev.filter(h => h.nodeId !== nodeId));
+    } catch (err) {
+      notify("error", (err as Error).message || "Continue failed");
+    }
+  }, [token, selected, liveRun, notify]);
+
+  /** Release exactly one held execution and let the run advance by that much. */
+  const handleStep = useCallback(async () => {
+    if (!token || !selected || !liveRun) return;
+    try {
+      const result = await stepPipelineRun(token, selected.id, liveRun.uuid);
+      setHeldExecutions(result.held);
+    } catch (err) {
+      // A 409 here means nothing was held. Saying so beats a button that appears to do nothing.
+      notify("error", (err as Error).message || "Step failed");
+    }
+  }, [token, selected, liveRun, notify]);
+
+  /**
+   * Reconcile what the run is really holding whenever a live run appears or changes.
+   *
+   * The socket frames keep this current afterwards; this covers the cases a frame cannot — a
+   * reload with a run already stopped at a breakpoint, or an editor opened in a second tab.
+   */
+  useEffect(() => {
+    if (!token || !selected || !liveRun || !debug) {
+      setHeldExecutions([]);
+      return;
+    }
+    let cancelled = false;
+    loadPipelineRunBreakpoints(token, selected.id, liveRun.uuid).then(result => {
+      if (cancelled) return;
+      setHeldExecutions(result.held);
+      // Only adopt the server's armed set when it has one. A run that predates the breakpoints
+      // being armed reports none, and clearing the operator's selection over that would silently
+      // discard what they just set up.
+      if (result.nodeIds.length > 0) setBreakpointNodes(new Set(result.nodeIds));
+    });
+    return () => { cancelled = true; };
+  }, [token, selected?.id, liveRun?.uuid, debug]);
+
+  const debugState = React.useMemo<NodeDebugState>(
+    () => ({ breakpoints: breakpointNodes, heldNodes, onToggleBreakpoint: handleToggleBreakpoint }),
+    [breakpointNodes, heldNodes, handleToggleBreakpoint],
+  );
 
   // Global keyboard shortcuts (H = help, N = command palette)
   useEffect(() => {
@@ -3070,6 +3762,98 @@ export default function PipelineEditor() {
                   />
                 </span>
               </Tooltip>
+              <Tooltip title={t("pipeline.debug.toggleTooltip")}>
+                <Chip
+                  icon={<BugReportOutlined sx={{ fontSize: 14 }} />}
+                  label={t("pipeline.debug.toggle")}
+                  size="small"
+                  data-testid="pipeline-debug-toggle"
+                  data-enabled={debug ? "true" : "false"}
+                  aria-pressed={debug}
+                  onClick={toggleDebug}
+                  sx={{
+                    bgcolor: debug ? `${tokens.accent.teal}22` : tokens.bg.overlay,
+                    border: `1px solid ${debug ? tokens.accent.teal : tokens.border.default}`,
+                    color: debug ? tokens.accent.teal : tokens.text.secondary,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                />
+              </Tooltip>
+              {/* Debug transport. Appears only once the run has actually stopped somewhere:
+                  Continue and Step are meaningless with nothing held, and greyed-out controls
+                  that are almost always greyed out are just clutter. */}
+              {debug && heldExecutions.length > 0 && (
+                <>
+                  <Tooltip title={t("pipeline.debug.heldTooltip")}>
+                    <Chip
+                      label={t("pipeline.debug.heldCount", { count: heldExecutions.length })}
+                      size="small"
+                      data-testid="pipeline-debug-held-count"
+                      data-held-count={String(heldExecutions.length)}
+                      sx={{
+                        bgcolor: `${tokens.accent.amber}22`,
+                        border: `1px solid ${tokens.accent.amber}`,
+                        color: tokens.accent.amber,
+                        fontWeight: 700,
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title={t("pipeline.debug.stepTooltip")}>
+                    <Chip
+                      icon={<SkipNextOutlined sx={{ fontSize: 14 }} />}
+                      label={t("pipeline.debug.step")}
+                      size="small"
+                      data-testid="pipeline-debug-step"
+                      onClick={handleStep}
+                      sx={{
+                        bgcolor: tokens.bg.overlay,
+                        border: `1px solid ${tokens.border.default}`,
+                        color: tokens.text.secondary,
+                        cursor: "pointer",
+                        fontWeight: 600,
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title={t("pipeline.debug.continueTooltip")}>
+                    <Chip
+                      icon={<PlayArrowOutlined sx={{ fontSize: 14 }} />}
+                      label={t("pipeline.debug.continue")}
+                      size="small"
+                      data-testid="pipeline-debug-continue"
+                      // Releases every node that is holding. With one breakpoint — the usual
+                      // case — that is the same as continuing "the" node, without making the
+                      // operator first work out which one it stopped at.
+                      onClick={() => [...heldNodes].forEach(handleContinueNode)}
+                      sx={{
+                        bgcolor: tokens.bg.overlay,
+                        border: `1px solid ${tokens.border.default}`,
+                        color: tokens.text.secondary,
+                        cursor: "pointer",
+                        fontWeight: 600,
+                      }}
+                    />
+                  </Tooltip>
+                </>
+              )}
+              {debug && inspectedItem && (
+                <Tooltip title={t("pipeline.debug.inspectingTooltip")}>
+                  <Chip
+                    icon={<CenterFocusStrongOutlined sx={{ fontSize: 13 }} />}
+                    label={(inspectedItem.mediaPath ?? inspectedItem.uuid).split("/").pop()}
+                    size="small"
+                    data-testid="pipeline-inspected-item"
+                    onDelete={clearInspectedItem}
+                    sx={{
+                      bgcolor: `${tokens.accent.teal}15`,
+                      border: `1px solid ${tokens.accent.teal}66`,
+                      color: tokens.accent.teal,
+                      fontWeight: 600,
+                      maxWidth: 220,
+                    }}
+                  />
+                </Tooltip>
+              )}
               <Tooltip title={t("pipeline.editor.clonePipelineTitle")}>
                 <Chip
                   icon={<ContentCopy sx={{ fontSize: 13 }} />}
@@ -3151,6 +3935,11 @@ export default function PipelineEditor() {
                   onDeleteNode={handleDeleteNodeRequest}
                   activeNodeIds={activeNodeIds}
                   nodeResults={nodeResults}
+                  nodeStats={nodeStats}
+                  debug={debug}
+                  tasksByNode={tasksByNode}
+                  onSelectPort={handleSelectPort}
+                  debugState={debugState}
                   onGraphChange={handleGraphChange}
                   removalTrigger={removalTrigger}
                   autoArrangeTrigger={autoArrangeTrigger}
@@ -3494,6 +4283,9 @@ export default function PipelineEditor() {
         onDisplayNameChange={handleDisplayNameChange}
         onParameterChange={handleParameterChange}
         onAffinityChange={handleAffinityChange}
+        tasks={selectedNodeId ? tasksByNode[selectedNodeId] : undefined}
+        tasksLoading={nodeTasksLoading}
+        inspectedItem={inspectedItem}
       />
 
       {/* Stats inspector panel */}
@@ -3516,12 +4308,39 @@ export default function PipelineEditor() {
           </Tooltip>
         )}
         <Box sx={{ flex: 1, overflow: "hidden" }}>
-          <PipelineInspector pipeline={selected} runs={pipelineRuns} runsLoading={runsLoading} onCancelRun={handleCancelRun} onSelectRun={openRunDetail} />
+          <PipelineInspector
+            pipeline={selected}
+            runs={pipelineRuns}
+            runsLoading={runsLoading}
+            onCancelRun={handleCancelRun}
+            onPauseRun={handlePauseRun}
+            onResumeRun={handleResumeRun}
+            onSelectRun={openRunDetail}
+          />
         </Box>
       </Box>
 
       {/* Run detail drill-down drawer */}
-      <RunDetailDrawer run={selectedRun} items={runItems} loading={runItemsLoading} onClose={closeRunDetail} />
+      <NodeResultDetail
+        open={detailPort !== null}
+        onClose={() => setDetailPort(null)}
+        task={detailPort?.task ?? null}
+        portId={detailPort?.portId ?? null}
+        payload={detailPort?.payload ?? null}
+        preview={detailPort ? detailPort.task.previews?.[detailPort.portId] : undefined}
+        nodeLabel={detailPort
+          ? selected?.definition.nodes.find(n => n.id === detailPort.task.nodeId)?.label
+          : undefined}
+      />
+
+      <RunDetailDrawer
+        run={selectedRun}
+        items={runItems}
+        loading={runItemsLoading}
+        onClose={closeRunDetail}
+        onSelectItem={inspectItem}
+        selectedItemUuid={inspectedItem?.uuid ?? null}
+      />
 
       {/* Version diff — compare a previous version with the current one */}
       {selected && (

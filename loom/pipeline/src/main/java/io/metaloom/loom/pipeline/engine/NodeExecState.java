@@ -50,6 +50,22 @@ public class NodeExecState {
 	/** How often each execution was handed back unexecuted, capping the attempt refund. */
 	private final Map<Integer, Integer> returns = new LinkedHashMap<>();
 	private final Set<Integer> awaitingRetry = new LinkedHashSet<>();
+	/**
+	 * Executions that ran, settled, and are being withheld from their dependents by a breakpoint.
+	 *
+	 * <p>
+	 * A held execution is <strong>settled</strong> — it produced its result and that result is
+	 * persisted and readable, which is the entire point of stopping here. What it is not is
+	 * <em>available</em>: {@code PipelineRunEngine.dependenciesSettled} refuses to let anything
+	 * downstream start while this set is non-empty.
+	 * </p>
+	 *
+	 * <p>
+	 * Insertion-ordered, because a step releases the oldest hold first: releasing an arbitrary one
+	 * would make repeated stepping wander across items instead of walking a lineage forward.
+	 * </p>
+	 */
+	private final Set<Integer> held = new LinkedHashSet<>();
 
 	NodeExecState(ExecutionMode mode) {
 		this.mode = mode == null ? ExecutionMode.SINGLE : mode;
@@ -232,5 +248,53 @@ public class NodeExecState {
 	 */
 	public int settledCount() {
 		return elementResults.size();
+	}
+
+	/**
+	 * Withhold a settled execution from its dependents.
+	 *
+	 * <p>
+	 * Called only for an execution that actually ran to completion. A skip or a failure is not held:
+	 * a skip has nothing to show, a failed node already stops its blocking dependents by itself, and
+	 * holding either would halt the run at a node that cannot answer the question you stopped to ask.
+	 * </p>
+	 */
+	void markHeld(int seq) {
+		held.add(seq);
+	}
+
+	/**
+	 * Let one withheld execution through.
+	 *
+	 * @return true when this call is what released it, so a caller can count real releases rather
+	 *         than repeated clicks on an already-released node
+	 */
+	boolean release(int seq) {
+		return held.remove(seq);
+	}
+
+	/** Let every withheld execution of this node through. @return how many were released */
+	int releaseAll() {
+		int count = held.size();
+		held.clear();
+		return count;
+	}
+
+	/** @return true when any execution of this node is withheld */
+	public boolean isHeld() {
+		return !held.isEmpty();
+	}
+
+	public boolean isHeld(int seq) {
+		return held.contains(seq);
+	}
+
+	/** @return the withheld element sequences, oldest hold first */
+	public Set<Integer> heldSeqs() {
+		return new LinkedHashSet<>(held);
+	}
+
+	public int heldCount() {
+		return held.size();
 	}
 }

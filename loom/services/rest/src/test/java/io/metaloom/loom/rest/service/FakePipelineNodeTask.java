@@ -27,6 +27,7 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	private Long durationMs;
 	private String errorMessage;
 	private JsonObject outputs;
+	private JsonObject previews;
 	private JsonObject meta;
 	private UUID uuid;
 	private UUID creatorUuid;
@@ -191,6 +192,17 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	@Override
 	public JsonObject getOutputs() {
 		return outputs;
+	}
+
+	@Override
+	public PipelineNodeTask setPreviews(JsonObject previews) {
+		this.previews = previews;
+		return this;
+	}
+
+	@Override
+	public JsonObject getPreviews() {
+		return previews;
 	}
 
 	@Override

@@ -1,5 +1,6 @@
 ---
 title: Loom
+weight: 5
 ---
 
 MetaLoom // *Loom* is the media asset management server at the heart of the MetaLoom platform.

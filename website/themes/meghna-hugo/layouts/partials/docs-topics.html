@@ -1,0 +1,42 @@
+{{/*
+  Documentation topic rail — the docs sections, so a reader can move between areas without going
+  back to the docs landing page. Shared by layouts/docs/single.html and layouts/docs/list.html;
+  the context argument is the page being rendered.
+
+  The section a reader is currently inside expands to list its own pages. That nesting is the
+  only navigation that reaches a leaf like /docs/nodes/whisper/ or /docs/loom/rest-api/ without
+  a round trip through the section index — and it is what makes the two concept sections
+  (Pipeline, Nodes) browsable rather than merely reachable.
+
+  Ordering is the `weight` in each section's front matter, deliberately assigned so the concepts
+  a reader needs first — Pipeline Mechanism, then Nodes — sit directly under Getting Started
+  rather than falling to the bottom of an unweighted alphabetical list.
+
+  The legacy stub pages stay out of the list.
+*/}}
+{{ $page := . }}
+{{ with site.GetPage "/docs" }}
+<nav class="docs-topics" aria-label="Documentation topics">
+	<div class="docs-sidebar-title">{{ i18n "documentation" | default "Documentation" }}</div>
+	<ul>
+		{{ range .Pages }}
+		{{ if not (in (slice "rest" "test" "configuration") (path.Base .RelPermalink)) }}
+		{{/* "Inside this section" is a prefix match so a deep leaf still lights up its topic. */}}
+		{{ $inSection := hasPrefix $page.RelPermalink .RelPermalink }}
+		<li>
+			<a href="{{ .RelPermalink }}"{{ if $inSection }} class="is-current"{{ end }}{{ if eq $page.RelPermalink .RelPermalink }} aria-current="page"{{ end }}>{{ .Title }}</a>
+			{{ if and $inSection .Pages }}
+			<ul class="docs-subtopics">
+				{{ range .Pages }}
+				<li>
+					<a href="{{ .RelPermalink }}"{{ if eq $page.RelPermalink .RelPermalink }} class="is-current" aria-current="page"{{ end }}>{{ .Title }}</a>
+				</li>
+				{{ end }}
+			</ul>
+			{{ end }}
+		</li>
+		{{ end }}
+		{{ end }}
+	</ul>
+</nav>
+{{ end }}

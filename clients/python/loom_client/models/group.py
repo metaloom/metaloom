@@ -32,6 +32,7 @@ class GroupReference(NamedReference):
     """Mirrors ``io.metaloom.loom.rest.model.group.GroupReference``."""
 
 
+
 @dataclass
 class GroupResponse(CreatorEditorResponse):
     """Mirrors ``io.metaloom.loom.rest.model.group.GroupResponse``."""

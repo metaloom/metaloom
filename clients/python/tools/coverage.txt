@@ -634,6 +634,11 @@ person.PersonUpdateRequest <- io.metaloom.loom.rest.model.person.PersonUpdateReq
     lastname <- String lastname (wire: lastname)
     primary_image_uuid <- String primaryImageUuid (wire: primaryImageUuid)
     meta <- JsonObject meta (wire: meta)
+pipeline.PipelineBreakpointRequest <- io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest (Model)
+    node_ids <- List<String> nodeIds (wire: nodeIds)
+pipeline.PipelineBreakpointResponse <- io.metaloom.loom.rest.model.pipeline.PipelineBreakpointResponse (Model)
+    node_ids <- List<String> nodeIds (wire: nodeIds)
+    held <- List<PipelineHeldExecution> held (wire: held)
 pipeline.PipelineCreateRequest <- io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest (Model)
     name <- String name (wire: name)
     description <- String description (wire: description)
@@ -642,7 +647,29 @@ pipeline.PipelineCreateRequest <- io.metaloom.loom.rest.model.pipeline.PipelineC
     priority <- Integer priority (wire: priority)
     dry_run <- Boolean dryRun (wire: dryRun)
     meta <- JsonObject meta (wire: meta)
+pipeline.PipelineHeldExecution <- io.metaloom.loom.rest.model.pipeline.PipelineHeldExecution (Model)
+    node_id <- String nodeId (wire: nodeId)
+    item_uuid <- String itemUuid (wire: itemUuid)
+    element_seq <- int elementSeq (wire: elementSeq)
 pipeline.PipelineListResponse <- io.metaloom.loom.rest.model.pipeline.PipelineListResponse (ListResponse)
+pipeline.PipelineNodeTaskListResponse <- io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskListResponse (ListResponse)
+pipeline.PipelineNodeTaskRecord <- io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskRecord (Model)
+    uuid <- UUID uuid (wire: uuid)
+    item_uuid <- UUID itemUuid (wire: itemUuid)
+    run_uuid <- UUID runUuid (wire: runUuid)
+    node_id <- String nodeId (wire: nodeId)
+    node_kind <- String nodeKind (wire: nodeKind)
+    element_seq <- int elementSeq (wire: elementSeq)
+    state <- String state (wire: state)
+    attempt <- int attempt (wire: attempt)
+    max_attempts <- int maxAttempts (wire: maxAttempts)
+    leased_by <- String leasedBy (wire: leasedBy)
+    started <- Instant started (wire: started)
+    finished <- Instant finished (wire: finished)
+    duration_ms <- Long durationMs (wire: durationMs)
+    error_message <- String errorMessage (wire: errorMessage)
+    outputs <- JsonObject outputs (wire: outputs)
+    previews <- JsonObject previews (wire: previews)
 pipeline.PipelineResponse <- io.metaloom.loom.rest.model.pipeline.PipelineResponse (CreatorEditorResponse)
     version_uuid <- UUID versionUuid (wire: versionUuid)
     version_number <- Integer versionNumber (wire: versionNumber)
@@ -689,6 +716,8 @@ pipeline.PipelineRunRequest <- io.metaloom.loom.rest.model.pipeline.PipelineRunR
     path <- String path (wire: path)
     path_globs <- List<String> pathGlobs (wire: pathGlobs)
     dry_run <- Boolean dryRun (wire: dryRun)
+    debug <- Boolean debug (wire: debug)
+    breakpoints <- List<String> breakpoints (wire: breakpoints)
 pipeline.PipelineRunResponse <- io.metaloom.loom.rest.model.pipeline.PipelineRunResponse (Model)
     run_uuid <- UUID runUuid (wire: runUuid)
     processor_node_id <- String processorNodeId (wire: processorNodeId)
@@ -717,6 +746,8 @@ pipeline_event.PipelineEventMessage <- io.metaloom.loom.rest.model.pipeline.even
     timestamp <- long timestamp (wire: timestamp)
     duration_ms <- Long durationMs (wire: durationMs)
     message <- String message (wire: message)
+    item_uuid <- String itemUuid (wire: itemUuid)
+    element_seq <- Integer elementSeq (wire: elementSeq)
     active_count <- Integer activeCount (wire: activeCount)
     pending_count <- Integer pendingCount (wire: pendingCount)
     processed_count <- Long processedCount (wire: processedCount)
@@ -1057,7 +1088,7 @@ enums.BulkItemStatus <- AssetBulkItemResponse.BulkItemStatus: CREATED, UPDATED, 
 enums.EmbeddingType <- EmbeddingType: VIDEO4J_FINGERPRINT_V1, VIDEO4J_FINGERPRINT_V2
 enums.NodeRegistrationRejectionReason <- NodeRegistrationRejection.Reason: BUILTIN, CONFLICT, INVALID_PORT_ID, INVALID_CONTENT_TYPE, INVALID_NODE_ID, TOO_LARGE, DUPLICATE_NODE_ID, ID_MISMATCH, UNKNOWN_GROUP, ANNOUNCEMENTS_DISABLED
 enums.NodeRegistryEventType <- NodeRegistryEventMessage.Type: NODE_DESCRIPTORS_CHANGED, NODE_AVAILABILITY_CHANGED
-enums.PipelineEventType <- PipelineEventType: PIPELINE_STARTED, PIPELINE_COMPLETED, NODE_STARTED, NODE_COMPLETED, NODE_FAILED, NODE_SKIPPED, NODE_BUFFERED, NODE_STATS
+enums.PipelineEventType <- PipelineEventType: PIPELINE_STARTED, PIPELINE_COMPLETED, RUN_PAUSED, RUN_RESUMED, NODE_STARTED, NODE_COMPLETED, NODE_FAILED, NODE_SKIPPED, NODE_BUFFERED, NODE_BREAKPOINT_HELD, NODE_BREAKPOINT_RELEASED, NODE_STATS
 enums.ProcessorCapability <- ProcessorCapability: IO, CPU, GPU
 enums.ProcessorEventType <- ProcessorEventType: REGISTERED, STATE_CHANGED, STATUS_UPDATED, HEARTBEAT, DISCONNECTED
 enums.ProcessorMessageType <- ProcessorMessageType: REGISTER, NODE_REGISTRATION, HEARTBEAT, STATUS_UPDATE, STATE_CHANGE, PIPELINE_EVENT, PIPELINE_RUN_COMPLETED, SOURCE_ITEMS, SOURCE_COMPLETE, NODE_TASK_RESULT, TASK_RETURNED, REGISTERED, NODE_REGISTRATION_ACK, HEARTBEAT_ACK, SOURCE_TASK, SOURCE_ITEMS_ACK, NODE_TASK, SEGMENT_TASK, SEGMENT_TASK_RESULT, NODE_TASK_RESULT_BATCH, ERROR

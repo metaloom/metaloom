@@ -4,6 +4,7 @@ import static io.metaloom.loom.rest.RESTConstants.API_V1_PATH;
 import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
 import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import javax.inject.Inject;
 
@@ -52,9 +53,14 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid/runs");
 		secure(basePath() + "/:uuid/runs/:runUuid");
 		secure(basePath() + "/:uuid/runs/:runUuid/items");
+		secure(basePath() + "/:uuid/runs/:runUuid/items/:itemUuid/tasks");
+		secure(basePath() + "/:uuid/runs/:runUuid/items/:itemUuid/tasks/:taskUuid/previews/:portId");
 		secure(basePath() + "/:uuid/runs/:runUuid/cancel");
 		secure(basePath() + "/:uuid/runs/:runUuid/pause");
 		secure(basePath() + "/:uuid/runs/:runUuid/resume");
+		secure(basePath() + "/:uuid/runs/:runUuid/breakpoints");
+		secure(basePath() + "/:uuid/runs/:runUuid/breakpoints/:nodeId/continue");
+		secure(basePath() + "/:uuid/runs/:runUuid/steps");
 		secure(basePath() + "/:uuid/versions");
 		secure(basePath() + "/:uuid/versions/:version");
 		secure(basePath() + "/:uuid/versions/:version/restore");
@@ -146,6 +152,29 @@ public class PipelineEndpoint extends AbstractEndpoint {
 				service.listRunItems(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
 			});
 
+		// List the node executions of a single run item — the only route that exposes what a
+		// node actually emitted. Deliberately not an addListRoute: the response is the whole
+		// set (see PipelineModelBuilder#toPipelineNodeTaskList), so documenting limit/from
+		// would advertise paging the handler does not honour.
+		addRoute(basePath() + "/:uuid/runs/:runUuid/items/:itemUuid/tasks", GET,
+			"Load the node executions of a single pipeline run item, including their outputs",
+			null,
+			examples.pipelineNodeTaskListResponseExample(),
+			lrc -> {
+				service.listRunItemTasks(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"),
+					lrc.pathParamUUID("itemUuid"));
+			});
+
+		// The bytes of one debugging preview. Served separately from the task list so the
+		// browser caches each image and revalidates it with an ETag, rather than re-fetching a
+		// JSON document with every thumbnail base64'd into it.
+		addRoute(basePath() + "/:uuid/runs/:runUuid/items/:itemUuid/tasks/:taskUuid/previews/:portId", GET,
+			"Load the bytes of one node output preview",
+			lrc -> {
+				service.loadTaskPreview(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"),
+					lrc.pathParamUUID("itemUuid"), lrc.pathParamUUID("taskUuid"), lrc.pathParam("portId"));
+			});
+
 		// Cancel an in-flight pipeline run
 		addRoute(basePath() + "/:uuid/runs/:runUuid/cancel", POST,
 			"Cancel an in-flight pipeline run",
@@ -171,6 +200,48 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.deleteResponseExample(),
 			lrc -> {
 				service.resumeRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// ── Breakpoints ─────────────────────────────────────────────────────────────────
+		// Run state, not definition state: these routes hang off the run and never touch the
+		// stored pipeline, so debugging a run cannot change the pipeline everyone else runs.
+
+		addRoute(basePath() + "/:uuid/runs/:runUuid/breakpoints", GET,
+			"Load the nodes a run halts at, and the executions it is currently holding",
+			null,
+			examples.pipelineBreakpointResponseExample(),
+			lrc -> {
+				service.listBreakpoints(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// PUT rather than POST: the body is the whole armed set, so the same request sent twice
+		// leaves the run in the same state.
+		addRoute(basePath() + "/:uuid/runs/:runUuid/breakpoints", PUT,
+			"Replace the set of nodes an in-flight run halts at",
+			examples.pipelineBreakpointRequestExample(),
+			examples.pipelineBreakpointResponseExample(),
+			lrc -> {
+				service.setBreakpoints(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// Let one node's held executions through. The breakpoint stays armed, so the next item
+		// reaching this node stops too.
+		addRoute(basePath() + "/:uuid/runs/:runUuid/breakpoints/:nodeId/continue", POST,
+			"Release every execution one node is holding, leaving its breakpoint armed",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.continueBreakpoint(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"),
+					lrc.pathParam("nodeId"));
+			});
+
+		// A step creates one advancement of the run, hence a plural collection path and POST.
+		addRoute(basePath() + "/:uuid/runs/:runUuid/steps", POST,
+			"Release exactly one held execution",
+			null,
+			examples.pipelineBreakpointResponseExample(),
+			lrc -> {
+				service.stepRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
 			});
 
 		// Pipeline Versions

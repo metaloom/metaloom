@@ -169,6 +169,41 @@ test.describe("Pipeline live events – mocked", () => {
     await expect(page.getByTestId("pipeline-run-banner")).toHaveAttribute("data-status", "success", { timeout: 5_000 });
   });
 
+  test("NODE_STATS counters render on the node in debug mode only", async ({ page }) => {
+    await mockBackend(page);
+    const { registered, waitForSocket } = mockEventsSocket(page);
+    await registered;
+    await loginAndOpenEditor(page);
+
+    const ws = await waitForSocket(0);
+
+    // Debug is off by default, so the counters stay hidden even though the frame arrives
+    // and is applied — this is what keeps the editor unchanged for someone who is only
+    // drawing a graph.
+    pushPipelineEvent(ws, "NODE_STATS", {
+      nodeId: "sha512", activeCount: 1, pendingCount: 4, processedCount: 7, failedCount: 2, skippedCount: 1,
+    });
+    await expect(page.getByTestId("pipeline-node-sha512")).toHaveAttribute("data-processed", "7", { timeout: 5_000 });
+    await expect(page.getByTestId("pipeline-node-stats-sha512")).toHaveCount(0);
+
+    await page.getByTestId("pipeline-debug-toggle").click();
+
+    const stats = page.getByTestId("pipeline-node-stats-sha512");
+    await expect(stats).toBeVisible({ timeout: 5_000 });
+    await expect(stats).toContainText("7");
+    await expect(stats).toContainText("2");
+    await expect(page.getByTestId("pipeline-node-sha512")).toHaveAttribute("data-failed", "2");
+
+    // activeCount > 0 keeps the node pulsing; the frame is authoritative for that now,
+    // where it used to clear the pulse unconditionally.
+    await expect(page.getByTestId("pipeline-node-sha512")).toHaveAttribute("data-active", "true");
+    pushPipelineEvent(ws, "NODE_STATS", {
+      nodeId: "sha512", activeCount: 0, pendingCount: 0, processedCount: 12, failedCount: 2, skippedCount: 1,
+    });
+    await expect(page.getByTestId("pipeline-node-sha512")).toHaveAttribute("data-active", "false", { timeout: 5_000 });
+    await expect(stats).toContainText("12");
+  });
+
   test("a dropped socket reconnects and keeps applying events", async ({ page }) => {
     await mockBackend(page);
     const { registered, waitForSocket } = mockEventsSocket(page);

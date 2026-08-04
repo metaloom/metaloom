@@ -94,6 +94,18 @@ public interface PipelineNodeTask extends CUDElement<PipelineNodeTask> {
 
 	PipelineNodeTask setOutputs(JsonObject outputs);
 
+	/**
+	 * Opt-in debugging previews of {@link #getOutputs()}, keyed by output port id.
+	 *
+	 * <p>
+	 * Null for every run not started in debug mode, which is every ordinary one. Run-scoped
+	 * diagnostics pruned with the run - never catalogue state.
+	 * </p>
+	 */
+	JsonObject getPreviews();
+
+	PipelineNodeTask setPreviews(JsonObject previews);
+
 	JsonObject getMeta();
 
 	PipelineNodeTask setMeta(JsonObject meta);

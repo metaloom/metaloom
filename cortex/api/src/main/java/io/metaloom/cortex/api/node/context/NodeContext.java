@@ -160,9 +160,39 @@ public interface NodeContext<I> {
 	<T> NodeContext<I> outputElement(OutputPort<T> port, T value);
 
 	/**
+	 * Describe what a port carried, in Markdown, for whoever is debugging this run.
+	 *
+	 * <p>
+	 * Entirely optional. The editor already renders every port from its declared content type, and
+	 * that default is right for most of them. This exists for the cases where a node knows something
+	 * the type system does not - that these four numbers are a bounding box, that this array is one
+	 * row per detected face. A GFM table says so; the raw JSON does not.
+	 * </p>
+	 *
+	 * <pre>
+	 * ctx.preview(OUT_DETECTIONS, "| # | score | box |\n|---|---|---|\n" + rows);
+	 * </pre>
+	 *
+	 * <p>
+	 * Cheap to call and safe to call unconditionally: the string is discarded at the result boundary
+	 * unless the run asked for previews, so a production run pays for building it and nothing more.
+	 * Prefer {@link #isDemanded(OutputPort)}-style guards only if the Markdown is genuinely expensive
+	 * to produce.
+	 * </p>
+	 *
+	 * @return this context for chaining
+	 */
+	NodeContext<I> preview(OutputPort<?> port, String markdown);
+
+	/**
 	 * The accumulated outputs, keyed by output port id.
 	 */
 	Map<String, PortOutput> outputs();
+
+	/**
+	 * Node-authored port previews, keyed by output port id. Empty unless {@link #preview} was called.
+	 */
+	Map<String, String> previews();
 
 	NodeResult next();
 

@@ -52,7 +52,14 @@ public final class NodeResultMapper {
 	 *         satisfy its port's declared content type
 	 */
 	public static NodeTaskResult toWire(NodeTask task, NodeResult result) {
-		return toWire(task.getTaskUuid(), task.getItemId(), task.getElementSeq(), result);
+		NodeTaskResult wire = toWire(task.getTaskUuid(), task.getItemId(), task.getElementSeq(), result);
+		if (!task.isCapturePreviews()) {
+			// The overwhelmingly common path: one boolean check and nothing else.
+			return wire;
+		}
+		// Previews are attached from the already-coerced payloads rather than from the node's raw
+		// outputs, so a value that failed its declared type never reaches the image reader.
+		return wire.withPreviews(NodePreviews.merge(NodePreviews.build(wire.getOutputs()), result.getPreviews()));
 	}
 
 	/**

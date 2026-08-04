@@ -184,13 +184,27 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 
 | Section | Pages |
 |---|---|
-| **top level** | `getting-started/` (weight 1) · `operation/` · `pipeline/` · `ui/` (15 screenshots) · `cli/` · `deployment/` (`_index` + `helm/`) |
-| **`playbooks/`** (weight 3) | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
+| **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (15 screenshots) · `cli/` · `deployment/` (`_index` + `helm/`) |
+| **`playbooks/`** | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
 | **`nodes/`** | `_index` + **28 node pages**: `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filters · fingerprint · hash · imagegen · llm · ocr · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · thumbnail · tika · tts · videogen · vlm · watermark · whisper` |
 | **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
 | **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
-| **`legal/`** (weight 9) | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
+| **`legal/`** | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
 | **legacy stubs** | `rest/` · `test/` · `configuration/` — unlinked placeholders, candidates for deletion |
+
+**Every section carries an explicit `weight`,** and the order it produces is the whole point of
+having them: `getting-started` 1 · **`pipeline` 2 · `nodes` 3** · `operation` 4 · `loom` 5 ·
+`cortex` 6 · `ui` 7 · `playbooks` 8 · `cli` 9 · `deployment` 10 · `legal` 11. Hugo's default order
+for unweighted pages is alphabetical by file path, which put **Pipeline Mechanism dead last** in the
+topic rail and Nodes ninth — the two concepts every other page refers to, sorted below the legal
+notices. Adding a section without a weight silently reintroduces that, so give new sections one.
+
+`pipeline/` is also the only concept page carrying a card of its own on the landing page (the
+`Pipelines & Nodes` card, second after Getting Started, deep-linking `#node-graph`, `#ports`,
+`#running-a-pipeline`, `#debug-mode` and the interactive editor). Those four anchors are **explicit
+`[#id]` attributes** in `pipeline/index.adoc`, not Asciidoctor's generated `_snake_case` ids — the
+generated form changes whenever a heading is reworded, which is exactly what a card full of deep
+links must not depend on.
 
 Grouped node pages cover several kinds each: `hash/` covers `md5`/`sha256`/`sha512`/`chunk-hash`,
 `filters/` covers the eight `filter-*` kinds, `dedup/` covers `hash-dedup`/`fingerprint-dedup`/
@@ -457,6 +471,47 @@ Filenames must stay stable so refreshes overwrite in place: `chat`, `chat-sessio
 * Docs images get click-to-zoom (`.ml-lightbox*` in `custom.less` + vanilla JS in
   `assets/js/script.js`) — a theme feature on every docs page, not just this one.
 
+## Capturing Debug Mode screenshots (`docs/pipeline/`)
+
+`docs/pipeline/` holds 5 screenshots of the pipeline debugger, refreshed by
+`loom-ui/scripts/capture-debug-screenshots.mjs`. **This one needs no demo container, no Postgres and
+no Cortex worker** — it intercepts every REST call the way the mocked specs in `loom-ui/e2e/` do,
+and plays the server itself, including pushing the `NODE_BREAKPOINT_HELD` frame over an intercepted
+`routeWebSocket`. It starts a Vite dev server if one is not already listening.
+
+```bash
+cd loom-ui && node scripts/capture-debug-screenshots.mjs     # env: VITE_PORT, OUT_DIR
+```
+
+Filenames, in the order the page uses them: `debug-held-full` (whole application, halted) ·
+`debug-results` · `debug-held` · `debug-detail-image` · `debug-detail-table`.
+
+* **Mocking is the point, not a shortcut.** A halted run is transient: against a live stack you
+  would have to arm a breakpoint and catch the moment a file reaches it, and the results shown would
+  be whatever that run produced rather than the ones the prose describes. Fixed payloads mean the
+  screenshots and the text cannot drift apart, and a re-run reproduces them.
+* **The node descriptors are real** — the script serves
+  `website/static/pipeline-editor/node-descriptors.json`, the same snapshot the public editor is
+  staged with, so ports, content types and their colours are not invented. Serving `[]` (as the e2e
+  specs do) renders every node as an unknown kind.
+* **The armed/held state starts empty and is flipped mid-capture.** Serving a held run from the
+  first request puts an amber ring and a transport bar into the "here is what each node produced"
+  screenshot, and the two pictures the page contrasts become the same picture.
+* **`fitView` must run *after* the results render, and is still not sufficient.** A result strip
+  carrying a long file path widens a card after React Flow measured it, so the rightmost node lands
+  off a canvas that was correctly fitted a moment earlier; the script fits, checks, zooms out and
+  re-fits. Shots are then cropped to the union of `.react-flow__node` boxes — `fitView` will not
+  zoom past its own ceiling, so a four-node graph leaves most of a 1000px canvas empty however well
+  it is fitted, and a result strip that is unreadable at page width defeats the whole picture.
+* **Crop the dialog by `.MuiDialog-paper`, not by its testid.** `pipeline-result-detail` is on the
+  `Dialog` root, which spans the viewport — clipping to it photographs the page. The paper is a
+  fixed `80vh`, so the crop also follows the *content* height rather than the frame.
+* **Probe the dev server over HTTP, not TCP.** Vite binds the `localhost` name, which on a
+  dual-stack host may be `::1` alone; a `net.connect` to `127.0.0.1` reports a running server as
+  absent. (`npx` also hangs here — call `node_modules/.bin/vite` directly.)
+* The stand-in thumbnail is a gradient with three detection boxes, PNG-encoded inline by the script
+  (~40 lines over `zlib`) so the capture needs nothing installed beyond what `loom-ui` already has.
+
 ## Configuration
 
 The site has no runtime. "Configuration" is `config.toml` plus the build environment. Hugo `getenv`
@@ -535,6 +590,19 @@ shared attributes come from `docs/variables.adoc-include` instead.
   it from `docs/single.html` to `docs/list.html`.
 * **Docs layouts are selected by section**, purely because pages live under the top-level `docs/`
   section. Moving a page out of `docs/` changes its template.
+* **The topic rail is one partial, used by both docs layouts.** `partials/docs-topics.html` renders
+  the section list and, nested under whichever section the reader is currently inside, that
+  section's own pages. `docs/single.html` puts it under the page TOC; `docs/list.html` puts it in a
+  sidebar of its own — **except on `/docs/` itself**, which stays centred and rail-free because that
+  page *is* the map. Editing the list in one layout and not the other is the mistake this partial
+  exists to prevent; it used to be inlined in `single.html`, so section indexes had no navigation at
+  all and landing on `/docs/nodes/` offered no way onward but the body text.
+* **A nested section list can outgrow the viewport** — `nodes/` alone contributes 35 entries. The
+  rail scrolls (`.docs-sidebar` is capped at `calc(100vh - 130px)`) and the nested list is capped
+  again at `42vh`; a sticky column that overflows simply hides its own tail rather than scrolling.
+* **`.docs-subtopics a` and `.docs-topics a.is-current` have equal specificity**, so the muted
+  nested colour would win on source order alone. `toc.less` re-states `a.is-current` *inside* the
+  subtopics block for exactly this reason — drop it and the current page stops being highlighted.
 * **Pretty-URL relative links.** `link:` targets rely on trailing-slash pretty URLs. A missing `../`
   resolves *below* the current page and 404s.
 * **A static path in front matter needs a leading slash.** `image: images/team/js.jpg` resolves
@@ -691,6 +759,8 @@ review**.
 
 ---
 
-_Git HEAD revision: `9a418194`_
-_Last updated: 2026-08-03 (added `docs/loom/python-client/`; the REST API page no longer suggests
-generating a Python client from the schema-less specification)_
+_Git HEAD revision: `920afed0`_
+_Last updated: 2026-08-04 (docs navigation: explicit section weights putting Pipeline and Nodes
+second and third, `partials/docs-topics.html` shared by both docs layouts with a nested list for the
+active section, a `Pipelines & Nodes` card on the landing page, and the backend-free Debug Mode
+screenshot capture)_

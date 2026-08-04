@@ -44,6 +44,7 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
 import io.metaloom.loom.pipeline.engine.RunStateStore;
 import io.metaloom.loom.pipeline.graph.GraphValidationException;
@@ -402,6 +403,11 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
 			(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
 			(int) summary.getFailureCount(), (int) summary.getSkippedCount()));
+		// The run banner and history in the editor refresh off these two frames. Loom is the
+		// only party that knows a run started or settled - a worker holds no pipeline graph -
+		// so if they are not emitted here they are not emitted at all.
+		engine.onCompletion(summary -> broadcastRunEvent(
+			io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.PIPELINE_COMPLETED, pipelineName, runUuid));
 		// Aggregated progress: per-node counters on a timer, individual events only
 		// for failures. Forwarding every settle would be millions of frames to move
 		// a progress bar.
@@ -419,11 +425,19 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		// Shared across runs on purpose: a kind broken by a missing model file or an
 		// expired key is broken for everyone, and per-run breakers would each have to
 		// rediscover that.
+		// Debug mode is a property of this run, not of the pipeline: the same definition is run
+		// both ways, and nothing about the graph changes either way.
+		engine.setCapturePreviews(Boolean.TRUE.equals(request.isDebug()));
+		// Armed before start(), so the first item cannot slip past a breakpoint the caller asked
+		// for in the same request that started the run.
+		attachBreakpointBroadcast(engine, pipelineName, runUuid);
+		engine.setBreakpoints(validateBreakpoints(graph, request.getBreakpoints()));
 		engine.setCircuitBreaker(circuitBreaker);
 		engine.setRetryScheduler((delayMs, action) -> vertx.setTimer(Math.max(1, delayMs), t -> action.run()));
 
 		pipelineRunRegistry.register(runUuid, engine);
 		engine.start();
+		broadcastRunEvent(io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.PIPELINE_STARTED, pipelineName, runUuid);
 
 		// Hand the source node to a worker. Everything else follows from the
 		// items it streams back.
@@ -441,6 +455,10 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			// RUNNING forever.
 			pipelineRunRegistry.unregister(runUuid);
 			pipelineRunTracker.fail(runUuid, "Processor was not reachable");
+			// The engine was unregistered without ever completing, so its onCompletion
+			// callbacks will not fire. Emit the closing frame here or this run would be the
+			// one case where a PIPELINE_STARTED is never answered.
+			broadcastRunEvent(io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.PIPELINE_COMPLETED, pipelineName, runUuid);
 		}
 
 		response
@@ -574,6 +592,87 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	}
 
 	/**
+	 * List the node executions of a single run item.
+	 *
+	 * <p>This is the only route that exposes {@code pipeline_node_task}, and with it the
+	 * {@code outputs} a node actually emitted. Without it a partially-failed run can only
+	 * say <em>that</em> an item failed, never which node failed or what it produced - which
+	 * is the first question anyone debugging a pipeline asks.</p>
+	 *
+	 * <p>Unpaged: see {@code PipelineModelBuilder#toPipelineNodeTaskList}. The item is
+	 * resolved through its run and the run through its pipeline, so a task cannot be read by
+	 * addressing it under a pipeline it does not belong to.</p>
+	 */
+	public void listRunItemTasks(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid, UUID itemUuid) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			loadRunOr404(pipelineUuid, runUuid);
+			PipelineRunItem item = pipelineRunItemDao.load(itemUuid);
+			if (item == null || !runUuid.equals(item.getRunUuid())) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run item not found.");
+			}
+			lrc.send(modelBuilder.toPipelineNodeTaskList(pipelineUuid, pipelineNodeTaskDao.loadByItem(itemUuid)));
+		});
+	}
+
+	/**
+	 * Serve the bytes of one debugging preview.
+	 *
+	 * <p>A preview is the only way to look at media a node <em>produced</em>: an
+	 * {@code artifact/image} port carries a path on the worker that made it, which Loom
+	 * cannot reach. The bytes are served from their own route rather than inlined into the
+	 * task list so the browser caches them per image and revalidates with an ETag.</p>
+	 *
+	 * <p>Addressed through the full ownership chain (pipeline → run → item → task), so the
+	 * bytes are exactly as reachable as the record that pointed at them and no more.</p>
+	 */
+	public void loadTaskPreview(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid, UUID itemUuid,
+		UUID taskUuid, String portId) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			loadRunOr404(pipelineUuid, runUuid);
+			PipelineRunItem item = pipelineRunItemDao.load(itemUuid);
+			if (item == null || !runUuid.equals(item.getRunUuid())) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run item not found.");
+			}
+			io.metaloom.loom.db.model.pipeline.PipelineNodeTask task = pipelineNodeTaskDao.load(taskUuid);
+			if (task == null || !itemUuid.equals(task.getItemUuid())) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Node task not found.");
+			}
+
+			JsonObject previews = task.getPreviews();
+			JsonObject preview = previews == null ? null : previews.getJsonObject(portId);
+			String encoded = preview == null ? null : preview.getString("data");
+			if (encoded == null) {
+				// Covers three different absences that are all a 404 to a byte fetch: the run had
+				// no previews, this port had none, or the preview was skipped and carries only a
+				// reason. The reason is already visible on the task record.
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "No preview for this port.");
+			}
+
+			byte[] data;
+			try {
+				data = java.util.Base64.getDecoder().decode(encoded);
+			} catch (IllegalArgumentException e) {
+				log.warn("Preview for task {} port '{}' is not valid base64", taskUuid, portId);
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "No preview for this port.");
+			}
+
+			String mimeType = preview.getString("mimeType", "application/octet-stream");
+			// The bytes are immutable once written - a settled task is never re-run into the same
+			// row - so the task uuid and port identify this content for good.
+			String etag = "\"" + taskUuid + "-" + portId.hashCode() + "\"";
+			io.vertx.core.http.HttpServerResponse response = lrc.routingContext().response();
+			response.putHeader("Content-Type", mimeType);
+			response.putHeader("ETag", etag);
+			response.putHeader("Cache-Control", "private, max-age=3600");
+			if (etag.equals(lrc.routingContext().request().getHeader("If-None-Match"))) {
+				response.setStatusCode(304).end();
+				return;
+			}
+			response.end(io.vertx.core.buffer.Buffer.buffer(data));
+		});
+	}
+
+	/**
 	 * Cancel an in-flight pipeline run.
 	 *
 	 * <p>Marks the run {@code CANCELLED} and stops its engine dispatching further node
@@ -611,6 +710,10 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
 					"Pipeline run completed before it could be cancelled.");
 			}
+
+			// engine.cancel() sets runComplete without invoking the completion callbacks, so
+			// the closing frame has to come from here - as it does for an undispatchable run.
+			broadcastRunEvent(io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.PIPELINE_COMPLETED, runPipelineName(run), runUuid);
 
 			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse().setMessage("Pipeline run cancelled"));
 		});
@@ -650,6 +753,10 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				engine.pause();
 			}
 
+			// Announced after the gate is applied, so a client acting on the frame cannot
+			// observe a run that calls itself paused while dispatch is still running.
+			broadcastRunEvent(io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.RUN_PAUSED, runPipelineName(run), runUuid);
+
 			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse().setMessage("Pipeline run paused"));
 		});
 	}
@@ -686,7 +793,157 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			// against a row that still claims to be paused.
 			engine.unpause();
 
+			broadcastRunEvent(io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.RUN_RESUMED, runPipelineName(run), runUuid);
+
 			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse().setMessage("Pipeline run resumed"));
+		});
+	}
+
+	/**
+	 * What a run is halting at, and what it is currently holding.
+	 *
+	 * <p>
+	 * Answered from the live engine, which is the only thing that knows: a breakpoint is run state,
+	 * held in memory alongside the run it belongs to, and deliberately not written into the pipeline
+	 * definition. A run whose engine is gone therefore reports nothing armed rather than 409 - there
+	 * is nothing to hold anything back, which is the honest answer and not an error.
+	 * </p>
+	 */
+	public void listBreakpoints(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, READ_PIPELINE_RUN, () -> {
+			loadRunOr404(pipelineUuid, runUuid);
+			PipelineRunEngine engine = pipelineRunRegistry.get(runUuid);
+			lrc.send(modelBuilder.toBreakpointResponse(engine));
+		});
+	}
+
+	/**
+	 * Replace the set of nodes this run halts at.
+	 *
+	 * <p>
+	 * Whole-set replacement rather than add/remove: the editor shows the armed set and sends what it
+	 * should become, so the two cannot drift. Disarming a node releases whatever it was holding, so
+	 * clearing a breakpoint always lets the run continue rather than stranding it.
+	 * </p>
+	 */
+	public void setBreakpoints(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
+			PipelineRun run = loadRunOr404(pipelineUuid, runUuid);
+			PipelineRunEngine engine = requireLiveEngine(runUuid);
+
+			PipelineBreakpointRequest request = lrc.requestBody(PipelineBreakpointRequest.class);
+			List<String> nodeIds = validateBreakpoints(engine.getGraph(),
+				request == null ? null : request.getNodeIds());
+
+			engine.setBreakpoints(nodeIds);
+			// No broadcast of the armed set itself: a second editor learns what is armed by
+			// re-reading it, and the frames that matter - a node actually holding or being let
+			// through - are emitted by the engine's own listener.
+			log.info("Run {} is now halting at {}", runUuid, nodeIds);
+			lrc.send(modelBuilder.toBreakpointResponse(engine));
+		});
+	}
+
+	/**
+	 * Let one node's held executions through, leaving the breakpoint armed.
+	 */
+	public void continueBreakpoint(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid, String nodeId) {
+		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
+			loadRunOr404(pipelineUuid, runUuid);
+			PipelineRunEngine engine = requireLiveEngine(runUuid);
+			int released = engine.releaseNode(nodeId);
+			lrc.send(new io.metaloom.loom.rest.model.message.GenericMessageResponse()
+				.setMessage("Released " + released + " held execution" + (released == 1 ? "" : "s") + " of node " + nodeId));
+		});
+	}
+
+	/**
+	 * Let exactly one held execution through - the step.
+	 *
+	 * <p>
+	 * A step with nothing held is a 409 rather than a silent success. "Step" that quietly did
+	 * nothing would look identical to "step" that advanced the run, which is the one ambiguity a
+	 * debugger cannot afford.
+	 * </p>
+	 */
+	public void stepRun(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
+		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
+			loadRunOr404(pipelineUuid, runUuid);
+			PipelineRunEngine engine = requireLiveEngine(runUuid);
+			if (!engine.stepOne()) {
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+					"Pipeline run is not holding at a breakpoint, so there is nothing to step.");
+			}
+			lrc.send(modelBuilder.toBreakpointResponse(engine));
+		});
+	}
+
+	/**
+	 * The live engine for a run, or a 409 explaining why there is not one.
+	 *
+	 * <p>
+	 * Mirrors {@link #resumeRun}: a run lost to a Loom restart, or one that was never live, cannot
+	 * be debugged. Refusing is better than accepting a breakpoint nothing will ever honour.
+	 * </p>
+	 */
+	private PipelineRunEngine requireLiveEngine(UUID runUuid) {
+		PipelineRunEngine engine = pipelineRunRegistry.get(runUuid);
+		if (engine == null) {
+			throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
+				"Pipeline run is not live and cannot be debugged. Trigger a new run instead.");
+		}
+		return engine;
+	}
+
+	/**
+	 * Check every requested breakpoint against the graph it is meant to halt.
+	 *
+	 * <p>
+	 * A breakpoint on a node id that does not exist would arm silently and never fire, and the
+	 * operator would conclude the feature is broken rather than that they made a typo. Naming the
+	 * offending id is the whole value of the check.
+	 * </p>
+	 *
+	 * @return the validated ids, never null
+	 */
+	private List<String> validateBreakpoints(io.metaloom.loom.pipeline.graph.PipelineGraph graph, List<String> nodeIds) {
+		if (nodeIds == null || nodeIds.isEmpty()) {
+			return List.of();
+		}
+		List<String> unknown = nodeIds.stream().filter(id -> graph.getNode(id) == null).toList();
+		if (!unknown.isEmpty()) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
+				"No such node in this pipeline: " + String.join(", ", unknown));
+		}
+		return nodeIds;
+	}
+
+	/**
+	 * Forward the engine's holds and releases to the UI socket.
+	 *
+	 * <p>
+	 * Sent immediately rather than folded into the {@code NODE_STATS} tick, for the same reason a
+	 * failure is: a hold happens because a person asked for it and is worthless a second late.
+	 * </p>
+	 */
+	private void attachBreakpointBroadcast(PipelineRunEngine engine, String pipelineName, UUID runUuid) {
+		engine.onBreakpoint((itemId, mediaPath, nodeId, elementSeq, held) -> {
+			try {
+				pipelineEventBroadcaster.broadcast(new io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage()
+					.setType(held
+						? io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.NODE_BREAKPOINT_HELD
+						: io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.NODE_BREAKPOINT_RELEASED)
+					.setPipelineName(pipelineName)
+					.setPipelineRunUuid(runUuid.toString())
+					.setNodeId(nodeId)
+					.setItemUuid(itemId)
+					.setElementSeq(elementSeq)
+					.setMediaPath(mediaPath)
+					.setTimestamp(System.currentTimeMillis()));
+			} catch (Exception e) {
+				// The run really did stop even if nobody could be told about it.
+				log.error("Failed to broadcast a breakpoint frame for run {}", runUuid, e);
+			}
 		});
 	}
 
@@ -699,6 +956,47 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline run not found.");
 		}
 		return run;
+	}
+
+	/**
+	 * The pipeline name a run was started under.
+	 *
+	 * <p>
+	 * Resolved from the run's own version number rather than from the latest version, because a run that started before a rename must keep announcing
+	 * itself under the name its subscribers filtered on. Falls back to the latest version, and finally to the uuid, so an event is never dropped merely
+	 * because a version row is missing.
+	 * </p>
+	 */
+	private String runPipelineName(PipelineRun run) {
+		PipelineVersion version = pipelineVersionDao.loadByPipelineAndVersion(run.getPipelineUuid(), run.getPipelineVersion());
+		if (version == null) {
+			version = pipelineVersionDao.loadLatestByPipeline(run.getPipelineUuid());
+		}
+		return version != null ? version.getName() : String.valueOf(run.getPipelineUuid());
+	}
+
+	/**
+	 * Announce a run-level lifecycle change on the UI events socket.
+	 *
+	 * <p>
+	 * Run lifecycle is broadcast from here and not from {@code RunStatsAggregator}, which only ever sees node settles. These four types carry no counters:
+	 * a client that wants numbers reads them off the following {@code NODE_STATS} tick or refetches the run.
+	 * </p>
+	 *
+	 * <p>
+	 * Never allowed to fail the operation that triggered it - a run really did pause even if nobody could be told about it.
+	 * </p>
+	 */
+	private void broadcastRunEvent(io.metaloom.loom.rest.model.pipeline.event.PipelineEventType type, String pipelineName, UUID runUuid) {
+		try {
+			pipelineEventBroadcaster.broadcast(new io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage()
+				.setType(type)
+				.setPipelineName(pipelineName)
+				.setPipelineRunUuid(runUuid.toString())
+				.setTimestamp(System.currentTimeMillis()));
+		} catch (Exception e) {
+			log.error("Failed to broadcast {} for run {}", type, runUuid, e);
+		}
 	}
 
 	/**

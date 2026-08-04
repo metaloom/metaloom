@@ -34,7 +34,50 @@ public class PipelineRunRequest implements RestRequestModel {
 	@JsonPropertyDescription("Override the pipeline's dry-run flag for this run.")
 	private Boolean dryRun;
 
+	/**
+	 * Run in debug mode: ask workers to attach small renderings of what each node emits.
+	 *
+	 * <p>
+	 * Off by default and deliberately per <em>run</em> rather than per pipeline. A node emitting an
+	 * image emits a path on the worker that produced it, which nothing else can resolve into
+	 * something a human can look at - but encoding and storing a thumbnail per image per item is a
+	 * cost no production run should pay, so it is asked for one run at a time.
+	 * </p>
+	 */
+	@JsonPropertyDescription("Attach debugging previews of what each node emits. Off by default; costs nothing when unset.")
+	private Boolean debug;
+
+	/**
+	 * Node ids to hold at, so a run can start already armed.
+	 *
+	 * <p>
+	 * Run state, never definition state: these are set by whoever triggered <em>this</em> run and are
+	 * not written back into the stored pipeline. Setting a breakpoint while debugging must not change
+	 * the pipeline everyone else runs.
+	 * </p>
+	 */
+	@JsonPropertyDescription("Node ids to halt at. Each node still runs; its output is withheld from downstream nodes until released.")
+	private List<String> breakpoints;
+
 	public PipelineRunRequest() {
+	}
+
+	public List<String> getBreakpoints() {
+		return breakpoints;
+	}
+
+	public PipelineRunRequest setBreakpoints(List<String> breakpoints) {
+		this.breakpoints = breakpoints;
+		return this;
+	}
+
+	public Boolean isDebug() {
+		return debug;
+	}
+
+	public PipelineRunRequest setDebug(Boolean debug) {
+		this.debug = debug;
+		return this;
 	}
 
 	public List<UUID> getMediaUuids() {

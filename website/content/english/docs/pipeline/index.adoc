@@ -1,11 +1,17 @@
 ---
 title: Pipeline Mechanism
+weight: 2
 ---
 
 A *pipeline* is a directed acyclic graph (DAG) of processing nodes applied to media assets.
 Pipelines are **authored in the Loom UI**, **stored on Loom** (versioned in the database), and
 **executed by Loom's pipeline engine**, which delegates the individual node tasks to registered
 link:../cortex/[Cortex] workers.
+
+TIP: There is an link:../../pipeline-editor/[interactive pipeline editor] on this site. It runs
+entirely in your browser with no server and no account — drag out a graph from the real node
+catalogue, wire typed ports, and press *Play* to watch data move through it. It is the fastest way
+to get a feel for everything on this page, including link:#debug-mode[halting a run at one node].
 
 == Execution Model: Loom Owns the Graph
 
@@ -50,6 +56,7 @@ A pipeline version has the following properties:
 Pipelines are **versioned**: every save creates a new immutable `pipeline_version`; older versions can
 be viewed and restored. See link:../loom/rest-api/[REST API] for the endpoints.
 
+[#node-graph]
 == Node Graph
 
 The definition is a graph of `nodes[]` connected by `edges[]`:
@@ -126,6 +133,7 @@ nodes and ports, and no run is created.
 Node results with sync enabled are written back to Loom as asset metadata; see
 link:../cortex/examples/[Cortex Examples] for the persistence path.
 
+[#running-a-pipeline]
 == Running a Pipeline
 
 Trigger a run over REST (or from the UI's Run button):
@@ -188,6 +196,12 @@ Cancelling is final: a cancelled run cannot be resumed.
 A paused run continues to occupy a worker, so it should be resumed or cancelled rather than left
 indefinitely.
 
+In the pipeline editor, a run that is currently executing offers a *Pause* control on the run
+banner and on its row in the run history; a paused run offers *Resume* in its place. Because a
+pause is reversible, *Cancel* stays available in both states. The controls also follow the run
+itself: if a run is paused from the command line or from another browser window, every open editor
+updates on its own.
+
 NOTE: Resuming requires the run to still be live on the server. A run whose server was restarted
 while it was paused is restored in the paused state and can be resumed as normal; one that was
 lost entirely must be started again.
@@ -231,6 +245,127 @@ The command line consumes the same stream:
 metaloom run follow <run-uuid>
 metaloom pipeline run my-pipeline --dir /media --follow
 ----
+
+[#debug-mode]
+== Debug Mode
+
+It is often unclear what a given node is actually doing to your media. The pipeline editor has a
+*Debug* toggle for exactly this: with it switched on, each node shows live counters while a run is
+in flight — how many items it is working on right now, how many are queued behind it, and how many
+it has completed, failed or skipped in total.
+
+image::debug-held-full.png[The pipeline editor in debug mode with a run halted at the thumbnail node,role=img-fluid]
+
+The toggle is remembered between sessions and changes nothing about how a pipeline runs. With it
+off, the editor looks and behaves exactly as it does while you are designing a graph, so the extra
+detail never gets in the way of drawing one.
+
+Counters update roughly once per second. That is deliberate: a run over a hundred thousand files
+across a ten-node graph produces around a million individual node results, and reporting each one
+separately would flood the browser without telling you anything a running total does not.
+
+=== Seeing what a node produced
+
+Counters tell you how much a node did, not what it did. For that, open a run from the run
+history and pick one of the files it processed. The editor then shows, on each node, the values
+that node emitted for *that file* — one line per output, labelled with the output's name.
+
+image::debug-results.png[Each node showing the values it emitted for the selected file,role=img-fluid]
+
+Above, one image has been carried through the graph. The source reports the file it found, the hash
+node its digest, the thumbnail node the picture it wrote and a `PROCESSED` flag, and face detection
+three faces with the best score of the three. That is four nodes' worth of "what did you actually
+do", on the graph, for one specific file.
+
+Results are always tied to one file. "What did the transcription node produce" has no answer
+until you say for which piece of media, which is why choosing an item is the first step. The
+chosen file stays named in the toolbar and the results stay on the graph when you close the run
+panel, so you can study the pipeline with them in place. Clear them with the × on that chip.
+
+Selecting a node opens its *Results* tab, which adds what the compact view leaves out: how long
+the node took, how many attempts it needed, whether it was given up on after repeated failures,
+and the error if it failed. Outputs are kept even for a failed or skipped run of a node — they
+are usually what explains why it did not finish.
+
+A node that processes several things from one file — one entry per detected face, say — is
+listed once per entry, so you can tell which one failed rather than only that something did.
+
+=== Previews of produced media
+
+Media that a node *creates* — a thumbnail, a cropped face, a generated image — is written to the
+machine that produced it, not to Loom. To let you actually look at it, a run started with *Debug*
+on asks each worker to send back a small picture of what it made, which then appears inline next
+to that output.
+
+Previews are small on purpose: at most 512 pixels on the longest edge, and dropped entirely if
+they would still be too large. When that happens the output says so rather than appearing empty —
+"too large to preview" and "this output produced nothing" are very different answers, and the
+editor never confuses them.
+
+image::debug-detail-image.png[A produced thumbnail opened full size from the node that made it,role=img-fluid]
+
+They are also generated only for runs you started with Debug on, and are discarded together with
+the run they belong to. A preview is a debugging aid, not a copy of your media: it is deliberately
+lossy, and it is not a way to store or serve what a pipeline produces.
+
+Audio and video outputs are still shown as file references — only images are previewed today.
+
+=== Looking at one result closely
+
+Clicking any output on a node opens it full size. What you get depends on what the output actually
+holds, not on what it is nominally typed as:
+
+* an *image*, when the node produced one;
+* a *description*, when the node wrote one for itself — several nodes explain their own output far
+  better than a generic rendering can, and face detection is one of them;
+* a *table*, when the output is a list — one row per detected face, per transcript segment, per
+  chunk;
+* the *value*, formatted and syntax-coloured;
+* and *Raw*, which is always available and shows exactly what was recorded, whatever else applies.
+
+image::debug-detail-table.png[Face detections rendered as a table the node wrote for itself,role=img-fluid]
+
+The most informative view opens first, so you rarely have to choose. Use *Raw* when you want to see
+precisely what a downstream node will receive, with nothing interpreted for you.
+
+The table above is not a generic rendering of the detection list: face detection wrote it, which is
+why it has a yaw column and a box column rather than a row of unlabelled numbers. Any node can
+describe its own output this way, and when one does, its description is what opens first.
+
+[#halting]
+[#halting]
+=== Halting at a node
+
+Pausing stops the whole run. Often what you want is narrower: let everything run normally, but stop
+*here*, at this one node, and show me what it produced before anything downstream touches it.
+
+In Debug Mode every node grows a small dot in its left margin. Click it to halt there. The dot is a
+setting on the run in front of you — it is never saved into the pipeline, so nobody else's runs are
+affected and the next person to open the pipeline sees it exactly as you left it.
+
+When a file reaches a halted node, the node *still runs*. That is the point: stopping before it ran
+would leave you with nothing to look at. What stops is everything after it. The node is ringed in
+amber, its results open automatically, and the run waits.
+
+image::debug-held.png[A node ringed in amber and badged HELD while the run waits,role=img-fluid]
+
+Two controls appear once something is waiting:
+
+*Step* lets a single file through. Whatever it unblocks runs immediately, and if the next node is
+also halted, the run stops again there. This is how you walk one file through the graph a node at a
+time and watch what each one does to it.
+
+*Continue* releases everything waiting. The halt stays set, so the next file to arrive stops here
+too — that is what makes it a halt rather than a one-off. To stop halting altogether, click the dot
+again.
+
+While a run is halted it also stops looking for new files, so a halt on a folder of 100 000 images
+does not enumerate all of them while you read the first result.
+
+TIP: A halt anywhere in the graph makes the nodes around it run one at a time instead of being
+grouped together for speed. That is deliberate — grouped nodes hand their intermediate results
+straight to each other without reporting them, which is exactly what you stopped to see. Expect a
+debugged run to be slower than the same run without a halt.
 
 == Custom Nodes
 

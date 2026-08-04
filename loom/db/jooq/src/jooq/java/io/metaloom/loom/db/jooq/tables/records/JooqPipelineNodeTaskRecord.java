@@ -12,8 +12,8 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record21;
-import org.jooq.Row21;
+import org.jooq.Record22;
+import org.jooq.Row22;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -21,7 +21,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * One node execution against one media item
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipelineNodeTaskRecord> implements Record21<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer> {
+public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipelineNodeTaskRecord> implements Record22<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer, JsonObject> {
 
     private static final long serialVersionUID = 1L;
 
@@ -349,6 +349,28 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
         return (Integer) get(20);
     }
 
+    /**
+     * Setter for <code>public.pipeline_node_task.previews</code>. Opt-in
+     * per-run debugging previews keyed by output port id; each value is a
+     * NodePreview {mimeType, width, height, data (base64), skippedReason}. NULL
+     * when the run did not request previews. Run-scoped and pruned with the run
+     * — never catalogue state.
+     */
+    public void setPreviews(JsonObject value) {
+        set(21, value);
+    }
+
+    /**
+     * Getter for <code>public.pipeline_node_task.previews</code>. Opt-in
+     * per-run debugging previews keyed by output port id; each value is a
+     * NodePreview {mimeType, width, height, data (base64), skippedReason}. NULL
+     * when the run did not request previews. Run-scoped and pruned with the run
+     * — never catalogue state.
+     */
+    public JsonObject getPreviews() {
+        return (JsonObject) get(21);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -359,17 +381,17 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     }
 
     // -------------------------------------------------------------------------
-    // Record21 type implementation
+    // Record22 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row21<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer> fieldsRow() {
-        return (Row21) super.fieldsRow();
+    public Row22<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer, JsonObject> fieldsRow() {
+        return (Row22) super.fieldsRow();
     }
 
     @Override
-    public Row21<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer> valuesRow() {
-        return (Row21) super.valuesRow();
+    public Row22<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer, JsonObject> valuesRow() {
+        return (Row22) super.valuesRow();
     }
 
     @Override
@@ -478,6 +500,11 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     }
 
     @Override
+    public Field<JsonObject> field22() {
+        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.PREVIEWS;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -583,6 +610,11 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     }
 
     @Override
+    public JsonObject component22() {
+        return getPreviews();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -685,6 +717,11 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     @Override
     public Integer value21() {
         return getElementSeq();
+    }
+
+    @Override
+    public JsonObject value22() {
+        return getPreviews();
     }
 
     @Override
@@ -814,7 +851,13 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     }
 
     @Override
-    public JooqPipelineNodeTaskRecord values(UUID value1, UUID value2, UUID value3, String value4, String value5, String value6, Integer value7, Integer value8, String value9, LocalDateTime value10, LocalDateTime value11, LocalDateTime value12, Long value13, String value14, JsonObject value15, JsonObject value16, LocalDateTime value17, UUID value18, LocalDateTime value19, UUID value20, Integer value21) {
+    public JooqPipelineNodeTaskRecord value22(JsonObject value) {
+        setPreviews(value);
+        return this;
+    }
+
+    @Override
+    public JooqPipelineNodeTaskRecord values(UUID value1, UUID value2, UUID value3, String value4, String value5, String value6, Integer value7, Integer value8, String value9, LocalDateTime value10, LocalDateTime value11, LocalDateTime value12, Long value13, String value14, JsonObject value15, JsonObject value16, LocalDateTime value17, UUID value18, LocalDateTime value19, UUID value20, Integer value21, JsonObject value22) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -836,6 +879,7 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
         value19(value19);
         value20(value20);
         value21(value21);
+        value22(value22);
         return this;
     }
 
@@ -853,7 +897,7 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     /**
      * Create a detached, initialised JooqPipelineNodeTaskRecord
      */
-    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, String state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq) {
+    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, String state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq, JsonObject previews) {
         super(JooqPipelineNodeTask.PIPELINE_NODE_TASK);
 
         setUuid(uuid);
@@ -877,5 +921,6 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
         setEdited(edited);
         setEditorUuid(editorUuid);
         setElementSeq(elementSeq);
+        setPreviews(previews);
     }
 }

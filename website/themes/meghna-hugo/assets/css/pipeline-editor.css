@@ -316,3 +316,78 @@
 @media (prefers-reduced-motion: reduce) {
   .pe-handle, .pe-node.is-firing .pe-node-rect { transition: none; }
 }
+
+/* ── Debugging: breakpoints, results, detail overlay ─────────────────────── */
+
+/* Breakpoint gutter, in the left margin where a debugger's would be. Faint until armed —
+   an affordance that only appears once used cannot be discovered. */
+.pe-bp { cursor: pointer; }
+.pe-bp .pe-bp-dot { fill: transparent; stroke: var(--pe-line-strong); stroke-width: 1.5; opacity: .5; transition: opacity .12s ease, fill .12s ease; }
+.pe-bp:hover .pe-bp-dot { opacity: 1; }
+.pe-bp.is-armed .pe-bp-dot { fill: var(--pe-danger); stroke: var(--pe-danger); opacity: 1; }
+
+/* A held node: a steady amber ring, deliberately not a pulse. The firing flash means
+   "working", and a held node is the opposite of working — motion would say the wrong thing. */
+.pe-node.is-held .pe-node-rect { stroke: var(--pe-warn); stroke-width: 2; }
+.pe-node.is-held { filter: drop-shadow(0 0 6px rgba(226, 162, 78, .45)); }
+
+.pe-held-chip {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--pe-warn); color: var(--pe-warn);
+  background: rgba(226, 162, 78, .13);
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.pe-btn.is-held { border-color: var(--pe-warn); color: var(--pe-warn); }
+
+/* Per-port results under a node card, mirroring the product's result strip. */
+.pe-result-row { cursor: pointer; }
+.pe-result-hit { fill: transparent; }
+.pe-result-row:hover .pe-result-hit { fill: rgba(255, 255, 255, .05); }
+.pe-result-label { font-size: 9.5px; fill: var(--pe-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.pe-result-row:hover .pe-result-label { fill: var(--pe-text); }
+.pe-result-more { font-size: 9px; fill: var(--pe-muted); font-style: italic; }
+
+/* Enlarged view of one output port. */
+.pe-detail {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(6, 9, 12, .72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.pe-detail-card {
+  background: var(--pe-panel); border: 1px solid var(--pe-line);
+  border-radius: 10px; width: min(860px, 100%); max-height: 80vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  color: var(--pe-text);
+}
+.pe-detail-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--pe-line); }
+.pe-detail-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.pe-detail-titles { min-width: 0; }
+.pe-detail-title { font-weight: 700; font-size: 13px; }
+.pe-detail-sub { font-size: 11px; color: var(--pe-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.pe-detail-close { margin-left: auto; line-height: 1; padding: 2px 8px; font-size: 16px; }
+.pe-detail-tabs { display: flex; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--pe-line); }
+.pe-detail-tab {
+  background: transparent; border: 1px solid transparent; color: var(--pe-muted);
+  font-size: 11.5px; padding: 3px 10px; border-radius: 6px; cursor: pointer;
+}
+.pe-detail-tab:hover { color: var(--pe-text); }
+.pe-detail-tab.is-active { color: var(--pe-accent); border-color: var(--pe-accent); background: rgba(87, 203, 204, .1); }
+.pe-detail-body { padding: 14px; overflow: auto; flex: 1; }
+.pe-detail-pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  line-height: 1.6; color: var(--pe-text);
+}
+.pe-detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pe-detail-table th, .pe-detail-table td {
+  text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--pe-line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pe-detail-table th { color: var(--pe-muted); font-weight: 600; }
+.pe-detail-note { font-size: 12.5px; color: var(--pe-text); line-height: 1.6; margin-bottom: 10px; }
+.pe-detail-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+  color: var(--pe-muted); word-break: break-all;
+}

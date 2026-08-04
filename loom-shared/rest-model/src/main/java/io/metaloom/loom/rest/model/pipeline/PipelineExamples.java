@@ -51,6 +51,39 @@ public interface PipelineExamples extends ExampleValues {
 		return new ExampleImpl(pipelineRunItemListResponse(), "The pipeline run item list response", HttpResponseStatus.OK);
 	}
 
+	default Example pipelineNodeTaskListResponseExample() {
+		return new ExampleImpl(pipelineNodeTaskListResponse(), "The pipeline node task list response", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineBreakpointRequestExample() {
+		return new ExampleImpl(pipelineBreakpointRequest(), "The pipeline breakpoint request", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineBreakpointResponseExample() {
+		return new ExampleImpl(pipelineBreakpointResponse(), "The pipeline breakpoint response", HttpResponseStatus.OK);
+	}
+
+	default PipelineBreakpointRequest pipelineBreakpointRequest() {
+		return new PipelineBreakpointRequest().setNodeIds(java.util.List.of("thumbnail"));
+	}
+
+	/**
+	 * A run armed at one node and currently holding one execution of it.
+	 *
+	 * <p>
+	 * Armed and held are shown as different things on purpose: a breakpoint no item has reached yet
+	 * is armed and holding nothing, which is the state the caller sees most of the time.
+	 * </p>
+	 */
+	default PipelineBreakpointResponse pipelineBreakpointResponse() {
+		return new PipelineBreakpointResponse()
+			.setNodeIds(java.util.List.of("thumbnail"))
+			.setHeld(java.util.List.of(new PipelineHeldExecution()
+				.setNodeId("thumbnail")
+				.setItemUuid("f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70")
+				.setElementSeq(0)));
+	}
+
 	default Example pipelineVersionListResponseExample() {
 		return new ExampleImpl(pipelineVersionListResponse(), "The pipeline version list response", HttpResponseStatus.OK);
 	}
@@ -192,6 +225,41 @@ public interface PipelineExamples extends ExampleValues {
 		model.setSha512("0f8ef1c9...");
 		model.setSizeBytes(1048576L);
 		model.setState("SUCCESS");
+		return model;
+	}
+
+	default PipelineNodeTaskListResponse pipelineNodeTaskListResponse() {
+		PipelineNodeTaskListResponse model = new PipelineNodeTaskListResponse();
+		model.add(pipelineNodeTaskRecord());
+		model.setMetainfo(pagingInfo());
+		model.getMetainfo().setTotalCount(1);
+		model.getMetainfo().setPerPage(25L);
+		return model;
+	}
+
+	default PipelineNodeTaskRecord pipelineNodeTaskRecord() {
+		PipelineNodeTaskRecord model = new PipelineNodeTaskRecord();
+		model.setUuid(UUID.randomUUID());
+		model.setItemUuid(UUID.randomUUID());
+		model.setRunUuid(UUID.randomUUID());
+		model.setNodeId("pn2");
+		model.setNodeKind("sha512");
+		model.setElementSeq(0);
+		model.setState("DONE");
+		model.setAttempt(1);
+		model.setMaxAttempts(3);
+		model.setDurationMs(42L);
+		// Outputs are keyed by output port id, and each value carries its declared content
+		// type and cardinality alongside the elements - that is what lets a client render a
+		// result it has never seen before.
+		model.setOutputs(new JsonObject()
+			.put("sha512", new JsonObject()
+				.put("contentType", "hash/sha512")
+				.put("cardinality", "ONE")
+				.put("elements", new io.vertx.core.json.JsonArray()
+					.add(new JsonObject()
+						.put("origin", new JsonObject().put("itemId", "5c1f").put("seq", 0).put("total", 1))
+						.put("value", "0f8ef1c9...")))));
 		return model;
 	}
 

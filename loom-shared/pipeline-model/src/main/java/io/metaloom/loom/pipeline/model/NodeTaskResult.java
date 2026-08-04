@@ -34,12 +34,14 @@ public class NodeTaskResult {
 	private final long durationMs;
 	private final String message;
 	private final Map<String, PortPayload> outputs;
+	private final Map<String, NodePreview> previews;
 
 	@JsonCreator
 	public NodeTaskResult(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("nodeId") String nodeId,
 		@JsonProperty("elementSeq") Integer elementSeq,
 		@JsonProperty("state") NodeState state, @JsonProperty("durationMs") long durationMs,
-		@JsonProperty("message") String message, @JsonProperty("outputs") Map<String, PortPayload> outputs) {
+		@JsonProperty("message") String message, @JsonProperty("outputs") Map<String, PortPayload> outputs,
+		@JsonProperty("previews") Map<String, NodePreview> previews) {
 		this.taskUuid = taskUuid;
 		this.nodeId = Objects.requireNonNull(nodeId, "A node id must be set");
 		this.elementSeq = elementSeq == null ? 0 : elementSeq;
@@ -47,6 +49,35 @@ public class NodeTaskResult {
 		this.durationMs = durationMs;
 		this.message = message;
 		this.outputs = outputs == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(outputs));
+		this.previews = previews == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(previews));
+	}
+
+	/**
+	 * Backwards-compatible overload for a result with no previews, which is every result of every
+	 * run not started in debug mode.
+	 */
+	public NodeTaskResult(UUID taskUuid, String nodeId, Integer elementSeq, NodeState state, long durationMs,
+		String message, Map<String, PortPayload> outputs) {
+		this(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, null);
+	}
+
+	/** This result with previews attached. Used at the worker's result boundary. */
+	public NodeTaskResult withPreviews(Map<String, NodePreview> previews) {
+		return new NodeTaskResult(taskUuid, nodeId, elementSeq, state, durationMs, message, outputs, previews);
+	}
+
+	/**
+	 * Small renderings of what each output port carried, keyed by output port id.
+	 *
+	 * <p>
+	 * Empty unless the task asked for them ({@link NodeTask#isCapturePreviews()}). An entry may be
+	 * present but carry no bytes — see {@link NodePreview#getSkippedReason()}.
+	 * </p>
+	 *
+	 * @return the previews, never null
+	 */
+	public Map<String, NodePreview> getPreviews() {
+		return previews;
 	}
 
 	public static NodeTaskResult completed(UUID taskUuid, String nodeId, long durationMs, Map<String, PortPayload> outputs) {

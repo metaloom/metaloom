@@ -103,9 +103,12 @@ import io.metaloom.loom.rest.model.person.PersonCreateRequest;
 import io.metaloom.loom.rest.model.person.PersonListResponse;
 import io.metaloom.loom.rest.model.person.PersonResponse;
 import io.metaloom.loom.rest.model.person.PersonUpdateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
@@ -633,6 +636,12 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<PipelineNodeTaskListResponse> listPipelineRunItemTasks(UUID pipelineUuid, UUID runUuid, UUID itemUuid) {
+		return getRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/items/" + itemUuid + "/tasks",
+			PipelineNodeTaskListResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<PipelineResponse> updatePipeline(UUID pipelineUuid, PipelineUpdateRequest request) {
 		return postRequest("pipelines/" + pipelineUuid, request, PipelineResponse.class);
 	}
@@ -660,6 +669,35 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<GenericMessageResponse> cancelPipelineRun(UUID pipelineUuid, UUID runUuid) {
 		return postRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/cancel", GenericMessageResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineBreakpointResponse> loadPipelineRunBreakpoints(UUID pipelineUuid, UUID runUuid) {
+		return getRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/breakpoints",
+			PipelineBreakpointResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineBreakpointResponse> setPipelineRunBreakpoints(UUID pipelineUuid, UUID runUuid,
+		PipelineBreakpointRequest request) {
+		return putRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/breakpoints", request,
+			PipelineBreakpointResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GenericMessageResponse> continuePipelineRunBreakpoint(UUID pipelineUuid, UUID runUuid,
+		String nodeId) {
+		// The node id comes from a pipeline definition and may contain anything the author typed,
+		// so it is encoded rather than concatenated.
+		return postRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/breakpoints/"
+			+ java.net.URLEncoder.encode(nodeId, java.nio.charset.StandardCharsets.UTF_8) + "/continue",
+			GenericMessageResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineBreakpointResponse> stepPipelineRun(UUID pipelineUuid, UUID runUuid) {
+		return postRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/steps",
+			PipelineBreakpointResponse.class);
 	}
 
 	@Override

@@ -9,22 +9,7 @@
         <div class="docs-sidebar toc-sticky-top">
           <div class="docs-sidebar-title">On this page</div>
           <nav id="toc"></nav>
-          {{/* Topic links: the docs sections, so a reader can move between areas without going
-               back to the docs landing page. The legacy stub pages stay out of the list. */}}
-          {{ with site.GetPage "/docs" }}
-          <nav class="docs-topics" aria-label="Documentation topics">
-            <div class="docs-sidebar-title">Topics</div>
-            <ul>
-              {{ range .Pages }}
-              {{ if not (in (slice "rest" "test" "configuration") (path.Base .RelPermalink)) }}
-              <li>
-                <a href="{{ .RelPermalink }}"{{ if hasPrefix $.RelPermalink .RelPermalink }} class="is-current"{{ end }}>{{ .Title }}</a>
-              </li>
-              {{ end }}
-              {{ end }}
-            </ul>
-          </nav>
-          {{ end }}
+          {{ partial "docs-topics.html" . }}
         </div>
       </div>
       <div class="col-lg-9">

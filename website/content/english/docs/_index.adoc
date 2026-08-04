@@ -29,6 +29,23 @@ This page is the quickest way to orient yourself in the platform and jump to the
 	<div class="col-lg-12 mb-4">
 		<div class="docs-card h-100">
 			<div class="docs-card-header">
+				<h2><a href="pipeline/">Pipelines &amp; Nodes</a></h2>
+				<p>The core of the platform. A <strong>pipeline</strong> is a graph of processing steps; a <strong>node</strong> is one step. Everything MetaLoom does to your media — hashing, transcription, thumbnails, face detection, translation — is a node in a pipeline. Start here to learn how the graph is built, how data flows between nodes through typed ports, and how to watch a run and see what each node actually produced.</p>
+			</div>
+			<div class="docs-card-body">
+				<a href="pipeline/" class="docs-card-link">Pipeline Mechanism</a>
+				<a href="pipeline/#node-graph" class="docs-card-link">Node Graph</a>
+				<a href="pipeline/#ports" class="docs-card-link">Ports &amp; Data Types</a>
+				<a href="pipeline/#running-a-pipeline" class="docs-card-link">Running a Pipeline</a>
+				<a href="pipeline/#debug-mode" class="docs-card-link">Debug Mode</a>
+				<a href="nodes/" class="docs-card-link">All Nodes</a>
+				<a href="../pipeline-editor/" class="docs-card-link">Try the editor</a>
+			</div>
+		</div>
+	</div>
+	<div class="col-lg-12 mb-4">
+		<div class="docs-card h-100">
+			<div class="docs-card-header">
 				<h2><a href="playbooks/">Playbooks</a></h2>
 				<p>Task-oriented guides that string the whole platform together: deploying the stack with Docker or Kubernetes, building pipelines that transcribe, analyse scenes and translate content, and writing a processing node of your own.</p>
 			</div>

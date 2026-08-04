@@ -1,6 +1,6 @@
 ---
 title: Playbooks
-weight: 3
+weight: 8
 ---
 
 Playbooks are **task-oriented guides**. Where the reference pages describe one component at a time —

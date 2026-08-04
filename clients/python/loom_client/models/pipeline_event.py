@@ -29,6 +29,10 @@ class PipelineEventMessage(Model):
     duration_ms: int | None = None
     #: Human-readable detail (failures, skip reasons)
     message: str | None = None
+    #: UUID of the run item whose execution was held or released
+    item_uuid: str | None = None
+    #: Which element of a fanned-out node was held or released
+    element_seq: int | None = None
     #: Items currently being processed at this node
     active_count: int | None = None
     #: Items queued / waiting at this node

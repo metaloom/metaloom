@@ -121,6 +121,27 @@ public class PipelineRunEngine {
 	private boolean runComplete;
 	private boolean cancelled;
 	private boolean paused;
+	/**
+	 * Whether workers should attach small renderings of what each node emitted.
+	 *
+	 * <p>
+	 * A run-scoped operator choice, set alongside the circuit breaker and the retry scheduler rather
+	 * than parsed from the definition - the same pipeline is run both with and without it, and
+	 * nothing about the graph changes either way.
+	 * </p>
+	 */
+	private boolean capturePreviews;
+	/**
+	 * Node ids whose completed executions are withheld from their dependents.
+	 *
+	 * <p>
+	 * Run state, not definition state. A breakpoint is something an operator does to <em>this</em>
+	 * run while watching it, and it must never find its way back into the stored pipeline — see the
+	 * warning on {@link #setBreakpoints(java.util.Collection)}.
+	 * </p>
+	 */
+	private final java.util.Set<String> breakpoints = new java.util.LinkedHashSet<>();
+	private final List<BreakpointListener> breakpointListeners = new ArrayList<>();
 	private long startedAt;
 	private long itemSequence;
 
@@ -170,6 +191,41 @@ public class PipelineRunEngine {
 	 */
 	public synchronized void onNodeSettled(NodeSettleListener listener) {
 		settleListeners.add(listener);
+	}
+
+	/**
+	 * Notified when a breakpoint withholds an execution, and when one is let through.
+	 *
+	 * <p>
+	 * Kept separate from {@link NodeSettleListener} because the two have opposite volumes and so
+	 * want opposite handling. A settle happens a million times over a large run and is aggregated
+	 * onto a timer; a hold happens because a person asked for it, is individually actionable, and
+	 * goes out immediately — the same reasoning that makes {@code NODE_FAILED} an exception to the
+	 * aggregation.
+	 * </p>
+	 */
+	@FunctionalInterface
+	public interface BreakpointListener {
+
+		/**
+		 * @param itemId     the item whose execution was held or released
+		 * @param mediaPath  the file, so a hold names something a person can recognise rather than
+		 *                   an opaque id — the same reasoning as {@link NodeSettleListener}
+		 * @param nodeId     the breakpointed node
+		 * @param elementSeq which execution, for a node that fanned out
+		 * @param held       true when withheld, false when released
+		 */
+		void onBreakpoint(String itemId, String mediaPath, String nodeId, int elementSeq, boolean held);
+	}
+
+	/**
+	 * Register a breakpoint callback.
+	 *
+	 * <p>⚠️ Same contract as {@link #onNodeSettled}: fires on the engine thread with the monitor
+	 * held, so it must not block or re-enter the engine.</p>
+	 */
+	public synchronized void onBreakpoint(BreakpointListener listener) {
+		breakpointListeners.add(listener);
 	}
 
 	/**
@@ -288,9 +344,219 @@ public class PipelineRunEngine {
 		checkComplete();
 	}
 
+	/**
+	 * Ask workers to attach debugging previews of what each node emits.
+	 *
+	 * <p>
+	 * Off by default. A production run must not pay to encode and store a thumbnail per image per
+	 * item, so this is opt-in per run and reaches the worker on each {@code NodeTask}.
+	 * </p>
+	 *
+	 * <p>
+	 * Segment dispatch is deliberately unaffected: a segment's intermediate results never leave the
+	 * worker at all, so there is nothing there to preview.
+	 * </p>
+	 */
+	public void setCapturePreviews(boolean capturePreviews) {
+		this.capturePreviews = capturePreviews;
+	}
+
 	/** @return true while the run is suspended by {@link #pause()} */
 	public synchronized boolean isPaused() {
 		return paused;
+	}
+
+	/**
+	 * Arm breakpoints on a set of nodes, replacing whatever was armed before.
+	 *
+	 * <p>
+	 * A breakpoint holds a node's completed executions <em>after</em> they have run: the result is
+	 * produced, persisted and readable, and only the dependents are stopped. That is the whole
+	 * mechanism, and it is why this is nine lines rather than a scheduler — the engine already has a
+	 * single place where it asks whether a node's dependencies are available.
+	 * </p>
+	 *
+	 * <p>
+	 * Disarming a node releases whatever it was holding, so clearing a breakpoint always lets the run
+	 * continue rather than stranding it.
+	 * </p>
+	 *
+	 * <p>
+	 * ⚠️ <strong>Run state, never definition state.</strong> Nothing here may be written back into the
+	 * pipeline definition; a breakpoint set while debugging must not become part of the pipeline
+	 * everyone else runs.
+	 * </p>
+	 *
+	 * @param nodeIds the nodes to hold at; null or empty disarms everything
+	 */
+	public synchronized void setBreakpoints(java.util.Collection<String> nodeIds) {
+		java.util.Set<String> next = nodeIds == null ? java.util.Set.of() : new java.util.LinkedHashSet<>(nodeIds);
+		java.util.Set<String> disarmed = new java.util.LinkedHashSet<>(breakpoints);
+		disarmed.removeAll(next);
+		breakpoints.clear();
+		breakpoints.addAll(next);
+		// Releasing before advancing, so one sweep sees the whole new picture.
+		for (String nodeId : disarmed) {
+			releaseNodeInternal(nodeId);
+		}
+		if (!disarmed.isEmpty()) {
+			pumpDeferred();
+			checkComplete();
+		}
+	}
+
+	/** @return the armed node ids, in the order they were given */
+	public synchronized java.util.Set<String> getBreakpoints() {
+		return new java.util.LinkedHashSet<>(breakpoints);
+	}
+
+	/**
+	 * The graph this run is executing.
+	 *
+	 * <p>
+	 * Exposed so a caller can check a breakpoint against the nodes that actually exist. A run's graph
+	 * is the version it started with, which is not necessarily the pipeline's current definition —
+	 * validating against anything else would accept ids this run will never dispatch.
+	 * </p>
+	 */
+	public PipelineGraph getGraph() {
+		return graph;
+	}
+
+	/**
+	 * Let every execution this node is holding through.
+	 *
+	 * <p>
+	 * The breakpoint stays armed: a later item reaching the same node is held again, which is what
+	 * makes it a breakpoint rather than a one-shot. Use {@link #setBreakpoints} to disarm.
+	 * </p>
+	 *
+	 * @param nodeId the node to release
+	 * @return how many executions were released
+	 */
+	public synchronized int releaseNode(String nodeId) {
+		int released = releaseNodeInternal(nodeId);
+		if (released > 0) {
+			pumpDeferred();
+			checkComplete();
+		}
+		return released;
+	}
+
+	private int releaseNodeInternal(String nodeId) {
+		int released = 0;
+		for (ItemState state : items.values()) {
+			NodeExecState exec = state.exec(nodeId);
+			if (exec == null || !exec.isHeld()) {
+				continue;
+			}
+			for (Integer seq : exec.heldSeqs()) {
+				notifyBreakpoint(state, nodeId, seq, false);
+			}
+			released += exec.releaseAll();
+		}
+		return released;
+	}
+
+	/**
+	 * Let exactly one withheld execution through — the step.
+	 *
+	 * <p>
+	 * The oldest hold goes first, in item discovery order, so repeated stepping walks one lineage
+	 * forward instead of scattering across the run. Whatever that execution unblocks is dispatched
+	 * immediately; if the next node is breakpointed too, the run stops again there, which is what
+	 * makes stepping feel like stepping.
+	 * </p>
+	 *
+	 * @return true when something was released, false when nothing was being held
+	 */
+	public synchronized boolean stepOne() {
+		for (ItemState state : items.values()) {
+			for (Map.Entry<String, NodeExecState> entry : state.getExecs().entrySet()) {
+				NodeExecState exec = entry.getValue();
+				if (!exec.isHeld()) {
+					continue;
+				}
+				int seq = exec.heldSeqs().iterator().next();
+				exec.release(seq);
+				notifyBreakpoint(state, entry.getKey(), seq, false);
+				pumpDeferred();
+				checkComplete();
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Everything currently withheld, for the debug view.
+	 *
+	 * @return one entry per held execution, in item discovery order
+	 */
+	public synchronized List<HeldExecution> heldExecutions() {
+		List<HeldExecution> held = new ArrayList<>();
+		for (ItemState state : items.values()) {
+			for (Map.Entry<String, NodeExecState> entry : state.getExecs().entrySet()) {
+				for (Integer seq : entry.getValue().heldSeqs()) {
+					held.add(new HeldExecution(state.getItemId(), entry.getKey(), seq));
+				}
+			}
+		}
+		return held;
+	}
+
+	/** @return how many executions are withheld across the whole run */
+	public synchronized int heldCount() {
+		return countHeld();
+	}
+
+	private int countHeld() {
+		int held = 0;
+		for (ItemState state : items.values()) {
+			held += state.heldCount();
+		}
+		return held;
+	}
+
+	/**
+	 * Whether a breakpoint should withhold this execution.
+	 *
+	 * <p>
+	 * Only a completed execution is held. A skip produced nothing to look at, and a failure already
+	 * stops its blocking dependents on its own — holding either would stop the run at a node that
+	 * cannot answer the question you stopped to ask, and would suppress the skip cascade that
+	 * explains why the rest of the graph did not run.
+	 * </p>
+	 */
+	private void applyBreakpoint(ItemState state, NodeTaskResult result) {
+		if (breakpoints.isEmpty() || result.getState() != NodeState.COMPLETED) {
+			return;
+		}
+		if (!breakpoints.contains(result.getNodeId())) {
+			return;
+		}
+		NodeExecState exec = state.exec(result.getNodeId());
+		if (exec == null) {
+			return;
+		}
+		exec.markHeld(result.getElementSeq());
+		notifyBreakpoint(state, result.getNodeId(), result.getElementSeq(), true);
+	}
+
+	private void notifyBreakpoint(ItemState state, String nodeId, int elementSeq, boolean held) {
+		String mediaPath = state.getMedia() == null ? null : state.getMedia().getPath();
+		for (BreakpointListener listener : breakpointListeners) {
+			try {
+				listener.onBreakpoint(state.getItemId(), mediaPath, nodeId, elementSeq, held);
+			} catch (Exception e) {
+				// A misbehaving observer must not derail the run it is observing.
+				log.error("Breakpoint listener threw", e);
+			}
+		}
+	}
+
+	/** One execution a breakpoint is currently withholding. */
+	public record HeldExecution(String itemId, String nodeId, int elementSeq) {
 	}
 
 	/**
@@ -349,7 +615,7 @@ public class PipelineRunEngine {
 	 * settled results are adopted as-is: a node that already ran must <em>not</em> run
 	 * again, which is the entire point of having persisted them.</p>
 	 *
-	 * <p>Nothing is dispatched here. Call {@link #resume()} once every item has been
+	 * <p>Nothing is dispatched here. Call {@link #resume(boolean)} once every item has been
 	 * restored, so the engine sees a complete picture before it starts making
 	 * decisions - otherwise it could complete the run on the first restored item,
 	 * before the rest have been read back.</p>
@@ -856,7 +1122,13 @@ public class PipelineRunEngine {
 					// of a non-fanned node is eligible.
 					if (seq == 0 && node.getExecutionMode() == ExecutionMode.SINGLE) {
 						PipelineSegment segment = graph.getSegmentFor(nodeId);
-						if (segment != null && !segment.isSingleNode() && segmentReady(state, segment)) {
+						// A fused segment runs end to end inside one worker and only its last node's
+						// outputs come back, so a breakpoint anywhere inside it would have nothing to
+						// show and nothing to hold. Falling back to per-node dispatch costs a round
+						// trip per node and buys the intermediate results — which is the trade the
+						// operator made by setting the breakpoint.
+						if (segment != null && !segment.isSingleNode() && !segmentHasBreakpoint(segment)
+							&& segmentReady(state, segment)) {
 							Boolean settled = dispatchSegment(state, segment);
 							if (settled != null) {
 								progressed |= settled;
@@ -889,6 +1161,13 @@ public class PipelineRunEngine {
 	private boolean dependenciesSettled(ItemState state, PipelineGraphNode node) {
 		for (String dep : node.getDependencies()) {
 			if (!state.isSettled(dep)) {
+				return false;
+			}
+			// A breakpoint is nothing more than this: the dependency ran and settled, but is not
+			// yet allowed to count as available. Everything downstream stays exactly where it
+			// would have been had the node not finished, while the node's own result is already
+			// persisted and readable — which is the whole reason to stop here.
+			if (state.isHeld(dep)) {
 				return false;
 			}
 		}
@@ -1005,6 +1284,26 @@ public class PipelineRunEngine {
 	 * segment whose middle node is still waiting on something outside would execute
 	 * that node before its dependency settled.</p>
 	 */
+	/**
+	 * Whether any node in this segment is breakpointed.
+	 *
+	 * <p>
+	 * Cheap enough to ask on every dispatch: the set is empty on every run nobody is debugging, so
+	 * this is a single {@code isEmpty()} on the hot path.
+	 * </p>
+	 */
+	private boolean segmentHasBreakpoint(PipelineSegment segment) {
+		if (breakpoints.isEmpty()) {
+			return false;
+		}
+		for (String nodeId : segment.getNodeIds()) {
+			if (breakpoints.contains(nodeId)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private boolean segmentReady(ItemState state, PipelineSegment segment) {
 		for (String dep : segment.getDependencies()) {
 			if (!state.isSettled(dep)) {
@@ -1266,7 +1565,7 @@ public class PipelineRunEngine {
 		UUID taskUuid = UUID.randomUUID();
 		NodeTask task = new NodeTask(taskUuid, runUuid, state.getItemId(), node.getId(), node.getKind(),
 			seq, state.getMedia(), node.getOptions(), buildInputs(state, node, seq),
-			node.getDemandedOutputs(), graph.getResultBatchSize());
+			node.getDemandedOutputs(), graph.getResultBatchSize(), capturePreviews);
 
 		state.markInFlight(node.getId(), seq, taskUuid);
 		state.recordAttempt(node.getId(), seq);
@@ -1462,6 +1761,9 @@ public class PipelineRunEngine {
 			releaseKind(result.getNodeId());
 		}
 		state.record(result);
+		// After the record, never before: holding is a property of a settled execution, and the
+		// exec state it marks is created by the record itself.
+		applyBreakpoint(state, result);
 		UUID itemUuid = itemUuid(state);
 		store.taskSettled(itemUuid, result);
 		if (state.isComplete(graph.size())) {
@@ -1624,6 +1926,10 @@ public class PipelineRunEngine {
 		// Deliberately not routed through recordCircuitOutcome: nothing executed, and
 		// counting a reuse as a success would mask a kind that is failing everywhere.
 		state.record(NodeTaskResult.completed(null, node.getId(), 0, reused.getOutputs()));
+		// Held exactly as a fresh execution would be. A breakpoint that fired on the first run and
+		// then silently did not on the second — because the result happened to be reusable — would
+		// be the kind of surprise that makes a debugger untrustworthy.
+		applyBreakpoint(state, state.getResults().get(node.getId()));
 		syncToLoom(state, state.getResults().get(node.getId()));
 		notifySettled(state, state.getResults().get(node.getId()));
 		if (state.isComplete(graph.size())) {
@@ -1759,7 +2065,11 @@ public class PipelineRunEngine {
 		// A paused run parks the waiter even when there is room: withholding the source
 		// acknowledgement is what actually stops the scan. A completed run always releases,
 		// so a source is never stranded.
-		if ((!atCapacity() && !paused) || runComplete) {
+		//
+		// A held run parks it for the same reason and one more: without it, a breakpoint would
+		// stop each item's graph but not the scan, so a run over 100 000 files would enumerate all
+		// of them and hold a hundred thousand executions while someone reads the first one.
+		if ((!atCapacity() && !paused && countHeld() == 0) || runComplete) {
 			action.run();
 			return;
 		}
@@ -1777,9 +2087,9 @@ public class PipelineRunEngine {
 		if (capacityWaiters.isEmpty() || (atCapacity() && !runComplete)) {
 			return;
 		}
-		if (paused && !runComplete) {
-			// Suspended: keep the source held. A terminal run still releases below, so
-			// cancelling a paused run does not strand it.
+		if ((paused || countHeld() > 0) && !runComplete) {
+			// Suspended, or stopped at a breakpoint: keep the source held. A terminal run still
+			// releases below, so cancelling a paused or held run does not strand it.
 			return;
 		}
 		List<Runnable> waiting = new ArrayList<>(capacityWaiters);
@@ -1835,6 +2145,13 @@ public class PipelineRunEngine {
 
 	private void checkComplete() {
 		if (runComplete || !sourceComplete) {
+			return;
+		}
+		// A held run has outstanding work by definition — an operator is looking at a result and
+		// has not said to carry on. Without this, a breakpoint on a node with no dependents (the
+		// last node of the graph, most obviously) would leave every item complete, and the run
+		// would close out and clear the pause underneath the person debugging it.
+		if (countHeld() > 0) {
 			return;
 		}
 		for (ItemState state : items.values()) {

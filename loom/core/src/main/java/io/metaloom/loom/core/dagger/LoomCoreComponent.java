@@ -64,6 +64,21 @@ public interface LoomCoreComponent {
 
 	io.metaloom.loom.server.grpc.GrpcService grpcService();
 
+	/**
+	 * The live engines of runs that are currently executing.
+	 *
+	 * <p>
+	 * Exposed so an endpoint test can register a real engine for a run it created, which is the only
+	 * way to exercise the routes that require one - breakpoints, stepping, resume. Without it those
+	 * routes could only ever be tested down the "no live engine" branch, which is the half that does
+	 * not do anything.
+	 * </p>
+	 */
+	io.metaloom.loom.rest.service.impl.PipelineRunRegistry pipelineRunRegistry();
+
+	/** The UI events socket, so a test can observe the frames a run emits. */
+	io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster pipelineEventBroadcaster();
+
 	@Component.Builder
 	interface Builder {
 

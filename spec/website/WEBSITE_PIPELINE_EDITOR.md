@@ -793,12 +793,16 @@ and the demo blockers recorded below are now closed.
       the log row count
 - [ ] No unit tests for the pure logic (`isAssignable`, `validate`, `topoOrder`, `fromGraphJson`) — the
       IIFE exports nothing, so extracting a testable core is a prerequisite
-- [ ] No customer-facing docs page links to `/pipeline-editor/` yet; `docs/pipeline/` and
-      `docs/nodes/_index.adoc` are the natural places to send a reader who wants to *try* the model
+- [x] `docs/pipeline/` and `docs/nodes/_index.adoc` both open with a TIP linking `/pipeline-editor/`
+      (`link:../../pipeline-editor/`), so a reader who wants to *try* the model is sent there from
+      the two pages that describe it
 - [ ] The mirror against `contentTypes.ts` is reviewer-enforced only (no shared fixture) — the same
       gap [NODE_DATA_TYPES.md § 10](../features/pipeline/NODE_DATA_TYPES.md) records for the UI mirror
 
 ---
 
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Fixed both demo blockers — the non-existent `loom` sink and `filter`'s missing output ports — and added the debugging affordances: breakpoint gutter, hold, Step/Continue, result strips and the detail overlay)_
+_Git HEAD revision: `920afed0`_
+_Last updated: 2026-08-04 (`docs/pipeline/` and `docs/nodes/` now link the editor, closing the
+last docs gap; earlier the same day: fixed both demo blockers — the non-existent `loom` sink and
+`filter`'s missing output ports — and added the debugging affordances: breakpoint gutter, hold,
+Step/Continue, result strips and the detail overlay)_

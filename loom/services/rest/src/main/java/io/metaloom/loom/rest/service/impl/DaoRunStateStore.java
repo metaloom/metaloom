@@ -22,6 +22,7 @@ import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.pipeline.engine.NodePreviews;
 import io.metaloom.loom.pipeline.engine.PortPayloads;
 import io.vertx.core.json.JsonObject;
 
@@ -180,6 +181,12 @@ public class DaoRunStateStore implements RunStateStore {
 		row.setFinished(Instant.now());
 		if (!result.getOutputs().isEmpty()) {
 			row.setOutputs(PortPayloads.encode(result.getOutputs()));
+		}
+		// Only written for a run started in debug mode, so this is null on every ordinary run.
+		// Encoded here rather than in the engine because the column is a persistence concern -
+		// the engine passes the previews through untouched.
+		if (!result.getPreviews().isEmpty()) {
+			row.setPreviews(NodePreviews.encode(result.getPreviews()));
 		}
 		flushIfFull();
 	}

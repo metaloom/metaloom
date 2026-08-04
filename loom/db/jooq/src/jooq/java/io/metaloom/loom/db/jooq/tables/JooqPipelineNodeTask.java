@@ -18,12 +18,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function21;
+import org.jooq.Function22;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row21;
+import org.jooq.Row22;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -176,6 +176,15 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
      */
     public final TableField<JooqPipelineNodeTaskRecord, Integer> ELEMENT_SEQ = createField(DSL.name("element_seq"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which element of a fanned-out sequence this execution covers; 0 when the node runs once per item");
 
+    /**
+     * The column <code>public.pipeline_node_task.previews</code>. Opt-in
+     * per-run debugging previews keyed by output port id; each value is a
+     * NodePreview {mimeType, width, height, data (base64), skippedReason}. NULL
+     * when the run did not request previews. Run-scoped and pruned with the run
+     * — never catalogue state.
+     */
+    public final TableField<JooqPipelineNodeTaskRecord, JsonObject> PREVIEWS = createField(DSL.name("previews"), SQLDataType.JSONB, this, "Opt-in per-run debugging previews keyed by output port id; each value is a NodePreview {mimeType, width, height, data (base64), skippedReason}. NULL when the run did not request previews. Run-scoped and pruned with the run — never catalogue state.", new JsonObjectConverter());
+
     private JooqPipelineNodeTask(Name alias, Table<JooqPipelineNodeTaskRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -322,18 +331,18 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
     }
 
     // -------------------------------------------------------------------------
-    // Row21 type methods
+    // Row22 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row21<java.util.UUID, java.util.UUID, java.util.UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, Integer> fieldsRow() {
-        return (Row21) super.fieldsRow();
+    public Row22<java.util.UUID, java.util.UUID, java.util.UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, Integer, JsonObject> fieldsRow() {
+        return (Row22) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function22<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? super JsonObject, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -341,7 +350,7 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function22<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? super JsonObject, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

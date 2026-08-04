@@ -1,5 +1,6 @@
 ---
 title: Command Line
+weight: 9
 ---
 
 `metaloom` is a command line client for a Loom server. It talks to the same REST API the web

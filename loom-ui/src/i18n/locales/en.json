@@ -966,6 +966,8 @@
       "runDispatched": "Pipeline run dispatched",
       "runNoProcessor": "No processor available",
       "runCancelled": "Pipeline run cancelled",
+      "runPaused": "Pipeline run paused",
+      "runResumed": "Pipeline run resumed",
       "newPipeline": "New pipeline",
       "newPipelineTitle": "New Pipeline",
       "clonePipelineTitle": "Clone Pipeline",
@@ -1084,7 +1086,37 @@
       "errors": "errors",
       "noRuns": "No runs recorded yet",
       "loading": "Loading runs…",
-      "cancel": "Cancel run"
+      "cancel": "Cancel run",
+      "pause": "Pause run",
+      "resume": "Resume run"
+    },
+    "resultDetail": {
+      "tab": {
+        "image": "Image",
+        "markdown": "Description",
+        "table": "Table",
+        "media": "Media",
+        "json": "Value",
+        "raw": "Raw"
+      },
+      "previewNote": "Reduced preview, not the original file",
+      "previewSkipped": "No preview",
+      "mediaUnavailable": "This file is on the worker that produced it and cannot be played here."
+    },
+    "debug": {
+      "toggle": "Debug",
+      "toggleTooltip": "Show live per-node counters and results on the canvas",
+      "inspectingTooltip": "Node results shown on the canvas are for this run item. Click × to clear them.",
+      "setBreakpoint": "Halt here — the node still runs, but nothing downstream starts until you continue",
+      "clearBreakpoint": "Stop halting here",
+      "heldBadge": "HELD",
+      "heldCount_one": "{{count}} held",
+      "heldCount_other": "{{count}} held",
+      "heldTooltip": "Executions that have run and are waiting for you before anything downstream starts",
+      "step": "Step",
+      "stepTooltip": "Let one waiting execution through",
+      "continue": "Continue",
+      "continueTooltip": "Let everything waiting through. The halt stays set, so the next item stops here too"
     },
     "runDetail": {
       "title": "Run Detail",
@@ -1099,6 +1131,7 @@
       "priority": "priority",
       "dryRun": "dry run",
       "runningNow": "Running now",
+      "pausedNow": "Paused",
       "lastRun": "Last run:"
     },
     "nodeDetail": {
@@ -1106,7 +1139,7 @@
       "collapse": "Collapse panel",
       "tab": {
         "config": "Config",
-        "log": "Log",
+        "results": "Results",
         "json": "JSON"
       },
       "displayName": "Display Name",
@@ -1116,7 +1149,13 @@
       "affinityHelp": "Nodes sharing a group are dispatched together as one segment.",
       "configuration": "Configuration",
       "nodeId": "Node ID",
-      "processingLog": "Processing Log",
+      "results": "Node Results",
+      "resultsNoItem": "Select a run item in the run detail to see what this node produced for it.",
+      "resultsLoading": "Loading node results…",
+      "resultsNone": "This node did not run for the selected item.",
+      "resultsNoOutputs": "No outputs were recorded.",
+      "retries": "Attempts used of the allowed maximum",
+      "deadLetter": "dead letter",
       "nodeState": "Node State (JSON)",
       "emptyHint": "Click a node in the canvas to view and edit its details",
       "parameters": "Parameters",

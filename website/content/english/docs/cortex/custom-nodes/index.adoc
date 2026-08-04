@@ -107,6 +107,28 @@ graph takes every edge attached to it along with it.
 The editor's node picker has a *show offline nodes* toggle. It affects the picker only: a node already
 on the canvas is always drawn with its full ports, whether or not anything can currently run it.
 
+== Describing your output for the debug view
+
+When someone runs a pipeline with *Debug* on, the editor shows what each node emitted. Your node
+gets a sensible rendering for free, based on the types its ports declare — you do not have to do
+anything.
+
+Two things improve on that:
+
+* If your node writes an image file and says so on the port, a preview of it appears automatically.
+  No code is needed.
+* If your node knows something about its output that the port type cannot express — that a set of
+  numbers is a bounding box, that a list is one entry per detected face — describe it in Markdown:
+
+[source,java]
+----
+ctx.preview(OUT_DETECTIONS, "| # | confidence |\n|---|---|\n| 0 | 0.93 |");
+----
+
+A description you write always wins over the automatic rendering. It is discarded unless the run
+asked for previews, so it is safe to build unconditionally — and it must never be able to fail your
+node, so keep it simple and catch anything that could throw.
+
 == Rules worth knowing before you hit them
 
 [options="header",cols="1,3"]

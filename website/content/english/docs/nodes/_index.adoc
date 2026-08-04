@@ -1,5 +1,6 @@
 ---
 title: Nodes
+weight: 3
 ---
 
 Nodes are the atomic processing steps of MetaLoom. A link:../pipeline/[pipeline] is a graph of nodes,
@@ -14,6 +15,11 @@ carries, and a cardinality that says whether it carries one element or a sequenc
 
 Between them the built-in nodes cover any media file type — images, videos, audio and documents. What
 is actually analysed for a given asset depends entirely on which nodes the pipeline contains.
+
+TIP: Every node listed below is also in the link:../../pipeline-editor/[interactive pipeline editor]
+on this site, which needs no server and no account. Drag a few onto the canvas to see which ports
+will connect to which — the editor enforces the same type rules Loom does, so a wiring it rejects is
+one a real pipeline would reject too.
 
 Every node page opens with a diagram of that node in a pipeline: what flows in on the left, what comes
 out on the right, and a tab per alternative configuration. **Hover any port** — or tap it, or reach it

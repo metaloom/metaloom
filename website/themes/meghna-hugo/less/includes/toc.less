@@ -13,6 +13,12 @@
     padding: 4px 0 20px;
     border-right: 1px solid var(--ml-line);
     padding-right: 18px;
+
+    /* The page TOC and an expanded section can together be taller than the viewport, and a
+       sticky column that overflows it simply hides its own tail. Scroll the rail instead. */
+    max-height: ~"calc(100vh - 130px)";
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .docs-sidebar-title {
@@ -144,6 +150,42 @@ nav[data-toggle=toc] .nav-link.active:hover {
             opacity: 1;
             transform: scaleY(1);
         }
+    }
+}
+
+/* On a section index the rail is the only thing in the sidebar, so the divider it wears when it
+   sits under the page TOC would be a line under nothing. */
+.docs-sidebar>.docs-topics:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+/* Pages of the section the reader is currently inside. Indented under their topic and set a
+   step quieter, so the expanded section reads as a detail of the list rather than a second one.
+   Nodes alone contributes 35 entries, hence the cap. */
+.docs-topics .docs-subtopics {
+    max-height: 42vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 2px 0 8px 12px;
+    border-left: 1px solid var(--ml-line);
+
+    a {
+        font-size: 0.84rem;
+        padding: 3px 12px 3px 14px;
+        color: #949eaa;
+        line-height: 1.55;
+
+        &::before {
+            left: -1px;
+        }
+    }
+
+    /* Same specificity as `.docs-topics a.is-current` but later in the file, so the muted
+       colour above would otherwise win over the active one. */
+    a.is-current {
+        color: @link-color;
     }
 }
 

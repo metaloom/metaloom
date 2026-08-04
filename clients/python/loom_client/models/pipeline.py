@@ -10,6 +10,24 @@ from .base import CreatorEditorResponse, ListResponse, Model
 
 
 @dataclass
+class PipelineBreakpointRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest``."""
+
+    #: Node ids to halt at. Replaces the armed set; an empty list disarms everything.
+    node_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PipelineBreakpointResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineBreakpointResponse``."""
+
+    #: Node ids the run is armed to halt at.
+    node_ids: list[str] = field(default_factory=list)
+    #: Executions currently withheld from their downstream nodes.
+    held: list[PipelineHeldExecution] = field(default_factory=list)
+
+
+@dataclass
 class PipelineCreateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest``."""
 
@@ -30,11 +48,72 @@ class PipelineCreateRequest(Model):
 
 
 @dataclass
+class PipelineHeldExecution(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineHeldExecution``."""
+
+    #: The node that is holding.
+    node_id: str | None = None
+    #: The run item whose execution is held.
+    item_uuid: str | None = None
+    #: Which element, for a node that runs once per element of an upstream sequence.
+    element_seq: int = 0
+
+
+@dataclass
 class PipelineListResponse(ListResponse):
     """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineListResponse``."""
 
     #: Array which contains the found elements.
     data: list[PipelineResponse] = field(default_factory=list)
+
+
+@dataclass
+class PipelineNodeTaskListResponse(ListResponse):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskListResponse``."""
+
+    #: Array which contains the found elements.
+    data: list[PipelineNodeTaskRecord] = field(default_factory=list)
+
+
+@dataclass
+class PipelineNodeTaskRecord(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskRecord``."""
+
+    #: Unique identifier of the node task.
+    uuid: str | None = None
+    #: UUID of the run item this task belongs to.
+    item_uuid: str | None = None
+    #: UUID of the pipeline run this task belongs to.
+    run_uuid: str | None = None
+    #: Graph node id this task executed, as written in the pipeline definition.
+    node_id: str | None = None
+    #: Node kind (type) that was executed, e.g. 'sha512' or 'whisper'.
+    node_kind: str | None = None
+    #: Which element of a fanned-out sequence this execution handled; 0 when the node runs once per item.
+    element_seq: int = 0
+    #: Current state: PENDING, LEASED, DONE, FAILED, DEAD_LETTER.
+    state: str | None = None
+    #: How many times this execution has been attempted.
+    attempt: int = 0
+    #: Attempt ceiling before the task is dead-lettered.
+    max_attempts: int = 0
+    #: Worker node id currently holding the lease, null when not leased.
+    leased_by: str | None = None
+    #: When the execution started, null while pending.
+    #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
+    started: float | None = None
+    #: When the execution settled, null while unsettled.
+    #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
+    finished: float | None = None
+    #: Execution duration in milliseconds, null while unsettled.
+    duration_ms: int | None = None
+    #: Error message if the execution failed.
+    error_message: str | None = None
+    #: Outputs keyed by output port id; each value is a PortPayload {contentType, cardinality, elements}.
+    outputs: dict[str, Any] | None = None
+    #: Preview metadata keyed by output port id: {mimeType, width, height, url} or {skippedReason}. Bytes are
+    #: fetched from the url.
+    previews: dict[str, Any] | None = None
 
 
 @dataclass
@@ -161,6 +240,10 @@ class PipelineRunRequest(Model):
     path_globs: list[str] = field(default_factory=list)
     #: Override the pipeline's dry-run flag for this run.
     dry_run: bool | None = None
+    #: Attach debugging previews of what each node emits. Off by default; costs nothing when unset.
+    debug: bool | None = None
+    #: Node ids to halt at. Each node still runs; its output is withheld from downstream nodes until released.
+    breakpoints: list[str] = field(default_factory=list)
 
 
 @dataclass

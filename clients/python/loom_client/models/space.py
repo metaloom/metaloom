@@ -28,6 +28,7 @@ class SpaceReference(Model):
     """Mirrors ``io.metaloom.loom.rest.model.space.SpaceReference``."""
 
 
+
 @dataclass
 class SpaceResponse(CreatorEditorResponse):
     """Mirrors ``io.metaloom.loom.rest.model.space.SpaceResponse``."""

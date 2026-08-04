@@ -65,6 +65,8 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		element.setAttempt(1);
 		element.setDurationMs(1234L);
 		element.setOutputs(new JsonObject().put("sha512", "deadbeef"));
+		element.setPreviews(new JsonObject().put("thumbnail",
+			new JsonObject().put("mimeType", "image/jpeg").put("width", 512).put("height", 288).put("data", "AQID")));
 	}
 
 	@Override
@@ -74,6 +76,11 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		assertEquals(1234L, updated.getDurationMs());
 		assertNotNull(updated.getOutputs(), "Outputs must survive the round trip - downstream nodes read them");
 		assertEquals("deadbeef", updated.getOutputs().getString("sha512"));
+		// Previews ride in a second JSONB column and need their own converter entry in the jOOQ
+		// config; without it they round-trip as a string and every thumbnail silently breaks.
+		assertNotNull(updated.getPreviews(), "Previews must survive the round trip");
+		assertEquals("image/jpeg", updated.getPreviews().getJsonObject("thumbnail").getString("mimeType"));
+		assertEquals("AQID", updated.getPreviews().getJsonObject("thumbnail").getString("data"));
 	}
 
 	@Test

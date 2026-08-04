@@ -1,5 +1,6 @@
 ---
 title: Cortex
+weight: 6
 ---
 
 MetaLoom // *Cortex* is the media processing engine of the MetaLoom platform.

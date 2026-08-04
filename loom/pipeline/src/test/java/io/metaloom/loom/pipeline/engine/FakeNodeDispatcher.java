@@ -64,6 +64,31 @@ public class FakeNodeDispatcher implements NodeDispatcher {
 				+ "'. Dispatched: " + dispatchedNodeIds()));
 	}
 
+	/**
+	 * @param nodeId the node
+	 * @param itemId which item's execution
+	 * @return the task dispatched for that node on that item
+	 * @throws AssertionError when nothing matches
+	 */
+	public NodeTask taskFor(String nodeId, String itemId) {
+		return dispatched.stream()
+			.filter(t -> t.getNodeId().equals(nodeId) && itemId.equals(t.getItemId()))
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("No task was dispatched for node '" + nodeId
+				+ "' on item '" + itemId + "'. Dispatched: " + dispatchedNodeIds()));
+	}
+
+	/**
+	 * Every task dispatched for one node, in dispatch order.
+	 *
+	 * <p>The plural of {@link #taskFor(String)}, for a node downstream of a fan-out: it runs once
+	 * per element, and a test that only ever saw the first execution would miss exactly the
+	 * per-element behaviour it meant to check.</p>
+	 */
+	public List<NodeTask> tasksFor(String nodeId) {
+		return dispatched.stream().filter(t -> t.getNodeId().equals(nodeId)).toList();
+	}
+
 	public boolean wasDispatched(String nodeId) {
 		return dispatched.stream().anyMatch(t -> t.getNodeId().equals(nodeId));
 	}

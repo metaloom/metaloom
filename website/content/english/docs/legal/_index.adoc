@@ -1,6 +1,6 @@
 ---
 title: Legal & Licensing
-weight: 9
+weight: 11
 ---
 
 MetaLoom itself is open source under the **Apache License 2.0**. What you may do with a *running*

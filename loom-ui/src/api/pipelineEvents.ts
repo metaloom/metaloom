@@ -7,16 +7,34 @@ import type { NodeAvailabilityMap } from "../types/nodeDescriptors";
 export type PipelineEventType =
   | "PIPELINE_STARTED"
   | "PIPELINE_COMPLETED"
+  /** An in-flight run was suspended — by this client, another tab, or the CLI. */
+  | "RUN_PAUSED"
+  /** A suspended run was resumed. */
+  | "RUN_RESUMED"
   | "NODE_STARTED"
   | "NODE_COMPLETED"
   | "NODE_FAILED"
   | "NODE_SKIPPED"
   | "NODE_BUFFERED"
+  /**
+   * A breakpoint is withholding one completed execution from its downstream nodes.
+   *
+   * Sent immediately rather than on the `NODE_STATS` tick: a hold happens because someone
+   * asked for it, and a node that is stopped must not keep looking like it is running.
+   */
+  | "NODE_BREAKPOINT_HELD"
+  /** A withheld execution was let through — by Continue, by Step, or by disarming. */
+  | "NODE_BREAKPOINT_RELEASED"
   | "NODE_STATS";
 
 export interface PipelineEventMessage {
   type: PipelineEventType;
   pipelineName: string;
+  /**
+   * The run the frame belongs to. Always sent by the server; needed to tell concurrent
+   * runs of the same pipeline apart, since the `?pipeline=` filter does not.
+   */
+  pipelineRunUuid?: string;
   nodeId?: string;
   mediaPath?: string;
   timestamp: number;
@@ -26,6 +44,11 @@ export interface PipelineEventMessage {
   pendingCount?: number;
   processedCount?: number;
   failedCount?: number;
+  skippedCount?: number;
+  /** Which run item was held or released (`NODE_BREAKPOINT_*`). */
+  itemUuid?: string;
+  /** Which element of a fanned-out node was held or released. */
+  elementSeq?: number;
 }
 
 // Processor lifecycle events share this same socket, discriminated by

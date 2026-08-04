@@ -6,11 +6,26 @@
      /announcements/ — eyebrow, title, optional lead — so moving between the marketing pages
      and the reference does not read as leaving the site. Styling is the "Reading pages" block
      in less/includes/custom.less. */}}
+{{/* The docs landing page is the one index that stays centred and rail-free — it *is* the map,
+     so repeating the topic list beside it would say the same thing twice. Every other section
+     index (/docs/nodes/, /docs/loom/, …) gets the same rail as a leaf page, because landing on
+     one of those and seeing no way onward but the body text is exactly how a reader loses the
+     thread between Pipeline, Nodes and the rest. */}}
+{{ $isRoot := eq .RelPermalink (relURL "docs/") }}
+
 <section class="section docs-section">
   <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-lg-10">
-        <header class="page-head page-head-center">
+    <div class="row{{ if $isRoot }} justify-content-center{{ end }}">
+      {{ if not $isRoot }}
+      <div class="col-lg-3 d-none d-lg-block">
+        <div class="docs-sidebar toc-sticky-top">
+          {{ partial "docs-topics.html" . }}
+        </div>
+      </div>
+      {{ end }}
+
+      <div class="{{ if $isRoot }}col-lg-10{{ else }}col-lg-9{{ end }}">
+        <header class="page-head{{ if $isRoot }} page-head-center{{ end }}">
           {{/* The eyebrow names the section this page sits in. Anything directly under /docs/
                (and /docs/ itself, whose parent is the home page) gets "Documentation" —
                unless that is what the title already says, as on /docs/ itself. */}}
@@ -20,8 +35,7 @@
           <h1>{{ .Title }}</h1>
           {{ with .Params.subtitle }}<p class="page-lead">{{ . | markdownify }}</p>{{ end }}
         </header>
-      </div>
-      <div class="col-lg-10">
+
         <div class="post-single-content docs-content docs-main-content">
           {{ .Content }}
         </div>

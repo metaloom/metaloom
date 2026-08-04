@@ -5,9 +5,12 @@ import java.util.UUID;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.message.GenericMessageResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunItemListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
@@ -36,6 +39,16 @@ public interface PipelineMethods {
 
 	LoomClientRequest<PipelineRunItemListResponse> listPipelineRunItems(UUID pipelineUuid, UUID runUuid);
 
+	/**
+	 * Load the node executions of a single run item, including the outputs each node emitted.
+	 *
+	 * <p>
+	 * The finest granularity the run engine records: one entry per graph node, and one per element for a node downstream of a {@code MANY} output. This is
+	 * what answers "which node failed and what did it produce"; the run and item records only carry a coarse state.
+	 * </p>
+	 */
+	LoomClientRequest<PipelineNodeTaskListResponse> listPipelineRunItemTasks(UUID pipelineUuid, UUID runUuid, UUID itemUuid);
+
 	LoomClientRequest<NoResponse> deletePipeline(UUID uuid);
 
 	// RUN LIFECYCLE
@@ -60,6 +73,32 @@ public interface PipelineMethods {
 	 * and their late results are ignored.
 	 */
 	LoomClientRequest<GenericMessageResponse> cancelPipelineRun(UUID pipelineUuid, UUID runUuid);
+
+	// BREAKPOINTS
+	//
+	// Run state, not definition state: a breakpoint is set on a run that is already going and is
+	// never written back into the stored pipeline.
+
+	/** Load the nodes a run halts at, and the executions it is currently holding. */
+	LoomClientRequest<PipelineBreakpointResponse> loadPipelineRunBreakpoints(UUID pipelineUuid, UUID runUuid);
+
+	/**
+	 * Replace the set of nodes a run halts at.
+	 *
+	 * <p>A whole-set replacement rather than an add/remove pair, so sending the same request twice
+	 * leaves the run in the same state. An empty list disarms everything.</p>
+	 */
+	LoomClientRequest<PipelineBreakpointResponse> setPipelineRunBreakpoints(UUID pipelineUuid, UUID runUuid,
+		PipelineBreakpointRequest request);
+
+	/**
+	 * Release every execution one node is holding. The breakpoint stays armed, so the next item
+	 * reaching that node stops too.
+	 */
+	LoomClientRequest<GenericMessageResponse> continuePipelineRunBreakpoint(UUID pipelineUuid, UUID runUuid, String nodeId);
+
+	/** Release exactly one held execution. Fails with 409 when the run is not holding anything. */
+	LoomClientRequest<PipelineBreakpointResponse> stepPipelineRun(UUID pipelineUuid, UUID runUuid);
 
 	// VERSIONS
 

@@ -40,6 +40,22 @@ public class PipelineEventMessage implements RestModel {
 	@JsonPropertyDescription("Human-readable detail (failures, skip reasons)")
 	private String message;
 
+	// ── Breakpoint fields (NODE_BREAKPOINT_* events) ────────────────────
+
+	/**
+	 * Which run item stopped.
+	 *
+	 * <p>
+	 * Carried alongside {@link #mediaPath} rather than instead of it: the path is what a person
+	 * recognises, the uuid is what the debug view needs in order to fetch the node's results.
+	 * </p>
+	 */
+	@JsonPropertyDescription("UUID of the run item whose execution was held or released")
+	private String itemUuid;
+
+	@JsonPropertyDescription("Which element of a fanned-out node was held or released")
+	private Integer elementSeq;
+
 	// ── Volume / stats fields (NODE_STATS events) ───────────────────────
 
 	@JsonPropertyDescription("Items currently being processed at this node")
@@ -178,6 +194,24 @@ public class PipelineEventMessage implements RestModel {
 
 	public PipelineEventMessage setSkippedCount(Long skippedCount) {
 		this.skippedCount = skippedCount;
+		return this;
+	}
+
+	public String getItemUuid() {
+		return itemUuid;
+	}
+
+	public PipelineEventMessage setItemUuid(String itemUuid) {
+		this.itemUuid = itemUuid;
+		return this;
+	}
+
+	public Integer getElementSeq() {
+		return elementSeq;
+	}
+
+	public PipelineEventMessage setElementSeq(Integer elementSeq) {
+		this.elementSeq = elementSeq;
 		return this;
 	}
 

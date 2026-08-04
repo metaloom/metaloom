@@ -24,6 +24,7 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	private Long durationMs;
 	private String errorMessage;
 	private JsonObject outputs;
+	private JsonObject previews;
 	private JsonObject meta;
 
 	@Override
@@ -188,6 +189,17 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	@Override
 	public PipelineNodeTask setOutputs(JsonObject outputs) {
 		this.outputs = outputs;
+		return this;
+	}
+
+	@Override
+	public JsonObject getPreviews() {
+		return previews;
+	}
+
+	@Override
+	public PipelineNodeTask setPreviews(JsonObject previews) {
+		this.previews = previews;
 		return this;
 	}
 

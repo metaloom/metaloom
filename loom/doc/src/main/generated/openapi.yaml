@@ -324,6 +324,154 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/annotations/{annotationUuid}/comments:
+    description: Create a new comment on an annotation
+    get:
+      tags:
+      - annotations
+      summary: List the comments on an annotation
+      description: List the comments on an annotation
+      operationId: getAnnotationsByAnnotationUuidComments
+      responses:
+        "200":
+          description: The comment list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  title: The Title
+                  text: The comment text
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  title: The Title
+                  text: The comment text
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - annotations
+      summary: Create a new comment on an annotation
+      description: Create a new comment on an annotation
+      operationId: postAnnotationsByAnnotationUuidComments
+      requestBody:
+        content:
+          application/json:
+            example:
+              meta:
+                abc: cdef
+              title: The comment title
+              text: The comment text
+      responses:
+        "200":
+          description: The comment response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                title: The Title
+                text: The comment text
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: annotationUuid
+      in: path
+      description: UUID of the referenced annotation
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/annotations/{annotationUuid}/reactions:
     description: Create a new reaction for an annotation
     get:
@@ -1424,8 +1572,10 @@ paths:
     post:
       tags:
       - assets
-      summary: Create a new component for an asset
-      description: Create a new component for an asset
+      summary: "Create or replace a component for an asset (upsert on asset, node\
+        \ kind and discriminators)"
+      description: "Create or replace a component for an asset (upsert on asset, node\
+        \ kind and discriminators)"
       operationId: postAssetsByAssetUuidComponents
       requestBody:
         content:
@@ -6439,23 +6589,29 @@ paths:
         type: string
   /api/v1/assets/upload:
     description: "Upload a file to create an asset. Expects a multipart request with\
-      \ one file part named 'file', a required 'libraryUuid' form field and an optional\
-      \ 'origin'. The target library's storage pool decides whether the bytes land\
-      \ on a filesystem or in S3. Answers 201 for new content and 200 when an asset\
-      \ with the same SHA-512 already exists."
+      \ one file part named 'file', a required 'libraryUuid' form field and the optional\
+      \ form fields 'origin' and 'poolUuid'. The target library's storage pool decides\
+      \ whether the bytes land on a filesystem or in S3; naming 'poolUuid' overrides\
+      \ that for this upload and additionally requires the READ_ASSET_POOL permission.\
+      \ Answers 201 for new content and 200 when an asset with the same SHA-512 already\
+      \ exists."
     post:
       tags:
       - assets
       summary: "Upload a file to create an asset. Expects a multipart request with\
-        \ one file part named 'file', a required 'libraryUuid' form field and an optional\
-        \ 'origin'. The target library's storage pool decides whether the bytes land\
-        \ on a filesystem or in S3. Answers 201 for new content and 200 when an asset\
-        \ with the same SHA-512 already exists."
+        \ one file part named 'file', a required 'libraryUuid' form field and the\
+        \ optional form fields 'origin' and 'poolUuid'. The target library's storage\
+        \ pool decides whether the bytes land on a filesystem or in S3; naming 'poolUuid'\
+        \ overrides that for this upload and additionally requires the READ_ASSET_POOL\
+        \ permission. Answers 201 for new content and 200 when an asset with the same\
+        \ SHA-512 already exists."
       description: "Upload a file to create an asset. Expects a multipart request\
         \ with one file part named 'file', a required 'libraryUuid' form field and\
-        \ an optional 'origin'. The target library's storage pool decides whether\
-        \ the bytes land on a filesystem or in S3. Answers 201 for new content and\
-        \ 200 when an asset with the same SHA-512 already exists."
+        \ the optional form fields 'origin' and 'poolUuid'. The target library's storage\
+        \ pool decides whether the bytes land on a filesystem or in S3; naming 'poolUuid'\
+        \ overrides that for this upload and additionally requires the READ_ASSET_POOL\
+        \ permission. Answers 201 for new content and 200 when an asset with the same\
+        \ SHA-512 already exists."
       operationId: postAssetsUpload
       responses:
         "200":
@@ -11770,14 +11926,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
-  /api/v1/pipeline/node-descriptors/{kind}:
-    description: Load a pipeline node descriptor by kind
+  /api/v1/pipeline/node-descriptors/{nodeId}:
+    description: Load a pipeline node descriptor by node id
     get:
       tags:
       - pipeline
-      summary: Load a pipeline node descriptor by kind
-      description: Load a pipeline node descriptor by kind
-      operationId: getPipelineNodedescriptorsByKind
+      summary: Load a pipeline node descriptor by node id
+      description: Load a pipeline node descriptor by node id
+      operationId: getPipelineNodedescriptorsByNodeId
       responses:
         "400":
           description: Bad request - validation error or malformed path/query parameter
@@ -11810,12 +11966,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
     parameters:
-    - name: kind
+    - name: nodeId
       in: path
-      description: Pipeline node kind
+      description: UUID of the referenced nodeId
       required: true
       schema:
         type: string
+  /api/v1/pipeline/node-descriptors/availability:
+    description: Load node availability without the contracts
+    get:
+      tags:
+      - pipeline
+      summary: Load node availability without the contracts
+      description: Load node availability without the contracts
+      operationId: getPipelineNodedescriptorsAvailability
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/pipelines:
     description: Create a new pipeline
     get:
@@ -11874,7 +12063,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 190d40a3-a444-46bb-a2e1-0ee748386f9f
+                  versionUuid: cb63bc34-1a8e-4512-bbb7-a639e4962c1b
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -11895,7 +12084,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 5d0ee635-1e14-4f1d-a885-f0935d702ab0
+                  versionUuid: f0a04846-2c87-49c3-bf9e-fbb4bc9e3729
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -11968,7 +12157,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: c93d305b-8b7a-4a15-a1cb-eaaca5ac2b6c
+                versionUuid: d5998267-ead2-437c-9f37-5da2be258265
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12027,7 +12216,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 03df7165-36cc-4597-ba70-76dc31d3fad3
+                versionUuid: 3467147a-d540-417b-a084-cf6be470360c
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12099,7 +12288,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: a38a72df-f917-4ac1-9a1d-f7f22bcbe2ea
+                versionUuid: 6b776fce-7c8c-44bd-9625-85e237321cee
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12208,7 +12397,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: cc946a97-e100-4ce9-8ffc-0beb53739097
+                runUuid: 51e682a9-929e-4aa5-b047-8c592101832d
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -12296,11 +12485,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 455734bb-1fa6-47bb-a378-de2b4ec34ab9
-                  pipelineUuid: 73e43559-195a-4bf7-a860-e879cb6cdcbe
+                - uuid: 10ac4fa9-91e1-41c8-9861-f3f059ac4332
+                  pipelineUuid: 6bf3a43c-fd47-46a7-8c86-6d4de0aa1f2f
                   pipelineVersion: 1
-                  started: 2026-08-01T16:59:56.156235437Z
-                  finished: 2026-08-01T16:59:56.156246887Z
+                  started: 2026-08-04T18:09:49.622759128Z
+                  finished: 2026-08-04T18:09:49.622773608Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12308,11 +12497,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 9fd798ee-32c7-443a-a361-7c611c21a22c
-                  pipelineUuid: c926aae3-e0c1-4cbb-99dc-5763cfb5a687
+                - uuid: 1c487fa2-a6f5-4367-90cd-b51396a79fb0
+                  pipelineUuid: 3b9c1e5b-ab5f-43e0-b3b1-29f689369f80
                   pipelineVersion: 1
-                  started: 2026-08-01T16:59:56.156263717Z
-                  finished: 2026-08-01T16:59:56.156267107Z
+                  started: 2026-08-04T18:09:49.622808668Z
+                  finished: 2026-08-04T18:09:49.622812138Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12375,11 +12564,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: ee504973-6033-40f3-af92-86fac7736b47
-                pipelineUuid: 318960fc-6688-4a7a-98db-95fb0519d1ef
+                uuid: 823d9aa8-13b7-450d-8e27-dc3131e3edae
+                pipelineUuid: 6897ba1b-293a-4942-8d6b-095af90229d8
                 pipelineVersion: 1
-                started: 2026-08-01T16:59:56.156315187Z
-                finished: 2026-08-01T16:59:56.156317587Z
+                started: 2026-08-04T18:09:49.622871448Z
+                finished: 2026-08-04T18:09:49.622875498Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -12432,6 +12621,193 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/pipelines/{uuid}/runs/{runUuid}/breakpoints:
+    description: "Load the nodes a run halts at, and the executions it is currently\
+      \ holding"
+    get:
+      tags:
+      - pipelines
+      summary: "Load the nodes a run halts at, and the executions it is currently\
+        \ holding"
+      description: "Load the nodes a run halts at, and the executions it is currently\
+        \ holding"
+      operationId: getPipelinesByUuidRunsByRunUuidBreakpoints
+      responses:
+        "200":
+          description: The pipeline breakpoint response
+          content:
+            application/json:
+              example:
+                nodeIds:
+                - thumbnail
+                held:
+                - nodeId: thumbnail
+                  itemUuid: f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70
+                  elementSeq: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    put:
+      tags:
+      - pipelines
+      summary: Replace the set of nodes an in-flight run halts at
+      description: Replace the set of nodes an in-flight run halts at
+      operationId: putPipelinesByUuidRunsByRunUuidBreakpoints
+      requestBody:
+        content:
+          application/json:
+            example:
+              nodeIds:
+              - thumbnail
+      responses:
+        "200":
+          description: The pipeline breakpoint response
+          content:
+            application/json:
+              example:
+                nodeIds:
+                - thumbnail
+                held:
+                - nodeId: thumbnail
+                  itemUuid: f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70
+                  elementSeq: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: runUuid
+      in: path
+      description: UUID of the referenced run
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/pipelines/{uuid}/runs/{runUuid}/breakpoints/{nodeId}/continue:
+    description: "Release every execution one node is holding, leaving its breakpoint\
+      \ armed"
+    post:
+      tags:
+      - pipelines
+      summary: "Release every execution one node is holding, leaving its breakpoint\
+        \ armed"
+      description: "Release every execution one node is holding, leaving its breakpoint\
+        \ armed"
+      operationId: postPipelinesByUuidRunsByRunUuidBreakpointsByNodeIdContinue
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: runUuid
+      in: path
+      description: UUID of the referenced run
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: nodeId
+      in: path
+      description: UUID of the referenced nodeId
+      required: true
+      schema:
+        type: string
   /api/v1/pipelines/{uuid}/runs/{runUuid}/cancel:
     description: Cancel an in-flight pipeline run
     post:
@@ -12534,15 +12910,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: edff01d9-075f-4643-b928-4c03d5bbdee4
-                  runUuid: 1b0af8e1-313c-4ca9-8651-a1ed3df76ac0
+                - uuid: b654ca99-ea7c-4df9-afeb-abfc399167d3
+                  runUuid: c9a77f68-a0d9-4594-9ee0-a4bcd7ce8175
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 2e9102e6-d57f-46ce-b8a6-ef749f4d9ebc
-                  runUuid: 6ebbe3ac-d94b-4604-96fa-3e88a94e0227
+                - uuid: 2c3fb67b-0263-4f06-856a-e475c48cc63e
+                  runUuid: ef0ca906-feda-4d32-bc1e-4d2326fb2876
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -12596,6 +12972,173 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/pipelines/{uuid}/runs/{runUuid}/items/{itemUuid}/tasks:
+    description: "Load the node executions of a single pipeline run item, including\
+      \ their outputs"
+    get:
+      tags:
+      - pipelines
+      summary: "Load the node executions of a single pipeline run item, including\
+        \ their outputs"
+      description: "Load the node executions of a single pipeline run item, including\
+        \ their outputs"
+      operationId: getPipelinesByUuidRunsByRunUuidItemsByItemUuidTasks
+      responses:
+        "200":
+          description: The pipeline node task list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 4237faf5-3e34-46a9-bd88-209ad7387591
+                  itemUuid: ddbc5e03-1179-4c81-a198-81d45bc5b5d1
+                  runUuid: 4bcea5a4-b636-4885-800e-32e340efd9a6
+                  nodeId: pn2
+                  nodeKind: sha512
+                  elementSeq: 0
+                  state: DONE
+                  attempt: 1
+                  maxAttempts: 3
+                  durationMs: 42
+                  outputs:
+                    sha512:
+                      contentType: hash/sha512
+                      cardinality: ONE
+                      elements:
+                      - origin:
+                          itemId: 5c1f
+                          seq: 0
+                          total: 1
+                        value: 0f8ef1c9...
+                _metainfo:
+                  perPage: 25
+                  totalCount: 1
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: runUuid
+      in: path
+      description: UUID of the referenced run
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: itemUuid
+      in: path
+      description: UUID of the referenced item
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/pipelines/{uuid}/runs/{runUuid}/items/{itemUuid}/tasks/{taskUuid}/previews/{portId}:
+    description: Load the bytes of one node output preview
+    get:
+      tags:
+      - pipelines
+      summary: Load the bytes of one node output preview
+      description: Load the bytes of one node output preview
+      operationId: getPipelinesByUuidRunsByRunUuidItemsByItemUuidTasksByTaskUuidPreviewsByPortId
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: runUuid
+      in: path
+      description: UUID of the referenced run
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: itemUuid
+      in: path
+      description: UUID of the referenced item
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: taskUuid
+      in: path
+      description: UUID of the referenced task
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: portId
+      in: path
+      description: UUID of the referenced portId
+      required: true
+      schema:
+        type: string
   /api/v1/pipelines/{uuid}/runs/{runUuid}/pause:
     description: Suspend an in-flight pipeline run
     post:
@@ -12708,6 +13251,71 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/pipelines/{uuid}/runs/{runUuid}/steps:
+    description: Release exactly one held execution
+    post:
+      tags:
+      - pipelines
+      summary: Release exactly one held execution
+      description: Release exactly one held execution
+      operationId: postPipelinesByUuidRunsByRunUuidSteps
+      responses:
+        "200":
+          description: The pipeline breakpoint response
+          content:
+            application/json:
+              example:
+                nodeIds:
+                - thumbnail
+                held:
+                - nodeId: thumbnail
+                  itemUuid: f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70
+                  elementSeq: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: runUuid
+      in: path
+      description: UUID of the referenced run
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/pipelines/{uuid}/versions:
     description: Load a paged list of pipeline versions
     get:
@@ -12766,7 +13374,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: ce9f8b5d-a3bd-40a0-a07c-7516a97d5ff2
+                  versionUuid: a6e39ddb-a828-4759-8486-4389c8fa377b
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -12787,7 +13395,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: b7cadf2d-261d-4aa8-947f-cd0f69273b43
+                  versionUuid: 44fc4e28-2c8b-452a-a164-9c561ad87f9f
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -12863,7 +13471,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 99d2fdac-1105-4aad-9876-3cc979809e2d
+                versionUuid: 6837a18c-2754-464f-a768-8800215f01e9
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -12949,7 +13557,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 4711b6f9-93a7-47bf-9663-39e70686ca7e
+                versionUuid: 48f346ff-1b98-40b0-b61a-4255051fe085
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

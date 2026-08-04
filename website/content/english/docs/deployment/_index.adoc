@@ -1,6 +1,6 @@
 ---
 title: Container Images
-weight: 2
+weight: 10
 ---
 
 MetaLoom ships as a small set of OCI (Docker/Podman) container images. All images are published

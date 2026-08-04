@@ -40,6 +40,7 @@ public class NodeTask {
 	private final Map<String, PortPayload> inputs;
 	private final Set<String> demandedOutputs;
 	private final int resultBatchSize;
+	private final boolean capturePreviews;
 
 	@JsonCreator
 	public NodeTask(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("runUuid") UUID runUuid,
@@ -49,7 +50,8 @@ public class NodeTask {
 		@JsonProperty("options") Map<String, Object> options,
 		@JsonProperty("inputs") Map<String, PortPayload> inputs,
 		@JsonProperty("demandedOutputs") Set<String> demandedOutputs,
-		@JsonProperty("resultBatchSize") Integer resultBatchSize) {
+		@JsonProperty("resultBatchSize") Integer resultBatchSize,
+		@JsonProperty("capturePreviews") Boolean capturePreviews) {
 		this.taskUuid = Objects.requireNonNull(taskUuid, "A task uuid must be set");
 		this.runUuid = runUuid;
 		this.itemId = Objects.requireNonNull(itemId, "An item id must be set");
@@ -65,6 +67,19 @@ public class NodeTask {
 		// Carried on the task so a worker serving several runs batches each one to its
 		// own pipeline's setting, without needing separate run-level bookkeeping.
 		this.resultBatchSize = resultBatchSize == null ? 1 : Math.max(1, resultBatchSize);
+		// Defaults to false, so an older Loom that does not send the field, and every ordinary
+		// production run, cost the worker one boolean check and nothing else.
+		this.capturePreviews = capturePreviews != null && capturePreviews;
+	}
+
+	/**
+	 * Backwards-compatible overload without the preview flag.
+	 */
+	public NodeTask(UUID taskUuid, UUID runUuid, String itemId, String nodeId, String nodeKind, Integer elementSeq,
+		MediaRef media, Map<String, Object> options, Map<String, PortPayload> inputs, Set<String> demandedOutputs,
+		Integer resultBatchSize) {
+		this(taskUuid, runUuid, itemId, nodeId, nodeKind, elementSeq, media, options, inputs, demandedOutputs,
+			resultBatchSize, false);
 	}
 
 	/**
@@ -72,7 +87,20 @@ public class NodeTask {
 	 */
 	public NodeTask(UUID taskUuid, UUID runUuid, String itemId, String nodeId, String nodeKind, MediaRef media,
 		Map<String, Object> options, Map<String, PortPayload> inputs) {
-		this(taskUuid, runUuid, itemId, nodeId, nodeKind, 0, media, options, inputs, null, 1);
+		this(taskUuid, runUuid, itemId, nodeId, nodeKind, 0, media, options, inputs, null, 1, false);
+	}
+
+	/**
+	 * Whether the worker should attach a small rendering of what each output port carried.
+	 *
+	 * <p>
+	 * Set only for a run started in debug mode. It exists because a port carrying produced media
+	 * carries a <em>worker-local path</em>, which Loom cannot resolve into anything anyone can look
+	 * at — see {@link NodePreview}. Off for every ordinary run, so nothing is encoded or stored.
+	 * </p>
+	 */
+	public boolean isCapturePreviews() {
+		return capturePreviews;
 	}
 
 	/**

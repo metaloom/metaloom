@@ -527,7 +527,7 @@ Gauges: `cortex_loom_connected`, `cortex_loom_registered`,
 | Registration, duplicate `nodeId`, heartbeat, pre-register guard, status, state, invalid frames, restrictions, persisted-offline listing, forget | `ProcessorEndpointTest` (14) | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` |
 | Connect, `PIPELINE_EVENT` drop paths, envelope errors | `PipelineEventEndpointTest` (6) | same |
 | Pause/resume guards **and** the `RUN_PAUSED` / `PIPELINE_COMPLETED` broadcasts (incl. "a refused pause broadcasts nothing") | `PipelineRunPauseEndpointTest` (15) | same |
-| Breakpoint routes, guards, and the `NODE_BREAKPOINT_HELD` / `_RELEASED` broadcasts | `PipelineRunBreakpointEndpointTest` (20) | same |
+| Breakpoint routes and guards, plus the hold/release **announcement** (listener arguments, not delivered frames — see below) | `PipelineRunBreakpointEndpointTest` (20) | same |
 | Fan-out, `?run=` filter, closed-subscriber pruning, full-write-queue drop | `PipelineEventBroadcasterTest` (4) | `loom/services/rest/src/test/java/io/metaloom/loom/rest/service/` |
 | Run completion over the socket | `PipelineRunCompletionEndpointTest` | `loom/core/src/test/.../endpoint/test/` |
 | UI socket, mocked | `cortex-mocked.spec.ts`, `pipeline-events-mocked.spec.ts` | `loom-ui/e2e/` |
@@ -536,6 +536,20 @@ Run the pooled-DB setup before the Java suites — see
 [../../.claude/CLAUDE.md](../../.claude/CLAUDE.md) (`./setup-pool.sh`).
 `PipelineEventBroadcaster` has a no-arg constructor that installs
 `NoopLoomMetrics`, so it can be unit-tested without a metrics backend.
+
+> ⚠️ **A broadcast published from test code never reaches a subscriber of the running server.**
+> `loom.internal().pipelineEventBroadcaster()` returns a *different instance* from the one the live
+> REST server registered the socket on, so its `subscribers` map is empty and `broadcast()` returns
+> having sent nothing — silently, with no dropped-event counter to show for it. A test that connects
+> a socket and then broadcasts by hand fails on delivery while the behaviour under test is perfectly
+> correct, and **passes when run alone**, which is the worst shape a test can have.
+>
+> This is why `PipelineRunPauseEndpointTest` *can* assert real frames — its broadcasts originate
+> **inside** the server, on the REST route — and why `PipelineRunBreakpointEndpointTest` asserts the
+> `BreakpointListener`'s arguments instead. **Frame delivery for `NODE_BREAKPOINT_*` is therefore
+> only covered from the browser side**, by `loom-ui/e2e/pipeline-breakpoints-mocked.spec.ts`. Closing
+> that gap in Java needs a run dispatched through `POST /run` so `attachBreakpointBroadcast` wires
+> the engine up, and that needs a registered worker.
 
 ---
 
@@ -579,6 +593,9 @@ Run the pooled-DB setup before the Java suites — see
 - [x] Lazy JSON encoding; lazy pruning of closed sockets
 - [x] Write-queue-full drop with counter, throttled log and metric
 - [x] Processor lifecycle events multiplexed onto the same socket
+- [ ] No Java-side coverage that `NODE_BREAKPOINT_HELD` / `_RELEASED` are actually *delivered* over
+      the socket — only that the listener is called with the right arguments (see the warning in § 6);
+      needs a run dispatched through `POST /run`, and therefore a registered worker
 - [ ] `DEFAULT_QUEUE_CAPACITY` is dead code — remove it or implement a real queue
 - [ ] Newest-frame-dropped means a burst loses the *latest* state, which is the one that matters
 - [ ] No history/replay: a client connecting after a run starts misses its opening events

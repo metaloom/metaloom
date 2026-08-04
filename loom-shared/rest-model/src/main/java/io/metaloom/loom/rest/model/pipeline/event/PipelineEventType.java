@@ -15,6 +15,20 @@ public enum PipelineEventType {
 	/** A pipeline has finished processing all media items. */
 	PIPELINE_COMPLETED,
 
+	/**
+	 * An in-flight run was suspended.
+	 *
+	 * <p>
+	 * Emitted by the pause route rather than by the engine, because a pause is an operator decision and not something the run discovers about itself. A
+	 * client that did not issue the pause - a second browser tab, the CLI - learns about it here, which is what lets every open editor agree on whether
+	 * the control should read "Pause" or "Resume".
+	 * </p>
+	 */
+	RUN_PAUSED,
+
+	/** A suspended run was resumed. The counterpart of {@link #RUN_PAUSED}. */
+	RUN_RESUMED,
+
 	// ── Per-node / per-media events ─────────────────────────────────────
 
 	/** A media item has entered a node and processing has begun. */
@@ -31,6 +45,21 @@ public enum PipelineEventType {
 
 	/** A media item is buffered/queued at a node because concurrency limit is reached. */
 	NODE_BUFFERED,
+
+	/**
+	 * A breakpoint is withholding one completed execution from its dependents.
+	 *
+	 * <p>
+	 * Sent immediately rather than folded into the {@link #NODE_STATS} tick, for the same reason
+	 * {@link #NODE_FAILED} is: a hold happens because a person asked for it, is individually
+	 * actionable, and is worthless a second late. The frame carries the node, the item and the
+	 * element sequence, so the editor can ring the right node and open the result that stopped it.
+	 * </p>
+	 */
+	NODE_BREAKPOINT_HELD,
+
+	/** A withheld execution was let through, by Continue, by Step, or by disarming the breakpoint. */
+	NODE_BREAKPOINT_RELEASED,
 
 	// ── Periodic aggregate stats ────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 ---
 title: Loom UI
+weight: 7
 ---
 
 The *Loom UI* is the browser-based management interface for a Loom server. It is a single-page
@@ -172,6 +173,18 @@ PASS/REJECT/ANY edges, validate the graph and run it. An inspector on the right 
 history, and the JSON tab exposes the raw definition.
 
 image::pipeline-editor.png[Pipeline editor canvas,role=img-fluid]
+
+=== Debugging a Run
+
+A *Debug* toggle in the toolbar turns the same canvas into a debugger. Each node then shows live
+counters, and picking a file from the run history paints onto every node the values it emitted for
+*that* file — a hash, a transcript, a thumbnail you can actually look at. Clicking any of them opens
+it full size.
+
+A dot in each node's left margin halts the run there: the node runs, everything after it waits, and
+*Step* then lets one file through at a time. Debug off leaves the editor exactly as it is for
+authoring. See link:../pipeline/#debug-mode[Pipeline Mechanism — Debug Mode] for the full walkthrough
+with screenshots.
 
 === Pipeline Versioning
 

@@ -35,9 +35,9 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 
 #: The Java client's method count, as a tripwire: a new method added there should
 #: fail this test rather than quietly leave the Python client behind.
-#: 205 abstract declarations plus 21 ``default`` overloads. Cross-checked both ways
-#: against ``LoomHttpClientImpl``, which implements exactly these 226.
-EXPECTED_JAVA_METHOD_COUNT = 226
+#: 210 abstract declarations plus 21 ``default`` overloads. Cross-checked both ways
+#: against ``LoomHttpClientImpl``, which implements exactly these 231.
+EXPECTED_JAVA_METHOD_COUNT = 231
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -61,9 +61,6 @@ KNOWN_UNLISTED_PATHS = {
     "search/status": "stale spec",
     # STALE SPEC: SimilarityIndexEndpoint likewise.
     "similarity-index/rebuild": "stale spec",
-    # STALE SPEC: AnnotationEndpoint registers these two, but the committed
-    # openapi.json predates them.
-    "annotations/{}/comments": "stale spec",
     # DEAD ROUTE: there is no AssetLocationEndpoint in the server at all. The Java
     # client's AssetLocationMethods have the same problem; kept for parity.
     "locations": "dead route",
@@ -168,6 +165,14 @@ class JavaParityTest(unittest.TestCase):
         self.assertEqual(orphans, [], f"{len(orphans)} Python methods have no Java counterpart")
 
 
+#: Stand-in for a free-form string argument, such as a pipeline node id.
+#:
+#: Distinctive rather than a bare ``"x"`` so that ``_templatise`` can tell a value the probe
+#: substituted from a literal segment of the path. Not every string argument ends up in the path
+#: -- most become query or body values, where the exact text is irrelevant.
+SAMPLE_STRING_PARAM = "sample-param"
+
+
 def _dummy(annotation: str, name: str):
     """Build a stand-in argument so a method can be invoked for its path."""
     text = str(annotation)
@@ -182,7 +187,7 @@ def _dummy(annotation: str, name: str):
     if "Request" in text:
         cls = _model_named(text)
         return cls() if cls else {}
-    return "x"
+    return SAMPLE_STRING_PARAM
 
 
 #: Keyword arguments needed to build a request for methods whose defaults are not
@@ -265,6 +270,10 @@ def _templatise(path: str) -> str:
             parts.append("{sha512}")
         elif re.fullmatch(r"\d+", part):
             parts.append("{version}")
+        elif part == SAMPLE_STRING_PARAM:
+            # A path parameter that is neither a uuid nor a number -- a pipeline node id, say.
+            # Only the probe ever produces this value, so it can only be a parameter.
+            parts.append("{name}")
         else:
             parts.append(part)
     return "/".join(parts)

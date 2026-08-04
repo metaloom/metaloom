@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import uuid as _uuid_mod
 from typing import TYPE_CHECKING
+from urllib.parse import quote as _quote
 
 from ..models.base import GenericMessageResponse
 from ..models.pipeline import (
+    PipelineBreakpointRequest,
+    PipelineBreakpointResponse,
     PipelineCreateRequest,
     PipelineListResponse,
+    PipelineNodeTaskListResponse,
     PipelineResponse,
     PipelineRunItemListResponse,
     PipelineRunListResponse,
@@ -91,6 +95,23 @@ class PipelineMethods:
             PipelineRunItemListResponse,
         )
 
+    def list_pipeline_run_item_tasks(
+        self,
+        pipeline_uuid: _uuid_mod.UUID | str,
+        run_uuid: _uuid_mod.UUID | str,
+        item_uuid: _uuid_mod.UUID | str,
+    ) -> LoomRequest[PipelineNodeTaskListResponse]:
+        """List the node executions of a single run item, with the outputs each node emitted.
+
+        The finest granularity the engine records: one entry per graph node, plus one per
+        element for a node downstream of a MANY output. Outputs are keyed by output port id.
+        """
+        return self._get(
+            f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}"
+            f"/items/{self._uuid(item_uuid)}/tasks",
+            PipelineNodeTaskListResponse,
+        )
+
     def load_pipeline_run_stats(self) -> LoomRequest[PipelineRunStatsResponse]:
         """Load aggregate run statistics across all pipelines."""
         return self._get("pipelines/runs/stats", PipelineRunStatsResponse)
@@ -120,6 +141,71 @@ class PipelineMethods:
         return self._post_empty(
             f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}/cancel",
             GenericMessageResponse,
+        )
+
+    # -- breakpoints -----------------------------------------------------------
+    #
+    # Run state, not definition state: a breakpoint is set on a run that is already
+    # going and is never written back into the stored pipeline.
+
+    def load_pipeline_run_breakpoints(
+        self, pipeline_uuid: _uuid_mod.UUID | str, run_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[PipelineBreakpointResponse]:
+        """Load the nodes a run halts at, and the executions it is currently holding.
+
+        ``node_ids`` is what was armed; ``held`` is what has actually stopped so far.
+        Neither implies the other -- a breakpoint no item has reached yet is armed and
+        holding nothing.
+        """
+        return self._get(
+            f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}/breakpoints",
+            PipelineBreakpointResponse,
+        )
+
+    def set_pipeline_run_breakpoints(
+        self,
+        pipeline_uuid: _uuid_mod.UUID | str,
+        run_uuid: _uuid_mod.UUID | str,
+        request: PipelineBreakpointRequest,
+    ) -> LoomRequest[PipelineBreakpointResponse]:
+        """Replace the set of nodes a run halts at.
+
+        A whole-set replacement, so sending the same request twice leaves the run in the
+        same state. An empty list disarms everything and releases whatever was held.
+        """
+        return self._put(
+            f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}/breakpoints",
+            request,
+            PipelineBreakpointResponse,
+        )
+
+    def continue_pipeline_run_breakpoint(
+        self,
+        pipeline_uuid: _uuid_mod.UUID | str,
+        run_uuid: _uuid_mod.UUID | str,
+        node_id: str,
+    ) -> LoomRequest[GenericMessageResponse]:
+        """Release every execution one node is holding. Takes no body.
+
+        The breakpoint stays armed, so the next item reaching that node stops too.
+        """
+        return self._post_empty(
+            f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}"
+            f"/breakpoints/{_quote(node_id)}/continue",
+            GenericMessageResponse,
+        )
+
+    def step_pipeline_run(
+        self, pipeline_uuid: _uuid_mod.UUID | str, run_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[PipelineBreakpointResponse]:
+        """Release exactly one held execution. Takes no body.
+
+        Fails with 409 when the run is not holding anything -- a step that quietly did
+        nothing would look identical to one that advanced the run.
+        """
+        return self._post_empty(
+            f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}/steps",
+            PipelineBreakpointResponse,
         )
 
     # -- versions --------------------------------------------------------------

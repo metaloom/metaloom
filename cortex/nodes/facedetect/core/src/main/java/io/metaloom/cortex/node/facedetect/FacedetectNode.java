@@ -251,6 +251,41 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 		for (String element : elements) {
 			ctx.outputElement(OUT_DETECTIONS, element);
 		}
+		ctx.preview(OUT_DETECTIONS, detectionsMarkdown(elements));
+	}
+
+	/**
+	 * Describe the detections as a table, for the run debugging view.
+	 *
+	 * <p>
+	 * The default rendering would show each element as the JSON document it is, which is accurate and
+	 * unreadable: a row of {@code {"index":0,"type":"face","bbox":{...}}} tells you far less at a
+	 * glance than a column of confidences next to a column of boxes. The node knows these elements are
+	 * one-per-face and which of their fields matter; the content type does not.
+	 * </p>
+	 *
+	 * @param elements the encoded detections, in detection order
+	 */
+	private static String detectionsMarkdown(List<String> elements) {
+		if (elements.isEmpty()) {
+			return "No faces detected.";
+		}
+		StringBuilder md = new StringBuilder("| # | confidence | box (x, y, w, h) | frame |\n|---|---|---|---|\n");
+		for (String element : elements) {
+			try {
+				JsonObject face = new JsonObject(element);
+				JsonObject box = face.getJsonObject("bbox", new JsonObject());
+				md.append("| ").append(face.getValue("index", "")).append(" | ")
+					.append(face.getValue("confidence", "")).append(" | ")
+					.append(box.getValue("x", "")).append(", ").append(box.getValue("y", "")).append(", ")
+					.append(box.getValue("w", "")).append(", ").append(box.getValue("h", "")).append(" | ")
+					.append(face.getValue("frame", "")).append(" |\n");
+			} catch (Exception e) {
+				// A preview must never be able to fail the node that produced the real detections.
+				return "Could not render " + elements.size() + " detections.";
+			}
+		}
+		return md.toString();
 	}
 
 	/**

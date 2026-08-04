@@ -43,6 +43,7 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	 */
 	private final Map<String, OutputPort<?>> outputPorts = new LinkedHashMap<>();
 	private final Map<String, List<Object>> outputValues = new LinkedHashMap<>();
+	private final Map<String, String> previewMarkdown = new LinkedHashMap<>();
 
 	@SuppressWarnings("unchecked")
 	public NodeContextImpl(LoomMedia media) {
@@ -186,6 +187,19 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	}
 
 	@Override
+	public NodeContext<I> preview(OutputPort<?> port, String markdown) {
+		if (port != null && markdown != null && !markdown.isBlank()) {
+			previewMarkdown.put(port.id(), markdown);
+		}
+		return this;
+	}
+
+	@Override
+	public Map<String, String> previews() {
+		return Collections.unmodifiableMap(previewMarkdown);
+	}
+
+	@Override
 	public Map<String, PortOutput> outputs() {
 		if (outputPorts.isEmpty()) {
 			return Map.of();
@@ -200,14 +214,14 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 		if (skipReason != null) {
 			// Outputs survive a skip on purpose. Emptying the map here used to throw away
 			// exactly the diagnostics needed to understand why the node did not finish.
-			return new NodeResult(null, ResultState.SKIPPED, duration(), skipReason, outputs());
+			return new NodeResult(null, ResultState.SKIPPED, duration(), skipReason, outputs(), previews());
 		}
-		return new NodeResult(null, ResultState.SUCCESS, duration(), null, outputs());
+		return new NodeResult(null, ResultState.SUCCESS, duration(), null, outputs(), previews());
 	}
 
 	@Override
 	public NodeResult abort() {
-		return new NodeResult(null, ResultState.FAILED, duration(), failureCause, outputs());
+		return new NodeResult(null, ResultState.FAILED, duration(), failureCause, outputs(), previews());
 	}
 
 	@Override

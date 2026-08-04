@@ -35,6 +35,7 @@ class RoleReference(NamedReference):
     """Mirrors ``io.metaloom.loom.rest.model.role.RoleReference``."""
 
 
+
 @dataclass
 class RoleResponse(CreatorEditorResponse):
     """Mirrors ``io.metaloom.loom.rest.model.role.RoleResponse``."""
