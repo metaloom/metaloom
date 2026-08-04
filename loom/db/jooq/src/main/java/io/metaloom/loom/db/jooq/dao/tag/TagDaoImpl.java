@@ -16,6 +16,7 @@ import org.jooq.DSLContext;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.TableRecord;
+import org.jooq.impl.DSL;
 
 import io.metaloom.filter.Filter;
 import io.metaloom.filter.FilterKey;
@@ -71,14 +72,74 @@ public class TagDaoImpl extends AbstractJooqDao<Tag> implements TagDao {
 	}
 
 	@Override
+	public UUID resolveOrCreateAssetTag(AssetTag tag) {
+		Objects.requireNonNull(tag, "A tag must be provided");
+
+		TableRecord<?> reco = ctx().newRecord(getTable(), tag);
+		if (tag.getUuid() == null) {
+			reco.reset("uuid");
+		}
+
+		// INSERT ... ON CONFLICT (name, collection) DO UPDATE, because tags are global: the second asset
+		// to receive "blurry" must land on the first asset's tag row instead of violating the unique index.
+		//
+		// The update set is deliberately not the whole record. jOOQ marks every mapped field as changed -
+		// nulls included - so writing them all back would wipe the meta, rating and colour of a tag someone
+		// else curated. coalesce(excluded, current) writes only what this call actually supplied and leaves
+		// the rest, along with the original creator and creation timestamp, untouched.
+		UUID uuid = ctx().insertInto(TAG)
+			.set(reco)
+			.onConflict(TAG.NAME, TAG.COLLECTION)
+			.doUpdate()
+			.set(TAG.META, DSL.coalesce(DSL.excluded(TAG.META), TAG.META))
+			.set(TAG.RATING, DSL.coalesce(DSL.excluded(TAG.RATING), TAG.RATING))
+			.set(TAG.COLOR, DSL.coalesce(DSL.excluded(TAG.COLOR), TAG.COLOR))
+			.returning(TAG.UUID)
+			.fetchOne(TAG.UUID);
+		if (uuid == null) {
+			throw new RuntimeException("Key null!!");
+		}
+		tag.setUuid(uuid);
+
+		// Read the persisted row back so the caller reports what the tag *is* rather than what this call
+		// proposed - an existing tag keeps its meta, colour and creation audit, and a response built from
+		// the transient pojo would show none of it. One extra select per tag write; a bulk route would
+		// resolve the whole set server-side in one statement.
+		Tag persisted = load(uuid);
+		if (persisted != null) {
+			tag.setName(persisted.getName());
+			tag.setCollection(persisted.getCollection());
+			tag.setColor(persisted.getColor());
+			tag.setMeta(persisted.getMeta());
+			tag.setCreated(persisted.getCreated());
+			tag.setCreatorUuid(persisted.getCreatorUuid());
+			tag.setEdited(persisted.getEdited());
+			tag.setEditorUuid(persisted.getEditorUuid());
+		}
+		return uuid;
+	}
+
+	@Override
 	public void tagAsset(AssetTag tag, Asset asset) {
 		DaoUtils.requireUuid(tag, "tag");
 		DaoUtils.requireUuid(asset, "asset");
 
 		// The region (time + area) belongs to the tag<->asset relationship and is thus stored on the join row.
+		//
+		// Upserted on the join's own primary key: re-running a pipeline over an asset it already tagged is
+		// the normal case, and a plain insert would fail it. The region is the only thing that can change,
+		// so it is the whole update set.
 		ctx().insertInto(TAG_ASSET)
 			.set(TAG_ASSET.TAG_UUID, tag.getUuid())
 			.set(TAG_ASSET.ASSET_UUID, asset.getUuid())
+			.set(TAG_ASSET.TIME_FROM, toInt(tag.getTimeFrom()))
+			.set(TAG_ASSET.TIME_TO, toInt(tag.getTimeTo()))
+			.set(TAG_ASSET.AREASTARTX, tag.getAreaStartX())
+			.set(TAG_ASSET.AREASTARTY, tag.getAreaStartY())
+			.set(TAG_ASSET.AREAWIDTH, tag.getAreaWidth())
+			.set(TAG_ASSET.AREAHEIGHT, tag.getAreaHeight())
+			.onConflict(TAG_ASSET.TAG_UUID, TAG_ASSET.ASSET_UUID)
+			.doUpdate()
 			.set(TAG_ASSET.TIME_FROM, toInt(tag.getTimeFrom()))
 			.set(TAG_ASSET.TIME_TO, toInt(tag.getTimeTo()))
 			.set(TAG_ASSET.AREASTARTX, tag.getAreaStartX())

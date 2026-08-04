@@ -1,0 +1,22 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>cortex-tag-node</artifactId>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>io.metaloom.cortex</groupId>
+        <artifactId>cortex-nodes</artifactId>
+        <relativePath>../../pom.xml</relativePath>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <name>MetaLoom // Cortex :: Nodes :: Tag</name>
+
+    <!--
+      Pure evaluation plus REST writes: no model, no sidecar, no native binding.
+      Everything it needs (JsonObject, the Loom client) comes transitively from
+      cortex-core-media.
+    -->
+
+</project>

@@ -43,6 +43,7 @@
         <module>watermark</module>
         <module>filter</module>
         <module>translate</module>
+        <module>tag</module>
     </modules>
 
     <name>MetaLoom // Cortex :: Nodes</name>

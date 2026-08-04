@@ -198,6 +198,11 @@
             <artifactId>cortex-translate-node</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-tag-node</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Pipeline -->
         <dependency>

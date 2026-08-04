@@ -25,6 +25,36 @@ public interface TagDao extends CRUDDao<Tag> {
 
 	AssetTag createAssetTag(UUID userUuid, String name, String collection);
 
+	/**
+	 * Persist the tag on its natural key: insert it when <code>(name, collection)</code> is free, and otherwise resolve the tag that already carries
+	 * that key.
+	 *
+	 * <p>
+	 * A tag is a <strong>global</strong> object - <code>tag</code> has a <code>UNIQUE (name, collection)</code> index - so the same name attached to a
+	 * second asset must reuse the first row rather than insert a new one. {@link #store(io.metaloom.loom.db.Element)} cannot do that: it is an
+	 * unconditional INSERT and hits the constraint. Anything that tags more than one asset (a human tagging a selection, a pipeline node tagging a
+	 * library) has to come through here.
+	 * </p>
+	 *
+	 * <p>
+	 * Resolving <em>never overwrites</em> what the existing tag carries. Only a value this call actually supplies is written, so a shared tag keeps
+	 * its meta, rating, colour and its original creator - a worker attaching an existing tag is not a curator of it.
+	 * </p>
+	 *
+	 * @param tag
+	 *            the transient tag; its uuid and persisted values are populated on return
+	 * @return the uuid of the inserted or resolved row
+	 */
+	UUID resolveOrCreateAssetTag(AssetTag tag);
+
+	/**
+	 * Attach the tag to the asset, or update the region of an existing attachment.
+	 *
+	 * <p>
+	 * Idempotent: <code>tag_asset</code> is keyed <code>(tag_uuid, asset_uuid)</code> and re-running a pipeline over an asset it has already tagged is
+	 * the normal case, not an error.
+	 * </p>
+	 */
 	void tagAsset(AssetTag tag, Asset asset);
 
 	void untagAsset(Tag tag, Asset asset);

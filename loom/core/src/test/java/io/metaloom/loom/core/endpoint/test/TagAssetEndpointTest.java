@@ -2,16 +2,22 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 
+import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.rest.model.annotation.AreaInfo;
+import io.metaloom.loom.rest.model.asset.AssetCreateRequest;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.asset.info.FileInfo;
+import io.metaloom.loom.rest.model.asset.info.HashInfo;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagReference;
 import io.metaloom.loom.rest.model.tag.TagResponse;
+import io.metaloom.utils.hash.SHA512;
 import io.vertx.core.json.JsonObject;
 
 public class TagAssetEndpointTest extends AbstractEndpointTest {
@@ -39,6 +45,112 @@ public class TagAssetEndpointTest extends AbstractEndpointTest {
 			TagResponse tag2 = client.loadTag(tag.getUuid()).sync().body();
 			assertThat(tag2).isValid();
 		}
+	}
+
+	/**
+	 * Tags are global: <code>tag</code> is <code>UNIQUE (name, collection)</code>. Tagging a second asset with a name that is already in use must
+	 * therefore attach the tag that exists rather than insert a second row - without this, no caller can tag two assets alike, which is the ordinary
+	 * case for a human tagging a selection and the entire premise of an auto-tagging node.
+	 */
+	@Test
+	public void testTagTwoAssetsWithOneTagName() throws LoomClientException {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			TagCreateRequest request = new TagCreateRequest();
+			request.setName("shared-tag");
+			request.setCollection("quality");
+
+			TagResponse first = client.tagAsset(ASSET_UUID, request).sync().body();
+			assertThat(first).isValid();
+
+			UUID secondAsset = createAsset(client, "b1", "tag-b1.png");
+			TagResponse second = client.tagAsset(secondAsset, request).sync().body();
+			assertThat(second).isValid();
+
+			org.assertj.core.api.Assertions.assertThat(second.getUuid())
+				.as("Both assets must carry the same tag row").isEqualTo(first.getUuid());
+
+			// Both assets list it, and the tag itself is still a single object.
+			assertTagged(client, ASSET_UUID, first.getUuid());
+			assertTagged(client, secondAsset, first.getUuid());
+			org.assertj.core.api.Assertions.assertThat(client.listTags().sync().body().getData().stream()
+				.filter(t -> "shared-tag".equals(t.getName()) && "quality".equals(t.getCollection()))
+				.count())
+				.as("Only one tag may exist for one (name, collection)").isEqualTo(1);
+		}
+	}
+
+	/**
+	 * The join is keyed <code>(tag_uuid, asset_uuid)</code>, so re-tagging an asset with the same tag - a pipeline running a second time - must be a
+	 * no-op rather than a constraint violation.
+	 */
+	@Test
+	public void testTagSameAssetTwice() throws LoomClientException {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			TagCreateRequest request = new TagCreateRequest();
+			request.setName("repeat-tag");
+			request.setCollection("quality");
+
+			TagResponse first = client.tagAsset(ASSET_UUID, request).sync().body();
+			TagResponse again = client.tagAsset(ASSET_UUID, request).sync().body();
+			org.assertj.core.api.Assertions.assertThat(again.getUuid()).isEqualTo(first.getUuid());
+
+			AssetResponse asset = client.loadAsset(ASSET_UUID).sync().body();
+			org.assertj.core.api.Assertions.assertThat(asset.getTags().stream()
+				.filter(t -> t.getUuid().equals(first.getUuid()))
+				.count())
+				.as("The tag must be attached exactly once").isEqualTo(1);
+		}
+	}
+
+	/**
+	 * Resolving an existing tag must not rewrite it. A bare tagging call - a name and a collection, which is all a worker sends - keeps the meta a
+	 * human curated on the shared tag.
+	 */
+	@Test
+	public void testTaggingDoesNotOverwriteAnExistingTag() throws LoomClientException {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			TagCreateRequest curated = new TagCreateRequest();
+			curated.setName("curated-tag");
+			curated.setCollection("quality");
+			curated.setMeta(new JsonObject().put("note", "hand written"));
+			TagResponse created = client.tagAsset(ASSET_UUID, curated).sync().body();
+
+			TagCreateRequest bare = new TagCreateRequest();
+			bare.setName("curated-tag");
+			bare.setCollection("quality");
+			UUID secondAsset = createAsset(client, "b3", "tag-b3.png");
+			TagResponse resolved = client.tagAsset(secondAsset, bare).sync().body();
+
+			org.assertj.core.api.Assertions.assertThat(resolved.getUuid()).isEqualTo(created.getUuid());
+			org.assertj.core.api.Assertions.assertThat(resolved.getMeta())
+				.as("The response must report the persisted tag").isNotNull();
+			org.assertj.core.api.Assertions.assertThat(resolved.getMeta().getString("note")).isEqualTo("hand written");
+
+			TagResponse reloaded = client.loadTag(created.getUuid()).sync().body();
+			org.assertj.core.api.Assertions.assertThat(reloaded.getMeta().getString("note"))
+				.as("The curated meta must survive a bare tagging call").isEqualTo("hand written");
+		}
+	}
+
+	private void assertTagged(LoomHttpClient client, UUID assetUuid, UUID tagUuid) throws LoomClientException {
+		AssetResponse asset = client.loadAsset(assetUuid).sync().body();
+		org.assertj.core.api.Assertions.assertThat(asset.getTags().stream().anyMatch(t -> t.getUuid().equals(tagUuid)))
+			.as("Asset " + assetUuid + " must carry the tag").isTrue();
+	}
+
+	/** A second asset to tag. The fixture ships one, and one asset cannot show that a tag is shared. */
+	private UUID createAsset(LoomHttpClient client, String seed, String filename) throws LoomClientException {
+		SHA512 sha = SHA512.fromString(SHA512SUM.toString().substring(0, 124) + String.format("%4s", seed).replace(' ', '0'));
+		AssetCreateRequest request = new AssetCreateRequest();
+		request.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename(filename).setSize(512L).setOrigin(INITIAL_ORIGIN));
+		request.setHashes(new HashInfo().setSHA512(sha));
+		return client.createAsset(request).sync().body().getUuid();
 	}
 
 	@Test

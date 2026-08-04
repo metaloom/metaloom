@@ -118,7 +118,14 @@ public class TagEndpointService extends AbstractCRUDEndpointService<TagDao, Tag>
 				update(area::getTo, tag::setTimeTo);
 			}
 
-			dao().store(tag);
+			// Resolve rather than insert: (name, collection) is unique across the instance, so the second
+			// asset to receive a tag name must attach the tag that already exists. A plain store() here
+			// meant no caller could ever tag two assets alike.
+			//
+			// TAG_ASSET therefore implies creating the tag row when the name is new. That is deliberate:
+			// requiring CREATE_TAG as well would mean a principal allowed to tag could not introduce a
+			// tag, which is the ordinary case in a catalog. See PERMISSIONS.md.
+			dao().resolveOrCreateAssetTag(tag);
 			dao().tagAsset(tag, asset);
 
 			RestResponseModel<?> response = modelBuilder.toResponse(tag);
