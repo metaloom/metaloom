@@ -115,6 +115,14 @@ export interface NodeDescriptor {
   description: string;
   icon: string;
   category: NodeCategory;
+  /**
+   * Card colour authored on the node's `@NodeSpec`, as a `#rgb`/`#rrggbb` literal, or absent — which
+   * is the normal case, and means the node takes its {@link NodeCategory} default.
+   *
+   * The backend rejects anything that is not a hex literal, so this can be written straight into a
+   * style without escaping.
+   */
+  color?: string;
   inputPorts: PortSpec[];
   outputPorts: PortSpec[];
   inputGroups: PortGroup[];

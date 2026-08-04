@@ -547,6 +547,15 @@
     "defaultValue" : false,
     "label" : "Retry Failed",
     "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "maxFaceAngle",
+    "type" : "NUMBER",
+    "defaultValue" : 30.0,
+    "label" : "Max Face Angle (deg)",
+    "description" : "Discard video faces turned further than this; 180 accepts any orientation",
+    "min" : 0.0,
+    "max" : 180.0,
+    "step" : 5
   } ],
   "defaultConcurrency" : 2,
   "defaultMode" : "PARALLEL",
@@ -659,6 +668,15 @@
     "label" : "Min Face Height Factor",
     "min" : 0.0,
     "max" : 1.0
+  }, {
+    "key" : "maxFaceAngle",
+    "type" : "NUMBER",
+    "defaultValue" : 30.0,
+    "label" : "Max Face Angle (deg)",
+    "description" : "Discard video faces turned further than this; 180 accepts any orientation",
+    "min" : 0.0,
+    "max" : 180.0,
+    "step" : 5
   }, {
     "key" : "inspirefacePackPath",
     "type" : "STRING",

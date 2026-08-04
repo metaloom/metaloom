@@ -30,7 +30,6 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
-import zlib from "zlib";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -51,14 +50,32 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // ---------------------------------------------------------------------------
 
 const PIPELINE_UUID = "11111111-1111-1111-1111-111111111111";
-const PIPELINE_NAME = "Image Analysis";
+const PIPELINE_NAME = "Media Analysis";
 const RUN_UUID = "run-0000-0000-0000-000000000001";
 const ITEM_UUID = "item-0000-0000-0000-000000000001";
-const MEDIA_PATH = "/media/library/harbour-at-dusk.jpg";
 
-// A graph worth debugging: one source feeding a hash, a thumbnail and face detection. The
-// thumbnail is what the breakpoint lands on, because a produced image is the case where "what
-// did this node do" is least answerable without looking.
+// ---------------------------------------------------------------------------
+// Fixtures produced by the real nodes
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything below comes out of `DebugScreenshotFixtureGenerator` (integration-test), which runs the
+ * actual ThumbnailNode and FacedetectNode over real footage with previews switched on and writes
+ * what they produced into ./fixtures.
+ *
+ * That indirection is the point. An earlier version of this script wrote its payloads by hand and
+ * got three separate things wrong: it showed the thumbnail node emitting `PROCESSED` (it emits
+ * `DONE`), ran that node over a JPEG (it is a video contact-sheet generator), and drew detection
+ * boxes into a hand-painted gradient — advertising an overlay the UI did not yet have. Nothing here
+ * is written by hand any more, so the screenshots cannot describe a product that does not exist.
+ */
+const FIXTURES = path.resolve(__dirname, "fixtures");
+const manifest = JSON.parse(fs.readFileSync(path.join(FIXTURES, "manifest.json"), "utf8"));
+
+const MEDIA_PATH = `/media/library/${manifest.source}`;
+const FACES = manifest.facedetectWide;
+const THUMB = manifest.thumbnail;
+
 const DEFINITION = {
   nodes: [
     { id: "src", type: "filesystem-source", label: "Media Folder", position: { x: 0, y: 120 }, data: {} },
@@ -69,7 +86,9 @@ const DEFINITION = {
   edges: [
     { id: "e1", source: "src", sourcePort: "media", target: "hash", targetPort: "media", branch: "ANY" },
     { id: "e2", source: "src", sourcePort: "media", target: "thumb", targetPort: "media", branch: "ANY" },
-    { id: "e3", source: "src", sourcePort: "media", target: "faces", targetPort: "image", branch: "ANY" },
+    // facedetect takes the clip on its `video` port: this source is a video, and the two paths
+    // behave differently enough that wiring the wrong one would misdescribe the node.
+    { id: "e3", source: "src", sourcePort: "media", target: "faces", targetPort: "video", branch: "ANY" },
   ],
 };
 
@@ -79,7 +98,7 @@ function pipeline() {
     versionUuid: "aaaaaaaa-0000-0000-0000-000000000001",
     versionNumber: 4,
     name: PIPELINE_NAME,
-    description: "Hash, thumbnail and face detection over an image library",
+    description: "Hash, contact sheet and face detection over a video library",
     definition: DEFINITION,
     enabled: true,
     priority: 0,
@@ -107,9 +126,53 @@ const ITEM = {
   state: "SUCCESS",
 };
 
-const PREVIEW_URL = `/api/v1/pipelines/${PIPELINE_UUID}/runs/${RUN_UUID}/items/${ITEM_UUID}/tasks/task-thumb/previews/thumbnail`;
-
 const ORIGIN = { itemId: ITEM_UUID, seq: 0, total: 1 };
+
+/** The URL the list route advertises for one preview key, exactly as PipelineModelBuilder builds it. */
+function previewUrl(taskUuid, key) {
+  return `/api/v1/pipelines/${PIPELINE_UUID}/runs/${RUN_UUID}/items/${ITEM_UUID}`
+    + `/tasks/${taskUuid}/previews/${encodeURIComponent(key)}`;
+}
+
+/** The image files the generator wrote, keyed the way the previews map keys them. */
+function fixtureImages() {
+  const images = new Map();
+  images.set("thumbnail", { file: "thumbnail-grid.jpg", key: "thumbnail", task: "task-thumb" });
+  for (const name of FACES.images) {
+    // `wide-detections.jpg` is the port-level frame; `wide-detections-3.jpg` is element 3.
+    const key = name.replace(/^wide-/, "").replace(/\.jpg$/, "").replace(/^detections-(\d+)$/, "detections#$1");
+    images.set(key, { file: name, key, task: "task-faces" });
+  }
+  return images;
+}
+
+const IMAGES = fixtureImages();
+
+function previewsFor(taskUuid) {
+  const previews = {};
+  for (const { file, key, task } of IMAGES.values()) {
+    if (task !== taskUuid) continue;
+    const size = imageSize(path.join(FIXTURES, file));
+    previews[key] = { mimeType: "image/jpeg", width: size.width, height: size.height, url: previewUrl(taskUuid, key) };
+  }
+  return previews;
+}
+
+/** Read a JPEG's dimensions out of its SOF marker, so the caption states the real size. */
+function imageSize(file) {
+  const buf = fs.readFileSync(file);
+  let offset = 2;
+  while (offset < buf.length) {
+    if (buf[offset] !== 0xff) { offset++; continue; }
+    const marker = buf[offset + 1];
+    // SOF0..SOF3 and SOF5..SOF15 carry the frame dimensions; everything else is skipped by length.
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: buf.readUInt16BE(offset + 5), width: buf.readUInt16BE(offset + 7) };
+    }
+    offset += 2 + buf.readUInt16BE(offset + 2);
+  }
+  return { width: 0, height: 0 };
+}
 
 const TASKS = [
   {
@@ -118,7 +181,7 @@ const TASKS = [
     state: "DONE", attempt: 1, maxAttempts: 3, durationMs: 4,
     outputs: {
       media: {
-        contentType: "media/image", cardinality: "ONE",
+        contentType: "media/video", cardinality: "ONE",
         elements: [{ origin: ORIGIN, value: MEDIA_PATH }],
       },
     },
@@ -141,151 +204,44 @@ const TASKS = [
     outputs: {
       thumbnail: {
         contentType: "artifact/image", cardinality: "ONE",
-        elements: [{ origin: ORIGIN, value: "/var/cortex/thumb_bin/9c/2a/harbour-at-dusk_512.jpg" }],
+        elements: [{ origin: ORIGIN, value: THUMB.path }],
       },
+      // `DONE` is what ThumbnailNode emits. This said `PROCESSED` for as long as it was written by hand.
       flag: {
         contentType: "scalar/string", cardinality: "ONE",
-        elements: [{ origin: ORIGIN, value: "PROCESSED" }],
+        elements: [{ origin: ORIGIN, value: THUMB.flag }],
       },
     },
-    // The port carries a path on the worker that wrote the file. The preview is the only way
-    // those bytes ever reach a browser.
-    previews: {
-      thumbnail: { mimeType: "image/png", width: 512, height: 288, url: PREVIEW_URL },
-    },
+    previews: previewsFor("task-thumb"),
   },
   {
     uuid: "task-faces", itemUuid: ITEM_UUID, runUuid: RUN_UUID,
     nodeId: "faces", nodeKind: "facedetect", elementSeq: 0,
-    state: "DONE", attempt: 1, maxAttempts: 3, durationMs: 402,
+    state: "DONE", attempt: 1, maxAttempts: 3, durationMs: 1402,
     outputs: {
+      // Encoded JSON strings, because a detection/* port declares String.class. The UI parses them
+      // back; handing it objects here would hide that it has to.
       detections: {
         contentType: "detection/face", cardinality: "MANY",
-        elements: [
-          { origin: { itemId: ITEM_UUID, seq: 0, total: 3 }, value: { index: 0, confidence: 0.94, yaw: -4.2, box: [128, 96, 210, 188] } },
-          { origin: { itemId: ITEM_UUID, seq: 1, total: 3 }, value: { index: 1, confidence: 0.88, yaw: 11.7, box: [301, 104, 372, 190] } },
-          { origin: { itemId: ITEM_UUID, seq: 2, total: 3 }, value: { index: 2, confidence: 0.62, yaw: 38.4, box: [412, 131, 468, 202] } },
-        ],
+        elements: FACES.elements.map((element, seq) => ({
+          origin: { itemId: ITEM_UUID, seq, total: FACES.elements.length },
+          value: JSON.stringify(element),
+        })),
       },
       face_count: {
         contentType: "scalar/integer", cardinality: "ONE",
-        elements: [{ origin: ORIGIN, value: 3 }],
+        elements: [{ origin: ORIGIN, value: FACES.faceCount }],
+      },
+      flag: {
+        contentType: "scalar/string", cardinality: "ONE",
+        elements: [{ origin: ORIGIN, value: FACES.flag }],
       },
     },
-    // A node describing its own output. This outranks every content-type default, because the
-    // node knows these rows are one per face and the type system does not.
-    previews: {
-      detections: {
-        markdown:
-          "| face | confidence | yaw | box |\n" +
-          "|------|-----------|--------|--------------------|\n" +
-          "| 0 | 0.94 | -4.2° | 128, 96, 210, 188 |\n" +
-          "| 1 | 0.88 | 11.7° | 301, 104, 372, 190 |\n" +
-          "| 2 | 0.62 | 38.4° | 412, 131, 468, 202 |\n",
-      },
-    },
+    previews: { ...previewsFor("task-faces"), detections: { ...previewsFor("task-faces").detections, markdown: FACES.markdown } },
   },
 ];
 
-const HELD = [{ nodeId: "thumb", itemUuid: ITEM_UUID, elementSeq: 0 }];
-
-// ---------------------------------------------------------------------------
-// A stand-in thumbnail
-// ---------------------------------------------------------------------------
-
-/**
- * Encode an RGB buffer as a PNG.
- *
- * Written out by hand rather than pulled from a dependency: the whole point of this script is
- * that it runs with nothing installed but what loom-ui already needs, and a preview is a handful
- * of pixels. PNG's "none" filter per scanline keeps this to one deflate call.
- */
-function encodePng(width, height, rgb) {
-  const raw = Buffer.alloc((width * 3 + 1) * height);
-  for (let y = 0; y < height; y++) {
-    raw[y * (width * 3 + 1)] = 0; // filter type: none
-    rgb.copy(raw, y * (width * 3 + 1) + 1, y * width * 3, (y + 1) * width * 3);
-  }
-
-  const chunk = (type, data) => {
-    const len = Buffer.alloc(4);
-    len.writeUInt32BE(data.length);
-    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
-    const crc = Buffer.alloc(4);
-    crc.writeUInt32BE(crc32(body) >>> 0);
-    return Buffer.concat([len, body, crc]);
-  };
-
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8;  // bit depth
-  ihdr[9] = 2;  // colour type: truecolour
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk("IHDR", ihdr),
-    chunk("IDAT", zlib.deflateSync(raw)),
-    chunk("IEND", Buffer.alloc(0)),
-  ]);
-}
-
-let CRC_TABLE = null;
-function crc32(buf) {
-  if (!CRC_TABLE) {
-    CRC_TABLE = new Int32Array(256);
-    for (let n = 0; n < 256; n++) {
-      let c = n;
-      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-      CRC_TABLE[n] = c;
-    }
-  }
-  let c = -1;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  return c ^ -1;
-}
-
-/** A dusk-coloured gradient with a horizon and three face boxes — recognisably a photo, at a glance. */
-function thumbnailPng() {
-  const w = 512, h = 288;
-  const rgb = Buffer.alloc(w * h * 3);
-  const boxes = [[128, 96, 210, 188], [301, 104, 372, 190], [412, 131, 468, 202]];
-  for (let y = 0; y < h; y++) {
-    const t = y / h;
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 3;
-      let r, g, b;
-      if (t < 0.62) {
-        // Sky: deep blue at the top warming to amber at the horizon.
-        const k = t / 0.62;
-        r = 28 + k * 205; g = 38 + k * 128; b = 92 - k * 30;
-      } else {
-        // Water: the sky reflected, darker, with a little banding.
-        const k = (t - 0.62) / 0.38;
-        const band = Math.sin(y * 0.7) * 8;
-        r = 96 - k * 70 + band; g = 74 - k * 52 + band; b = 88 - k * 50 + band;
-      }
-      rgb[i] = Math.max(0, Math.min(255, r));
-      rgb[i + 1] = Math.max(0, Math.min(255, g));
-      rgb[i + 2] = Math.max(0, Math.min(255, b));
-    }
-  }
-  // Detection boxes, so the thumbnail and the face table on screen describe the same picture.
-  for (const [x0, y0, x1, y1] of boxes) {
-    for (let x = x0; x <= x1; x++) {
-      for (const y of [y0, y1]) {
-        const i = (y * w + x) * 3;
-        rgb[i] = 0; rgb[i + 1] = 229; rgb[i + 2] = 170;
-      }
-    }
-    for (let y = y0; y <= y1; y++) {
-      for (const x of [x0, x1]) {
-        const i = (y * w + x) * 3;
-        rgb[i] = 0; rgb[i + 1] = 229; rgb[i + 2] = 170;
-      }
-    }
-  }
-  return encodePng(w, h, rgb);
-}
+const HELD = [{ nodeId: "faces", itemUuid: ITEM_UUID, elementSeq: 0 }];
 
 // ---------------------------------------------------------------------------
 // Backend interception
@@ -302,7 +258,6 @@ function thumbnailPng() {
 async function mockBackend(page) {
   const state = { armed: [], held: [] };
   const descriptors = fs.readFileSync(DESCRIPTORS, "utf8");
-  const preview = thumbnailPng();
   const json = body => ({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 
   // Catch-all first; the specific routes registered after it take precedence.
@@ -319,8 +274,13 @@ async function mockBackend(page) {
     route.fulfill(json({ data: [ITEM] })));
   await page.route(`**/api/v1/pipelines/${PIPELINE_UUID}/runs/${RUN_UUID}/items/${ITEM_UUID}/tasks`, route =>
     route.fulfill(json({ data: TASKS })));
-  await page.route(`**${PREVIEW_URL}`, route =>
-    route.fulfill({ status: 200, contentType: "image/png", body: preview }));
+  // One route for every preview key, port-level and per-element alike. The key is URL-encoded in
+  // the path (`detections%230`), which is exactly how PipelineModelBuilder emits it.
+  for (const { file, key } of IMAGES.values()) {
+    const bytes = fs.readFileSync(path.join(FIXTURES, file));
+    await page.route(`**/previews/${encodeURIComponent(key)}`, route =>
+      route.fulfill({ status: 200, contentType: "image/jpeg", body: bytes }));
+  }
   await page.route(`**/api/v1/pipelines/${PIPELINE_UUID}/runs/${RUN_UUID}/breakpoints`, route => {
     if (route.request().method() === "PUT") {
       state.armed = JSON.parse(route.request().postData() || "{}").nodeIds ?? [];
@@ -547,12 +507,12 @@ async function main() {
   // ---- 3. A held node ----
   // The gutter dot arms the halt; the server then reports the node as held. Dispatched rather
   // than clicked because React Flow's minimap floats over the bottom-right of the canvas.
-  await page.getByTestId("pipeline-node-breakpoint-thumb").dispatchEvent("click");
+  await page.getByTestId("pipeline-node-breakpoint-faces").dispatchEvent("click");
   await sleep(400);
   backend.held = HELD;
   const ws = await waitForSocket();
   push(ws, "NODE_BREAKPOINT_HELD", {
-    nodeId: "thumb", itemUuid: ITEM_UUID, elementSeq: 0, mediaPath: MEDIA_PATH,
+    nodeId: "faces", itemUuid: ITEM_UUID, elementSeq: 0, mediaPath: MEDIA_PATH,
   });
   await page.getByTestId("pipeline-debug-held-count").waitFor({ timeout: 8_000 });
   // Full window here: a halted run is the one state worth showing in the context of the whole
@@ -561,7 +521,8 @@ async function main() {
   await shotCanvas("debug-held.png", { settle: 200 });
 
   // ---- 4. One result, full size ----
-  // The produced thumbnail: the case the whole preview channel exists for.
+  // The produced contact sheet: the case the whole preview channel exists for, because the port
+  // itself carries only a path on the worker that wrote it.
   await page.getByTestId("pipeline-node-thumb").getByTestId("node-result-port-thumbnail")
     .dispatchEvent("click");
   await page.getByTestId("pipeline-result-detail").waitFor({ timeout: 8_000 });
@@ -570,10 +531,19 @@ async function main() {
   await sleep(600);
 
   // ---- 5. A node describing its own output as a table ----
+  // Opens on Markdown: a node's own description of its output outranks every content-type default.
   await page.getByTestId("pipeline-node-faces").getByTestId("node-result-port-detections")
     .dispatchEvent("click");
   await page.getByTestId("pipeline-result-detail").waitFor({ timeout: 8_000 });
   await shotDialog("debug-detail-table.png", { settle: 1200 });
+
+  // ---- 6. The same detections as pictures ----
+  // The Image tab of a detection port: the frame the boxes were measured on, with the boxes drawn
+  // over it, and one crop per detected face underneath. This is the answer to the two questions a
+  // table cannot answer — where in the picture, and who.
+  await page.getByTestId("result-tab-image").click();
+  await page.getByTestId("result-element-previews").waitFor({ timeout: 8_000 });
+  await shotDialog("debug-detail-faces.png", { settle: 1400 });
   await page.getByTestId("pipeline-result-detail-close").click();
 
   console.log("\n--- Screenshot summary ---\n" + results.join("\n"));

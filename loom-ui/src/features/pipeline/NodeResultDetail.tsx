@@ -6,7 +6,7 @@ import { CloseOutlined } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
 import { contentTypeColor } from "./contentTypes";
-import { payloadToMarkdownTable, previewKind, stringifyValue } from "./resultRenderers";
+import { detectionRegions, payloadToMarkdownTable, previewKind, stringifyValue } from "./resultRenderers";
 import MarkdownContent from "../chat/MarkdownContent";
 import { previewSrc } from "../../api/pipelines";
 import type { NodePreviewMeta, PipelineNodeTaskRecord, PortPayload } from "../../api/pipelines";
@@ -150,6 +150,22 @@ export default function NodeResultDetail({
   const origin = elements[0]?.origin;
   const color = contentTypeColor(payload.contentType, tokens.text.tertiary);
 
+  // Boxes over the preview, for a port whose elements carry them. `detectionRegions` drops any
+  // element that does not know the dimensions its pixels were measured against, so a port with
+  // nothing to draw simply draws nothing.
+  const regions = previewKind(payload.contentType) === "detection"
+    ? detectionRegions(elements.map(element => element.value))
+    : [];
+  // The box outline reads against both the amber of a held node and whatever is in the picture;
+  // the family colour would put a pink box on a face and call it a label.
+  const boxColor = tokens.accent.green;
+
+  // Per-element previews are keyed `portId#seq` in the same map as the port-level one — see
+  // `NodeContext.preview(port, elementSeq, preview)`.
+  const elementPreviews = elements
+    .map((_, seq) => ({ seq, meta: task.previews?.[`${portId}#${seq}`] }))
+    .filter((entry): entry is { seq: number; meta: NodePreviewMeta } => Boolean(entry.meta?.url));
+
   return (
     <Dialog
       open={open}
@@ -210,17 +226,80 @@ export default function NodeResultDetail({
       <Box sx={{ flex: 1, overflow: "auto", p: 2 }} data-testid={`result-view-${viewer.id}`}>
         {viewer.id === "image" && preview?.url && (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-            <Box
-              component="img"
-              src={previewSrc(preview.url)}
-              alt={portId}
-              sx={{ maxWidth: "100%", maxHeight: "60vh", objectFit: "contain", borderRadius: tokens.radius.md }}
-            />
+            {/* `inline-block` so the wrapper shrinks to the letterboxed image rather than to the
+                column: the boxes are positioned in percentages of *the image*, and a wrapper wider
+                than the picture would slide every one of them sideways. */}
+            <Box sx={{ position: "relative", display: "inline-block", maxWidth: "100%" }}>
+              <Box
+                component="img"
+                src={previewSrc(preview.url)}
+                alt={portId}
+                sx={{ display: "block", maxWidth: "100%", maxHeight: "60vh", objectFit: "contain", borderRadius: tokens.radius.md }}
+              />
+              {regions.map(region => (
+                <Box
+                  key={region.id}
+                  data-testid={`result-detection-box-${region.id}`}
+                  sx={{
+                    position: "absolute",
+                    left: `${region.x * 100}%`,
+                    top: `${region.y * 100}%`,
+                    width: `${region.width * 100}%`,
+                    height: `${region.height * 100}%`,
+                    border: `2px solid ${boxColor}`,
+                    borderRadius: "2px",
+                    boxShadow: "0 0 0 1px rgba(0,0,0,0.45)",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {region.label && (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        position: "absolute", top: 0, left: 0, transform: "translateY(-100%)",
+                        px: 0.5, fontSize: "0.6rem", fontWeight: 700, whiteSpace: "nowrap",
+                        bgcolor: boxColor, color: tokens.text.inverse, borderRadius: "2px 2px 0 0",
+                      }}
+                    >
+                      {region.label}
+                    </Typography>
+                  )}
+                </Box>
+              ))}
+            </Box>
             <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>
               {/* Say it plainly: this is a reduced copy, not the artifact itself. */}
               {t("pipeline.resultDetail.previewNote")}
               {preview.width ? ` (${preview.width}×${preview.height})` : ""}
             </Typography>
+
+            {elementPreviews.length > 0 && (
+              <Box
+                data-testid="result-element-previews"
+                sx={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 1, mt: 1 }}
+              >
+                {/* One thumbnail per element, cut from the source at full resolution rather than
+                    from the reduced copy above — at 512px on the longest edge a face in a 4K frame
+                    would be some 30 pixels across. */}
+                {elementPreviews.map(({ seq, meta }) => (
+                  <Box key={seq} sx={{ textAlign: "center" }}>
+                    <Box
+                      component="img"
+                      src={previewSrc(meta.url!)}
+                      alt={`${portId} ${seq}`}
+                      data-testid={`result-element-preview-${seq}`}
+                      sx={{
+                        display: "block", height: 72, borderRadius: tokens.radius.sm,
+                        border: `1px solid ${tokens.border.default}`,
+                      }}
+                    />
+                    <Typography variant="caption" sx={{ fontSize: "0.6rem", color: tokens.text.tertiary }}>
+                      {seq}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
           </Box>
         )}
 

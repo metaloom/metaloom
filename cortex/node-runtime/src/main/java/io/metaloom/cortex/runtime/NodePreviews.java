@@ -1,9 +1,6 @@
 package io.metaloom.cortex.runtime;
 
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -15,6 +12,7 @@ import javax.imageio.ImageIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.cortex.api.node.preview.ImagePreviews;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.pipeline.model.NodePreview;
 import io.metaloom.loom.pipeline.model.PortPayload;
@@ -50,22 +48,6 @@ public final class NodePreviews {
 
 	private static final Logger log = LoggerFactory.getLogger(NodePreviews.class);
 
-	/** Environment override for the byte ceiling, for an operator with a different tolerance. */
-	private static final String MAX_BYTES_ENV = "CORTEX_PREVIEW_MAX_BYTES";
-
-	/**
-	 * Quality of the re-encoded JPEG.
-	 *
-	 * <p>
-	 * Chosen against the byte cap rather than for fidelity: at 512px on the longest edge this keeps a
-	 * typical photograph comfortably inside 96 KiB, which is the difference between previews working
-	 * and previews being dropped for being too big.
-	 * </p>
-	 */
-	private static final float JPEG_QUALITY = 0.8f;
-
-	private static final String PREVIEW_MIME = "image/jpeg";
-
 	private NodePreviews() {
 	}
 
@@ -100,28 +82,47 @@ public final class NodePreviews {
 	}
 
 	/**
-	 * Fold a node's own Markdown descriptions onto the generated image previews.
+	 * Fold a node's own previews onto the ones generated from its payloads.
 	 *
 	 * <p>
-	 * A port can end up with both, and neither displaces the other: a node that produced an image
-	 * <em>and</em> described what it did should not have to choose which the reader gets. A port with
-	 * only Markdown gets a Markdown-only preview; a port with only an image is left as it was.
+	 * A port can end up with both an image and Markdown, and neither displaces the other: a node that
+	 * produced an image <em>and</em> described what it did should not have to choose which the reader
+	 * gets. Where a node authored an image for a port that also generated one, the node's wins — it
+	 * knows what it meant to show, and the generated one is only ever a guess made from a file path.
+	 * </p>
+	 *
+	 * <p>
+	 * Keys that are not port ids pass straight through. That is how per-element previews
+	 * ({@code portId#seq}) survive: nothing generates them, so there is never anything to fold them
+	 * onto.
 	 * </p>
 	 *
 	 * @param generated the image previews built from the payloads
-	 * @param authored  Markdown per output port id, from {@code ctx.preview(...)}
+	 * @param authored  previews from {@code ctx.preview(...)}, keyed by port id or {@code portId#seq}
 	 */
-	public static Map<String, NodePreview> merge(Map<String, NodePreview> generated, Map<String, String> authored) {
+	public static Map<String, NodePreview> merge(Map<String, NodePreview> generated, Map<String, NodePreview> authored) {
 		if (authored == null || authored.isEmpty()) {
 			return generated;
 		}
 		Map<String, NodePreview> merged = new LinkedHashMap<>(generated);
-		authored.forEach((portId, markdown) -> {
-			if (markdown == null || markdown.isBlank()) {
+		authored.forEach((key, preview) -> {
+			if (preview == null) {
 				return;
 			}
-			NodePreview existing = merged.get(portId);
-			merged.put(portId, existing == null ? NodePreview.markdown(markdown) : existing.withMarkdown(markdown));
+			NodePreview existing = merged.get(key);
+			if (existing == null || existing.getData() == null) {
+				merged.put(key, preview);
+				return;
+			}
+			// Both carry an image: keep the node's, but do not lose a description that only the
+			// generated side happened to have.
+			if (preview.getData() != null) {
+				merged.put(key, preview.getMarkdown() == null && existing.getMarkdown() != null
+					? preview.withMarkdown(existing.getMarkdown())
+					: preview);
+			} else if (preview.getMarkdown() != null) {
+				merged.put(key, existing.withMarkdown(preview.getMarkdown()));
+			}
 		});
 		return merged;
 	}
@@ -162,15 +163,10 @@ public final class NodePreviews {
 				// one, so this is worth surfacing rather than silently skipping.
 				return NodePreview.skipped("Not a readable image");
 			}
-			BufferedImage scaled = scaleToFit(source, NodePreview.MAX_EDGE_PX);
-			byte[] encoded = encodeJpeg(scaled);
-			if (encoded == null) {
-				return NodePreview.skipped("Could not encode preview");
-			}
-			if (encoded.length > maxBytes) {
-				return NodePreview.skipped("Preview exceeds " + maxBytes + " bytes");
-			}
-			return NodePreview.image(PREVIEW_MIME, scaled.getWidth(), scaled.getHeight(), encoded);
+			// Everything past the decode — downsample, encode, cap — is the shared policy, so that a
+			// node building its own preview and the runtime building one from a path cannot disagree
+			// about how big a preview is allowed to be.
+			return ImagePreviews.fromImage(source, NodePreview.MAX_EDGE_PX, maxBytes);
 		} catch (Exception e) {
 			// Includes OutOfMemoryError's friendlier relatives: a malformed header can make ImageIO
 			// try to allocate an enormous raster. Whatever went wrong, the node's real work already
@@ -181,96 +177,17 @@ public final class NodePreviews {
 	}
 
 	/**
-	 * Scale so the longest edge is at most {@code maxEdge}, preserving aspect ratio.
+	 * The byte ceiling, overridable per worker.
 	 *
-	 * <p>
-	 * An image already within the bound is returned untouched rather than re-encoded at a nominal
-	 * "scale of 1", which would cost a full redraw to produce the same pixels.
-	 * </p>
+	 * @deprecated the policy moved to {@link ImagePreviews#maxBytes()}; kept because the tests and the
+	 *             spec both name it here.
 	 */
-	static BufferedImage scaleToFit(BufferedImage source, int maxEdge) {
-		int width = source.getWidth();
-		int height = source.getHeight();
-		if (width <= maxEdge && height <= maxEdge) {
-			return source;
-		}
-		double scale = (double) maxEdge / Math.max(width, height);
-		// Never round down to zero: a 4000x3 panorama strip still has to have a height.
-		int targetWidth = Math.max(1, (int) Math.round(width * scale));
-		int targetHeight = Math.max(1, (int) Math.round(height * scale));
-
-		// TYPE_INT_RGB, not ARGB: the output is JPEG, which has no alpha channel. Handing a
-		// transparent source to the JPEG writer produces either a failure or inverted colours
-		// depending on the plugin, so the flattening is done here, deliberately.
-		BufferedImage target = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
-		Graphics2D g = target.createGraphics();
-		try {
-			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-			g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-			g.drawImage(source, 0, 0, targetWidth, targetHeight, null);
-		} finally {
-			g.dispose();
-		}
-		return target;
-	}
-
-	private static byte[] encodeJpeg(BufferedImage image) throws Exception {
-		BufferedImage opaque = image;
-		if (image.getColorModel().hasAlpha()) {
-			// Reached when the source was already small enough to skip scaleToFit, so it was
-			// returned as-is and may still carry alpha.
-			opaque = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
-			Graphics2D g = opaque.createGraphics();
-			try {
-				g.drawImage(image, 0, 0, null);
-			} finally {
-				g.dispose();
-			}
-		}
-		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		if (!writeJpeg(opaque, out)) {
-			return null;
-		}
-		return out.toByteArray();
-	}
-
-	private static boolean writeJpeg(BufferedImage image, ByteArrayOutputStream out) throws Exception {
-		javax.imageio.stream.ImageOutputStream stream = ImageIO.createImageOutputStream(out);
-		try {
-			java.util.Iterator<javax.imageio.ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpeg");
-			if (!writers.hasNext()) {
-				return false;
-			}
-			javax.imageio.ImageWriter writer = writers.next();
-			javax.imageio.ImageWriteParam param = writer.getDefaultWriteParam();
-			if (param.canWriteCompressed()) {
-				param.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
-				param.setCompressionQuality(JPEG_QUALITY);
-			}
-			writer.setOutput(stream);
-			try {
-				writer.write(null, new javax.imageio.IIOImage(image, null, null), param);
-			} finally {
-				writer.dispose();
-			}
-			return true;
-		} finally {
-			stream.close();
-		}
-	}
-
-	/** The byte ceiling, overridable per worker. A malformed value falls back to the default. */
 	static int maxBytes() {
-		String configured = System.getenv(MAX_BYTES_ENV);
-		if (configured == null || configured.isBlank()) {
-			return NodePreview.DEFAULT_MAX_BYTES;
-		}
-		try {
-			int value = Integer.parseInt(configured.trim());
-			return value > 0 ? value : NodePreview.DEFAULT_MAX_BYTES;
-		} catch (NumberFormatException e) {
-			log.warn("Ignoring unparseable {}='{}'", MAX_BYTES_ENV, configured);
-			return NodePreview.DEFAULT_MAX_BYTES;
-		}
+		return ImagePreviews.maxBytes();
+	}
+
+	/** @see ImagePreviews#scaleToFit(BufferedImage, int) */
+	static BufferedImage scaleToFit(BufferedImage source, int maxEdge) {
+		return ImagePreviews.scaleToFit(source, maxEdge);
 	}
 }

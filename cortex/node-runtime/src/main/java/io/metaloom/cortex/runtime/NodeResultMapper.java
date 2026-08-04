@@ -114,7 +114,7 @@ public final class NodeResultMapper {
 	 */
 	public static NodeInputs toInputs(NodeTask task, ArtifactCache artifacts) {
 		return new NodeInputs(task.getInputs(), task.getDemandedOutputs(),
-			new Origin(task.getItemId(), task.getElementSeq(), null), artifacts);
+			new Origin(task.getItemId(), task.getElementSeq(), null), artifacts, task.isCapturePreviews());
 	}
 
 	/**

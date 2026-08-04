@@ -5,6 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import io.metaloom.loom.pipeline.model.NodePreview;
+
 /**
  * Result of processing a single media item by a node.
  *
@@ -28,7 +30,7 @@ public class NodeResult {
 	private final long durationMs;
 	private final String message;
 	private final Map<String, PortOutput> outputs;
-	private final Map<String, String> previews;
+	private final Map<String, NodePreview> previews;
 
 	/**
 	 * Canonical constructor.
@@ -46,10 +48,11 @@ public class NodeResult {
 	/**
 	 * Canonical constructor.
 	 *
-	 * @param previews node-authored Markdown per output port id, from {@code ctx.preview(...)}; may be {@code null}
+	 * @param previews node-authored previews keyed by output port id, or {@code portId#seq} for one element of a {@code MANY} port, from
+	 *                 {@code ctx.preview(...)}; may be {@code null}
 	 */
 	public NodeResult(String nodeId, ResultState state, long durationMs, String message, Map<String, PortOutput> outputs,
-		Map<String, String> previews) {
+		Map<String, NodePreview> previews) {
 		this.nodeId = nodeId;
 		this.state = state;
 		this.durationMs = durationMs;
@@ -59,14 +62,15 @@ public class NodeResult {
 	}
 
 	/**
-	 * A node's own Markdown descriptions of its ports, keyed by output port id.
+	 * A node's own previews of its ports, keyed by output port id — or by {@code portId#seq} for a
+	 * preview attached to a single element of a {@code MANY} port.
 	 *
 	 * <p>
 	 * Empty unless the node called {@code ctx.preview(...)}. Discarded at the wire boundary unless the
 	 * run asked for previews.
 	 * </p>
 	 */
-	public Map<String, String> getPreviews() {
+	public Map<String, NodePreview> getPreviews() {
 		return previews;
 	}
 

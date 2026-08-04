@@ -85,6 +85,84 @@ export function stringifyValue(value: unknown): string {
   }
 }
 
+/**
+ * A detection element as a record, parsing it first when it arrived as an encoded string.
+ *
+ * A `detection/*` port declares `String.class` on the Java side, so its elements travel as JSON
+ * text rather than as objects — `NODE_DATA_TYPES.md` allows both, and `facedetect` emits the string
+ * form. Anything reading a field off a detection has to come through here or it will silently see
+ * nothing.
+ */
+export function asDetection(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    // Cheap reject: an encoded detection is always an object literal, and trying to parse a hash or
+    // a file path would throw for every element of every other port.
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("{")) return null;
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/** A detection box expressed as fractions of the image, which is what an overlay needs. */
+export interface DetectionRegion {
+  id: string;
+  label?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Convert detection elements into overlay regions.
+ *
+ * Detections carry **absolute pixels** plus the dimensions they were measured against, stamped on
+ * every element (`coordinates: "ABSOLUTE_PIXELS"`, `imageWidth`, `imageHeight`). Overlay renderers
+ * here take 0-1 fractions, so the element's own dimensions are what converts them — never the
+ * displayed image's, which is a downsampled preview and would still be correct only by luck.
+ *
+ * Elements without dimensions are dropped rather than guessed at: a box drawn against the wrong
+ * reference is worse than no box, because it looks authoritative.
+ */
+export function detectionRegions(values: unknown[]): DetectionRegion[] {
+  const regions: DetectionRegion[] = [];
+  values.forEach((value, index) => {
+    const record = asDetection(value);
+    if (!record) return;
+    const box = record.bbox && typeof record.bbox === "object" ? (record.bbox as Record<string, unknown>) : null;
+    const imageWidth = Number(record.imageWidth);
+    const imageHeight = Number(record.imageHeight);
+    if (!box || !Number.isFinite(imageWidth) || !Number.isFinite(imageHeight) || imageWidth <= 0 || imageHeight <= 0) {
+      return;
+    }
+    const x = Number(box.x);
+    const y = Number(box.y);
+    const width = Number(box.w);
+    const height = Number(box.h);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+
+    const score = record.score ?? record.confidence;
+    const label = typeof record.label === "string" ? record.label : "";
+    regions.push({
+      id: String(record.index ?? index),
+      label: typeof score === "number" ? `${label || "face"} ${score.toFixed(2)}`.trim() : label || undefined,
+      x: x / imageWidth,
+      y: y / imageHeight,
+      width: width / imageWidth,
+      height: height / imageHeight,
+    });
+  });
+  return regions;
+}
+
 function labelForElement(kind: PreviewKind, value: unknown): string {
   const text = stringifyValue(value);
   switch (kind) {
@@ -96,10 +174,20 @@ function labelForElement(kind: PreviewKind, value: unknown): string {
     case "detection": {
       // A detection is a record; its score is the one field that means the same thing across
       // every detector, so lead with it when it is there.
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        const record = value as Record<string, unknown>;
+      //
+      // `asDetection` is what makes this reachable at all: a `detection/*` port declares
+      // `String.class`, so its elements arrive as encoded JSON *strings*, and testing `typeof value
+      // === "object"` on one always failed. Every face detection fell through to raw-JSON
+      // truncation — `{"index":0,"type":"face","bbox":{"x":…` — which is exactly the rendering this
+      // branch exists to avoid.
+      const record = asDetection(value);
+      if (record) {
         const score = record.score ?? record.confidence;
-        if (typeof score === "number") return `score ${score.toFixed(2)}`;
+        const label = typeof record.label === "string" ? record.label : null;
+        if (typeof score === "number") {
+          return label ? `${label} ${score.toFixed(2)}` : `score ${score.toFixed(2)}`;
+        }
+        if (label) return label;
       }
       return truncate(text);
     }

@@ -254,7 +254,7 @@ It is often unclear what a given node is actually doing to your media. The pipel
 in flight — how many items it is working on right now, how many are queued behind it, and how many
 it has completed, failed or skipped in total.
 
-image::debug-held-full.png[The pipeline editor in debug mode with a run halted at the thumbnail node,role=img-fluid]
+image::debug-held-full.png[The pipeline editor in debug mode with a run halted at the face detection node,role=img-fluid]
 
 The toggle is remembered between sessions and changes nothing about how a pipeline runs. With it
 off, the editor looks and behaves exactly as it does while you are designing a graph, so the extra
@@ -272,10 +272,10 @@ that node emitted for *that file* — one line per output, labelled with the out
 
 image::debug-results.png[Each node showing the values it emitted for the selected file,role=img-fluid]
 
-Above, one image has been carried through the graph. The source reports the file it found, the hash
-node its digest, the thumbnail node the picture it wrote and a `PROCESSED` flag, and face detection
-three faces with the best score of the three. That is four nodes' worth of "what did you actually
-do", on the graph, for one specific file.
+Above, one video clip has been carried through the graph. The source reports the file it found, the
+hash node its digest, the thumbnail node the contact sheet it wrote and a `DONE` flag, and face
+detection ten faces with the first of them summarised. That is four nodes' worth of "what did you
+actually do", on the graph, for one specific file.
 
 Results are always tied to one file. "What did the transcription node produce" has no answer
 until you say for which piece of media, which is why choosing an item is the first step. The
@@ -302,13 +302,14 @@ they would still be too large. When that happens the output says so rather than 
 "too large to preview" and "this output produced nothing" are very different answers, and the
 editor never confuses them.
 
-image::debug-detail-image.png[A produced thumbnail opened full size from the node that made it,role=img-fluid]
+image::debug-detail-image.png[A produced contact sheet opened full size from the node that made it,role=img-fluid]
 
 They are also generated only for runs you started with Debug on, and are discarded together with
 the run they belong to. A preview is a debugging aid, not a copy of your media: it is deliberately
 lossy, and it is not a way to store or serve what a pipeline produces.
 
-Audio and video outputs are still shown as file references — only images are previewed today.
+Audio and video outputs are still shown as file references — only images are previewed today, which
+is why the clip itself appears as a path while everything made from it appears as a picture.
 
 === Looking at one result closely
 
@@ -329,10 +330,26 @@ The most informative view opens first, so you rarely have to choose. Use *Raw* w
 precisely what a downstream node will receive, with nothing interpreted for you.
 
 The table above is not a generic rendering of the detection list: face detection wrote it, which is
-why it has a yaw column and a box column rather than a row of unlabelled numbers. Any node can
-describe its own output this way, and when one does, its description is what opens first.
+why it has a confidence column and a box column rather than a row of unlabelled numbers. Any node
+can describe its own output this way, and when one does, its description is what opens first.
 
-[#halting]
+==== Detections as pictures
+
+For a node that finds things *in* an image, a table still leaves the two most obvious questions
+unanswered — where in the picture, and what does it look like. The *Image* view answers both: the
+frame the boxes were measured against, with each box drawn on it, and one thumbnail per detection
+underneath.
+
+image::debug-detail-faces.png[Face detections drawn over the frame, with a thumbnail per detected face,role=img-fluid]
+
+Those thumbnails are cut from the source at full resolution rather than from the reduced frame
+above, which matters more than it sounds: in 4K footage a face occupies a few percent of the
+picture, so a crop taken from a 512-pixel preview would be barely thirty pixels across.
+
+Note the ten detections over two people. Face detection reports one entry per face *per sampled
+frame*, so `face_count` counts detections rather than distinct people — and the thumbnails make
+that visible at a glance in a way the number alone does not.
+
 [#halting]
 === Halting at a node
 

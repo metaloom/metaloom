@@ -25,6 +25,7 @@ import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.node.payload.BoundingBox;
 import io.metaloom.cortex.api.node.payload.Detection;
+import io.metaloom.cortex.api.node.preview.ImagePreviews;
 import io.metaloom.cortex.api.node.spec.NodeSpec;
 import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.node.spec.PortGroupDoc;
@@ -133,6 +134,26 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 	private static final int WINDOW_COUNT = 50;
 
+	/**
+	 * Longest edge of a per-face crop preview.
+	 *
+	 * <p>
+	 * Smaller than the 512 a whole frame gets, because a face is shown as a thumbnail rather than
+	 * inspected, and because a crowd scene multiplies whatever this is by the number of faces found.
+	 * </p>
+	 */
+	private static final int FACE_PREVIEW_EDGE_PX = 192;
+
+	/**
+	 * Margin around a face box when cropping, as a fraction of the box.
+	 *
+	 * <p>
+	 * A detector box is tight to the facial features. Cut exactly on it and the crop reads as a mask -
+	 * no hairline, no chin - which makes two different people hard to tell apart at thumbnail size.
+	 * </p>
+	 */
+	private static final double FACE_CROP_PADDING = 0.35d;
+
 	private InspireFacedetector inspireface;
 	private VideoFaceScanner videoScanner;
 
@@ -166,8 +187,14 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 
 		// Re-emit the locally cached face counts instead of re-scanning. On a hit the durable detections already exist in Loom, so we also skip
 		// re-persisting.
+		//
+		// Debug runs go the long way round. The cache holds the ports and nothing else, so a hit would
+		// re-emit the boxes with no frame and no face crops - the same file would show its faces the
+		// first time it was examined and not the second, which is precisely the kind of thing that
+		// makes a debugging view untrustworthy. Re-scanning is a cost a deliberately opt-in mode over
+		// one halted item can afford.
 		CachedDetections cached = resultCache.get(path);
-		if (cached != null) {
+		if (cached != null && !ctx.capturePreviews()) {
 			emit(ctx, cached.flag(), cached.elements());
 			return ctx.origin(LOCAL).next();
 		}
@@ -212,6 +239,10 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 		}
 		emit(ctx, count > 0 ? "SUCCESS" : "NONE",
 			detectionElements(detections, image.getWidth(), image.getHeight()));
+		// Crops are taken from the full-resolution decode, before anything downsamples it. A face is a
+		// small part of a large frame - cutting it out of a 512px preview instead would yield a 30px
+		// smudge on any modern source.
+		previewDetections(ctx, image, detections, null);
 		persist(ctx, asset, detections);
 		return ctx.origin(COMPUTED).next();
 	}
@@ -231,8 +262,13 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 					new BoundingBox(box.getStartX(), box.getStartY(), box.getWidth(), box.getHeight()),
 					frameIndex, 1.0f, "face"));
 			}
-			// Dimensions omitted: VideoFile exposes no frame size, and decoding a frame purely to measure it is not worth the cost.
-			emit(ctx, "SUCCESS", detectionElements(detections, null, null));
+			// The frame size comes off the video's own properties - no decode, no seek. It used to be
+			// omitted here on the belief that VideoFile could not report it, which left every
+			// video-path element without the dimensions its ABSOLUTE_PIXELS boxes are measured
+			// against: anything wanting to draw those boxes, or convert them to the normalized
+			// convention the detection table documents, had nothing to divide by.
+			emit(ctx, "SUCCESS", detectionElements(detections, video.width(), video.height()));
+			previewDetections(ctx, detectionFrame(video, detections), detections, faceCrops(faces));
 			persist(ctx, asset, detections);
 			return ctx.origin(COMPUTED).next();
 		} catch (InterruptedException | IOException | URISyntaxException e) {
@@ -252,6 +288,108 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 			ctx.outputElement(OUT_DETECTIONS, element);
 		}
 		ctx.preview(OUT_DETECTIONS, detectionsMarkdown(elements));
+	}
+
+	/**
+	 * Attach the pictures behind the numbers: the frame the boxes were measured on, and one crop per
+	 * face.
+	 *
+	 * <p>
+	 * Face detection is the node whose output is least legible as data. {@code detections} is a list of
+	 * encoded documents, and no amount of table formatting answers the two questions actually being
+	 * asked - <em>where</em> in the picture is this box, and <em>who</em> is in it. The port-level
+	 * preview is the frame, which the editor draws the boxes over; the per-element previews are the
+	 * faces themselves.
+	 * </p>
+	 *
+	 * <p>
+	 * Nothing here runs outside a debug run: the crops are real image work, unlike the Markdown, which
+	 * is cheap enough to build unconditionally and throw away.
+	 * </p>
+	 *
+	 * @param ctx        the context to attach to
+	 * @param frame      the image the boxes were measured against, or {@code null} when none could be obtained
+	 * @param detections the faces, in element order
+	 * @param crops      ready-made crops in the same order, or {@code null} to cut them from {@code frame}
+	 */
+	private void previewDetections(NodeContext<LoomMedia> ctx, BufferedImage frame, List<Detection> detections,
+		List<BufferedImage> crops) {
+		if (!ctx.capturePreviews() || detections.isEmpty()) {
+			return;
+		}
+		if (frame != null) {
+			ctx.preview(OUT_DETECTIONS, ImagePreviews.fromImage(frame));
+		}
+		for (int i = 0; i < detections.size(); i++) {
+			BufferedImage crop = crops != null && i < crops.size() ? crops.get(i) : null;
+			if (crop == null && frame != null) {
+				crop = cropFace(frame, detections.get(i).boundingBox());
+			}
+			if (crop != null) {
+				ctx.preview(OUT_DETECTIONS, i, ImagePreviews.fromImage(crop, FACE_PREVIEW_EDGE_PX));
+			}
+		}
+	}
+
+	/**
+	 * Cut a face out of the frame, with enough margin around the box to show a head rather than a mask.
+	 *
+	 * <p>
+	 * Clamped to the frame on every side: detector boxes routinely run off the edge for a face at the
+	 * border, and {@code getSubimage} throws rather than clipping. Returns {@code null} for a box with
+	 * nothing left inside the frame.
+	 * </p>
+	 */
+	private static BufferedImage cropFace(BufferedImage frame, BoundingBox box) {
+		int padX = (int) Math.round(box.width() * FACE_CROP_PADDING);
+		int padY = (int) Math.round(box.height() * FACE_CROP_PADDING);
+		int x = Math.max(0, box.x() - padX);
+		int y = Math.max(0, box.y() - padY);
+		int width = Math.min(frame.getWidth() - x, box.width() + 2 * padX);
+		int height = Math.min(frame.getHeight() - y, box.height() + 2 * padY);
+		if (width <= 0 || height <= 0 || x >= frame.getWidth() || y >= frame.getHeight()) {
+			return null;
+		}
+		try {
+			return frame.getSubimage(x, y, width, height);
+		} catch (RuntimeException e) {
+			// A preview must never be able to fail the node that produced the real detections.
+			log.debug("Could not crop a face preview from {}x{}", frame.getWidth(), frame.getHeight(), e);
+			return null;
+		}
+	}
+
+	/** The crops the video scanner already cut for its blur check, in detection order. */
+	private static List<BufferedImage> faceCrops(List<VideoFace> faces) {
+		List<BufferedImage> crops = new ArrayList<>(faces.size());
+		for (VideoFace face : faces) {
+			crops.add(face.getImage());
+		}
+		return crops;
+	}
+
+	/**
+	 * One frame for the boxes to be drawn on, seeked to wherever the first face was found.
+	 *
+	 * <p>
+	 * The boxes carry a frame index each and a scan may span the whole video, so there is no single
+	 * frame that is right for all of them. The first detection's is the one that makes the overlay
+	 * agree with at least one row of the table, which beats an arbitrary keyframe showing nothing.
+	 * </p>
+	 *
+	 * @return the frame, or {@code null} if it could not be read — previews degrade, the node does not
+	 */
+	private static BufferedImage detectionFrame(VideoFile video, List<Detection> detections) {
+		if (detections.isEmpty()) {
+			return null;
+		}
+		try {
+			video.seekToFrame(detections.get(0).frameIndex());
+			return video.frameToImage();
+		} catch (RuntimeException e) {
+			log.debug("Could not read a frame for the detection preview", e);
+			return null;
+		}
 	}
 
 	/**

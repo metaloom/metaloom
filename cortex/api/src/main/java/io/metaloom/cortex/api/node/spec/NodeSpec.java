@@ -70,6 +70,25 @@ public @interface NodeSpec {
 	 */
 	String icon() default "";
 
+	/**
+	 * Card colour for the editor, as a CSS hex literal — {@code #7a55c8} or {@code #7ac}.
+	 *
+	 * <p>
+	 * Left empty — which is what every shipped node does — the node takes its {@link #category()}
+	 * default, so all nodes of one category look alike. Set it only when a node genuinely needs to
+	 * stand apart from its category, because doing so breaks that grouping on purpose.
+	 * </p>
+	 *
+	 * <p>
+	 * Only a hex literal is accepted. A descriptor arrives over the wire from announced third-party
+	 * workers and is written into a style attribute by both editors, so anything else — a colour
+	 * keyword, a {@code var(...)}, a second declaration smuggled in behind a semicolon — is dropped
+	 * with a warning rather than forwarded. Same reasoning as {@link #icon()}, which resolves against
+	 * a compile-time map for exactly this reason.
+	 * </p>
+	 */
+	String color() default "";
+
 	/** Palette grouping. */
 	NodeCategory category();
 

@@ -14,6 +14,7 @@ import io.metaloom.cortex.api.node.PortOutput;
 import io.metaloom.cortex.api.node.ResultOrigin;
 import io.metaloom.cortex.api.node.artifact.ArtifactCache;
 import io.metaloom.cortex.api.node.context.impl.NodeContextImpl;
+import io.metaloom.loom.pipeline.model.NodePreview;
 import io.metaloom.loom.pipeline.model.Origin;
 
 /**
@@ -185,14 +186,67 @@ public interface NodeContext<I> {
 	NodeContext<I> preview(OutputPort<?> port, String markdown);
 
 	/**
+	 * Attach a prepared preview — an image, Markdown, or a recorded reason for having neither — to a
+	 * port.
+	 *
+	 * <p>
+	 * Images produced <em>by</em> a node are already picked up automatically: any {@code artifact/image}
+	 * or {@code media/image} port whose value is a readable local path is downsampled at the result
+	 * boundary without the node doing anything. This overload is for the other case — a node that can
+	 * show something it never wrote to disk and never emits on a port. Face detection is the example:
+	 * the frame it looked at and the faces it cut out of it exist only in memory.
+	 * </p>
+	 *
+	 * <p>
+	 * Unlike the Markdown overload this one is <strong>not</strong> free to call, because building the
+	 * image happens before the call. Guard it with {@link #capturePreviews()}.
+	 * </p>
+	 *
+	 * @return this context for chaining
+	 */
+	NodeContext<I> preview(OutputPort<?> port, NodePreview preview);
+
+	/**
+	 * Attach a preview to one <em>element</em> of a {@code MANY} port.
+	 *
+	 * <p>
+	 * A port-level preview can only ever show one thing, which for a fanned-out port means the first
+	 * element and nothing else. That is the right default for a list of numbers and useless for a list
+	 * of faces, where each element is a picture in its own right. Elements previewed here are keyed
+	 * {@code portId#seq} and travel beside the port-level entry rather than replacing it — so face
+	 * detection can offer the whole frame <em>and</em> a crop per face.
+	 * </p>
+	 *
+	 * <p>
+	 * {@code elementSeq} is the index within this port's emission order, the same one
+	 * {@link #outputElement(OutputPort, Object)} assigns.
+	 * </p>
+	 *
+	 * @return this context for chaining
+	 */
+	NodeContext<I> preview(OutputPort<?> port, int elementSeq, NodePreview preview);
+
+	/**
+	 * Whether this run wants previews at all — {@code true} only for a run started in debug mode.
+	 *
+	 * <p>
+	 * Check this before doing work that exists <em>only</em> to produce a preview. Everything attached
+	 * without it is discarded at the result boundary anyway, so a production run never ships preview
+	 * bytes either way; the difference is whether it pays to build them first.
+	 * </p>
+	 */
+	boolean capturePreviews();
+
+	/**
 	 * The accumulated outputs, keyed by output port id.
 	 */
 	Map<String, PortOutput> outputs();
 
 	/**
-	 * Node-authored port previews, keyed by output port id. Empty unless {@link #preview} was called.
+	 * Node-authored previews, keyed by output port id — or by {@code portId#seq} for a preview attached
+	 * to a single element. Empty unless {@link #preview} was called.
 	 */
-	Map<String, String> previews();
+	Map<String, NodePreview> previews();
 
 	NodeResult next();
 

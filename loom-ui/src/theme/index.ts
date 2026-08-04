@@ -36,6 +36,7 @@ const darkTokens = {
     amber: "#f5a623",
     red: "#f0546e",
     teal: "#00c9b1",
+    violet: "#9d7bea",
   },
   radius: {
     sm: "6px",
@@ -82,6 +83,7 @@ const lightTokens = {
     amber: "#d48e1a",
     red: "#d43f58",
     teal: "#00a895",
+    violet: "#7a55c8",
   },
   radius: {
     sm: "6px",

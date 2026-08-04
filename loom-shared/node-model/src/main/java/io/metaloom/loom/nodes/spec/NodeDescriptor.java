@@ -50,6 +50,20 @@ public class NodeDescriptor {
 	@JsonPropertyDescription("Icon key for the UI (e.g. material-icons name)")
 	private String icon;
 
+	/**
+	 * Card colour authored on the node's {@code @NodeSpec}, or {@code null} — the normal case, meaning
+	 * the node takes its {@link #getCategory()} default.
+	 *
+	 * <p>
+	 * Always a {@code #rgb} / {@code #rrggbb} literal: {@link #setColor(String)} drops anything else,
+	 * including on the deserialization path, so a consumer may write this straight into a style
+	 * attribute. See that setter for why.
+	 * </p>
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	@JsonPropertyDescription("Node card colour as a #rgb/#rrggbb hex literal. Null means: use the category default")
+	private String color;
+
 	@JsonProperty(required = true)
 	@JsonPropertyDescription("Category for palette grouping")
 	private NodeCategory category;
@@ -160,6 +174,51 @@ public class NodeDescriptor {
 	public NodeDescriptor setIcon(String icon) {
 		this.icon = icon;
 		return this;
+	}
+
+	public String getColor() {
+		return color;
+	}
+
+	/**
+	 * Set the node's card colour, keeping it only if it is a {@code #rgb} / {@code #rrggbb} literal.
+	 *
+	 * <p>
+	 * The filter lives in the setter rather than at the call sites because Jackson deserializes
+	 * through it, so it also covers the path that matters most: a descriptor announced by a
+	 * third-party worker over {@code NODE_REGISTRATION}. Both editors write this value into a style
+	 * attribute, and an announced node is not trusted to choose what goes there — the same reason
+	 * {@code icon} resolves against a compile-time map instead of being rendered as given.
+	 * </p>
+	 *
+	 * <p>
+	 * Rejection is silent-but-degraded on purpose: the node keeps working and simply falls back to its
+	 * category colour. Refusing the whole descriptor would take a node offline over a typo in a
+	 * cosmetic field.
+	 * </p>
+	 */
+	public NodeDescriptor setColor(String color) {
+		this.color = isHexColor(color) ? color : null;
+		return this;
+	}
+
+	/** Whether {@code value} is a bare {@code #rgb} or {@code #rrggbb} literal and nothing else. */
+	public static boolean isHexColor(String value) {
+		if (value == null) {
+			return false;
+		}
+		int length = value.length();
+		if ((length != 4 && length != 7) || value.charAt(0) != '#') {
+			return false;
+		}
+		for (int i = 1; i < length; i++) {
+			char c = value.charAt(i);
+			boolean hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+			if (!hex) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public NodeCategory getCategory() {

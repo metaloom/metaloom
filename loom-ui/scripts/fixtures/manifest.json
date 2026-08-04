@@ -1,0 +1,177 @@
+{
+  "source" : "pexels-jack-sparrow-5977460.mp4",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.DebugScreenshotFixtureGenerator",
+  "thumbnail" : {
+    "flag" : "DONE",
+    "path" : "/tmp/debug-fixture-thumb15861083754873075317/thumbnail_bin/9dc6/9dc6cd0498cf65a637e623b1904676c79bd65d72567b9f6711e388ccbe63676707033a6ee9793557d86a72014d351f424c92ecc066edd0688c4ce34268c1c226.thumb",
+    "cols" : 6,
+    "rows" : 1,
+    "tileSize" : 384
+  },
+  "facedetectDefault" : {
+    "maxFaceAngle" : 30.0,
+    "flag" : "SUCCESS",
+    "faceCount" : 0,
+    "elements" : [ ],
+    "markdown" : "No faces detected.",
+    "images" : [ ]
+  },
+  "facedetectWide" : {
+    "maxFaceAngle" : 90.0,
+    "flag" : "SUCCESS",
+    "faceCount" : 10,
+    "elements" : [ {
+      "index" : 0,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 255,
+      "bbox" : {
+        "x" : 2773,
+        "y" : 622,
+        "w" : 286,
+        "h" : 288
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 1,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 255,
+      "bbox" : {
+        "x" : 1036,
+        "y" : 721,
+        "w" : 331,
+        "h" : 321
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 2,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 240,
+      "bbox" : {
+        "x" : 2721,
+        "y" : 612,
+        "w" : 244,
+        "h" : 286
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 3,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 270,
+      "bbox" : {
+        "x" : 2752,
+        "y" : 597,
+        "w" : 282,
+        "h" : 298
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 4,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 270,
+      "bbox" : {
+        "x" : 1029,
+        "y" : 702,
+        "w" : 343,
+        "h" : 331
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 5,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 195,
+      "bbox" : {
+        "x" : 2679,
+        "y" : 628,
+        "w" : 254,
+        "h" : 291
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 6,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 240,
+      "bbox" : {
+        "x" : 1006,
+        "y" : 725,
+        "w" : 333,
+        "h" : 324
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 7,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 210,
+      "bbox" : {
+        "x" : 2693,
+        "y" : 583,
+        "w" : 286,
+        "h" : 299
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 8,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 225,
+      "bbox" : {
+        "x" : 2719,
+        "y" : 620,
+        "w" : 263,
+        "h" : 287
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    }, {
+      "index" : 9,
+      "type" : "face",
+      "label" : "face",
+      "frame" : 195,
+      "bbox" : {
+        "x" : 1040,
+        "y" : 748,
+        "w" : 330,
+        "h" : 305
+      },
+      "confidence" : 1.0,
+      "coordinates" : "ABSOLUTE_PIXELS",
+      "imageWidth" : 3840,
+      "imageHeight" : 2160
+    } ],
+    "markdown" : "| # | confidence | box (x, y, w, h) | frame |\n|---|---|---|---|\n| 0 | 1.0 | 2773, 622, 286, 288 | 255 |\n| 1 | 1.0 | 1036, 721, 331, 321 | 255 |\n| 2 | 1.0 | 2721, 612, 244, 286 | 240 |\n| 3 | 1.0 | 2752, 597, 282, 298 | 270 |\n| 4 | 1.0 | 1029, 702, 343, 331 | 270 |\n| 5 | 1.0 | 2679, 628, 254, 291 | 195 |\n| 6 | 1.0 | 1006, 725, 333, 324 | 240 |\n| 7 | 1.0 | 2693, 583, 286, 299 | 210 |\n| 8 | 1.0 | 2719, 620, 263, 287 | 225 |\n| 9 | 1.0 | 1040, 748, 330, 305 | 195 |\n",
+    "images" : [ "wide-detections.jpg", "wide-detections-0.jpg", "wide-detections-1.jpg", "wide-detections-2.jpg", "wide-detections-3.jpg", "wide-detections-4.jpg", "wide-detections-5.jpg", "wide-detections-6.jpg", "wide-detections-7.jpg", "wide-detections-8.jpg", "wide-detections-9.jpg" ]
+  }
+}

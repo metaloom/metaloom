@@ -43,11 +43,24 @@
 	};
 	function ctColor(ct) { var f = family(ct); return (f && FAMILY_COLORS[f]) || "#8fa3b8"; }
 
+	// A verbatim mirror of `categoryConfig` in loom-ui's PipelineEditor.tsx, resolved against its
+	// *dark* tokens (this page has no light mode). These five hexes used to be hand-tuned lookalikes
+	// rather than copies, so the product and the public editor drew the same node in two different
+	// colours; loom-ui's `categoryColors.test.ts` reads this file and fails if they diverge again.
 	var CATEGORY_COLORS = {
-		SOURCE: "#4aa3ff", FILTER: "#e2a24e", ANALYSIS: "#57cbcc",
-		TRANSFORM: "#c56be0", OUTPUT: "#2fd4b6"
+		SOURCE: "#2ea8ff", FILTER: "#f5a623", ANALYSIS: "#57cbcc",
+		TRANSFORM: "#9d7bea", OUTPUT: "#34d58a"
 	};
 	var CATEGORY_ORDER = ["SOURCE", "FILTER", "ANALYSIS", "TRANSFORM", "OUTPUT"];
+
+	// A descriptor may author its own colour; almost none do, so this is the category default in
+	// practice. Loom already rejects anything that is not a hex literal before serving a descriptor,
+	// but this page is also staged from a checked-in snapshot, so re-check rather than assume.
+	function isHexColor(v) { return typeof v === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v); }
+	function nodeColor(desc, cat) {
+		if (desc && isHexColor(desc.color)) { return desc.color; }
+		return CATEGORY_COLORS[cat] || "#8fa3b8";
+	}
 
 	// ---------------------------------------------------------------- small helpers
 	function E(tag, attrs, kids) {
@@ -559,7 +572,7 @@
 			kinds.forEach(function (kind) {
 				var d = descriptorsByKind[kind];
 				var item = H("button", { class: "pe-palette-item", title: d.description || kind });
-				item.appendChild(H("span", { class: "pe-swatch", style: "background:" + CATEGORY_COLORS[cat] }));
+				item.appendChild(H("span", { class: "pe-swatch", style: "background:" + nodeColor(d, cat) }));
 				item.appendChild(H("span", { class: "pe-palette-name", text: d.name }));
 				item.addEventListener("click", function () {
 					var p = screenCenterWorld();
@@ -599,7 +612,7 @@
 			var cls = "pe-node" + (selection.nodeId === id ? " is-selected" : "") + (hasErr ? " is-error" : "") + (n.unknownKind ? " is-unknown" : "");
 			var grp = E("g", { "class": cls, transform: "translate(" + n.x + "," + n.y + ")", "data-node": id });
 			var cat = n.descriptor ? n.descriptor.category : "OUTPUT";
-			var col = CATEGORY_COLORS[cat] || "#8fa3b8";
+			var col = nodeColor(n.descriptor, cat);
 			grp.appendChild(E("rect", { "class": "pe-node-rect", x: 0, y: 0, width: g.w, height: g.h, rx: 9 }));
 			grp.appendChild(E("rect", { "class": "pe-node-head", x: 0, y: 0, width: g.w, height: HEAD_H, rx: 9 }));
 			grp.appendChild(E("rect", { "class": "pe-node-stripe", x: 0, y: 0, width: 4, height: g.h, rx: 2, fill: col }));

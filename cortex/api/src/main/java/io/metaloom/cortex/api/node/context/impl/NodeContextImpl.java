@@ -21,6 +21,7 @@ import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.loom.nodes.spec.ValueCoercer;
 import io.metaloom.loom.nodes.spec.ValueCoercionException;
 import io.metaloom.loom.pipeline.model.DataElement;
+import io.metaloom.loom.pipeline.model.NodePreview;
 import io.metaloom.loom.pipeline.model.Origin;
 import io.metaloom.loom.pipeline.model.PortPayload;
 
@@ -43,7 +44,11 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	 */
 	private final Map<String, OutputPort<?>> outputPorts = new LinkedHashMap<>();
 	private final Map<String, List<Object>> outputValues = new LinkedHashMap<>();
-	private final Map<String, String> previewMarkdown = new LinkedHashMap<>();
+	/**
+	 * Node-authored previews, keyed by port id — or {@code portId#seq} for one element of a {@code MANY}
+	 * port. A port-level entry and its per-element entries coexist.
+	 */
+	private final Map<String, NodePreview> previews = new LinkedHashMap<>();
 
 	@SuppressWarnings("unchecked")
 	public NodeContextImpl(LoomMedia media) {
@@ -189,14 +194,62 @@ public class NodeContextImpl<I> implements NodeContext<I> {
 	@Override
 	public NodeContext<I> preview(OutputPort<?> port, String markdown) {
 		if (port != null && markdown != null && !markdown.isBlank()) {
-			previewMarkdown.put(port.id(), markdown);
+			// Markdown merges into whatever is already there rather than replacing it: a node may well
+			// attach an image and then describe it, in either order.
+			merge(port.id(), NodePreview.markdown(markdown));
 		}
 		return this;
 	}
 
 	@Override
-	public Map<String, String> previews() {
-		return Collections.unmodifiableMap(previewMarkdown);
+	public NodeContext<I> preview(OutputPort<?> port, NodePreview preview) {
+		if (port != null && preview != null) {
+			merge(port.id(), preview);
+		}
+		return this;
+	}
+
+	@Override
+	public NodeContext<I> preview(OutputPort<?> port, int elementSeq, NodePreview preview) {
+		if (port != null && preview != null && elementSeq >= 0) {
+			merge(port.id() + "#" + elementSeq, preview);
+		}
+		return this;
+	}
+
+	/**
+	 * Fold a preview into the entry for {@code key}, keeping both halves when the two carry different
+	 * things.
+	 *
+	 * <p>
+	 * An image and its Markdown description arrive as separate calls, and neither should silently
+	 * discard the other — the alternative is that whichever a node happens to attach second is the only
+	 * one the debug view ever shows.
+	 * </p>
+	 */
+	private void merge(String key, NodePreview addition) {
+		NodePreview existing = previews.get(key);
+		if (existing == null) {
+			previews.put(key, addition);
+			return;
+		}
+		if (addition.getMarkdown() != null && existing.getData() != null) {
+			previews.put(key, existing.withMarkdown(addition.getMarkdown()));
+		} else if (addition.getData() != null && existing.getMarkdown() != null) {
+			previews.put(key, addition.withMarkdown(existing.getMarkdown()));
+		} else {
+			previews.put(key, addition);
+		}
+	}
+
+	@Override
+	public boolean capturePreviews() {
+		return inputs.capturePreviews();
+	}
+
+	@Override
+	public Map<String, NodePreview> previews() {
+		return Collections.unmodifiableMap(previews);
 	}
 
 	@Override

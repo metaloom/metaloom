@@ -35,7 +35,12 @@
         <okhttp.version>4.12.0</okhttp.version>
         <postgres.driver.version>42.7.10</postgres.driver.version>
         <spring.security.version>6.5.10</spring.security.version>
-        <video4j.version>2.0.0-SNAPSHOT</video4j.version>
+        <!--
+            The version line tracks the OpenCV major it is built against: 4.10.0-SNAPSHOT is the
+            OpenCV 4.10 line, which is what the opencv-ffm natives here provide. Keep this in step
+            with the video4j checkout's own version, or the natives and the bindings disagree.
+        -->
+        <video4j.version>4.10.0-SNAPSHOT</video4j.version>
 
         <!-- Sonar /  Maven -->
         <jacoco.version>0.8.8</jacoco.version>

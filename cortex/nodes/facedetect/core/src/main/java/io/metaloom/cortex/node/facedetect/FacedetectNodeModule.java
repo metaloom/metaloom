@@ -85,6 +85,7 @@ public abstract class FacedetectNodeModule extends AbstractNodeModule {
 			String packPath = options.getInspirefacePackPath();
 			InspireFacedetector detector = InspireFacedetector.create(packPath, 640, true, true, true);
 			detector.setMinFaceHeightFactor(options.getMinFaceHeightFactor());
+			detector.setMaxFaceAngle(options.getMaxFaceAngle());
 			return detector;
 		} catch (FileNotFoundException e) {
 			log.error("Failed to load dlib", e);

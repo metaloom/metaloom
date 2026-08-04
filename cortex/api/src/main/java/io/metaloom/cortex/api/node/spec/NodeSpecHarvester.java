@@ -86,6 +86,7 @@ public final class NodeSpecHarvester {
 			.setName(spec.name())
 			.setDescription(emptyToNull(spec.description()))
 			.setIcon(emptyToNull(spec.icon()))
+			.setColor(harvestColor(spec, nodeClass))
 			.setCategory(spec.category())
 			.setDynamicPorts(spec.dynamicPorts())
 			.setDefaultConcurrency(spec.defaultConcurrency())
@@ -513,6 +514,28 @@ public final class NodeSpecHarvester {
 
 	private static String emptyToNull(String value) {
 		return value == null || value.isEmpty() ? null : value;
+	}
+
+	/**
+	 * Read {@code @NodeSpec.color()}, rejecting anything that is not a hex literal.
+	 *
+	 * <p>
+	 * Deliberately harsher than {@link NodeDescriptor#setColor(String)}, which silently degrades to the
+	 * category colour. That leniency exists for descriptors <em>announced</em> by third-party workers,
+	 * where taking a node offline over a cosmetic typo would be the worse outcome. A {@code @NodeSpec}
+	 * in this repository is ours and is compiled here, so a bad value is a mistake we can still fix —
+	 * and a silent fallback would simply look like the colour never having been applied.
+	 * </p>
+	 */
+	private static String harvestColor(NodeSpec spec, Class<?> nodeClass) {
+		String color = emptyToNull(spec.color());
+		if (color != null && !NodeDescriptor.isHexColor(color)) {
+			throw new IllegalArgumentException(nodeClass.getName() + " declares @NodeSpec(color = \"" + color
+				+ "\"), which is not a #rgb or #rrggbb literal. Both editors write this value into a style "
+				+ "attribute, so only hex literals are accepted. Leave it empty to use the "
+				+ spec.category() + " category colour.");
+		}
+		return color;
 	}
 
 	private static String orDerived(String authored, String source) {

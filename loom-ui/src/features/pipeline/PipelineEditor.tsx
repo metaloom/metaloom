@@ -58,6 +58,7 @@ import { useNodeRegistry } from "../../context/NodeRegistryContext";
 import { hiddenOfflineCount, nodeIdOf, offlineReason, selectPickerNodes, type PickerEntry } from "./nodePicker";
 import type { ContentType, NodeDescriptor, NodeCategory, PortGroup, PortSpec } from "../../types/nodeDescriptors";
 import { contentTypeColor, findContentType, isAssignable, isWildcard } from "./contentTypes";
+import { CATEGORY_COLORS, isHexColor, nodeColor, nodeColorTint } from "./nodeColors";
 import { resolveInputPorts, resolveOutputPorts } from "./portResolvers";
 import BucketListEditor, { type Bucket } from "./BucketListEditor";
 import NodeResultStrip from "./NodeResultStrip";
@@ -105,12 +106,14 @@ function affinityColor(affinity: string | undefined): string | null {
 }
 
 // ── Category-based node styling ───────────────────────────────────────────
+// The five colours live in `nodeColors.ts` — they are mirrored by the website's standalone editor
+// and pinned by `nodeColors.test.ts`. Only the icons are local, because they are JSX.
 const categoryConfig: Record<NodeCategory, { color: string; icon: React.ReactNode; bg: string }> = {
-  SOURCE:    { color: tokens.accent.blue,  icon: <CloudUploadOutlined sx={{ fontSize: 14 }} />,  bg: `${tokens.accent.blue}18` },
-  FILTER:    { color: tokens.accent.amber, icon: <FilterAltOutlined sx={{ fontSize: 14 }} />,    bg: `${tokens.accent.amber}18` },
-  ANALYSIS:  { color: tokens.primary.main, icon: <MemoryOutlined sx={{ fontSize: 14 }} />,       bg: tokens.primary.subtle },
-  TRANSFORM: { color: "#e040fb",           icon: <TransformOutlined sx={{ fontSize: 14 }} />,     bg: "#e040fb18" },
-  OUTPUT:    { color: tokens.accent.teal,  icon: <CloudDownloadOutlined sx={{ fontSize: 14 }} />, bg: `${tokens.accent.teal}18` },
+  SOURCE:    { color: CATEGORY_COLORS.SOURCE,    icon: <CloudUploadOutlined sx={{ fontSize: 14 }} />,   bg: nodeColorTint(CATEGORY_COLORS.SOURCE) },
+  FILTER:    { color: CATEGORY_COLORS.FILTER,    icon: <FilterAltOutlined sx={{ fontSize: 14 }} />,     bg: nodeColorTint(CATEGORY_COLORS.FILTER) },
+  ANALYSIS:  { color: CATEGORY_COLORS.ANALYSIS,  icon: <MemoryOutlined sx={{ fontSize: 14 }} />,        bg: tokens.primary.subtle },
+  TRANSFORM: { color: CATEGORY_COLORS.TRANSFORM, icon: <TransformOutlined sx={{ fontSize: 14 }} />,     bg: nodeColorTint(CATEGORY_COLORS.TRANSFORM) },
+  OUTPUT:    { color: CATEGORY_COLORS.OUTPUT,    icon: <CloudDownloadOutlined sx={{ fontSize: 14 }} />, bg: nodeColorTint(CATEGORY_COLORS.OUTPUT) },
 };
 
 // Map material icon names from the API to MUI components
@@ -155,7 +158,10 @@ function resolveNodeIcon(desc: NodeDescriptor): React.ReactNode {
 /** Get the visual config (color, icon, bg) for a descriptor. */
 function nodeVisualConfig(desc: NodeDescriptor) {
   const cat = categoryConfig[desc.category] ?? categoryConfig.ANALYSIS;
-  return { ...cat, icon: resolveNodeIcon(desc) };
+  const color = nodeColor(desc);
+  // A descriptor-authored colour also replaces the icon chip's tint, or the chip would keep the
+  // category's fill behind a differently coloured card.
+  return { ...cat, color, bg: color === cat.color ? cat.bg : nodeColorTint(color), icon: resolveNodeIcon(desc) };
 }
 
 /**
@@ -241,7 +247,11 @@ function portBlockedReason(port: PortSpec, ports: PortSpec[], groups: PortGroup[
 function PipelineNodeComponent({ data, selected, id }: NodeProps) {
   const { t } = useTranslation();
   const category = (data.category as NodeCategory) ?? "ANALYSIS";
-  const cfg = categoryConfig[category] ?? categoryConfig.ANALYSIS;
+  const base = categoryConfig[category] ?? categoryConfig.ANALYSIS;
+  // A descriptor-authored colour wins over the category default; `data.nodeColor` is absent for
+  // every shipped node, so this collapses to the category palette in practice.
+  const authored = data.nodeColor as string | undefined;
+  const cfg = isHexColor(authored) ? { ...base, color: authored, bg: nodeColorTint(authored) } : base;
   const nodeIcon = data.nodeIcon as React.ReactNode | undefined;
   const isActive = data.isActive as boolean | undefined;
   const lastResult = data.lastResult as "completed" | "failed" | undefined;
@@ -685,6 +695,7 @@ function toRFNodes(pnodes: PipelineNode[], selectedId: string | null, descriptor
         label: n.label,
         description: n.description,
         category,
+        nodeColor: desc?.color,
         // Preserve the descriptor kind (definition `type`) in node data so
         // getGraphJson can emit the real node type on save instead of the
         // category. Without this the canvas serialization corrupts node types.
@@ -2246,7 +2257,10 @@ function PipelineCanvas({
     // be called `outputs` — which is exactly what a `script` node declares its outputs in — is
     // persisted rather than mistaken for editor state and stripped.
     const RESERVED = [
-      "label", "description", "category", "kind", "nodeIcon", "onDelete", "isActive", "lastResult",
+      // `nodeColor` is a descriptor attribute like `category` and `nodeIcon`: it belongs to the node
+      // *kind*, not to this graph, so persisting it would freeze one editor's palette into the
+      // definition and outlive any later change to the node's spec.
+      "label", "description", "category", "nodeColor", "kind", "nodeIcon", "onDelete", "isActive", "lastResult",
       "nodeStats", "debug", "nodeTasks", "onSelectPort",
       // Breakpoints are run state, not definition state. If they reached getGraphJson they
       // would be saved into the pipeline, and debugging a run would change it for everyone.
@@ -3262,6 +3276,7 @@ export default function PipelineEditor() {
         label: desc.name,
         description: desc.description,
         category: desc.category,
+        nodeColor: desc.color,
         kind: desc.kind,
         nodeIcon: resolveNodeIcon(desc),
         ...connectors,

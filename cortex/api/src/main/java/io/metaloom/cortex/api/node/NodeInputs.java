@@ -29,8 +29,16 @@ import io.metaloom.loom.pipeline.model.PortPayload;
  * what must never be. It is never null — a node invoked outside a managed execution gets {@link ArtifactCache#noop()}, which computes and retains
  * nothing.
  * </p>
+ *
+ * <p>
+ * {@link #capturePreviews()} says whether this run was started in debug mode. It belongs here for the same reason {@link #demandedOutputs()} does: it
+ * is the engine telling the node what this particular invocation is for. A node only needs it when building a preview is genuinely expensive —
+ * cropping every detected face out of a 4K frame, say. Cheap previews, Markdown especially, should be emitted unconditionally and left for the result
+ * boundary to discard.
+ * </p>
  */
-public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin, ArtifactCache artifacts) {
+public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin, ArtifactCache artifacts,
+	boolean capturePreviews) {
 
 	private static final NodeInputs EMPTY = new NodeInputs(Map.of(), Set.of(), null);
 
@@ -41,17 +49,24 @@ public record NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOut
 	}
 
 	/**
+	 * The form for a caller with an artifact scope but no opinion on previews.
+	 */
+	public NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin, ArtifactCache artifacts) {
+		this(ports, demandedOutputs, origin, artifacts, false);
+	}
+
+	/**
 	 * The form for a caller that has no artifact scope to offer — which is every caller outside the two task runners.
 	 */
 	public NodeInputs(Map<String, PortPayload> ports, Set<String> demandedOutputs, Origin origin) {
-		this(ports, demandedOutputs, origin, null);
+		this(ports, demandedOutputs, origin, null, false);
 	}
 
 	/**
 	 * The same inputs, bound to an artifact scope. Used by the runner, which builds the port view per node but opens the scope once per segment.
 	 */
 	public NodeInputs withArtifacts(ArtifactCache artifacts) {
-		return new NodeInputs(ports, demandedOutputs, origin, artifacts);
+		return new NodeInputs(ports, demandedOutputs, origin, artifacts, capturePreviews);
 	}
 
 	/**

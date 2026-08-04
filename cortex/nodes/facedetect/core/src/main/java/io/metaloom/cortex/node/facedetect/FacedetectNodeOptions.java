@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import io.metaloom.cortex.api.node.spec.ParamDoc;
+import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
 import io.metaloom.cortex.api.option.node.AbstractNodeOptions;
 import io.metaloom.cortex.api.option.node.ValidationResult;
 
@@ -49,6 +50,27 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 	 */
 	@ParamDoc(label = "Min Face Height Factor", min = "0.0", max = "1.0")
 	private float minFaceHeightFactor = 0.05f;
+
+	/**
+	 * Maximum head rotation, in degrees, accepted for a face found in a <strong>video</strong> frame.
+	 *
+	 * <p>
+	 * A face turned further than this on any axis is discarded however confident the detector is, because a face in profile yields a poor embedding
+	 * while its detection score stays high - so score alone cannot filter them.
+	 * </p>
+	 *
+	 * <p>
+	 * The 30 degree default suits footage shot towards the camera and rejects a surprising amount of everything else: two people talking to each other
+	 * sit at 40-80 degrees of yaw and are dropped entirely, so such a clip reports no faces at all. Raise it for conversational or side-on footage, or
+	 * set 180 to accept every orientation when nothing downstream needs an embedding.
+	 * </p>
+	 *
+	 * <p>
+	 * ⚠️ Applies to the video path only. The image path has never had this gate, so the same frame can yield faces as a file and none as a video.
+	 * </p>
+	 */
+	@ParamDoc(label = "Max Face Angle (deg)", description = "Discard video faces turned further than this; 180 accepts any orientation", min = "0.0", max = "180.0", step = "5")
+	private float maxFaceAngle = InspireFacedetector.DEFAULT_MAX_FACE_ANGLE;
 
 	/**
 	 * Defines the inspireface model pack path.
@@ -100,6 +122,15 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 
 	public float getMinFaceHeightFactor() {
 		return minFaceHeightFactor;
+	}
+
+	public float getMaxFaceAngle() {
+		return maxFaceAngle;
+	}
+
+	public FacedetectNodeOptions setMaxFaceAngle(float maxFaceAngle) {
+		this.maxFaceAngle = maxFaceAngle;
+		return this;
 	}
 
 	public FacedetectNodeOptions setMinFaceHeightFactor(float minFaceHeightFactor) {

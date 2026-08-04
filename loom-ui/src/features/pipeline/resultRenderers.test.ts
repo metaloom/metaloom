@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  asDetection,
+  detectionRegions,
   payloadToMarkdownTable,
   previewKind,
   stringifyValue,
@@ -172,5 +174,56 @@ describe("payloadToMarkdownTable", () => {
     const lines = payloadToMarkdownTable(p).split("\n");
     expect(lines[2]).toBe("| 4 | d |");
     expect(lines[3]).toBe("| 2 | b |");
+  });
+});
+
+describe("asDetection", () => {
+  it("parses the encoded-string form facedetect actually emits", () => {
+    // A `detection/*` port declares String.class, so its elements arrive as JSON text. Treating
+    // them as objects is what made every face render as truncated raw JSON.
+    expect(asDetection('{"index":0,"label":"face","confidence":0.94}'))
+      .toEqual({ index: 0, label: "face", confidence: 0.94 });
+  });
+
+  it("accepts an object element unchanged", () => {
+    expect(asDetection({ label: "face" })).toEqual({ label: "face" });
+  });
+
+  it("returns null rather than throwing for values that are not detections", () => {
+    // Every element of every other port comes through here too — a hash, a path, a number.
+    for (const value of ["0f8ef1c9ab", "/media/a.mp4", "{not json", "[1,2]", 42, null, undefined]) {
+      expect(asDetection(value)).toBeNull();
+    }
+  });
+});
+
+describe("detectionRegions", () => {
+  const face = (over: Record<string, unknown> = {}) => JSON.stringify({
+    index: 0, label: "face", confidence: 1, coordinates: "ABSOLUTE_PIXELS",
+    bbox: { x: 960, y: 540, w: 480, h: 270 }, imageWidth: 3840, imageHeight: 2160, ...over,
+  });
+
+  it("normalizes absolute pixels against the element's own dimensions", () => {
+    // Against the element's dimensions, never the displayed image's: what is on screen is a
+    // downsampled preview, so using its size would be right only by coincidence.
+    expect(detectionRegions([face()])).toEqual([
+      { id: "0", label: "face 1.00", x: 0.25, y: 0.25, width: 0.125, height: 0.125 },
+    ]);
+  });
+
+  it("drops elements with no dimensions rather than guessing", () => {
+    // The video path used to omit these entirely. A box drawn against the wrong reference is
+    // worse than no box, because it looks authoritative.
+    expect(detectionRegions([face({ imageWidth: undefined, imageHeight: undefined })])).toEqual([]);
+  });
+
+  it("drops degenerate and non-detection elements", () => {
+    expect(detectionRegions([face({ bbox: { x: 0, y: 0, w: 0, h: 10 } })])).toEqual([]);
+    expect(detectionRegions(["not a detection", null, 7])).toEqual([]);
+  });
+
+  it("keeps the element's own index as the id so a label maps to its box", () => {
+    const regions = detectionRegions([face({ index: 2 }), face({ index: 5 })]);
+    expect(regions.map(r => r.id)).toEqual(["2", "5"]);
   });
 });
