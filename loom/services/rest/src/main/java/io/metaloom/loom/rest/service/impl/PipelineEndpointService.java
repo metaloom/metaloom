@@ -45,6 +45,8 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteResponse;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
 import io.metaloom.loom.pipeline.engine.RunStateStore;
 import io.metaloom.loom.pipeline.graph.GraphValidationException;
@@ -875,6 +877,62 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 					"Pipeline run is not holding at a breakpoint, so there is nothing to step.");
 			}
 			lrc.send(modelBuilder.toBreakpointResponse(engine));
+		});
+	}
+
+	/**
+	 * Run one held execution again, optionally with different settings.
+	 *
+	 * <p>
+	 * The counterpart to a breakpoint. Stopping at a node lets you see what it produced; this lets
+	 * you change the setting you suspect and see the same input answered differently, without
+	 * re-running the pipeline from the top and without discarding the attempt you are comparing
+	 * against.
+	 * </p>
+	 *
+	 * <p>
+	 * ⚠️ <strong>The pipeline is not written.</strong> Options given here live in the engine for the
+	 * rest of this run and nowhere else, exactly like the armed breakpoint set. Keeping a setting is
+	 * a separate act through {@link #update}, which creates a new pipeline version — so
+	 * experimenting on a live run can never quietly change what everyone else runs.
+	 * </p>
+	 */
+	public void reExecuteNode(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid, String nodeId) {
+		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
+			loadRunOr404(pipelineUuid, runUuid);
+			PipelineRunEngine engine = requireLiveEngine(runUuid);
+
+			PipelineNodeReExecuteRequest request = lrc.requestBody(PipelineNodeReExecuteRequest.class);
+			if (request == null || request.getItemUuid() == null || request.getItemUuid().isBlank()) {
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
+					"An itemUuid must be given: a re-execution runs one node over one item's input.");
+			}
+			// Reuses the breakpoint check, so a typo in a node id is reported the same way whether it
+			// was armed or re-executed.
+			validateBreakpoints(engine.getGraph(), List.of(nodeId));
+
+			io.metaloom.loom.pipeline.graph.PipelineGraphNode node = engine.getGraph().getNode(nodeId);
+			// Validated against the node's declared parameters before anything is changed, so a bad
+			// value is a 400 rather than a worker failure the operator has to go and read logs for.
+			pipelineValidationService.validateNodeOptions(node.getKind(), request.getOptions());
+
+			int generation;
+			try {
+				generation = engine.reExecute(request.getItemUuid(), nodeId, request.getElementSeq(),
+					request.getOptions());
+			} catch (IllegalStateException e) {
+				// Not held. A conflict rather than a bad request: the call is well-formed and would
+				// have been accepted a moment earlier, or will be once the item reaches this node.
+				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT, e.getMessage());
+			} catch (IllegalArgumentException e) {
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, e.getMessage());
+			}
+
+			log.info("Re-executing node '{}' of run {} as generation {}", nodeId, runUuid, generation);
+			lrc.send(new PipelineNodeReExecuteResponse()
+				.setGeneration(generation)
+				.setNodeId(nodeId)
+				.setOptions(engine.getOptionOverrides().getOrDefault(nodeId, node.getOptions())));
 		});
 	}
 

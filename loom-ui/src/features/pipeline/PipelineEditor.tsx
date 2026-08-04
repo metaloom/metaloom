@@ -49,7 +49,7 @@ import {
   listPipelineRunItemTasks, type PipelineNodeTaskRecord, type PortPayload,
   listPipelineVersions, restorePipelineVersion,
   loadPipelineRunBreakpoints, setPipelineRunBreakpoints, continuePipelineRunBreakpoint,
-  stepPipelineRun, type HeldExecution,
+  stepPipelineRun, type HeldExecution, reExecutePipelineRunNode,
 } from "../../api/pipelines";
 import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pipelineEvents";
 import { useAuth } from "../../context/AuthContext";
@@ -64,6 +64,7 @@ import BucketListEditor, { type Bucket } from "./BucketListEditor";
 import NodeResultStrip from "./NodeResultStrip";
 import NodeResultDetail from "./NodeResultDetail";
 import { summarizePayload } from "./resultRenderers";
+import { effectiveOptions, generationsOf, heldElementSeq, pinGenerations } from "./generations";
 import { PipelineVersionDiff } from "./PipelineVersionDiff";
 
 // Default affinity group name. Mirrors PipelineGraphNode.DEFAULT_AFFINITY on the
@@ -1363,7 +1364,9 @@ function PipelineInspector({ pipeline, runs, runsLoading, onCancelRun, onPauseRu
 // ── Node Detail Sidebar (second collapsible right panel) ──────────────────
 function NodeDetailSidebar({
   nodeId, pipeline, open, onClose, onDisplayNameChange, onParameterChange, onAffinityChange,
-  tasks, tasksLoading, inspectedItem,
+  tasks, allTasks, tasksLoading, inspectedItem,
+  heldSeq, draft, onDraftChange, onReExecute, onSaveDraft, reExecuting,
+  pinnedGeneration, onPinGeneration,
 }: {
   nodeId: string | null;
   pipeline: Pipeline | null;
@@ -1372,10 +1375,27 @@ function NodeDetailSidebar({
   onDisplayNameChange?: (nodeId: string, name: string) => void;
   onParameterChange?: (nodeId: string, key: string, value: unknown) => void;
   onAffinityChange?: (nodeId: string, value: string) => void;
-  /** This node's executions for the inspected run item; empty when no item is inspected. */
+  /** This node's executions for the inspected run item, narrowed to the shown attempt. */
   tasks?: PipelineNodeTaskRecord[];
+  /** Every attempt, so the generation selector knows what there is to choose between. */
+  allTasks?: PipelineNodeTaskRecord[];
   tasksLoading?: boolean;
   inspectedItem?: PipelineRunItemRecord | null;
+  /**
+   * Which element of this node is held at a breakpoint for the inspected item, or null.
+   *
+   * This is what turns the parameter form from an editor of the pipeline into an editor of the
+   * run: a held execution can be re-run, so its settings are worth changing on their own.
+   */
+  heldSeq?: number | null;
+  /** Settings typed while held that have not been saved to the pipeline. */
+  draft?: Record<string, unknown>;
+  onDraftChange?: (nodeId: string, key: string, value: unknown) => void;
+  onReExecute?: (nodeId: string) => void;
+  onSaveDraft?: (nodeId: string) => void;
+  reExecuting?: boolean;
+  pinnedGeneration?: number;
+  onPinGeneration?: (nodeId: string, generation: number) => void;
 }) {
   const { getDescriptor } = useNodeRegistry();
   const node = (nodeId && pipeline) ? pipeline.definition.nodes.find(n => n.id === nodeId) ?? null : null;
@@ -1387,6 +1407,26 @@ function NodeDetailSidebar({
   // Per-parameter "the JSON you typed does not parse" flags, for JSON-typed parameters.
   const [jsonParamError, setJsonParamError] = useState<Record<string, boolean>>({});
   const { t } = useTranslation();
+
+  /**
+   * Whether this node's form edits the run or the pipeline.
+   *
+   * Held means the node has produced a result nothing downstream has seen yet, so it can be run
+   * again over the same input — and changing a setting is only meaningful because of that. When it
+   * is not held the form behaves exactly as it always has and writes the definition.
+   */
+  const heldForReExecute = heldSeq !== null && heldSeq !== undefined;
+  const definitionOptions = node ? pipelineNodeOptions(node) : {};
+  // The form reads through the draft, so a value typed for a re-execution is what is on screen.
+  const shownOptions = effectiveOptions(definitionOptions, heldForReExecute ? draft : undefined);
+  const draftKeys = heldForReExecute && draft ? Object.keys(draft) : [];
+  const changeParameter = (key: string, value: unknown) => {
+    if (!nodeId) return;
+    if (heldForReExecute) onDraftChange?.(nodeId, key, value);
+    else onParameterChange?.(nodeId, key, value);
+  };
+  const generations = generationsOf(allTasks);
+  const shownGeneration = pinnedGeneration ?? (generations.length > 0 ? generations[generations.length - 1] : 0);
 
   // Distinct affinity groups already used in the graph, for the autocomplete.
   const affinityOptions = pipeline
@@ -1508,15 +1548,100 @@ function NodeDetailSidebar({
                   )}
                 />
 
+                {/*
+                  * Held at a breakpoint: the settings below now edit this run rather than the
+                  * pipeline, and the node can be run again over the same input. This panel is what
+                  * says so — without it the form would look identical while doing something else.
+                  */}
+                {heldForReExecute && (
+                  <Box
+                    data-testid="pipeline-node-held-panel"
+                    data-held-seq={String(heldSeq)}
+                    sx={{
+                      p: 1.25, borderRadius: tokens.radius.sm,
+                      border: `1px solid ${tokens.accent.amber}55`,
+                      bgcolor: `${tokens.accent.amber}12`,
+                      display: "flex", flexDirection: "column", gap: 1,
+                    }}
+                  >
+                    <Typography sx={{ fontSize: "0.66rem", color: tokens.accent.amber, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                      ‖ {t("pipeline.debug.heldBadge")}
+                    </Typography>
+                    <Typography sx={{ fontSize: "0.66rem", color: tokens.text.tertiary, lineHeight: 1.45 }}>
+                      {t("pipeline.debug.reExecuteHelp")}
+                    </Typography>
+
+                    {/* Which attempt is on screen. Only offered once there is more than one. */}
+                    {generations.length > 1 && (
+                      <TextField
+                        select
+                        size="small"
+                        fullWidth
+                        label={t("pipeline.debug.generation")}
+                        value={String(shownGeneration)}
+                        onChange={e => nodeId && onPinGeneration?.(nodeId, parseInt(e.target.value, 10))}
+                        inputProps={{ "data-testid": "pipeline-node-generation" }}
+                        sx={{ "& .MuiInputBase-root": { fontSize: "0.75rem" } }}
+                      >
+                        {generations.map(generation => (
+                          <MenuItem key={generation} value={String(generation)} sx={{ fontSize: "0.75rem" }}>
+                            {generation === 0
+                              ? t("pipeline.debug.generationOriginal")
+                              : t("pipeline.debug.generationAttempt", { n: generation })}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    )}
+
+                    <Box sx={{ display: "flex", gap: 0.75 }}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        disabled={reExecuting}
+                        onClick={() => nodeId && onReExecute?.(nodeId)}
+                        data-testid="pipeline-node-reexecute"
+                        sx={{ fontSize: "0.66rem", textTransform: "none", flex: 1 }}
+                      >
+                        {reExecuting ? t("pipeline.debug.reExecuting") : t("pipeline.debug.reExecute")}
+                      </Button>
+                      {/*
+                        * Keeping a setting is a separate, deliberate act. Everything above is run
+                        * state; this is the only button here that changes the pipeline everyone
+                        * else runs, so it is only enabled once something has actually been changed.
+                        */}
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={draftKeys.length === 0}
+                        onClick={() => nodeId && onSaveDraft?.(nodeId)}
+                        data-testid="pipeline-node-save-draft"
+                        sx={{ fontSize: "0.66rem", textTransform: "none", flex: 1 }}
+                      >
+                        {t("pipeline.debug.saveToPipeline")}
+                      </Button>
+                    </Box>
+                  </Box>
+                )}
+
                 {/* Dynamic parameter editor (from NodeDescriptor.parameters) */}
                 <Box>
                   <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.66rem", mb: 1, display: "block" }}>
                     {desc && desc.parameters.length > 0 ? t("pipeline.nodeDetail.parameters") : t("pipeline.nodeDetail.configuration")}
+                    {draftKeys.length > 0 && (
+                      <Box
+                        component="span"
+                        data-testid="pipeline-node-settings-draft"
+                        data-draft-keys={draftKeys.join(",")}
+                        sx={{ ml: 0.75, color: tokens.accent.amber, fontWeight: 700 }}
+                      >
+                        {t("pipeline.debug.draftCount", { count: draftKeys.length })}
+                      </Box>
+                    )}
                   </Typography>
                   {desc && desc.parameters.length > 0 ? (
                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
                       {desc.parameters.map(param => {
-                        const currentValue = pipelineNodeOptions(node)[param.key] ?? param.defaultValue ?? "";
+                        const currentValue = shownOptions[param.key] ?? param.defaultValue ?? "";
                         const label = param.label || param.key;
                         const descText = param.description || "";
                         // `values` is what the backend emits; `allowedValues` is the legacy alias.
@@ -1548,7 +1673,8 @@ function NodeDetailSidebar({
                                 size="small"
                                 fullWidth
                                 value={String(currentValue ?? "")}
-                                onChange={e => onParameterChange?.(nodeId!, param.key, e.target.value)}
+                                inputProps={{ "data-testid": `pipeline-node-param-${param.key}` }}
+                                onChange={e => changeParameter(param.key, e.target.value)}
                                 sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }}
                               >
                                 {(enumValues ?? []).map(opt => (
@@ -1559,7 +1685,8 @@ function NodeDetailSidebar({
                               <Switch
                                 size="small"
                                 checked={!!currentValue}
-                                onChange={e => onParameterChange?.(nodeId!, param.key, e.target.checked)}
+                                inputProps={{ "data-testid": `pipeline-node-param-${param.key}` } as any}
+                                onChange={e => changeParameter(param.key, e.target.checked)}
                                 sx={{ "& .MuiSwitch-switchBase": { color: tokens.primary.main } }}
                               />
                             ) : isStringList ? (
@@ -1570,7 +1697,7 @@ function NodeDetailSidebar({
                                 placeholder="comma, separated, values"
                                 onChange={e => {
                                   const parts = e.target.value.split(",").map(s => s.trim()).filter(s => s.length > 0);
-                                  onParameterChange?.(nodeId!, param.key, parts);
+                                  changeParameter(param.key, parts);
                                 }}
                                 sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: "monospace" } }}
                               />
@@ -1581,7 +1708,7 @@ function NodeDetailSidebar({
                               // node would disappear until it parsed again.
                               <BucketListEditor
                                 value={Array.isArray(currentValue) ? (currentValue as Bucket[]) : []}
-                                onChange={next => onParameterChange?.(nodeId!, param.key, next)}
+                                onChange={next => changeParameter(param.key, next)}
                               />
                             ) : isCode || isJson ? (
                               // Script bodies and structured bags need room and a monospace face.
@@ -1599,16 +1726,16 @@ function NodeDetailSidebar({
                                 onChange={e => {
                                   const raw = e.target.value;
                                   if (!isJson) {
-                                    onParameterChange?.(nodeId!, param.key, raw);
+                                    changeParameter(param.key, raw);
                                     return;
                                   }
                                   try {
-                                    onParameterChange?.(nodeId!, param.key, JSON.parse(raw));
+                                    changeParameter(param.key, JSON.parse(raw));
                                     setJsonParamError(prev => ({ ...prev, [param.key]: false }));
                                   } catch {
                                     // Keep the text the user is typing, flag it, and let save-time
                                     // validation refuse rather than silently persisting a string.
-                                    onParameterChange?.(nodeId!, param.key, raw);
+                                    changeParameter(param.key, raw);
                                     setJsonParamError(prev => ({ ...prev, [param.key]: true }));
                                   }
                                 }}
@@ -1622,11 +1749,12 @@ function NodeDetailSidebar({
                                 fullWidth
                                 type={isInt || isFloat ? "number" : "text"}
                                 value={String(fieldValue ?? "")}
+                                inputProps={{ "data-testid": `pipeline-node-param-${param.key}` }}
                                 onChange={e => {
                                   let val: unknown = e.target.value;
                                   if (isInt) val = e.target.value === "" ? "" : parseInt(e.target.value, 10);
                                   else if (isFloat) val = e.target.value === "" ? "" : parseFloat(e.target.value);
-                                  onParameterChange?.(nodeId!, param.key, val);
+                                  changeParameter(param.key, val);
                                 }}
                                 sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem", fontFamily: isInt || isFloat ? "monospace" : "inherit" } }}
                               />
@@ -2899,6 +3027,20 @@ export default function PipelineEditor() {
   const [breakpointNodes, setBreakpointNodes] = useState<Set<string>>(new Set());
   const [heldExecutions, setHeldExecutions] = useState<HeldExecution[]>([]);
 
+  /**
+   * Settings typed into a held node's form, per node, that have not been saved to the pipeline.
+   *
+   * The whole point of the separation: while a node is stopped at a breakpoint its form edits a
+   * draft that goes to the engine for this run only, so an operator can try three values for a
+   * pose gate without any of them becoming part of the pipeline everyone else runs. "Save to
+   * pipeline" is the deliberate act that moves one into the definition.
+   */
+  const [optionDrafts, setOptionDrafts] = useState<Record<string, Record<string, unknown>>>({});
+  /** Which attempt of a re-executed node to show, per node; absent means its most recent. */
+  const [pinnedGenerations, setPinnedGenerations] = useState<Record<string, number>>({});
+  /** The node currently being re-executed, so its button can say so. */
+  const [reExecuting, setReExecuting] = useState<string | null>(null);
+
   // Version history
   const [versions, setVersions] = useState<PipelineResponse[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
@@ -2997,6 +3139,19 @@ export default function PipelineEditor() {
     }
     return byNode;
   }, [nodeTasks]);
+
+  /**
+   * The same, narrowed to one attempt per node.
+   *
+   * A re-executed node has a record per attempt, and painting all of them onto the canvas would
+   * show one node emitting two contradictory results. The default is the most recent — after
+   * changing a setting you want to see what it did — and the sidebar can pin an earlier one to
+   * compare.
+   */
+  const shownTasksByNode = React.useMemo(
+    () => pinGenerations(tasksByNode, pinnedGenerations),
+    [tasksByNode, pinnedGenerations],
+  );
 
   // Open the run-detail drawer for a run and fetch its items.
   const openRunDetail = useCallback((run: PipelineRunRecord) => {
@@ -3130,6 +3285,11 @@ export default function PipelineEditor() {
               mediaPath: event.mediaPath,
               state: "RUNNING",
             });
+          } else if (inspectedItemRef.current?.uuid === event.itemUuid) {
+            // A node of the item already on screen has just settled — most obviously a
+            // re-execution the operator asked for. Re-read it, or the canvas would keep showing
+            // the attempt they replaced and the whole exercise would appear to have done nothing.
+            inspectItem(inspectedItemRef.current);
           }
           setHeldExecutions(prev => (
             prev.some(h => h.nodeId === entry.nodeId && h.itemUuid === entry.itemUuid && h.elementSeq === entry.elementSeq)
@@ -3232,6 +3392,17 @@ export default function PipelineEditor() {
     }
   }, [selected]);
 
+  /**
+   * A parameter edited while the node is stopped at a breakpoint.
+   *
+   * Goes into the run-scoped draft rather than the definition, and deliberately does **not** mark
+   * the editor dirty: trying a value out is not an unsaved change to the pipeline, and treating it
+   * as one would nag the operator to save experiments they never meant to keep.
+   */
+  const handleDraftParameterChange = useCallback((nodeId: string, key: string, value: unknown) => {
+    setOptionDrafts(prev => ({ ...prev, [nodeId]: { ...(prev[nodeId] ?? {}), [key]: value } }));
+  }, []);
+
   // Persist affinity-group changes from the NodeDetailSidebar. Writes the
   // top-level `affinity` field on the definition node (the shape Loom reads) and
   // pushes it to the live canvas via the nodeAffinities channel.
@@ -3324,20 +3495,24 @@ export default function PipelineEditor() {
     setValidationErrors([]); // clear stale validation on graph change
   }, []);
 
-  const handleSave = useCallback(async () => {
-    if (!token || !selected || saving) return;
-    // Run validation before saving
-    const definition = graphJson ?? {
-      nodes: selected.definition.nodes,
-      edges: selected.definition.edges,
-    };
+  /**
+   * Validate a definition and store it as a new pipeline version.
+   *
+   * Takes the definition rather than reading `graphJson`, so a caller that has just changed a
+   * parameter can save exactly what it changed. The canvas is one render behind such an edit, and
+   * a save that read from it would silently drop the change it was asked to keep.
+   *
+   * @returns true when the version was written
+   */
+  const saveDefinition = useCallback(async (definition: any): Promise<boolean> => {
+    if (!token || !selected || saving) return false;
     const nodesForValidation = (definition.nodes ?? []).map((n: any) => ({ id: n.id, type: n.type ?? n.category, label: n.label, options: pipelineNodeOptions(n) }));
     const edgesForValidation = (definition.edges ?? []).map((e: any) => ({ source: e.source, target: e.target, sourcePort: e.sourcePort, targetPort: e.targetPort }));
     const errors = validatePipeline(nodesForValidation, edgesForValidation, descriptors);
     setValidationErrors(errors);
     if (errors.length > 0) {
       notify("error", errors[0].message);
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -3358,12 +3533,23 @@ export default function PipelineEditor() {
       setPipelines(prev => prev.map(p => (p.id === versioned.id ? versioned : p)));
       setDirty(false);
       notify("success", t("pipeline.editor.saveOk"));
+      return true;
     } catch (err) {
       notify("error", (err as Error).message || "Save failed");
+      return false;
     } finally {
       setSaving(false);
     }
-  }, [token, selected, saving, graphJson, descriptors, notify, t]);
+  }, [token, selected, saving, descriptors, notify, t]);
+
+  /** Save what is on the canvas — the Save button. */
+  const handleSave = useCallback(async () => {
+    if (!selected) return;
+    await saveDefinition(graphJson ?? {
+      nodes: selected.definition.nodes,
+      edges: selected.definition.edges,
+    });
+  }, [selected, graphJson, saveDefinition]);
 
   // Select a pipeline in the sidebar, resetting the per-node inspector state.
   const applySelect = useCallback((p: Pipeline) => {
@@ -3590,6 +3776,79 @@ export default function PipelineEditor() {
       notify("error", (err as Error).message || "Step failed");
     }
   }, [token, selected, liveRun, notify]);
+
+  /**
+   * Run a held node again over the same input, with whatever is in its draft.
+   *
+   * There is nothing to do with the result here. The node is dispatched, finishes, and is held at
+   * the same breakpoint again, and the `NODE_BREAKPOINT_HELD` frame that follows re-reads the
+   * executions — the same path the first attempt took.
+   */
+  const handleReExecuteNode = useCallback(async (nodeId: string) => {
+    if (!token || !selected || !liveRun || !inspectedItem || reExecuting) return;
+    const elementSeq = heldElementSeq(heldExecutions, nodeId, inspectedItem.uuid);
+    if (elementSeq === null) {
+      // The button is only offered for a held node, so this is a race — the run was stepped from
+      // another tab. Saying so beats a 409 the operator has to decode.
+      notify("error", t("pipeline.debug.reExecuteNotHeld"));
+      return;
+    }
+    setReExecuting(nodeId);
+    try {
+      const result = await reExecutePipelineRunNode(
+        token, selected.id, liveRun.uuid, nodeId, inspectedItem.uuid, elementSeq, optionDrafts[nodeId],
+      );
+      // Follow the attempt just asked for, rather than staying pinned to the one being compared.
+      setPinnedGenerations(prev => {
+        const next = { ...prev };
+        delete next[nodeId];
+        return next;
+      });
+      notify("success", t("pipeline.debug.reExecuteOk", { generation: result.generation }));
+    } catch (err) {
+      notify("error", (err as Error).message || t("pipeline.debug.reExecuteFailed"));
+    } finally {
+      setReExecuting(null);
+    }
+  }, [token, selected, liveRun, inspectedItem, heldExecutions, optionDrafts, reExecuting, notify, t]);
+
+  /**
+   * Keep a drafted setting: write it into the definition and save a new pipeline version.
+   *
+   * The deliberate act that ends an experiment. Everything up to here was run state, so this is the
+   * only path by which a value tried out at a breakpoint can reach the pipeline everyone else runs.
+   *
+   * The definition is assembled here rather than taken from `graphJson`, because a parameter change
+   * reaches the canvas through a state channel and would not be serialised until a later render —
+   * saving in the same tick would write the graph as it was before the edit.
+   */
+  const handleSaveDraftToPipeline = useCallback(async (nodeId: string) => {
+    if (!selected) return;
+    const draft = optionDrafts[nodeId];
+    if (!draft || Object.keys(draft).length === 0) return;
+    const node = selected.definition.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    // Normalise onto `options` — the only shape Loom reads — as handleParameterChange does.
+    node.options = { ...pipelineNodeOptions(node), ...draft };
+    delete node.config;
+    delete node.data;
+    const definition = { nodes: selected.definition.nodes, edges: selected.definition.edges };
+    setSelected({ ...selected });
+    // Mirror onto the canvas too, so the form and the serialised graph agree from here on.
+    setNodeParameters(prev => ({ ...prev, [nodeId]: { ...(prev[nodeId] ?? {}), ...draft } }));
+
+    const saved = await saveDefinition(definition);
+    if (saved) {
+      // Only once it is durably part of the pipeline: until then the draft is still the only
+      // record of what the operator chose.
+      setOptionDrafts(prev => {
+        const next = { ...prev };
+        delete next[nodeId];
+        return next;
+      });
+    }
+  }, [selected, optionDrafts, saveDefinition]);
 
   /**
    * Reconcile what the run is really holding whenever a live run appears or changes.
@@ -3952,7 +4211,7 @@ export default function PipelineEditor() {
                   nodeResults={nodeResults}
                   nodeStats={nodeStats}
                   debug={debug}
-                  tasksByNode={tasksByNode}
+                  tasksByNode={shownTasksByNode}
                   onSelectPort={handleSelectPort}
                   debugState={debugState}
                   onGraphChange={handleGraphChange}
@@ -4298,9 +4557,18 @@ export default function PipelineEditor() {
         onDisplayNameChange={handleDisplayNameChange}
         onParameterChange={handleParameterChange}
         onAffinityChange={handleAffinityChange}
-        tasks={selectedNodeId ? tasksByNode[selectedNodeId] : undefined}
+        tasks={selectedNodeId ? shownTasksByNode[selectedNodeId] : undefined}
+        allTasks={selectedNodeId ? tasksByNode[selectedNodeId] : undefined}
         tasksLoading={nodeTasksLoading}
         inspectedItem={inspectedItem}
+        heldSeq={selectedNodeId ? heldElementSeq(heldExecutions, selectedNodeId, inspectedItem?.uuid) : null}
+        draft={selectedNodeId ? optionDrafts[selectedNodeId] : undefined}
+        onDraftChange={handleDraftParameterChange}
+        onReExecute={handleReExecuteNode}
+        onSaveDraft={handleSaveDraftToPipeline}
+        reExecuting={reExecuting !== null}
+        pinnedGeneration={selectedNodeId ? pinnedGenerations[selectedNodeId] : undefined}
+        onPinGeneration={(nodeId, generation) => setPinnedGenerations(prev => ({ ...prev, [nodeId]: generation }))}
       />
 
       {/* Stats inspector panel */}

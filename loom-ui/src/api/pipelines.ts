@@ -390,6 +390,15 @@ export interface PipelineNodeTaskRecord {
   nodeId: string;
   nodeKind: string;
   elementSeq: number;
+  /**
+   * Which attempt at this execution the record is; 0 unless the node was re-executed.
+   *
+   * A node held at a breakpoint can be run again with different settings, and each attempt keeps
+   * its own record — comparing them is the reason to re-execute at all. So `(nodeId, elementSeq)`
+   * no longer identifies a single record, and anything picking "the" result for a node must take
+   * the highest generation.
+   */
+  generation: number;
   /** PENDING | LEASED | DONE | FAILED | DEAD_LETTER */
   state: string;
   attempt: number;
@@ -642,6 +651,50 @@ export async function continuePipelineRunBreakpoint(
     const text = await res.text().catch(() => "");
     throw new Error(`API error ${res.status}: ${text}`);
   }
+}
+
+/** What a re-execution request started. */
+export interface PipelineNodeReExecuteResponse {
+  /** Which attempt this is, counting from 1; the original run is 0. */
+  generation: number;
+  nodeId: string;
+  /** The settings the node now runs with — the pipeline's own with the override laid over. */
+  options: Record<string, unknown>;
+}
+
+/**
+ * Run a node held at a breakpoint again over the same input, optionally with different settings.
+ *
+ * Options apply to **this run only** and never touch the stored pipeline; keeping a setting is a
+ * separate act through the pipeline update endpoint. Omit `options` to re-run with whatever is
+ * already in effect, or pass `{}` to drop the override and go back to the definition.
+ *
+ * Fails with 409 when the execution is not held — only a held execution may be re-run, because a
+ * hold is what guarantees nothing downstream has consumed the result being discarded.
+ * Endpoint: `POST /api/v1/pipelines/:uuid/runs/:runUuid/nodes/:nodeId/reexecutions`.
+ */
+export async function reExecutePipelineRunNode(
+  token: string,
+  pipelineUuid: string,
+  runUuid: string,
+  nodeId: string,
+  itemUuid: string,
+  elementSeq: number,
+  options?: Record<string, unknown>,
+): Promise<PipelineNodeReExecuteResponse> {
+  const url = `${API_BASE_URL}/pipelines/${encodeURIComponent(pipelineUuid)}/runs/${encodeURIComponent(runUuid)}`
+    + `/nodes/${encodeURIComponent(nodeId)}/reexecutions`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(options === undefined ? { itemUuid, elementSeq } : { itemUuid, elementSeq, options }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  const body = await res.json() as Partial<PipelineNodeReExecuteResponse>;
+  return { generation: body.generation ?? 0, nodeId: body.nodeId ?? nodeId, options: body.options ?? {} };
 }
 
 /**

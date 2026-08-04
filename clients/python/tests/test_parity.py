@@ -35,9 +35,9 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 
 #: The Java client's method count, as a tripwire: a new method added there should
 #: fail this test rather than quietly leave the Python client behind.
-#: 210 abstract declarations plus 21 ``default`` overloads. Cross-checked both ways
-#: against ``LoomHttpClientImpl``, which implements exactly these 231.
-EXPECTED_JAVA_METHOD_COUNT = 231
+#: 211 abstract declarations plus 21 ``default`` overloads. Cross-checked both ways
+#: against ``LoomHttpClientImpl``, which implements exactly these 232.
+EXPECTED_JAVA_METHOD_COUNT = 232
 
 #: Paths this client builds that the generated API description does not list.
 #:

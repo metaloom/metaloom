@@ -213,6 +213,24 @@ public class ItemState {
 		return execs.values().stream().mapToInt(NodeExecState::heldCount).sum();
 	}
 
+	/**
+	 * @return which attempt of this execution is current; 0 for a node that has only ever run once
+	 */
+	int generationFor(String nodeId, int seq) {
+		NodeExecState state = execs.get(nodeId);
+		return state == null ? 0 : state.generationFor(seq);
+	}
+
+	/**
+	 * Discard one settled execution so it can run again. See {@link NodeExecState#clearResult(int)}.
+	 *
+	 * @return the generation the next dispatch will carry, or 0 when the node was never touched
+	 */
+	int clearResult(String nodeId, int seq) {
+		NodeExecState state = execs.get(nodeId);
+		return state == null ? 0 : state.clearResult(seq);
+	}
+
 	boolean isInFlight(String nodeId) {
 		NodeExecState state = execs.get(nodeId);
 		return state != null && state.hasInFlight();

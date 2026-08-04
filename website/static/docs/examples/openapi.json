@@ -453,6 +453,227 @@
         }
       }
     },
+    "/api/v1/annotations/{annotationUuid}/comments" : {
+      "description" : "Create a new comment on an annotation",
+      "get" : {
+        "tags" : [ "annotations" ],
+        "summary" : "List the comments on an annotation",
+        "description" : "List the comments on an annotation",
+        "operationId" : "getAnnotationsByAnnotationUuidComments",
+        "responses" : {
+          "200" : {
+            "description" : "The comment list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "title" : "The Title",
+                    "text" : "The comment text"
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "title" : "The Title",
+                    "text" : "The comment text"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "annotations" ],
+        "summary" : "Create a new comment on an annotation",
+        "description" : "Create a new comment on an annotation",
+        "operationId" : "postAnnotationsByAnnotationUuidComments",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "meta" : {
+                  "abc" : "cdef"
+                },
+                "title" : "The comment title",
+                "text" : "The comment text"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The comment response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "title" : "The Title",
+                  "text" : "The comment text"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "annotationUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced annotation",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/annotations/{annotationUuid}/reactions" : {
       "description" : "Create a new reaction for an annotation",
       "get" : {
@@ -2022,8 +2243,8 @@
       },
       "post" : {
         "tags" : [ "assets" ],
-        "summary" : "Create a new component for an asset",
-        "description" : "Create a new component for an asset",
+        "summary" : "Create or replace a component for an asset (upsert on asset, node kind and discriminators)",
+        "description" : "Create or replace a component for an asset (upsert on asset, node kind and discriminators)",
         "operationId" : "postAssetsByAssetUuidComponents",
         "requestBody" : {
           "content" : {
@@ -3474,12 +3695,129 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/binaries" : {
+      "description" : "List every binary of the asset - one per library the asset was imported into.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "List every binary of the asset - one per library the asset was imported into.",
+        "description" : "List every binary of the asset - one per library the asset was imported into.",
+        "operationId" : "getAssetsByUuidBinaries",
+        "responses" : {
+          "200" : {
+            "description" : "The location list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "status" : { },
+                    "filesystem" : {
+                      "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                      "filekey" : {
+                        "inode" : 42,
+                        "stDev" : 12,
+                        "edate" : 12,
+                        "edateNano" : 3
+                      },
+                      "lastSeen" : "2018-11-20T20:12:01Z"
+                    },
+                    "s3" : {
+                      "bucket" : "big_bucket",
+                      "objectPath" : "themovie"
+                    }
+                  }, {
+                    "status" : { },
+                    "filesystem" : {
+                      "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                      "filekey" : {
+                        "inode" : 42,
+                        "stDev" : 12,
+                        "edate" : 12,
+                        "edateNano" : 3
+                      },
+                      "lastSeen" : "2018-11-20T20:12:01Z"
+                    },
+                    "s3" : {
+                      "bucket" : "big_bucket",
+                      "objectPath" : "themovie"
+                    }
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/binary" : {
       "description" : "Create a binary for the asset",
       "get" : {
         "tags" : [ "assets" ],
-        "summary" : "Load the binary for the asset",
-        "description" : "Load the binary for the asset",
+        "summary" : "Load the primary binary for the asset. An asset holds one binary per library it was imported into; this returns the oldest. Use /binaries for all of them.",
+        "description" : "Load the primary binary for the asset. An asset holds one binary per library it was imported into; this returns the oldest. Use /binaries for all of them.",
         "operationId" : "getAssetsByUuidBinary",
         "responses" : {
           "200" : {
@@ -3720,11 +4058,11 @@
       } ]
     },
     "/api/v1/assets/{uuid}/binary/data" : {
-      "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
+      "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part named 'file'. The 'libraryUuid' form field is required when the asset has no binary yet, and when it has more than one - otherwise the server cannot tell which library's binary to replace and answers 400.",
       "get" : {
         "tags" : [ "assets" ],
-        "summary" : "Download the raw binary bytes for the asset.",
-        "description" : "Download the raw binary bytes for the asset.",
+        "summary" : "Download the raw bytes of the asset's primary binary, from whichever backend holds them. Supports single-range 'Range: bytes=' requests, answering 206 with Content-Range, so media can be seeked without refetching.",
+        "description" : "Download the raw bytes of the asset's primary binary, from whichever backend holds them. Supports single-range 'Range: bytes=' requests, answering 206 with Content-Range, so media can be seeked without refetching.",
         "operationId" : "getAssetsByUuidBinaryData",
         "responses" : {
           "400" : {
@@ -3781,10 +4119,34 @@
       },
       "post" : {
         "tags" : [ "assets" ],
-        "summary" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
-        "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part; a 'libraryUuid' form field is required only when the asset has no binary yet.",
+        "summary" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part named 'file'. The 'libraryUuid' form field is required when the asset has no binary yet, and when it has more than one - otherwise the server cannot tell which library's binary to replace and answers 400.",
+        "description" : "Upload raw file bytes into the binary for an existing asset. Expects a multipart request with one file part named 'file'. The 'libraryUuid' form field is required when the asset has no binary yet, and when it has more than one - otherwise the server cannot tell which library's binary to replace and answers 400.",
         "operationId" : "postAssetsByUuidBinaryData",
         "responses" : {
+          "200" : {
+            "description" : "The location response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "status" : { },
+                  "filesystem" : {
+                    "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                    "filekey" : {
+                      "inode" : 42,
+                      "stDev" : 12,
+                      "edate" : 12,
+                      "edateNano" : 3
+                    },
+                    "lastSeen" : "2018-11-20T20:12:01Z"
+                  },
+                  "s3" : {
+                    "bucket" : "big_bucket",
+                    "objectPath" : "themovie"
+                  }
+                }
+              }
+            }
+          },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -4006,6 +4368,77 @@
               }
             }
           },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/dedup-groups" : {
+      "description" : "List the duplicate review groups this asset takes part in, as keep or as duplicate",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "List the duplicate review groups this asset takes part in, as keep or as duplicate",
+        "description" : "List the duplicate review groups this asset takes part in, as keep or as duplicate",
+        "operationId" : "getAssetsByUuidDedupgroups",
+        "responses" : {
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -6483,6 +6916,77 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/similar-assets" : {
+      "description" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
+        "description" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
+        "operationId" : "getAssetsByUuidSimilarassets",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/tags" : {
       "description" : "Tag the asset",
       "post" : {
@@ -8908,13 +9412,152 @@
       } ]
     },
     "/api/v1/assets/upload" : {
-      "description" : "Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
+      "description" : "Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field and the optional form fields 'origin' and 'poolUuid'. The target library's storage pool decides whether the bytes land on a filesystem or in S3; naming 'poolUuid' overrides that for this upload and additionally requires the READ_ASSET_POOL permission. Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
       "post" : {
         "tags" : [ "assets" ],
-        "summary" : "Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
-        "description" : "Upload a file to create an asset. Expects a multipart request with one file part and a 'libraryUuid' form field.",
+        "summary" : "Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field and the optional form fields 'origin' and 'poolUuid'. The target library's storage pool decides whether the bytes land on a filesystem or in S3; naming 'poolUuid' overrides that for this upload and additionally requires the READ_ASSET_POOL permission. Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
+        "description" : "Upload a file to create an asset. Expects a multipart request with one file part named 'file', a required 'libraryUuid' form field and the optional form fields 'origin' and 'poolUuid'. The target library's storage pool decides whether the bytes land on a filesystem or in S3; naming 'poolUuid' overrides that for this upload and additionally requires the READ_ASSET_POOL permission. Answers 201 for new content and 200 when an asset with the same SHA-512 already exists.",
         "operationId" : "postAssetsUpload",
         "responses" : {
+          "200" : {
+            "description" : "The asset response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "geo" : {
+                    "lon" : 32.56,
+                    "lat" : 52.156
+                  },
+                  "tags" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "name" : "red"
+                  } ],
+                  "annotations" : [ {
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "title" : "Intro Feedback",
+                    "area" : {
+                      "from" : 0,
+                      "to" : 10
+                    },
+                    "description" : "The very nice intro",
+                    "tasks" : [ {
+                      "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                      "status" : { },
+                      "title" : "Fix text offset here",
+                      "description" : "The text is not aligned with the title",
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ]
+                    } ],
+                    "comments" : [ {
+                      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "status" : { },
+                      "title" : "Great work!",
+                      "text" : "What a great choice of colors!",
+                      "social" : {
+                        "rating" : {
+                          "stars" : 10,
+                          "upVotes" : 42,
+                          "downVotes" : 0
+                        },
+                        "reactions" : {
+                          "SATISFIED" : 10
+                        }
+                      }
+                    } ],
+                    "thumbnail" : "???",
+                    "tags" : [ {
+                      "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "name" : "blue"
+                    } ]
+                  } ],
+                  "collections" : [ ],
+                  "embeddings" : [ ],
+                  "file" : {
+                    "mimeType" : "video/mp4",
+                    "filename" : "bigbuckbunny-4k.mp4",
+                    "size" : 42000000,
+                    "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                    "firstSeen" : "2018-10-12T14:15:06Z"
+                  },
+                  "hashes" : {
+                    "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                    "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                    "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                  },
+                  "geoComponents" : [ ],
+                  "imageComponents" : [ {
+                    "dominantColor" : "#FFFF00"
+                  } ],
+                  "videoComponents" : [ {
+                    "width" : 4000,
+                    "height" : 2250,
+                    "duration" : 20000
+                  } ],
+                  "audioComponents" : [ {
+                    "channels" : 2,
+                    "encoding" : "mp3",
+                    "samplingRate" : 48000,
+                    "bpm" : 120
+                  } ],
+                  "documentComponents" : [ ],
+                  "locations" : [ {
+                    "status" : { },
+                    "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "mimeType" : "video/mp4",
+                    "state" : "PRESENT",
+                    "license" : "CC-BY-4.0",
+                    "filesystem" : {
+                      "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                      "filekey" : {
+                        "inode" : 42,
+                        "stDev" : 12,
+                        "edate" : 12,
+                        "edateNano" : 3
+                      },
+                      "lastSeen" : "2018-11-20T20:12:01Z"
+                    },
+                    "s3" : {
+                      "bucket" : "big_bucket",
+                      "objectPath" : "themovie"
+                    }
+                  } ]
+                }
+              }
+            }
+          },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -8959,7 +9602,7 @@
       }
     },
     "/api/v1/attachments" : {
-      "description" : "Create new attachment",
+      "description" : "Create a new attachment from an uploaded file. Expects a multipart request with one file part named 'file'. Optional form fields: 'assetUuid' (the asset this attachment describes - its storage pool then also receives these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'.",
       "get" : {
         "tags" : [ "attachments" ],
         "summary" : "Load a paged list of attachments",
@@ -9103,8 +9746,8 @@
       },
       "post" : {
         "tags" : [ "attachments" ],
-        "summary" : "Create new attachment",
-        "description" : "Create new attachment",
+        "summary" : "Create a new attachment from an uploaded file. Expects a multipart request with one file part named 'file'. Optional form fields: 'assetUuid' (the asset this attachment describes - its storage pool then also receives these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'.",
+        "description" : "Create a new attachment from an uploaded file. Expects a multipart request with one file part named 'file'. Optional form fields: 'assetUuid' (the asset this attachment describes - its storage pool then also receives these bytes), 'embeddingUuid', 'type' (CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO, ...) and 'poolUuid'.",
         "operationId" : "postAttachments",
         "responses" : {
           "200" : {
@@ -9370,6 +10013,77 @@
           "204" : {
             "description" : "The delete response"
           },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/attachments/{uuid}/data" : {
+      "description" : "Download the raw bytes of an attachment.",
+      "get" : {
+        "tags" : [ "attachments" ],
+        "summary" : "Download the raw bytes of an attachment.",
+        "description" : "Download the raw bytes of an attachment.",
+        "operationId" : "getAttachmentsByUuidData",
+        "responses" : {
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -16648,13 +17362,13 @@
         }
       }
     },
-    "/api/v1/pipeline/node-descriptors/{kind}" : {
-      "description" : "Load a pipeline node descriptor by kind",
+    "/api/v1/pipeline/node-descriptors/{nodeId}" : {
+      "description" : "Load a pipeline node descriptor by node id",
       "get" : {
         "tags" : [ "pipeline" ],
-        "summary" : "Load a pipeline node descriptor by kind",
-        "description" : "Load a pipeline node descriptor by kind",
-        "operationId" : "getPipelineNodedescriptorsByKind",
+        "summary" : "Load a pipeline node descriptor by node id",
+        "description" : "Load a pipeline node descriptor by node id",
+        "operationId" : "getPipelineNodedescriptorsByNodeId",
         "responses" : {
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
@@ -16709,14 +17423,65 @@
         }
       },
       "parameters" : [ {
-        "name" : "kind",
+        "name" : "nodeId",
         "in" : "path",
-        "description" : "Pipeline node kind",
+        "description" : "UUID of the referenced nodeId",
         "required" : true,
         "schema" : {
           "type" : "string"
         }
       } ]
+    },
+    "/api/v1/pipeline/node-descriptors/availability" : {
+      "description" : "Load node availability without the contracts",
+      "get" : {
+        "tags" : [ "pipeline" ],
+        "summary" : "Load node availability without the contracts",
+        "description" : "Load node availability without the contracts",
+        "operationId" : "getPipelineNodedescriptorsAvailability",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "/api/v1/pipelines" : {
       "description" : "Create a new pipeline",
@@ -16789,7 +17554,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "c7bc287d-b17c-46b7-87f1-e3cd79f1915f",
+                    "versionUuid" : "79bc6b92-5a91-4f9a-802e-448964cc204b",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -16816,7 +17581,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "23b05fcb-ed01-472d-89de-f4377ee302e0",
+                    "versionUuid" : "9b7fe98b-1ec2-4793-877f-07e7aa6add74",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -16923,7 +17688,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "8e516881-0147-4c8a-a528-21b11d8dea42",
+                  "versionUuid" : "0d3910ed-844b-49c0-b263-008d0be68906",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17009,7 +17774,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "3e3253b3-11a1-4392-ad93-51d8c317c7cb",
+                  "versionUuid" : "47afa16e-6749-4936-a797-a88872400501",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17116,7 +17881,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "d0b1b78c-dc9b-4baf-acb1-8ab72a58548c",
+                  "versionUuid" : "d628a28a-c38f-424b-a64b-a1c1f3daffe9",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17278,7 +18043,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "2e144529-3896-4bbf-ac65-a3cf859c8dfe",
+                  "runUuid" : "140361ce-00eb-442a-ba62-eb534948fa6a",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -17404,11 +18169,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "d13ff874-df30-4479-89e3-0e4ec343fb63",
-                    "pipelineUuid" : "e5eca1fb-d53e-4042-90e5-adcdcf5c8c09",
+                    "uuid" : "06d1755d-f772-4f57-82ba-aef2b330c3c0",
+                    "pipelineUuid" : "477dc9ac-5dfb-4899-92c2-b2e22301a439",
                     "pipelineVersion" : 1,
-                    "started" : "2026-07-26T11:48:32.746629618Z",
-                    "finished" : "2026-07-26T11:48:32.746729338Z",
+                    "started" : "2026-08-04T21:55:37.637005688Z",
+                    "finished" : "2026-08-04T21:55:37.637119148Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -17417,11 +18182,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "2aa6191b-37e3-41a7-b1bb-69ac1d65a344",
-                    "pipelineUuid" : "07c743fc-ca51-4a04-b1a2-31be98feda21",
+                    "uuid" : "a0d5764f-3665-453e-b073-950a4d079c26",
+                    "pipelineUuid" : "8e6917ef-9665-44b1-a76e-cb6709a8c4aa",
                     "pipelineVersion" : 1,
-                    "started" : "2026-07-26T11:48:32.746767728Z",
-                    "finished" : "2026-07-26T11:48:32.746771828Z",
+                    "started" : "2026-08-04T21:55:37.637147638Z",
+                    "finished" : "2026-08-04T21:55:37.637150728Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -17514,11 +18279,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "d0e848d0-37f7-4e19-a8b3-ba81818cc251",
-                  "pipelineUuid" : "53cae7c5-7129-4506-86da-c999c4dbd7bb",
+                  "uuid" : "94ad56f7-bd8f-4cb2-ad83-478e5ace8ec5",
+                  "pipelineUuid" : "0ecafa10-bd95-458d-8dba-9f8b05d365cc",
                   "pipelineVersion" : 1,
-                  "started" : "2026-07-26T11:48:32.747530978Z",
-                  "finished" : "2026-07-26T11:48:32.747537028Z",
+                  "started" : "2026-08-04T21:55:37.637830729Z",
+                  "finished" : "2026-08-04T21:55:37.637838169Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -17599,6 +18364,274 @@
         "schema" : {
           "type" : "string",
           "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/pipelines/{uuid}/runs/{runUuid}/breakpoints" : {
+      "description" : "Load the nodes a run halts at, and the executions it is currently holding",
+      "get" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Load the nodes a run halts at, and the executions it is currently holding",
+        "description" : "Load the nodes a run halts at, and the executions it is currently holding",
+        "operationId" : "getPipelinesByUuidRunsByRunUuidBreakpoints",
+        "responses" : {
+          "200" : {
+            "description" : "The pipeline breakpoint response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "nodeIds" : [ "thumbnail" ],
+                  "held" : [ {
+                    "nodeId" : "thumbnail",
+                    "itemUuid" : "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+                    "elementSeq" : 0
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Replace the set of nodes an in-flight run halts at",
+        "description" : "Replace the set of nodes an in-flight run halts at",
+        "operationId" : "putPipelinesByUuidRunsByRunUuidBreakpoints",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "nodeIds" : [ "thumbnail" ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The pipeline breakpoint response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "nodeIds" : [ "thumbnail" ],
+                  "held" : [ {
+                    "nodeId" : "thumbnail",
+                    "itemUuid" : "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+                    "elementSeq" : 0
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "runUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced run",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/pipelines/{uuid}/runs/{runUuid}/breakpoints/{nodeId}/continue" : {
+      "description" : "Release every execution one node is holding, leaving its breakpoint armed",
+      "post" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Release every execution one node is holding, leaving its breakpoint armed",
+        "description" : "Release every execution one node is holding, leaving its breakpoint armed",
+        "operationId" : "postPipelinesByUuidRunsByRunUuidBreakpointsByNodeIdContinue",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "runUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced run",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "nodeId",
+        "in" : "path",
+        "description" : "UUID of the referenced nodeId",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
         }
       } ]
     },
@@ -17740,16 +18773,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "b2337703-89fb-4039-bcd2-5775ef7bd031",
-                    "runUuid" : "6e0264e1-32e1-4054-bfb1-bf54c7a33e8b",
+                    "uuid" : "94f63157-63f6-4cb9-a1d9-7425fa7d360c",
+                    "runUuid" : "b5dded1c-bd03-4ac7-8a67-a064bade46c4",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "ef3121cd-130c-4535-97ed-00fe1239c2e2",
-                    "runUuid" : "69edcaf8-37ba-4dae-a9e4-b93560b300cf",
+                    "uuid" : "ee81cbf2-9288-4960-b0fd-518b18847e40",
+                    "runUuid" : "7b29f538-2c43-4a5f-9db1-fb4c6186c1ba",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -17833,6 +18866,356 @@
         "schema" : {
           "type" : "string",
           "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/pipelines/{uuid}/runs/{runUuid}/items/{itemUuid}/tasks" : {
+      "description" : "Load the node executions of a single pipeline run item, including their outputs",
+      "get" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Load the node executions of a single pipeline run item, including their outputs",
+        "description" : "Load the node executions of a single pipeline run item, including their outputs",
+        "operationId" : "getPipelinesByUuidRunsByRunUuidItemsByItemUuidTasks",
+        "responses" : {
+          "200" : {
+            "description" : "The pipeline node task list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "69e23776-0a92-4a94-b99e-541115432b2b",
+                    "itemUuid" : "244f5feb-54e9-47c2-af98-567cae1421ae",
+                    "runUuid" : "b5d6323f-df9a-4a37-9200-1f60da2d60b4",
+                    "nodeId" : "pn2",
+                    "nodeKind" : "sha512",
+                    "elementSeq" : 0,
+                    "generation" : 0,
+                    "state" : "DONE",
+                    "attempt" : 1,
+                    "maxAttempts" : 3,
+                    "durationMs" : 42,
+                    "outputs" : {
+                      "sha512" : {
+                        "contentType" : "hash/sha512",
+                        "cardinality" : "ONE",
+                        "elements" : [ {
+                          "origin" : {
+                            "itemId" : "5c1f",
+                            "seq" : 0,
+                            "total" : 1
+                          },
+                          "value" : "0f8ef1c9..."
+                        } ]
+                      }
+                    }
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 25,
+                    "totalCount" : 1
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "runUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced run",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "itemUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced item",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/pipelines/{uuid}/runs/{runUuid}/items/{itemUuid}/tasks/{taskUuid}/previews/{portId}" : {
+      "description" : "Load the bytes of one node output preview",
+      "get" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Load the bytes of one node output preview",
+        "description" : "Load the bytes of one node output preview",
+        "operationId" : "getPipelinesByUuidRunsByRunUuidItemsByItemUuidTasksByTaskUuidPreviewsByPortId",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "runUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced run",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "itemUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced item",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "taskUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced task",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "portId",
+        "in" : "path",
+        "description" : "UUID of the referenced portId",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/pipelines/{uuid}/runs/{runUuid}/nodes/{nodeId}/reexecutions" : {
+      "description" : "Run a node held at a breakpoint again over the same input, optionally with different settings",
+      "post" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Run a node held at a breakpoint again over the same input, optionally with different settings",
+        "description" : "Run a node held at a breakpoint again over the same input, optionally with different settings",
+        "operationId" : "postPipelinesByUuidRunsByRunUuidNodesByNodeIdReexecutions",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "itemUuid" : "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+                "elementSeq" : 0,
+                "options" : {
+                  "maxFaceAngle" : 90
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The node re-execution response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "generation" : 1,
+                  "nodeId" : "facedetect",
+                  "options" : {
+                    "maxFaceAngle" : 90
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "runUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced run",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "nodeId",
+        "in" : "path",
+        "description" : "UUID of the referenced nodeId",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
         }
       } ]
     },
@@ -18002,6 +19385,101 @@
         }
       } ]
     },
+    "/api/v1/pipelines/{uuid}/runs/{runUuid}/steps" : {
+      "description" : "Release exactly one held execution",
+      "post" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Release exactly one held execution",
+        "description" : "Release exactly one held execution",
+        "operationId" : "postPipelinesByUuidRunsByRunUuidSteps",
+        "responses" : {
+          "200" : {
+            "description" : "The pipeline breakpoint response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "nodeIds" : [ "thumbnail" ],
+                  "held" : [ {
+                    "nodeId" : "thumbnail",
+                    "itemUuid" : "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+                    "elementSeq" : 0
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "runUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced run",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/pipelines/{uuid}/versions" : {
       "description" : "Load a paged list of pipeline versions",
       "get" : {
@@ -18073,7 +19551,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "1e040fee-2bfa-424d-b981-2eb3057f5222",
+                    "versionUuid" : "580bbf91-0748-424c-a7b2-d6c8c5716cf8",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18100,7 +19578,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "c5737d53-feac-4211-bbd3-6c5c65a7ed89",
+                    "versionUuid" : "dfa7f6a0-2d8d-4d50-a585-592fd36b538f",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18211,7 +19689,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "4f213cfc-c276-420e-adfb-96ff00d77fd9",
+                  "versionUuid" : "87e0da9f-1b37-4c8e-8150-d1bfbd2b8808",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18336,7 +19814,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "9ab94d49-2c64-4510-bfda-205b6a66bafb",
+                  "versionUuid" : "63b8ad19-b997-4097-9e48-41d96336c69a",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

@@ -15,6 +15,7 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	private String nodeKind;
 	private String state = "PENDING";
 	private int elementSeq = 0;
+	private int generation = 0;
 	private int attempt = 0;
 	private int maxAttempts = 1;
 	private String leasedBy;
@@ -95,6 +96,17 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	@Override
 	public PipelineNodeTask setElementSeq(int elementSeq) {
 		this.elementSeq = elementSeq;
+		return this;
+	}
+
+	@Override
+	public int getGeneration() {
+		return generation;
+	}
+
+	@Override
+	public PipelineNodeTask setGeneration(int generation) {
+		this.generation = generation;
 		return this;
 	}
 

@@ -701,6 +701,17 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteResponse> reExecutePipelineRunNode(
+		UUID pipelineUuid, UUID runUuid, String nodeId,
+		io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteRequest request) {
+		// The node id comes from a pipeline definition and may contain anything the author typed,
+		// so it is encoded rather than concatenated.
+		return postRequest("pipelines/" + pipelineUuid + "/runs/" + runUuid + "/nodes/"
+			+ java.net.URLEncoder.encode(nodeId, java.nio.charset.StandardCharsets.UTF_8) + "/reexecutions",
+			request, io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<PipelineVersionListResponse> listPipelineVersions(UUID pipelineUuid) {
 		return getRequest("pipelines/" + pipelineUuid + "/versions", PipelineVersionListResponse.class);
 	}

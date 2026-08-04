@@ -12063,7 +12063,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 6ca3a247-565e-4c18-af62-259aa9d06cd4
+                  versionUuid: d87fec1c-20c3-47b1-8dbb-89149b3b07a1
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12084,7 +12084,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 247a3b5f-7aa3-44fd-8cfa-048767ab6334
+                  versionUuid: f55c824e-fcfa-4fe5-8621-88581888d1d8
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12157,7 +12157,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 7c34344f-6056-435e-b2b2-bb3c89843a7e
+                versionUuid: 82a4242f-f36e-4487-8030-985125f26a42
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12216,7 +12216,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 77d1bcca-cfaa-4fa6-93ee-03c69e68884b
+                versionUuid: 43821bad-0417-4dd6-bb83-d565cc9169f9
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12288,7 +12288,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 4119772a-d5fc-4c77-b166-7ede8ef3291c
+                versionUuid: 77cd8f50-4d96-409f-9c1a-978b61790e1c
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12397,7 +12397,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 2483ba60-8f75-4b1e-b821-f0515333e2b5
+                runUuid: 8defa58c-27cf-4119-9e56-93290d125255
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -12485,11 +12485,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: ad5bb125-5925-48ff-b076-9cfb6965dd76
-                  pipelineUuid: 308e7261-a155-4e34-82bc-acc98a780f68
+                - uuid: 20467cf5-2966-4c84-af09-424fc89be9b4
+                  pipelineUuid: 0d48b98d-45d5-4920-9c87-4f4921d7920a
                   pipelineVersion: 1
-                  started: 2026-08-04T21:08:44.656894586Z
-                  finished: 2026-08-04T21:08:44.656907616Z
+                  started: 2026-08-04T21:55:37.784824759Z
+                  finished: 2026-08-04T21:55:37.784837029Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12497,11 +12497,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 3967ed48-eca5-4148-8b7f-ef512ae102a2
-                  pipelineUuid: c582ccfe-e3cb-4d96-a722-1836dc53bbc5
+                - uuid: 8f8e60be-b8db-4f72-94e8-05fda2df1845
+                  pipelineUuid: 2c21cfda-a9ac-4d4d-adef-ae6d4deb4b54
                   pipelineVersion: 1
-                  started: 2026-08-04T21:08:44.656933556Z
-                  finished: 2026-08-04T21:08:44.656935996Z
+                  started: 2026-08-04T21:55:37.784861079Z
+                  finished: 2026-08-04T21:55:37.784863579Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12564,11 +12564,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: e4dd4821-f3dc-49cf-b873-1eaf9ab638cb
-                pipelineUuid: 25cedc3c-c18b-431f-b5d3-02aacaef3e8a
+                uuid: bffbef28-d171-4131-891e-7841624ddb49
+                pipelineUuid: f69a205c-fb7e-41f8-9ec8-8db1f8090202
                 pipelineVersion: 1
-                started: 2026-08-04T21:08:44.656979096Z
-                finished: 2026-08-04T21:08:44.656981666Z
+                started: 2026-08-04T21:55:37.784918019Z
+                finished: 2026-08-04T21:55:37.784920609Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -12910,15 +12910,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: ae1add05-9800-4317-a36d-37142b610659
-                  runUuid: 4d3aa280-c73f-45dd-a88b-842406684f1a
+                - uuid: 6e057a9b-da18-433f-865b-38f50cb56c1c
+                  runUuid: d6043860-f835-4154-b615-40688185ecff
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 1e2ec409-9913-482f-b7bd-5c66ff6af83a
-                  runUuid: ea913f38-7e49-41ef-a4a6-0850c8dbd1ff
+                - uuid: e1ec6a28-6b29-4f6c-8745-79dad8cb7eb6
+                  runUuid: 7f562e49-99b7-413e-adda-869f8e9017b2
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -12990,12 +12990,13 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: a6f89fa1-96ff-4131-8348-4c5d9770bdb0
-                  itemUuid: c916396c-35b5-41b4-9ef6-0ba31eec6811
-                  runUuid: ee51303e-6211-4e5e-9eb2-460b85da928d
+                - uuid: bb7ac32d-08e3-407e-8622-5f334428886c
+                  itemUuid: d52ae897-1021-4ad1-a5c0-6ecb830c859a
+                  runUuid: 922f603c-3ad5-42db-a20c-ffe1bc83689a
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
+                  generation: 0
                   state: DONE
                   attempt: 1
                   maxAttempts: 3
@@ -13136,6 +13137,86 @@ paths:
     - name: portId
       in: path
       description: UUID of the referenced portId
+      required: true
+      schema:
+        type: string
+  /api/v1/pipelines/{uuid}/runs/{runUuid}/nodes/{nodeId}/reexecutions:
+    description: "Run a node held at a breakpoint again over the same input, optionally\
+      \ with different settings"
+    post:
+      tags:
+      - pipelines
+      summary: "Run a node held at a breakpoint again over the same input, optionally\
+        \ with different settings"
+      description: "Run a node held at a breakpoint again over the same input, optionally\
+        \ with different settings"
+      operationId: postPipelinesByUuidRunsByRunUuidNodesByNodeIdReexecutions
+      requestBody:
+        content:
+          application/json:
+            example:
+              itemUuid: f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70
+              elementSeq: 0
+              options:
+                maxFaceAngle: 90
+      responses:
+        "200":
+          description: The node re-execution response
+          content:
+            application/json:
+              example:
+                generation: 1
+                nodeId: facedetect
+                options:
+                  maxFaceAngle: 90
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: runUuid
+      in: path
+      description: UUID of the referenced run
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: nodeId
+      in: path
+      description: UUID of the referenced nodeId
       required: true
       schema:
         type: string
@@ -13374,7 +13455,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: cb7a4778-26bc-4694-bfb5-219bf5bc5344
+                  versionUuid: e28df123-d267-4e5b-92a5-79e20c12fbcc
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -13395,7 +13476,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 0a7f75a3-e432-453e-86b0-1969440b90c7
+                  versionUuid: c7878262-e6e7-4629-b136-e04073c088ff
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -13471,7 +13552,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: aab49513-f096-407b-8dee-3727a3adc4f6
+                versionUuid: b2196afb-acb4-4665-bf9d-891b3b706386
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -13557,7 +13638,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 371eeb7f-a9d7-47bc-a8ac-56c55c9a8ca8
+                versionUuid: e3135c50-a470-44b8-9676-8a3241dec6bb
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

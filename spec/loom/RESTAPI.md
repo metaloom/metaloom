@@ -294,6 +294,7 @@ routes.
 | `/pipelines/:uuid/runs/:runUuid/breakpoints` | PUT | Replace the armed set. Whole-set, not a delta; `[]` disarms and releases. 400 names an unknown node id |
 | `/pipelines/:uuid/runs/:runUuid/breakpoints/:nodeId/continue` | POST | Release everything that node is holding. The breakpoint **stays armed** |
 | `/pipelines/:uuid/runs/:runUuid/steps` | POST | Release exactly one held execution. 409 when nothing is held |
+| `/pipelines/:uuid/runs/:runUuid/nodes/:nodeId/reexecutions` | POST | Run a held node again over the same input, optionally with different settings. `{itemUuid, elementSeq, options?}` → `{generation, nodeId, options}` |
 | `/pipelines/:uuid/versions` | GET | Paged history |
 | `/pipelines/:uuid/versions/:version` | GET | One historic version (`:version` is an int) |
 | `/pipelines/:uuid/versions/:version/restore` | POST | Copies into a **new** latest version, returns 201 |
@@ -326,6 +327,26 @@ empty set instead: a run lost to a restart genuinely arms nothing and holds noth
 going (or passed as `breakpoints[]` on `PipelineRunRequest` so a run can start armed), and are never
 written back into the stored pipeline — debugging a run must not change the pipeline everyone else
 runs. `PipelineRunBreakpointEndpointTest` asserts that arming one creates no new pipeline version.
+
+**Re-execution.** `POST …/nodes/:nodeId/reexecutions` runs a node held at a breakpoint again over the
+same input — the engine rebuilds its inputs from the upstream results the item still holds. A
+re-execution is a *new attempt at* the node, hence a plural collection path and POST.
+
+`options` is **merged over** the pipeline's own settings and applies to the rest of this run, so
+sending one key changes one setting; omit it to re-run unchanged, or send `{}` to drop the override
+and go back to the definition. Each attempt is recorded under its own `generation` and returned in
+the response, so two attempts can be compared rather than one overwriting the other.
+
+Refusals, in the order they are checked: 404 for an unknown run, 409 without a live engine, 400 for
+an unknown node id or a missing `itemUuid`, 400 for an option that does not typecheck against the
+node's declared `NodeParameter`s (this route is the **only** per-option validation in the API —
+everywhere else options arrive from an editor form generated from those same declarations), and 409
+when the execution is not held. Only a held execution may be re-run: the hold is what guarantees
+nothing downstream has consumed the result being discarded.
+
+⚠️ Like breakpoints, the settings are **run state**. Keeping one is a separate, deliberate act
+through `POST /pipelines/:uuid`, which is what creates a new version;
+`PipelineNodeReExecuteEndpointTest` asserts a re-execution creates none.
 
 **Flattened version model.** Persistence keeps `pipeline` and `pipeline_version` as two tables with
 `pipeline.latest_version_uuid` pointing at the current revision; every mutation appends a row rather
@@ -703,4 +724,4 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 ---
 
 _Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Pipeline debugging routes: the run-item `/tasks` and preview routes, and the four breakpoint/stepping routes. Earlier: annotation comment sub-resource; role `permissions` persisted and returned)_
+_Last updated: 2026-08-04 (Pipeline node re-execution route, with the first per-option validation in the API. Earlier: the run-item `/tasks` and preview routes, and the four breakpoint/stepping routes. Earlier: annotation comment sub-resource; role `permissions` persisted and returned)_

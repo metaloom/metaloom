@@ -393,6 +393,46 @@ breakpoint can never strand a run.
 [../../loom/RESTAPI.md](../../loom/RESTAPI.md). They are not yet restored by
 `PipelineRunRecovery` after a restart: a recovered run comes back with none armed.
 
+### 6.4b Re-executing a held node with different settings
+
+Stopping at a node answers *what did it produce*. `reExecute(itemId, nodeId, elementSeq,
+options)` answers the question that immediately follows — *and what would it produce if I
+changed this* — without re-running the pipeline from the top.
+
+It needed exactly one new primitive. `advance()` skips any execution that has settled, and a
+held execution **is** settled, so `NodeExecState.clearResult(seq)` drops the result (plus the
+hold, the attempt and the return counters) and the ordinary sweep picks the execution up
+again. Inputs need no retention at all: `buildInputs` already rebuilds them on demand from
+the upstream results the item still holds. The worker needed no change either —
+`NodeTaskRunner` rebuilds the node from `task.getOptions()` on every task.
+
+**Only a held execution may be re-executed** (`IllegalStateException` → 409 otherwise). That
+restriction is what makes the operation safe rather than merely convenient: a hold means the
+result was produced but never made available downstream, so discarding it cannot invalidate
+work that consumed it. Re-executing a *released* execution would require invalidating its
+dependents transitively — a different and much larger feature.
+
+Settings live in a run-scoped `Map<String, Map<String,Object>> optionOverrides` keyed by node
+id, consulted by `effectiveOptions(node)` at both dispatch sites (per-node and segment). They
+are **merged over** the definition's own, so a caller changing one parameter changes one
+parameter. `PipelineGraphNode.options` and `PipelineGraph` are immutable and shared by the
+whole run — the override map is what keeps "run state never touches definition state" true
+for settings exactly as it is true for breakpoints. Persisting a tried-out value is a
+separate, explicit act: the editor's *Save to pipeline*, through the ordinary pipeline update
+endpoint.
+
+Each attempt is recorded rather than overwritten. `pipeline_node_task` gained a `generation`
+column (`V2.68`) which joins `(item_uuid, node_id, element_seq)` in the unique key; the engine
+assigns it (`NodeExecState.generationFor`), the task carries it (`NodeTask.getGeneration()`),
+and `DaoRunStateStore` keys its write buffer by it. 0 means "this execution ran once", which is
+true of every row an ordinary run writes. Comparing before with after is the whole reason to
+re-execute, so an UPDATE would destroy the comparison at the moment it became interesting.
+
+The re-hold is free: the result returns through the existing `record()` path and
+`applyBreakpoint` holds it again, emitting the same `NODE_BREAKPOINT_HELD` frame. A
+`NODE_BREAKPOINT_RELEASED` frame is emitted *before* the result is discarded, so a UI showing
+the node as held is not left stranded while the engine has moved on.
+
 ### 6.5 Restart recovery
 
 `PipelineRunRegistry` is **in memory** (a Loom restart loses the live engines).
@@ -617,6 +657,15 @@ never read by anything**.
 | `V2.56__pipeline_run_paused_status.sql` | Adds `PAUSED` to the documented status vocabulary |
 | `V2.60__pipeline_node_task_element_seq.sql` | `element_seq INTEGER NOT NULL DEFAULT 0`; idempotency key becomes `UNIQUE (item_uuid, node_id, element_seq)` |
 | `V2.67__pipeline_node_task_previews.sql` | `previews JSONB` — opt-in debugging renderings of a node's outputs, keyed by output port id |
+| `V2.68__pipeline_node_task_generation.sql` | `generation INTEGER NOT NULL DEFAULT 0`; idempotency key becomes `UNIQUE (item_uuid, node_id, element_seq, generation)` |
+
+**`V2.68` is the re-execution migration** ([§6.4b](#64b-re-executing-a-held-node-with-different-settings)).
+A node held at a breakpoint can be run again with different settings, and each attempt keeps
+its own row — an UPDATE would destroy the before/after comparison that is the entire reason to
+re-execute. `generation = 0` means "this execution ran once", which is true of every existing
+row and of every row an ordinary production run will ever write, so the `DEFAULT` backfills by
+itself. Deletion still cascades from `pipeline_run_item`, so extra generations are pruned with
+the run exactly like the rows beside them.
 
 **`V2.60` is the fan-out migration.** "One node execution per item" stopped being true
 once a node downstream of a `MANY` output runs per element. Existing rows are already
@@ -749,6 +798,7 @@ post-refactor, but the parameter is dead weight on the interface.
 | POST | `/:uuid/runs/:runUuid/cancel` | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
 | POST | `/:uuid/runs/:runUuid/pause` | `GenericMessageResponse` | `UPDATE_PIPELINE_RUN` |
 | POST | `/:uuid/runs/:runUuid/resume` | `GenericMessageResponse` (409 if no live engine) | `UPDATE_PIPELINE_RUN` |
+| POST | `/:uuid/runs/:runUuid/nodes/:nodeId/reexecutions` | `PipelineNodeReExecuteResponse` (400 / 409) | `UPDATE_PIPELINE_RUN` |
 | GET | `/:uuid/versions` | `PipelineVersionListResponse` | `READ_PIPELINE_VERSION` |
 | GET | `/:uuid/versions/:version` | `PipelineResponse` | `READ_PIPELINE_VERSION` |
 | POST | `/:uuid/versions/:version/restore` | `PipelineResponse` (201) | `RESTORE_PIPELINE_VERSION` |
@@ -1123,4 +1173,4 @@ See [PIPELINE_TASKS.md](PIPELINE_TASKS.md) for the actionable breakdown and
 ---
 
 _Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Added §6.4a breakpoints and §9.1a previews; noted that recovery does not restore breakpoints. Earlier: rewritten against the Loom-owns-the-graph runtime.)_
+_Last updated: 2026-08-04 (Added §6.4b re-executing a held node with different settings, and the `V2.68` generation column. Earlier: §6.4a breakpoints and §9.1a previews; recovery does not restore breakpoints.)_

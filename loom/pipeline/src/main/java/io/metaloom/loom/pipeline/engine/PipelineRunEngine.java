@@ -141,6 +141,19 @@ public class PipelineRunEngine {
 	 * </p>
 	 */
 	private final java.util.Set<String> breakpoints = new java.util.LinkedHashSet<>();
+	/**
+	 * Per-node option overrides that apply to this run only, keyed by node id.
+	 *
+	 * <p>
+	 * ⚠️ <strong>Run state, never definition state</strong> — the same rule the breakpoint set above
+	 * follows, and for a stronger reason. {@code PipelineGraphNode.options} and {@code PipelineGraph}
+	 * are immutable and shared by every item of the run; editing a setting to see what it does must
+	 * not become part of the pipeline everyone else runs. Persisting a tried-out setting is a separate,
+	 * explicit act — the editor's "Save to pipeline", which writes a new pipeline version through the
+	 * ordinary update endpoint.
+	 * </p>
+	 */
+	private final Map<String, Map<String, Object>> optionOverrides = new LinkedHashMap<>();
 	private final List<BreakpointListener> breakpointListeners = new ArrayList<>();
 	private long startedAt;
 	private long itemSequence;
@@ -557,6 +570,105 @@ public class PipelineRunEngine {
 
 	/** One execution a breakpoint is currently withholding. */
 	public record HeldExecution(String itemId, String nodeId, int elementSeq) {
+	}
+
+	/**
+	 * Run a held execution again, optionally with different settings.
+	 *
+	 * <p>
+	 * This is what makes stopping at a breakpoint worth doing: you look at what a node produced,
+	 * change the setting you suspect, and see the same input answered differently — without
+	 * re-running the pipeline from the top, and without the earlier attempt being thrown away.
+	 * </p>
+	 *
+	 * <p>
+	 * <strong>Only a held execution may be re-executed</strong>, and that restriction is what makes
+	 * the operation safe rather than merely convenient. A hold means the result was produced but never
+	 * made available to anything downstream, so discarding it cannot invalidate work that already
+	 * consumed it. Re-executing an execution that had been released would require invalidating its
+	 * dependents transitively — a different and much larger feature.
+	 * </p>
+	 *
+	 * <p>
+	 * Inputs are not stored and do not need to be: {@link #buildInputs} rebuilds them from the
+	 * upstream results the item still holds, so the node genuinely runs again over the same data.
+	 * </p>
+	 *
+	 * @param itemId     the item whose execution to re-run
+	 * @param nodeId     the node
+	 * @param elementSeq which element of a fanned-out sequence; 0 for a node that runs once per item
+	 * @param options    settings to apply for the rest of this run, merged over the pipeline's own;
+	 *                   null re-runs with whatever is already in effect, and an empty map drops any
+	 *                   override and goes back to the definition
+	 * @return the generation this re-execution will be recorded under, counting from 1
+	 * @throws IllegalArgumentException when the item or node is unknown to this run
+	 * @throws IllegalStateException    when that execution is not currently held
+	 */
+	public synchronized int reExecute(String itemId, String nodeId, int elementSeq, Map<String, Object> options) {
+		requireStarted();
+		ItemState state = items.get(itemId);
+		if (state == null) {
+			throw new IllegalArgumentException("No item '" + itemId + "' in run " + runUuid);
+		}
+		if (graph.getNode(nodeId) == null) {
+			throw new IllegalArgumentException("No node '" + nodeId + "' in this pipeline");
+		}
+		NodeExecState exec = state.exec(nodeId);
+		if (exec == null || !exec.isHeld(elementSeq)) {
+			throw new IllegalStateException("Execution " + nodeId + "#" + elementSeq + " of item " + itemId
+				+ " is not held at a breakpoint, so it cannot be re-executed.");
+		}
+
+		if (options != null) {
+			if (options.isEmpty()) {
+				optionOverrides.remove(nodeId);
+			} else {
+				optionOverrides.put(nodeId, new LinkedHashMap<>(options));
+			}
+		}
+
+		// Tell anyone watching that this execution is no longer holding *before* it is discarded.
+		// The UI is showing a held node; leaving that frame unsent would strand the node as held
+		// while the engine has already moved on, and the re-hold below would look like a no-op.
+		notifyBreakpoint(state, nodeId, elementSeq, false);
+		int generation = state.clearResult(nodeId, elementSeq);
+
+		// The execution is now unsettled, so the ordinary sweep dispatches it exactly as it did the
+		// first time - which is also why the breakpoint holds it again for free when it comes back.
+		advance(state);
+		pumpDeferred();
+		log.info("Re-executing {}#{} of item {} in run {} as generation {}", nodeId, elementSeq, itemId, runUuid,
+			generation);
+		return generation;
+	}
+
+	/**
+	 * @return the run-scoped option overrides in effect, keyed by node id, for the debug view
+	 */
+	public synchronized Map<String, Map<String, Object>> getOptionOverrides() {
+		Map<String, Map<String, Object>> copy = new LinkedHashMap<>();
+		optionOverrides.forEach((nodeId, options) -> copy.put(nodeId, Map.copyOf(options)));
+		return copy;
+	}
+
+	/**
+	 * The settings a node actually runs with, which is the pipeline's own with any run-scoped
+	 * override laid over the top.
+	 *
+	 * <p>
+	 * Merged rather than replaced, so a caller changing one parameter changes one parameter. Sending
+	 * the whole set replaces the whole set, which is what the editor's form does — both readings of
+	 * "change this setting" therefore behave the way the caller expects.
+	 * </p>
+	 */
+	private Map<String, Object> effectiveOptions(PipelineGraphNode node) {
+		Map<String, Object> override = optionOverrides.get(node.getId());
+		if (override == null || override.isEmpty()) {
+			return node.getOptions();
+		}
+		Map<String, Object> merged = new LinkedHashMap<>(node.getOptions() == null ? Map.of() : node.getOptions());
+		merged.putAll(override);
+		return merged;
 	}
 
 	/**
@@ -1402,7 +1514,10 @@ public class PipelineRunEngine {
 		List<SegmentNode> segNodes = new ArrayList<>();
 		for (String nodeId : segment.getNodeIds()) {
 			PipelineGraphNode node = graph.getNode(nodeId);
-			segNodes.add(new SegmentNode(node.getId(), node.getKind(), node.isBlocking(), node.getOptions(),
+			// effectiveOptions, not node.getOptions(): a setting tried out on one item applies to the
+			// rest of the run, and a later item must not quietly revert to the definition just
+			// because its nodes happened to fuse into one segment.
+			segNodes.add(new SegmentNode(node.getId(), node.getKind(), node.isBlocking(), effectiveOptions(node),
 				node.getDependencies()));
 		}
 
@@ -1564,8 +1679,9 @@ public class PipelineRunEngine {
 	private boolean dispatch(ItemState state, PipelineGraphNode node, int seq) {
 		UUID taskUuid = UUID.randomUUID();
 		NodeTask task = new NodeTask(taskUuid, runUuid, state.getItemId(), node.getId(), node.getKind(),
-			seq, state.getMedia(), node.getOptions(), buildInputs(state, node, seq),
-			node.getDemandedOutputs(), graph.getResultBatchSize(), capturePreviews);
+			seq, state.getMedia(), effectiveOptions(node), buildInputs(state, node, seq),
+			node.getDemandedOutputs(), graph.getResultBatchSize(), capturePreviews,
+			state.generationFor(node.getId(), seq));
 
 		state.markInFlight(node.getId(), seq, taskUuid);
 		state.recordAttempt(node.getId(), seq);

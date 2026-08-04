@@ -29,17 +29,32 @@ public interface PipelineNodeTaskDao extends CRUDDao<PipelineNodeTask> {
 		SortDirection sortDirection);
 
 	/**
-	 * Load a task by its idempotency key.
+	 * Load the most recent attempt at one execution.
 	 *
 	 * <p>
-	 * The element is part of that key. A node downstream of a fan-out has one row per element, so
+	 * The element is part of the key. A node downstream of a fan-out has one row per element, so
 	 * {@code (item, node)} alone identifies an arbitrary one of them.
 	 * </p>
 	 *
+	 * <p>
+	 * Since re-execution, an execution may have several rows — one per generation. This returns the
+	 * highest, which is what every caller means: settling a task updates the attempt that is running,
+	 * and adopting an earlier run's result should adopt the operator's last word on it, not their
+	 * first.
+	 * </p>
+	 *
 	 * @param elementSeq which element of a fanned-out sequence; 0 when the node runs once per item
-	 * @return the existing task, or null when this execution has not run against the item
+	 * @return the latest attempt, or null when this execution has not run against the item
 	 */
 	PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId, int elementSeq);
+
+	/**
+	 * Load one specific attempt at an execution.
+	 *
+	 * @param generation which attempt; 0 is the original run
+	 * @return the task, or null when that attempt was never recorded
+	 */
+	PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId, int elementSeq, int generation);
 
 
 

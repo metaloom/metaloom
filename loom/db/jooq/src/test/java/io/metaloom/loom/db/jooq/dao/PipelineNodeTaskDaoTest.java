@@ -239,12 +239,18 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 
 	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, String state,
 		int elementSeq) {
+		return storeTask(user, item, nodeId, nodeKind, state, elementSeq, 0);
+	}
+
+	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, String state,
+		int elementSeq, int generation) {
 		PipelineNodeTask task = pipelineNodeTaskDao().createNodeTask(user.getUuid(), item.getUuid(), item.getRunUuid(),
 			nodeId, nodeKind);
 		task.setState(state);
-		// Set before the insert: element_seq is part of the unique key, so a row cannot be written
-		// as element 0 and moved afterwards.
+		// Set before the insert: element_seq and generation are part of the unique key, so a row
+		// cannot be written as element 0 generation 0 and moved afterwards.
 		task.setElementSeq(elementSeq);
+		task.setGeneration(generation);
 		pipelineNodeTaskDao().store(task);
 		return task;
 	}
@@ -265,6 +271,69 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		assertEquals("COMPLETED", element0.getState());
 		assertEquals("FAILED", element1.getState(),
 			"One element failing must not be readable as the whole node failing, or succeeding");
+	}
+
+	@Test
+	public void testEachReExecutionKeepsItsOwnRow() {
+		// Comparing "before" with "after" is the entire reason to re-execute a node. An UPDATE would
+		// destroy the comparison at the moment it became interesting, so the generation is part of
+		// the unique key and both attempts survive.
+		User user = dummyUser();
+		PipelineRunItem item = storeItem(user, 0);
+
+		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 0);
+		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
+
+		assertEquals(2, pipelineNodeTaskDao().loadByItem(item.getUuid()).size(),
+			"Both attempts at the same execution must survive");
+		assertEquals(0, pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "facedetect", 0, 0).getGeneration());
+		assertEquals(1, pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "facedetect", 0, 1).getGeneration());
+	}
+
+	@Test
+	public void testLoadByItemAndNodeReturnsTheLatestAttempt() {
+		// Every caller of the three-argument lookup - settling a task, adopting an earlier run's
+		// result - means "the current attempt". Without the ordering it would get whichever row the
+		// planner happened to hand back, which is a bug that only appears once a node is re-executed.
+		User user = dummyUser();
+		PipelineRunItem item = storeItem(user, 0);
+
+		storeTask(user, item, "facedetect", "facedetect", "FAILED", 0, 0);
+		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
+
+		PipelineNodeTask latest = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "facedetect", 0);
+		assertEquals(1, latest.getGeneration());
+		assertEquals("COMPLETED", latest.getState());
+	}
+
+	@Test
+	public void testDeletingAnItemCascadesToEveryGeneration() {
+		// Re-executing a node several times must not leave rows behind when the run is pruned:
+		// extra generations are run-scoped diagnostics with exactly the retention of the row they
+		// sit beside.
+		User user = dummyUser();
+		PipelineRunItem item = storeItem(user, 0);
+		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 0);
+		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
+		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 2);
+
+		pipelineRunItemDao().delete(item.getUuid());
+
+		assertEquals(0, pipelineNodeTaskDao().loadByItem(item.getUuid()).size());
+	}
+
+	@Test
+	public void testTheSameGenerationCannotBeRecordedTwice() {
+		// The idempotency key grew a column but did not stop being one. A second row for the same
+		// attempt would make "which result did this attempt produce?" ambiguous.
+		User user = dummyUser();
+		PipelineRunItem item = storeItem(user, 0);
+		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
+
+		Exception e = assertThrows(Exception.class,
+			() -> storeTask(user, item, "facedetect", "facedetect", "FAILED", 0, 1));
+		assertTrue(rootCauseMessage(e).contains("pipeline_node_task_unique_node"),
+			"The unique key must still reject a duplicate attempt: " + rootCauseMessage(e));
 	}
 
 }

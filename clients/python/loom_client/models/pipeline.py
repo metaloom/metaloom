@@ -68,6 +68,32 @@ class PipelineListResponse(ListResponse):
 
 
 @dataclass
+class PipelineNodeReExecuteRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteRequest``."""
+
+    #: The run item whose execution should run again.
+    item_uuid: str | None = None
+    #: Which element of a fanned-out sequence to re-run; 0 when the node runs once per item.
+    element_seq: int = 0
+    #: Node options to apply for the rest of this run, merged over the pipeline's own. Omit to re-run with the
+    #: settings already in effect; send an empty object to drop any override and go back to the pipeline
+    #: definition.
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class PipelineNodeReExecuteResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteResponse``."""
+
+    #: Which attempt this re-execution is recorded as; counts from 1, the original run being 0.
+    generation: int = 0
+    #: The node id that is running again.
+    node_id: str | None = None
+    #: The settings the node is now running with, the pipeline's own merged with the run-scoped override.
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class PipelineNodeTaskListResponse(ListResponse):
     """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineNodeTaskListResponse``."""
 
@@ -91,6 +117,9 @@ class PipelineNodeTaskRecord(Model):
     node_kind: str | None = None
     #: Which element of a fanned-out sequence this execution handled; 0 when the node runs once per item.
     element_seq: int = 0
+    #: Which attempt at this execution the row records; 0 for the only run of an ordinary task, counting up
+    #: per operator-requested re-execution with different settings.
+    generation: int = 0
     #: Current state: PENDING, LEASED, DONE, FAILED, DEAD_LETTER.
     state: str | None = None
     #: How many times this execution has been attempted.

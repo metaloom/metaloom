@@ -10,10 +10,7 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record22;
-import org.jooq.Row22;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -21,7 +18,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * One node execution against one media item
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipelineNodeTaskRecord> implements Record22<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer, JsonObject> {
+public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipelineNodeTaskRecord> {
 
     private static final long serialVersionUID = 1L;
 
@@ -371,6 +368,26 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
         return (JsonObject) get(21);
     }
 
+    /**
+     * Setter for <code>public.pipeline_node_task.generation</code>. Which
+     * attempt at this execution the row records; 0 for the only run of an
+     * ordinary task, counting up per operator-requested re-execution of a node
+     * held at a breakpoint
+     */
+    public void setGeneration(Integer value) {
+        set(22, value);
+    }
+
+    /**
+     * Getter for <code>public.pipeline_node_task.generation</code>. Which
+     * attempt at this execution the row records; 0 for the only run of an
+     * ordinary task, counting up per operator-requested re-execution of a node
+     * held at a breakpoint
+     */
+    public Integer getGeneration() {
+        return (Integer) get(22);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -378,509 +395,6 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     @Override
     public Record1<UUID> key() {
         return (Record1) super.key();
-    }
-
-    // -------------------------------------------------------------------------
-    // Record22 type implementation
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row22<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer, JsonObject> fieldsRow() {
-        return (Row22) super.fieldsRow();
-    }
-
-    @Override
-    public Row22<UUID, UUID, UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID, Integer, JsonObject> valuesRow() {
-        return (Row22) super.valuesRow();
-    }
-
-    @Override
-    public Field<UUID> field1() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.UUID;
-    }
-
-    @Override
-    public Field<UUID> field2() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID;
-    }
-
-    @Override
-    public Field<UUID> field3() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID;
-    }
-
-    @Override
-    public Field<String> field4() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.NODE_ID;
-    }
-
-    @Override
-    public Field<String> field5() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.NODE_KIND;
-    }
-
-    @Override
-    public Field<String> field6() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.STATE;
-    }
-
-    @Override
-    public Field<Integer> field7() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.ATTEMPT;
-    }
-
-    @Override
-    public Field<Integer> field8() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.MAX_ATTEMPTS;
-    }
-
-    @Override
-    public Field<String> field9() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASED_BY;
-    }
-
-    @Override
-    public Field<LocalDateTime> field10() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT;
-    }
-
-    @Override
-    public Field<LocalDateTime> field11() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.STARTED;
-    }
-
-    @Override
-    public Field<LocalDateTime> field12() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.FINISHED;
-    }
-
-    @Override
-    public Field<Long> field13() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.DURATION_MS;
-    }
-
-    @Override
-    public Field<String> field14() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.ERROR_MESSAGE;
-    }
-
-    @Override
-    public Field<JsonObject> field15() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.OUTPUTS;
-    }
-
-    @Override
-    public Field<JsonObject> field16() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.META;
-    }
-
-    @Override
-    public Field<LocalDateTime> field17() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.CREATED;
-    }
-
-    @Override
-    public Field<UUID> field18() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.CREATOR_UUID;
-    }
-
-    @Override
-    public Field<LocalDateTime> field19() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.EDITED;
-    }
-
-    @Override
-    public Field<UUID> field20() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.EDITOR_UUID;
-    }
-
-    @Override
-    public Field<Integer> field21() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.ELEMENT_SEQ;
-    }
-
-    @Override
-    public Field<JsonObject> field22() {
-        return JooqPipelineNodeTask.PIPELINE_NODE_TASK.PREVIEWS;
-    }
-
-    @Override
-    public UUID component1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID component2() {
-        return getItemUuid();
-    }
-
-    @Override
-    public UUID component3() {
-        return getRunUuid();
-    }
-
-    @Override
-    public String component4() {
-        return getNodeId();
-    }
-
-    @Override
-    public String component5() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String component6() {
-        return getState();
-    }
-
-    @Override
-    public Integer component7() {
-        return getAttempt();
-    }
-
-    @Override
-    public Integer component8() {
-        return getMaxAttempts();
-    }
-
-    @Override
-    public String component9() {
-        return getLeasedBy();
-    }
-
-    @Override
-    public LocalDateTime component10() {
-        return getLeaseExpiresAt();
-    }
-
-    @Override
-    public LocalDateTime component11() {
-        return getStarted();
-    }
-
-    @Override
-    public LocalDateTime component12() {
-        return getFinished();
-    }
-
-    @Override
-    public Long component13() {
-        return getDurationMs();
-    }
-
-    @Override
-    public String component14() {
-        return getErrorMessage();
-    }
-
-    @Override
-    public JsonObject component15() {
-        return getOutputs();
-    }
-
-    @Override
-    public JsonObject component16() {
-        return getMeta();
-    }
-
-    @Override
-    public LocalDateTime component17() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID component18() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime component19() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID component20() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public Integer component21() {
-        return getElementSeq();
-    }
-
-    @Override
-    public JsonObject component22() {
-        return getPreviews();
-    }
-
-    @Override
-    public UUID value1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID value2() {
-        return getItemUuid();
-    }
-
-    @Override
-    public UUID value3() {
-        return getRunUuid();
-    }
-
-    @Override
-    public String value4() {
-        return getNodeId();
-    }
-
-    @Override
-    public String value5() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String value6() {
-        return getState();
-    }
-
-    @Override
-    public Integer value7() {
-        return getAttempt();
-    }
-
-    @Override
-    public Integer value8() {
-        return getMaxAttempts();
-    }
-
-    @Override
-    public String value9() {
-        return getLeasedBy();
-    }
-
-    @Override
-    public LocalDateTime value10() {
-        return getLeaseExpiresAt();
-    }
-
-    @Override
-    public LocalDateTime value11() {
-        return getStarted();
-    }
-
-    @Override
-    public LocalDateTime value12() {
-        return getFinished();
-    }
-
-    @Override
-    public Long value13() {
-        return getDurationMs();
-    }
-
-    @Override
-    public String value14() {
-        return getErrorMessage();
-    }
-
-    @Override
-    public JsonObject value15() {
-        return getOutputs();
-    }
-
-    @Override
-    public JsonObject value16() {
-        return getMeta();
-    }
-
-    @Override
-    public LocalDateTime value17() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID value18() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime value19() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID value20() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public Integer value21() {
-        return getElementSeq();
-    }
-
-    @Override
-    public JsonObject value22() {
-        return getPreviews();
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value1(UUID value) {
-        setUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value2(UUID value) {
-        setItemUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value3(UUID value) {
-        setRunUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value4(String value) {
-        setNodeId(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value5(String value) {
-        setNodeKind(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value6(String value) {
-        setState(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value7(Integer value) {
-        setAttempt(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value8(Integer value) {
-        setMaxAttempts(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value9(String value) {
-        setLeasedBy(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value10(LocalDateTime value) {
-        setLeaseExpiresAt(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value11(LocalDateTime value) {
-        setStarted(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value12(LocalDateTime value) {
-        setFinished(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value13(Long value) {
-        setDurationMs(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value14(String value) {
-        setErrorMessage(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value15(JsonObject value) {
-        setOutputs(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value16(JsonObject value) {
-        setMeta(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value17(LocalDateTime value) {
-        setCreated(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value18(UUID value) {
-        setCreatorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value19(LocalDateTime value) {
-        setEdited(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value20(UUID value) {
-        setEditorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value21(Integer value) {
-        setElementSeq(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord value22(JsonObject value) {
-        setPreviews(value);
-        return this;
-    }
-
-    @Override
-    public JooqPipelineNodeTaskRecord values(UUID value1, UUID value2, UUID value3, String value4, String value5, String value6, Integer value7, Integer value8, String value9, LocalDateTime value10, LocalDateTime value11, LocalDateTime value12, Long value13, String value14, JsonObject value15, JsonObject value16, LocalDateTime value17, UUID value18, LocalDateTime value19, UUID value20, Integer value21, JsonObject value22) {
-        value1(value1);
-        value2(value2);
-        value3(value3);
-        value4(value4);
-        value5(value5);
-        value6(value6);
-        value7(value7);
-        value8(value8);
-        value9(value9);
-        value10(value10);
-        value11(value11);
-        value12(value12);
-        value13(value13);
-        value14(value14);
-        value15(value15);
-        value16(value16);
-        value17(value17);
-        value18(value18);
-        value19(value19);
-        value20(value20);
-        value21(value21);
-        value22(value22);
-        return this;
     }
 
     // -------------------------------------------------------------------------
@@ -897,7 +411,7 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     /**
      * Create a detached, initialised JooqPipelineNodeTaskRecord
      */
-    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, String state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq, JsonObject previews) {
+    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, String state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq, JsonObject previews, Integer generation) {
         super(JooqPipelineNodeTask.PIPELINE_NODE_TASK);
 
         setUuid(uuid);
@@ -922,5 +436,6 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
         setEditorUuid(editorUuid);
         setElementSeq(elementSeq);
         setPreviews(previews);
+        setGeneration(generation);
     }
 }

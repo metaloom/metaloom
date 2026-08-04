@@ -7,6 +7,8 @@ import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.message.GenericMessageResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointResponse;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
@@ -99,6 +101,20 @@ public interface PipelineMethods {
 
 	/** Release exactly one held execution. Fails with 409 when the run is not holding anything. */
 	LoomClientRequest<PipelineBreakpointResponse> stepPipelineRun(UUID pipelineUuid, UUID runUuid);
+
+	/**
+	 * Run a node held at a breakpoint again over the same input, optionally with different settings.
+	 *
+	 * <p>The settings apply to this run only and never touch the stored pipeline; keeping one is a
+	 * separate act through {@code updatePipeline}. Each attempt keeps its own task row, so the
+	 * result can be compared with the one it replaced rather than overwriting it.</p>
+	 *
+	 * <p>Fails with 409 when that execution is not held — only a held execution may be re-run,
+	 * because a hold is what guarantees nothing downstream has consumed the result being
+	 * discarded.</p>
+	 */
+	LoomClientRequest<PipelineNodeReExecuteResponse> reExecutePipelineRunNode(UUID pipelineUuid, UUID runUuid,
+		String nodeId, PipelineNodeReExecuteRequest request);
 
 	// VERSIONS
 

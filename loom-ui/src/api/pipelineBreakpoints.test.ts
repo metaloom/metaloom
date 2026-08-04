@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   continuePipelineRunBreakpoint,
   loadPipelineRunBreakpoints,
+  reExecutePipelineRunNode,
   setPipelineRunBreakpoints,
   stepPipelineRun,
 } from "./pipelines";
@@ -175,6 +176,67 @@ describe("stepPipelineRun", () => {
 
     await expect(stepPipelineRun(TOKEN, "p1", "r1")).rejects.toThrow(
       "API error 409: Pipeline run is not holding at a breakpoint, so there is nothing to step.",
+    );
+  });
+});
+
+describe("reExecutePipelineRunNode", () => {
+  it("POSTs the item, element and settings to the node's reexecutions collection", async () => {
+    const fetchMock = mockFetch(true, 200, { generation: 1, nodeId: "faces", options: { maxFaceAngle: 90 } });
+
+    const result = await reExecutePipelineRunNode(TOKEN, "p1", "r1", "faces", "i1", 0, { maxFaceAngle: 90 });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${API_BASE_URL}/pipelines/p1/runs/r1/nodes/faces/reexecutions`);
+    expect(options.method).toBe("POST");
+    expect(options.headers.Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(JSON.parse(options.body)).toEqual({ itemUuid: "i1", elementSeq: 0, options: { maxFaceAngle: 90 } });
+    expect(result.generation).toBe(1);
+  });
+
+  it("omits options entirely when none are given", async () => {
+    // Absent and empty mean opposite things to the server: absent re-runs with whatever is in
+    // effect, `{}` drops the override and goes back to the pipeline definition.
+    const fetchMock = mockFetch(true, 200, { generation: 2, nodeId: "faces", options: {} });
+
+    await reExecutePipelineRunNode(TOKEN, "p1", "r1", "faces", "i1", 0);
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ itemUuid: "i1", elementSeq: 0 });
+  });
+
+  it("sends an empty object when asked to revert to the pipeline's settings", async () => {
+    const fetchMock = mockFetch(true, 200, { generation: 3, nodeId: "faces", options: {} });
+
+    await reExecutePipelineRunNode(TOKEN, "p1", "r1", "faces", "i1", 0, {});
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).options).toEqual({});
+  });
+
+  it("escapes the ids it puts in the path", async () => {
+    const fetchMock = mockFetch(true, 200, { generation: 1, nodeId: "a/b", options: {} });
+
+    await reExecutePipelineRunNode(TOKEN, "p/1", "r/1", "a/b", "i1", 0);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `${API_BASE_URL}/pipelines/p%2F1/runs/r%2F1/nodes/a%2Fb/reexecutions`,
+    );
+  });
+
+  it("rejects with the server's message when the execution is not held", async () => {
+    // The 409 the operator most plausibly hits: the run was stepped from another tab between
+    // seeing the button and pressing it.
+    mockFetch(false, 409, {}, "Execution faces#0 of item i1 is not held at a breakpoint.");
+
+    await expect(reExecutePipelineRunNode(TOKEN, "p1", "r1", "faces", "i1", 0)).rejects.toThrow(
+      "API error 409: Execution faces#0 of item i1 is not held at a breakpoint.",
+    );
+  });
+
+  it("rejects with the server's message when a setting is out of range", async () => {
+    mockFetch(false, 400, {}, "Parameter 'cols' must be at most 20 but was 99.");
+
+    await expect(reExecutePipelineRunNode(TOKEN, "p1", "r1", "thumb", "i1", 0, { cols: 99 })).rejects.toThrow(
+      "Parameter 'cols' must be at most 20 but was 99.",
     );
   });
 });

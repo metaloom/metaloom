@@ -384,6 +384,39 @@ grouped together for speed. That is deliberate — grouped nodes hand their inte
 straight to each other without reporting them, which is exactly what you stopped to see. Expect a
 debugged run to be slower than the same run without a halt.
 
+[#re-executing]
+=== Changing a setting and trying again
+
+Stopping at a node answers _what did it produce_. The question that follows is almost always _and
+what would it produce if I changed this_ — and answering it by editing the pipeline and starting a
+new run means waiting for everything before that node to happen all over again.
+
+So while a node is waiting, its settings can be changed and the node run again over the same file.
+Select the halted node and its settings panel says it is waiting, with *Re-execute* underneath.
+Change a value, press it, and the node runs a second time over exactly the inputs it had the first
+time.
+
+The face detector is the clearest example. It ignores faces turned further away from the camera than
+*Max Face Angle*, which defaults to 30°. On footage of two people talking to each other, that finds
+nothing at all — and "no faces here" and "faces I was told to ignore" look identical from the
+outside. Raise the angle to 90°, press Re-execute, and the same frame comes back with both faces
+found.
+
+Each attempt is kept. Once a node has been run more than once an *Attempt* selector appears, and
+switching between attempts switches what the canvas and the results panel show — which is the whole
+point, since a value is only good or bad compared with the one before it.
+
+IMPORTANT: Settings changed here apply to *this run only*. They are not saved into the pipeline, so
+you can try five values without anyone else's runs changing and without leaving a half-finished
+experiment behind. When a value turns out to be the right one, *Save to pipeline* writes it into the
+pipeline as a new version — that is the only button in this panel that changes anything permanent.
+
+A setting is checked before the node runs, against the range that node declares: asking a thumbnail
+node for 99 columns is refused immediately rather than becoming a failure to find in a log.
+
+Only a node that is currently *waiting* can be re-executed. Once you press Step or Continue its
+result has gone downstream, and re-running it would mean unpicking everything that already used it.
+
 == Custom Nodes
 
 Any node kind can be added by a custom Cortex worker that advertises it. See

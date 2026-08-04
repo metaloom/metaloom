@@ -17,6 +17,8 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	private String nodeKind;
 	/** Which element of a fanned-out sequence this task covers; 0 when the node runs once per item. */
 	private int elementSeq;
+	/** Which attempt at this execution the row records; 0 unless the node was re-executed. */
+	private int generation;
 	private String state = "PENDING";
 	private int attempt;
 	private int maxAttempts = 1;
@@ -76,6 +78,17 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	@Override
 	public PipelineNodeTask setElementSeq(int elementSeq) {
 		this.elementSeq = elementSeq;
+		return this;
+	}
+
+	@Override
+	public int getGeneration() {
+		return generation;
+	}
+
+	@Override
+	public PipelineNodeTask setGeneration(int generation) {
+		this.generation = generation;
 		return this;
 	}
 

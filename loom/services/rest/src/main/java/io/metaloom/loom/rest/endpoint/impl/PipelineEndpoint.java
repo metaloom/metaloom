@@ -61,6 +61,7 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		secure(basePath() + "/:uuid/runs/:runUuid/breakpoints");
 		secure(basePath() + "/:uuid/runs/:runUuid/breakpoints/:nodeId/continue");
 		secure(basePath() + "/:uuid/runs/:runUuid/steps");
+		secure(basePath() + "/:uuid/runs/:runUuid/nodes/:nodeId/reexecutions");
 		secure(basePath() + "/:uuid/versions");
 		secure(basePath() + "/:uuid/versions/:version");
 		secure(basePath() + "/:uuid/versions/:version/restore");
@@ -242,6 +243,18 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.pipelineBreakpointResponseExample(),
 			lrc -> {
 				service.stepRun(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"));
+			});
+
+		// Re-run one held execution, optionally with different settings. A re-execution is a new
+		// attempt at the node, hence a plural collection path and POST — and the settings it carries
+		// are run state like the breakpoints above, so this route never writes the pipeline.
+		addRoute(basePath() + "/:uuid/runs/:runUuid/nodes/:nodeId/reexecutions", POST,
+			"Run a node held at a breakpoint again over the same input, optionally with different settings",
+			examples.pipelineNodeReExecuteRequestExample(),
+			examples.pipelineNodeReExecuteResponseExample(),
+			lrc -> {
+				service.reExecuteNode(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("runUuid"),
+					lrc.pathParam("nodeId"));
 			});
 
 		// Pipeline Versions

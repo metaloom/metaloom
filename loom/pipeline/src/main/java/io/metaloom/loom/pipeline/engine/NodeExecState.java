@@ -67,6 +67,12 @@ public class NodeExecState {
 	 */
 	private final Set<Integer> held = new LinkedHashSet<>();
 
+	/**
+	 * How many times each execution has been discarded and run again, so the attempts can be told
+	 * apart. 0 for everything that ran once, which is every execution of an ordinary run.
+	 */
+	private final Map<Integer, Integer> generations = new LinkedHashMap<>();
+
 	NodeExecState(ExecutionMode mode) {
 		this.mode = mode == null ? ExecutionMode.SINGLE : mode;
 		// A node that runs once per item knows its count immediately; only a fanned-out node has to
@@ -296,5 +302,51 @@ public class NodeExecState {
 
 	public int heldCount() {
 		return held.size();
+	}
+
+	/**
+	 * Which attempt of this execution is the current one.
+	 *
+	 * <p>
+	 * 0 until the execution is discarded and run again, so every row an ordinary run writes carries
+	 * generation 0 and the column reads as "the only time this ran".
+	 * </p>
+	 */
+	public int generationFor(int seq) {
+		return generations.getOrDefault(seq, 0);
+	}
+
+	/**
+	 * Discard a settled execution's result so the node can run for this element again.
+	 *
+	 * <p>
+	 * This is the one primitive re-execution needs. {@code PipelineRunEngine.advance} skips any
+	 * execution that has settled, and a held execution <em>is</em> settled — that is precisely what a
+	 * breakpoint holds onto. Removing the result is therefore what makes the sweep pick the execution
+	 * up again; nothing else has to be told.
+	 * </p>
+	 *
+	 * <p>
+	 * The attempt and return counters go with it. A re-execution is a fresh decision by a person, not
+	 * the continuation of a failing one, so it gets the full retry budget rather than inheriting the
+	 * exhausted budget of the attempt it replaces.
+	 * </p>
+	 *
+	 * <p>
+	 * Safe only for a <strong>held</strong> execution, and the engine enforces that. A hold is what
+	 * guarantees nothing downstream has consumed the result being discarded: the result exists but was
+	 * never made available, so there are no dependents to invalidate.
+	 * </p>
+	 *
+	 * @return the generation the next dispatch will carry
+	 */
+	int clearResult(int seq) {
+		elementResults.remove(seq);
+		held.remove(seq);
+		inFlight.remove(seq);
+		awaitingRetry.remove(seq);
+		attempts.remove(seq);
+		returns.remove(seq);
+		return generations.merge(seq, 1, Integer::sum);
 	}
 }

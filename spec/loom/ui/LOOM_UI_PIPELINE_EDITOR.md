@@ -373,6 +373,7 @@ Bearer token from `useAuth()`; the descriptor endpoints are called **without** a
 | Arm breakpoints | `PUT /pipelines/:uuid/runs/:runUuid/breakpoints` | `handleToggleBreakpoint` — sends the whole armed set, never a delta |
 | Continue a node | `POST …/breakpoints/:nodeId/continue` | `handleContinueNode` |
 | Step | `POST /pipelines/:uuid/runs/:runUuid/steps` | `handleStep` — a 409 means nothing was held, and is surfaced rather than swallowed |
+| Re-execute a held node | `POST …/nodes/:nodeId/reexecutions` | `handleReExecuteNode` — body `{itemUuid, elementSeq, options}` from the run-scoped draft. The result arrives as a `NODE_BREAKPOINT_HELD` frame like any other, so nothing is done with the response but its `generation` |
 | Pause run | `POST /pipelines/:uuid/runs/:runUuid/pause` | `handlePauseRun` |
 | Resume run | `POST /pipelines/:uuid/runs/:runUuid/resume` | `handleResumeRun` — a 409 here means the run is no longer live and must be started again |
 | Single run | `GET /pipelines/:uuid/runs/:runUuid` | `loadPipelineRun` — **defined, never called** |
@@ -423,6 +424,7 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
 | Auto-arrange | Kahn topological columns, 200×80 node box, 80/40 gaps, then `fitView({padding:0.3})` |
 | Edge menu | Click an edge → PASS / REJECT / ANY; updates edge style, `data.branch`, and the definition edge |
 | Breakpoints | Debug mode only. Click a node's left-margin gutter dot to arm/disarm. Once something is actually held, the toolbar grows a held-count chip, **Step** (release one) and **Continue** (release every holding node). The transport is hidden while nothing is held — controls that are almost always disabled are just clutter |
+| Re-execution | Debug mode only, and only while the selected node is **held for the inspected item** (`heldElementSeq`). The held panel (`pipeline-node-held-panel`) says so, and from then on the parameter form edits a **run-scoped draft** rather than the definition: `changeParameter` routes to `onDraftChange` instead of `onParameterChange`, and a drafted key never marks the editor dirty. **Re-execute** sends the draft; **Save to pipeline** (`pipeline-node-save-draft`, disabled until something is changed) writes it into the definition and stores a new version — the only button here that crosses from run state into the pipeline. Once a node has more than one attempt, an **Attempt** selector (`pipeline-node-generation`) pins which one the canvas and Results tab show |
 | Node detail sidebar | 280px; tabs Config / Log (mock) / JSON. Parameter editors by `ParameterType`: `ENUM`→select, `BOOLEAN`→switch, `INTEGER`/`NUMBER`(+`FLOAT`)→numeric field, `ENUM_SET`(+`STRING_LIST`)→comma-separated, `PORT_LIST`→`BucketListEditor` repeatable rows (see below), `CODE`/`JSON`→multiline with per-parameter parse-error flag, else text |
 | Dirty tracking | Any canvas change, parameter/affinity/edge edit, node add/delete → `dirty`. Switching pipelines while dirty opens a discard-confirm (`pipeline-switch-confirm`). Leaving the route does not. |
 | i18n | All user-visible strings under the `pipeline.*` namespace in `loom-ui/src/i18n/locales/{en,de}.json` |
@@ -526,18 +528,22 @@ yarn playwright test e2e/pipeline-crud-mocked.spec.ts
 | `src/api/pipelineRunControls.test.ts` | pause/resume/cancel clients: path, verb, bearer header, uuid encoding, and the server message surviving into the thrown error |
 | `src/api/pipelineBreakpoints.test.ts` | The four breakpoint clients, and the asymmetry that matters: a **read** degrades to "nothing armed, nothing held" because a run whose engine is gone genuinely is holding nothing, while a **write** throws and carries the server's message |
 | `e2e/pipeline-breakpoints-mocked.spec.ts` | Gutter only in debug mode; arm/disarm sending the whole set; arming not selecting the node; a `NODE_BREAKPOINT_HELD` frame ringing the node with no click and clearing the pulse; the hold loading the stopped item's results; the transport appearing only once something is held; Step and Continue reaching their routes; a release frame clearing the ring; a run started armed carrying `breakpoints[]`; debug off carrying none; and a run already stopped being adopted on open |
+| `src/features/pipeline/generations.test.ts` | Choosing which attempt to show: `generationsOf` / `latestGeneration` / `tasksForGeneration` / `pinGenerations` (latest by default, an explicit pin honoured, a pin that no longer exists falling back rather than blanking the node), `heldElementSeq` (element 0 is a real answer, "not held" is null) and `effectiveOptions` folding a draft over the definition without mutating it |
+| `e2e/pipeline-node-reexecute-mocked.spec.ts` | The held panel appearing only for a held node; Re-execute sending the changed setting and writing **no** pipeline version; a drafted setting staying out of the definition an ordinary Save writes; Save to pipeline writing it into a new version and spending the draft; both attempts remaining selectable, latest shown by default; the selector hidden while there is only one attempt |
 | `e2e/pipeline-affinity-mocked.spec.ts` | Affinity editing, badge, serialisation |
 | `e2e/pipeline-backend.spec.ts`, `pipeline-loading.spec.ts` | Live backend smoke: descriptors load, palette, node add |
 | `e2e/chat-pipeline-graph-mocked.spec.ts` | Pipeline graph rendered inside the chat workspace |
 
-Sixteen `pipeline*` e2e specs exist in `loom-ui/e2e/`; all but `pipeline-backend.spec.ts`,
+Eighteen `pipeline*` e2e specs exist in `loom-ui/e2e/`; all but `pipeline-backend.spec.ts`,
 `pipeline-loading.spec.ts` and `pipeline-diff-backend.spec.ts` are fully mocked. The vitest
 files run in the **node** environment (`vitest.config`, `environment: "node"`) — they are pure logic
 mirrors with no DOM; component behaviour is covered by Playwright, not by RTL/jsdom.
 
 Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / `data-result` /
 `data-affinity` / `data-processed` / `data-failed` / `data-breakpoint` / `data-held`),
-`pipeline-node-breakpoint-{id}`, `pipeline-node-held-{id}`, `pipeline-debug-step`,
+`pipeline-node-breakpoint-{id}`, `pipeline-node-held-{id}`, `pipeline-node-held-panel` (with
+`data-held-seq`), `pipeline-node-reexecute`, `pipeline-node-save-draft`, `pipeline-node-generation`,
+`pipeline-node-settings-draft` (with `data-draft-keys`), `pipeline-node-param-{key}`, `pipeline-debug-step`,
 `pipeline-debug-continue`, `pipeline-debug-held-count`, `pipeline-connection-error`, `pipeline-create-button|dialog|name|confirm`,
 `pipeline-clone-button`, `pipeline-delete-button|confirm`, `pipeline-switch-confirm`,
 `pipeline-version-badge|empty|restore-confirm`, `pipeline-inspector-version`,
@@ -579,4 +585,4 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 ---
 
 _Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Debugging phases 1–4 — run pause/resume, debug mode, NODE_STATS counters, per-node result inspection, previews, the enlarged detail view, and breakpoints + stepping)_
+_Last updated: 2026-08-04 (Debugging phase 5 — editing a held node's settings as a run-scoped draft, re-executing it, Save to pipeline, and the attempt selector. Earlier: phases 1–4 — run pause/resume, debug mode, NODE_STATS counters, per-node result inspection, previews, the enlarged detail view, and breakpoints + stepping)_

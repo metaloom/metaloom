@@ -14,18 +14,13 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function22;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
-import org.jooq.Records;
-import org.jooq.Row22;
 import org.jooq.Schema;
-import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -185,6 +180,14 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
      */
     public final TableField<JooqPipelineNodeTaskRecord, JsonObject> PREVIEWS = createField(DSL.name("previews"), SQLDataType.JSONB, this, "Opt-in per-run debugging previews keyed by output port id; each value is a NodePreview {mimeType, width, height, data (base64), skippedReason}. NULL when the run did not request previews. Run-scoped and pruned with the run — never catalogue state.", new JsonObjectConverter());
 
+    /**
+     * The column <code>public.pipeline_node_task.generation</code>. Which
+     * attempt at this execution the row records; 0 for the only run of an
+     * ordinary task, counting up per operator-requested re-execution of a node
+     * held at a breakpoint
+     */
+    public final TableField<JooqPipelineNodeTaskRecord, Integer> GENERATION = createField(DSL.name("generation"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Which attempt at this execution the row records; 0 for the only run of an ordinary task, counting up per operator-requested re-execution of a node held at a breakpoint");
+
     private JooqPipelineNodeTask(Name alias, Table<JooqPipelineNodeTaskRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -328,29 +331,5 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
     @Override
     public JooqPipelineNodeTask rename(Table<?> name) {
         return new JooqPipelineNodeTask(name.getQualifiedName(), null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Row22 type methods
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row22<java.util.UUID, java.util.UUID, java.util.UUID, String, String, String, Integer, Integer, String, LocalDateTime, LocalDateTime, LocalDateTime, Long, String, JsonObject, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, Integer, JsonObject> fieldsRow() {
-        return (Row22) super.fieldsRow();
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
-     */
-    public <U> SelectField<U> mapping(Function22<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? super JsonObject, ? extends U> from) {
-        return convertFrom(Records.mapping(from));
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Class,
-     * Function)}.
-     */
-    public <U> SelectField<U> mapping(Class<U> toType, Function22<? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Integer, ? super Integer, ? super String, ? super LocalDateTime, ? super LocalDateTime, ? super LocalDateTime, ? super Long, ? super String, ? super JsonObject, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super Integer, ? super JsonObject, ? extends U> from) {
-        return convertFrom(toType, Records.mapping(from));
     }
 }

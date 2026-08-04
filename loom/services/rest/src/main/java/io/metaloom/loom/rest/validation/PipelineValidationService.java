@@ -319,6 +319,23 @@ public class PipelineValidationService {
     }
 
     /**
+     * Check a set of node options against the parameters that node kind declares.
+     *
+     * <p>
+     * Lives here rather than at the call site because this class already owns the descriptor
+     * registry — and because the options in a pipeline definition and the options in a re-execution
+     * request must be judged by the same rules, whichever door they came in through.
+     * </p>
+     *
+     * @param nodeType the node kind, e.g. {@code facedetect}
+     * @param options  the options to check; null or empty always passes
+     * @throws ValidationException naming the offending key and why it was rejected
+     */
+    public void validateNodeOptions(String nodeType, Map<String, Object> options) {
+        NodeOptionValidator.validate(nodeDescriptorRegistry.get(nodeType), options);
+    }
+
+    /**
      * Require that the given object is not null.
      */
     private void requireNonNull(Object obj, String message) {

@@ -1116,7 +1116,19 @@
       "step": "Step",
       "stepTooltip": "Let one waiting execution through",
       "continue": "Continue",
-      "continueTooltip": "Let everything waiting through. The halt stays set, so the next item stops here too"
+      "continueTooltip": "Let everything waiting through. The halt stays set, so the next item stops here too",
+      "reExecute": "Re-execute",
+      "reExecuting": "Running…",
+      "reExecuteHelp": "This execution is waiting for you, so it can be run again over the same input. Settings changed here apply to this run only.",
+      "reExecuteOk": "Running again as attempt {{generation}}",
+      "reExecuteFailed": "Re-execution failed",
+      "reExecuteNotHeld": "This execution is no longer waiting, so it cannot be re-run.",
+      "saveToPipeline": "Save to pipeline",
+      "draftCount_one": "{{count}} changed",
+      "draftCount_other": "{{count}} changed",
+      "generation": "Attempt",
+      "generationOriginal": "Original run",
+      "generationAttempt": "Attempt {{n}}"
     },
     "runDetail": {
       "title": "Run Detail",

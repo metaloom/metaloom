@@ -53,6 +53,23 @@ public interface PipelineNodeTask extends CUDElement<PipelineNodeTask> {
 
 	PipelineNodeTask setElementSeq(int elementSeq);
 
+	/**
+	 * Which attempt at this execution the row records.
+	 *
+	 * <p>
+	 * 0 for a node that ran once, which is every task an ordinary run produces. It counts up when an
+	 * operator, having stopped the run at this node, changes a setting and asks for the same input to
+	 * be processed again — each attempt keeping its own row so the two can be compared. Distinct from
+	 * {@link #getAttempt()}, which counts <em>retries of the same attempt</em> after a failure and
+	 * leaves no trace of what the failed try produced.
+	 * </p>
+	 *
+	 * @return the generation, 0 when this execution has only ever run once
+	 */
+	int getGeneration();
+
+	PipelineNodeTask setGeneration(int generation);
+
 	/** @return how many times this task has been dispatched */
 	int getAttempt();
 

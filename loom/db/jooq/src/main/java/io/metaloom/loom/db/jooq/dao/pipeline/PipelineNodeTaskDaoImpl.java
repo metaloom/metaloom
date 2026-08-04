@@ -81,10 +81,26 @@ public class PipelineNodeTaskDaoImpl extends AbstractJooqDao<PipelineNodeTask> i
 
 	@Override
 	public PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId, int elementSeq) {
+		// An execution may have been run several times, so this is a "latest" query rather than a
+		// unique lookup. Without the ordering it would return an arbitrary generation and settling a
+		// re-executed task would land on whichever row the planner happened to hand back.
 		return ctx().selectFrom(PIPELINE_NODE_TASK)
 			.where(PIPELINE_NODE_TASK.ITEM_UUID.eq(itemUuid))
 			.and(PIPELINE_NODE_TASK.NODE_ID.eq(nodeId))
 			.and(PIPELINE_NODE_TASK.ELEMENT_SEQ.eq(elementSeq))
+			.orderBy(PIPELINE_NODE_TASK.GENERATION.desc())
+			.limit(1)
+			.fetchOptionalInto(getPojoClass())
+			.orElse(null);
+	}
+
+	@Override
+	public PipelineNodeTask loadByItemAndNode(UUID itemUuid, String nodeId, int elementSeq, int generation) {
+		return ctx().selectFrom(PIPELINE_NODE_TASK)
+			.where(PIPELINE_NODE_TASK.ITEM_UUID.eq(itemUuid))
+			.and(PIPELINE_NODE_TASK.NODE_ID.eq(nodeId))
+			.and(PIPELINE_NODE_TASK.ELEMENT_SEQ.eq(elementSeq))
+			.and(PIPELINE_NODE_TASK.GENERATION.eq(generation))
 			.fetchOptionalInto(getPojoClass())
 			.orElse(null);
 	}

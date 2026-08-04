@@ -84,6 +84,36 @@ public interface PipelineExamples extends ExampleValues {
 				.setElementSeq(0)));
 	}
 
+	default Example pipelineNodeReExecuteRequestExample() {
+		return new ExampleImpl(pipelineNodeReExecuteRequest(), "The node re-execution request", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineNodeReExecuteResponseExample() {
+		return new ExampleImpl(pipelineNodeReExecuteResponse(), "The node re-execution response", HttpResponseStatus.OK);
+	}
+
+	/**
+	 * Re-running a held face detector with a wider pose gate.
+	 *
+	 * <p>
+	 * Chosen because it is the case the feature exists for: the node found nothing, and whether that
+	 * means "no faces" or "faces the gate rejected" is answerable only by running it again.
+	 * </p>
+	 */
+	default PipelineNodeReExecuteRequest pipelineNodeReExecuteRequest() {
+		return new PipelineNodeReExecuteRequest()
+			.setItemUuid("f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70")
+			.setElementSeq(0)
+			.setOptions(java.util.Map.of("maxFaceAngle", 90));
+	}
+
+	default PipelineNodeReExecuteResponse pipelineNodeReExecuteResponse() {
+		return new PipelineNodeReExecuteResponse()
+			.setGeneration(1)
+			.setNodeId("facedetect")
+			.setOptions(java.util.Map.of("maxFaceAngle", 90));
+	}
+
 	default Example pipelineVersionListResponseExample() {
 		return new ExampleImpl(pipelineVersionListResponse(), "The pipeline version list response", HttpResponseStatus.OK);
 	}

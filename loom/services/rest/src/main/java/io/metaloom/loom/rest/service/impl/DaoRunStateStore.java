@@ -72,8 +72,29 @@ public class DaoRunStateStore implements RunStateStore {
 	private final int batchSize;
 
 	private final List<PipelineRunItem> pendingItems = new ArrayList<>();
-	/** Keyed by item + node so a settle updates the dispatch row rather than adding one. */
+	/**
+	 * Keyed by item + node + element + generation so a settle updates the dispatch row rather than
+	 * adding one.
+	 *
+	 * <p>
+	 * The generation belongs in the key. A re-executed node dispatches a second time for the same
+	 * {@code (item, node, element)}, and if that shared a buffer slot with the attempt before it the
+	 * earlier row would be dropped before it was ever flushed — destroying exactly the comparison the
+	 * operator re-executed in order to make.
+	 * </p>
+	 */
 	private final Map<String, PipelineNodeTask> pendingTasks = new LinkedHashMap<>();
+	/**
+	 * The generation each execution was last dispatched under, so a settle can find its own row.
+	 *
+	 * <p>
+	 * {@code taskSettled} is handed a {@link NodeTaskResult}, which carries no generation — and does
+	 * not need to, because a re-execution is only possible on an execution that is <em>held</em>, and
+	 * a held execution has already settled. There is therefore never an older generation of the same
+	 * execution still in flight to be confused with the current one.
+	 * </p>
+	 */
+	private final Map<String, Integer> generations = new LinkedHashMap<>();
 	/**
 	 * Tasks already written to the database.
 	 *
@@ -130,6 +151,7 @@ public class DaoRunStateStore implements RunStateStore {
 		row.setLeasedBy(workerId);
 		row.setAttempt(1);
 		row.setElementSeq(task.getElementSeq());
+		row.setGeneration(task.getGeneration());
 		Instant now = Instant.now();
 		row.setStarted(now);
 		if (workerId != null) {
@@ -138,7 +160,8 @@ public class DaoRunStateStore implements RunStateStore {
 			row.setLeaseExpiresAt(now.plusMillis(DEFAULT_LEASE_MS));
 		}
 
-		pendingTasks.put(key(itemUuid, task.getNodeId(), task.getElementSeq()), row);
+		generations.put(execKey(itemUuid, task.getNodeId(), task.getElementSeq()), task.getGeneration());
+		pendingTasks.put(key(itemUuid, task.getNodeId(), task.getElementSeq(), task.getGeneration()), row);
 		flushIfFull();
 	}
 
@@ -147,7 +170,9 @@ public class DaoRunStateStore implements RunStateStore {
 		if (itemUuid == null) {
 			return;
 		}
-		String key = key(itemUuid, result.getNodeId(), result.getElementSeq());
+		int generation = generations.getOrDefault(
+			execKey(itemUuid, result.getNodeId(), result.getElementSeq()), 0);
+		String key = key(itemUuid, result.getNodeId(), result.getElementSeq(), generation);
 		PipelineNodeTask row = pendingTasks.get(key);
 
 		if (row == null) {
@@ -169,6 +194,7 @@ public class DaoRunStateStore implements RunStateStore {
 			row.setUuid(result.getTaskUuid() != null ? result.getTaskUuid() : UUID.randomUUID());
 			row.setAttempt(0);
 			row.setElementSeq(result.getElementSeq());
+			row.setGeneration(generation);
 			pendingTasks.put(key, row);
 		}
 
@@ -309,6 +335,12 @@ public class DaoRunStateStore implements RunStateStore {
 			if (!result.getOutputs().isEmpty()) {
 				stored.setOutputs(PortPayloads.encode(result.getOutputs()));
 			}
+			// Written here as well as on the buffered path. Whether a dispatch row has been flushed
+			// before its result arrives depends only on how full the batch happened to be, so leaving
+			// this out made previews vanish for some executions of a debug run and not others.
+			if (!result.getPreviews().isEmpty()) {
+				stored.setPreviews(NodePreviews.encode(result.getPreviews()));
+			}
 			taskDao.update(stored);
 			return true;
 		} catch (Exception e) {
@@ -323,8 +355,14 @@ public class DaoRunStateStore implements RunStateStore {
 		}
 	}
 
-	private static String key(UUID itemUuid, String nodeId, int elementSeq) {
+	/** Identifies one execution, across however many times it has been run. */
+	private static String execKey(UUID itemUuid, String nodeId, int elementSeq) {
 		return itemUuid + "/" + nodeId + "#" + elementSeq;
+	}
+
+	/** Identifies one attempt at one execution — the row's idempotency key. */
+	private static String key(UUID itemUuid, String nodeId, int elementSeq, int generation) {
+		return execKey(itemUuid, nodeId, elementSeq) + "@" + generation;
 	}
 
 	/**

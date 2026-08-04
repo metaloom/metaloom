@@ -37,6 +37,9 @@ public class PipelineNodeTaskRecord implements RestResponseModel<PipelineNodeTas
 	@JsonPropertyDescription("Which element of a fanned-out sequence this execution handled; 0 when the node runs once per item.")
 	private int elementSeq;
 
+	@JsonPropertyDescription("Which attempt at this execution the row records; 0 for the only run of an ordinary task, counting up per operator-requested re-execution with different settings.")
+	private int generation;
+
 	@JsonPropertyDescription("Current state: PENDING, LEASED, DONE, FAILED, DEAD_LETTER.")
 	private String state;
 
@@ -144,6 +147,15 @@ public class PipelineNodeTaskRecord implements RestResponseModel<PipelineNodeTas
 
 	public PipelineNodeTaskRecord setElementSeq(int elementSeq) {
 		this.elementSeq = elementSeq;
+		return this;
+	}
+
+	public int getGeneration() {
+		return generation;
+	}
+
+	public PipelineNodeTaskRecord setGeneration(int generation) {
+		this.generation = generation;
 		return this;
 	}
 

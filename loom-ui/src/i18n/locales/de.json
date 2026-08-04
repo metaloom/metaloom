@@ -1107,7 +1107,19 @@
       "step": "Schritt",
       "stepTooltip": "Eine wartende Ausführung freigeben",
       "continue": "Fortfahren",
-      "continueTooltip": "Alle wartenden Ausführungen freigeben. Der Haltepunkt bleibt gesetzt, das nächste Medium hält hier erneut"
+      "continueTooltip": "Alle wartenden Ausführungen freigeben. Der Haltepunkt bleibt gesetzt, das nächste Medium hält hier erneut",
+      "reExecute": "Erneut ausführen",
+      "reExecuting": "Läuft…",
+      "reExecuteHelp": "Diese Ausführung wartet auf Sie und kann mit denselben Eingaben erneut laufen. Hier geänderte Einstellungen gelten nur für diesen Lauf.",
+      "reExecuteOk": "Läuft erneut als Versuch {{generation}}",
+      "reExecuteFailed": "Erneute Ausführung fehlgeschlagen",
+      "reExecuteNotHeld": "Diese Ausführung wartet nicht mehr und kann nicht erneut laufen.",
+      "saveToPipeline": "In Pipeline speichern",
+      "draftCount_one": "{{count}} geändert",
+      "draftCount_other": "{{count}} geändert",
+      "generation": "Versuch",
+      "generationOriginal": "Ursprünglicher Lauf",
+      "generationAttempt": "Versuch {{n}}"
     },
     "runDetail": {
       "title": "Lauf-Detail",

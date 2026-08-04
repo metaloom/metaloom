@@ -162,6 +162,7 @@ public interface PipelineModelBuilder extends ModelBuilder, UserModelBuilder {
 		record.setNodeId(task.getNodeId());
 		record.setNodeKind(task.getNodeKind());
 		record.setElementSeq(task.getElementSeq());
+		record.setGeneration(task.getGeneration());
 		record.setState(task.getState());
 		record.setAttempt(task.getAttempt());
 		record.setMaxAttempts(task.getMaxAttempts());

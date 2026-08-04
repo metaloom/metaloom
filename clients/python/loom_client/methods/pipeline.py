@@ -12,6 +12,8 @@ from ..models.pipeline import (
     PipelineBreakpointResponse,
     PipelineCreateRequest,
     PipelineListResponse,
+    PipelineNodeReExecuteRequest,
+    PipelineNodeReExecuteResponse,
     PipelineNodeTaskListResponse,
     PipelineResponse,
     PipelineRunItemListResponse,
@@ -206,6 +208,31 @@ class PipelineMethods:
         return self._post_empty(
             f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}/steps",
             PipelineBreakpointResponse,
+        )
+
+    def re_execute_pipeline_run_node(
+        self,
+        pipeline_uuid: _uuid_mod.UUID | str,
+        run_uuid: _uuid_mod.UUID | str,
+        node_id: str,
+        request: PipelineNodeReExecuteRequest,
+    ) -> LoomRequest[PipelineNodeReExecuteResponse]:
+        """Run a node held at a breakpoint again over the same input.
+
+        Settings given here apply to this run only and never touch the stored pipeline;
+        keeping one is a separate act through ``update_pipeline``. Each attempt keeps its
+        own task row, so a result can be compared with the one it replaced rather than
+        overwriting it.
+
+        Fails with 409 when that execution is not held -- only a held execution may be
+        re-run, because a hold is what guarantees nothing downstream has consumed the
+        result being discarded.
+        """
+        return self._post(
+            f"pipelines/{self._uuid(pipeline_uuid)}/runs/{self._uuid(run_uuid)}"
+            f"/nodes/{_quote(node_id)}/reexecutions",
+            request,
+            PipelineNodeReExecuteResponse,
         )
 
     # -- versions --------------------------------------------------------------

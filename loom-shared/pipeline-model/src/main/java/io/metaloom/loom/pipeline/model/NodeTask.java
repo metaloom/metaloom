@@ -41,6 +41,7 @@ public class NodeTask {
 	private final Set<String> demandedOutputs;
 	private final int resultBatchSize;
 	private final boolean capturePreviews;
+	private final int generation;
 
 	@JsonCreator
 	public NodeTask(@JsonProperty("taskUuid") UUID taskUuid, @JsonProperty("runUuid") UUID runUuid,
@@ -51,7 +52,8 @@ public class NodeTask {
 		@JsonProperty("inputs") Map<String, PortPayload> inputs,
 		@JsonProperty("demandedOutputs") Set<String> demandedOutputs,
 		@JsonProperty("resultBatchSize") Integer resultBatchSize,
-		@JsonProperty("capturePreviews") Boolean capturePreviews) {
+		@JsonProperty("capturePreviews") Boolean capturePreviews,
+		@JsonProperty("generation") Integer generation) {
 		this.taskUuid = Objects.requireNonNull(taskUuid, "A task uuid must be set");
 		this.runUuid = runUuid;
 		this.itemId = Objects.requireNonNull(itemId, "An item id must be set");
@@ -70,6 +72,19 @@ public class NodeTask {
 		// Defaults to false, so an older Loom that does not send the field, and every ordinary
 		// production run, cost the worker one boolean check and nothing else.
 		this.capturePreviews = capturePreviews != null && capturePreviews;
+		// 0 means "this execution has only ever run once", which is true of every task an ordinary
+		// run dispatches - so an absent field reads correctly rather than needing a backfill.
+		this.generation = generation == null ? 0 : Math.max(0, generation);
+	}
+
+	/**
+	 * Backwards-compatible overload without the generation.
+	 */
+	public NodeTask(UUID taskUuid, UUID runUuid, String itemId, String nodeId, String nodeKind, Integer elementSeq,
+		MediaRef media, Map<String, Object> options, Map<String, PortPayload> inputs, Set<String> demandedOutputs,
+		Integer resultBatchSize, Boolean capturePreviews) {
+		this(taskUuid, runUuid, itemId, nodeId, nodeKind, elementSeq, media, options, inputs, demandedOutputs,
+			resultBatchSize, capturePreviews, 0);
 	}
 
 	/**
@@ -79,7 +94,7 @@ public class NodeTask {
 		MediaRef media, Map<String, Object> options, Map<String, PortPayload> inputs, Set<String> demandedOutputs,
 		Integer resultBatchSize) {
 		this(taskUuid, runUuid, itemId, nodeId, nodeKind, elementSeq, media, options, inputs, demandedOutputs,
-			resultBatchSize, false);
+			resultBatchSize, false, 0);
 	}
 
 	/**
@@ -87,7 +102,21 @@ public class NodeTask {
 	 */
 	public NodeTask(UUID taskUuid, UUID runUuid, String itemId, String nodeId, String nodeKind, MediaRef media,
 		Map<String, Object> options, Map<String, PortPayload> inputs) {
-		this(taskUuid, runUuid, itemId, nodeId, nodeKind, 0, media, options, inputs, null, 1, false);
+		this(taskUuid, runUuid, itemId, nodeId, nodeKind, 0, media, options, inputs, null, 1, false, 0);
+	}
+
+	/**
+	 * Which attempt of this execution the task is.
+	 *
+	 * <p>
+	 * 0 for every task an ordinary run dispatches. It counts up only when an operator re-executes a
+	 * node held at a breakpoint with different settings, and it exists so those attempts can be told
+	 * apart and compared rather than overwriting one another — see
+	 * {@code PipelineRunEngine.reExecute}.
+	 * </p>
+	 */
+	public int getGeneration() {
+		return generation;
 	}
 
 	/**
@@ -191,6 +220,7 @@ public class NodeTask {
 	@Override
 	public String toString() {
 		return "NodeTask[" + nodeId + " (" + nodeKind + ")"
-			+ (elementSeq > 0 ? " #" + elementSeq : "") + " on " + media.getPath() + "]";
+			+ (elementSeq > 0 ? " #" + elementSeq : "")
+			+ (generation > 0 ? " gen" + generation : "") + " on " + media.getPath() + "]";
 	}
 }
