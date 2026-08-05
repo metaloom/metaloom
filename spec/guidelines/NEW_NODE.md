@@ -17,6 +17,7 @@ change.
 > | Pure compute, **no model / no sidecar** | `cortex/nodes/dominant-color` | k-means arithmetic, no external runtime |
 > | A **sink** that consumes upstream artifacts | `cortex/nodes/s3-sink` | reads files an upstream node wrote to local disk; also a `PipelineConfigurable` |
 > | Analytical, writes a **typed component** through the generic component endpoint | `cortex/nodes/metadata` | the only node using `POST /assets/:uuid/components`; also the reference for a raw → canonical mapping whose design lives in its own unit test |
+> | Wraps a **native library** with a global, single-instance lifecycle | `cortex/nodes/objectdetect` | the `ObjectDetector` seam keeps every test off the natives, and the `@Singleton` holder is where one-model-per-JVM is absorbed rather than leaked into the node |
 > | Writes into the **catalog** (tags, and later anything else Loom curates) | `cortex/nodes/tag` | resolve-or-create through the REST client, a self-written provenance component, and provenance-guarded deletion |
 > | A minimal out-of-tree example | `examples/cortex-custom-node` | the smallest thing that compiles and registers |
 > | A **source** that reaches a remote system | `cortex/nodes/cloud-source` · `cortex/s3-common` | `AbstractPipelineNode implements MediaSourceNode`, a cold `stream()`, lazy media handles, and the provider seam + materializer in a sibling `*-common` module so every worker can resolve the references |
@@ -145,6 +146,30 @@ public abstract class XNodeModule extends AbstractNodeModule {
   Such a node should also override `nodeId()` so its ledger rows do not collide
   (`asset_node_result` is `UNIQUE (asset_uuid, node_kind, node_id)`).
 
+### 1.4 Check the read path, not just the write path
+
+A column existing is not the same as a column being **readable**. `objectdetect` writes
+`detection.label` — a column added, indexed and commented ("Detected class for object detection, e.g.
+dog") specifically in anticipation of it. `DetectionCreateRequest` carried it, the DAO stored it, and
+`DetectionResponse` did not return it: for eight migrations the field could be written and never read
+back, and no test noticed because nothing wrote it.
+
+So for whatever your node persists, follow the value all the way out again:
+
+| Step | Where |
+|---|---|
+| request model carries it | `loom-shared/rest-model/.../XCreateRequest.java` |
+| the service maps it onto the DAO model | `loom/services/rest/.../XEndpointService.java` |
+| **the response model carries it** | `loom-shared/rest-model/.../XResponse.java` |
+| **the builder copies it onto the response** | `loom/services/rest/.../builder/XModelBuilder.java` |
+| an endpoint test round-trips it | `loom/core/.../endpoint/test/XEndpointTest.java` |
+
+Touching the response model has three generated consequences, all committed: re-run
+`ExampleGenerator` from **inside `loom/doc`** (`mvn -o -q exec:java
+-Dexec.mainClass=io.metaloom.loom.doc.ExampleGenerator`), re-run
+`clients/python/tools/generate_models.py`, and check the field appears in an `XExamples` example —
+the OpenAPI document is example-driven, so a field no example sets is documented nowhere.
+
 ---
 
 ## 2. Registration touch-points (all five, or the node is invisible)
@@ -169,7 +194,7 @@ mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNode
 That rewrites `loom-shared/node-model/src/main/resources/node-descriptors.json`, **which is
 committed**. `NodeSpecGoldenTest` otherwise only compares, so a stale resource is a build failure
 rather than a silently outdated palette. `NodeDescriptorServiceLoaderTest` then needs its kind count
-bumped (currently **40**) and the new kind added to its `testKindsFromEachFormerModule` list; update
+bumped (currently **41**) and the new kind added to its `testKindsFromEachFormerModule` list; update
 the same number in [NODES.md §5.2](../features/nodes/NODES.md).
 
 ⚠️ **The golden test compares against the class path, not the source tree**, so after regenerating you
@@ -281,9 +306,9 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
 | Test scaffolding (`StubLoomMedia`, `AbstractNodeChainTest`, `CapturingNode`) | `cortex/pipeline-core` test-jar (`io.metaloom.cortex.pipeline.test`) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
-| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) |
+| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) · `cortex/nodes/objectdetect` (native-backed, and §1.4 applied) |
 
-_Git HEAD revision: `55848543`_
-_Last updated: 2026-08-04 (rewrote §2 for the annotation-harvested contracts: the descriptor providers
-and `NodePortConformanceTest` are gone, and `NodeSpecCatalog.BUILT_IN_NODE_CLASSES` plus the
-integration-test dependency are the touch-points that were missing. Kind count 40 after the `tag` node)_
+_Git HEAD revision: `fcf6ea7d`_
+_Last updated: 2026-08-05 (kind count 41 after the `objectdetect` node. Added §1.4: a node whose
+output has to be readable needs the read path checked, not just the write path — `objectdetect` found
+`detection.label` write-only after eight migrations of it existing)_

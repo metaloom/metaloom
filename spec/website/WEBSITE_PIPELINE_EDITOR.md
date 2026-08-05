@@ -32,8 +32,8 @@ links here; **do not duplicate the detail below into it**.
 
 * One page, four artefacts: `content/english/pipeline-editor/_index.md`,
   `themes/meghna-hugo/layouts/pipeline-editor/list.html`,
-  `themes/meghna-hugo/assets/js/pipeline-editor.js` (~1290 lines, one vanilla IIFE, zero
-  dependencies), `themes/meghna-hugo/assets/css/pipeline-editor.css` (~318 lines, `.pe-*` only).
+  `themes/meghna-hugo/assets/js/pipeline-editor.js` (~1830 lines, one vanilla IIFE, zero
+  dependencies), `themes/meghna-hugo/assets/css/pipeline-editor.css` (~610 lines, `.pe-*` only).
 * The node catalogue is a **generated static snapshot**:
   `website/static/pipeline-editor/node-descriptors.json` — the same
   `{nodeDescriptors, contentTypes}` shape as `GET /api/v1/pipeline/node-descriptors`. Currently
@@ -116,6 +116,7 @@ The editor is one JS file, so the useful unit is the *function*. Everything belo
 | `E()` · `H()` · `bez()` | JS, § *small helpers* | SVG element, HTML element, cubic-Bézier path — the `nodeviz.js` idioms |
 | `hashStr` · `mulberry32` · `rand` · `randInt` | JS | Seeded PRNG: every synthetic value and filter verdict is a pure function of a seed string |
 | `nodeGeom` · `portY` · `portPos` · `portSpec` | JS, § *geometry* | Node box size from port counts; port coordinates and specs |
+| `topRoundedPath(w, h, r)` | JS, § *geometry* | The node header outline — rounded at the top two corners only |
 | `addNode` · `removeNode` · `addEdge` · `edgesInto` · `edgesFrom` | JS, § *model mutation* | The whole model API |
 | `toGraphJson` · `fromGraphJson` | JS, § *JSON round-trip* | Export/import; import returns a list of warnings instead of throwing |
 | `validate()` | JS, § *validation* | Order-independent full-graph check → `[{severity, code, message, node?, edge?}]` |
@@ -123,9 +124,12 @@ The editor is one JS file, so the useful unit is the *function*. Everything belo
 | `canConnect(srcId, srcPort, tgtId, tgtPort)` | JS | Single-edge legality while dragging → `{ok, reason?, provisional?}` |
 | `commit()` | JS | Re-bind descriptors, re-validate, repaint the error panel, gate **Play**. Call after *every* structural change |
 | `buildShell` · `buildPalette` · `renderAll` · `renderNodes` · `renderEdges` · `portGroup` | JS, § *rendering* | DOM/SVG construction |
-| `sim` (`build` · `fire` · `emitTokens` · `play` · `pause` · `step` · `reset` · `loop` · `drawTokens`) | JS, § *simulation* | The discrete dataflow simulator and its animation loop |
+| `buildMenu(label, itemsFn)` · `fileMenuItems` | JS, § *rendering* | The **File** menu; `itemsFn` runs on every open, which is what keeps the saved-pipeline section current |
+| `speedIcon(which)` | JS, § *rendering* | The snail / rocket ends of the speed slider, drawn as SVG paths (not emoji) |
+| `wireResizers` · `setErrorsCollapsed` · `isNarrow` | JS, § *rendering* | The two splitters and the collapsible design-error panel |
+| `sim` (`build` · `fire` · `emitTokens` · `play` · `pause` · `step` · `reset` · `loop` · `drawTokens` · `showResults` · `toggleResults`) | JS, § *simulation* | The discrete dataflow simulator, its animation loop and the per-node result drawer |
 | `synthValue(ct, group, portId, seq)` · `summarize` | JS, § *synthetic values* | Family-aware fake payloads and their log rendering |
-| `doSave` · `loadSaved` · `doDownload` · `openJsonModal` | JS, § *persistence* | `localStorage` slots, JSON download, paste/file import modal |
+| `doSave` · `loadSaved` · `doDownload` · `openJsonModal` · `doClear` | JS, § *persistence* | `localStorage` slots, JSON download, paste/file import modal — all reached from the **File** menu |
 | `DEMOS` · `loadDemo` | JS, § *demo pipelines* | The three shipped demos; `loadDemo(0)` runs on boot |
 | `init` · `fail` | JS, § *bootstrap* | Fetch the snapshot, index it, build the shell; on any failure render one `.pe-fatal` line |
 
@@ -290,29 +294,40 @@ content-type id or label in the JS.
 
 ```
 ┌─ .pe-toolbar ─────────────────────────────────────────────────────────────────┐
-│ Pipeline Editor │ [Demo pipelines…][Saved…][Save][Download][Open][Clear]      │
-│                 │ Emit [single|multiple][n] │ [▶Play][⏸Pause][⤳Step][⟲Reset][speed] │
+│ Pipeline Editor │ [File ▾][Demo pipelines…]                                   │
+│                 │ Emit [single|multiple][n] │ [▶Play][⏸Pause][⤳Step][⟲Reset][🐌—slider—🚀] │
 ├─ .pe-palette ──┬─ .pe-canvas-wrap ────────────────────────────────────────────┤
 │ Nodes          │ <svg class="pe-canvas">                                      │
 │  SOURCE        │   <g .pe-viewport>  ← pan/zoom transform                     │
 │  FILTER        │     .pe-layer-edges   ← hit path + visible path + branch chip │
 │  ANALYSIS      │     .pe-layer-conn    ← the drag preview                     │
-│  TRANSFORM     │     .pe-layer-nodes   ← node boxes + ports                   │
+│  TRANSFORM     │     .pe-layer-nodes   ← node boxes + ports + result drawers   │
 │  OUTPUT        │     .pe-layer-tokens  ← travelling simulation tokens          │
 │                │ .pe-toast (transient reason)   .pe-hint (empty-canvas hint)   │
-├─ .pe-bottom ───┴──────────────────────────────────────────────────────────────┤
-│ Design errors (n)              │ Action log: time │ node │ description │ in │ out │
-└───────────────────────────────────────────────────────────────────────────────┘
+├─ .pe-resize-v ─┴──────────────────────── (drag ↕ to resize the panel row) ────┤
+├─ .pe-bottom ──────────────┬ .pe-resize-h ┬───────────────────────────────────┤
+│ ▾ Design errors (n)       │  (drag ↔)    │ Action log: time │ node │ … │ out │
+└───────────────────────────┴──────────────┴───────────────────────────────────┘
 ```
 
+* **File menu** (`.pe-menu`) — one button in the traditional place, holding *Open / paste JSON…*,
+  *Save to this browser…*, *Download JSON*, *Clear canvas*, and a **Saved in this browser** section.
+  `buildMenu` rebuilds the list on **every open** from `fileMenuItems()`, which is why saving a
+  pipeline does not have to notify anything. It closes on an outside `pointerdown` and on `Escape`.
+  The *Demo pipelines…* select stays a visible control: it is the page's onboarding affordance, not a
+  file operation.
 * **Palette** — one group per category in `CATEGORY_ORDER`, headed in the category colour; a group is
   omitted when the snapshot has no kind for it. **Click** (not drag) adds the node near the canvas
   centre, offset by `nodeCount % 3 * 24` px so repeated clicks don't stack.
 * **Node box** — `NODE_W = 212`, header `HEAD_H = 30`, one `ROW_H = 24` row per port row
-  (`rows = max(inputs, outputs, 1)`), `BODY_PAD = 10`. A left stripe carries the category colour; a
-  hover-only `×` (`.pe-node-del`) deletes. `.is-selected`, `.is-error` (a validation error names this
-  node), `.is-unknown` (kind absent from the snapshot; the title gets a ` (?)` suffix) and
-  `.is-firing` (450 ms flash) are the state classes.
+  (`rows = max(inputs, outputs, 1)`), `BODY_PAD = 10`, corner radius `NODE_R = 9`. A left stripe
+  carries the category colour; a hover-only `×` (`.pe-node-del`) deletes. `.is-selected`, `.is-error`
+  (a validation error names this node), `.is-unknown` (kind absent from the snapshot; the title gets
+  a ` (?)` suffix) and `.is-firing` (450 ms flash) are the state classes.
+  Everything drawn *on* the card respects its rounding: the stripe is a plain rect wearing a
+  per-node `clip-path` of the card outline, and the header is `topRoundedPath()` rather than a rect
+  with an `rx` (which would round its bottom corners too and leak the body colour through them).
+  Both used to poke out of the corners.
 * **Port** — a square-ish handle coloured by content-type family, plus an 18×18 invisible
   `.pe-port-hit` target. A `MANY` port is drawn as a *stacked* pair of squares (`rx: 1`) with a
   ` ⋯` label suffix; a wildcard port is hollow (`fill: #1a1f26`, coloured stroke). Every port carries
@@ -322,9 +337,23 @@ content-type id or label in the JS.
 * **Edge** — a cubic Bézier in the *source* port's colour. Only the fat invisible `.pe-edge-hit` path
   takes pointer events. A non-`ANY` edge gets a `PASS`/`REJECT` chip at its midpoint.
 * **Bottom panels** — the error list (click a row to select the offending node/edge) and the action
-  log (auto-scrolled, one row per firing).
+  log (auto-scrolled, one row per firing). Both are **resizable**: `.pe-resize-v` drags the whole
+  `.pe-bottom` row up and down, `.pe-resize-h` moves the split between the two panels. Each bar is
+  7 px of hit area with a −3 px margin, so it costs the layout 1 px and is still hittable; the drag
+  uses `setPointerCapture` and writes an inline `flex`/`height`.
+* **Collapsible error panel** — `.pe-panel-head` is a `<button>` (`.pe-panel-toggle`) with a caret.
+  Collapsed, `.pe-panel-errors.is-collapsed` becomes a narrow strip that is *all* header (clicking
+  anywhere in it reopens) and `.pe-resize-h` is hidden, because there is nothing left to size.
+  `setErrorsCollapsed(isNarrow())` runs once at boot, so it starts **collapsed below 820 px** and
+  open on a desktop. Collapsing clears the inline flex the splitter wrote and expanding restores it.
+* **Scrollbars** — the palette, error list, log, menu, detail body and result drawer all take
+  `scrollbar-width: thin` + `scrollbar-color: var(--pe-scroll) transparent`, with the
+  `::-webkit-scrollbar` equivalent for Safari. Chrome ignores the `::-webkit-` rules once
+  `scrollbar-width` is set — keep both, they cover different engines.
 * **Responsive** — under 820 px the shell stops being viewport-height: palette on top (wrapping,
-  `max-height: 150px`), canvas `60vh`, panels stacked.
+  `max-height: 150px`), canvas `60vh`, panels stacked, both splitters `display: none`. The stacked
+  rules carry `!important` on `height`/`flex`, because the splitters write inline styles and a
+  desktop resize must not leak into the mobile layout.
 
 ### Interaction model
 
@@ -340,6 +369,9 @@ content-type id or label in the JS.
 | `Escape` | Cancel a connection drag, hide the toast, close the modal |
 | **Double-click an edge** | Cycle `ANY → PASS → REJECT`. Refused with a toast unless the edge leaves a `FILTER` node — this is the only way to set branch routing |
 | Click the node `×` | Delete the node and every edge touching it |
+| Click a **result drawer header** | Roll that node's result drawer up or down (`sim.toggleResults`); the state outlives a re-render |
+| Drag `.pe-resize-v` / `.pe-resize-h` | Resize the panel row vertically / the two panels horizontally |
+| Click the **Design errors** header | Collapse or expand the error list |
 
 Pointer handling is `pointerdown` on the SVG plus `pointermove`/`pointerup` on `window`, so a drag
 that leaves the canvas still terminates.
@@ -462,13 +494,29 @@ teaches an interaction a visitor will meet again in Loom itself.
   releases the held firing and stops at the next event boundary — which, if the next node is also
   armed, is the next hold. Disarming the node that is holding releases it, so clearing a breakpoint
   can never strand the simulation.
-- **Result strips** (`.pe-result-row`) render each firing's outputs under its node, one row per
-  output port, and are remembered in `lastResults` so a drag or a selection change does not wipe
-  them — `renderNodes()` rebuilds the whole layer.
+- **Result drawers** (`.pe-results` → `.pe-drawer`) render each firing's outputs *below* its node,
+  one `.pe-result-row` per output port, and are remembered in `lastResults` so a drag or a selection
+  change does not wipe them — `renderNodes()` rebuilds the whole layer. The drawer is a
+  `<foreignObject>` holding HTML, not SVG text: a synthetic value is regularly wider than the card,
+  and SVG text neither wraps nor clips, so the old strip simply ran out over the canvas. The header
+  rolls the drawer up (`resultsCollapsed`, per node, surviving re-renders and resets).
+  Two consequences to keep in mind:
+  * The `foreignObject` needs an explicit height, and the wrapped height is only known after layout
+    — `showResults` appends at a generous height, measures the box, divides by `view.scale` (SVG
+    user units, not screen pixels) and writes the real height back.
+  * The `foreignObject` is `pointer-events: none` and only `.pe-drawer` re-enables them, so the
+    drawer's bounding box never swallows a click meant for the canvas. Its three `onPointerDown`
+    branches (`.pe-drawer-head`, `.pe-result-row`, then a catch-all `.pe-drawer`) must stay
+    **before** the node-drag branch, or dragging the drawer would drag the node.
 - Clicking a row opens **`openResultDetail`**, an overlay whose tabs are chosen by *what the payload
   carries* rather than by its declared family, exactly as the product does: Table only for a real
   sequence, Preview for a media/artifact port, then Value, then **Raw, always present and always
-  last**. `Escape` and a backdrop click close it.
+  last**. `Escape`, the close button and a backdrop click all close it. The card is fully opaque and
+  the canvas behind it is scrimmed to 80 % and blurred — the view exists to be *read*, so nothing
+  underneath may show through the text.
+  ⚠️ The overlay is appended to **`document.body`**, i.e. outside `.pe-page`, which is why the CSS
+  custom properties are declared on `.pe-page, .pe-detail` and not on `.pe-page` alone. See the
+  gotcha below: this cost the card its background once already.
 
 Breakpoints survive `Reset`: they are how a visitor sets the run up *before* pressing Play.
 
@@ -522,8 +570,10 @@ numeric id suffix so generated ids cannot collide with imported ones.
 
 All `localStorage` access goes through `lsGet`/`lsSet`, which swallow exceptions — private-browsing
 and storage-disabled visitors get a *"Could not save (storage unavailable)"* toast rather than a
-broken page. `Download` builds a Blob URL and revokes it after a second; `Open` is a modal with a
-textarea **and** a file picker, reporting parse errors inline (`.pe-modal-err`).
+broken page. *Download JSON* builds a Blob URL and revokes it after a second; *Open / paste JSON…* is
+a modal with a textarea **and** a file picker, reporting parse errors inline (`.pe-modal-err`). All
+four entry points live in the **File** menu, and the saved names are read straight out of
+`savedNames()` each time that menu opens — there is no cached list to refresh.
 
 ## Demo pipelines
 
@@ -568,12 +618,13 @@ configuration surface:
 | `data-descriptors` | `layouts/pipeline-editor/list.html` | `relURL "pipeline-editor/node-descriptors.json"` | Where the catalogue is fetched from. Must stay site-relative |
 | `page_css` | `content/english/pipeline-editor/_index.md` | `css/pipeline-editor.css` | Per-page stylesheet |
 | Menu entry | `config.toml` `[[Languages.en.menu.main]]` | `weight = 5` | Nav position |
-| `NODE_W` · `HEAD_H` · `ROW_H` · `BODY_PAD` · `GRID` | JS § geometry | `212 · 30 · 24 · 10 · 15` | Node box metrics, snap lattice |
+| `NODE_W` · `HEAD_H` · `ROW_H` · `BODY_PAD` · `GRID` · `NODE_R` | JS § geometry | `212 · 30 · 24 · 10 · 15 · 9` | Node box metrics, snap lattice, corner radius |
+| `MAX_RESULT_ROWS` | JS § state | `3` | Result rows a drawer shows before the "+n more" line |
 | Zoom clamp | `onWheel` | `0.4 … 2` | Pan/zoom limits |
 | `TRAVEL` · `NODE_DELAY` · `GROUP_STAGGER` · `MS_PER_TICK` | JS § simulation | `1 · 0.18 · 0.7 · 850` | Simulation tempo |
 | Filter pass rate | `sim.filterVerdict` | `> 0.28` (~72 %) | How often a filter passes |
 | `FAMILY_COLORS` · `CATEGORY_COLORS` | JS | 8 + 5 entries | Port/edge and palette colours |
-| CSS custom properties | `.pe-page` in `pipeline-editor.css` | `--pe-bg #11151a`, `--pe-accent #57cbcc`, … | Theme surface, matching the site's dark palette |
+| CSS custom properties | `.pe-page, .pe-detail` in `pipeline-editor.css` | `--pe-bg #11151a`, `--pe-accent #57cbcc`, `--pe-scroll #48525e`, … | Theme surface (and scrollbar thumb), matching the site's dark palette. Both selectors are required — the detail overlay renders outside `.pe-page` |
 
 ## Test Setup
 
@@ -617,10 +668,17 @@ grep -o 'data-descriptors="[^"]*"' website/dist/pipeline-editor/index.html
    candidate while, say, `sentiment.text` is marked incompatible; release on the incompatible port
    and read the toast.
 2a. **Halting** — click a node's left-margin gutter dot, press **Play**, and confirm the run stops
-   *after* that node has run: the node is amber-ringed, its outputs are listed under the card, and
-   nothing downstream has produced anything. Click a result row for the enlarged view (`Escape`
-   closes). **Step** releases one firing, **Continue** releases and runs on, and clicking the dot
-   again while held both disarms and releases.
+   *after* that node has run: the node is amber-ringed, its outputs are listed in the drawer under
+   the card, and nothing downstream has produced anything. Click a result row for the enlarged view
+   (`Escape` closes). **Step** releases one firing, **Continue** releases and runs on, and clicking
+   the dot again while held both disarms and releases. In the enlarged view, confirm the card is
+   **opaque** on every tab — no canvas, node or log text may be legible through it — and that the
+   close button, the backdrop and `Escape` all dismiss it.
+2b. **Result drawers** — after a run, confirm every drawer sits *below* its node, that a long value
+   wraps inside it rather than running out over the canvas, and that clicking the drawer header
+   rolls it up and down. Drag the node and zoom out, then toggle a drawer again: it must still be
+   exactly as tall as its content (the height is re-measured in user units, so a wrong `view.scale`
+   shows up as a drawer that is far too tall or clipped).
 3. **Cardinality** — wire a second edge into a `ONE` input: refused at drag time. Wire
    `facedetect.detections` (MANY) into `facedescription.detections` and confirm it is accepted.
 4. **XOR group** — wire `facedetect.image`, then confirm `facedetect.video` renders `.is-blocked`; wire
@@ -633,13 +691,19 @@ grep -o 'data-descriptors="[^"]*"' website/dist/pipeline-editor/index.html
    group leaves its branch dark. `Pause` / `Step` / `Reset` behave. Speed slider changes tempo.
 8. **Reduced motion** — with `prefers-reduced-motion: reduce` forced (DevTools → Rendering), `Play`
    fills the whole log instantly and no token is drawn.
-9. **Round-trip** — `Download`, `Clear`, `Open` → paste the file → identical graph. `Save` under a
-   name, reload the page, load it from the *Saved…* select.
+9. **Round-trip** — **File → Download JSON**, **File → Clear canvas**, **File → Open / paste JSON…**
+   → paste the file → identical graph. **File → Save to this browser…** under a name, reload the
+   page, and load it from the menu's *Saved in this browser* section.
+9a. **Layout** — drag `.pe-resize-v` up and confirm the panel row grows and the canvas shrinks; drag
+   `.pe-resize-h` and confirm the split moves. Collapse **Design errors** and confirm the panel
+   shrinks to a clickable strip and the horizontal splitter disappears.
 10. **Degradation** — point `data-descriptors` at a missing path and confirm a single
     `.pe-fatal` line ("Pipeline editor could not load: …"), no thrown exception. Import a graph with a
     bogus `type` and confirm a `(?)` node, an `unknownKind` error and a warning toast.
-11. **Responsive** — at ≤ 820 px the palette moves on top and the panels stack; no horizontal page
-    scroll.
+11. **Responsive** — at ≤ 820 px the palette moves on top, the panels stack, the design-error list
+    starts collapsed and both splitters are gone; no horizontal page scroll. Resize a desktop
+    layout first and *then* narrow the window: the inline sizes must not survive (the `!important`
+    rules).
 12. **Keyboard** — `Tab` reaches the toolbar controls; `Delete` removes the selection but not while
     typing in the *Save as* prompt or the JSON textarea; `Escape` cancels a drag and closes the modal.
 
@@ -681,6 +745,27 @@ cd loom-ui && npx vitest run src/features/pipeline/contentTypes.test.ts
 * **`syncSourceControls()` finds the mode select by inspecting `options[0].value === "single"`**, not
   by a stored reference. Adding another select to the toolbar whose first option value is `single`
   would hijack it — cache the element instead if you touch this.
+* **The result drawer is an HTML island inside SVG.** Its height must be measured after layout and
+  divided by `view.scale`, and its pointer branches must precede the node-drag branch in
+  `onPointerDown`. Do not "simplify" it back to `<text>`: SVG text neither wraps nor clips, which is
+  exactly what the old strip got wrong.
+* **Anything drawn on the node card must respect `NODE_R`.** New decoration goes through the node's
+  `clip-path` (like `.pe-node-stripe`) or is authored as a path (like the header) — a plain rect at
+  the card's edge pokes out of the rounded corner.
+* **The splitters write inline styles.** Every rule that must beat them — currently the ≤ 820 px
+  stacked layout — needs `!important`. Conversely, `setErrorsCollapsed` clears and restores the
+  inline `flex` itself rather than fighting the cascade.
+* **Emoji are not available on every machine.** The speed slider's snail and rocket are SVG paths
+  (`speedIcon`) for that reason; a machine without an emoji font renders `🐌` as a tofu box.
+* **The File menu has no cached state.** `buildMenu` calls `fileMenuItems()` on every open, so a
+  newly saved pipeline appears with no refresh call. Do not reintroduce one.
+* **Anything mounted outside `.pe-page` loses the whole palette.** The result-detail overlay is
+  appended to `document.body` (so it can never be trapped by an ancestor's stacking context), and an
+  *unset* custom property does not fall back to a sensible default — it makes the declaration
+  invalid at computed-value time, so `background: var(--pe-panel)` computes to **transparent**. The
+  detail card rendered as bare text floating over the live canvas for exactly this reason. The
+  variables are therefore declared on `.pe-page, .pe-detail`; a new detached overlay needs the same
+  selector, or literal colours. The JSON modal is unaffected — `openJsonModal` appends to `root`.
 * **The `many` boolean on a port is redundant.** Read `cardinality` only.
 * **`icon`, `parameters` and `events` are present in the snapshot but unrendered.** Do not delete them
   from the generator to "save bytes" — the snapshot's contract is *the endpoint's shape*.
@@ -762,6 +847,9 @@ and the demo blockers recorded below are now closed.
 ### Editing
 
 - [x] Palette by category, click-to-add, node drag with grid snap, pan, zoom, selection, delete
+- [x] File menu (Open / Save / Download / Clear + saved slots), resizable panel row and panel split,
+      collapsible design-error list (collapsed by default below 820 px), themed scrollbars
+- [x] Result drawers below the node: wrapped text, collapsible per node, clipped to nothing
 - [x] Typed connection dragging with live candidate/incompatible/provisional highlighting
 - [x] Branch routing on filter edges via double-click; `PASS`/`REJECT` chips
 - [x] Full-graph validation (13 codes) with a clickable error panel gating **Play**
@@ -769,6 +857,8 @@ and the demo blockers recorded below are now closed.
 - [ ] Input port groups are enforced for `XOR` only; output groups are treated as exclusive regardless
       of `mode`. Harmless today (no other mode is declared) — revisit if `EXCLUSIVE` is ever used
 - [ ] No undo/redo, no multi-select, no rubber-band selection, no node rename
+- [ ] The panel sizes and the drawer-collapse state are per session only — nothing is persisted to
+      `localStorage`, so every reload returns to the defaults
 - [ ] `canConnect` allows wiring an `.is-blocked` XOR sibling and lets `validate()` complain
       afterwards. Deliberate, but worth revisiting if visitors read it as a bug
 - [ ] No keyboard-only way to create an edge (ports are not focusable here, unlike `nodeviz`'s ports)
@@ -801,8 +891,16 @@ and the demo blockers recorded below are now closed.
 
 ---
 
-_Git HEAD revision: `920afed0`_
-_Last updated: 2026-08-04 (`docs/pipeline/` and `docs/nodes/` now link the editor, closing the
+_Git HEAD revision: `fcf6ea7d`_
+_Last updated: 2026-08-05 (the result-detail card rendered fully transparent — it is mounted outside
+`.pe-page`, where every `var(--pe-*)` was unset and therefore computed to transparent; the palette is
+now declared on `.pe-page, .pe-detail` and the backdrop is scrimmed and blurred. Earlier the same
+day — design pass: result strips became collapsible drawers below the node with
+wrapped text, the panel row and the panel split are resizable, the design-error list collapses and
+starts collapsed on mobile, Save/Download/Open/Clear moved into a File menu, snail/rocket ends on
+the speed slider, themed scrollbars, "Emit" centred, and the node stripe and header no longer clip
+out of the card's rounded corners)_
+_Previously: 2026-08-04 (`docs/pipeline/` and `docs/nodes/` now link the editor, closing the
 last docs gap; earlier the same day: fixed both demo blockers — the non-existent `loom` sink and
 `filter`'s missing output ports — and added the debugging affordances: breakpoint gutter, hold,
 Step/Continue, result strips and the detail overlay)_

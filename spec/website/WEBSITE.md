@@ -30,8 +30,9 @@ coding agent that has to add or restructure site content, or fix the build/publi
   `baseURL = https://metaloom.io`. Single language `en`, `contentDir = content/english`.
 * Docs and blog are **AsciiDoc** (`.adoc`) — `asciidoctor` must be on `PATH` and allow-listed in
   `[security.exec]`. The marketing pages are **data-driven** from `data/en/*.yml`.
-* Build with `./build.sh` → `dist/`, then two gates: a **localhost-link check** and
-  `check-links.mjs` (broken internal links + missing `#anchors`). Both fail the build.
+* Build with `./build.sh` → `dist/`, then three gates: a **localhost-link check**,
+  `check-links.mjs` (broken internal links + missing `#anchors`) and `check-node-screenshots.mjs`
+  (every node page has its pictures; every shipped node kind has a page). All three fail the build.
 * **Hugo extended ≥ 0.158 is required.** The system `hugo` is now **0.162.1+extended** and builds the
   site; it used to be 0.131, which could not (see [Prerequisites](#prerequisites)).
 * Publish is manual: the **sibling `metaloom-website` repo** runs `pull.sh` to copy `website/dist`
@@ -186,7 +187,7 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 |---|---|
 | **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (15 screenshots) · `cli/` · `deployment/` (`_index` + `helm/`) |
 | **`playbooks/`** | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
-| **`nodes/`** | `_index` + **28 node pages**: `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filters · fingerprint · hash · imagegen · llm · ocr · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · thumbnail · tika · tts · videogen · vlm · watermark · whisper` |
+| **`nodes/`** | `_index` + **34 node pages** (35 with `objectdetect`): `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filter · fingerprint · gdrive-source · hash · image-manipulation · imagegen · llm · metadata · ocr · onedrive-source · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · tag · thumbnail · tika · translate · tts · videogen · vlm · watermark · whisper`. **The count drifts** — `check-node-screenshots.mjs` is what notices, by mapping every kind in the descriptor snapshot to exactly one page |
 | **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
 | **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
 | **`legal/`** | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
@@ -314,6 +315,124 @@ Renderer: `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (no-op without 
 > **Keep the vocabulary in step.** `TYPES[*].ct` must be ids that exist in
 > `ContentTypeRegistry.all()`. Adding a content type to the product means adding it there **and**
 > here — [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) § 2.
+
+**Port text wraps; row heights follow.** SVG `<text>` neither wraps nor shrinks, and the port box is
+only ~208 px wide inside its icon inset while the descriptions are whole sentences — the longest is
+125 characters. `nodeviz.js` therefore *measures* (one detached canvas 2D context), wraps to at most
+four `<tspan>` lines and sizes each row from its own text, so `ROW` is gone and the column, block and
+node-box centring all fall out of the wrap. The badge width is measured the same way; it used to be
+guessed from the character count and came out 20 px wide on `Whisper runtime · GPU optional`.
+The first wrap is measured against whatever font is resolved at script time, which on a cold load is
+the fallback, so the plugin re-measures a probe string after `document.fonts.ready` and redraws only
+if it moved.
+
+## Node pages: the two screenshots
+
+Every page under `docs/nodes/<page>/` carries pictures of the node **in the product**, alongside the
+generated diagram:
+
+| File | What it is | Captured by | Needs |
+|---|---|---|---|
+| `config.png` | the editor's settings panel for that node | `loom-ui/scripts/capture-node-config-screenshots.mjs` | nothing but `static/pipeline-editor/node-descriptors.json` |
+| `debug.png` | the node card after a real run, with its result strip | `loom-ui/scripts/capture-node-screenshots.mjs` | a fixture for that kind |
+| `debug-detail.png` | one result opened full size — only where there is a picture or a node-authored description to open | same | same |
+
+* **The page→kind map is `loom-ui/scripts/node-capture-plan.mjs`, not the directory listing.** They
+  are not one-to-one: `hash/` covers four kinds, `dedup/` three, and `loom-fetch` is a kind with no
+  page (recorded in `UNDOCUMENTED_KINDS` with the reason).
+* **Config panels need no fixtures at all**, which is why they are a separate script — coupling them
+  to the debug loop would make all 34 wait on 34 fixtures. They can be regenerated on a bare
+  checkout after `npm install`.
+* **The panel is 280 px wide in the product and up to two thousand tall.** It is photographed at that
+  width and shown inside a scrolling frame (`.ml-panel-shot` in `custom.less`). Do **not** widen it
+  with an injected style to get a friendlier aspect ratio — that photographs a control nobody has.
+  The capture sizes the window to the tab panel's content in *both* directions; neither the panel nor
+  its body can be measured for this, because both stretch and report the same height for a node with
+  three settings as for one with 23.
+* **React Flow's minimap and zoom controls are hidden for the debug shot**, not cropped around: with
+  one node fitted to the middle of the canvas either can land on top of the card. They also swallow
+  clicks aimed at a node underneath them, so both scripts open a node with `dispatchEvent("click")`.
+* **`reducedMotion: "reduce"` on the browser context is load-bearing.** The node card's "active" dot
+  has a blink keyframe; without it the same state photographs differently every run and every
+  regeneration reads as a change.
+
+### Where the debug payloads come from
+
+`integration-test/.../node/docs/DocsFixtureGenerator` runs each node **for real** and writes
+`loom-ui/scripts/fixtures/nodes/<kind>/fixture.json` plus its preview files:
+
+```bash
+mvn -o -pl integration-test test -Dtest=DocsFixtureGenerator -Dloom.regenerateDocsFixtures=true \
+    [-Dloom.docsFixtureKinds=tika,sha512] [-Dloom.docsFixturesStrict=true]
+```
+
+* `fixture.json.outputs` is **already the REST shape** — the capture script pastes it into its mocked
+  `/tasks` response with no translation.
+* The writer must call `NodePreviews.build`/`merge` itself. That class lives in the *node runtime*,
+  not in the node: only `facedetect` authors its own previews, and every other picture in the
+  debugging view is generated from an `artifact/image` port. A generator that skipped it would
+  produce fixtures with no pictures and screenshots to match.
+* It also cannot use `NodeResultMapper.toWire` directly — that reads a graph id a directly
+  constructed node never received — so it calls the same two steps with the kind as the id.
+* **`backend` must be `"real"`.** Seven node integration tests inject stubbed clients (one paints its
+  own gradient); a stubbed backend is a screenshot of a decision nothing made. Only `gdrive-source`
+  and `onedrive-source` may be `"stub"`, where the stub replaces Google or Microsoft and everything
+  below it runs. Both the capture script and the build gate refuse anything else.
+* An unsatisfied requirement **aborts naming the command that would satisfy it** and leaves the
+  committed fixture byte-identical (atomic temp-file move). `-Dloom.docsFixturesStrict=true` turns
+  that into a failure, which is what a release build wants.
+* **A node that did not succeed is never written.** The writer throws on anything but `SUCCESS`,
+  because a recipe that is wrong about the node it describes fails loudly rather than publishing the
+  error — the `script` recipe's first run emitted `ReferenceError: text is not defined`, having
+  invented binding names instead of using the node's (`data.text`, `out.*`, `params`, `log`).
+* **Media runs from a neutral library, not the build tree.** Several nodes emit
+  `media.absolutePath()` on an output port, and it is drawn verbatim on the card — straight out of
+  the corpus that reads `/home/<someone>/workspaces/…/target/test-env-…`, which then ships to a
+  public site. `FixtureEnv` hard-links the corpus into `/tmp/loom-docs-library` first, so the path on
+  the card is a real path to the real file and nothing about this machine.
+* Services these recipes drive for real today: an OpenAI-compatible model on 8080
+  (`loom-test-env/llamacpp/start.sh`) for `llm`/`translate`/`filter`, and MinIO (`./start-minio.sh`)
+  for both S3 nodes.
+
+### The gate
+
+`check-node-screenshots.mjs` runs from `build.sh` against the **source**, because the thing it exists
+to catch — a node that shipped with no page — is invisible in the built site. It requires
+`config.png` and `debug.png` per page with real alt text, and takes exemptions from
+`loom-ui/scripts/fixtures/nodes/status.json`:
+
+* `"status": "blocked"` additionally requires the page itself to carry the entry's `reason` verbatim,
+  so a node nobody can photograph is a reviewed statement a reader sees, not a silent hole. `whisper`
+  is the only one: MetaLoom ships no weights and no Whisper model is on the build machine.
+* `"status": "pending"` is allowed quietly but printed as a countdown on every build.
+* `"pictures"` names which of the two a page is excused from, defaulting to `["debug"]` — a missing
+  config panel is nearly always an oversight, since it needs nothing.
+
+## The detection player (`detectionplayer`)
+
+`/docs/pipeline/#detections-over-time` and `/docs/nodes/facedetect/` play a clip with the detection
+node's own boxes painted in, because a detector reports one detection **per sampled frame** and a
+still cannot show that — which is why the debug screenshot of a video looks like several boxes on one
+face.
+
+* Renderer `themes/meghna-hugo/static/plugins/detectionplayer/detectionplayer.js`, registered in
+  `[[params.plugins.js]]`, no-ops without `.ml-detplayer`. Styles are `.ml-detplayer .dp-*` in
+  `custom.less`.
+* The mount contains a **real `<video controls …>`**; the script only adds the canvas overlay and the
+  recent-detections strip. JavaScript off still gives a playable clip.
+* Attributes are `data-track-url` / `data-video-url` on purpose — `check-links.mjs` validates
+  `data-*-url`, so a renamed asset fails the build.
+* Track and assets are generated by `integration-test/.../node/DetectionPlayerFixtureGenerator`
+  (`-Dloom.regenerateDetectionTrack=true`), which runs the real `FacedetectNode`. `detections` are
+  the node's **own encoded elements**, untouched, so the player normalises by each element's
+  `imageWidth`/`imageHeight` exactly as the product's overlay does.
+* **`video.frameOffset` is not cosmetic.** The detections carry source frame indices and the demo file
+  is a cut of the source, so the player adds the offset back; without it every box appears seconds
+  early. The window is derived from the detections, and the `.mp4` is cut with
+  `trim=start_frame=…` rather than a timestamp seek so the offset is exact.
+* **The sparseness is real and is the point.** The video path keeps only the ten sharpest faces found
+  across the whole scan, so a thirteen-second clip yields ten detections at six frames. A denser
+  hand-made track would document a product that does not exist.
 
 ## Content conventions
 
@@ -569,6 +688,9 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Add a release announcement | `content/english/announcements/<slug>/index.adoc` with `status` / `status_label` / `version` / `image` |
 | Refresh the OpenAPI / GraphQL / node-descriptor files | [Staged generated artefacts](#staged-generated-artefacts) |
 | Refresh the Loom UI screenshots | [Capturing Loom UI screenshots](#capturing-loom-ui-screenshots-docsui) |
+| Refresh a node page's settings picture | `cd loom-ui && node scripts/capture-node-config-screenshots.mjs [page]` |
+| Refresh a node page's debug picture | regenerate its fixture (`DocsFixtureGenerator`), then `node scripts/capture-node-screenshots.mjs [page]` |
+| Add a node page for a new kind | the page folder, plus an entry in `loom-ui/scripts/node-capture-plan.mjs` — the build gate fails until both exist |
 | Record which model a node uses + its license | `docs/legal/model-licenses/index.adoc` |
 | Fill in the Impressum | `docs/legal/impressum/index.adoc` — the `[…]` markers and the comment block at the top |
 | Change top navigation | `[[Languages.en.menu.main]]` in `config.toml`; look in `partials/navigation.html` + `.navigation` in `custom.less` |
@@ -598,8 +720,21 @@ shared attributes come from `docs/variables.adoc-include` instead.
   exists to prevent; it used to be inlined in `single.html`, so section indexes had no navigation at
   all and landing on `/docs/nodes/` offered no way onward but the body text.
 * **A nested section list can outgrow the viewport** — `nodes/` alone contributes 35 entries. The
-  rail scrolls (`.docs-sidebar` is capped at `calc(100vh - 130px)`) and the nested list is capped
-  again at `42vh`; a sticky column that overflows simply hides its own tail rather than scrolling.
+  rail scrolls (`.docs-sidebar` is capped at `calc(100vh - 130px)`); a sticky column that overflows
+  simply hides its own tail rather than scrolling. **`.docs-sidebar` is the only scroller in the
+  rail.** The nested list used to carry a second `max-height: 42vh` + `overflow-y` of its own, which
+  put two scrollbars a dozen pixels apart on every node page and — via `overscroll-behavior:
+  contain` — stopped the wheel dead at the end of the subtopics instead of carrying on down the rail.
+* **The rail's scrollbar is styled, and the styling is the affordance.** `scrollbar-width: thin` +
+  `scrollbar-color` (Chromium ignores `::-webkit-scrollbar-*` once `scrollbar-width` is not `auto`,
+  but both are set for older WebKit), plus `scrollbar-gutter: stable` so the bar arriving cannot
+  shift the links sideways. A bottom fade reinforces it — gated behind
+  `@supports (animation-timeline: scroll())` and retired over the last tenth of the travel by
+  `scroll(nearest block)`. That gate is the design, not progressive enhancement: a fade that cannot
+  know where the rail is scrolled to still paints at the end, where it dims the last entry into
+  looking disabled. Note the longhands — the `animation` shorthand resets duration to `0s`, and a
+  scroll-driven animation needs `auto`; and `nearest`, not `self`, because `self` on a pseudo-element
+  means the pseudo-element's own box.
 * **`.docs-subtopics a` and `.docs-topics a.is-current` have equal specificity**, so the muted
   nested colour would win on source order alone. `toc.less` re-states `a.is-current` *inside* the
   subtopics block for exactly this reason — drop it and the current page stops being highlighted.
@@ -697,7 +832,11 @@ review**.
       containers, helm
 - [x] Cortex docs: configuration, monitoring, metrics, artifacts, containers, examples
       (Java node, Java daemon, Python worker)
-- [x] **28 node pages** under `docs/nodes/`, each with a generated `nodeviz` diagram + the type legend
+- [x] **34 node pages** under `docs/nodes/`, each with a generated `nodeviz` diagram + the type legend
+- [x] A settings-panel screenshot on **every** node page, and a real debug view on **23 of 35** —
+      everything that runs offline, both S3 nodes against MinIO, both cloud sources against the Drive
+      stub, and `llm`/`translate`/`filter` against a real language model; plus the fixture harness,
+      both capture scripts and the build gate that keeps the remainder visible
 - [x] Playbooks: docker, kubernetes, transcription, scene-analysis, translation, python-node
       (incl. a paste-ready coding-agent prompt hardened against four real generation failures)
 - [x] Legal section: Apache-2.0 hub, model licenses, AI disclosure, Austrian Impressum
@@ -730,8 +869,22 @@ review**.
       [../loom/GRPC.md](../loom/GRPC.md).
 - [ ] **No `docs/nodes/loom/` page** for the Loom sink node (`cortex/nodes/loom/`), and no page for
       the `loom-fetch` source. The sink is the node every "write results back" pipeline ends on.
+- [ ] **12 of the 35 node pages still have no `debug.png`.** `check-node-screenshots.mjs` prints the
+      count on every build and `loom-ui/scripts/fixtures/nodes/status.json` carries the reason and the
+      command for each. They fall into four groups, none of which is about the harness:
+      **no Python environment** for the five FastAPI sidecars (`sentiment`, `tts`, `depthmap`,
+      `imagegen`, `videogen`) — `python3 -m venv` fails here because `python3-venv` is not installed,
+      and the stack needs torch; **no vision model downloaded** (`vlm`, `captioning`,
+      `facedescription` — the last one hardcodes port 8080, so it needs vision *there*);
+      **`scene-layout`**, which needs a real depth map and so follows `depthmap`; **`whisper`**
+      (`blocked`, not pending — no ggml model on disk); **`dedup`**, which declares no output ports at
+      all and therefore needs the run-detail view rather than the node card; and **`objectdetect`**,
+      which landed mid-flight.
 - [ ] **No docs page links to `/pipeline-editor/`.** `docs/pipeline/` and `docs/nodes/_index.adoc`
       are the natural places to send a reader who wants to *try* the model.
+- [ ] Several node pages still name Java option classes (`FacedetectNodeOptions`,
+      `ThumbnailNodeOptions`, …) in the `== Configuration` lead, which the customer-docs rules
+      forbid. Now that each page shows the settings panel, the class name has nothing left to add.
 - [ ] `docs/nodes/llm/` claims upstream outputs "can be referenced by prompts"; `LLMNode` only binds
       the asset filename into the prompt. Fix the page (or the node) — the translation playbook
       documents the code behaviour.
@@ -759,8 +912,8 @@ review**.
 
 ---
 
-_Git HEAD revision: `920afed0`_
-_Last updated: 2026-08-04 (docs navigation: explicit section weights putting Pipeline and Nodes
-second and third, `partials/docs-topics.html` shared by both docs layouts with a nested list for the
-active section, a `Pipelines & Nodes` card on the landing page, and the backend-free Debug Mode
-screenshot capture)_
+_Git HEAD revision: `fcf6ea7d`_
+_Last updated: 2026-08-05 (docs sidebar reduced to one themed scroller; nodeviz port text measured
+and wrapped; a detection player on the pipeline and facedetect pages built from a real facedetect
+run; settings-panel screenshots on all node pages and debug views on the ones that run offline, with
+the `DocsFixtureGenerator` harness, two capture scripts and the `check-node-screenshots.mjs` gate)_

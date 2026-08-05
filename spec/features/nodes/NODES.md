@@ -121,6 +121,7 @@ shadows the base method — do not copy it.
 | `consistency` | `assets/:uuid` update → `asset` consistency block | `updateAsset` |
 | `fingerprint` | `assets/:uuid/fingerprints` → `asset_fingerprint_comp` (sector 0) | `createAssetFingerprintComp` |
 | `facedetect` | `assets/:uuid/detections/bulk` → `detection` (upsert) | `bulkCreateAssetDetections` |
+| `objectdetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=objectdetection`, `label` = the class) | `bulkCreateAssetDetections` |
 | `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) | `createAssetTranscript` |
 | `scene-detection` | `assets/:uuid/segments` → `asset_segment_comp` (whole-set **replace**) | `createAssetSegmentComps` |
 | `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
@@ -186,6 +187,7 @@ Port ids only; content types and cardinality are in
 | `scene-detection` | `SceneDetectionNode` · scene-detection | video | `media` → `scenes` | `asset_segment_comp` (replace) | video4j |
 | `facedetect` | `FacedetectNode` · facedetect | video, image | `image` \| `video` → `face_count`, `flag`, `detections` (MANY) | `detection` (upsert) | InspireFace |
 | `facedescription` | `FacedescriptionNode` · facedetect | video, image | `detections` (MANY) → `descriptions` (MANY) | `asset_json_comp` | LLM |
+| `objectdetect` | `ObjectDetectNode` · objectdetect | video, image | `image` \| `video` → `detections` (MANY), `labels` (MANY), `object_count`, `flag` | `detection` (upsert) | yolo4j / ONNX |
 | `ocr` | `OCRNode` · ocr | image | `media` → `text` | `asset_json_comp` | Tesseract |
 | `tika` | `TikaNode` · tika | image, audio, video, document | `media` → `content`, `flags` | `asset_json_comp` | — |
 | `metadata` | `MetadataNode` · metadata | image, audio, video, document | `media` → `metadata`, `text`, `geo` | `asset_json_comp` + `asset_geo_comp` | — |
@@ -362,6 +364,7 @@ Two independent layers — confusing them is a classic mistake.
 | `tag` | `absolutePath \| configHash(tagBy, rules, collection, allowedTags, normalize, maxTags)` — two tag nodes over one asset are the normal case and must not share a verdict |
 | `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
 | `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
+| `objectdetect` | `absolutePath \| modelPath, minConfidence, videoChopRate, videoScaleSize, maxDetections, classFilter` — a permissive pass and a `person`-only pass over the same file are two different answers |
 | everything else | `absolutePath` **only** |
 
 The consequence is concrete: `sentiment` re-uses the first score for a file even when a different
@@ -381,23 +384,23 @@ Avro indexes instead and `s3-sink` dedups remotely via `OverwritePolicy`.
 flowchart TD
   M["cortex/nodes/&lt;name&gt;/core<br/>XNodeModule"]
   M -->|"@Binds @IntoSet FilesystemNode"| S["Set&lt;FilesystemNode&gt;<br/>(legacy CLI)"]
-  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>34 entries"]
+  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>36 entries"]
   NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = node modules)"] --> M
   K --> R["RegistryNodeRegistrar.registerAll()"]
   SRC["filesystem-source · asset-source<br/>+ s3-source when s3Support.isActive()<br/>+ gdrive-source / onedrive-source per configured provider"] --> R
-  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>37 kinds (36 without S3)"]
+  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>38 kinds (37 without S3)"]
   F --> W["registeredTypes() → announced nodeWhitelist"]
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>generated node-descriptors.json → 39 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>generated node-descriptors.json → 41 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **35** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **36** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
-  `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `tika`, `metadata`,
+  `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `objectdetect`, `tika`, `metadata`,
   `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
   `whisper`, `tts`, `sentiment`, `translate`, `script`, `depthmap`, `scene-layout`,
   `dominant-color`, `watermark`, `image-manipulation`, `filter`, `tag`, `s3-sink`.
@@ -407,7 +410,7 @@ flowchart TD
   and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
   configured. The gate is per provider rather than per module, which is the reason the two clouds
   are two kinds sharing one implementation rather than one kind with a `provider` parameter.
-- **Total runnable: 38 with S3 configured, 37 without.**
+- **Total runnable: 39 with S3 configured, 38 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -418,7 +421,7 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **40 advertised kinds.** Since the
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **41 advertised kinds.** Since the
 `d9bbc2dc` refactor the contracts are one generated `node-descriptors.json` served by
 `GeneratedNodeDescriptorProvider` (+ `OrphanNodeDescriptorProvider`), harvested at build time from
 the annotated node classes and regenerated with
@@ -499,7 +502,7 @@ a node whose workers are all offline is still authorable and simply cannot be *r
 Everything else matches its kind, except the four hash kinds which share `KEY = "hash"` and the two
 `dedup` classes which share `DedupNodeOptions`. Full set: `hash`, `thumbnail`, `fingerprint` (no
 fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `facedetection`, `quality`,
-`scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `tts`,
+`scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `tts`, `objectdetect`,
 `depthmap`, `scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`,
 `script`, `tag`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
 
@@ -512,6 +515,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `ocr` | `tessDataPath` (`/usr/share/tesseract-ocr/5/tessdata`), `language` (`eng`) |
 | `whisper` | `modelPath` (`models/ggml-large-v3-turbo.bin`), `temperature` (0.0), `temperatureInc` (0.2), `language`, `useGpu` (true), `gpuDevice` (0) |
 | `facedetection` | `videoChopRate` (5), `videoScaleSize` (384), `minFaceHeightFactor` (0.05), `inspirefacePackPath`, `capabilities` (`{INSPIREFACE}`), `faceClusterMinimum`, `faceClusterEPS` |
+| `objectdetect` | `modelPath` (`models/yolo/YOLOv11n_voc.onnx`), `labelsPath` (`models/yolo/voc.names`), `useGpu` (true), `onnxRuntimeLibPath` (null, hidden), `minConfidence` (0.5, floor 0.4), `videoChopRate` (25), `videoScaleSize` (1024), `maxDetections` (500), `classFilter` (empty = all) |
 | `quality` | `checkBlurriness`, `checkResolution`, `checkVideoBitrate`, `checkAudioBitrate` (all true) |
 | `captioning` | `smolVLMHost` (`localhost`), `smolVLMPort` (8000), `videoStrategy` (`WHOLE`), `videoEndpointUrl` (`http://localhost:8000`), `videoModel` (`qwen25vl-awq`), `videoApiKey` (``), `frameCount` (8), `targetFrameSize` (512), `maxScenes` (32), `maxTokens` (256), `temperature` (0.2), `videoPrompt` |
 | `llm` | `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `prompts` (`Map<String, LLMNodePrompt>`) |
@@ -619,7 +623,7 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
 | `NodeSpecGoldenTest` | `integration-test/.../node/` | every `@NodeSpec` class is in the committed `node-descriptors.json`, and the resource is regenerated from it |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 40 advertised kinds, no duplicates |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 41 advertised kinds, no duplicates |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,

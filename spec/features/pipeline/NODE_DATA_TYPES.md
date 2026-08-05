@@ -268,6 +268,7 @@ All three emit the family wildcard: the concrete kind is unknown until the file 
 | `captioning` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `caption : text/caption` |
 | `facedetect` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `detections : detection/face` **MANY**, `face_count : scalar/integer`, `flag : scalar/string` |
 | `facedescription` | `detections : detection/face` **MANY** | `descriptions : text/plain` **MANY** |
+| `objectdetect` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `detections : detection/object` **MANY**, `labels : scalar/string` **MANY**, `object_count : scalar/integer`, `flag : scalar/string` |
 | `depthmap` | `media : media/image` | `meta : struct/depthmap`, `map : artifact/image`, `flag : scalar/string` |
 | `scene-detection` | `media : media/video` | `scenes : struct/segments` |
 | `scene-layout` | `depth : struct/depthmap`, `detections : detection/*` **MANY** | `result : struct/scene-layout`, `object_count : scalar/integer`, `relation_count : scalar/integer` |
@@ -492,6 +493,13 @@ per-element node passes its own driver on rather than naming itself (`driverOf:2
   address a sequence of sequences either way.
 - **One origin lineage per zip.** Two `ONE` inputs fed by per-element branches must trace to the same
   `fanOutDriver`, otherwise the elements have no meaningful correspondence (`:267-273`).
+
+⚠️ **A `SINGLE` node may declare more than one `MANY` output, and one does.** `objectdetect` emits
+`detections` (one per object) *and* `labels` (one per distinct class) — the first node to do so.
+Nothing rejects it and nothing should: the restriction above is about `PER_ELEMENT` nodes. But the
+two sequences have **different lengths**, so wiring both into a single downstream node zips elements
+that do not correspond. A consumer takes one or the other; `labels` exists for `tag`, `detections`
+for `scene-layout` and `image-manipulation`.
 
 ---
 

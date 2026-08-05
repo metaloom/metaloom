@@ -260,6 +260,7 @@ Every node module contributes a `CortexNodeOptionDeserializerInfo(optionsClass, 
 | `depthmap` | `DepthmapNodeOptions` | `nodes/depthmap` |
 | `dominant-color` | `DominantColorNodeOptions` | `nodes/dominant-color` |
 | `facedetection` | `FacedetectNodeOptions` | `nodes/facedetect` |
+| `objectdetect` | `ObjectDetectNodeOptions` | `nodes/objectdetect` |
 | `filesystem-source` | `FilesystemSourceNodeOptions` | `nodes/filesystem-source` |
 | `fingerprint` | `FingerprintNodeOptions` | `nodes/fingerprint` |
 | `fingerprint-dedup` | `FingerprintDedupDiscoverOptions` | `nodes/dedup` |
@@ -303,6 +304,7 @@ Spot-check values; the authoritative per-field tables live in [NODES.md](../feat
 | `filesystem-source` | `path` (null), `pathGlobs` (`[]`, wins over `path`), `emitStates` (`NEW, MODIFIED, MOVED`), `indexPath` (null → derived from `metaPath`) |
 | `hash` | `md5`, `sha256`, `sha512`, `chunkHash` — **all `true`** |
 | `facedetection` | `videoChopRate` 5, `videoScaleSize` 384, `minFaceHeightFactor` 0.05, `faceClusterMinimum` 2, `faceClusterEPS` 0.6, `inspirefacePackPath` `packs/Pikachu`, `capabilities` `{INSPIREFACE}` |
+| `objectdetect` | `modelPath` `models/yolo/YOLOv11n_voc.onnx`, `labelsPath` `models/yolo/voc.names`, `useGpu` true, `onnxRuntimeLibPath` null, `minConfidence` 0.5, `videoChopRate` 25, `videoScaleSize` 1024, `maxDetections` 500, `classFilter` `{}` |
 | `whisper` | `modelPath` `models/ggml-large-v3-turbo.bin`, `temperature` 0.0, `temperatureInc` 0.2, `language` null, `useGpu` true, `gpuDevice` 0 |
 | `thumbnail` | `cols` 6, `rows` 1, `tileSize` 384 |
 | `ocr` | `tessDataPath` `/usr/share/tesseract-ocr/5/tessdata`, `language` `eng` |

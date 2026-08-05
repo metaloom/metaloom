@@ -258,13 +258,25 @@ away the diagnostics that explain the non-completion.
 
 `previews` (Map\<String, `NodePreview`\>, keyed by **output** port id) rides alongside
 `outputs` when the task asked for it. `NodePreview` is
-`{mimeType, width, height, data}`, `{markdown}` or `{skippedReason}` — bytes as base64,
+`{mimeType, width, height, data}`, `{markdown}` or `{skippedReason}`, plus an optional
+`frame` — bytes as base64,
 capped at 96 KiB with the longest edge at 512 px, and **dropped rather than truncated**
 past the cap. A port can carry both bytes and Markdown: the image comes from
 `NodePreviews`, the Markdown from the node's own `ctx.preview(port, …)`, and neither
 displaces the other. It exists because an `artifact/image` port carries a worker-local *path*, which
 Loom cannot resolve into anything anyone can look at. Generating one is never allowed
 to fail the task that produced the real output.
+
+**`frame` is what keeps a video overlay honest.** A detector samples every *n*th frame and emits one
+element per detection *per frame*, while the port-level preview can only be one picture. Without a
+frame stamped on that picture, anything drawing the elements over it has no way to tell which of
+them were measured against it and draws all of them — four sampled frames of two people arrive as
+ten boxes piled on two faces, which reads as a broken detector rather than as a time series.
+`facedetect` stamps the frame it seeked to; per-element crops carry their own detection's frame.
+It is **nullable, never zero**: an image preview is not frame 0 of anything, and a consumer has to be
+able to tell "no frame applies" from "the first one". `markdown` and `frame` are both independent of
+the bytes, so both are copied outside the has-data branch when a preview is stored and again when it
+is rendered into the REST response.
 
 `SegmentTask` carries `taskUuid`, `runUuid`, `itemId`, `segmentId`, `affinity`,
 `media`, `nodes[]` (`SegmentNode`) and `inputs` — only what comes from *outside*

@@ -8,6 +8,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
+- Segment Anything / SAM node
 - CliIntegerationTest? What is this? Do we need it?
 
 - Video Manipulation Node: the video half of

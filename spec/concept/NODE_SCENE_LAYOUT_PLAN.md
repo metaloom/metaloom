@@ -233,25 +233,23 @@ node returns `SKIPPED` — while the test asserts `SUCCESS` and `OUT_OBJECT_COUN
 Fix: emit **one element per detection**, exactly as `SceneLayoutFixtures.detection(...)` does in the
 unit tests. A stale `java.util.Map` import also remains at line 11.
 
-### 4.2 🔴 P3 — no object detection exists
+### 4.2 ✅ P3 — object detection exists
 
-A case-insensitive grep for `yolo|objectdetect|object_detect|ObjectDetection` across `cortex/` (java,
-xml, json) and `loom-shared/node-model/src` returns **zero** hits; `yolo4j` is not a dependency of any
-pom. The `detection.label` column and the `type='objectdetection'` value exist in the schema purely in
-anticipation — nothing writes them.
+Resolved. `objectdetect` (`cortex/nodes/objectdetect`, yolo4j → `libyolib.so` → ONNX Runtime) emits
+`detections : detection/object` **MANY** in the same element format `facedetect` uses, and fills the
+`detection.label` column and the `type='objectdetection'` value that had sat in the schema in
+anticipation of it.
 
-Stated plainly: **as shipped, this node relates faces to faces.** "Person is behind car" is not
-reachable until an `objectdetect` node exists. That does not make the node premature — face-to-face
-layout is useful (group photos, who-is-in-front framing, foreground-subject selection), and the
-detector plugs in with **zero changes here**, because `IN_DETECTIONS` binds on `detection/*`, not on
-a producer.
+It plugged in with **zero changes here**, exactly as predicted: `IN_DETECTIONS` binds on
+`detection/*`, not on a producer. "Person is behind car" is now reachable — wire `objectdetect` into
+`detections` instead of, or alongside, `facedetect`.
 
 | # | Prerequisite | Status |
 |---|---|---|
 | P1 | [`depthmap` node](NODE_DEPTHMAP_PLAN.md) | **built** — hard dependency, wired via `struct/depthmap` |
 | P2 | `FacedetectNode` emits `detections` | **built** — with an explicit `coordinates` marker |
-| P3 | An `objectdetect` node (yolo4j, wired like `InspireFacedetector` in `FacedetectNodeModule`) | **not started.** Deserves its own plan |
-| P4 | `DetectionResponse` exposes `nodeKind` / `label` / `detectionIndex` | not started. Only needed for the REST-fallback path to recover *object classes*; faces work via `type="face"` |
+| P3 | An `objectdetect` node (yolo4j, wired like `InspireFacedetector` in `FacedetectNodeModule`) | **built** — `ObjectDetector` is the mockable seam, as `InspireFacedetector` is for faces |
+| P4 | `DetectionResponse` exposes `nodeKind` / `label` / `detectionIndex` | **partly** — `label` is exposed (it is what makes an object detection queryable at all); `nodeKind` and `detectionIndex` are still write-only |
 
 ### 4.3 Defects worth fixing
 
@@ -277,8 +275,9 @@ a producer.
 
 ### 4.4 Follow-ups (not defects)
 
-- [ ] **Extend `DetectionResponse`** (P4) with `nodeKind` / `label` / `detectionIndex`. Carries an
-      endpoint-test obligation per [../../guidelines/CODING.md](../../guidelines/CODING.md).
+- [ ] **Extend `DetectionResponse`** (P4) with `nodeKind` / `detectionIndex`. `label` landed with
+      `objectdetect`, covered by `DetectionEndpointTest#testLabelIsReadBack`; the remaining two carry
+      the same endpoint-test obligation per [../../guidelines/CODING.md](../../guidelines/CODING.md).
 - [ ] **Repair the `detection` geometry convention.** `V2.43__rework_detection_embedding.sql` comments
       the column as "normalized 0-1, the single geometry convention", `FacedetectNode.persist` writes
       **absolute pixels**, `DetectionModelValidator` validates nothing, and no source dimensions are
@@ -307,7 +306,7 @@ a producer.
 | **Occlusion needs depth** | ⚠️ Overlapping boxes at the same depth are adjacent, not occluding. |
 | **One element per detection** | 🔴 `IN_DETECTIONS` is a **MANY** port; `readElement` reads a top-level `bbox` from *each* element. A batch wrapper `{detections:[…]}` silently parses to nothing — this is exactly what breaks the integration test (§4.1). |
 | **Detection geometry is inconsistent** | 🔴 The migration says normalized 0–1, `FacedetectNode` writes pixels, nothing validates, no source dimensions are recorded. Prefer the port payload, which carries an explicit `coordinates` marker. On the REST fallback only the ">1.0 ⇒ pixels" branch works; normalized rows are **refused**. |
-| **`DetectionResponse` omits `nodeKind`/`label`/`detectionIndex`** | ⚠️ The REST fallback can distinguish rows only by `type` and cannot recover an object class. Fine for faces; P4 before object detection is useful. |
+| **`DetectionResponse` omits `nodeKind`/`detectionIndex`** | ⚠️ The REST fallback can distinguish rows by `type` and `label` — the object class now round-trips — but still cannot tell two producers of one type apart, nor recover a row's ordinal. |
 | **A missing input is a skip, not a failure** | ⚠️ No depth map, no boxes, fewer than two objects → `ctx.skipped(reason)`. A `FAILED` result blocks downstream nodes and pollutes the run summary for what is a normal outcome. |
 | **No silent caps** | `maxObjects` / unsampled truncation is logged **and** reported in `truncated` — except `relations`, which is hardcoded to 0 (§4.3). |
 | **`ImageIO`, not OpenCV** | This module's `core/pom.xml` declares **zero** dependencies on purpose, including no dependency on `cortex-depthmap-node` — it reads the PNG with plain ImageIO so workers that only need arithmetic never pull the video4j native runtime. |
@@ -429,8 +428,8 @@ mvn -pl integration-test -Dtest=SceneLayoutNodeIntegrationTest test
 - [ ] 🔴 `scene-layout` missing from the `search_extract_json_text` whitelist, so `phrases[]` are not searchable (§4.3)
 - [ ] Cache key includes the wired depth map, detections and thresholds (§4.3)
 - [ ] `minCorePixels` exposed as a descriptor parameter (§4.3)
-- [ ] **P3** `objectdetect` node — the only thing that makes "person behind car" reachable (§4.2)
-- [ ] **P4** `DetectionResponse` gains `nodeKind` / `label` / `detectionIndex` (§4.4)
+- [x] **P3** `objectdetect` node — the only thing that makes "person behind car" reachable (§4.2)
+- [ ] **P4** `DetectionResponse` gains `nodeKind` / `detectionIndex` — `label` landed with `objectdetect` (§4.4)
 - [ ] Repair the `detection` geometry convention (§4.4)
 - [ ] Video / per-frame layout, blocked on depthmap video support (§4.4)
 - [ ] An example pipeline that actually uses this node (§4.4)
