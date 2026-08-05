@@ -60,6 +60,9 @@ overlay's own pixel dimensions instead, which will look different on every resol
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Watermark settings panel: Watermark Image (base64), Horizontal Position, Vertical Position and 8 more settings,role="ml-panel-shot"]
+
 `WatermarkNodeOptions`:
 
 [options="header",cols="1,2"]
@@ -92,6 +95,19 @@ read as "this clip needed no watermark" and quietly ship unmarked video, which i
 what a watermark is for.
 
 Because video re-encoding saturates a machine on its own, the node defaults to a concurrency of `1`.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`.
+
+image::debug.png[The watermark node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `flag`, `image`.
+
+Selecting one of them opens it full size.
+
+image::debug-detail.png[One output of the watermark node opened full size,role=img-fluid]
 
 == Use Cases
 

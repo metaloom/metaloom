@@ -75,6 +75,9 @@ more.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Translate settings panel: Target Language, Source Language, Model and 5 more settings,role="ml-panel-shot"]
+
 `TranslateNodeOptions`:
 
 [options="header",cols="1,2"]
@@ -126,6 +129,15 @@ two connect directly:
 
 Set the TTS node's own `language` to match the target language, or it will read English words with a
 German voice.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The translate node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `translation`, `language`, `result`.
 
 == Use Cases
 

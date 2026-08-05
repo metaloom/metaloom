@@ -90,3 +90,21 @@ the same step lands the crop on the right faces even for a sideways phone photo.
 Pictures are written as **JPEG** by default, which is right for photographs; choose **PNG** when you
 need lossless output or transparency. Transparent areas are flattened onto a background colour of your
 choice when writing JPEG, which cannot carry transparency.
+
+== Configuration
+
+.The node's settings in the pipeline editor
+image::config.png[The Image Manipulation settings panel: Operations, Crop Left, Crop Top and 17 more settings,role="ml-panel-shot"]
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`.
+
+image::debug.png[The image-manipulation node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `flag`, `image`, `geometry`.
+
+Selecting one of them opens it full size.
+
+image::debug-detail.png[One output of the image-manipulation node opened full size,role=img-fluid]

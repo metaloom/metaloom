@@ -24,7 +24,19 @@ deletes the surplus rows.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Scene Detection settings panel, which offers only the common node fields,role="ml-panel-shot"]
+
 No custom options beyond the common node flags.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The scene-detection node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `scenes`.
 
 == Use Cases
 

@@ -340,15 +340,45 @@ unanswered — where in the picture, and what does it look like. The *Image* vie
 frame the boxes were measured against, with each box drawn on it, and one thumbnail per detection
 underneath.
 
-image::debug-detail-faces.png[Face detections drawn over the frame, with a thumbnail per detected face,role=img-fluid]
+image::debug-detail-faces.png[Face detections drawn over the frame they were measured on, with a thumbnail per detected face,role=img-fluid]
 
 Those thumbnails are cut from the source at full resolution rather than from the reduced frame
 above, which matters more than it sounds: in 4K footage a face occupies a few percent of the
 picture, so a crop taken from a 512-pixel preview would be barely thirty pixels across.
 
-Note the ten detections over two people. Face detection reports one entry per face *per sampled
-frame*, so `face_count` counts detections rather than distinct people — and the thumbnails make
-that visible at a glance in a way the number alone does not.
+The caption under the picture is worth reading on a video. Detection runs on *sampled frames*, so
+the ten thumbnails below the picture are ten detections spread across several moments, while the
+boxes drawn on the picture are only the ones measured against *this* frame. `face_count` therefore
+counts detections, not distinct people — two people can easily account for all ten.
+
+[#detections-over-time]
+==== Watching detection happen
+
+Ten detections and two people is the kind of arithmetic that only makes sense once you have seen the
+clip. Below is the same node's output over the same footage, painted in as the video plays.
+
+++++
+<div class="ml-detplayer" data-track-url="facedetect-detections.json" data-video-url="facedetect-demo.mp4" data-recent="10">
+  <video controls muted loop playsinline preload="metadata" poster="facedetect-demo-poster.jpg" src="facedetect-demo.mp4"></video>
+</div>
+++++
+
+Two things are worth watching for.
+
+*Boxes appear and then dissolve.* Nothing is tracking anyone. The node samples every fifth frame, so
+between two samples there is simply no new answer, and a box that fades out is saying "this is the
+most recent thing reported here" rather than following a face across the picture.
+
+*Long stretches have nothing at all.* The node keeps only the sharpest faces it finds, so a clip
+where two people are mostly turned away from the camera yields a handful of detections at the
+moments they were most legible — not a box on every frame. That is the same behaviour the numbers
+above describe, seen from the other side.
+
+The strip underneath is the ten most recent detections, newest first, each one the crop the node
+actually cut. Selecting one jumps the clip to the frame it came from.
+
+NOTE: The clip is a six-second excerpt of the source, and both the excerpt and every box come from a
+real run of the face detection node — the frame numbers shown are the source's own.
 
 [#halting]
 === Halting at a node

@@ -73,6 +73,9 @@ Two rules follow from watching a specific folder rather than the whole drive:
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The OneDrive Source settings panel: Drive ID, Folder ID, Include sub-folders and 6 more settings,role="ml-panel-shot"]
+
 Set on the node in the pipeline editor:
 
 [options="header",cols="1,2"]
@@ -136,6 +139,20 @@ WARNING: A personal OAuth refresh token (`CORTEX_ONEDRIVE_CLIENT_ID`, `CORTEX_ON
 `CORTEX_ONEDRIVE_REFRESH_TOKEN`) also works and is handy while trying things out, but it is not
 suitable for a running system: Microsoft replaces the token every time it is used and expects the
 caller to save the new one, which a worker cannot do.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The onedrive-source node after a run, with the values it emitted on each port,role=img-fluid]
+
+NOTE: This run was captured against an in-repo stand-in for the OneDrive API — there is no way to
+point a build machine at a real account. Everything below it is the shipping code: the token is
+really signed and exchanged, the change feed is really diffed against the index, and the file is
+really downloaded.
+
+The strip on the card lists what each output port carried — `media`.
 
 == Use Cases
 

@@ -58,6 +58,9 @@ up new ones, and re-running the apply step skips files that have already been mo
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Hash Deduplication settings panel: Duplicates Folder,role="ml-panel-shot"]
+
 Exact-hash dedup and the apply step (`DedupNodeOptions`):
 
 [options="header",cols="1,2"]

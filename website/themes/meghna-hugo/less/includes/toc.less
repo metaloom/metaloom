@@ -15,10 +15,81 @@
     padding-right: 18px;
 
     /* The page TOC and an expanded section can together be taller than the viewport, and a
-       sticky column that overflows it simply hides its own tail. Scroll the rail instead. */
+       sticky column that overflows it simply hides its own tail. Scroll the rail instead.
+
+       This is the *only* scroller in the rail. The nested section list used to carry a second
+       `max-height` + `overflow-y` of its own, which put two scrollbars a dozen pixels apart on
+       every node page — and the inner one swallowed the wheel before the outer had moved. */
     max-height: ~"calc(100vh - 130px)";
     overflow-y: auto;
     overscroll-behavior: contain;
+
+    /* Reserve the lane so the bar arriving (the nested list expands when you enter a section)
+       cannot shift the links sideways — the same reason `html` carries it in custom.less. */
+    scrollbar-gutter: stable;
+
+    /* The default chrome scrollbar is a light-grey slab on a near-black surface: it is the
+       loudest object in a column whose whole job is to stay quiet. Firefox takes the two-value
+       shorthand; everything else needs the WebKit pseudo-elements, and the two have to agree. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--ml-line-hi) transparent;
+
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background-color: var(--ml-line-hi);
+        border-radius: var(--ml-radius-sm);
+    }
+
+    &:hover::-webkit-scrollbar-thumb {
+        background-color: var(--ml-accent-line);
+    }
+
+    /* A scrollbar this quiet no longer announces on its own that the rail scrolls, so the tail
+       says it too: content dissolves into the page background at the bottom edge. Sticky rather
+       than fixed so it rides the scrollport, and pulled back over the last rows by the negative
+       margin so it costs no height.
+
+       Gated on scroll-driven animations, and that gate is the point rather than progressive
+       enhancement for its own sake. A fade that cannot know where the rail is scrolled to is
+       still painted when you reach the end, where it dims the last entry — "Legal & Licensing"
+       reads as disabled. `scroll(self block)` lets it retire over the final tenth of the travel,
+       so it only ever covers content there is more of. Where the timeline is unavailable
+       (Firefox today) there is no fade at all and the themed scrollbar carries the affordance
+       alone, which is honest; a permanently greyed last item is not. */
+    @supports (animation-timeline: scroll()) {
+        &::after {
+            content: "";
+            display: block;
+            position: sticky;
+            bottom: 0;
+            height: 28px;
+            margin-top: -28px;
+            background: linear-gradient(to bottom, transparent, var(--ml-bg));
+            pointer-events: none;
+
+            /* Longhands, not the `animation` shorthand: the shorthand resets duration to `0s`,
+               and a scroll-driven animation needs `auto` to span the whole scroll range. And the
+               timeline is `nearest`, not `self` — `self` would mean this pseudo-element's own box,
+               which is not a scroll container; `nearest` resolves to `.docs-sidebar`. */
+            animation-name: docs-rail-fade;
+            animation-duration: auto;
+            animation-timing-function: linear;
+            animation-fill-mode: both;
+            animation-timeline: scroll(nearest block);
+        }
+    }
+}
+
+@keyframes docs-rail-fade {
+    0%, 90% { opacity: 1; }
+    100% { opacity: 0; }
 }
 
 .docs-sidebar-title {
@@ -163,11 +234,13 @@ nav[data-toggle=toc] .nav-link.active:hover {
 
 /* Pages of the section the reader is currently inside. Indented under their topic and set a
    step quieter, so the expanded section reads as a detail of the list rather than a second one.
-   Nodes alone contributes 35 entries, hence the cap. */
+
+   Deliberately *not* a scroller. Nodes contributes 35 entries, and capping this list at 42vh
+   made it a second scrollport nested inside `.docs-sidebar` — two scrollbars a dozen pixels
+   apart, and `overscroll-behavior: contain` on the inner one meant the wheel stopped dead at
+   the end of the subtopics instead of carrying on down the rail. The outer scroller reaches
+   every entry on its own. */
 .docs-topics .docs-subtopics {
-    max-height: 42vh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
     margin: 2px 0 8px 12px;
     border-left: 1px solid var(--ml-line);
 

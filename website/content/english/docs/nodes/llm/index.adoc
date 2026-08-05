@@ -23,6 +23,9 @@ one answer they care about rather than to the node as a whole.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The LLM (Large Language Model) settings panel: OpenAI URL,role="ml-panel-shot"]
+
 `LLMNodeOptions`:
 
 [options="header",cols="1,2"]
@@ -31,6 +34,15 @@ one answer they care about rather than to the node as a whole.
 | `openaiUrl` | Base URL of the OpenAI-compatible LLM server (llama.cpp, vLLM, Ollama `/v1`, …)
 | `prompts` | A map of prompt definitions. Each one adds a `result_{promptId}` output port, which appears on the node in the editor as soon as the prompt is defined
 |===
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The llm node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `result_summary`.
 
 == Use Cases
 

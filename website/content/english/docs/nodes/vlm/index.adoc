@@ -27,6 +27,9 @@ in the same pipeline.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The VLM (Vision-Language Model) settings panel: Endpoint URL, API Key, Prompts,role="ml-panel-shot"]
+
 `VlmNodeOptions`:
 
 [options="header",cols="1,2"]

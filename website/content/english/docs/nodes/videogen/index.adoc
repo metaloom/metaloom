@@ -27,6 +27,9 @@ model runtime of its own. The shipped sidecar serves **LTX-2**, which fits a sin
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Video Generation settings panel: Mode, Prompt, Negative Prompt and 12 more settings,role="ml-panel-shot"]
+
 `VideoGenNodeOptions`:
 
 [options="header",cols="1,2"]

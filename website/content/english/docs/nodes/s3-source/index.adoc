@@ -77,6 +77,9 @@ On AWS, send the bucket's notifications to an SQS queue and give the worker the 
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The S3 Source settings panel: Bucket, Prefix, File suffixes and 3 more settings,role="ml-panel-shot"]
+
 Set on the node in the pipeline editor:
 
 [options="header",cols="1,2"]
@@ -110,6 +113,15 @@ stored in a pipeline definition:
 |===
 
 A worker with no S3 settings simply does not offer the S3 source, and is never asked to run one.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The s3-source node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `media`.
 
 == Use Cases
 

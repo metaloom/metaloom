@@ -103,6 +103,9 @@ detector at all, using the `region` options below.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Dominant Colour settings panel: Colours per Region, Max Samples, Max Iterations and 16 more settings,role="ml-panel-shot"]
+
 `DominantColorNodeOptions`:
 
 [options="header",cols="1,2"]
@@ -121,6 +124,15 @@ detector at all, using the `region` options below.
 | `blackLightness` / `whiteLightness` | Where black ends and white begins on the brightness scale. Defaults 20 and 85
 | `seed` | The same picture always produces the same palette. Change this only if you want a different-but-still-repeatable result
 |===
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`.
+
+image::debug.png[The dominant-color node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `result`, `region_count`, `hex`, and 3 more.
 
 == Use Cases
 

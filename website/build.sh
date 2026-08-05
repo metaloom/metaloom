@@ -45,4 +45,11 @@ echo "Checking build output for broken internal links"
 node "$BASEDIR/check-links.mjs" "$BASEDIR/dist"
 
 
+# Runs against the *source*, not the output, because the thing it catches is a node that shipped
+# without a documentation page — which no check over the built site can see, since the page that
+# would have been built does not exist.
+echo "Checking node documentation pictures"
+node "$BASEDIR/check-node-screenshots.mjs"
+
+
 echo "All done"

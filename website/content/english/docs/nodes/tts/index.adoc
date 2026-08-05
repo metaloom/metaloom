@@ -26,6 +26,9 @@ small HTTP sidecar, so the node stays a pure client and needs no model runtime o
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Text to Speech settings panel: Sidecar Host, Sidecar Port, Language and 2 more settings,role="ml-panel-shot"]
+
 `TtsNodeOptions`:
 
 [options="header",cols="1,2"]

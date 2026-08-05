@@ -722,6 +722,121 @@ blockquote .paragraph {
 .nv-legend-item span { color: #afbac4; font-size: 12.5px; }
 .nv-legend-ct { background: none; border: 0; color: #6b7681; font-family: "JetBrains Mono", "Consolas", monospace; font-size: 10.5px; padding: 0; }
 .nv-legend-note { color: #8a95a0; flex-basis: 100%; font-size: 12.5px; line-height: 1.6; margin: .35rem 0 0; }
+
+/* ---- ml-panel-shot: a screenshot of the editor's node settings panel ----
+   The panel is a fixed 280px column in the product and can run to two thousand pixels tall for a
+   node with twenty settings, so it is shown at its real width inside a frame that scrolls — which
+   is also how it behaves in the application. Photographing it wider, or scaling it down to fit,
+   would both show a control nobody has. */
+.imageblock.ml-panel-shot { text-align: left; }
+.imageblock.ml-panel-shot .content {
+  max-width: 300px;
+  max-height: 460px;
+  overflow-y: auto;
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ml-line-hi) transparent;
+}
+.imageblock.ml-panel-shot .content::-webkit-scrollbar { width: 8px; }
+.imageblock.ml-panel-shot .content::-webkit-scrollbar-track { background: transparent; }
+.imageblock.ml-panel-shot .content::-webkit-scrollbar-thumb {
+  background-color: var(--ml-line-hi);
+  border-radius: var(--ml-radius-sm);
+}
+.docs-main-content .imageblock.ml-panel-shot img {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+/* ---- detectionplayer: a clip with a detection node's own boxes painted in ----
+   Markup is a plain <video> in the page; static/plugins/detectionplayer/detectionplayer.js adds the
+   canvas overlay and the recent-detections strip around it. Everything below styles the parts the
+   script adds, so a page whose script never ran simply shows the video. */
+.ml-detplayer { margin: 1.75rem 0 2rem; }
+
+.ml-detplayer .dp-stage { position: relative; line-height: 0; }
+.ml-detplayer video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--ml-radius);
+  border: 1px solid var(--ml-line);
+  background: #000;
+}
+/* The overlay is a sibling laid over the picture, sized from the video's own box each frame — the
+   boxes are fractions of the *frame*, so anything larger than the letterboxed picture would slide
+   every one of them sideways. */
+.ml-detplayer .dp-overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+.ml-detplayer .dp-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 2px 0;
+  color: var(--ml-muted);
+  font-size: 12.5px;
+}
+.ml-detplayer .dp-frame {
+  font-family: var(--ml-mono);
+  font-size: 12px;
+  color: var(--ml-accent);
+  min-width: 9ch; /* fixed lane: a counter that reflows nudges the legend on every frame */
+}
+.ml-detplayer .dp-legend { font-style: italic; }
+
+.ml-detplayer .dp-strip {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  min-height: 92px; /* reserved, so the page does not jump the first time a detection lands */
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ml-line-hi) transparent;
+}
+.ml-detplayer .dp-tile {
+  flex: 0 0 auto;
+  width: 72px;
+  padding: 0;
+  background: var(--ml-surface);
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  transform: none;
+  opacity: 1;
+  transition: transform .35s ease, opacity .35s ease, border-color .18s ease;
+}
+.ml-detplayer .dp-tile:hover,
+.ml-detplayer .dp-tile:focus-visible { border-color: var(--ml-accent); }
+.ml-detplayer .dp-tile-img {
+  display: block;
+  width: 72px;
+  height: 72px;
+  background-repeat: no-repeat;
+}
+.ml-detplayer .dp-tile-cap {
+  display: block;
+  padding: 2px 0 3px;
+  color: var(--ml-muted);
+  font-family: var(--ml-mono);
+  font-size: 9.5px;
+  text-align: center;
+}
+/* The carousel step: a tile is inserted carrying `dp-enter`, which is its *start* state, and the
+   class is dropped one frame later so it transitions into place. Applying the offset after the
+   element had already settled would animate the wrong way — the newest tile would slide out. */
+.ml-detplayer .dp-tile.dp-enter { transform: translateX(-14px); opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Motion is the only thing disabled. The boxes still appear and disappear on their own frames and
+     the strip still advances — the sampling story is carried by *what* is drawn, never by movement
+     alone, which is the same rule every other figure on the site follows. */
+  .ml-detplayer .dp-tile { transition: none; }
+  .ml-detplayer .dp-tile.dp-enter { transform: none; opacity: 1; }
+}
 .nv-card-chip {
   background: rgba(127, 180, 255, .14);
   border: 1px solid rgba(127, 180, 255, .45);

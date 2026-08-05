@@ -142,6 +142,9 @@ The `geo` output carries just the coordinate, ready for whatever should act on a
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Asset Metadata settings panel: Include Raw Metadata, Raw Key Limit, Raw Value Limit and 9 more settings,role="ml-panel-shot"]
+
 [options="header",cols="1,2"]
 |===
 | Option | Meaning
@@ -160,6 +163,15 @@ The `geo` output carries just the coordinate, ready for whatever should act on a
 
 Each of these is set on the node in the pipeline, not on the worker, so one pipeline can round
 coordinates while another keeps them exact — even when both run on the same machine.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`.
+
+image::debug.png[The metadata node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `metadata`, `text`.
 
 == Use Cases
 

@@ -64,6 +64,7 @@ The built-in nodes fall into four categories.
 | link:imagegen/[Image Generation] (`imagegen`) | Image | Generate images from a prompt (or remix the asset) with a diffusion model
 | link:videogen/[Video Generation] (`videogen`) | Image | Generate a short video clip from a prompt (or animate the asset's image) with a diffusion model
 | link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings — its `detections` port carries **one element per face**
+| link:objectdetect/[Object Detection] (`objectdetect`) | Image, Video | Detect objects with YOLO — its `detections` port carries **one element per object**, and `labels` feeds the tag node directly
 | link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model, one description per face
 | link:depthmap/[Depth Map] (`depthmap`) | Image | Estimate how far each part of a photo is from the camera
 | link:scene-layout/[Scene Layout] (`scene-layout`) | Image (a depth map and detections connected) | Work out what is in front of, behind or next to what
@@ -109,6 +110,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | Requirement | Nodes
 | OpenCV / video4j native runtime | `fingerprint`, `thumbnail`, `quality`, `scene-detection`
 | InspireFace native runtime (GPU optional) | `facedetect`
+| YOLO native runtime + an ONNX model (GPU strongly recommended for video) | `objectdetect`
 | Whisper runtime (whisper.cpp; GPU optional) | `whisper`
 | Tesseract (Tess4J) | `ocr`
 | An LLM provider service | `llm`, `facedescription`
@@ -147,6 +149,13 @@ bounding boxes, facial embeddings and the optimal focal point for cropped thumbn
 `detections` port carries one element per face, so link:facedescription/[`facedescription`],
 link:scene-layout/[`scene-layout`] and link:dominant-color/[`dominant-color`] all work per face
 simply by connecting to it.
+
+Object detection::
+link:objectdetect/[`objectdetect`] finds objects — people, vehicles, animals, furniture — in images
+and video frames with a YOLO model, reporting each as a labelled box with a confidence score. The
+classes it can report come from the model's own vocabulary, so choosing the model is choosing what
+the library can be searched for. Its `labels` port lists the distinct classes found and connects
+straight to link:tag/[`tag`], which turns every asset into something searchable by what is in it.
 
 Thumbnail generation::
 link:thumbnail/[`thumbnail`] renders contact-sheet previews from video frames and source images and

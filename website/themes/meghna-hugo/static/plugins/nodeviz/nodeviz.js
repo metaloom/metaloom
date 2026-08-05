@@ -185,15 +185,99 @@
 		return "M" + x1 + "," + y1 + " C" + mx + "," + y1 + " " + mx + "," + y2 + " " + x2 + "," + y2;
 	}
 
+	/*
+	 * Text measurement.
+	 *
+	 * SVG <text> neither wraps nor shrinks, and a port box is only ~208px wide inside its icon
+	 * inset while the descriptions on these pages are whole sentences — the longest is 125
+	 * characters. An unwrapped line is not clipped by the box, it runs straight over the edge, and
+	 * in the right-hand column it runs past the viewBox and is cut off mid-word.
+	 *
+	 * Wrapping needs the width of a string that is not in the document yet, which is exactly what a
+	 * detached 2D canvas context gives: synchronous, no layout, no reflow. The one thing it cannot
+	 * do is measure a webfont that has not loaded, which `refit()` below deals with.
+	 */
+	var ctx2d = null;
+	function measure(str, font) {
+		if (ctx2d === null) {
+			var c = document.createElement("canvas");
+			ctx2d = (c.getContext && c.getContext("2d")) || false;
+		}
+		if (!ctx2d) {
+			return String(str).length * 6.2; // no canvas: the old character-count estimate
+		}
+		ctx2d.font = font;
+		return ctx2d.measureText(String(str)).width;
+	}
+
+	// Must match the .nv-* rules in custom.less, or the wrap is measured against the wrong metrics.
+	var LABEL_FONT = '600 13px "Quattrocento Sans", sans-serif';
+	var TYPE_FONT = '11px "Quattrocento Sans", sans-serif';
+	var BADGE_FONT = '600 11px "Quattrocento Sans", sans-serif';
+
+	/** Trim `str` until it plus an ellipsis fits `maxW`. Used for the last line only. */
+	function ellipsis(str, maxW, font) {
+		var s = String(str);
+		if (measure(s, font) <= maxW) { return s; }
+		while (s.length > 1 && measure(s + "…", font) > maxW) { s = s.slice(0, -1); }
+		return s.replace(/[\s,;:.·]+$/, "") + "…";
+	}
+
+	/** Greedy word wrap to at most `maxLines`; the last line is ellipsised rather than dropped. */
+	function wrap(str, maxW, font, maxLines) {
+		var words = String(str).split(/\s+/).filter(Boolean);
+		var lines = [], cur = "";
+		for (var i = 0; i < words.length; i++) {
+			var next = cur ? cur + " " + words[i] : words[i];
+			if (cur && measure(next, font) > maxW) {
+				lines.push(cur);
+				if (lines.length === maxLines - 1) {
+					lines.push(ellipsis(words.slice(i).join(" "), maxW, font));
+					return lines;
+				}
+				cur = words[i];
+			} else {
+				cur = next;
+			}
+		}
+		if (cur) { lines.push(ellipsis(cur, maxW, font)); }
+		return lines.length ? lines : [""];
+	}
+
 	// Geometry. Everything scales from these, so the diagram stays balanced when rows are added.
-	var W = 900, COL = 268, ROW = 50, NODE_X = 342, NODE_W = 216, GAP_TOP = 46;
+	// ROW is gone: a row's height is now a *result* of how many lines its description wraps to.
+	var W = 900, COL = 268, NODE_X = 342, NODE_W = 216, GAP_TOP = 46;
+	// One-line row height, the vertical gap between rows, the text column inside a row, the
+	// description line advance, and the point past which a description is ellipsised instead.
+	var ROW_H1 = 40, PORT_GAP = 10, TEXT_W = COL - 60, LINE_H = 13, MAX_LINES = 4;
 
 	function build(spec, cfg) {
 		var ins = cfg.inputs || [], outs = cfg.outputs || [];
-		var rows = Math.max(ins.length, outs.length, 1);
+
+		// Measure before placing anything: a row is as tall as its own text needs, so the column
+		// height, the block height and the node's vertical centre all fall out of the wrap.
+		function layout(list, right) {
+			var rows = list.map(function (p) {
+				var ty = TYPES[p.t] || { c: MUTED, n: p.t || "" };
+				var many = p.c === "many";
+				var lines = wrap((p.d || ty.n) + (many ? " · many" : "") + (p.opt ? " · optional" : ""),
+					TEXT_W, TYPE_FONT, MAX_LINES);
+				return {
+					port: p, type: ty, many: many, right: right,
+					label: ellipsis(p.l, TEXT_W, LABEL_FONT),
+					lines: lines,
+					h: ROW_H1 + (lines.length - 1) * LINE_H
+				};
+			});
+			var total = rows.reduce(function (a, r) { return a + r.h; }, 0) +
+				PORT_GAP * Math.max(0, rows.length - 1);
+			return { rows: rows, total: total };
+		}
+		var inCol = layout(ins, false), outCol = layout(outs, true);
+
 		// A one-port node still needs a box tall enough to carry the badge, the kind and the
 		// "applies to" line without crowding, hence the floor on the row block.
-		var blockH = Math.max(rows * ROW, 104);
+		var blockH = Math.max(inCol.total, outCol.total, 104);
 		var h = GAP_TOP + blockH + 34;
 		var nodeH = Math.min(blockH - 8, 128);
 		var nodeY = GAP_TOP + (blockH - nodeH) / 2;
@@ -217,19 +301,27 @@
 		svg.appendChild(E("title", {}, [])).textContent = desc;
 
 		var edges = [];
-		function rowY(i, n) { return GAP_TOP + (blockH * (i + 0.5)) / n; }
+		// Rows of unequal height cannot be spread evenly, so they stack from a centred start and
+		// each one reports the centre it ended up at. The dots on the node box stay evenly spaced:
+		// they belong to the node's own edge, not to the row.
+		function place(col) {
+			var y = GAP_TOP + (blockH - col.total) / 2;
+			col.rows.forEach(function (r) { r.top = y; r.cy = y + r.h / 2; y += r.h + PORT_GAP; });
+		}
+		place(inCol);
+		place(outCol);
 		function portY(i, n) { return nodeY + (nodeH * (i + 1)) / (n + 1); }
 
 		// ---- edges first so the boxes paint over them ----
 		ins.forEach(function (p, i) {
-			var e = E("path", { d: bez(COL + 6, rowY(i, ins.length), NODE_X - 7, portY(i, ins.length)), "class": "nv-edge", "marker-end": "url(#" + uid + "-a)" });
+			var e = E("path", { d: bez(COL + 6, inCol.rows[i].cy, NODE_X - 7, portY(i, ins.length)), "class": "nv-edge", "marker-end": "url(#" + uid + "-a)" });
 			var f = E("path", { d: e.getAttribute("d"), "class": "nv-flow" });
 			svg.appendChild(e); svg.appendChild(f);
 			edges.push({ el: f, path: e, side: "in", optional: !!p.opt });
 			if (p.opt) { e.setAttribute("stroke-dasharray", "4 5"); }
 		});
 		outs.forEach(function (p, i) {
-			var e = E("path", { d: bez(NODE_X + NODE_W, portY(i, outs.length), W - COL - 13, rowY(i, outs.length)), "class": "nv-edge", "marker-end": "url(#" + uid + "-a)" });
+			var e = E("path", { d: bez(NODE_X + NODE_W, portY(i, outs.length), W - COL - 13, outCol.rows[i].cy), "class": "nv-edge", "marker-end": "url(#" + uid + "-a)" });
 			var f = E("path", { d: e.getAttribute("d"), "class": "nv-flow" });
 			svg.appendChild(e); svg.appendChild(f);
 			edges.push({ el: f, path: e, side: "out", optional: !!p.opt });
@@ -241,10 +333,8 @@
 		// ("what exactly does this carry, and how much of it?"), so the answer is attached to it
 		// rather than parked in a table further down the page.
 		var ports = [];
-		function portRow(p, i, n, right) {
-			var ty = TYPES[p.t] || { c: MUTED, n: p.t || "" };
-			var cy = rowY(i, n);
-			var many = p.c === "many";
+		function portRow(r) {
+			var p = r.port, ty = r.type, right = r.right, many = r.many;
 			var g = E("g", {
 				"class": "nv-port" + (p.opt ? " is-opt" : "") + (many ? " is-many" : ""),
 				tabindex: "0",
@@ -253,25 +343,34 @@
 					(p.ct || ty.ct || ty.n) + ", " + (many ? "a sequence of elements" : "one element")
 			});
 			var x = right ? W - COL : 0;
-			g.appendChild(E("rect", { x: x + (right ? 0 : 4), y: cy - 20, width: COL - 4, height: 40, rx: 8, "class": "nv-port-bg" }));
+			g.appendChild(E("rect", { x: x + (right ? 0 : 4), y: r.top, width: COL - 4, height: r.h, rx: 8, "class": "nv-port-bg" }));
+			// The icon and the cardinality mark hang off the *top* of the row rather than its centre,
+			// so a three-line description grows downwards and leaves the header of the row alone.
 			var ig = icon(p.t, ty.c);
-			ig.setAttribute("transform", "translate(" + (x + (right ? 12 : 16)) + "," + (cy - 12) + ")");
+			ig.setAttribute("transform", "translate(" + (x + (right ? 12 : 16)) + "," + (r.top + 6) + ")");
 			g.appendChild(ig);
 			// A MANY port is stacked in the diagram itself, so cardinality is legible without hovering.
 			if (many) {
 				var stack = E("g", { "class": "nv-many-mark", stroke: ty.c, fill: "none", "stroke-width": 1.4, opacity: 0.75 });
 				var sx = x + (right ? 12 : 16);
-				stack.appendChild(E("path", { d: "M" + (sx + 4) + "," + (cy + 15) + "h16", "stroke-dasharray": "3 3" }));
+				stack.appendChild(E("path", { d: "M" + (sx + 4) + "," + (r.top + 35) + "h16", "stroke-dasharray": "3 3" }));
 				g.appendChild(stack);
 			}
 			var tx = x + (right ? 46 : 50);
-			g.appendChild(T(tx, cy - 1, p.l, "nv-port-label"));
-			g.appendChild(T(tx, cy + 14, (p.d || ty.n) + (many ? " · many" : "") + (p.opt ? " · optional" : ""), "nv-port-type"));
+			g.appendChild(T(tx, r.top + 19, r.label, "nv-port-label"));
+			var td = E("text", { x: tx, y: r.top + 34, "class": "nv-port-type" });
+			r.lines.forEach(function (line, li) {
+				var ts = E("tspan", { x: tx });
+				if (li > 0) { ts.setAttribute("dy", LINE_H); }
+				ts.textContent = line;
+				td.appendChild(ts);
+			});
+			g.appendChild(td);
 			svg.appendChild(g);
 			ports.push({ el: g, port: p, type: ty, side: right ? "out" : "in", many: many });
 		}
-		ins.forEach(function (p, i) { portRow(p, i, ins.length, false); });
-		outs.forEach(function (p, i) { portRow(p, i, outs.length, true); });
+		inCol.rows.forEach(portRow);
+		outCol.rows.forEach(portRow);
 
 		// ---- the node itself ----
 		var node = E("g", { "class": "nv-node" });
@@ -286,7 +385,9 @@
 		node.appendChild(T(cx, nodeY + nodeH / 2 - 6, spec.kind, "nv-node-kind", "middle"));
 		node.appendChild(T(cx, nodeY + nodeH / 2 + 14, spec.applies, "nv-node-applies", "middle"));
 		if (spec.badge) {
-			var bw = spec.badge.length * 6.4 + 22;
+			// Measured, not estimated from the character count: "Whisper runtime · GPU optional" is
+			// 29 narrow characters and the old 6.4px-per-character guess drew a pill 20px too wide.
+			var bw = measure(spec.badge, BADGE_FONT) + 22;
 			node.appendChild(E("rect", { x: cx - bw / 2, y: nodeY - 13, width: bw, height: 24, rx: 12, "class": "nv-badge-box" }));
 			node.appendChild(T(cx, nodeY + 3, spec.badge, "nv-badge", "middle"));
 		}
@@ -391,6 +492,9 @@
 
 	var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 	var live = [];
+	// One redraw closure per mounted diagram, so the whole page can be re-wrapped once the webfont
+	// arrives — see refit() at the bottom.
+	var redraws = [];
 
 	function mount(root) {
 		var spec;
@@ -416,7 +520,9 @@
 			tip.classList.add("is-shown");
 		}
 
+		var current = 0;
 		function draw(idx) {
+			current = idx;
 			var built = build(spec, configs[idx]);
 			stage.innerHTML = "";
 			stage.appendChild(built.svg);
@@ -445,7 +551,6 @@
 					}
 				});
 			});
-			stage.addEventListener("click", function () { hideTip(); tip._for = null; });
 			var inst = { built: built, t0: null };
 			live = live.filter(function (l) { return l.root !== root; });
 			live.push({ root: root, inst: inst });
@@ -473,10 +578,32 @@
 			root.appendChild(tabs);
 		}
 		root.appendChild(stage);
+		// Bound to the stage, not rebound per draw: `draw` replaces the stage's children but not the
+		// stage, so registering in there stacked one more listener on every tab switch.
+		stage.addEventListener("click", function () { hideTip(); tip._for = null; });
 		draw(0);
+		redraws.push(function () { draw(current); });
 	}
 
 	Array.prototype.forEach.call(roots, mount);
+
+	/*
+	 * Re-wrap once the webfont has loaded.
+	 *
+	 * The first wrap is measured against whatever font the canvas resolves at script time, which on
+	 * a cold load is the fallback rather than Quattrocento Sans. The two metrics differ by a few
+	 * per cent — enough to put a line break in the wrong place or leave a row one line short. So
+	 * probe a representative string before and after `fonts.ready`, and redraw only if it moved:
+	 * on a warm cache nothing changes and nothing is repainted.
+	 */
+	if (roots.length && document.fonts && document.fonts.ready) {
+		var PROBE = "one media item per discovered file, carrying its path";
+		var before = measure(PROBE, TYPE_FONT);
+		document.fonts.ready.then(function () {
+			if (Math.abs(measure(PROBE, TYPE_FONT) - before) < 0.5) { return; }
+			redraws.forEach(function (fn) { fn(); });
+		})["catch"](function () { /* a font that never resolves just keeps the first wrap */ });
+	}
 
 	// Escape closes any open hover card — the cards are focusable, so a keyboard reader needs a way
 	// out that is not "tab through the rest of the diagram".

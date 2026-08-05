@@ -21,6 +21,9 @@ blurriness (via a Laplacian measure) and bitrate — so low-quality assets can b
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Quality Analysis settings panel: Check Blurriness, Check Resolution, Check Video Bitrate and 1 more setting,role="ml-panel-shot"]
+
 `QualityNodeOptions` toggle individual checks:
 
 [options="header",cols="1,2"]
@@ -31,6 +34,15 @@ blurriness (via a Laplacian measure) and bitrate — so low-quality assets can b
 | `checkVideoBitrate` | Measure the video bitrate
 | `checkAudioBitrate` | Measure the audio bitrate
 |===
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The quality node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `blurriness`, `width`, `height`, and 4 more.
 
 == Use Cases
 

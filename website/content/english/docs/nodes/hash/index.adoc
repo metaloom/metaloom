@@ -25,6 +25,9 @@ modified files.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The SHA-512 Hash settings panel, which offers only the common node fields,role="ml-panel-shot"]
+
 Per-node options (`HashNodeOptions`) enable each algorithm individually:
 
 [options="header",cols="1,1,2"]
@@ -37,6 +40,15 @@ Per-node options (`HashNodeOptions`) enable each algorithm individually:
 |===
 
 In online mode a hash node checks Loom first and short-circuits when the hash is already stored.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`.
+
+image::debug.png[The sha512 node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `hash`.
 
 == Use Cases
 

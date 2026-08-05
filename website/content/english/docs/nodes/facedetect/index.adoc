@@ -22,6 +22,9 @@ frames at a configurable rate.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Face Detection settings panel: Video Chop Rate, Min Cluster Size, Cluster Radius and 5 more settings,role="ml-panel-shot"]
+
 `FacedetectNodeOptions`:
 
 [options="header",cols="1,2"]
@@ -32,8 +35,45 @@ frames at a configurable rate.
 | `videoChopRate` | How often to sample frames from a video
 | `videoScaleSize` | Frame scale used before detection
 | `minFaceHeightFactor` | Minimum face size (as a fraction of frame height) to keep
+| `maxFaceAngle` | Maximum head rotation, in degrees, accepted for a face found in a **video** frame. Applies to the video path only — the same picture can therefore yield faces as a file and none as a video. Two people talking to each other rather than to the camera routinely sit past the default, and the node then reports nothing at full detection confidence
 | `faceClusterMinimum` / `faceClusterEPS` | Clustering parameters for grouping embeddings into persons
 |===
+
+== Detection over time
+
+On a video the node does not look at every frame, and it does not follow anyone: it samples frames
+at `videoChopRate`, detects independently in each one, and keeps the sharpest faces it found across
+the whole scan. So its output is a handful of detections at scattered moments rather than a box per
+frame — which is why `face_count` counts *detections* and can be five times the number of people on
+screen.
+
+Below is a real run of this node over a video, with its boxes painted in as the clip plays.
+
+++++
+<div class="ml-detplayer" data-track-url="../../pipeline/facedetect-detections.json" data-video-url="../../pipeline/facedetect-demo.mp4" data-recent="10">
+  <video controls muted loop playsinline preload="metadata" poster="../../pipeline/facedetect-demo-poster.jpg" src="../../pipeline/facedetect-demo.mp4"></video>
+</div>
+++++
+
+A box fades rather than disappearing because between two sampled frames there is no new answer —
+what you are seeing dissolve is the most recent report, going stale. The strip underneath holds the
+ten most recent detections with the crop the node cut for each; selecting one jumps to its frame.
+
+The same output is what link:../../pipeline/#debug-mode[Debug Mode] shows for this node, one frame
+at a time.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The facedetect node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `face_count`, `flag`, `detections`.
+
+Selecting one of them opens it full size.
+
+image::debug-detail.png[One output of the facedetect node opened full size,role=img-fluid]
 
 == Use Cases
 

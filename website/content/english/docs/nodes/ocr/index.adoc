@@ -21,6 +21,9 @@ recognized text is stored so it can be indexed and searched.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The OCR settings panel, which offers only the common node fields,role="ml-panel-shot"]
+
 `OCRNodeOptions`:
 
 [options="header",cols="1,2"]
@@ -29,6 +32,15 @@ recognized text is stored so it can be indexed and searched.
 | `tessDataPath` | Path to the Tesseract `tessdata` directory
 | `language` | Recognition language(s), e.g. `eng`, `deu`
 |===
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `albert_einstein.png`.
+
+image::debug.png[The ocr node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `text`.
 
 == Use Cases
 

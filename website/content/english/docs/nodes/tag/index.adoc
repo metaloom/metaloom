@@ -114,6 +114,20 @@ The same asset can also carry one tag several times, each in its own place: two 
 person at three points in a video. Each of those placements can be removed on its own without
 disturbing the others.
 
+== Configuration
+
+.The node's settings in the pipeline editor
+image::config.png[The Tag settings panel: Tag By, Rules, Collection and 6 more settings,role="ml-panel-shot"]
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`.
+
+image::debug.png[The tag node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `applied`, `count`.
+
 == Use Cases
 
 * **Quality triage** — connect link:../quality/[Quality] and tag `blurry`, `low-resolution` or

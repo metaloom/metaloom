@@ -89,6 +89,9 @@ actually support. You can make it bolder or more cautious with `depthZThreshold`
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Scene Layout settings panel: Loom Fallback, Core Inset, Depth Threshold and 8 more settings,role="ml-panel-shot"]
+
 `SceneLayoutNodeOptions`:
 
 [options="header",cols="1,2"]

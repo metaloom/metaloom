@@ -21,8 +21,20 @@ Tika — images (EXIF), audio/video containers, PDFs and Office documents.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Tika Extraction settings panel, which offers only the common node fields,role="ml-panel-shot"]
+
 No custom options beyond the common node flags — Tika auto-detects the format and applies the
 appropriate parser.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `sample.docx`.
+
+image::debug.png[The tika node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `flags`.
 
 == Use Cases
 

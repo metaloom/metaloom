@@ -29,6 +29,9 @@ licensed and may therefore be used commercially. Both speak the same contract â€
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Image Generation settings panel: Mode, Prompt, Sidecar Host and 9 more settings,role="ml-panel-shot"]
+
 `ImageGenNodeOptions`:
 
 [options="header",cols="1,2"]

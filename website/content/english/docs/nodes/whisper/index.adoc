@@ -22,6 +22,9 @@ summarized.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Whisper (Speech-to-Text) settings panel: Model Path, Temperature, Temperature Increment and 3 more settings,role="ml-panel-shot"]
+
 `WhisperOptions`:
 
 [options="header",cols="1,2"]
@@ -32,6 +35,16 @@ summarized.
 | `useGpu` / `gpuDevice` | Enable GPU acceleration and select the device
 | `temperature` / `temperatureInc` | Decoding temperature and fallback increment
 |===
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself — for this node, the transcript and the segments it was cut into.
+
+NOTE: There is no screenshot of that here yet. MetaLoom ships no model weights, and
+no Whisper model is present on the machine that builds these pictures, so this is the one
+node page whose debug view is taken from a real run of nothing. Every other picture on these pages
+comes from an actual run, and we would rather leave a gap than draw one.
 
 == Use Cases
 

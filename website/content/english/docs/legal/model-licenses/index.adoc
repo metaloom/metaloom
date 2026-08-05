@@ -58,6 +58,24 @@ licensed image model can be dropped in behind the same endpoint without touching
 These are usable commercially, but not under a plain permissive license. Read the terms before you
 deploy.
 
+[WARNING]
+====
+**YOLO object detection — AGPL-3.0, and the copyleft reaches your deployment.** The
+link:../../nodes/objectdetect/[Object Detection] node runs YOLO through a native shim built against
+**YOLOs-CPP**, which is licensed **AGPL-3.0**, and the reference `.onnx` detection models are
+exported from **Ultralytics** YOLO, which is also AGPL-3.0.
+
+This is not a non-commercial restriction — AGPL permits commercial use. It is a *network* copyleft:
+running an AGPL work as part of a service offered over a network obliges you to offer the
+corresponding source of the whole combined work to its users. For a hosted MetaLoom that includes
+far more than the detector.
+
+*If you need object detection in a closed commercial deployment:* buy an Ultralytics enterprise
+license, or point the node at a permissively licensed detection model **and** replace the AGPL
+inference shim — the model swap alone is not enough, because the runtime carries the same license.
+The node takes both from options (`modelPath`, `labelsPath`), so the model side needs no code change.
+====
+
 [options="header",cols="2,2,3"]
 |===
 | Model | License | What the condition means
@@ -124,6 +142,11 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | whisper.cpp runtime + a GGML checkpoint; default `models/ggml-large-v3-turbo.bin` (`modelPath`)
 | MIT (whisper.cpp runtime and the OpenAI Whisper weights)
 | ✅ Yes
+
+| link:../../nodes/objectdetect/[Object Detection]
+| YOLOs-CPP inference shim + an ONNX detection model and its class-name file (`modelPath`, `labelsPath`); reference setup uses Ultralytics-exported YOLOv11n
+| **AGPL-3.0** (both the shim and the reference weights)
+| ⚠️ Only under AGPL terms — see link:#conditional[above]
 
 | link:../../nodes/vlm/[VLM]
 | `allenai/olmOCR-2-7B-1025-FP8` served over an OpenAI-compatible endpoint (`model`, `endpointUrl`)
@@ -205,6 +228,10 @@ link:../../cortex/containers/[`cortex-server` container image].
 | InspireFace native runtime (via `inspireface4j`)
 | Apache-2.0 (code only — **not** the model packs)
 | See link:#restricted[restrictions].
+
+| YOLOs-CPP inference shim (`libyolib.so`, via `yolo4j`) + ONNX Runtime
+| **AGPL-3.0** for YOLOs-CPP; MIT for ONNX Runtime
+| Object detection. The shim is compiled against the AGPL headers, so it carries that license — see link:#conditional[conditions].
 
 | Apache Tika, Tess4J / Tesseract
 | Apache-2.0

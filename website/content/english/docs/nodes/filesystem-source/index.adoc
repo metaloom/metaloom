@@ -25,6 +25,9 @@ chosen worker and streams discovered items back; path discovery lives in `Filesy
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Filesystem Source settings panel: Path, Path globs, Emit states and 1 more setting,role="ml-panel-shot"]
+
 `FilesystemSourceNodeOptions`:
 
 [options="header",cols="1,2"]
@@ -36,6 +39,15 @@ chosen worker and streams discovered items back; path discovery lives in `Filesy
 
 Values from the pipeline definition win; the option defaults are used when the definition supplies no
 selection.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The filesystem-source node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `media`.
 
 == Use Cases
 

@@ -99,8 +99,13 @@
 	function randInt(seedStr, lo, hi) { return lo + Math.floor(rand(seedStr) * (hi - lo + 1)); }
 
 	// ---------------------------------------------------------------- geometry
-	var NODE_W = 212, HEAD_H = 30, ROW_H = 24, BODY_PAD = 10, GRID = 15;
+	var NODE_W = 212, HEAD_H = 30, ROW_H = 24, BODY_PAD = 10, GRID = 15, NODE_R = 9;
 	function portY(idx) { return HEAD_H + BODY_PAD + idx * ROW_H + ROW_H / 2; }
+	/** A box rounded at the top two corners only — the node header sitting on a rounded card. */
+	function topRoundedPath(w, h, r) {
+		return "M0," + r + " A" + r + "," + r + " 0 0 1 " + r + ",0 H" + (w - r)
+			+ " A" + r + "," + r + " 0 0 1 " + w + "," + r + " V" + h + " H0 Z";
+	}
 
 	// ---------------------------------------------------------------- state
 	var descriptorsByKind = {};   // kind -> descriptor
@@ -111,8 +116,12 @@
 	var els = {};                 // cached DOM
 	/** Most recent firing per node, so results survive a re-render (a drag, a selection change). */
 	var lastResults = {};
+	/** Node ids whose result drawer the visitor has rolled up, as a set. */
+	var resultsCollapsed = {};
 	/** Result rows shown on a node card before the "+n more" chip takes over. */
 	var MAX_RESULT_ROWS = 3;
+	/** Unique-per-render suffix for the per-node clip paths (node ids are visitor-supplied). */
+	var clipSeq = 0;
 	var validationErrors = [];
 
 	function nodeGeom(node) {
@@ -443,6 +452,153 @@
 	}
 
 	// ---------------------------------------------------------------- rendering
+	/** The two ends of the speed slider: a snail and a rocket, as paths rather than emoji. */
+	function speedIcon(which) {
+		var slow = which === "slow";
+		var svg = E("svg", {
+			"class": "pe-speed-icon", viewBox: "0 0 16 16", width: 16, height: 16,
+			fill: "none", stroke: "currentColor", "stroke-width": 1.2,
+			"stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true"
+		});
+		if (slow) {
+			svg.appendChild(E("path", { d: "M2.6,13h9.2" }));                                  // ground / foot
+			svg.appendChild(E("path", { d: "M5.4,13c-2.1,0-3.1-1.7-2.2-3l1.4-1.9" }));         // body
+			svg.appendChild(E("path", { d: "M4.2,8.4 3.4,6.7M5.7,8 5.9,6.2" }));               // antennae
+			svg.appendChild(E("circle", { cx: 10, cy: 8.6, r: 4.2 }));                          // shell
+			svg.appendChild(E("path", { d: "M10,8.6a1.9,1.9 0 1 1 1.6,-1" }));                  // spiral
+		} else {
+			svg.appendChild(E("path", { d: "M8,1.2c2.2,2.1,3.3,4.6,3.3,7.4l-1.4,2.4H6.1L4.7,8.6C4.7,5.8,5.8,3.3,8,1.2z" }));
+			svg.appendChild(E("circle", { cx: 8, cy: 6.1, r: 1.3 }));                           // window
+			svg.appendChild(E("path", { d: "M5,8.7 2.7,11l0.3,2.6 2.1-1.6M11,8.7 13.3,11l-0.3,2.6-2.1-1.6" })); // fins
+			svg.appendChild(E("path", { d: "M6.9,12.2c0.3,1.4,1.1,2.4,1.1,2.4s0.8-1,1.1-2.4" })); // flame
+		}
+		var t = E("title"); t.textContent = slow ? "Slower" : "Faster";
+		svg.appendChild(t);
+		return svg;
+	}
+
+	/**
+	 * A traditional application menu: one button, and a list rebuilt on every open.
+	 *
+	 * Rebuilding on open is what keeps the "Saved in this browser" section current without a
+	 * separate refresh path — saving a pipeline does not have to tell the menu anything.
+	 */
+	function buildMenu(label, itemsFn) {
+		var wrap = H("div", { class: "pe-menu" });
+		var btn = H("button", { class: "pe-btn pe-menu-btn", text: label + " ▾", "aria-haspopup": "true", "aria-expanded": "false" });
+		var list = H("div", { class: "pe-menu-list" });
+		list.hidden = true;
+		function onDoc(ev) { if (!wrap.contains(ev.target)) { close(); } }
+		function close() {
+			list.hidden = true;
+			btn.setAttribute("aria-expanded", "false");
+			document.removeEventListener("pointerdown", onDoc, true);
+		}
+		function open() {
+			list.innerHTML = "";
+			itemsFn().forEach(function (it) {
+				if (it.sep) { list.appendChild(H("div", { class: "pe-menu-sep" })); return; }
+				if (it.header) { list.appendChild(H("div", { class: "pe-menu-header", text: it.header })); return; }
+				var b = H("button", { class: "pe-menu-item", text: it.label, title: it.title });
+				if (it.disabled) { b.disabled = true; }
+				else { b.addEventListener("click", function () { close(); it.action(); }); }
+				list.appendChild(b);
+			});
+			list.hidden = false;
+			btn.setAttribute("aria-expanded", "true");
+			document.addEventListener("pointerdown", onDoc, true);
+		}
+		btn.addEventListener("click", function () { if (list.hidden) { open(); } else { close(); } });
+		els.closeMenus = close;
+		wrap.appendChild(btn); wrap.appendChild(list);
+		return wrap;
+	}
+
+	// Save / Download / Open / Clear are the file operations of a document app, so they live where
+	// a visitor already expects them, together with whatever this browser has saved.
+	function fileMenuItems() {
+		var items = [
+			{ label: "Open / paste JSON…", action: openJsonModal },
+			{ label: "Save to this browser…", action: doSave },
+			{ label: "Download JSON", action: doDownload },
+			{ sep: true },
+			{ label: "Clear canvas", action: doClear },
+			{ sep: true },
+			{ header: "Saved in this browser" }
+		];
+		var names = savedNames();
+		if (!names.length) { items.push({ label: "(nothing saved yet)", disabled: true }); }
+		else {
+			names.forEach(function (n) {
+				items.push({ label: n, title: "Load '" + n + "'", action: function () { loadSaved(n); } });
+			});
+		}
+		return items;
+	}
+
+	function doClear() {
+		if (!confirm("Clear the canvas?")) { return; }
+		sim.reset();
+		model.nodes = {}; model.edges = {};
+		commit(); renderAll();
+	}
+
+	function isNarrow() { return !!(window.matchMedia && window.matchMedia("(max-width: 820px)").matches); }
+
+	/** Roll the design-error list up to its header, leaving the log the whole panel row. */
+	function setErrorsCollapsed(collapsed) {
+		els.errPanel.classList.toggle("is-collapsed", collapsed);
+		els.errCaret.textContent = collapsed ? "▸" : "▾";
+		// The splitter sizes this panel with an inline flex; a collapsed panel must shrink to its
+		// header instead, so remember the size and put it back when it reopens.
+		if (collapsed) { els.errPanel.style.flex = ""; }
+		else if (els.errFlex) { els.errPanel.style.flex = els.errFlex; }
+	}
+
+	/**
+	 * The two splitters.
+	 *
+	 * The pointer is captured on the bar itself, so a fast drag that outruns it still tracks, and
+	 * the sizes are written as inline styles — the ≤820 px media query overrides them with
+	 * `!important` so a resized desktop layout never leaks into the stacked mobile one.
+	 */
+	function wireResizers() {
+		function bar(el, onMove) {
+			el.addEventListener("pointerdown", function (ev) {
+				ev.preventDefault();
+				el.setPointerCapture(ev.pointerId);
+				el.classList.add("is-dragging");
+				var start = {
+					x: ev.clientX, y: ev.clientY,
+					w: els.errPanel.getBoundingClientRect().width,
+					h: els.bottom.getBoundingClientRect().height
+				};
+				function move(e2) { onMove(e2, start); }
+				function up() {
+					el.classList.remove("is-dragging");
+					el.removeEventListener("pointermove", move);
+					el.removeEventListener("pointerup", up);
+					el.removeEventListener("pointercancel", up);
+				}
+				el.addEventListener("pointermove", move);
+				el.addEventListener("pointerup", up);
+				el.addEventListener("pointercancel", up);
+			});
+		}
+		bar(els.vResize, function (ev, start) {
+			var rootH = root.getBoundingClientRect().height;
+			var h = Math.max(64, Math.min(Math.max(120, rootH - 220), start.h - (ev.clientY - start.y)));
+			els.bottom.style.height = h + "px";
+			els.bottom.style.flex = "0 0 " + h + "px";
+		});
+		bar(els.hResize, function (ev, start) {
+			var totalW = els.bottom.getBoundingClientRect().width;
+			var w = Math.max(140, Math.min(Math.max(180, totalW - 180), start.w + (ev.clientX - start.x)));
+			els.errFlex = "0 0 " + w + "px";
+			els.errPanel.style.flex = els.errFlex;
+		});
+	}
+
 	function buildShell() {
 		root.innerHTML = "";
 		var wrap = H("div", { class: "pe-root" });
@@ -452,24 +608,12 @@
 		tb.appendChild(H("div", { class: "pe-title", text: "Pipeline Editor" }));
 
 		var gFile = H("div", { class: "pe-tb-group" });
+		gFile.appendChild(buildMenu("File", fileMenuItems));
 		var demoSel = H("select", { class: "pe-select", title: "Load a demo pipeline" });
 		demoSel.appendChild(H("option", { value: "", text: "Demo pipelines…" }));
 		DEMOS.forEach(function (d, i) { demoSel.appendChild(H("option", { value: String(i), text: d.name })); });
 		demoSel.addEventListener("change", function () { if (demoSel.value !== "") { loadDemo(parseInt(demoSel.value, 10)); demoSel.value = ""; } });
-		var savedSel = H("select", { class: "pe-select", title: "Load a saved pipeline" });
 		gFile.appendChild(demoSel);
-		gFile.appendChild(savedSel);
-		gFile.appendChild(H("button", { class: "pe-btn", text: "Save", title: "Save to this browser" }, []));
-		gFile.appendChild(H("button", { class: "pe-btn", text: "Download", title: "Download as JSON" }));
-		gFile.appendChild(H("button", { class: "pe-btn", text: "Open", title: "Open / paste pipeline JSON" }));
-		gFile.appendChild(H("button", { class: "pe-btn", text: "Clear", title: "Empty the canvas" }));
-		var fbtns = gFile.querySelectorAll("button");
-		fbtns[0].addEventListener("click", doSave);
-		fbtns[1].addEventListener("click", doDownload);
-		fbtns[2].addEventListener("click", openJsonModal);
-		fbtns[3].addEventListener("click", function () { if (confirm("Clear the canvas?")) { model.nodes = {}; model.edges = {}; commit(); renderAll(); } });
-		savedSel.addEventListener("change", function () { if (savedSel.value) { loadSaved(savedSel.value); savedSel.value = ""; } });
-		els.savedSel = savedSel;
 
 		var gSrc = H("div", { class: "pe-tb-group" });
 		gSrc.appendChild(H("label", { class: "pe-lbl", text: "Emit" }));
@@ -502,8 +646,14 @@
 		els.heldChip.hidden = true;
 		var speed = H("input", { class: "pe-slider", type: "range", min: "0.3", max: "3", step: "0.1", value: "1", title: "Simulation speed" });
 		speed.addEventListener("input", function () { sim.speed = parseFloat(speed.value); });
+		// The ends of the slider carry the meaning; a bare track says only "a number". Drawn rather
+		// than set as emoji, because a machine without an emoji font would render two tofu boxes.
+		var speedWrap = H("div", { class: "pe-speed", title: "Simulation speed" });
+		speedWrap.appendChild(speedIcon("slow"));
+		speedWrap.appendChild(speed);
+		speedWrap.appendChild(speedIcon("fast"));
 		gSim.appendChild(els.playBtn); gSim.appendChild(els.pauseBtn); gSim.appendChild(els.stepBtn); gSim.appendChild(els.resetBtn);
-		gSim.appendChild(els.continueBtn); gSim.appendChild(els.heldChip); gSim.appendChild(speed);
+		gSim.appendChild(els.continueBtn); gSim.appendChild(els.heldChip); gSim.appendChild(speedWrap);
 
 		tb.appendChild(gFile); tb.appendChild(gSrc); tb.appendChild(gSim);
 		wrap.appendChild(tb);
@@ -532,14 +682,28 @@
 		body.appendChild(cwrap);
 		wrap.appendChild(body);
 
+		// A grab bar between canvas and panels: the panels are where a visitor reads the run, so
+		// how much room they get is theirs to choose.
+		els.vResize = H("div", { class: "pe-resize-v", title: "Drag to resize the panels" });
+		wrap.appendChild(els.vResize);
+
 		// bottom: errors + log
 		var bottom = H("div", { class: "pe-bottom" });
+		els.bottom = bottom;
 		var errPanel = H("div", { class: "pe-panel pe-panel-errors" });
-		els.errHead = H("div", { class: "pe-panel-head", text: "Design errors" });
+		els.errPanel = errPanel;
+		els.errHead = H("button", { class: "pe-panel-head pe-panel-toggle", title: "Show / hide the design errors" });
+		els.errCaret = H("span", { class: "pe-caret", text: "▾" });
+		els.errHeadLabel = H("span", { class: "pe-panel-head-label", text: "Design errors" });
+		els.errHead.appendChild(els.errCaret);
+		els.errHead.appendChild(els.errHeadLabel);
+		els.errHead.addEventListener("click", function () { setErrorsCollapsed(!errPanel.classList.contains("is-collapsed")); });
 		errPanel.appendChild(els.errHead);
 		els.errBox = H("div", { class: "pe-errors" });
 		errPanel.appendChild(els.errBox);
 		bottom.appendChild(errPanel);
+		els.hResize = H("div", { class: "pe-resize-h", title: "Drag to resize" });
+		bottom.appendChild(els.hResize);
 
 		var logPanel = H("div", { class: "pe-panel pe-panel-log" });
 		logPanel.appendChild(H("div", { class: "pe-panel-head", text: "Action log" }));
@@ -558,7 +722,10 @@
 
 		root.appendChild(wrap);
 		wireCanvasEvents();
-		refreshSavedList();
+		wireResizers();
+		// A phone has no room for two stacked panels, and the log is what a run produces — so the
+		// error list starts rolled up there, and open on a desktop where it costs nothing.
+		setErrorsCollapsed(isNarrow());
 	}
 
 	function buildPalette() {
@@ -613,9 +780,17 @@
 			var grp = E("g", { "class": cls, transform: "translate(" + n.x + "," + n.y + ")", "data-node": id });
 			var cat = n.descriptor ? n.descriptor.category : "OUTPUT";
 			var col = nodeColor(n.descriptor, cat);
-			grp.appendChild(E("rect", { "class": "pe-node-rect", x: 0, y: 0, width: g.w, height: g.h, rx: 9 }));
-			grp.appendChild(E("rect", { "class": "pe-node-head", x: 0, y: 0, width: g.w, height: HEAD_H, rx: 9 }));
-			grp.appendChild(E("rect", { "class": "pe-node-stripe", x: 0, y: 0, width: 4, height: g.h, rx: 2, fill: col }));
+			// The card is rounded, so everything drawn on top of it has to respect that corner:
+			// the stripe is clipped to the card outline (a plain rect pokes out of the rounding at
+			// the top and bottom) and the header is a path rounded at the top only (a rect with an
+			// `rx` rounds its bottom corners too and leaks the body colour through them).
+			var clipId = "pe-clip-" + (clipSeq++);
+			var clip = E("clipPath", { id: clipId });
+			clip.appendChild(E("rect", { x: 0, y: 0, width: g.w, height: g.h, rx: NODE_R }));
+			grp.appendChild(clip);
+			grp.appendChild(E("rect", { "class": "pe-node-rect", x: 0, y: 0, width: g.w, height: g.h, rx: NODE_R }));
+			grp.appendChild(E("path", { "class": "pe-node-head", d: topRoundedPath(g.w, HEAD_H, NODE_R) }));
+			grp.appendChild(E("rect", { "class": "pe-node-stripe", x: 0, y: 0, width: 4, height: g.h, fill: col, "clip-path": "url(#" + clipId + ")" }));
 			var title = E("text", { "class": "pe-node-title", x: 12, y: HEAD_H / 2 + 4 });
 			title.textContent = n.label + (n.unknownKind ? " (?)" : "");
 			grp.appendChild(title);
@@ -724,7 +899,7 @@
 	function renderErrors() {
 		els.errBox.innerHTML = "";
 		var errs = validationErrors;
-		els.errHead.textContent = "Design errors" + (errs.length ? " (" + errs.length + ")" : "");
+		els.errHeadLabel.textContent = "Design errors" + (errs.length ? " (" + errs.length + ")" : "");
 		els.errHead.classList.toggle("has-errors", errs.some(function (e) { return e.severity === "error"; }));
 		if (!errs.length) { els.errBox.appendChild(H("div", { class: "pe-error-empty", text: "✓ No design errors" })); return; }
 		errs.forEach(function (e) {
@@ -813,12 +988,18 @@
 		var bpEl = t.closest ? t.closest(".pe-bp") : null;
 		if (bpEl) { ev.preventDefault(); sim.toggleBreakpoint(bpEl.getAttribute("data-bp")); return; }
 
+		var drawerHead = t.closest ? t.closest(".pe-drawer-head") : null;
+		if (drawerHead) { ev.preventDefault(); sim.toggleResults(drawerHead.getAttribute("data-drawer")); return; }
+
 		var resEl = t.closest ? t.closest(".pe-result-row") : null;
 		if (resEl) {
 			ev.preventDefault();
 			openResultDetail(resEl.getAttribute("data-node"), resEl.getAttribute("data-port"));
 			return;
 		}
+
+		// Anywhere else inside the drawer: it hangs off the node, but it is not a drag handle.
+		if (t.closest && t.closest(".pe-drawer")) { ev.preventDefault(); return; }
 
 		var nodeEl = t.closest ? t.closest(".pe-node") : null;
 		if (nodeEl && !portInfo) {
@@ -921,6 +1102,7 @@
 		} else if (ev.key === "Escape") {
 			if (conn) { clearTargets(); if (conn.path && conn.path.parentNode) { conn.path.parentNode.removeChild(conn.path); } conn = null; }
 			els.toast.hidden = true;
+			if (els.closeMenus) { els.closeMenus(); }
 			if (els.modal) { closeModal(); }
 		}
 	}
@@ -1277,41 +1459,67 @@
 			setTimeout(function () { g.classList.remove("is-firing"); }, 450);
 		},
 		/**
-		 * Paint a firing's outputs onto its node, one row per output port.
+		 * Paint a firing's outputs into a drawer hanging *below* its node, one row per output port.
 		 *
 		 * The same idea as the product's node result strip, and deliberately the same visual
 		 * language: a family-coloured dot, the port id, and a short rendering of the value. What
 		 * differs is only that these values are synthetic — see `synthValue`.
+		 *
+		 * It is a `foreignObject`, not SVG text, for two reasons: a synthetic value is regularly
+		 * wider than the card, and SVG text neither wraps nor clips to the rounded card — it simply
+		 * ran out over the canvas. HTML wraps, and a drawer that opens downwards keeps the node
+		 * itself the fixed-size thing it looks like. The header rolls it up.
 		 */
 		showResults: function (f) {
 			var g = els.gNodes.querySelector('[data-node="' + f.nodeId + '"]');
 			if (!g) { return; }
 			var old = g.querySelector(".pe-results");
 			if (old) { g.removeChild(old); }
+			// Remembered per node so a re-render (a drag, a selection) does not wipe the results.
+			lastResults[f.nodeId] = f;
 			var portIds = Object.keys(f.ports).filter(function (k) { return f.ports[k].elements.length; });
 			if (!portIds.length) { return; }
 			var geom = nodeGeom(model.nodes[f.nodeId]);
-			var strip = E("g", { "class": "pe-results", transform: "translate(0," + (geom.h + 6) + ")" });
-			portIds.slice(0, MAX_RESULT_ROWS).forEach(function (portId, i) {
-				var port = f.ports[portId];
-				var row = E("g", { "class": "pe-result-row", "data-node": f.nodeId, "data-port": portId, transform: "translate(0," + (i * 15) + ")" });
-				row.appendChild(E("rect", { "class": "pe-result-hit", x: 0, y: -10, width: geom.w, height: 14, rx: 3 }));
-				row.appendChild(E("circle", { "class": "pe-result-dot", cx: 8, cy: -3, r: 3, fill: ctColor(port.contentType) }));
-				var label = E("text", { "class": "pe-result-label", x: 16, y: 0 });
-				label.textContent = portId + " " + summarize(port.elements);
-				row.appendChild(label);
-				var tt = E("title"); tt.textContent = portId + " · " + port.contentType + " — click to enlarge";
-				row.appendChild(tt);
-				strip.appendChild(row);
-			});
-			if (portIds.length > MAX_RESULT_ROWS) {
-				var more = E("text", { "class": "pe-result-more", x: 16, y: MAX_RESULT_ROWS * 15 });
-				more.textContent = "+" + (portIds.length - MAX_RESULT_ROWS) + " more";
-				strip.appendChild(more);
+			var collapsed = !!resultsCollapsed[f.nodeId];
+
+			// Laid out at a generous height first: how tall the wrapped rows end up is only known
+			// once the browser has laid them out, so measure and write the real height back.
+			var fo = E("foreignObject", { "class": "pe-results", x: 0, y: geom.h + 8, width: geom.w, height: 400 });
+			var box = H("div", { class: "pe-drawer" + (collapsed ? " is-collapsed" : "") });
+			var head = H("div", { class: "pe-drawer-head", "data-drawer": f.nodeId, title: collapsed ? "Show results" : "Hide results" });
+			head.appendChild(H("span", { class: "pe-drawer-caret", text: collapsed ? "▸" : "▾" }));
+			head.appendChild(H("span", { class: "pe-drawer-title", text: "Result · " + portIds.length + (portIds.length === 1 ? " port" : " ports") }));
+			box.appendChild(head);
+			if (!collapsed) {
+				var body = H("div", { class: "pe-drawer-body" });
+				portIds.slice(0, MAX_RESULT_ROWS).forEach(function (portId) {
+					var port = f.ports[portId];
+					var row = H("div", {
+						class: "pe-result-row", "data-node": f.nodeId, "data-port": portId,
+						title: portId + " · " + port.contentType + " — click to enlarge"
+					});
+					var dot = H("span", { class: "pe-result-dot" });
+					dot.style.background = ctColor(port.contentType);
+					row.appendChild(dot);
+					row.appendChild(H("span", { class: "pe-result-port", text: portId }));
+					row.appendChild(H("span", { class: "pe-result-val", text: summarize(port.elements) }));
+					body.appendChild(row);
+				});
+				if (portIds.length > MAX_RESULT_ROWS) {
+					body.appendChild(H("div", { class: "pe-result-more", text: "+" + (portIds.length - MAX_RESULT_ROWS) + " more" }));
+				}
+				box.appendChild(body);
 			}
-			g.appendChild(strip);
-			// Remembered per node so a re-render (a drag, a selection) does not wipe the results.
-			lastResults[f.nodeId] = f;
+			fo.appendChild(box);
+			g.appendChild(fo);
+			var h = box.getBoundingClientRect().height / (view.scale || 1);
+			fo.setAttribute("height", Math.ceil(h) + 2);
+		},
+
+		/** Roll one node's result drawer up or down; the state outlives a re-render. */
+		toggleResults: function (nodeId) {
+			resultsCollapsed[nodeId] = !resultsCollapsed[nodeId];
+			if (lastResults[nodeId]) { this.showResults(lastResults[nodeId]); }
 		},
 
 		clearResults: function () {
@@ -1461,19 +1669,13 @@
 	function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
 	function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
 	function savedNames() { try { return JSON.parse(lsGet(LS_INDEX) || "[]"); } catch (e) { return []; } }
-	function refreshSavedList() {
-		var names = savedNames();
-		els.savedSel.innerHTML = "";
-		els.savedSel.appendChild(H("option", { value: "", text: names.length ? "Saved…" : "Saved (none)" }));
-		names.forEach(function (n) { els.savedSel.appendChild(H("option", { value: n, text: n })); });
-	}
 	function doSave() {
 		var name = prompt("Save pipeline as:", "my-pipeline");
 		if (!name) { return; }
 		var ok = lsSet("ml.pipeline.saved." + name, JSON.stringify(toGraphJson()));
 		if (!ok) { toast("Could not save (storage unavailable)", 20, 20); return; }
 		var names = savedNames(); if (names.indexOf(name) < 0) { names.push(name); lsSet(LS_INDEX, JSON.stringify(names)); }
-		refreshSavedList();
+		// The File menu rebuilds its list on open, so there is nothing to refresh here.
 		toast("Saved '" + name + "'", 20, 20);
 	}
 	function loadSaved(name) {

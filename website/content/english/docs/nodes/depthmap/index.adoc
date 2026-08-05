@@ -61,6 +61,9 @@ Two further details matter if you process the map yourself:
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Depth Map settings panel: Sidecar Host, Sidecar Port, Depth Mode and 3 more settings,role="ml-panel-shot"]
+
 `DepthmapNodeOptions`:
 
 [options="header",cols="1,2"]

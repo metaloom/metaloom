@@ -78,6 +78,9 @@ TIP: Using `{sha512}` requires a hashing node earlier in the pipeline.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The S3 Sink settings panel: Bucket, Key template, Include source media and 6 more settings,role="ml-panel-shot"]
+
 Set on the node in the pipeline editor:
 
 [options="header",cols="1,2"]
@@ -110,6 +113,15 @@ it is ever placed wrongly.
 from the same worker's disk — Scene Layout reads the depth map that way. Turning on
 `deleteAfterUpload` in a pipeline like that removes the file before the next node gets to it, and
 the failure looks like a depth-map problem rather than a sink one.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`.
+
+image::debug.png[The s3-sink node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `flag`, `count`, `result`.
 
 == Use Cases
 

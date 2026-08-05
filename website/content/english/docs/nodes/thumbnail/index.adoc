@@ -21,6 +21,9 @@ the UI a fast visual summary of the content.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Thumbnail Generator settings panel: Grid Columns, Grid Rows, Tile Size (px),role="ml-panel-shot"]
+
 `ThumbnailNodeOptions` control the contact-sheet layout:
 
 [options="header",cols="1,2"]
@@ -30,6 +33,19 @@ the UI a fast visual summary of the content.
 | `cols` | Number of columns in the grid
 | `rows` | Number of rows in the grid
 |===
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-jack-sparrow-5977265.mp4`.
+
+image::debug.png[The thumbnail node after a run, with the values it emitted on each port,role=img-fluid]
+
+The strip on the card lists what each output port carried — `flag`, `thumbnail`.
+
+Selecting one of them opens it full size.
+
+image::debug-detail.png[One output of the thumbnail node opened full size,role=img-fluid]
 
 == Use Cases
 

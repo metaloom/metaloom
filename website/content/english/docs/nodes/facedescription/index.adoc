@@ -24,6 +24,9 @@ describe and no model call is made.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Face Description settings panel: Max Face Angle (deg),role="ml-panel-shot"]
+
 Uses the model-service connection shared with the LLM/captioning family. There is nothing to
 configure about where the faces come from — connect the `detections` port and the node follows it.
 

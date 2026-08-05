@@ -4,7 +4,17 @@
  * Dark surface + teal accent to match the site (#57cbcc).
  */
 
-.pe-page {
+/*
+ * The palette — declared on the result-detail overlay as well as the page.
+ *
+ * `openResultDetail` renders that overlay into <body>, outside `.pe-page`, so on that subtree every
+ * `var(--pe-*)` below would otherwise be unset — and an unset custom property computes to
+ * *transparent*, not to a default. The card rendered as bare text floating over the live canvas.
+ * Custom properties inherit, so declaring them here covers everything inside the overlay, the
+ * `.pe-btn` close button included. Any new element mounted outside `.pe-page` needs the same
+ * treatment.
+ */
+.pe-page, .pe-detail {
   --pe-bg: #11151a;
   --pe-panel: #1a1f26;
   --pe-panel-2: #20262e;
@@ -13,9 +23,12 @@
   --pe-text: #cdd6df;
   --pe-muted: #8391a0;
   --pe-accent: #57cbcc;
+  --pe-scroll: #48525e;
   --pe-danger: #e2726e;
   --pe-warn: #e2a24e;
   --pe-ok: #5ec98f;
+}
+.pe-page {
   padding: 0;
   background: var(--pe-bg);
   color: var(--pe-text);
@@ -49,7 +62,18 @@
 }
 .pe-tb-group { display: flex; align-items: center; gap: 6px; }
 .pe-tb-group + .pe-tb-group { padding-left: 12px; border-left: 1px solid var(--pe-line); }
-.pe-lbl { color: var(--pe-muted); font-size: 12px; }
+/* The site's base stylesheet gives every <label> a bottom margin, which pushed "Emit" off the
+   centre line of its own toolbar group. Reset it and centre it explicitly. */
+.pe-lbl {
+  color: var(--pe-muted);
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+  font-weight: 400;
+}
 
 .pe-btn {
   appearance: none;
@@ -67,6 +91,13 @@
 .pe-btn.is-primary:hover { filter: brightness(1.08); }
 .pe-btn:disabled { opacity: .4; cursor: not-allowed; }
 .pe-btn:disabled:hover { background: var(--pe-panel-2); border-color: var(--pe-line-strong); }
+/* Keyboard focus must stay obvious (Tab has to reach every toolbar control) — but in the page's
+   own accent, not the browser's stark default ring. */
+.pe-btn:focus, .pe-menu-item:focus { outline: none; }
+.pe-btn:focus-visible, .pe-menu-item:focus-visible, .pe-select:focus-visible, .pe-num:focus-visible, .pe-slider:focus-visible {
+  outline: 2px solid var(--pe-accent);
+  outline-offset: 1px;
+}
 
 .pe-select, .pe-num {
   background: var(--pe-panel-2);
@@ -78,6 +109,92 @@
 }
 .pe-num { width: 52px; }
 .pe-slider { width: 96px; accent-color: var(--pe-accent); }
+.pe-speed { display: flex; align-items: center; gap: 7px; }
+.pe-speed-icon { display: block; flex: 0 0 auto; color: var(--pe-muted); cursor: default; }
+
+/* ---------------------------------------------------------------- menus */
+.pe-menu { position: relative; display: inline-flex; }
+.pe-menu-btn[aria-expanded="true"] { border-color: var(--pe-accent); background: #29313a; }
+.pe-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 210px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--pe-panel-2);
+  border: 1px solid var(--pe-line-strong);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.5);
+}
+.pe-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--pe-text);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pe-menu-item:hover { background: rgba(87,203,204,.14); color: #fff; }
+.pe-menu-item:disabled { color: var(--pe-muted); cursor: default; background: transparent; }
+.pe-menu-sep { height: 1px; margin: 4px 6px; background: var(--pe-line); }
+.pe-menu-header {
+  padding: 6px 10px 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--pe-muted);
+}
+
+/* ---------------------------------------------------------------- scrollbars
+   The default chrome scrollbar is a light slab on a dark surface — loud enough that the palette
+   read as a scrolling frame rather than a list. Thin, transparent-tracked, and only as visible
+   as it needs to be. */
+.pe-palette, .pe-errors, .pe-log-wrap, .pe-menu-list, .pe-detail-body, .pe-drawer-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pe-scroll) transparent;
+  overscroll-behavior: contain;
+}
+.pe-palette::-webkit-scrollbar,
+.pe-errors::-webkit-scrollbar,
+.pe-log-wrap::-webkit-scrollbar,
+.pe-menu-list::-webkit-scrollbar,
+.pe-detail-body::-webkit-scrollbar,
+.pe-drawer-body::-webkit-scrollbar { width: 9px; height: 9px; }
+.pe-palette::-webkit-scrollbar-track,
+.pe-errors::-webkit-scrollbar-track,
+.pe-log-wrap::-webkit-scrollbar-track,
+.pe-menu-list::-webkit-scrollbar-track,
+.pe-detail-body::-webkit-scrollbar-track,
+.pe-drawer-body::-webkit-scrollbar-track { background: transparent; }
+.pe-palette::-webkit-scrollbar-thumb,
+.pe-errors::-webkit-scrollbar-thumb,
+.pe-log-wrap::-webkit-scrollbar-thumb,
+.pe-menu-list::-webkit-scrollbar-thumb,
+.pe-detail-body::-webkit-scrollbar-thumb,
+.pe-drawer-body::-webkit-scrollbar-thumb {
+  background: var(--pe-scroll);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+.pe-palette::-webkit-scrollbar-thumb:hover,
+.pe-errors::-webkit-scrollbar-thumb:hover,
+.pe-log-wrap::-webkit-scrollbar-thumb:hover,
+.pe-menu-list::-webkit-scrollbar-thumb:hover,
+.pe-detail-body::-webkit-scrollbar-thumb:hover,
+.pe-drawer-body::-webkit-scrollbar-thumb:hover { background: var(--pe-muted); background-clip: content-box; }
+.pe-palette::-webkit-scrollbar-corner,
+.pe-log-wrap::-webkit-scrollbar-corner { background: transparent; }
 
 /* ---------------------------------------------------------------- body: palette + canvas */
 .pe-body { display: flex; flex: 1; min-height: 0; }
@@ -209,15 +326,40 @@
 
 .pe-token { filter: drop-shadow(0 0 4px currentColor); }
 
+/* ---------------------------------------------------------------- splitters
+   Both are grab bars, not decorations: they carry the whole hit area (a 1 px line is unhittable)
+   and only the centre rule is drawn. */
+.pe-resize-v {
+  flex: 0 0 7px;
+  height: 7px;
+  margin: -3px 0;
+  z-index: 6;
+  cursor: row-resize;
+  background: transparent;
+  touch-action: none;
+}
+.pe-resize-h {
+  flex: 0 0 7px;
+  width: 7px;
+  margin: 0 -3px;
+  z-index: 6;
+  cursor: col-resize;
+  background: transparent;
+  touch-action: none;
+}
+.pe-resize-v:hover, .pe-resize-v.is-dragging,
+.pe-resize-h:hover, .pe-resize-h.is-dragging { background: rgba(87,203,204,.35); }
+
 /* ---------------------------------------------------------------- bottom: errors + log */
 .pe-bottom {
   display: flex;
   height: 210px;
   flex: 0 0 210px;
+  min-height: 0;
   border-top: 1px solid var(--pe-line);
   background: var(--pe-panel);
 }
-.pe-panel { display: flex; flex-direction: column; min-width: 0; }
+.pe-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .pe-panel-errors { flex: 0 0 34%; border-right: 1px solid var(--pe-line); }
 .pe-panel-log { flex: 1; }
 .pe-panel-head {
@@ -229,6 +371,39 @@
   border-bottom: 1px solid var(--pe-line);
 }
 .pe-panel-head.has-errors { color: var(--pe-danger); }
+/* The error list is a header a visitor can roll up — collapsed, the panel is just its own head. */
+.pe-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--pe-line);
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  cursor: pointer;
+}
+.pe-panel-toggle:hover { background: var(--pe-panel-2); color: var(--pe-text); }
+.pe-panel-toggle:focus { outline: none; }
+.pe-panel-toggle:focus-visible { outline: 2px solid var(--pe-accent); outline-offset: -2px; }
+.pe-caret { font-size: 9px; line-height: 1; opacity: .8; }
+/* Collapsed beside the log, the panel becomes a narrow strip that is *all* header, so clicking
+   anywhere in it opens the list again — an empty body under a title bar would just be dead space. */
+.pe-panel-errors.is-collapsed { flex: 0 0 auto; }
+.pe-panel-errors.is-collapsed .pe-errors { display: none; }
+.pe-panel-errors.is-collapsed .pe-panel-toggle {
+  flex: 1;
+  align-items: flex-start;
+  padding-top: 8px;
+  border-bottom: 0;
+}
+/* Nothing to drag when the panel is rolled up. */
+.pe-panel-errors.is-collapsed + .pe-resize-h { display: none; }
 
 .pe-errors { overflow-y: auto; padding: 6px; flex: 1; }
 .pe-error-empty { color: var(--pe-ok); padding: 8px; font-size: 12.5px; }
@@ -308,9 +483,12 @@
   .pe-body { flex-direction: column; }
   .pe-palette { width: 100%; flex: 0 0 auto; max-height: 150px; border-right: none; border-bottom: 1px solid var(--pe-line); display: flex; flex-wrap: wrap; }
   .pe-canvas-wrap { height: 60vh; }
-  .pe-bottom { flex-direction: column; height: auto; flex: 0 0 auto; }
-  .pe-panel-errors { flex: 0 0 auto; border-right: none; border-bottom: 1px solid var(--pe-line); max-height: 160px; }
+  /* The splitters write inline sizes; `!important` is what keeps a resized desktop layout from
+     leaking into the stacked mobile one. */
+  .pe-bottom { flex-direction: column; height: auto !important; flex: 0 0 auto !important; }
+  .pe-panel-errors { flex: 0 0 auto !important; border-right: none; border-bottom: 1px solid var(--pe-line); max-height: 160px; }
   .pe-log-wrap { max-height: 240px; }
+  .pe-resize-v, .pe-resize-h { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -340,27 +518,87 @@
 }
 .pe-btn.is-held { border-color: var(--pe-warn); color: var(--pe-warn); }
 
-/* Per-port results under a node card, mirroring the product's result strip. */
-.pe-result-row { cursor: pointer; }
-.pe-result-hit { fill: transparent; }
-.pe-result-row:hover .pe-result-hit { fill: rgba(255, 255, 255, .05); }
-.pe-result-label { font-size: 9.5px; fill: var(--pe-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.pe-result-row:hover .pe-result-label { fill: var(--pe-text); }
-.pe-result-more { font-size: 9px; fill: var(--pe-muted); font-style: italic; }
+/* Per-port results in a drawer below the node card, mirroring the product's result strip.
+   HTML inside a foreignObject, because SVG text neither wraps nor stays inside the card — the
+   values are frequently wider than the node is. The foreignObject itself must not swallow clicks
+   meant for the canvas; only the drawer box does. */
+.pe-results { overflow: visible; pointer-events: none; }
+.pe-drawer {
+  pointer-events: auto;
+  cursor: default;
+  background: var(--pe-panel-2);
+  border: 1px solid var(--pe-line-strong);
+  border-radius: 7px;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--pe-text);
+  box-shadow: 0 3px 10px rgba(0,0,0,.35);
+}
+.pe-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 7px;
+  cursor: pointer;
+  color: var(--pe-muted);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  user-select: none;
+}
+.pe-drawer-head:hover { background: rgba(87,203,204,.1); color: var(--pe-text); }
+.pe-drawer-caret { font-size: 8px; line-height: 1; }
+.pe-drawer:not(.is-collapsed) .pe-drawer-head { border-bottom: 1px solid var(--pe-line); }
+.pe-drawer-body { padding: 3px; max-height: 130px; overflow-y: auto; }
+.pe-result-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.pe-result-row:hover { background: rgba(255,255,255,.06); }
+.pe-result-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 6px; transform: translateY(-1px); }
+.pe-result-port {
+  flex: 0 0 auto;
+  color: var(--pe-text);
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* Wrap rather than run out of the card: a long value is the normal case, not the exception. */
+.pe-result-val {
+  min-width: 0;
+  color: var(--pe-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.pe-result-row:hover .pe-result-val { color: var(--pe-text); }
+.pe-result-more { padding: 2px 4px 1px 15px; font-size: 9px; color: var(--pe-muted); font-style: italic; }
 
-/* Enlarged view of one output port. */
+/* Enlarged view of one output port. The point of the view is to *read* a value, so the card is
+   fully opaque and the canvas behind it is scrimmed and blurred out of contention — nothing
+   underneath may show through the text. */
 .pe-detail {
   position: fixed; inset: 0; z-index: 3000;
-  background: rgba(6, 9, 12, .72);
+  background: rgba(6, 9, 12, .8);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
+  font-size: 13px;
 }
 .pe-detail-card {
-  background: var(--pe-panel); border: 1px solid var(--pe-line);
+  background: var(--pe-panel); border: 1px solid var(--pe-line-strong);
   border-radius: 10px; width: min(860px, 100%); max-height: 80vh;
   display: flex; flex-direction: column; overflow: hidden;
   color: var(--pe-text);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
 }
+.pe-detail-head, .pe-detail-tabs { background: var(--pe-panel-2); }
+.pe-detail-body { background: var(--pe-panel); }
 .pe-detail-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--pe-line); }
 .pe-detail-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
 .pe-detail-titles { min-width: 0; }
