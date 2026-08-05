@@ -77,6 +77,8 @@ import io.metaloom.loom.db.jooq.tables.JooqTagCluster;
 import io.metaloom.loom.db.jooq.tables.JooqTagCollection;
 import io.metaloom.loom.db.jooq.tables.JooqTagUserMeta;
 import io.metaloom.loom.db.jooq.tables.JooqTask;
+import io.metaloom.loom.db.jooq.tables.JooqNotification;
+import io.metaloom.loom.db.jooq.tables.JooqTaskAssignee;
 import io.metaloom.loom.db.jooq.tables.JooqToken;
 import io.metaloom.loom.db.jooq.tables.JooqTokenPermission;
 import io.metaloom.loom.db.jooq.tables.JooqUser;
@@ -544,7 +546,17 @@ public class JooqPublic extends SchemaImpl {
     /**
      * The table <code>public.task</code>.
      */
+    /**
+     * The table <code>public.notification</code>.
+     */
+    public final JooqNotification NOTIFICATION = JooqNotification.NOTIFICATION;
+
     public final JooqTask TASK = JooqTask.TASK;
+
+    /**
+     * The table <code>public.task_assignee</code>.
+     */
+    public final JooqTaskAssignee TASK_ASSIGNEE = JooqTaskAssignee.TASK_ASSIGNEE;
 
     /**
      * The table <code>public.token</code>.
@@ -671,7 +683,9 @@ public class JooqPublic extends SchemaImpl {
             JooqTagCluster.TAG_CLUSTER,
             JooqTagCollection.TAG_COLLECTION,
             JooqTagUserMeta.TAG_USER_META,
+            JooqNotification.NOTIFICATION,
             JooqTask.TASK,
+            JooqTaskAssignee.TASK_ASSIGNEE,
             JooqToken.TOKEN,
             JooqTokenPermission.TOKEN_PERMISSION,
             JooqUser.USER,

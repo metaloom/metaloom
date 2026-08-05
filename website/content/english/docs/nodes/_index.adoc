@@ -94,6 +94,7 @@ The built-in nodes fall into four categories.
 | link:gdrive-source/[Google Drive Source] (`gdrive-source`) | — (source) | Enumerate media from Google Drive, picking up only what changed — including renames and moves
 | link:onedrive-source/[OneDrive Source] (`onedrive-source`) | — (source) | Enumerate media from OneDrive or a SharePoint library, picking up only what changed
 | link:filter/[Filter] (`filter`) | — (routing) | Route each item down one branch per configured bucket — the output port *is* the branch
+| link:tag/[Tag] (`tag`) | Any | Attach tags from rules over what upstream nodes worked out — a tagged asset is a findable asset
 | link:script/[Script] (`script`) | Any | Run your own code as a pipeline step and emit declared ports — list outputs fan out
 | link:s3-sink/[S3 Sink] (`s3-sink`) | Any | Upload produced files to an S3 bucket and register them as assets — its `artifacts` port takes **many**
 |===
@@ -121,7 +122,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`
 | Google Drive, OneDrive or SharePoint credentials | `gdrive-source`, `onedrive-source`
 | A reachable OpenAI-compatible language model endpoint | `llm`, `translate`, `filter`
-| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `metadata`, `filesystem-source`, `script`, `scene-layout`, `dominant-color`, `watermark` (images), `image-manipulation`, dedup
+| CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `metadata`, `filesystem-source`, `script`, `tag`, `scene-layout`, `dominant-color`, `watermark` (images), `image-manipulation`, dedup
 |===
 
 Pin the heavy kinds to dedicated or GPU workers via `CORTEX_NODE_WHITELIST` — see
@@ -245,6 +246,14 @@ watching a large drive costs a single request when nothing has happened. And bec
 drive keeps its identity when someone renames it or files it away, both report a move as a *move*
 rather than as a deletion followed by a fresh upload — so the metadata you have already built up
 stays attached to it.
+
+Automatic tagging::
+link:tag/[`tag`] attaches tags from rules you configure over what the pipeline already worked out —
+a quality metric, a transcript, a list of colour names. It matters because of where a tag lands:
+most analysis results sit on the asset where you can read them but not search them, while a tag
+becomes part of the asset's search document as soon as it is written. A vocabulary can be pinned to
+an allowed list so automatic tagging cannot litter the shared tag list, and the node only ever
+removes a tag it can prove it wrote itself.
 
 Branching a pipeline::
 link:filter/[`filter`] sorts items into buckets you configure and grows one output port per bucket,

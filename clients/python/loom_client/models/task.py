@@ -6,11 +6,45 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .base import CreatorEditorResponse, ListResponse, MetaModel
+from .base import CreatorEditorResponse, ListResponse, MetaModel, Model
 from .enums import TaskPriority, TaskStatus
 
 if TYPE_CHECKING:
     from .comment import CommentResponse
+
+
+@dataclass
+class TaskAssignRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.task.TaskAssignRequest``."""
+
+    #: Uuids of the users to assign the task to.
+    user_uuids: list[str] = field(default_factory=list)
+    #: Uuids of the groups to assign the task to.
+    group_uuids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class TaskAssigneeListResponse(ListResponse):
+    """Mirrors ``io.metaloom.loom.rest.model.task.TaskAssigneeListResponse``."""
+
+    #: Array which contains the found elements.
+    data: list[TaskAssigneeResponse] = field(default_factory=list)
+
+
+@dataclass
+class TaskAssigneeResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.task.TaskAssigneeResponse``."""
+
+    #: Uuid of the assigned user. Null when this entry assigns to a group.
+    user_uuid: str | None = None
+    #: Uuid of the assigned group. Null when this entry assigns to a user.
+    group_uuid: str | None = None
+    #: Display name of the assigned user or group.
+    name: str | None = None
+    #: ISO8601 formatted timestamp of when the assignment was made.
+    assigned: str | None = None
+    #: Uuid of the user who made the assignment. Null when that user has since been deleted.
+    assigner_uuid: str | None = None
 
 
 @dataclass
@@ -43,6 +77,8 @@ class TaskResponse(CreatorEditorResponse):
     #: ISO8601 formatted due date string.
     due_date: str | None = None
     comments: list[CommentResponse] = field(default_factory=list)
+    #: Users and groups this task is assigned to.
+    assignees: list[TaskAssigneeResponse] = field(default_factory=list)
 
 
 @dataclass

@@ -3,7 +3,7 @@ import {
   Box, Typography, Chip, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, IconButton, Drawer, Divider, Button,
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, CircularProgress,
-  FormControl, InputLabel, Select, MenuItem,
+  FormControl, InputLabel, Select, MenuItem, Autocomplete, Avatar, AvatarGroup, Tooltip,
 } from "@mui/material";
 import {
   TaskAltOutlined,
@@ -14,7 +14,12 @@ import { tokens } from "../../theme";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { createTask, deleteTask, listTasks, TaskResponse, updateTask } from "../../api/tasks";
+import {
+  assignTask, createTask, deleteTask, listTasks, TaskAssigneeResponse, TaskResponse,
+  unassignTaskFromGroup, unassignTaskFromUser, updateTask,
+} from "../../api/tasks";
+import { listUsers } from "../../api/users";
+import { listGroups } from "../../api/groups";
 import {
   createTaskReaction, deleteTaskReaction, listTaskReactions,
   ReactionResponseItem, TaskReactionType,
@@ -23,6 +28,7 @@ import { CommentResponse, createCommentForTask, listCommentsForTask, updateComme
 import { ReactionsPanel } from "../reactions/ReactionsPanel";
 import { CommentItem } from "../assetDetail/CommentItem";
 import { commentResponseToComment } from "../assetDetail/helpers";
+import { threadComments } from "./commentThread";
 import { useTranslation } from "react-i18next";
 
 const priorityColor: Record<string, string> = {
@@ -57,6 +63,79 @@ function PrioritySelect({ value, onChange, testId }: { value: string; onChange: 
   );
 }
 
+// ── Assignees ─────────────────────────────────────────────────────────────
+
+/** A user or a group, flattened into one option list so a single control covers both. */
+export interface AssigneeOption {
+  uuid: string;
+  name: string;
+  kind: "USER" | "GROUP";
+}
+
+export function assigneeLabel(assignee: TaskAssigneeResponse): string {
+  // The server resolves `name` onto the response; the uuid fallback only shows when the
+  // referenced user or group has since been deleted.
+  return assignee.name ?? assignee.userUuid ?? assignee.groupUuid ?? "?";
+}
+
+/** Group assignments are prefixed so a group named "alice" cannot be mistaken for a person. */
+export function assigneeDisplay(assignee: TaskAssigneeResponse): string {
+  const label = assigneeLabel(assignee);
+  return assignee.groupUuid ? `@${label}` : label;
+}
+
+function AssigneeAvatars({ assignees, testId }: { assignees?: TaskAssigneeResponse[]; testId?: string }) {
+  if (!assignees || assignees.length === 0) {
+    return <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>—</Typography>;
+  }
+  return (
+    <AvatarGroup
+      max={4}
+      data-testid={testId}
+      sx={{ justifyContent: "flex-end", "& .MuiAvatar-root": { width: 22, height: 22, fontSize: "0.6rem" } }}
+    >
+      {assignees.map((a) => (
+        <Tooltip key={a.userUuid ?? a.groupUuid} title={assigneeDisplay(a)}>
+          <Avatar sx={{ bgcolor: a.groupUuid ? tokens.accent.blue : tokens.primary.dark }}>
+            {assigneeLabel(a).charAt(0).toUpperCase()}
+          </Avatar>
+        </Tooltip>
+      ))}
+    </AvatarGroup>
+  );
+}
+
+function AssigneeSelect({
+  options, value, onChange, testId,
+}: {
+  options: AssigneeOption[];
+  value: AssigneeOption[];
+  onChange: (v: AssigneeOption[]) => void;
+  testId: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Autocomplete
+      multiple
+      size="small"
+      options={options}
+      value={value}
+      onChange={(_e, v) => onChange(v)}
+      getOptionLabel={(o) => (o.kind === "GROUP" ? `@${o.name}` : o.name)}
+      // Users and groups are separate uuid spaces, so identity has to include the kind.
+      isOptionEqualToValue={(a, b) => a.uuid === b.uuid && a.kind === b.kind}
+      groupBy={(o) => t(`tasks.assignees.group.${o.kind}`)}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={t("tasks.assignees.label")}
+          inputProps={{ ...params.inputProps, "data-testid": testId }}
+        />
+      )}
+    />
+  );
+}
+
 // ── Task Detail Drawer ────────────────────────────────────────────────────
 function TaskDetailDrawer({
   task,
@@ -76,6 +155,7 @@ function TaskDetailDrawer({
   const [reactions, setReactions] = useState<ReactionResponseItem[]>([]);
   const [comments, setComments] = useState<CommentResponse[]>([]);
   const [commentInput, setCommentInput] = useState("");
+  const [replyTo, setReplyTo] = useState<CommentResponse | null>(null);
   const [postingComment, setPostingComment] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
 
@@ -115,9 +195,10 @@ function TaskDetailDrawer({
     if (!text || !token || !taskUuid || postingComment) return;
     setPostingComment(true);
     try {
-      const created = await createCommentForTask(token, taskUuid, { text });
+      const created = await createCommentForTask(token, taskUuid, { text, parentUuid: replyTo?.uuid });
       setComments((prev) => [created, ...prev]);
       setCommentInput("");
+      setReplyTo(null);
     } catch {
       showToast(t("assetDetail.comment.postError"), "error");
     } finally {
@@ -190,8 +271,8 @@ function TaskDetailDrawer({
             )}
           </Box>
 
-          {/* Priority chip */}
-          <Box sx={{ display: "flex", gap: 1 }}>
+          {/* Priority chip + assignees */}
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
             <Chip
               icon={<FlagOutlined sx={{ fontSize: 13, ml: "6px !important" }} />}
               label={prio}
@@ -199,6 +280,19 @@ function TaskDetailDrawer({
               data-testid="tasks-drawer-priority-chip"
               sx={{ bgcolor: `${pc}22`, color: pc, border: `1px solid ${pc}44`, fontWeight: 700 }}
             />
+            {(task.assignees ?? []).map((a) => (
+              <Chip
+                key={a.userUuid ?? a.groupUuid}
+                label={assigneeDisplay(a)}
+                size="small"
+                data-testid="tasks-drawer-assignee-chip"
+                sx={{
+                  bgcolor: tokens.bg.base,
+                  color: tokens.text.secondary,
+                  border: `1px solid ${tokens.border.default}`,
+                }}
+              />
+            ))}
           </Box>
 
           <Divider sx={{ borderColor: tokens.border.subtle }} />
@@ -277,6 +371,20 @@ function TaskDetailDrawer({
                 {postingComment ? <CircularProgress size={18} /> : <SendOutlined fontSize="small" />}
               </IconButton>
             </Box>
+            {replyTo && (
+              <Box
+                data-testid="tasks-comment-reply-banner"
+                sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 0.5, mb: 1,
+                  borderLeft: `2px solid ${tokens.primary.main}`, bgcolor: tokens.bg.overlay }}
+              >
+                <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.72rem", flex: 1 }} noWrap>
+                  {t("tasks.comments.replyingTo", { text: replyTo.text ?? "" })}
+                </Typography>
+                <IconButton size="small" data-testid="tasks-comment-reply-cancel" onClick={() => setReplyTo(null)} sx={{ p: 0.25 }}>
+                  <CloseOutlined sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Box>
+            )}
             {comments.length === 0 ? (
               <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 3, gap: 1 }}>
                 <ChatBubbleOutlineOutlined sx={{ fontSize: 28, color: tokens.text.tertiary }} />
@@ -286,19 +394,36 @@ function TaskDetailDrawer({
               </Box>
             ) : (
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                {comments.map((c) => (
-                  <CommentItem
-                    key={c.uuid}
-                    comment={commentResponseToComment(c)}
-                    highlighted={false}
-                    currentUserUuid={userUuid}
-                    token={token}
-                    editing={editingCommentId === c.uuid}
-                    onStartEdit={() => setEditingCommentId(c.uuid)}
-                    onCancelEdit={() => setEditingCommentId(null)}
-                    onEdit={handleEditComment}
-                    onDelete={handleDeleteComment}
-                  />
+                {threadComments(comments).map(({ root, replies }) => (
+                  <React.Fragment key={root.uuid}>
+                    <CommentItem
+                      comment={commentResponseToComment(root)}
+                      highlighted={false}
+                      currentUserUuid={userUuid}
+                      token={token}
+                      editing={editingCommentId === root.uuid}
+                      onStartEdit={() => setEditingCommentId(root.uuid)}
+                      onCancelEdit={() => setEditingCommentId(null)}
+                      onEdit={handleEditComment}
+                      onDelete={handleDeleteComment}
+                      onReply={() => setReplyTo(root)}
+                    />
+                    {replies.map((r) => (
+                      <CommentItem
+                        key={r.uuid}
+                        comment={commentResponseToComment(r)}
+                        highlighted={false}
+                        currentUserUuid={userUuid}
+                        token={token}
+                        editing={editingCommentId === r.uuid}
+                        onStartEdit={() => setEditingCommentId(r.uuid)}
+                        onCancelEdit={() => setEditingCommentId(null)}
+                        onEdit={handleEditComment}
+                        onDelete={handleDeleteComment}
+                        isReply
+                      />
+                    ))}
+                  </React.Fragment>
                 ))}
               </Box>
             )}
@@ -335,6 +460,9 @@ function TaskRow({ task, onSelect }: { task: TaskResponse; onSelect: (t: TaskRes
         <Chip label={prio} size="small" data-testid="tasks-row-priority-chip" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${pc}22`, color: pc, fontWeight: 700 }} />
       </TableCell>
       <TableCell>
+        <AssigneeAvatars assignees={task.assignees} testId="tasks-row-assignees" />
+      </TableCell>
+      <TableCell>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
           {task.status?.created ? new Date(task.status.created).toLocaleDateString() : "—"}
         </Typography>
@@ -359,6 +487,33 @@ export default function TasksView() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPriority, setEditPriority] = useState("MEDIUM");
+  const [assigneeOptions, setAssigneeOptions] = useState<AssigneeOption[]>([]);
+  const [newAssignees, setNewAssignees] = useState<AssigneeOption[]>([]);
+  const [editAssignees, setEditAssignees] = useState<AssigneeOption[]>([]);
+
+  // Users and groups are loaded once for the picker. Failing to load them must not break
+  // task management, so the control simply offers nothing.
+  useEffect(() => {
+    if (!token) return;
+    void Promise.all([listUsers(token), listGroups(token)])
+      .then(([users, groups]) => {
+        setAssigneeOptions([
+          ...(users.data ?? []).map((u) => ({ uuid: u.uuid, name: u.username, kind: "USER" as const })),
+          ...(groups.data ?? []).map((g) => ({ uuid: g.uuid, name: g.name, kind: "GROUP" as const })),
+        ]);
+      })
+      .catch(() => setAssigneeOptions([]));
+  }, [token]);
+
+  const toOptions = useCallback(
+    (assignees?: TaskAssigneeResponse[]): AssigneeOption[] =>
+      (assignees ?? []).map((a) => ({
+        uuid: (a.userUuid ?? a.groupUuid)!,
+        name: assigneeLabel(a),
+        kind: a.groupUuid ? ("GROUP" as const) : ("USER" as const),
+      })),
+    [],
+  );
 
   const loadTaskList = useCallback(() => {
     if (!token) {
@@ -380,6 +535,7 @@ export default function TasksView() {
     setNewTitle("");
     setNewDescription("");
     setNewPriority("MEDIUM");
+    setNewAssignees([]);
     setCreateOpen(true);
   };
 
@@ -388,7 +544,40 @@ export default function TasksView() {
     setEditTitle(selectedTask.title ?? "");
     setEditDescription(selectedTask.description ?? "");
     setEditPriority(selectedTask.priority?.toUpperCase() ?? "MEDIUM");
+    setEditAssignees(toOptions(selectedTask.assignees));
     setEditMode(true);
+  };
+
+  /**
+   * Reconcile the picker's selection against what the task already has.
+   *
+   * The REST surface is deliberately additive plus explicit deletes rather than a
+   * replace-all, so the diff has to happen here. Doing nothing when nothing changed
+   * keeps an unrelated title edit from re-writing the assignment rows.
+   */
+  const syncAssignees = async (taskUuid: string, before: TaskAssigneeResponse[] | undefined, after: AssigneeOption[]) => {
+    if (!token) return;
+    const current = toOptions(before);
+    const key = (o: AssigneeOption) => `${o.kind}:${o.uuid}`;
+    const currentKeys = new Set(current.map(key));
+    const nextKeys = new Set(after.map(key));
+
+    const added = after.filter((o) => !currentKeys.has(key(o)));
+    const removed = current.filter((o) => !nextKeys.has(key(o)));
+
+    if (added.length > 0) {
+      await assignTask(token, taskUuid, {
+        userUuids: added.filter((o) => o.kind === "USER").map((o) => o.uuid),
+        groupUuids: added.filter((o) => o.kind === "GROUP").map((o) => o.uuid),
+      });
+    }
+    for (const o of removed) {
+      if (o.kind === "USER") {
+        await unassignTaskFromUser(token, taskUuid, o.uuid);
+      } else {
+        await unassignTaskFromGroup(token, taskUuid, o.uuid);
+      }
+    }
   };
 
   const closeDrawer = () => {
@@ -405,7 +594,11 @@ export default function TasksView() {
         description: newDescription.trim() || undefined,
         priority: newPriority,
       });
-      setTasks((prev) => [created, ...prev]);
+      // Assignment is a second call — a task has to exist before it can be assigned.
+      await syncAssignees(created.uuid, [], newAssignees);
+      // Refetch rather than splicing `created` in: it was rendered before the assignment
+      // rows existed, so its `assignees` array is stale.
+      await loadTaskList();
       setCreateOpen(false);
     } finally {
       setSaving(false);
@@ -421,8 +614,13 @@ export default function TasksView() {
         description: editDescription.trim() || undefined,
         priority: editPriority,
       });
-      setTasks((prev) => prev.map((task) => (task.uuid === updated.uuid ? updated : task)));
-      setSelectedTask(updated);
+      await syncAssignees(selectedTask.uuid, selectedTask.assignees, editAssignees);
+      const withAssignees = { ...updated, assignees: editAssignees.map((o) => ({
+        [o.kind === "GROUP" ? "groupUuid" : "userUuid"]: o.uuid,
+        name: o.name,
+      })) as TaskAssigneeResponse[] };
+      setTasks((prev) => prev.map((task) => (task.uuid === withAssignees.uuid ? withAssignees : task)));
+      setSelectedTask(withAssignees);
       setEditMode(false);
     } finally {
       setSaving(false);
@@ -473,6 +671,7 @@ export default function TasksView() {
                 <TableRow>
                   <TableCell>{t("tasks.table.task")}</TableCell>
                   <TableCell>{t("tasks.table.priority")}</TableCell>
+                  <TableCell>{t("tasks.table.assignees")}</TableCell>
                   <TableCell>{t("tasks.table.created")}</TableCell>
                 </TableRow>
               </TableHead>
@@ -533,6 +732,12 @@ export default function TasksView() {
             minRows={3}
           />
           <PrioritySelect value={editPriority} onChange={setEditPriority} testId="tasks-edit-priority-select" />
+          <AssigneeSelect
+            options={assigneeOptions}
+            value={editAssignees}
+            onChange={setEditAssignees}
+            testId="tasks-edit-assignees-input"
+          />
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
             <Button size="small" onClick={() => setEditMode(false)}>{t("tasks.button.cancel")}</Button>
             <Button size="small" variant="contained" onClick={handleSaveEdit} disabled={saving || !editTitle.trim()} data-testid="tasks-save-button">
@@ -573,6 +778,12 @@ export default function TasksView() {
             minRows={3}
           />
           <PrioritySelect value={newPriority} onChange={setNewPriority} testId="tasks-priority-select" />
+          <AssigneeSelect
+            options={assigneeOptions}
+            value={newAssignees}
+            onChange={setNewAssignees}
+            testId="tasks-assignees-input"
+          />
         </DialogContent>
         <DialogActions>
           <Button size="small" onClick={() => setCreateOpen(false)}>{t("tasks.button.cancel")}</Button>

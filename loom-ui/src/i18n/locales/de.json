@@ -350,7 +350,8 @@
     "table": {
       "task": "Aufgabe",
       "priority": "Priorität",
-      "created": "Erstellt"
+      "created": "Erstellt",
+      "assignees": "Zugewiesen an"
     },
     "status": {
       "PENDING": "Ausstehend",
@@ -380,12 +381,21 @@
       "title": "Kommentare",
       "addPlaceholder": "Kommentar schreiben…",
       "post": "Kommentar senden",
-      "empty": "Noch keine Kommentare"
+      "empty": "Noch keine Kommentare",
+      "replyingTo": "Antwort auf: {{text}}"
     },
     "emptyState": {
       "title": "Noch nichts zu tun",
       "description": "Aufgaben steuern Review, Freigabe und Nacharbeit an deinen Medien — mit Priorität, Zuständigkeit und Fälligkeit.",
       "action": "Erste Aufgabe anlegen"
+    },
+    "assignees": {
+      "label": "Zugewiesen an",
+      "group": {
+        "USER": "Benutzer",
+        "GROUP": "Gruppen"
+      },
+      "none": "Nicht zugewiesen"
     }
   },
   "monitoring": {
@@ -1571,7 +1581,8 @@
       "cancel": "Abbrechen",
       "postError": "Kommentar konnte nicht gesendet werden",
       "editError": "Kommentar konnte nicht aktualisiert werden",
-      "deleteError": "Kommentar konnte nicht gelöscht werden"
+      "deleteError": "Kommentar konnte nicht gelöscht werden",
+      "reply": "Antworten"
     },
     "annotation": {
       "add": "Anmerkung hinzufügen",
@@ -1807,5 +1818,15 @@
     "create": "Neue Notiz",
     "deleteTitle": "Notiz löschen",
     "deleteBody": "Die Notiz wird endgültig entfernt — es gibt noch keine Versionshistorie."
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "markAllRead": "Alle als gelesen markieren",
+    "clearAll": "Alle löschen",
+    "dismiss": "Verwerfen",
+    "emptyState": {
+      "title": "Alles erledigt",
+      "description": "Zuweisungen, Kommentare und fehlgeschlagene Läufe erscheinen hier."
+    }
   }
 }

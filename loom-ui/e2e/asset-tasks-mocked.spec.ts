@@ -22,6 +22,7 @@ interface StoredTask {
   priority?: string;
   taskStatus?: string;
   dueDate?: string;
+  assignees?: { userUuid?: string; groupUuid?: string; name?: string }[];
   status: { creator: { uuid: string }; created: string };
 }
 
@@ -45,6 +46,10 @@ function seededTask(): StoredTask {
     priority: "HIGH",
     taskStatus: "PENDING",
     dueDate: "2026-08-01T12:00:00Z",
+    assignees: [
+      { userUuid: "55555555-5555-5555-5555-555555555555", name: "joedoe" },
+      { groupUuid: "66666666-6666-6666-6666-666666666666", name: "editors" },
+    ],
     status: { creator: { uuid: ME_UUID }, created: "2026-07-01T09:00:00Z" },
   };
 }
@@ -140,8 +145,8 @@ test.describe("Asset tasks – mocked e2e", () => {
     await expect(item.getByTestId("asset-task-priority-chip")).toHaveText("High");
     await expect(item.getByTestId("asset-task-due-date")).toBeVisible();
 
-    // Fields the REST API does not provide must not render.
-    await expect(page.getByText(/assignee/i)).toHaveCount(0);
+    // Assignees are backed by REST since V2.69 and render as an avatar group.
+    await expect(item.getByTestId("asset-task-assignees")).toBeVisible();
   });
 
   test("empty state renders when the asset has no assigned tasks", async ({ page }) => {
@@ -170,7 +175,7 @@ test.describe("Asset tasks – mocked e2e", () => {
     expect(calls).toEqual(["POST /tasks (task-1)", "POST /assets/tasks (task-1)"]);
   });
 
-  test("task drawer shows taskStatus, priority and due date but no assignee/tags", async ({ page }) => {
+  test("task drawer shows taskStatus, priority, due date and assignees but no tags", async ({ page }) => {
     await loginAndOpenTasksTab(page, [seededTask()]);
 
     await page.getByTestId("asset-task-item").click();
@@ -183,8 +188,7 @@ test.describe("Asset tasks – mocked e2e", () => {
     await expect(drawer.getByText("Due Date")).toBeVisible();
     await expect(drawer.getByText("Created", { exact: true })).toBeVisible();
 
-    // Mock-only fields are gone from the drawer.
-    await expect(drawer.getByText("Assignee")).toHaveCount(0);
+    // Tags remain mock-only; assignees are not.
     await expect(drawer.getByText("Tags", { exact: true })).toHaveCount(0);
   });
 });

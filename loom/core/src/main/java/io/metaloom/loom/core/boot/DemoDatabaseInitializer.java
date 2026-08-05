@@ -74,6 +74,9 @@ import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.group.GroupDao;
+import io.metaloom.loom.db.model.notification.Notification;
+import io.metaloom.loom.db.model.notification.NotificationDao;
+import io.metaloom.loom.api.notification.NotificationType;
 import io.metaloom.loom.db.model.memory.MemoryDenyRule;
 import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntry;
@@ -167,6 +170,8 @@ public class DemoDatabaseInitializer {
 	private final PipelineDao pipelineDao;
 	private final AssetPoolDao assetPoolDao;
 	private final GroupDao groupDao;
+
+	private final NotificationDao notificationDao;
 	private final RoleDao roleDao;
 	private final PermissionDao permissionDao;
 	private final TaskDao taskDao;
@@ -196,7 +201,7 @@ public class DemoDatabaseInitializer {
 	@Inject
 	public DemoDatabaseInitializer(UserDao userDao, AssetDao assetDao, SpaceDao spaceDao,
 		TagDao tagDao, CollectionDao collectionDao, LibraryDao libraryDao, PipelineDao pipelineDao, AssetPoolDao assetPoolDao,
-		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao,
+		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao, NotificationDao notificationDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
 		CommentDao commentDao, BlacklistDao blacklistDao, MemoryDenyRuleDao memoryDenyRuleDao, ClusterDao clusterDao, PersonDao personDao,
 		DetectionDao detectionDao,
@@ -212,6 +217,7 @@ public class DemoDatabaseInitializer {
 		this.pipelineDao = pipelineDao;
 		this.assetPoolDao = assetPoolDao;
 		this.groupDao = groupDao;
+		this.notificationDao = notificationDao;
 		this.roleDao = roleDao;
 		this.permissionDao = permissionDao;
 		this.taskDao = taskDao;
@@ -501,26 +507,56 @@ public class DemoDatabaseInitializer {
 		// --- Tasks ---
 		// Every task is attached to the asset it is about, so the Tasks tab of the asset detail
 		// view has content and the task board shows a realistic mix of statuses and priorities.
-		createAssetTask(admin, imageAssets[0], "Colour-grade the hero shot",
+		Task taskColourGrade = createAssetTask(admin, imageAssets[0], "Colour-grade the hero shot",
 			"The white balance drifts warm in the top-left quadrant — regrade before the campaign export.",
 			TaskPriority.HIGH, TaskStatus.PENDING, 3);
-		createAssetTask(admin, imageAssets[2], "Clear building rights",
+		Task taskBuildingRights = createAssetTask(admin, imageAssets[2], "Clear building rights",
 			"Confirm the property release for the skyline before this goes into the paid campaign.",
 			TaskPriority.CRITICAL, TaskStatus.REVIEW, 1);
-		createAssetTask(admin, imageAssets[3], "Retouch studio portrait",
+		Task taskRetouch = createAssetTask(admin, imageAssets[3], "Retouch studio portrait",
 			"Light skin retouching and a tighter crop for the 1:1 social variant.",
 			TaskPriority.MEDIUM, TaskStatus.ACCEPTED, 7);
 		createAssetTask(admin, videoAssets[1], "Tag city timelapse",
 			"Assign accurate location and time-of-day tags to timelapse-city.mp4 for discoverability.",
 			TaskPriority.LOW, TaskStatus.PENDING, 14);
-		createAssetTask(admin, videoAssets[2], "Approve interview cut",
+		Task taskInterviewCut = createAssetTask(admin, videoAssets[2], "Approve interview cut",
 			"Review the latest interview cut and approve it for publishing.",
 			TaskPriority.HIGH, TaskStatus.REVIEW, 2);
-		createAssetTask(admin, audioAssets[1], "Check transcript accuracy",
+		Task taskTranscript = createAssetTask(admin, audioAssets[1], "Check transcript accuracy",
 			"Spot-check the ASR transcript of the podcast episode against the audio.",
 			TaskPriority.MEDIUM, TaskStatus.PENDING, 5);
-		createTask(admin, "Review metadata quality", "Check imported assets for missing descriptions and keywords.",
+		Task metadataTask = createTask(admin, "Review metadata quality",
+			"Check imported assets for missing descriptions and keywords.",
 			TaskPriority.LOW, TaskStatus.PENDING, 21);
+
+		// --- Task assignees ---
+		// A mix of user-assigned, group-assigned and unassigned tasks, so the avatar column
+		// and the "@group" chips both have something to show on a fresh container. Groups and
+		// users are resolved by name rather than threaded down from the ACL section above,
+		// which runs in a different method.
+		assignDemoTask(taskColourGrade, "editor", null);
+		assignDemoTask(taskBuildingRights, "editor", "Editors");
+		assignDemoTask(taskInterviewCut, null, "Editors");
+		assignDemoTask(taskTranscript, "viewer", null);
+		assignDemoTask(metadataTask, "editor", "Viewers");
+		// taskRetouch and taskTimelapse are deliberately left unassigned — an all-assigned
+		// board would hide the empty-assignee rendering.
+
+		// --- Notifications ---
+		// The assignments above run through the DAO rather than the REST layer, so no dispatch
+		// happened. Seed the admin's inbox by hand instead, with a mix of read and unread so the
+		// bell shows a badge AND the popover shows both renderings on first boot.
+		seedDemoNotification(admin, NotificationType.TASK_ASSIGNED, false,
+			"editor assigned you \"Clear building rights\"",
+			"Confirm the property release for the skyline before this goes into the paid campaign.",
+			taskBuildingRights);
+		seedDemoNotification(admin, NotificationType.TASK_COMMENT, false,
+			"editor commented on \"Approve interview cut\"",
+			"The second cut is tighter — take another look when you get a moment.",
+			taskInterviewCut);
+		seedDemoNotification(admin, NotificationType.TASK_STATUS_CHANGED, true,
+			"editor moved \"Retouch studio portrait\" from PENDING to ACCEPTED",
+			null, taskRetouch);
 
 		// --- Annotations ---
 		Annotation ann1 = annotationDao.createAnnotation(admin, imageAssets[0], "Color correction needed", AnnotationType.FEEDBACK);
@@ -825,6 +861,39 @@ public class DemoDatabaseInitializer {
 		taskDao.store(task);
 		log.info("Created demo task: {}", title);
 		return task;
+	}
+
+	/**
+	 * Give a demo task an owner: a user, a group, or both.
+	 *
+	 * <p>
+	 * Resolved by name because the ACL section that creates the demo users and groups runs in a different method. A missing name is logged and
+	 * skipped rather than thrown - {@code BootstrapInitializer} swallows failures here, so an exception would silently truncate everything seeded
+	 * after this point.
+	 * </p>
+	 *
+	 * @param username  the demo user to assign to, or null
+	 * @param groupName the demo group to assign to, or null
+	 */
+	private void assignDemoTask(Task task, String username, String groupName) {
+		if (username != null) {
+			User user = userDao.loadByUsername(username);
+			if (user == null) {
+				log.warn("Demo user '{}' not found; leaving task '{}' unassigned", username, task.getTitle());
+			} else {
+				taskDao.assignUser(task.getUuid(), user.getUuid(), task.getCreatorUuid());
+				log.info("Assigned demo task '{}' to user {}", task.getTitle(), username);
+			}
+		}
+		if (groupName != null) {
+			Group group = groupDao.loadByName(groupName);
+			if (group == null) {
+				log.warn("Demo group '{}' not found; leaving task '{}' unassigned", groupName, task.getTitle());
+			} else {
+				taskDao.assignGroup(task.getUuid(), group.getUuid(), task.getCreatorUuid());
+				log.info("Assigned demo task '{}' to group {}", task.getTitle(), groupName);
+			}
+		}
 	}
 
 	/**
@@ -1279,6 +1348,13 @@ public class DemoDatabaseInitializer {
 	 * because the demo container has nothing to run them on. Reading a photo's title, keywords,
 	 * licence and GPS position is part of taking the file in.
 	 * </p>
+	 *
+	 * <p>
+	 * The tag node is here for the same reason, and it is what makes the metadata <em>findable</em>:
+	 * the envelope it reads lands in {@code asset_json_comp}, which no query reaches, while a tag goes
+	 * into {@code tag_asset} and is folded into the asset's search document by a trigger. Two rules
+	 * are enough to show it.
+	 * </p>
 	 */
 	static JsonObject mediumDefinition() {
 		return new JsonObject()
@@ -1287,7 +1363,21 @@ public class DemoDatabaseInitializer {
 					.add(node("pn2", "filter", "Media Filter", "Route each item; unrouted items flow out the 'other' port", 260, 160))
 					.add(node("pn3", "sha256", "SHA-256 Hash", "Compute hash", 460, 60))
 					.add(node("pn4", "fingerprint", "Fingerprint", "Audio/video fingerprint", 460, 260))
-					.add(node("pn5", "metadata", "Asset Metadata", "Read the metadata inside each file", 460, 400)))
+					.add(node("pn5", "metadata", "Asset Metadata", "Read the metadata inside each file", 460, 400))
+					.add(node("pn6", "tag", "Auto Tag", "Tag what the metadata says about the file", 700, 400,
+						new JsonObject()
+							.put("collection", "auto")
+							.put("rules", new JsonArray()
+								.add(new JsonObject()
+									.put("id", "geotagged")
+									.put("tag", "geotagged")
+									.put("when", new JsonArray().add(new JsonObject()
+										.put("input", "struct").put("path", "geo.lat").put("op", "EXISTS"))))
+								.add(new JsonObject()
+									.put("id", "licensed")
+									.put("tag", "licensed")
+									.put("when", new JsonArray().add(new JsonObject()
+										.put("input", "struct").put("path", "rights.licenseId").put("op", "NOT_BLANK"))))))))
 				.put("edges", new JsonArray()
 					.add(edge("pe1", "pn1", "media", "pn2", "media"))
 					// The filter routes each item down one branch; with no buckets configured every
@@ -1297,7 +1387,11 @@ public class DemoDatabaseInitializer {
 					// Straight off the source, deliberately bypassing the filter: this node
 					// reads images, documents, audio and video alike, so filtering ahead of it would
 					// only throw away metadata the library wants.
-					.add(edge("pe4", "pn1", "media", "pn5", "media")));
+					.add(edge("pe4", "pn1", "media", "pn5", "media"))
+					// The tag node needs the item as well as the metadata: 'media' is its required
+					// port and 'struct' is what the rules address by path.
+					.add(edge("pe5", "pn1", "media", "pn6", "media"))
+					.add(edge("pe6", "pn5", "metadata", "pn6", "struct")));
 	}
 
 	static JsonObject complexDefinition() {
@@ -1930,5 +2024,27 @@ public class DemoDatabaseInitializer {
 			builder.append(Character.forDigit(b & 0xF, 16));
 		}
 		return builder.toString();
+	}
+
+	/**
+	 * Put one entry in a user's inbox.
+	 *
+	 * <p>
+	 * Written straight through the DAO: the demo seeder does not go through REST, so
+	 * {@code NotificationDispatcher} never runs and nothing would otherwise land in the bell.
+	 * </p>
+	 */
+	private void seedDemoNotification(User recipient, NotificationType type, boolean read, String title, String body, Task task) {
+		Notification notification = notificationDao.createNotification(recipient.getUuid(), recipient.getUuid(), type, title);
+		notification.setBody(body);
+		notification.setRead(read);
+		if (read) {
+			notification.setReadAt(Instant.now());
+		}
+		if (task != null) {
+			notification.setTaskUuid(task.getUuid());
+		}
+		notificationDao.store(notification);
+		log.info("Created demo notification: {}", title);
 	}
 }

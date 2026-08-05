@@ -291,8 +291,19 @@ See link:../chat/[Chat & AI Agent] for the streaming event protocol.
 
 Additional endpoints exist for: `attachments`, `tasks`, `comments`, `reactions`,
 `embeddings`, `spaces`, `annotations`, `persons`, `clusters`, `blacklists`, `pools` (asset pools),
-`tokens` (API keys), `me`, `health`, and the pipeline node metadata under `pipeline/node-descriptors`
-and `pipeline/content-types`. Most follow the same CRUD pattern under `/api/v1/<resource>`.
+`tokens` (API keys), `notifications`, `me`, `health`, and the pipeline node metadata under
+`pipeline/node-descriptors` and `pipeline/content-types`. Most follow the same CRUD pattern under
+`/api/v1/<resource>`.
+
+Two of them deviate deliberately:
+
+* `tasks/<uuid>/assignees` — `GET` lists who a task is assigned to, `POST` adds users and/or groups,
+and the two `DELETE` sub-paths `assignees/users/<uuid>` and `assignees/groups/<uuid>` remove one.
+* `notifications` — the caller's own inbox, and read-only apart from dismissal: there is no create
+route, because notifications are raised by the server when something happens. `POST
+/notifications/<uuid>` marks one read, `POST /notifications/read-all` marks them all, `DELETE
+/notifications/<uuid>` dismisses one and `DELETE /notifications` clears the inbox. Every route sees
+only your own entries; another user's notification answers `404`.
 
 == Error Responses
 

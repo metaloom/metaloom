@@ -10,6 +10,7 @@ import { ToastProvider } from "./context/ToastContext";
 import { NodeRegistryProvider } from "./context/NodeRegistryContext";
 import { ThemeModeProvider, useThemeMode } from "./context/ThemeContext";
 import { UploadProvider } from "./features/uploads/UploadContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import AppShell from "./layout/AppShell";
 import LoginPage from "./features/auth/LoginPage";
 
@@ -26,9 +27,11 @@ function AuthGate() {
   return (
     <NodeRegistryProvider>
       <SpaceProvider>
+        <NotificationProvider>
         <UploadProvider>
           <AppShell />
         </UploadProvider>
+        </NotificationProvider>
       </SpaceProvider>
     </NodeRegistryProvider>
   );

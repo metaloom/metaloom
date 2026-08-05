@@ -207,7 +207,7 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/binaries` | `AssetBinaryEndpoint` | Standalone binary metadata CRUD |
 | `/tokens` | `TokenEndpoint` | API tokens (§3) |
 | `/tags` | `TagEndpoint` | + `/:uuid/rating` — POST, GET, DELETE (per-user tag rating) |
-| `/tasks` | `TaskEndpoint` | + `/:taskUuid/reactions` (POST, GET) and `/:taskUuid/reactions/:reactionUuid` (GET, POST, DELETE); + `/:taskUuid/comments` (POST, GET) |
+| `/tasks` | `TaskEndpoint` | + `/:taskUuid/reactions` (POST, GET) and `/:taskUuid/reactions/:reactionUuid` (GET, POST, DELETE); + `/:taskUuid/comments` (POST, GET); + **assignees**: `/:taskUuid/assignees` (GET, POST — additive, body `{userUuids[], groupUuids[]}`) and `DELETE /:taskUuid/assignees/users/:userUuid` \| `/groups/:groupUuid`. Split DELETE sub-paths because a collection DELETE cannot name *which* assignee and a DELETE body is unevenly supported. Reuses `READ_TASK`/`UPDATE_TASK` — there is no `ASSIGN_TASK` verb |
 | `/comments` | `CommentEndpoint` | + `/:commentUuid/reactions` (POST, GET) and `/:commentUuid/reactions/:reactionUuid` (GET, POST, DELETE) |
 | `/annotations` | `AnnotationEndpoint` | + reactions like above under `/:annotationUuid/reactions`; + `/:annotationUuid/comments` (POST, GET); + `/:annotationUuid/tasks` (GET) and `/:annotationUuid/tasks/:taskUuid` (POST assign, DELETE unassign) |
 | `/embeddings` | `EmbeddingEndpoint` | + `/:embeddingUuid/attachments` (POST, GET) — simplified `addRoute`, no examples |
@@ -218,6 +218,7 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | Path | Methods | Class | Notes |
 |------|---------|-------|-------|
 | `/me` | GET | `MeEndpoint` | The authenticated user, as `UserResponse` |
+| `/notifications` | GET (list), POST/DELETE `/:uuid`, POST `/read-all`, DELETE (clear) | `NotificationEndpoint` | The caller's own inbox. **No create route** — notifications are dispatched server-side by `NotificationDispatcher`. `?unread=true` narrows the list; `unreadCount` on the response is the caller's whole-inbox total, not the page's. `POST /:uuid` marks read/unread; `POST /read-all` is a **literal prefix registered before the `/:uuid` wildcard**. Recipient-scoped exactly as `/skills` is owner-scoped: a foreign entry answers **404, not 403** |
 | `/graphql` | POST | `GraphQLEndpoint` | `{query, operationName?, variables?}`; secured via `secure(basePath())` |
 | `/reactions` | GET (list), GET/DELETE `/:uuid` | `ReactionEndpoint` | Plus asset-scoped `/reactions/assets/:assetUuid` (POST, GET) — a different shape from the `/assets/:uuid/reactions` sub-resource |
 | `/attachments` | POST (multipart), GET list, GET/POST/DELETE `/:uuid` | `AttachmentEndpoint` | Form fields: `assetUuid`, `embeddingUuid`, `type`, `poolUuid` |
@@ -509,8 +510,12 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 
 - Do **not** redeclare `@RegisterExtension LoomCoreTestExtension` in an `AbstractEndpointTest`
   subclass — configure the inherited `loom` field instead.
-- A test class with 20+ methods can exhaust the test DB provider pool; the last few then fail in
-  `ProviderExtension.beforeEach` while passing in isolation. That is pool capacity, not a regression.
+- A test class with 20+ methods used to fail in its last few methods with *"Error while initializing
+  database"* — the cause was **not** test-DB pool capacity but a leaked JDBC connection pool
+  (`BootstrapInitializer.deinit()` never closed the `DataSource`, so each method left 5 connections
+  open until PostgreSQL refused with *"too many clients already"*). Fixed; see
+  [SERVER.md](SERVER.md) §shutdown. If this signature returns, look at connection counts, not the
+  provider pool.
 - Rebuild `loom/core` cleanly after changing an endpoint constructor, or Dagger's generated factories
   go stale and tests fail with `NoSuchMethodError`.
 

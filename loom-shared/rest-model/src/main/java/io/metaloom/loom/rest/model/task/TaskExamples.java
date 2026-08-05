@@ -1,6 +1,7 @@
 package io.metaloom.loom.rest.model.task;
 
 import java.time.Instant;
+import java.util.List;
 
 import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.api.task.TaskStatus;
@@ -62,6 +63,36 @@ public interface TaskExamples extends ExampleValues {
 		TaskListResponse model = new TaskListResponse();
 		model.add(taskResponse());
 		model.setMetainfo(pagingInfo());
+		return model;
+	}
+
+	default Example taskAssigneeListResponseExample() {
+		return new ExampleImpl(taskAssigneeListResponse(), "The task assignee list response", HttpResponseStatus.OK);
+	}
+
+	default Example taskAssignRequestExample() {
+		return new ExampleImpl(taskAssignRequest(), "The task assign request", HttpResponseStatus.CREATED);
+	}
+
+	default TaskAssigneeResponse taskAssigneeResponse() {
+		TaskAssigneeResponse model = new TaskAssigneeResponse();
+		model.setUserUuid(uuidB());
+		model.setName("joedoe");
+		model.setAssigned(Instant.parse("2026-08-01T12:00:00Z"));
+		model.setAssignerUuid(uuidA());
+		return model;
+	}
+
+	default TaskAssigneeListResponse taskAssigneeListResponse() {
+		TaskAssigneeListResponse model = new TaskAssigneeListResponse();
+		model.add(taskAssigneeResponse());
+		return model;
+	}
+
+	default TaskAssignRequest taskAssignRequest() {
+		TaskAssignRequest model = new TaskAssignRequest();
+		model.setUserUuids(List.of(uuidB()));
+		model.setGroupUuids(List.of(uuidC()));
 		return model;
 	}
 }

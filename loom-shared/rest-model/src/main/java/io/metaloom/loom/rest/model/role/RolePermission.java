@@ -215,6 +215,12 @@ public enum RolePermission {
 	CREATE_DEDUP,
 	READ_DEDUP,
 	UPDATE_DEDUP,
-	DELETE_DEDUP;
+	DELETE_DEDUP,
+
+	// The per-user notification inbox. Gate on /api/v1/notifications.
+	// No CREATE_NOTIFICATION - notifications are dispatched server-side, never posted.
+	READ_NOTIFICATION,
+	UPDATE_NOTIFICATION,
+	DELETE_NOTIFICATION;
 
 }

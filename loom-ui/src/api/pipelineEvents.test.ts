@@ -212,4 +212,61 @@ describe("pipelineEvents reconnection lifecycle", () => {
     // No reconnection socket should have been created after teardown.
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
+
+  it("routes a NOTIFICATION frame to notification listeners and nowhere else", () => {
+    const notifications: unknown[] = [];
+    const pipeline: unknown[] = [];
+    const processor: unknown[] = [];
+
+    const unsubN = mod.subscribeNotificationEvents((e) => notifications.push(e), "tok");
+    const unsubP = mod.subscribePipelineEvents(() => pipeline.push(1), "tok");
+    const unsubPr = mod.subscribeProcessorEvents(() => processor.push(1), "tok");
+    FakeWebSocket.last.open();
+
+    FakeWebSocket.last.onmessage?.({
+      data: JSON.stringify({
+        channel: "NOTIFICATION",
+        type: "TASK_ASSIGNED",
+        notification: { uuid: "n1", title: "you were assigned something" },
+        unreadCount: 4,
+      }),
+    });
+
+    expect(notifications).toHaveLength(1);
+    // A notification landing in the pipeline listener would render it as a run event.
+    expect(pipeline).toHaveLength(0);
+    expect(processor).toHaveLength(0);
+
+    unsubN();
+    unsubP();
+    unsubPr();
+  });
+
+  it("still routes an unchannelled frame to pipeline listeners once notifications exist", () => {
+    const notifications: unknown[] = [];
+    const pipeline: unknown[] = [];
+    const unsubN = mod.subscribeNotificationEvents((e) => notifications.push(e), "tok");
+    const unsubP = mod.subscribePipelineEvents(() => pipeline.push(1), "tok");
+    FakeWebSocket.last.open();
+
+    FakeWebSocket.last.onmessage?.({ data: JSON.stringify({ type: "NODE_STATS", pipelineName: "p" }) });
+
+    expect(pipeline).toHaveLength(1);
+    expect(notifications).toHaveLength(0);
+    unsubN();
+    unsubP();
+  });
+
+  it("keeps the socket open while only a notification listener remains", () => {
+    // The bell is mounted app-wide, so it is usually the last subscriber standing. If the
+    // notification set were left out of totalListeners the socket would be torn down under it.
+    const unsubP = mod.subscribePipelineEvents(() => {});
+    const unsubN = mod.subscribeNotificationEvents(() => {}, null);
+    FakeWebSocket.last.open();
+
+    unsubP();
+
+    expect(FakeWebSocket.last.readyState).toBe(FakeWebSocket.OPEN);
+    unsubN();
+  });
 });

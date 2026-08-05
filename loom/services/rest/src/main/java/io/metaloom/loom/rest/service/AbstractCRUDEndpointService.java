@@ -1,6 +1,7 @@
 package io.metaloom.loom.rest.service;
 
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -106,11 +107,29 @@ public abstract class AbstractCRUDEndpointService<D extends CRUDDao<E>, E extend
 
 	protected void create(LoomRoutingContext lrc, Permission permission, Supplier<E> creator,
 		Function<E, RestResponseModel<?>> builder) {
+		create(lrc, permission, creator, builder, e -> {
+		});
+	}
+
+	/**
+	 * Create, with a hook that runs <b>after</b> the element has been stored.
+	 *
+	 * <p>
+	 * The hook exists because the supplier runs before {@code dao().store()}, so anything inside it sees an element with a null uuid. Side effects
+	 * that need the identity of the new row — dispatching a notification about it, say — belong here. Folding them into {@code builder} instead would
+	 * turn a model builder into a side-effect site, which is worse.
+	 * </p>
+	 *
+	 * @param afterStore runs after the store and before the response is sent
+	 */
+	protected void create(LoomRoutingContext lrc, Permission permission, Supplier<E> creator,
+		Function<E, RestResponseModel<?>> builder, Consumer<E> afterStore) {
 		checkPerm(lrc, permission, () -> {
 			E element = creator.get();
 			if (element.getUuid() == null) {
 				dao().store(element);
 			}
+			afterStore.accept(element);
 			RestResponseModel<?> response = builder.apply(element);
 			lrc.send(response, 201);
 		});
@@ -120,9 +139,27 @@ public abstract class AbstractCRUDEndpointService<D extends CRUDDao<E>, E extend
 
 	protected void update(LoomRoutingContext lrc, Permission permission, Supplier<E> updator,
 		Function<E, RestResponseModel<?>> builder) {
+		update(lrc, permission, updator, builder, e -> {
+		});
+	}
+
+	/**
+	 * Update, with a hook that runs <b>after</b> the element has been persisted.
+	 *
+	 * <p>
+	 * The supplier is the only place that can observe the element's pre-update state, but it runs before the write; the hook is the only place that
+	 * can observe the post-update state. A trigger that compares the two — "did the status actually change?" — needs both, so the supplier hands the
+	 * old value to the caller's own closure and the hook does the comparison.
+	 * </p>
+	 *
+	 * @param afterUpdate runs after the write and before the response is sent
+	 */
+	protected void update(LoomRoutingContext lrc, Permission permission, Supplier<E> updator,
+		Function<E, RestResponseModel<?>> builder, Consumer<E> afterUpdate) {
 		checkPerm(lrc, permission, () -> {
 			E element = updator.get();
 			dao().update(element);
+			afterUpdate.accept(element);
 			RestResponseModel<?> response = builder.apply(element);
 			lrc.send(response, 200);
 		});

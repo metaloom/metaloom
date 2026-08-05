@@ -47,6 +47,7 @@ import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ReactionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.NotificationEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SkillEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
@@ -243,6 +244,7 @@ public class LoomOpenAPI {
 		endpoints.add(new ReactionEndpoint(null, deps, examples));
 		endpoints.add(new RESTInfoEndpoint(deps, null));
 		endpoints.add(new RoleEndpoint(null, deps, examples));
+		endpoints.add(new NotificationEndpoint(null, deps, examples));
 		endpoints.add(new SkillEndpoint(null, deps, examples));
 		endpoints.add(new SpaceEndpoint(null, deps, examples));
 		endpoints.add(new TagEndpoint(null, deps, examples));
@@ -519,6 +521,7 @@ public class LoomOpenAPI {
 	private static Map<String, String> tagDescriptions() {
 		Map<String, String> map = new LinkedHashMap<>();
 		map.put("annotations", "Annotations on assets, plus their reactions and tasks");
+		map.put("notifications", "The caller's notification inbox: list, mark read, dismiss and clear");
 		map.put("assets", "Assets and their sub-resources: tags, tasks, reactions, detections, transcripts, binaries and components");
 		map.put("attachments", "Binary file attachments (multipart upload and download)");
 		map.put("auth", "OAuth2 (BFF) login, callback and logout");

@@ -36,6 +36,7 @@ import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
+import io.metaloom.loom.db.model.notification.NotificationDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
 import io.metaloom.loom.db.model.tag.TagDao;
@@ -79,6 +80,8 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<DetectionDao> detectionDao;
 	private final Lazy<ChatDao> chatDao;
 	private final Lazy<SkillDao> skillDao;
+
+	private final Lazy<NotificationDao> notificationDao;
 	private final Lazy<SkillVersionDao> skillVersionDao;
 	private final Lazy<ChatSessionDao> chatSessionDao;
 	private final Lazy<MemoryEntryDao> memoryEntryDao;
@@ -100,7 +103,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<PipelineRunItemDao> pipelineRunItemDao, Lazy<PipelineNodeTaskDao> pipelineNodeTaskDao,
 		Lazy<AssetPoolDao> assetPoolDao, Lazy<PersonDao> personDao,
 		Lazy<DetectionDao> detectionDao, Lazy<ChatDao> chatDao,
-		Lazy<SkillDao> skillDao, Lazy<SkillVersionDao> skillVersionDao,
+		Lazy<SkillDao> skillDao, Lazy<NotificationDao> notificationDao, Lazy<SkillVersionDao> skillVersionDao,
 		Lazy<ChatSessionDao> chatSessionDao, Lazy<MemoryEntryDao> memoryEntryDao, Lazy<MemoryDenyRuleDao> memoryDenyRuleDao,
 		Lazy<CortexInstanceDao> cortexInstanceDao, Lazy<io.metaloom.loom.db.model.dedup.DedupGroupDao> dedupGroupDao, Lazy<LoomDao> loomDao,
 		Lazy<io.metaloom.loom.db.model.nodes.NodeDescriptorRecordDao> nodeDescriptorDao) {
@@ -137,6 +140,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.detectionDao = detectionDao;
 		this.chatDao = chatDao;
 		this.skillDao = skillDao;
+		this.notificationDao = notificationDao;
 		this.skillVersionDao = skillVersionDao;
 		this.chatSessionDao = chatSessionDao;
 		this.memoryEntryDao = memoryEntryDao;
@@ -304,6 +308,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public ChatDao chatDao() {
 		return chatDao.get();
+	}
+
+	@Override
+	public NotificationDao notificationDao() {
+		return notificationDao.get();
 	}
 
 	@Override

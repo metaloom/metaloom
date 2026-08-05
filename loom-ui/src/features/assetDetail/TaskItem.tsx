@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Chip, Typography } from "@mui/material";
+import { Avatar, AvatarGroup, Box, Chip, Tooltip, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
 import { TaskResponse } from "../../api/tasks";
@@ -36,6 +36,22 @@ export function TaskItem({ task, onClick }: { task: TaskResponse; onClick?: () =
         <Box sx={{ display: "flex", gap: 0.75, alignItems: "center" }}>
           {status && <Chip data-testid="asset-task-status-chip" label={t(`tasks.status.${status}`, status)} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${sc}22`, color: sc }} />}
           <Chip data-testid="asset-task-priority-chip" label={t(`tasks.priority.${prio}`, prio)} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: `${pc}22`, color: pc }} />
+          {/* Sits before the ml:auto due date so the assignees stay grouped with the chips */}
+          {(task.assignees ?? []).length > 0 && (
+            <AvatarGroup
+              max={3}
+              data-testid="asset-task-assignees"
+              sx={{ "& .MuiAvatar-root": { width: 18, height: 18, fontSize: "0.55rem", border: "none" } }}
+            >
+              {task.assignees!.map((a) => (
+                <Tooltip key={a.userUuid ?? a.groupUuid} title={a.groupUuid ? `@${a.name ?? ""}` : (a.name ?? "")}>
+                  <Avatar sx={{ bgcolor: a.groupUuid ? tokens.accent.blue : tokens.primary.dark }}>
+                    {(a.name ?? "?").charAt(0).toUpperCase()}
+                  </Avatar>
+                </Tooltip>
+              ))}
+            </AvatarGroup>
+          )}
           {task.dueDate && <Typography data-testid="asset-task-due-date" variant="caption" sx={{ color: overdue ? tokens.accent.red : tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>{new Date(task.dueDate).toLocaleDateString()}</Typography>}
         </Box>
       </Box>

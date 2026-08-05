@@ -126,13 +126,19 @@ shadows the base method — do not copy it.
 | `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
 | `metadata` | `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=metadata`) **+** `assets/:uuid/components` → `asset_geo_comp`, one row per reading (`method` = `exif`/`xmp`/`sidecar`) | `createAssetJsonComp`, `createAssetComponent` |
 | `script` | `asset_json_comp` (`variant` = node id) **+** `asset_segment_comp` for `TIMEFRAMES` outputs | `createAssetJsonComp`, `createAssetSegmentComps` |
+| `tag` | `assets/:uuid/tags` → `tag` + `tag_asset` (resolve-or-create on `(name, collection)`) **+** `asset_json_comp` (`schemaType=tags`, `variant` = node id) recording what it applied | `tagAsset`, `untagAsset`, `createAssetJsonComp` |
 | `s3-sink` | one `asset` **per uploaded artifact** (`origin` = the `s3://` URI) + `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) on the source asset | `createAsset`, `createAssetJsonComp` |
 | `fingerprint-dedup` | `dedup-groups` → `dedup_group` + `dedup_group_member` | `createDedupGroup` |
 | `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
 `quality`, `tika`, `metadata`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`,
-`s3-artifact`.
+`s3-artifact`, `tags`.
+
+`tag` is the only node that writes into the **catalog** rather than a per-asset component table, and
+the component it also writes is not a duplicate of the tags: `tag_asset` carries no `node_id`,
+`confidence` or timestamp, so the `tags` component is the sole evidence of which node instance put a
+tag there — and therefore the only thing that makes withdrawing one safe (§3.4).
 
 `metadata` is the **only node that writes a typed component through the generic
 `/assets/:uuid/components` endpoint**. That endpoint now *upserts* (it used to plain-insert, which
@@ -156,7 +162,7 @@ worker** as the producer and nothing enforces that (§10).
 
 ## 3. Node Reference
 
-**31 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
+**32 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
 leftover directory with no `pom.xml` and is not a module — do not list or resurrect it.
 
 Layout is `cortex/nodes/<name>/core/` except `filesystem-source`, `s3-source` and `cloud-source`,
@@ -198,6 +204,7 @@ Port ids only; content types and cardinality are in
 | `watermark` | `WatermarkNode` · watermark | image, video | `media` → `image` \| `video`, `flag` | ledger only | **`ffmpeg`/`ffprobe`** |
 | `image-manipulation` | `ImageManipulationNode` · image-manipulation | image | `image`, `detections` (MANY, opt) → `image`, `geometry`, `flag` | ledger only | **none** (ImageIO/Graphics2D) |
 | `script` | `ScriptNode` · script | any with a compiled script | `media`, `data`, `text` (all opt) → **declared per instance** | `asset_json_comp` + `asset_segment_comp` | GraalJS (in-process) |
+| `tag` | `TagNode` · tag | any with rules configured | `media`, `text`, `number`, `flag`, `struct`, `labels` (MANY, all opt) → `applied`, `count` | `tag_asset` + `asset_json_comp` | **none** (comparisons) |
 | `sha512-dedup` | `HashDedupNode` · dedup | any with SHA-512 | — (side effect: moves files) | ledger only | — |
 | `fingerprint-dedup` | `FingerprintDedupNode` · dedup | video | — | `dedup_group` | — |
 | `fingerprint-dedup-apply` | `FingerprintDedupApplyNode` · dedup | any with SHA-512 | — (moves files) | ledger only | — |
@@ -281,6 +288,46 @@ using one saved, validated, dispatched, and then failed at the worker with
 🔴 **MIME, size and date bucketing regressed with them.** The strategy seam exists and each is ~30
 lines, but only `LANGUAGE` is implemented today.
 
+### 3.4 The tag node (`cortex/nodes/tag`)
+
+`TagNode extends AbstractMediaNode<TagNodeOptions> implements PipelineConfigurable`, kind `tag`,
+category `OUTPUT`, **not `@Singleton`**. It is the terminal for everything the palette computes and
+cannot search: `sentiment`, `dominant-color`, `filter`, `quality` and `script` all persist to
+`asset_json_comp`, which no query reaches, while a `tag_asset` row is folded into
+`search_document.tag_names` by `tg_search_tag_asset` the moment it lands.
+
+`tagBy` picks a `TagStrategy` from a `Map<TagBy, Provider<TagStrategy>>` multibinding — the same seam
+as `FilterBy`, and deliberately so: `tag-color` / `tag-llm` / `tag-rules` would repeat the eight dead
+`filter-*` kinds. `RULES` evaluates declarative rows over the wired ports; `LABELS` turns every
+element of the MANY `labels` port into a tag. An `LLM`/`VLM` strategy is additive.
+
+A rule addresses a **port id** (`text`, `number`, `flag`, `struct`, `labels`), never an upstream node
+— a `rules[].source` naming a node id would be the deleted `nodeId:outputKey` option in a JSON field
+(§6.4). An unwired port makes its conditions false and the rule is reported in `skippedRules` rather
+than failing the item.
+
+🔴 **No `MANY` output port, on purpose.** A `PER_ELEMENT` node declaring one is rejected *on the
+declaration* ([NODE_DATA_TYPES.md §6.4](../pipeline/NODE_DATA_TYPES.md)), so a `tags : scalar/string
+MANY` output — the obvious design — would bar the node from ever sitting downstream of `facedetect`.
+The applied set travels as one `struct/json` value on `applied`.
+
+🔴 **Four guards, none optional**, because `(name, collection)` is unique instance-wide and a tag row
+outlives the run that created it: `normalize` (before anything else), `allowedTags` (a controlled
+vocabulary), `maxTags` (a template over a gathered list has no natural bound) and `collection` (the
+only axis a UI can group machine tags by without a migration).
+
+🔴 **Withdrawal is provenance-guarded.** With `removeWithdrawn` on, the node may remove a tag only
+when it appears in *this instance's* previous `applied` list (read back from its own `tags` component)
+**and** its collection is one this instance writes. A failed read-back withdraws nothing. `tag_asset`
+has no provenance columns, so that record is the only proof available and a bug here would silently
+destroy human curation.
+
+⚠️ **`POST /assets/:uuid/tags` had to be made idempotent before this node could exist.** It used to
+insert a new `tag` row unconditionally, so the second asset to receive one name violated
+`UNIQUE (name, collection)`; `TagDao.resolveOrCreateAssetTag` now resolves on the natural key and the
+join insert upserts on `(tag_uuid, asset_uuid)`. Resolving never overwrites the existing tag's meta,
+rating, colour or creation audit. See [../../concept/NODE_TAG_CONCEPT.md](../../concept/NODE_TAG_CONCEPT.md) §2.
+
 ---
 
 ## 4. Caching
@@ -303,6 +350,7 @@ Two independent layers — confusing them is a classic mistake.
 | `watermark` | `absolutePath \| sha256(watermark bytes, relX/relY, scale, opacity, codec, crf, preset)`, re-checked with `Files.exists` |
 | `image-manipulation` | `absolutePath \| sha256(every result-affecting option + the surviving subject boxes)` — the boxes belong in the key because they change the output pixels; re-checked with `Files.exists` |
 | `script` | `absolutePath \| scriptHash` |
+| `tag` | `absolutePath \| configHash(tagBy, rules, collection, allowedTags, normalize, maxTags)` — two tag nodes over one asset are the normal case and must not share a verdict |
 | `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
 | `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
 | everything else | `absolutePath` **only** |
@@ -338,19 +386,19 @@ flowchart TD
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **34** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **35** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
   `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `tika`, `metadata`,
   `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
   `whisper`, `tts`, `sentiment`, `translate`, `script`, `depthmap`, `scene-layout`,
-  `dominant-color`, `watermark`, `image-manipulation`, `filter`, `s3-sink`.
+  `dominant-color`, `watermark`, `image-manipulation`, `filter`, `tag`, `s3-sink`.
   All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java`.
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
   `filesystem-source` and `asset-source` always, `s3-source` **only when `s3Support.isActive()`**,
   and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
   configured. The gate is per provider rather than per module, which is the reason the two clouds
   are two kinds sharing one implementation rather than one kind with a `provider` parameter.
-- **Total runnable: 37 with S3 configured, 36 without.**
+- **Total runnable: 38 with S3 configured, 37 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -361,7 +409,7 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **39 advertised kinds.** Since the
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **40 advertised kinds.** Since the
 `d9bbc2dc` refactor the contracts are one generated `node-descriptors.json` served by
 `GeneratedNodeDescriptorProvider` (+ `OrphanNodeDescriptorProvider`), harvested at build time from
 the annotated node classes and regenerated with
@@ -374,14 +422,14 @@ Reconciling the two registries:
 
 | Set | Count | Members |
 |---|---|---|
-| Descriptor **and** runnable | 35 | the 33 kind bindings minus `sha512-dedup`, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` |
+| Descriptor **and** runnable | 36 | the 34 kind bindings minus `sha512-dedup`, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` |
 | Descriptor only — **not runnable** | 2 | `facedescription`, `loom-fetch` |
 | Runnable only — **no descriptor** | 2 | `sha512-dedup` (alias), `asset-source` |
 
 🔴 The descriptor is an enforced contract, not decoration: `PortGraphAnalyzer` validates every edge
-against it at save time and at run start. `NodePortConformanceTest` (29 `NODE_KINDS` entries) compares
-port constants against `PortSpec`s in both directions; `script`/`llm`/`vlm`/`filter` are exempt on the
-**output** side via `DYNAMIC_KINDS` (inputs are still compared).
+against it at save time and at run start. `NodePortConformanceTest` is **gone** — it existed only
+because a node's ports were declared twice, and they no longer are; `NodeSpecGoldenTest` subsumes it by
+holding the harvest against the committed resource.
 
 ### 5.3 Where a descriptor comes from — two layers
 
@@ -401,9 +449,16 @@ package `io.metaloom.cortex.api.node.spec`) sit on the node class, its port cons
 fields; `NodeSpecHarvester` reflects over exactly those declarations. Ids, content types,
 cardinalities, parameter keys, types, defaults and enum values are *derived* — only labels,
 descriptions, icons, categories and bounds are authored. The hand-written
-`<Kind>DescriptorProvider` classes are being replaced by this, one module at a time;
-`NodeSpecGoldenTest` (in `integration-test`) holds each harvest against the provider it replaces, and
-`NodePortConformanceTest` is deleted once no node has two sources left to compare.
+`<Kind>DescriptorProvider` classes are gone, and so is `NodePortConformanceTest`;
+`NodeSpecGoldenTest` (in `integration-test`) holds the harvest against the committed
+`node-descriptors.json`.
+
+⚠️ **Two touch-points are easy to miss and neither fails a test.** `NodeSpecCatalog.BUILT_IN_NODE_CLASSES`
+is a hand-maintained list of class names — nothing scans for `@NodeSpec` — and the harvest is class-path
+based, so a node module the `integration-test` does not depend on is silently absent from the generated
+contracts. A node missing from either is runnable and unauthorable. And the resource is bundled into
+three shaded jars (`cortex/cli`, `loom/containers/server`, `cli`) that must be rebuilt with `clean`,
+because re-shading the previous fat jar preserves the stale copy.
 
 🔴 **Announcing is not what makes a node runnable.** Dispatch reads the worker's `nodeWhitelist`, never
 the descriptor registry. A node with no descriptor still runs perfectly and simply cannot be *authored*;
@@ -437,7 +492,7 @@ Everything else matches its kind, except the four hash kinds which share `KEY = 
 fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `facedetection`, `quality`,
 `scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `tts`,
 `depthmap`, `scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`,
-`script`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
+`script`, `tag`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
 
 ### 6.3 Per-node option defaults
 
@@ -463,6 +518,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `videogen` | `mode` (`GENERATE`\|`ANIMATE`), `prompt`, `negativePrompt`, `host` (`localhost`), `port` (9220), `generateEndpoint` (`/generate`), `animateEndpoint` (`/animate`), `width` (768), `height` (512), `numFrames` (49), `fps` (24), `steps` (40), `guidance` (4.0), `seed` (null), `timeoutMs` (1800000) |
 | `watermark` | `watermarkBase64` (``), `relX`/`relY` (0.95), `scale` (0.20), `opacity` (1.0), `videoCodec` (`libx264`), `videoCrf` (23), `videoPreset` (`medium`), `ffmpegPath`/`ffprobePath`, `timeoutMs` (600000) |
 | `script` | `engine` (`js`), `script` (null), `outputs` (`[]` — declared `{key,type[,segmentType]}`), `params` (`{}`), `trusted` (true), `allowNetwork`/`allowFilesystem` (false), `statementLimit` (10_000_000), `maxOutputBytes` (1048576), `maxLogLines` (200), `timeoutMs` (10000), `requiredInputs` ⚠️ |
+| `tag` | `tagBy` (`RULES`\|`LABELS`), `rules` (`[]` — rows of `{id, tag\|tagTemplate, collection, match, forEach, when[]}`), `collection` (`auto`), `allowedTags` (`[]`), `maxTags` (20), `normalize` (`TRIM_LOWER`\|`TRIM`\|`NONE`), `removeWithdrawn` (false), `dryRun` (false), `minConfidence` (0). ⚠️ Read from the **node definition**, not the worker YAML — see §6.5 |
 | `s3-sink` | `bucket` (required), `keyTemplate` (`cortex/{sourceNode}/{sourceKey}/{sha512:4}/{sha512}{ext}`), `includeSource` (false), `createAssets` (true), `overwrite` (`IF_DIFFERENT`), `deleteAfterUpload` (false), `maxArtifacts` (64), `maxArtifactBytes` (0), `failOnPartial` (true), `artifacts` ⚠️ |
 | `filesystem-source` | `path` (null), `pathGlobs` (`[]`, wins over `path`), `emitStates` (`[NEW, MODIFIED, MOVED]`), `indexPath` (null) |
 | `s3-source` | `bucket`, `prefix`, `suffixes`, `emitStates` (`[NEW, MODIFIED]`), `startAfter` (false), `useEvents` (false). ⚠️ **Connection settings are not here** — endpoint/region/credentials/cache live on `CortexOptions.getS3()` because they describe the worker and a pipeline definition is stored in Postgres and rendered in the editor |
@@ -499,7 +555,7 @@ public interface PipelineConfigurable { void configure(JsonObject nodeDef); }
 ```
 
 `RegistryNodeRegistrar.adapt(...)` calls it **only** for implementors — today `ScriptNode`,
-`S3SinkNode` and `MetadataNode`. (`metadata` is the first *analysis* node in the set: its privacy
+`S3SinkNode`, `MetadataNode`, `FilterNode` and `TagNode`. (`metadata` is the first *analysis* node in the set: its privacy
 policy has to be per pipeline, because one library publishes coordinates and another must not.) Their options arrive **flattened** onto the top level of the node definition, alongside
 the adapter fields it also reads there:
 
@@ -702,6 +758,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | `AbstractFilesystemNode` | `cortex/common` | Progress tracking (`set`, `print`, `error`) |
 | `AbstractPipelineNode` | `cortex/pipeline-core` · `…pipeline.core.node` | Pipeline-level base: id, mode, blocking, concurrency, timeout |
 | `FilterNode` / `FilterStrategy` | `cortex/nodes/filter/core` · `…node.filter` | Routes onto dynamic bucket ports; `LanguageFilterStrategy` classifies through the shared `LLMProvider` |
+| `TagNode` / `TagStrategy` / `TagRule` / `TagInputs` | `cortex/nodes/tag/core` · `…node.tag` | Rule-driven tagging; `RulesTagStrategy` and `LabelsTagStrategy` behind a `TagBy` seam |
 | `CortexNodeAdapter` | `cortex/pipeline-core` · `…core.node` | Wraps a `FilesystemNode` as a `PipelineNode` |
 | `NodeContextImpl` | `cortex/api` · `…node.context.impl` | `next()` / `abort()` / `skipped()` semantics; port coercion |
 | `InputPort` / `OutputPort` / `Element` / `NodeInputs` | `cortex/api` · `io.metaloom.cortex.api.node` | The port model |
@@ -711,7 +768,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | `LocalResultCache<V>` | `cortex/common` · `…common.cache` | Bounded access-order LRU skip cache |
 | `RegistryNodeRegistrar` | `cortex/cli` · `…cli.dagger` | Builds the kind registry from the multibinding + the 3 source kinds; `adapt()` |
 | `RegistryNodeFactory` | `cortex/pipeline-core` · `…pipeline.loader` | `createNode(JsonObject)` — **returns null on an unknown kind** |
-| `NodeCollectionModule` | `cortex/cli` · `…cli.dagger` | `@Module(includes = …)` aggregating all 26 node modules |
+| `NodeCollectionModule` | `cortex/cli` · `…cli.dagger` | `@Module(includes = …)` aggregating all 32 node modules |
 | `AbstractNodeModule` | `cortex/common` | `nodeOptions(options, KEY, default)` helper for node modules |
 | `NodeDescriptor` / `PortSpec` / `PortGroup` / `NodeParameter` / `NodeCategory` | `loom-shared/node-model` · `io.metaloom.loom.nodes.spec` | Descriptor model |
 | `NodeDescriptorRegistry` / `NodePortResolver` | `loom-shared/node-model` | ServiceLoader registry; `resolvePorts(kind, options)` for dynamic ports |
@@ -739,6 +796,9 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | Module aggregation (the file you must edit) | `cortex/cli/.../dagger/NodeCollectionModule.java` |
 | Descriptors + their ServiceLoader file | `loom-shared/node-model/.../spec/` · `src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` |
 | Descriptor count guard | `loom-shared/node-model/.../NodeDescriptorServiceLoaderTest.java` |
+| The list of node classes the harvest looks at | `cortex/api/.../node/spec/NodeSpecCatalog.java` — `BUILT_IN_NODE_CLASSES`; a node missing here is runnable but unauthorable |
+| The generated contract set + its regeneration | `loom-shared/node-model/src/main/resources/node-descriptors.json` · `integration-test/.../node/NodeSpecGoldenTest.java` |
+| The tag write path a `tag` node depends on | `loom/db/jooq/.../dao/tag/TagDaoImpl.java` (`resolveOrCreateAssetTag`, `tagAsset`) |
 | Port ↔ descriptor conformance | `integration-test/.../node/NodePortConformanceTest.java` |
 | Per-node end-to-end ITs | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/` |
 | Test scaffolding | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/` |
@@ -749,7 +809,9 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `23746123`_
-_Last updated: 2026-08-03 (added the `metadata` node: persistence table, node table, cache key,
-registration counts 33 kinds / 28 providers / 38 descriptor kinds, options table, and the note that
-it is the third `PipelineConfigurable` and the only node writing through `/assets/:uuid/components`)_
+_Git HEAD revision: `55848543`_
+_Last updated: 2026-08-04 (added the `tag` node: §3.4, persistence table, node table, cache key,
+options, counts 35 kind bindings / 40 descriptor kinds / 32 modules. Also corrected §5.2 and §5.3 —
+`NodePortConformanceTest` and the hand-written descriptor providers are gone, and the two silent
+registration touch-points (`NodeSpecCatalog.BUILT_IN_NODE_CLASSES`, the integration-test dependency)
+are now recorded)_

@@ -43,6 +43,8 @@ import io.metaloom.loom.db.jooq.tables.JooqPipelineVersion;
 import io.metaloom.loom.db.jooq.tables.JooqReaction;
 import io.metaloom.loom.db.jooq.tables.JooqRole;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocument;
+import io.metaloom.loom.db.jooq.tables.JooqTaskAssignee;
+import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocumentDeleted;
 import io.metaloom.loom.db.jooq.tables.JooqSkillVersion;
 import io.metaloom.loom.db.jooq.tables.JooqTag;
@@ -152,4 +154,44 @@ public class Indexes {
     public static final Index TOKEN_TOKEN_IDX = Internal.createIndex(DSL.name("token_token_idx"), JooqToken.TOKEN, new OrderField[] { JooqToken.TOKEN.TOKEN_ }, true);
     public static final Index USER_PERMISSION_USER_UUID_RESOURCE_PERMISSION_IDX = Internal.createIndex(DSL.name("user_permission_user_uuid_resource_permission_idx"), JooqUserPermission.USER_PERMISSION, new OrderField[] { JooqUserPermission.USER_PERMISSION.USER_UUID, JooqUserPermission.USER_PERMISSION.RESOURCE, JooqUserPermission.USER_PERMISSION.PERMISSION }, true);
     public static final Index USER_USERNAME_IDX = Internal.createIndex(DSL.name("user_username_idx"), JooqUser.USER, new OrderField[] { JooqUser.USER.USERNAME }, true);
+
+    /**
+     * The index <code>public.idx_task_assignee_group</code>.
+     */
+    public static final Index IDX_TASK_ASSIGNEE_GROUP = Internal.createIndex(DSL.name("idx_task_assignee_group"), JooqTaskAssignee.TASK_ASSIGNEE, new OrderField[] { JooqTaskAssignee.TASK_ASSIGNEE.GROUP_UUID }, false);
+
+    /**
+     * The index <code>public.idx_task_assignee_user</code>.
+     */
+    public static final Index IDX_TASK_ASSIGNEE_USER = Internal.createIndex(DSL.name("idx_task_assignee_user"), JooqTaskAssignee.TASK_ASSIGNEE, new OrderField[] { JooqTaskAssignee.TASK_ASSIGNEE.USER_UUID }, false);
+    /**
+     * The index <code>public.idx_notification_asset</code>.
+     */
+    public static final Index IDX_NOTIFICATION_ASSET = Internal.createIndex(DSL.name("idx_notification_asset"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.ASSET_UUID }, false);
+
+    /**
+     * The index <code>public.idx_notification_comment</code>.
+     */
+    public static final Index IDX_NOTIFICATION_COMMENT = Internal.createIndex(DSL.name("idx_notification_comment"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.COMMENT_UUID }, false);
+
+    /**
+     * The index <code>public.idx_notification_recipient_created</code>.
+     */
+    public static final Index IDX_NOTIFICATION_RECIPIENT_CREATED = Internal.createIndex(DSL.name("idx_notification_recipient_created"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.RECIPIENT_UUID }, false);
+
+    /**
+     * The index <code>public.idx_notification_recipient_unread</code>.
+     */
+    public static final Index IDX_NOTIFICATION_RECIPIENT_UNREAD = Internal.createIndex(DSL.name("idx_notification_recipient_unread"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.RECIPIENT_UUID }, false);
+
+    /**
+     * The index <code>public.idx_notification_run</code>.
+     */
+    public static final Index IDX_NOTIFICATION_RUN = Internal.createIndex(DSL.name("idx_notification_run"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.PIPELINE_RUN_UUID }, false);
+
+    /**
+     * The index <code>public.idx_notification_task</code>.
+     */
+    public static final Index IDX_NOTIFICATION_TASK = Internal.createIndex(DSL.name("idx_notification_task"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.TASK_UUID }, false);
+
 }

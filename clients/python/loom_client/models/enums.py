@@ -68,6 +68,17 @@ class NodeRegistryEventType(str, Enum):
     NODE_AVAILABILITY_CHANGED = "NODE_AVAILABILITY_CHANGED"
 
 
+class NotificationType(str, Enum):
+    """Mirrors ``io.metaloom.loom.api.notification.NotificationType``."""
+
+    TASK_ASSIGNED = "TASK_ASSIGNED"
+    TASK_UNASSIGNED = "TASK_UNASSIGNED"
+    TASK_STATUS_CHANGED = "TASK_STATUS_CHANGED"
+    TASK_COMMENT = "TASK_COMMENT"
+    COMMENT_REPLY = "COMMENT_REPLY"
+    PIPELINE_RUN_FAILED = "PIPELINE_RUN_FAILED"
+
+
 class PipelineEventType(str, Enum):
     """Mirrors ``io.metaloom.loom.rest.model.pipeline.event.PipelineEventType``."""
 
@@ -281,6 +292,9 @@ class RolePermission(str, Enum):
     READ_DEDUP = "READ_DEDUP"
     UPDATE_DEDUP = "UPDATE_DEDUP"
     DELETE_DEDUP = "DELETE_DEDUP"
+    READ_NOTIFICATION = "READ_NOTIFICATION"
+    UPDATE_NOTIFICATION = "UPDATE_NOTIFICATION"
+    DELETE_NOTIFICATION = "DELETE_NOTIFICATION"
 
 
 class TaskPriority(str, Enum):
@@ -308,6 +322,7 @@ for _enum in (
     EmbeddingType,
     NodeRegistrationRejectionReason,
     NodeRegistryEventType,
+    NotificationType,
     PipelineEventType,
     ProcessorCapability,
     ProcessorEventType,

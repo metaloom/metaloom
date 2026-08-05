@@ -198,6 +198,8 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.63`.
 | `V2.61__add_dedup_group` | dedup_group + dedup_group_member + `dedup_status` enum |
 | `V2.62__add_dedup_permission` | `READ/CREATE/UPDATE/DELETE_DEDUP` enum values only |
 | `V2.63__library_storage_pool` | `library.pool_uuid` → asset_pool, `ON DELETE RESTRICT`, NULL = legacy local upload dir |
+| `V2.69__add_task_assignee` | `task_assignee` — who is responsible for a task. One row per target, exactly one of `user_uuid`/`group_uuid` (CHECK `num_nonnulls = 1`). **No PK**: a PK cannot hold nullable columns, so uniqueness is two *partial* unique indexes, which is also what makes assign idempotent. Group membership is resolved on read, not snapshotted |
+| `V2.70__add_notification` | `notification` — the per-user inbox, plus `READ/UPDATE/DELETE_NOTIFICATION` enum values (no CREATE — dispatch is server-side). `type` is varchar + CHECK, not an enum. Fan-out is one row per recipient at dispatch time. Partial index on unread + one index per subject FK |
 
 ### Migration patterns
 
@@ -208,6 +210,13 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.63`.
 - Node-written tables carry provenance (`node_kind`, `producer_version`, run/task refs) plus a
   `UNIQUE` natural key so `upsert()` is idempotent.
 - Join tables are `X_Y` (`tag_asset`, `user_group`, `role_group`, `collection_asset`).
+- **Index the referencing side of every FK you add.** Postgres indexes only the referenced side, so
+  without it each parent delete seq-scans the child table hunting cascade victims. `notification`
+  (V2.70) carries one index per subject FK for exactly this reason.
+- **Prefer varchar + CHECK over a Postgres enum for a value list that will churn.** V2.55 had to
+  rename `loom_permission`, rebuild it from `pg_enum` and re-type three columns inside a `DO` block
+  just to remove four values. `node_descriptor.status` (V2.66) and `notification.type` (V2.70) both
+  chose CHECK.
 - Permissions: `ALTER TYPE "loom_permission" ADD VALUE IF NOT EXISTS 'CREATE_X'`.
 - `COMMENT ON TABLE`/`COLUMN` is expected — several migrations are comment-only.
 

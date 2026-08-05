@@ -368,11 +368,28 @@ optional top-level `channel`:
 |---|---|---|
 | *(absent)* | `PipelineEventMessage` | `RunStatsAggregator` → `PipelineEventBroadcaster.broadcast()` |
 | `"PROCESSOR"` | `ProcessorEventMessage` | `ProcessorRegistry` → `broadcastProcessorEvent()` |
+| `"NOTIFICATION"` | `NotificationEventMessage` | `NotificationDispatcher` → `broadcastNotification(recipientUuid, …)` |
 
 Pipeline frames keep their original shape (no `channel`), so older clients are
 unaffected. Processor frames are **not** pipeline-scoped: the `?pipeline=` and
 `?run=` filters are deliberately bypassed for them, so a filtered subscriber
 still sees fleet-wide processor updates.
+
+⚠️ **`NOTIFICATION` is the one addressed channel on this socket.** Every other
+channel is a fan-out to all subscribers; a notification frame goes to the
+recipient's sockets and nowhere else. `PipelineEventBroadcaster.Subscriber`
+therefore carries the `userUuid` resolved at handshake time
+(`PipelineEventEndpoint.resolveUserUuid`), and `broadcastNotification` **fails
+closed twice**: a null recipient reaches nobody, and a subscriber whose socket
+resolved no user never matches any recipient. The second rule matters because
+lenient auth is the **default** (§2) — a tokenless socket is accepted and has a
+null user, so without it every user's inbox would stream to any anonymous
+connection. Do not "harmonise" `broadcastNotification` with the two fleet-wide
+methods beside it.
+
+`LoomUser.getUuid()` throws on a token with no `uuid` claim; `resolveUserUuid`
+catches it and treats the socket as user-less. Unguarded, that throw escapes the
+`onSuccess` handler and leaves a live socket with no `closeHandler` registered.
 
 ### 4.2 Filtering
 
@@ -437,7 +454,22 @@ a full snapshot), `HEARTBEAT` (nodeId + lastSeen only), `DISCONNECTED` (nodeId
 only). A disconnect produces `STATE_CHANGED`→`OFFLINE` then `DISCONNECTED`, so
 the UI can show the card as "offline (persisted)" rather than dropping it.
 
-### 4.5 Loom is the only producer of pipeline events
+### 4.5 `NotificationEventMessage` (`channel: "NOTIFICATION"`)
+
+`channel` (always `"NOTIFICATION"`), `type` (a `NotificationType`), `notification`
+(a full `NotificationResponse`, so the UI inserts without a refetch) and
+`unreadCount` (the recipient's authoritative total, because the badge counts the
+whole inbox rather than the page).
+
+The **recipient uuid is deliberately not on the wire.** It is routing metadata
+the server already used to select this socket; putting it in the frame invites a
+client to trust it, and it tells the recipient nothing they do not know.
+
+The UI still refetches `GET /notifications` when the popover opens, so the stream
+is an optimisation and never the only path — which is what keeps a tokenless
+socket from silently presenting an empty inbox.
+
+### 4.6 Loom is the only producer of pipeline events
 
 A worker holds no pipeline graph — it answers `NODE_TASK`, `SEGMENT_TASK` and
 `SOURCE_TASK` — so it has nothing to say at pipeline-event granularity.
@@ -584,6 +616,7 @@ Run the pooled-DB setup before the Java suites — see
 - [ ] No origin validation on the upgrade
 - [ ] No rate limiting on connection attempts or on message frequency
 - [ ] No per-message authorization after the handshake
+- [ ] A lenient-mode tokenless socket silently receives **no** notifications — correct, but invisible: nothing tells the client its stream is inert
 
 ### 7.3 Broadcasting
 

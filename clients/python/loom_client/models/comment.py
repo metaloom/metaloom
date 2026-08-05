@@ -18,6 +18,8 @@ class CommentCreateRequest(MetaModel):
 
     title: str | None = None
     text: str | None = None
+    #: Uuid of the comment this one replies to. Omit for a top-level comment.
+    parent_uuid: str | None = None
 
 
 @dataclass
@@ -35,6 +37,8 @@ class CommentResponse(CreatorEditorResponse):
     title: str | None = None
     text: str | None = None
     asset_uuid: str | None = None
+    #: Uuid of the comment this one replies to. Absent on a top-level comment.
+    parent_uuid: str | None = None
     social: SocialInfo | None = None
 
 

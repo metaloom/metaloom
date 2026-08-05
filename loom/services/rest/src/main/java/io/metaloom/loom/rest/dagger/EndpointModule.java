@@ -33,6 +33,7 @@ import io.metaloom.loom.rest.endpoint.impl.PipelineEventEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ReactionEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.NotificationEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SkillEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
@@ -62,6 +63,7 @@ public class EndpointModule {
 		AssetPoolEndpoint assetPoolEndpoint,
 		BlacklistEndpoint blacklistEndpoint,
 		ChatEndpoint chatEndpoint,
+		NotificationEndpoint notificationEndpoint,
 		SkillEndpoint skillEndpoint,
 		ClusterEndpoint clusterEndpoint,
 		CollectionEndpoint collectionEndpoint,
@@ -99,6 +101,7 @@ public class EndpointModule {
 			assetPoolEndpoint,
 			blacklistEndpoint,
 			chatEndpoint,
+			notificationEndpoint,
 			skillEndpoint,
 			clusterEndpoint,
 			collectionEndpoint,

@@ -137,11 +137,12 @@ spec/
 │   │                                  #   embedded derivatives, incl. marking AI-written values
 │   │                                  #   (IPTC DigitalSourceType, C2PA). The inverse of the built
 │   │                                  #   `metadata` node under features/nodes/metadata/
-│   └── NODE_TAG_CONCEPT.md            # 🔵 CONCEPT: a `tag` node that tags an asset by declarative
-│                                      #   rules over wired ports (a `TagBy` seam like `FilterBy`).
-│                                      #   🔴 Records two blocking defects in the existing write path:
-│                                      #   POST /assets/:uuid/tags always INSERTs a new tag row, so a
-│                                      #   second asset violates UNIQUE (name, collection)
+│   └── NODE_TAG_CONCEPT.md            # 🟢 BUILT (cortex/nodes/tag): design record for the `tag` node —
+│                                      #   declarative rules over wired ports, a `TagBy` seam like
+│                                      #   `FilterBy`, and the provenance-guarded withdrawal rule.
+│                                      #   Records the two write-path defects it had to fix first:
+│                                      #   POST /assets/:uuid/tags INSERTed a new tag row, so a second
+│                                      #   asset violated UNIQUE (name, collection)
 ├── plans/
 │   ├── TASKS.md                       # Captured, not-yet-scheduled work (TASKS.template.md format)
 │   ├── CLUSTERING.md                  # 🔵 Loom is single-writer; a 2nd instance is destructive
@@ -342,7 +343,7 @@ spec/
 | Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](TASKS.template.md) |
 | **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [features/nodes/metadata/METADATA_OVERVIEW.md](features/nodes/metadata/METADATA_OVERVIEW.md) — 🟢 **built**: the `metadata` node. Also the only place that records the source-precedence rules, the envelope contract, and where a licence should live |
 | **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
-| **Tagging assets automatically** — a rule-driven `tag` node, and the tag write path in general | [concept/NODE_TAG_CONCEPT.md](concept/NODE_TAG_CONCEPT.md) — 🔵 **concept, nothing built**. 🔴 Read §2 first: `POST /assets/:uuid/tags` cannot tag two assets with the same tag name today |
+| **Tagging assets automatically** — the `tag` node, and the tag write path in general | [concept/NODE_TAG_CONCEPT.md](concept/NODE_TAG_CONCEPT.md) — 🟢 built. The design record; [features/nodes/NODES.md](features/nodes/NODES.md) §3.4 is the current-state reference. 🔴 §2 is why `tagAsset` resolves rather than inserts |
 | Dumping a half-formed idea | [METALOOM_NOTES.md](METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
 ### 2.2 The `metaloom-saas` sibling project

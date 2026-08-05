@@ -1,3 +1,4 @@
+import { NotificationResponse, NotificationType } from "./notifications";
 import { API_BASE_URL } from "./config";
 import type { Processor } from "./processors";
 import type { NodeAvailabilityMap } from "../types/nodeDescriptors";
@@ -70,6 +71,21 @@ export type ProcessorEventType =
  * one boolean flipped.
  */
 export type NodeRegistryEventType = "NODE_DESCRIPTORS_CHANGED" | "NODE_AVAILABILITY_CHANGED";
+
+/**
+ * Notification frames, the fourth channel on this socket.
+ *
+ * Unlike the other three this channel is ADDRESSED: the server sends a frame only to the
+ * sockets belonging to the recipient. A socket that authenticated without a token receives
+ * none at all, so the popover also refetches on open rather than relying on the stream.
+ */
+export interface NotificationEventMessage {
+  channel: "NOTIFICATION";
+  type: NotificationType;
+  notification: NotificationResponse;
+  /** The recipient's authoritative unread count after this notification. */
+  unreadCount: number;
+}
 
 export interface NodeRegistryEventMessage {
   channel: "NODE_REGISTRY";
@@ -183,6 +199,7 @@ function buildWsUrl(token: string | null): string {
 type PipelineEventListener = (event: PipelineEventMessage) => void;
 type ProcessorEventListener = (event: ProcessorEventMessage) => void;
 type NodeRegistryEventListener = (event: NodeRegistryEventMessage) => void;
+type NotificationEventListener = (event: NotificationEventMessage) => void;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -191,9 +208,10 @@ let currentToken: string | null = null;
 const pipelineListeners = new Set<PipelineEventListener>();
 const processorListeners = new Set<ProcessorEventListener>();
 const nodeRegistryListeners = new Set<NodeRegistryEventListener>();
+const notificationListeners = new Set<NotificationEventListener>();
 
 function totalListeners(): number {
-  return pipelineListeners.size + processorListeners.size + nodeRegistryListeners.size;
+  return pipelineListeners.size + processorListeners.size + nodeRegistryListeners.size + notificationListeners.size;
 }
 
 function ensureConnection() {
@@ -221,6 +239,10 @@ function ensureConnection() {
       } else if (event && event.channel === "NODE_REGISTRY") {
         for (const listener of nodeRegistryListeners) {
           listener(event as NodeRegistryEventMessage);
+        }
+      } else if (event && event.channel === "NOTIFICATION") {
+        for (const listener of notificationListeners) {
+          listener(event as NotificationEventMessage);
         }
       } else {
         for (const listener of pipelineListeners) {
@@ -338,6 +360,25 @@ export function subscribeNodeRegistryEvents(
   return subscribe(
     () => nodeRegistryListeners.add(listener),
     () => nodeRegistryListeners.delete(listener),
+    token,
+  );
+}
+
+/**
+ * Subscribe to the caller's own notifications.
+ *
+ * Pass the SAME token the other subscribers use. The shared socket tears down and reopens
+ * whenever the token differs from the current one, so a mismatched token here would churn
+ * the connection on every mount — and a null token yields a socket the server cannot
+ * address, which silently receives nothing.
+ */
+export function subscribeNotificationEvents(
+  listener: NotificationEventListener,
+  token: string | null = null,
+): () => void {
+  return subscribe(
+    () => notificationListeners.add(listener),
+    () => notificationListeners.delete(listener),
     token,
   );
 }

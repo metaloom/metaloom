@@ -77,6 +77,8 @@ import io.metaloom.loom.db.jooq.tables.JooqTagCluster;
 import io.metaloom.loom.db.jooq.tables.JooqTagCollection;
 import io.metaloom.loom.db.jooq.tables.JooqTagUserMeta;
 import io.metaloom.loom.db.jooq.tables.JooqTask;
+import io.metaloom.loom.db.jooq.tables.JooqNotification;
+import io.metaloom.loom.db.jooq.tables.JooqTaskAssignee;
 import io.metaloom.loom.db.jooq.tables.JooqToken;
 import io.metaloom.loom.db.jooq.tables.JooqTokenPermission;
 import io.metaloom.loom.db.jooq.tables.JooqUser;
@@ -530,7 +532,17 @@ public class Tables {
     /**
      * The table <code>public.task</code>.
      */
+    /**
+     * The table <code>public.notification</code>.
+     */
+    public static final JooqNotification NOTIFICATION = JooqNotification.NOTIFICATION;
+
     public static final JooqTask TASK = JooqTask.TASK;
+
+    /**
+     * The table <code>public.task_assignee</code>.
+     */
+    public static final JooqTaskAssignee TASK_ASSIGNEE = JooqTaskAssignee.TASK_ASSIGNEE;
 
     /**
      * The table <code>public.token</code>.

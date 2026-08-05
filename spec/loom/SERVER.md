@@ -163,13 +163,23 @@ user: a random 8-char string, or a note that `LOOM_INITIAL_PASSWORD` was used.
 4. `restService.stop()` — `server.close()` (fire-and-forget)
 5. `grpcService.stop()`
 6. `httpServer.close()` — **blocking `.get()`**
+7. `dataSource.close()` — the c3p0 pool, via an `instanceof AutoCloseable` check
 
 Step 6 exists because stopping the services unregisters handlers but leaves the socket bound; a
 test suite that starts, stops and restarts Loom in one JVM would otherwise fail with *"Address
 already in use"*.
 
-**Not drained:** the Vert.x instance itself (`vertx.close()` is never called), the database
-connection pool, `LeaseReaper` and `AssetPipelineTrigger`.
+Step 7 exists for the same reason, one layer down. The `ComboPooledDataSource` is a `@Singleton` of
+the Dagger component, and discarding a component does nothing to the connections it opened — they
+stay open against PostgreSQL. In production that leaks once, at shutdown, and the exiting process
+cleans up after it. In a test suite it is fatal: every test method builds a fresh component, so the
+leak is `minPoolSize` (default 5) connections **per method** and cumulative, and around the twentieth
+boot in one JVM PostgreSQL answers *"FATAL: sorry, too many clients already"* — attributed to
+whichever test happened to be running. `c3p0`'s `PooledDataSource` extends `AutoCloseable`, so
+`loom/core` closes it without depending on c3p0.
+
+**Not drained:** the Vert.x instance itself (`vertx.close()` is never called), `LeaseReaper` and
+`AssetPipelineTrigger`.
 
 **No shutdown hook.** `Runtime.addShutdownHook` appears only in `cortex/core/.../CortexImpl.java`
 and `examples/cortex-custom`. `LoomServerRunner`/`LoomDemoRunner` never register one, so a

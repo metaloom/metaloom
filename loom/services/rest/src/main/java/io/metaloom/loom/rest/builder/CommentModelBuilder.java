@@ -12,6 +12,7 @@ public interface CommentModelBuilder extends ModelBuilder, UserModelBuilder {
 		response.setTitle(comment.getTitle());
 		response.setText(comment.getText());
 		response.setAssetUuid(comment.getAssetUuid());
+		response.setParentUuid(comment.getParentUuid());
 		response.setUuid(comment.getUuid());
 		setStatus(comment, response);
 		return response;

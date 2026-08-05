@@ -2646,6 +2646,156 @@
   "defaultBlocking" : true,
   "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
 }, {
+  "nodeId" : "tag",
+  "kind" : "tag",
+  "name" : "Tag",
+  "description" : "Attach tags to an asset from declarative rules over wired inputs. Tags are searchable the moment they are written.",
+  "icon" : "sell",
+  "category" : "OUTPUT",
+  "inputPorts" : [ {
+    "id" : "media",
+    "label" : "Media",
+    "contentType" : "media/*",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The item being tagged"
+  }, {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "Prose to match against - a transcript, caption, OCR or document text"
+  }, {
+    "id" : "number",
+    "label" : "Number",
+    "contentType" : "scalar/number",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "A single metric to threshold on, such as a sentiment score"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/boolean",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "A boolean verdict from an upstream node"
+  }, {
+    "id" : "struct",
+    "label" : "Struct",
+    "contentType" : "struct/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "A structured upstream result - quality metrics, colours, metadata - addressed by dot path in a rule"
+  }, {
+    "id" : "labels",
+    "label" : "Labels",
+    "contentType" : "scalar/string",
+    "cardinality" : "MANY",
+    "required" : false,
+    "description" : "Strings to turn into tags - colour names, a polarity label, a filter bucket, a script output"
+  } ],
+  "outputPorts" : [ {
+    "id" : "applied",
+    "label" : "Applied",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The applied, withdrawn and rejected tags for this item"
+  }, {
+    "id" : "count",
+    "label" : "Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many tags were attached; cheap to wire into a filter"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "tagBy",
+    "type" : "ENUM",
+    "defaultValue" : "RULES",
+    "label" : "Tag By",
+    "description" : "How the tags for an item are decided",
+    "values" : [ "RULES", "LABELS" ]
+  }, {
+    "key" : "rules",
+    "type" : "JSON",
+    "defaultValue" : [ ],
+    "label" : "Rules",
+    "description" : "Rows of {id, tag|tagTemplate, collection, match, forEach, when[]}. A row attaches its tag when its conditions hold"
+  }, {
+    "key" : "collection",
+    "type" : "STRING",
+    "defaultValue" : "auto",
+    "label" : "Collection",
+    "description" : "Collection the tags are written to. Keeping machine tags in their own collection is what makes them distinguishable from tags a person typed"
+  }, {
+    "key" : "allowedTags",
+    "type" : "JSON",
+    "defaultValue" : [ ],
+    "label" : "Allowed Tags",
+    "description" : "Controlled vocabulary. When non-empty, a computed name outside it is dropped and recorded as rejected"
+  }, {
+    "key" : "maxTags",
+    "type" : "INTEGER",
+    "defaultValue" : 20,
+    "label" : "Max Tags",
+    "description" : "Hard cap on the tags attached to one item",
+    "min" : 1
+  }, {
+    "key" : "normalize",
+    "type" : "ENUM",
+    "defaultValue" : "TRIM_LOWER",
+    "label" : "Normalize",
+    "description" : "How a computed name is cleaned up before it is written",
+    "values" : [ "NONE", "TRIM", "TRIM_LOWER" ]
+  }, {
+    "key" : "removeWithdrawn",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Remove Withdrawn",
+    "description" : "Withdraw tags this node previously applied and no longer stands behind. Off by default: deleting is not a default"
+  }, {
+    "key" : "dryRun",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Dry Run",
+    "description" : "Compute and record the verdict but attach no tags. The way to try a rule set against a real library"
+  }, {
+    "key" : "minConfidence",
+    "type" : "NUMBER",
+    "defaultValue" : 0.0,
+    "label" : "Minimum Confidence",
+    "description" : "Tags below this confidence are dropped. Ignored by the deterministic strategies",
+    "min" : 0.0,
+    "max" : 1.0
+  } ],
+  "defaultConcurrency" : 4,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
   "nodeId" : "thumbnail",
   "kind" : "thumbnail",
   "name" : "Thumbnail Generator",

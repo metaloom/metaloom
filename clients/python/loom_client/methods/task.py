@@ -6,7 +6,14 @@ import uuid as _uuid_mod
 from typing import TYPE_CHECKING
 
 from ..assets import AssetId
-from ..models.task import TaskCreateRequest, TaskListResponse, TaskResponse, TaskUpdateRequest
+from ..models.task import (
+    TaskAssigneeListResponse,
+    TaskAssignRequest,
+    TaskCreateRequest,
+    TaskListResponse,
+    TaskResponse,
+    TaskUpdateRequest,
+)
 
 if TYPE_CHECKING:
     from ..request import LoomRequest
@@ -83,3 +90,49 @@ class TaskMethods:
     ) -> LoomRequest[None]:
         """Unassign a task from an annotation. The task itself is not deleted."""
         return self._delete(f"annotations/{self._uuid(annotation_uuid)}/tasks/{self._uuid(task_uuid)}")
+
+    # -- assignment to people ----------------------------------------------
+    #
+    # Unlike the asset and annotation links above, these say who is RESPONSIBLE for
+    # the task. Assigning to a group does not snapshot its membership: someone who
+    # joins the group afterwards inherits the task.
+
+    def list_task_assignees(self, task_uuid: _uuid_mod.UUID | str) -> LoomRequest[TaskAssigneeListResponse]:
+        """List the users and groups a task is assigned to."""
+        return self._get(f"tasks/{self._uuid(task_uuid)}/assignees", TaskAssigneeListResponse)
+
+    def assign_task(
+        self, task_uuid: _uuid_mod.UUID | str, request: TaskAssignRequest
+    ) -> LoomRequest[TaskAssigneeListResponse]:
+        """Assign a task to users and/or groups.
+
+        Additive -- the named targets are added to whatever the task already has, and
+        assigning the same target twice is a no-op rather than an error. Removing an
+        assignee is a separate delete, so a stale client cannot silently unassign
+        somebody by omitting them.
+        """
+        return self._post(f"tasks/{self._uuid(task_uuid)}/assignees", request, TaskAssigneeListResponse)
+
+    def assign_task_to_user(
+        self, task_uuid: _uuid_mod.UUID | str, user_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[TaskAssigneeListResponse]:
+        """Assign a task to a single user."""
+        return self.assign_task(task_uuid, TaskAssignRequest(user_uuids=[str(user_uuid)]))
+
+    def assign_task_to_group(
+        self, task_uuid: _uuid_mod.UUID | str, group_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[TaskAssigneeListResponse]:
+        """Assign a task to a single group."""
+        return self.assign_task(task_uuid, TaskAssignRequest(group_uuids=[str(group_uuid)]))
+
+    def unassign_task_from_user(
+        self, task_uuid: _uuid_mod.UUID | str, user_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[None]:
+        """Unassign a task from a user. The task itself is not deleted."""
+        return self._delete(f"tasks/{self._uuid(task_uuid)}/assignees/users/{self._uuid(user_uuid)}")
+
+    def unassign_task_from_group(
+        self, task_uuid: _uuid_mod.UUID | str, group_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[None]:
+        """Unassign a task from a group. The task itself is not deleted."""
+        return self._delete(f"tasks/{self._uuid(task_uuid)}/assignees/groups/{self._uuid(group_uuid)}")

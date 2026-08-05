@@ -23,6 +23,9 @@
 | "Task status, due date and `asset_task` are not exposed by REST" | ✅ OBSOLETE — that premise is false at this HEAD. `TaskModel` exposes `getTaskStatus()` and `getDueDate()`, `api/tasks.ts` types carry `taskStatus`/`dueDate`, and `TaskItem.tsx` renders both (including an overdue highlight). What remains is the `/tasks` screen not writing them — Task 1 |
 | `loadTask` / `loadComment` / `loadAssetReaction` have no caller | ✅ CLOSED as non-gaps — the list payloads are complete; a single-load call would be a redundant round-trip. Do not file these again |
 | `POST /reactions/assets/:assetUuid` (ReactionEndpoint) unused | ✅ CLOSED as a non-gap — a duplicate of the asset sub-resource path the UI already uses |
+| "Comment threading — no `parentUuid` on the comment REST models" (was filed under *No REST surface* below) | ✅ DONE — `parentUuid` is on `CommentCreateRequest` and `CommentResponse` (deliberately **not** on `CommentModel`, which `CommentUpdateRequest` also implements: that would allow re-parenting an existing comment). `CommentEndpointService.applyParent` 404s an unknown parent and **400s a parent belonging to a different subject**, so a reply cannot be smuggled onto another task's thread. UI: `features/tasks/commentThread.ts` (6 vitest cases) groups roots + replies **one level deep**, promoting an orphan or a cycle rather than dropping it; `CommentItem` gained a Reply affordance |
+| Tasks cannot be assigned to a person | ✅ DONE — `task_assignee` (V2.69), `/tasks/:uuid/assignees`, Java + Python clients, `AssigneeSelect` in `TasksView` and an avatar group in `TaskItem`. `e2e/task-assignees-mocked.spec.ts` pins the add/remove diff; `e2e/asset-tasks-mocked.spec.ts`'s "no assignee" assertions were **inverted**, not deleted |
+| No notification of any kind | ✅ DONE — `notification` (V2.70), `/notifications`, the addressed `NOTIFICATION` socket channel, and the sidebar bell. Six triggers: task assigned/unassigned, status changed, comment on a task, reply to a comment, pipeline run failed |
 
 ---
 
@@ -176,9 +179,15 @@ URL-encoded uuid; if a view is added, a mocked spec that renders returned reacti
 
 ## No REST surface — backend prerequisites, not UI gaps
 
-* **Comment threading** — `CommentModel` exposes only `title` and `text`; there is no `parentUuid`
-  on the comment REST models, so self-parent replies described in [../DOMAIN.md](../DOMAIN.md)
-  group 6 cannot be built in the UI.
+* ~~**Comment threading**~~ — resolved, see the outcome table above. What remains is **depth**:
+  rendering flattens a reply-to-a-reply onto its nearest root (`commentThread.ts`), because
+  indentation runs out and the API imposes no depth limit. Arbitrary nesting is a separate design
+  problem, not a bug.
+* **Notification retention is unbounded.** Nothing prunes `notification`; the only removal paths are
+  a user's own `DELETE /notifications` and the subject/recipient cascades. The indexes are sized for
+  it, but a retention sweep is still open work.
+* **No server-side "assigned to me" filter.** `TaskDao.loadPageAssignedTo` exists and is DAO-tested,
+  but no route exposes it — the UI filters the loaded page client-side.
 * **`createComment` / `listComments`** in [api/comments.ts](../../../loom-ui/src/api/comments.ts)
   are unused by design — comments are always created through the task or asset sub-route, and
   there is no global comment view. Not a gap; do not file it again.

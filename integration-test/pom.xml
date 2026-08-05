@@ -266,6 +266,11 @@
             <version>${loom.cortex.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.metaloom.cortex</groupId>
+            <artifactId>cortex-tag-node</artifactId>
+            <version>${loom.cortex.version}</version>
+        </dependency>
+        <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
         </dependency>

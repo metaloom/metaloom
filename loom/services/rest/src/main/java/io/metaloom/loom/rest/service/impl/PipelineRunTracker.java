@@ -35,6 +35,16 @@ public class PipelineRunTracker {
 	private final PipelineRunDao pipelineRunDao;
 	private final LoomMetrics metrics;
 
+	/**
+	 * Optional, and injected through a setter rather than the constructor.
+	 *
+	 * <p>
+	 * {@link #PipelineRunTracker(PipelineRunDao)} is a widely used test convenience; making the dispatcher a constructor parameter would break every
+	 * one of those call sites for a purely incidental dependency. Null means "nobody is listening", which is the correct behaviour in a unit test.
+	 * </p>
+	 */
+	private NotificationDispatcher notifications;
+
 	@Inject
 	public PipelineRunTracker(PipelineRunDao pipelineRunDao, LoomMetrics metrics) {
 		this.pipelineRunDao = pipelineRunDao;
@@ -44,6 +54,14 @@ public class PipelineRunTracker {
 	/** Test convenience: a tracker without a metrics backend. */
 	public PipelineRunTracker(PipelineRunDao pipelineRunDao) {
 		this(pipelineRunDao, io.metaloom.loom.common.metrics.NoopLoomMetrics.INSTANCE);
+	}
+
+	/**
+	 * Wire in notification dispatch. Called once at wiring time; a tracker without one simply does not notify.
+	 */
+	@Inject
+	public void setNotificationDispatcher(NotificationDispatcher notifications) {
+		this.notifications = notifications;
 	}
 
 	/**
@@ -191,6 +209,13 @@ public class PipelineRunTracker {
 
 			log.info("Pipeline run {} closed as {} (media={}, success={}, failure={}, skipped={}, duration={}ms)",
 				runUuid, status, mediaCount, successCount, failureCount, skippedCount, durationMs);
+
+			// Deliberately here rather than in fail(): complete() also resolves to FAILED via
+			// PipelineRunStatusResolver when failureCount > 0, so hooking fail() alone would miss
+			// every run that finished normally but with failures - which is the common case.
+			if (notifications != null && PipelineRunStatusResolver.FAILED.equals(status)) {
+				notifications.pipelineRunFailed(run.getCreatorUuid(), runUuid, pipelineNameOf(run), errorMessage);
+			}
 			return true;
 		} catch (Exception e) {
 			// A persistence failure must not tear down the caller — the processor
@@ -198,5 +223,13 @@ public class PipelineRunTracker {
 			log.error("Failed to persist completion for pipeline run {}", runUuid, e);
 			return false;
 		}
+	}
+
+	/**
+	 * A human label for the failed run. Falls back to the uuid when the run carries no name — a notification that says "a pipeline failed" is still
+	 * more use than none.
+	 */
+	private static String pipelineNameOf(PipelineRun run) {
+		return run.getPipelineUuid() != null ? String.valueOf(run.getPipelineUuid()) : String.valueOf(run.getUuid());
 	}
 }

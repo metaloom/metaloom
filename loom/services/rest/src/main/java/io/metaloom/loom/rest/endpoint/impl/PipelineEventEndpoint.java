@@ -2,16 +2,20 @@ package io.metaloom.loom.rest.endpoint.impl;
 
 import static io.metaloom.loom.rest.RESTConstants.API_V1_PATH;
 
+import java.util.UUID;
+
 import javax.inject.Inject;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.auth.LoomUser;
 import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
 import io.metaloom.loom.rest.service.impl.WebSocketAuthenticator;
 import io.vertx.core.http.ServerWebSocket;
+import io.vertx.ext.auth.User;
 
 /**
  * WebSocket endpoint that streams live pipeline tracking events to UI clients.
@@ -80,8 +84,9 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 
 	private void handleWebSocket(ServerWebSocket ws) {
 		authenticator.authenticate(ws, "pipeline-events")
-			.onSuccess(v -> {
-				broadcaster.addSubscriber(ws, extractQueryParam(ws, "pipeline"), extractQueryParam(ws, "run"));
+			.onSuccess(user -> {
+				broadcaster.addSubscriber(ws, extractQueryParam(ws, "pipeline"), extractQueryParam(ws, "run"),
+					resolveUserUuid(ws, user));
 
 				ws.closeHandler(v2 -> broadcaster.removeSubscriber(ws));
 
@@ -124,5 +129,32 @@ public class PipelineEventEndpoint extends AbstractEndpoint {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Resolve the uuid of the authenticated user, or null when the socket carries no usable identity.
+	 *
+	 * <p>
+	 * Two ways that happens. A tokenless socket is accepted outright in lenient mode (the default), and arrives here with a null user. And
+	 * {@link LoomUser#getUuid()} is {@code UUID.fromString(get("uuid"))}, which throws on a token that has no {@code uuid} claim or a malformed one.
+	 * That throw <b>must</b> be caught: it would otherwise escape the {@code onSuccess} handler, leaving a live socket with no {@code closeHandler}
+	 * registered and therefore a subscriber that is never removed.
+	 * </p>
+	 *
+	 * <p>
+	 * A null result is safe by construction — {@code broadcastNotification} never matches a null-user subscriber.
+	 * </p>
+	 */
+	private static UUID resolveUserUuid(ServerWebSocket ws, User user) {
+		if (user == null) {
+			return null;
+		}
+		try {
+			return new LoomUser(user).getUuid();
+		} catch (RuntimeException e) {
+			log.warn("Pipeline events WebSocket from {} authenticated but carries no usable uuid claim; "
+				+ "it will receive no notifications", ws.remoteAddress());
+			return null;
+		}
 	}
 }

@@ -7,6 +7,9 @@ export interface CommentResponse {
   title?: string;
   text?: string;
   assetUuid?: string;
+  // Set when this comment replies to another. Threading is rendered one level deep;
+  // see features/tasks/commentThread.ts.
+  parentUuid?: string;
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name?: string };
@@ -29,6 +32,9 @@ export interface CommentListResponse {
 export interface CommentCreateRequest {
   title?: string;
   text?: string;
+  // Reply to an existing comment. The server rejects a parent belonging to a different
+  // subject, so a reply cannot be smuggled onto another task's or asset's thread.
+  parentUuid?: string;
   meta?: Record<string, unknown>;
 }
 

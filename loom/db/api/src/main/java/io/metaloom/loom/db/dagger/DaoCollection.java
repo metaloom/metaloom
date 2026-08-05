@@ -24,6 +24,7 @@ import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
 import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
+import io.metaloom.loom.db.model.notification.NotificationDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
 import io.metaloom.loom.db.model.tag.TagDao;
@@ -136,6 +137,8 @@ public interface DaoCollection {
 	// Skill
 
 	SkillDao skillDao();
+
+	NotificationDao notificationDao();
 
 	SkillVersionDao skillVersionDao();
 

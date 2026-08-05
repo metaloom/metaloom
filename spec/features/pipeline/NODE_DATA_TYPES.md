@@ -345,6 +345,17 @@ value in the descriptor's enum — never an edit to `FilterNode`.
 | `fingerprint-dedup` | `fingerprint : hash/fingerprint` | — |
 | `fingerprint-dedup-apply` | `hash : hash/*` | — |
 | `s3-sink` | `artifacts : artifact/*` **MANY** | `result : struct/json`, `count : scalar/integer`, `flag : scalar/string` |
+| `tag` | `media : media/*`, `text : text/*` *(opt)*, `number : scalar/number` *(opt)*, `flag : scalar/boolean` *(opt)*, `struct : struct/*` *(opt)*, `labels : scalar/string` *(MANY, opt)* | `applied : struct/json`, `count : scalar/integer` |
+
+`tag` writes into the catalog rather than producing bytes, which is why it is an `OUTPUT` node with
+outputs: `applied` and `count` describe what it did, so a downstream node can branch on whether an
+item was tagged at all.
+
+🔴 **`tag` has no `MANY` output on purpose.** A `tags : scalar/string` MANY port is the obvious design
+and is rejected on the declaration (§6.4: a `PER_ELEMENT` node may not declare a `MANY` output), which
+would bar the node from sitting downstream of any fan-out. Its five value inputs are all `ONE` for the
+same reason a `filter` has one `text` port: a rule addresses a *port*, and a MANY port whose rules
+picked their source by the element's origin node id would reintroduce `nodeId:outputKey` addressing.
 
 A fourth sink, `loom`, used to sit here with three optional hash input ports. Porting it to bind by
 **port type** killed the `md5sum` id-override trap; it was then deleted altogether, because every
@@ -1014,5 +1025,5 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 
 ---
 
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (added the gdrive-source and onedrive-source port rows and re-derived the runnable-kind counts; the filter consolidation entry above is unchanged)_
+_Git HEAD revision: `55848543`_
+_Last updated: 2026-08-04 (added the `tag` port row to §4.6, and why it has no MANY output and no MANY struct input)_

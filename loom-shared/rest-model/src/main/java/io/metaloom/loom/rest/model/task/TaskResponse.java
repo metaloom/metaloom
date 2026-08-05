@@ -30,9 +30,11 @@ public class TaskResponse extends AbstractCreatorEditorRestResponse<TaskResponse
 
 	private List<CommentResponse> comments = new ArrayList<>();
 
-	// reactions
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("Users and groups this task is assigned to.")
+	private List<TaskAssigneeResponse> assignees = new ArrayList<>();
 
-	// assignedTo
+	// reactions
 
 	@Override
 	public String getTitle() {
@@ -95,6 +97,15 @@ public class TaskResponse extends AbstractCreatorEditorRestResponse<TaskResponse
 
 	public TaskResponse setComments(List<CommentResponse> comments) {
 		this.comments = comments;
+		return this;
+	}
+
+	public List<TaskAssigneeResponse> getAssignees() {
+		return assignees;
+	}
+
+	public TaskResponse setAssignees(List<TaskAssigneeResponse> assignees) {
+		this.assignees = assignees;
 		return this;
 	}
 

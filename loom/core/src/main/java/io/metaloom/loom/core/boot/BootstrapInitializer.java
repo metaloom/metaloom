@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutionException;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.sql.DataSource;
 
 import org.flywaydb.core.Flyway;
 import org.slf4j.Logger;
@@ -49,11 +50,13 @@ public class BootstrapInitializer {
 
 	private final SandboxReaper sandboxReaper;
 
+	private final DataSource dataSource;
+
 	@Inject
 	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService,
 		MonitoringService monitoringService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
-		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper) {
+		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper, DataSource dataSource) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
@@ -66,6 +69,7 @@ public class BootstrapInitializer {
 		this.httpServer = httpServer;
 		this.assetPipelineTrigger = assetPipelineTrigger;
 		this.sandboxReaper = sandboxReaper;
+		this.dataSource = dataSource;
 	}
 
 	public void init(boolean migrate) throws IOException {
@@ -185,6 +189,24 @@ public class BootstrapInitializer {
 			log.warn("Interrupted while closing the HTTP server");
 		} catch (Exception e) {
 			log.error("Failed to close the HTTP server", e);
+		}
+
+		// Release the JDBC connection pool. Without this the pool keeps its minPoolSize connections
+		// open forever: the pool is a @Singleton of the Dagger component, and a component that is
+		// discarded takes no action on the connections it opened. In production that leaks once, at
+		// shutdown, and the exiting process cleans up after it. In a test suite it is fatal - every
+		// test method builds a fresh component, so the leak is per-method and cumulative, and around
+		// the twentieth boot PostgreSQL answers "FATAL: sorry, too many clients already" while the
+		// test that happens to be running takes the blame.
+		//
+		// c3p0's PooledDataSource extends AutoCloseable, so this needs no c3p0 dependency here.
+		if (dataSource instanceof AutoCloseable closeable) {
+			try {
+				closeable.close();
+				log.info("Database connection pool closed");
+			} catch (Exception e) {
+				log.error("Failed to close the database connection pool", e);
+			}
 		}
 	}
 }

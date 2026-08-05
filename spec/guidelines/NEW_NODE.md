@@ -17,8 +17,9 @@ change.
 > | Pure compute, **no model / no sidecar** | `cortex/nodes/dominant-color` | k-means arithmetic, no external runtime |
 > | A **sink** that consumes upstream artifacts | `cortex/nodes/s3-sink` | reads files an upstream node wrote to local disk; also a `PipelineConfigurable` |
 > | Analytical, writes a **typed component** through the generic component endpoint | `cortex/nodes/metadata` | the only node using `POST /assets/:uuid/components`; also the reference for a raw → canonical mapping whose design lives in its own unit test |
+> | Writes into the **catalog** (tags, and later anything else Loom curates) | `cortex/nodes/tag` | resolve-or-create through the REST client, a self-written provenance component, and provenance-guarded deletion |
 > | A minimal out-of-tree example | `examples/cortex-custom-node` | the smallest thing that compiles and registers |
-| A **source** that reaches a remote system | `cortex/nodes/cloud-source` · `cortex/s3-common` | `AbstractPipelineNode implements MediaSourceNode`, a cold `stream()`, lazy media handles, and the provider seam + materializer in a sibling `*-common` module so every worker can resolve the references |
+> | A **source** that reaches a remote system | `cortex/nodes/cloud-source` · `cortex/s3-common` | `AbstractPipelineNode implements MediaSourceNode`, a cold `stream()`, lazy media handles, and the provider seam + materializer in a sibling `*-common` module so every worker can resolve the references |
 
 ---
 
@@ -156,29 +157,35 @@ run, or the build fails.
 | 1 | `cortex/nodes/pom.xml` | add `<module>your-node</module>` |
 | 2 | `cortex/processor/pom.xml` | add a `<dependency>` on `cortex-<your-node>-node` — this is the aggregation module the CLI/server pull in transitively |
 | 3 | `cortex/cli/.../dagger/NodeCollectionModule.java` | import `XNodeModule` and add `XNodeModule.class` to `@Module(includes = {…})` |
-| 4 | `loom-shared/node-model/.../spec/XDescriptorProvider.java` **+** the `META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` file | the descriptor (ports, parameters, category, icon) and its ServiceLoader registration |
-| 5 | `integration-test/.../node/NodePortConformanceTest.java` | add a `map("<node class FQN>", "<kind>")` line — kinds are listed explicitly, never scanned. One class may serve several kinds (`map(fqn, "a", "b")`), as `CloudSourceNode` does |
+| 4 | `cortex/api/.../node/spec/NodeSpecCatalog.java` | add the node's **class name** to `BUILT_IN_NODE_CLASSES`. 🔴 Nothing scans for `@NodeSpec`: a node missing from this list runs perfectly and cannot be *authored*, and every guard test still passes |
+| 5 | `integration-test/pom.xml` | add a `<dependency>` on the node module — the harvest is class-path based, so a module the integration-test cannot see is silently absent from the generated contracts |
 
-**And update the two guard tests:**
+**Then regenerate the contracts and update the guard test:**
 
-- `NodeDescriptorServiceLoaderTest` asserts an exact provider count and kind count — currently
-  **28 providers / 38 kinds**. Adding a descriptor bumps both `assertEquals` literals; also add the
-  kind to its `testKindsFromEachFormerModule` list and update the "N providers declare M kinds" line
-  in [NODES.md §5.2](../features/nodes/NODES.md). This test failing is the intended tripwire,
-  not a regression.
-- `NodePortConformanceTest` (touch-point 5) compares the node's `InputPort`/`OutputPort` constants
-  against its descriptor's `PortSpec`s — **id, content type and cardinality must match on both
-  sides**, in both directions. Nodes whose ports are derived per instance (`script`, `llm`, `vlm`)
-  are exempted via `DYNAMIC_KINDS`; everything else must match exactly.
+```bash
+mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNodeDescriptors=true
+```
 
-Descriptor shape (see `WatermarkDescriptorProvider` for a full one):
-`setKind` / `setName` / `setDescription` / `setIcon` (Material icon name) / `setCategory`
-(`SOURCE`, `FILTER`, `ANALYSIS`, `TRANSFORM`, …) / `setInputPorts` + `setOutputPorts`
-(`PortSpec.one|many|optionalOne|optionalMany(id, contentType).describedAs(label, desc)`) /
-`setParameters` (`NodeParameter`, starting with the common `enabled` / `processIncomplete` /
-`retryFailed`) / `setDefaultConcurrency` / `setDefaultMode` / `setEvents`.
+That rewrites `loom-shared/node-model/src/main/resources/node-descriptors.json`, **which is
+committed**. `NodeSpecGoldenTest` otherwise only compares, so a stale resource is a build failure
+rather than a silently outdated palette. `NodeDescriptorServiceLoaderTest` then needs its kind count
+bumped (currently **40**) and the new kind added to its `testKindsFromEachFormerModule` list; update
+the same number in [NODES.md §5.2](../features/nodes/NODES.md).
+
+⚠️ **The golden test compares against the class path, not the source tree**, so after regenerating you
+must reinstall `loom-shared/node-model` — and `mvn clean install` the shaded artifacts that bundle the
+resource (`cortex/cli`, `loom/containers/server`, `cli`). Without the `clean` the shade plugin
+re-shades the previous fat jar and the stale copy survives every rebuild, which reads exactly like a
+regeneration that did not work.
+
+**There is no `<Kind>DescriptorProvider` any more, and no `NodePortConformanceTest`.** A node declares
+its contract once, on itself, with `@NodeSpec` on the class, `@PortDoc` on the port constants and
+`@ParamDoc` on the options fields; `NodeSpecHarvester` derives ids, content types, cardinalities,
+parameter types, defaults and enum values from those declarations. Only labels, descriptions, icons,
+categories and bounds are authored. See [NODES.md §5.3](../features/nodes/NODES.md).
 Content types come from `ContentTypeRegistry` (`MEDIA_*`, `TEXT_*`, `DETECTION_*`, `HASH_*`,
-`SCALAR_*`, `ARTIFACT_*`, `STRUCT_*`, `CONTROL_*`).
+`SCALAR_*`, `ARTIFACT_*`, `STRUCT_*`, `CONTROL_*`); categories from `NodeCategory`
+(`SOURCE`, `FILTER`, `ANALYSIS`, `TRANSFORM`, `OUTPUT`).
 
 ---
 
@@ -205,7 +212,7 @@ Plus the two `assertj` helpers under `.../<pkg>/assertj/`: `XNodeAssertions exte
 **Run them** with `mvn -pl cortex/nodes/<name>/core test -o` (install deps once with `-am -DskipTests`
 first — some unrelated `-am` modules have flaky testcontainer tests). Then compile `cortex/cli`
 (`mvn -pl cortex/cli -am compile -o`) to prove the **Dagger graph still resolves** with the node wired
-in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
+in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
 
 ---
 
@@ -234,6 +241,12 @@ in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
 
 ## 5. Conventions and gotchas
 
+- **A shaded jar keeps a stale generated resource forever without `clean`.** `node-descriptors.json`
+  is bundled into `cortex/cli`, `loom/containers/server` and `cli`; re-running `install` on them
+  re-shades the *previous* fat jar, so the old copy survives. Use `mvn clean install` on those three.
+- **Nothing scans for `@NodeSpec`.** `NodeSpecCatalog.BUILT_IN_NODE_CLASSES` is a hand-maintained list
+  of class names (§2, touch-point 4). A node missing from it is runnable and unauthorable, and no test
+  fails.
 - **Clean-rebuild after a constructor change.** Adding a constructor arg to a node (e.g. a new
   injected client) needs `cortex/core` rebuilt, or `setup-pool`/tests fail with `NoSuchMethodError`
   against the stale Dagger factory.
@@ -263,12 +276,14 @@ in, and run `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest`.
 | Descriptor model (`NodeDescriptor`, `PortSpec`, `NodeParameter`, `NodeCategory`) | `loom-shared/node-model/.../spec/` |
 | Kind registry wiring (no edit needed) | `cortex/cli/.../dagger/PipelineNodeFactoryModule.java` · aggregation in `NodeCollectionModule.java` |
 | Descriptor count guard test | `loom-shared/node-model/.../NodeDescriptorServiceLoaderTest.java` |
-| Port ↔ descriptor conformance test | `integration-test/.../node/NodePortConformanceTest.java` |
+| Generated contract set + its regeneration | `loom-shared/node-model/src/main/resources/node-descriptors.json` · `integration-test/.../node/NodeSpecGoldenTest.java` |
+| The class list the harvest reads | `cortex/api/.../node/spec/NodeSpecCatalog.java` (`BUILT_IN_NODE_CLASSES`) |
 | Test scaffolding (`StubLoomMedia`, `AbstractNodeChainTest`, `CapturingNode`) | `cortex/pipeline-core` test-jar (`io.metaloom.cortex.pipeline.test`) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
 | Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) |
 
-_Git HEAD revision: `23746123`_
-_Last updated: 2026-08-03 (added the `metadata` node: refreshed the guard-test counts to 28/38 and
-recorded it as the template for a node writing through the generic component endpoint)_
+_Git HEAD revision: `55848543`_
+_Last updated: 2026-08-04 (rewrote §2 for the annotation-harvested contracts: the descriptor providers
+and `NodePortConformanceTest` are gone, and `NodeSpecCatalog.BUILT_IN_NODE_CLASSES` plus the
+integration-test dependency are the touch-points that were missing. Kind count 40 after the `tag` node)_

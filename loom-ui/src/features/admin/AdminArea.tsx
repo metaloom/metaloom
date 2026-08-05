@@ -908,6 +908,8 @@ function AccessControlAdmin() {
 // Permissions grouped by resource (derived from Permission.java enum)
 const PERMISSION_GROUPS: Record<string, string[]> = {
   Annotation: ["CREATE_ANNOTATION", "READ_ANNOTATION", "DELETE_ANNOTATION", "UPDATE_ANNOTATION"],
+  // Three, not four: notifications are dispatched server-side, so there is no CREATE.
+  Notification: ["READ_NOTIFICATION", "UPDATE_NOTIFICATION", "DELETE_NOTIFICATION"],
   Asset: ["CREATE_ASSET", "READ_ASSET", "DELETE_ASSET", "UPDATE_ASSET"],
   "Asset Location": ["CREATE_ASSET_LOCATION", "READ_ASSET_LOCATION", "DELETE_ASSET_LOCATION", "UPDATE_ASSET_LOCATION"],
   Attachment: ["CREATE_ATTACHMENT", "READ_ATTACHMENT", "DELETE_ATTACHMENT", "UPDATE_ATTACHMENT"],

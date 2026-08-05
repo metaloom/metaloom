@@ -2,11 +2,14 @@ package io.metaloom.loom.client.common.method;
 
 import static io.metaloom.loom.api.asset.AssetId.assetId;
 
+import java.util.List;
 import java.util.UUID;
 
 import io.metaloom.loom.api.asset.AssetId;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.rest.model.NoResponse;
+import io.metaloom.loom.rest.model.task.TaskAssignRequest;
+import io.metaloom.loom.rest.model.task.TaskAssigneeListResponse;
 import io.metaloom.loom.rest.model.task.TaskCreateRequest;
 import io.metaloom.loom.rest.model.task.TaskListResponse;
 import io.metaloom.loom.rest.model.task.TaskResponse;
@@ -64,5 +67,23 @@ public interface TaskMethods {
 	LoomClientRequest<TaskResponse> assignTaskToAnnotation(UUID annotationUuid, UUID taskUuid);
 
 	LoomClientRequest<NoResponse> unassignTaskFromAnnotation(UUID annotationUuid, UUID taskUuid);
+
+	// TASK - ASSIGNEE (people, as opposed to the asset/annotation links above)
+
+	LoomClientRequest<TaskAssigneeListResponse> listTaskAssignees(UUID taskUuid);
+
+	LoomClientRequest<TaskAssigneeListResponse> assignTask(UUID taskUuid, TaskAssignRequest request);
+
+	default LoomClientRequest<TaskAssigneeListResponse> assignTaskToUser(UUID taskUuid, UUID userUuid) {
+		return assignTask(taskUuid, new TaskAssignRequest().setUserUuids(List.of(userUuid)));
+	}
+
+	default LoomClientRequest<TaskAssigneeListResponse> assignTaskToGroup(UUID taskUuid, UUID groupUuid) {
+		return assignTask(taskUuid, new TaskAssignRequest().setGroupUuids(List.of(groupUuid)));
+	}
+
+	LoomClientRequest<NoResponse> unassignTaskFromUser(UUID taskUuid, UUID userUuid);
+
+	LoomClientRequest<NoResponse> unassignTaskFromGroup(UUID taskUuid, UUID groupUuid);
 
 }

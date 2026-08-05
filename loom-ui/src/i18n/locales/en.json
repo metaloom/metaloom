@@ -359,7 +359,8 @@
     "table": {
       "task": "Task",
       "priority": "Priority",
-      "created": "Created"
+      "created": "Created",
+      "assignees": "Assignees"
     },
     "status": {
       "PENDING": "Pending",
@@ -389,12 +390,21 @@
       "title": "Comments",
       "addPlaceholder": "Write a comment…",
       "post": "Post comment",
-      "empty": "No comments yet"
+      "empty": "No comments yet",
+      "replyingTo": "Replying to: {{text}}"
     },
     "emptyState": {
       "title": "Nothing on your plate yet",
       "description": "Tasks track review, approval and follow-up work on your media, with priority, assignee and due date.",
       "action": "Create your first task"
+    },
+    "assignees": {
+      "label": "Assignees",
+      "group": {
+        "USER": "Users",
+        "GROUP": "Groups"
+      },
+      "none": "Unassigned"
     }
   },
   "monitoring": {
@@ -1583,7 +1593,8 @@
       "cancel": "Cancel",
       "postError": "Failed to post comment",
       "editError": "Failed to update comment",
-      "deleteError": "Failed to delete comment"
+      "deleteError": "Failed to delete comment",
+      "reply": "Reply"
     },
     "annotation": {
       "add": "Add annotation",
@@ -1819,5 +1830,15 @@
     "create": "New note",
     "deleteTitle": "Delete note",
     "deleteBody": "This permanently removes the note — there is no version history yet."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "clearAll": "Clear all",
+    "dismiss": "Dismiss",
+    "emptyState": {
+      "title": "You're all caught up",
+      "description": "Assignments, comments and run failures will show up here."
+    }
   }
 }

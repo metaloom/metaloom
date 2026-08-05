@@ -37,7 +37,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: fail this test rather than quietly leave the Python client behind.
 #: 211 abstract declarations plus 21 ``default`` overloads. Cross-checked both ways
 #: against ``LoomHttpClientImpl``, which implements exactly these 232.
-EXPECTED_JAVA_METHOD_COUNT = 232
+EXPECTED_JAVA_METHOD_COUNT = 246
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -262,6 +262,10 @@ def client_route_table() -> list[tuple[str, str, str]]:
 
 def _templatise(path: str) -> str:
     """Replace concrete ids with ``{uuid}`` so paths compare against the spec."""
+    # A query string is not part of the route. The spec lists parameters separately, so
+    # `notifications?unread=true` and `notifications` are the same path as far as route
+    # parity is concerned.
+    path = path.split("?", 1)[0]
     parts = []
     for part in path.split("/"):
         if re.fullmatch(r"[0-9a-fA-F-]{36}", part):

@@ -54,7 +54,7 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 | 5 | AI / ML | Embedding, Cluster, Detection, Person, Vector Config |
 | 6 | Agent | Chat, Chat Session, Skill, Skill Version, Memory Entry, Memory Deny Rule |
 | 7 | Pipeline / Processing (Cortex) | Pipeline, Pipeline Version, Pipeline Run, Run Item, Node Task, Cortex Instance |
-| 8 | Collaboration / Social | Task, Comment, Reaction |
+| 8 | Collaboration / Social | Task, Comment, Reaction, Notification |
 | 9 | Search | Search Document, Search Document Deleted |
 | 10 | Deduplication | Dedup Group, Dedup Group Member |
 | 11 | System | Loom |
@@ -171,9 +171,10 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
-| **Task** | `task`, `asset_task`, `annotation_task` | Workflow item: title, `task_status` ∈ PENDING/REJECTED/ACCEPTED/REVIEW, `task_priority` ∈ LOW/MEDIUM/HIGH/CRITICAL, due date. | ↔ Asset, Annotation | V2.3; priority enum V2.34; cascade V2.35 |
+| **Task** | `task`, `asset_task`, `annotation_task`, `task_assignee` | Workflow item: title, `task_status` ∈ PENDING/REJECTED/ACCEPTED/REVIEW, `task_priority` ∈ LOW/MEDIUM/HIGH/CRITICAL, due date. `task_assignee` says who is **responsible**: one row per target, exactly one of `user_uuid`/`group_uuid` set (CHECK). No PK — nullable targets force two *partial* unique indexes, so jOOQ emits a `TableRecord` and the table is driven from `TaskDaoImpl` like `asset_task`. Group membership is resolved on **read**, so joining a team inherits its work. | ↔ Asset, Annotation; → User/Group (CASCADE) | V2.3; priority enum V2.34; cascade V2.35; assignees V2.69 |
 | **Comment** | `comment` | Threaded comment on a task, asset or annotation. | self-parent; → Task/Asset/Annotation (annotation CASCADE V2.48) | V2.17 |
 | **Reaction** | `reaction` | Social reaction/rating (e.g. thumbsup) on asset, task, comment or annotation. | → Asset/Task/Comment/Annotation | V2.17 |
+| **Notification** | `notification` | One durable inbox entry for **one** user. `recipient_uuid` is always a concrete user: a group notification is **fanned out to one row per member at dispatch time**, deliberately the opposite choice to `task_assignee`, because "you were told" is a historical fact while ownership is a live one. `type` is a varchar + CHECK (∈ TASK_ASSIGNED, TASK_UNASSIGNED, TASK_STATUS_CHANGED, TASK_COMMENT, COMMENT_REPLY, PIPELINE_RUN_FAILED) rather than an enum — V2.55 shows what removing an enum value costs. `creator_uuid` is the **actor**, not the recipient, and is nullable for machine-generated events. Subject FKs CASCADE (a bell row that deep-links to a 404 is worse than none); actor and group SET NULL. | → User (recipient CASCADE, actor SET NULL), Task/Comment/PipelineRun/Asset (CASCADE), Group (SET NULL) | V2.70 |
 
 ### 9. Search
 

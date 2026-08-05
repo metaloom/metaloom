@@ -224,6 +224,15 @@ public enum Permission {
 	CREATE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
 	READ_DEDUP,               // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
 	UPDATE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest
-	DELETE_DEDUP;             // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
+	DELETE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
+
+	// The per-user notification inbox. Gate on /api/v1/notifications.
+	// There is deliberately no CREATE_NOTIFICATION: notifications are dispatched server-side
+	// by NotificationDispatcher and have no REST create route, so the constant would be dead.
+	// Rows are recipient-scoped on top of these - holding READ_NOTIFICATION lets you read
+	// YOUR inbox, never anybody else's (NotificationEndpointService 404s a foreign row).
+	READ_NOTIFICATION,        // doc:yes  ui:yes test:NotificationEndpointTest (403 cases)
+	UPDATE_NOTIFICATION,      // doc:yes  ui:yes test:NotificationEndpointTest (403 cases)
+	DELETE_NOTIFICATION;      // doc:yes  ui:yes test:NotificationEndpointTest (403 cases)
 
 }

@@ -137,5 +137,43 @@ public class TaskEndpoint extends AbstractEndpoint  {
 				commentService.listForTask(lrc, lrc.pathParamUUID("taskUuid"));
 			});
 
+		// ASSIGNEE
+		//
+		// Unassign is two explicit sub-paths rather than one DELETE on the collection: a bare
+		// collection DELETE cannot name WHICH assignee, a DELETE request body is unevenly
+		// supported end to end, and `?user=<uuid>` would put an identity in a query parameter.
+
+		addRoute(basePath() + "/:taskUuid/assignees", GET,
+			"List the users and groups a task is assigned to",
+			null,
+			examples.taskAssigneeListResponseExample(),
+			lrc -> {
+				service.listAssignees(lrc, lrc.pathParamUUID("taskUuid"));
+			});
+
+		addRoute(basePath() + "/:taskUuid/assignees", POST,
+			"Assign a task to one or more users and/or groups",
+			examples.taskAssignRequestExample(),
+			examples.taskAssigneeListResponseExample(),
+			lrc -> {
+				service.assign(lrc, lrc.pathParamUUID("taskUuid"));
+			});
+
+		addRoute(basePath() + "/:taskUuid/assignees/users/:userUuid", DELETE,
+			"Unassign a task from a user",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.unassignUser(lrc, lrc.pathParamUUID("taskUuid"), lrc.pathParamUUID("userUuid"));
+			});
+
+		addRoute(basePath() + "/:taskUuid/assignees/groups/:groupUuid", DELETE,
+			"Unassign a task from a group",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.unassignGroup(lrc, lrc.pathParamUUID("taskUuid"), lrc.pathParamUUID("groupUuid"));
+			});
+
 	}
 }

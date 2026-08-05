@@ -220,7 +220,8 @@ export const API_BASE_URL =
 | `binaries.ts` | `/assets/:uuid/binary`, `/assets/:uuid/binary/data` |
 | `libraries.ts` · `collections.ts` · `spaces.ts` | `/libraries` · `/collections` · `/spaces` |
 | `tags.ts` | `/tags`, `/tags/:uuid/rating`, `/assets/:uuid/tags[/:tagUuid]` |
-| `tasks.ts` | `/tasks`, `/assets/:uuid/tasks[/:taskUuid]` |
+| `tasks.ts` | `/tasks`, `/assets/:uuid/tasks[/:taskUuid]`, `/tasks/:uuid/assignees[/users/:uuid\|/groups/:uuid]` |
+| `notifications.ts` | `/notifications[?unread=true]`, `/notifications/:uuid`, `/notifications/read-all` |
 | `comments.ts` | `/comments`, `/assets/:uuid/comments`, `/tasks/:uuid/comments` |
 | `reactions.ts` | `/{assets,comments,annotations,tasks}/:uuid/reactions[/:reactionUuid]` |
 | `annotations.ts` | `/annotations[/:uuid]` |
@@ -248,7 +249,8 @@ export const API_BASE_URL =
 | `SpaceContext` | `context/SpaceContext.tsx` | `spaces[]`, `activeSpace`, `setActiveSpace` | No |
 | `NodeRegistryContext` | `context/NodeRegistryContext.tsx` | `descriptors[]`, `contentTypes[]`, `loading`, `error`, lookup helpers | No |
 | `ThemeContext` | `context/ThemeContext.tsx` | `mode` (`dark`\|`light`), `toggleMode`, `setMode` | `localStorage` key `loom-ui-theme` |
-| `ToastContext` | `context/ToastContext.tsx` | global notifications | No |
+| `ToastContext` | `context/ToastContext.tsx` | transient toasts (in-memory, no history) | No |
+| `NotificationContext` | `context/NotificationContext.tsx` | `items`, `unreadCount`, `loading`, `refresh`, `markRead`, `markAllRead`, `dismiss`, `clear` — the durable inbox, seeded from `/notifications` and appended from the `NOTIFICATION` socket channel | **No** — server-backed |
 | `LayoutContext` | `context/LayoutContext.tsx` | `sidebarCollapsed`, `setSidebarCollapsed` | **No** — plain `useState` in `AppShell` |
 | `UploadContext` | `features/uploads/UploadContext.tsx` | `UploadSummary` — items, counts, weighted `percent`, `isActive` | **No** — mirrors the module-level queue; see [LOOM_UI_UPLOAD.md](LOOM_UI_UPLOAD.md) |
 
@@ -326,8 +328,17 @@ same. E2E specs may keep `page.goto("/")`; a deep-linking spec must spell out th
 
 `src/api/pipelineEvents.ts` owns **one module-level socket** for the whole app, derived from
 `API_BASE_URL` (`http`→`ws`) as `…/pipelines/events/ws?token=`. Frames are routed by their
-`channel` field: `PROCESSOR` → `subscribeProcessorEvents` (CortexView), everything else →
-`subscribePipelineEvents` (PipelineEditor, MonitoringArea).
+`channel` field: `PROCESSOR` → `subscribeProcessorEvents` (CortexView), `NODE_REGISTRY` →
+`subscribeNodeRegistryEvents`, `NOTIFICATION` → `subscribeNotificationEvents`
+(`NotificationContext`), everything else → `subscribePipelineEvents` (PipelineEditor,
+MonitoringArea).
+
+> **Gotcha:** `NOTIFICATION` is the only *addressed* channel — the server sends a frame
+> only to the recipient's sockets, and a socket that authenticated **without a token gets
+> nothing at all**, silently. Lenient auth is the server default, so always pass the same
+> `useAuth().token` the other subscribers pass (a different token also churns the shared
+> socket). `NotificationPopover` refetches `GET /notifications` on open for exactly this
+> reason: the stream is an optimisation, never the only path.
 
 Reconnect is exponential backoff (1s → 30s cap, reset on open, capped attempt count) and is
 **suppressed on close code `4401`** (server-side unauthorized). Connection state is broadcast
@@ -497,7 +508,10 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `SpaceProvider` / `useSpace` | `src/context/SpaceContext.tsx` | Active space |
 | `NodeRegistryProvider` / `useNodeRegistry` | `src/context/NodeRegistryContext.tsx` | Node descriptors + content types |
 | `ThemeModeProvider` / `useThemeMode` | `src/context/ThemeContext.tsx` | Dark/light mode |
-| `ToastProvider` / `useToast` | `src/context/ToastContext.tsx` | Global notifications |
+| `ToastProvider` / `useToast` | `src/context/ToastContext.tsx` | Transient toasts |
+| `NotificationProvider` / `useNotifications` | `src/context/NotificationContext.tsx` | Durable per-user inbox (§6) |
+| `NotificationPopover` | `src/features/notifications/NotificationPopover.tsx` | Sidebar bell, unread badge, mark-read, dismiss, clear |
+| `notificationLink` | `src/features/notifications/notificationLink.ts` | Deep link for a notification, or null when it has no subject |
 | `LayoutContext` / `useLayout` | `src/context/LayoutContext.tsx` | Sidebar collapse (not persisted) |
 | `tokens` / `buildTheme` / `setActiveTokens` | `src/theme/index.ts` | Design tokens + MUI theme (no `tokens.ts`) |
 | `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (§7.5) |
@@ -601,6 +615,7 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [x] Dark/light theming with persisted mode
 - [x] i18n (en/de, namespaced keys, persisted language)
 - [x] Toast notifications
+- [x] Durable notification centre: sidebar bell, unread badge, live `NOTIFICATION` channel, deep links
 - [x] Shared `EmptyState` across 7 views
 - [x] Cookie-authenticated asset previews with placeholder fallback
 - [x] `/ui/` base path aligned across Vite, router and `UIService`

@@ -1,5 +1,6 @@
 package io.metaloom.loom.rest.validation;
 
+import io.metaloom.loom.rest.model.task.TaskAssignRequest;
 import io.metaloom.loom.rest.model.task.TaskCreateRequest;
 import io.metaloom.loom.rest.model.task.TaskResponse;
 import io.metaloom.loom.rest.model.task.TaskUpdateRequest;
@@ -18,5 +19,15 @@ public interface TaskModelValidator extends ModelValidator {
 	default void validate(TaskCreateRequest request) {
 		requireNonNull(request, "A valid request must be specified");
 		requireNonNullOrEmpty(request.getTitle(), "The task title is missing");
+	}
+
+	default void validate(TaskAssignRequest request) {
+		requireNonNull(request, "A valid request must be specified");
+		boolean noUsers = request.getUserUuids() == null || request.getUserUuids().isEmpty();
+		boolean noGroups = request.getGroupUuids() == null || request.getGroupUuids().isEmpty();
+		if (noUsers && noGroups) {
+			// An empty body would otherwise 201 having done nothing, which reads as success.
+			throw new ValidationException("At least one user or group uuid must be specified");
+		}
 	}
 }

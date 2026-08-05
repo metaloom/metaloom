@@ -13,6 +13,7 @@ public interface LoomModelBuilder extends
 	BlacklistModelBuilder,
 	ChatModelBuilder,
 	ChatSessionModelBuilder,
+	NotificationModelBuilder,
 	SkillModelBuilder,
 	MemoryDenyRuleModelBuilder,
 	CollectionModelBuilder,

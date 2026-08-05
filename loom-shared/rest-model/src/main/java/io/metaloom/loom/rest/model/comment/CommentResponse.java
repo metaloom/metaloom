@@ -2,6 +2,9 @@ package io.metaloom.loom.rest.model.comment;
 
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+
 import io.metaloom.loom.rest.model.asset.location.social.SocialInfo;
 import io.metaloom.loom.rest.model.common.AbstractCreatorEditorRestResponse;
 
@@ -12,6 +15,10 @@ public class CommentResponse extends AbstractCreatorEditorRestResponse<CommentRe
 	private String text;
 
 	private UUID assetUuid;
+
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("Uuid of the comment this one replies to. Absent on a top-level comment.")
+	private UUID parentUuid;
 
 	private SocialInfo social;
 
@@ -43,6 +50,19 @@ public class CommentResponse extends AbstractCreatorEditorRestResponse<CommentRe
 
 	public CommentResponse setAssetUuid(UUID assetUuid) {
 		this.assetUuid = assetUuid;
+		return this;
+	}
+
+	/**
+	 * The comment being replied to, or null for a root comment. See {@link CommentCreateRequest#getParentUuid()} for why this does not live on
+	 * {@code CommentModel}.
+	 */
+	public UUID getParentUuid() {
+		return parentUuid;
+	}
+
+	public CommentResponse setParentUuid(UUID parentUuid) {
+		this.parentUuid = parentUuid;
 		return this;
 	}
 

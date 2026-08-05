@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Avatar, Box, Button, Chip, IconButton, TextField, Tooltip, Typography } from "@mui/material";
-import { AccessTimeOutlined, EditOutlined, DeleteOutlineOutlined } from "@mui/icons-material";
+import { AccessTimeOutlined, EditOutlined, DeleteOutlineOutlined, ReplyOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Comment } from "../../types";
 import { formatDuration, userName } from "./helpers";
@@ -19,6 +19,8 @@ export function CommentItem({
   onCancelEdit,
   onEdit,
   onDelete,
+  onReply,
+  isReply,
 }: {
   comment: Comment;
   highlighted: boolean;
@@ -31,6 +33,10 @@ export function CommentItem({
   onCancelEdit?: () => void;
   onEdit?: (id: string, text: string) => void;
   onDelete?: (id: string) => void;
+  /** Present when this comment can be replied to. Replies themselves get no reply action — the thread is one level deep. */
+  onReply?: (id: string) => void;
+  /** Renders the comment indented beneath its parent. */
+  isReply?: boolean;
 }) {
   const { t } = useTranslation("translation", { keyPrefix: "assetDetail" });
   const [draft, setDraft] = useState(comment.text);
@@ -51,7 +57,9 @@ export function CommentItem({
         transition: "all 160ms ease",
         cursor: "default",
         "&:hover .comment-actions": { opacity: 1 },
+        ...(isReply ? { ml: 4, borderLeft: `2px solid ${tokens.border.subtle}`, borderRadius: 0, pl: 1.5 } : {}),
       }}
+      data-testid={isReply ? "comment-reply-item" : "comment-item"}
     >
       <Avatar sx={{ width: 26, height: 26, fontSize: "0.65rem", bgcolor: tokens.bg.overlay, color: tokens.text.secondary, flexShrink: 0 }}>
         {userName(comment.authorId).split(" ").map(n => n[0]).join("")}
@@ -73,8 +81,23 @@ export function CommentItem({
           <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem", ml: "auto" }}>
             {new Date(comment.createdAt).toLocaleDateString()}
           </Typography>
-          {canEdit && !editing && (
+          {!editing && (onReply || canEdit) && (
             <Box className="comment-actions" sx={{ display: "flex", gap: 0.25, opacity: 0, transition: "opacity 120ms ease" }}>
+              {onReply && (
+                <Tooltip title={t("comment.reply")}>
+                  <IconButton
+                    size="small"
+                    aria-label={t("comment.reply")}
+                    data-testid="comment-reply"
+                    onClick={() => onReply(comment.id)}
+                    sx={{ p: 0.25 }}
+                  >
+                    <ReplyOutlined sx={{ fontSize: 15 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {canEdit && (
+              <>
               <Tooltip title={t("comment.edit")}>
                 <IconButton
                   size="small"
@@ -97,6 +120,8 @@ export function CommentItem({
                   <DeleteOutlineOutlined sx={{ fontSize: 15 }} />
                 </IconButton>
               </Tooltip>
+              </>
+              )}
             </Box>
           )}
         </Box>

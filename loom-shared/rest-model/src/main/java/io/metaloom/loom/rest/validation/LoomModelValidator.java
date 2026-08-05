@@ -10,6 +10,7 @@ public interface LoomModelValidator extends
 	AssetModelValidator,
 	BlacklistModelValidator,
 	ChatModelValidator,
+	NotificationModelValidator,
 	SkillModelValidator,
 	MemoryDenyRuleModelValidator,
 	ChatSessionModelValidator,

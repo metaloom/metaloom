@@ -1,14 +1,16 @@
 # Tag Node — Concept
 
-> **🔵 CONCEPT — nothing is built.** This file explores a Cortex `tag` node that automatically tags an
-> asset according to a configured rule. It was promoted from the one-line entry *"Add tag node. The
-> node should be able to automatically be able to tag an asset"* in
-> [../tasks/METALOOM_NOTES.md](../tasks/METALOOM_NOTES.md).
+> **🟢 BUILT.** The `tag` node ships (`cortex/nodes/tag`), and the write path it needs was fixed
+> first. This file is kept as the design record: what was decided, what was rejected, and why the
+> reconciliation rule in §3.5 looks the way it does. The node's place in the node system is documented
+> in [../features/nodes/NODES.md](../features/nodes/NODES.md) §3.4, its ports in
+> [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.6, and its
+> customer-facing page is `website/content/english/docs/nodes/tag/index.adoc`.
 >
-> **The headline finding is not the node.** The node is a small, well-precedented piece of work. The
-> write path it needs — `POST /api/v1/assets/:uuid/tags` — **cannot tag two assets with the same tag
-> name today** (§2, B1). Anything built on top of it before that is fixed fails on the second asset of
-> the first run. Read §2 before §3.
+> **The headline finding was not the node.** The node is a small, well-precedented piece of work. The
+> write path it needed — `POST /api/v1/assets/:uuid/tags` — **could not tag two assets with the same
+> tag name** (§2, B1). That was fixed before anything was built on it. §2 records the defects and what
+> each of them became.
 >
 > **Companion documents — read before changing anything here:**
 > - [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) — the definition of done for a new node. Rules, not background.
@@ -33,7 +35,7 @@
 | **How does it extend?** | A `tagBy` strategy seam, exactly like `FilterBy` in the `filter` node. Ship `RULES` and `LABELS`; `LLM`/`VLM` are later strategies, not later nodes |
 | **What does it write?** | `tag` + `tag_asset` through the REST client, **plus** an `asset_json_comp` (`schemaType=tags`, `variant`=node id) recording what it applied, **plus** the standard `asset_node_result` ledger row |
 | **Why is that third write there?** | It is the only record of *which tags this node put there*. Without it (and until B3 is fixed) the node cannot safely withdraw a tag it no longer stands behind, because nothing distinguishes an auto tag from one a human typed |
-| **Blocked by** | B1 (fatal), B2 (fatal on re-run). B3–B6 are quality/scale, and B4 bounds v1 to asset-level tags |
+| **Blocked by** | B1 and B2 — both **fixed** (§2). B3–B6 remain quality/scale, and B4 still bounds v1 to asset-level tags |
 | **Closest sibling to copy** | `cortex/nodes/filter` — same `PipelineConfigurable` shape, same per-instance rule rows, same config-hash cache key, same per-node-id ledger scoping |
 
 ---
@@ -114,7 +116,7 @@ already ships.
 These are defects in existing code, found by reading it for this concept. B1 and B2 are prerequisites,
 not nice-to-haves.
 
-### B1 — `tagAsset` always inserts a **new** tag row · FATAL
+### B1 — `tagAsset` always inserted a **new** tag row · ✅ FIXED
 
 ```java
 // TagEndpointService.tagAsset:93
@@ -129,19 +131,25 @@ unconditional `INSERT … RETURNING`. With `UNIQUE (name, collection)` on `tag`,
 receives the tag `"blurry"` in collection `"quality"` hits a unique violation.** Tagging N assets with
 one shared tag — the entire point of an auto-tagger — is impossible through this route.
 
-*Evidence is the code path above; no test covers it (`TagAssetEndpointTest` tags a single asset, and
-`Permission.TAG_ASSET` is annotated `test:none`). **First task: a failing test that tags two assets with
-the same name/collection.***
+**Fixed** by `TagDao.resolveOrCreateAssetTag(AssetTag)` (`TagDaoImpl`), an
+`INSERT … ON CONFLICT (name, collection) DO UPDATE … RETURNING uuid`, which `TagEndpointService.tagAsset`
+now calls instead of `store`. `TagDaoTest.testStoreCannotShareATagName` pins the defect so nothing goes
+back to `store()` for a tag it means to attach.
 
-**Fix:** resolve-or-create on the natural key. `AbstractJooqDao.upsert(element, keyFields…)`
-(`AbstractJooqDao:121`) already does precisely this — it excludes `uuid`/`created`/`creator_uuid` from
-the update set so first-write provenance survives. `upsert(tag, TAG.NAME, TAG.COLLECTION)`.
+⚠️ **It is deliberately not the generic `AbstractJooqDao.upsert` helper**, which this file originally
+proposed. jOOQ's `newRecord(table, pojo)` marks *every* mapped field as changed, nulls included, so
+writing the whole record back would wipe the meta, rating and colour of a tag a person curated the
+moment a worker attached it. The update set is `coalesce(excluded.<col>, tag.<col>)` over `meta`,
+`rating` and `color` only, and the resolved row is read back so the response reports what the tag *is*
+rather than what the call proposed. `TagDaoTest.testResolveOrCreateDoesNotOverwriteTheExistingTag`
+covers it.
 
-### B2 — the join insert has no `ON CONFLICT` · FATAL on re-run
+### B2 — the join insert had no `ON CONFLICT` · ✅ FIXED
 
-`TagDaoImpl.tagAsset:72` is a plain `insertInto(TAG_ASSET)`. `PRIMARY KEY (tag_uuid, asset_uuid)` means
+`TagDaoImpl.tagAsset` was a plain `insertInto(TAG_ASSET)`. `PRIMARY KEY (tag_uuid, asset_uuid)` means
 re-running the same pipeline over the same asset — the normal case, and the reason every other node
-path upserts — fails. **Fix:** `ON CONFLICT (tag_uuid, asset_uuid) DO UPDATE` on the region columns.
+path upserts — failed. It now upserts on the join key with the region columns as the update set
+(`TagDaoTest.testTagAssetIsIdempotent`, `TagAssetEndpointTest.testTagSameAssetTwice`).
 
 ### B3 — no provenance on the join row · blocks safe reconciliation
 
@@ -161,11 +169,14 @@ detection-driven region tag must convert.
 
 ### B5 — `TAG_ASSET` silently confers tag creation
 
-`tagAsset` checks `TAG_ASSET` only, yet creates a row in the global `tag` table. A principal with
-`TAG_ASSET` and no `CREATE_TAG` can mint tags for the whole instance. Decide deliberately when fixing
-B1: either check `CREATE_TAG` when the name is new, or document that `TAG_ASSET` implies it. Whatever is
-chosen, the Cortex token needs the permissions ([PERMISSIONS.md](../features/permissions/PERMISSIONS.md);
-grant via group+role, never a direct user grant).
+`tagAsset` checks `TAG_ASSET` only, yet creates a row in the global `tag` table. **Decided:
+`TAG_ASSET` implies creating the tag row when the name is new**, and the endpoint says so in a comment.
+The alternative — requiring `CREATE_TAG` for an unseen name — would mean a principal allowed to tag
+cannot introduce a tag, which is the ordinary case in a catalog and would fail halfway through a
+pipeline run rather than at configuration time. The 403 cases are still untested (`TAG_ASSET` and
+`UNTAG_ASSET` are annotated `test:none`); the Cortex token needs both
+([PERMISSIONS.md](../features/permissions/PERMISSIONS.md); grant via group+role, never a direct user
+grant).
 
 ### B6 — one HTTP round trip per tag, and one search refresh per row
 
@@ -304,11 +315,13 @@ Worker-scoped (`CortexOptions.nodes["tag"]`): only the inherited `enabled` / `pr
 `retryFailed` / `timeoutMs`. **Nothing model-shaped is worker-scoped in v1**, which is what keeps the
 node runnable on any worker.
 
-⚠️ The `rules` widget must be a row editor, not a raw `JSON` field. `ParameterType.JSON` commits on every
-keystroke, so a half-typed rule momentarily parses to nothing; `PORT_LIST` exists precisely because a
-parameter with structure needs an editor that always emits a valid array. `rules` needs the same
-treatment (either reuse `PORT_LIST` semantics or add a sibling type — a decision for the implementer,
-recorded in §9).
+⚠️ **Decided (was N5): `rules` is declared `ParameterType.JSON`.** `PORT_LIST` was the tempting choice
+because its editor always emits a structurally valid array, but its contract is *"each row's id becomes
+an output port"*, which is false here, and its row editor is three flat text columns — it cannot express
+a rule's nested `when` array at all. Declaring the wrong widget to get a nicer form would make the
+contract lie about what the value is. The right fix is a dedicated rule editor; this parameter is the
+reason to build one. (No parameter form is rendered in `loom-ui` today either way — `BucketListEditor`
+exists but nothing mounts it.)
 
 ### 3.5 What the node writes
 
@@ -457,8 +470,9 @@ token its permissions via group+role.
 `website/content/english/docs/nodes/tag/index.adoc` page plus the three `_index.adoc` edits
 ([NEW_NODE.md §4](../guidelines/NEW_NODE.md)).
 
-**Build order: P0 → node (§3) → P1 → P2 → P3/P4.** P0 alone unblocks a working node; everything after
-is scale, safety and polish.
+**Build order: P0 → node (§3) → P1 → P2 → P3/P4.** P0 and the node are done; P1–P3 are open. P1 is the
+one that matters at scale — five tags on a 100k-asset run is 500k `POST`s today, each firing the search
+refresh for the same document.
 
 ---
 
@@ -475,8 +489,9 @@ is scale, safety and polish.
 | Node | `TagOptionsValidationTest` | Defaults valid; empty `rules`, unknown `tagBy`, unknown `op`, unknown `input`, duplicate rule id, bad regex, `maxTags <= 0` each reported. Use the generated `assertj` helpers |
 | Node | `TagNodePipelineTest extends AbstractNodeChainTest` | Adapter integration: completion events, `applied`/`count` chaining into a `CapturingNode`, disabled + dry-run skip |
 | Node | `TagNodeSingletonTest` | The node is **not** `@Singleton` (copy `FilterNodeSingletonTest`) |
-| Graph | `NodePortConformanceTest` + `NodeDescriptorServiceLoaderTest` | Add the `map(fqn, "tag")` line; bump the asserted provider/kind counts — **count, never quote** |
-| Integration | `TagNodeIntegrationTest` (`integration-test/`) | End-to-end against the packaged shaded Cortex jar: quality → tag → the tag is searchable via `/api/v1/search` |
+| Graph | `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest` | The harvested contract matches the committed resource; the kind count is 40. `NodePortConformanceTest` no longer exists — the ports are declared once now |
+| Demo | `DemoPipelineDefinitionTest` | The seeded `medium` graph, `tag` included, validates against the descriptor registry |
+| Integration | `TagNodeIntegrationTest` (`integration-test/`) — ⬜ **not written** | End-to-end against the packaged shaded Cortex jar: metadata → tag → the tag is searchable via `/api/v1/search` |
 
 ⚠️ A ≥20-method test class exhausts the test-DB pool; split rather than fight it.
 
@@ -502,39 +517,47 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
 
 ## 9. Progress Assessment
 
-**Established by this exploration (no code changed)**
+**Established by the exploration**
 
 - [x] The tag data model, its natural key and the missing provenance are mapped (§1.1)
 - [x] `LoomClient.tagAsset`/`untagAsset` exist — no client change is needed for a first version (§1.2)
 - [x] Tags already feed `search_document.tag_names`; the payoff needs no new plumbing (§1.3)
 - [x] `TagsPayload` is dead code and there is no tag content type (§1.4)
-- [x] 🔴 **B1** `tagAsset` always inserts a new `tag` row ⇒ the second asset violates `UNIQUE (name, collection)` (§2)
-- [x] 🔴 **B2** the join insert has no `ON CONFLICT` ⇒ a re-run violates the PK (§2)
+- [x] 🔴 **B1** `tagAsset` always inserted a new `tag` row ⇒ the second asset violated `UNIQUE (name, collection)` (§2) — **fixed**
+- [x] 🔴 **B2** the join insert had no `ON CONFLICT` ⇒ a re-run violated the PK (§2) — **fixed**
 - [x] B3–B6 recorded; B4 already known as DB_SCHEMA_FEEDBACK §5.1 (§2)
 - [x] Design settled: one kind, a `TagBy` seam, fixed ports, no `MANY` output, no new content type (§3)
 - [x] Alternatives judged; the `script` `TAGS` output kept as a later power-user path (§5)
 
-**Open work, in build order**
+**Built**
 
-- [ ] **P0.1** A failing `TagAssetEndpointTest` case that tags two assets with one name — reproduce B1 first
-- [ ] **P0.2** `resolveOrCreateTag` via `AbstractJooqDao.upsert(tag, TAG.NAME, TAG.COLLECTION)`; `tagAsset` join upsert (B1 + B2)
-- [ ] **N1** `cortex/nodes/tag/core` from the `filter` sibling: `TagNode`, `TagNodeOptions`, `TagNodeModule`, `TagBy`, `TagStrategy` + `RulesTagStrategy`, `LabelsTagStrategy`, `TagRule`/`TagCondition`
-- [ ] **N2** The five registration touch-points ([NEW_NODE.md §2](../guidelines/NEW_NODE.md)) + the two guard-test counts
-- [ ] **N3** Reconciliation via the `tags` json-comp read-back (§3.5), behind `removeWithdrawn`, default off
-- [ ] **N4** The full test set of §7
-- [ ] **N5** Decide the `rules` widget: reuse `PORT_LIST` semantics or add a sibling `ParameterType` (§3.4)
+- [x] **P0.1** `TagAssetEndpointTest` tags two assets with one name, tags one asset twice, and asserts a
+      curated tag survives a bare tagging call; `TagDaoTest.testStoreCannotShareATagName` pins the old defect
+- [x] **P0.2** `TagDao.resolveOrCreateAssetTag` + the `tag_asset` join upsert (B1 + B2), with the
+      non-destructive update set §2 explains
+- [x] **N1** `cortex/nodes/tag/core`: `TagNode`, `TagNodeOptions`, `TagNodeModule`, `TagBy`/`TagByKey`,
+      `TagStrategy` + `RulesTagStrategy` + `LabelsTagStrategy`, `TagRule`/`TagCondition`/`TagOp`/`TagInputs`/`AppliedTag`
+- [x] **N2** Registration: `cortex/nodes/pom.xml`, `cortex/processor/pom.xml`, `NodeCollectionModule`,
+      **`NodeSpecCatalog.BUILT_IN_NODE_CLASSES`** and `integration-test/pom.xml` — the last two are the
+      touch-points [NEW_NODE.md](../guidelines/NEW_NODE.md) was missing, and it has been corrected
+- [x] **N3** Reconciliation via the `tags` json-comp read-back (§3.5), behind `removeWithdrawn`, default off
+- [x] **N4** The test set of §7 — 50 node tests, plus the DAO and endpoint cases
+- [x] **N5** Decided: `rules` is a `JSON` parameter, not `PORT_LIST` (§3.4 explains why)
+- [x] **D1** `tag` seeded into the demo `medium` pipeline off the `metadata` node
+- [x] Website page `docs/nodes/tag/` + the three `_index.adoc` edits
+
+**Open work**
 - [ ] **P1** `PUT /assets/:uuid/tags` bulk/reconcile + client method + endpoint & permission tests (B6)
 - [ ] **P2** Migration: provenance columns + surrogate PK on `tag_asset` (B3 + B4); jOOQ regen; `./setup-pool.sh`
 - [ ] **P2.1** Once P2 lands: drop the client-side read-back, reconcile by `node_id` server-side
 - [ ] **P3** Permission decision + 403 cases for `TAG_ASSET`/`UNTAG_ASSET` (B5)
-- [ ] **P4** UI: machine tags shown distinctly; tag facet in search. Website `docs/nodes/tag/` + the three `_index.adoc` edits
-- [ ] **D1** Demo data: add `tag` to a demo pipeline in `DemoDatabaseInitializer` — it needs no sidecar, so unlike the GPU nodes it *can* run in the demo container
+- [ ] **P4** UI: machine tags shown distinctly; tag facet in search. A rule-row editor for the `rules` parameter (§3.4)
 - [ ] **X1** Region tags (`area` on the join row) — blocked on P2/§5.1, and needs the absolute-int ↔ normalized-real conversion (§2 B4)
 - [ ] **X2** `tagBy: LLM` / `VLM` strategies via `cortex/llm-common`, vocabulary-gated
 - [ ] **X3** `ScriptValueType.TAGS` on the `script` node, over the same P1 route (§5 #1)
 - [ ] **X4** Loom-side retroactive "smart tags" (§5 #3)
 - [ ] **X5** Decide `TagsPayload`'s fate — use it or delete it (§1.4)
-- [ ] Add this file to [../METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md) §2 once it stops being a concept, and update the routing row in §2.1
+- [x] Registered in [../METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md) §2 and its routing row in §2.1
 
 ---
 
@@ -568,8 +591,11 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
 
 ## 11. Conventions and Gotchas
 
-- 🔴 **`POST /assets/:uuid/tags` cannot tag two assets with the same tag name today** (B1). Do not build
-  on it, demo it, or write docs for it before P0.2 lands.
+- 🔴 **`POST /assets/:uuid/tags` resolves, it does not insert.** Never go back to `store()` for a tag
+  that is about to be attached — `UNIQUE (name, collection)` makes the second asset fail (B1), and
+  `TagDaoTest.testStoreCannotShareATagName` is there to catch it.
+- ⚠️ **Resolving must never overwrite the tag it resolved.** jOOQ marks null fields as changed, so a
+  whole-record upsert silently wipes a curated tag's meta and colour (§2, B1).
 - 🔴 **Never delete a tag you cannot prove you wrote.** Until P2 the only proof is this node's own
   `asset_json_comp` record, and the guard is *both* "in my previous applied set" *and* "in my
   collection". A reconciliation bug here silently destroys human curation.
@@ -621,5 +647,7 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
 
 ---
 
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (initial concept; promoted from the METALOOM_NOTES backlog entry)_
+_Git HEAD revision: `55848543`_
+_Last updated: 2026-08-04 (built: P0 fixed both write-path defects, the node ships with 50 tests, and the
+two design decisions this file left open — the upsert semantics and the `rules` widget — are recorded in
+§2 and §3.4)_

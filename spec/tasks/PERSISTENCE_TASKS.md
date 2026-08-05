@@ -267,8 +267,9 @@ mvn test -pl loom/db/jooq -Dtest=RoleDaoTest
 
 `CRUDDaoTestcases` builds **1024** elements for its paging test — every entity's unique
 column must vary with `i`, or the create loop fails on a constraint violation.
-The provider pool is finite: a test class with 20+ methods can exhaust it and the last few
-methods error in `ProviderExtension.beforeEach` — that is pool capacity, not a regression.
+A test class with 20+ methods used to error in its last few methods with *"Error while initializing
+database"*. That was **not** provider-pool capacity — it was a leaked JDBC connection pool, since
+fixed in `BootstrapInitializer.deinit()` (see [../loom/SERVER.md](../loom/SERVER.md) §shutdown).
 
 ## Where do I find …?
 

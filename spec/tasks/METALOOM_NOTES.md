@@ -23,9 +23,6 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 - code review markdown file with rules
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
 - Add semantic ingestion node. This allows constructed semantic data to be ingested into loom
-- ~~Add tag node~~ → specified in [concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md).
-  🔴 It also records why the node cannot be built yet: `POST /assets/:uuid/tags` always INSERTs a new
-  `tag` row, so the second asset tagged with one name violates `UNIQUE (name, collection)`.
 - Would a merge node be useful to combine assets in a reactive pipeline? (e.g. zip them)
 
 

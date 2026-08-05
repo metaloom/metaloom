@@ -1,5 +1,6 @@
 package io.metaloom.loom.rest.service.impl;
 
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Inject;
@@ -10,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.rest.model.nodes.NodeRegistryEventMessage;
+import io.metaloom.loom.rest.model.notification.NotificationEventMessage;
 import io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage;
 import io.metaloom.loom.rest.model.processor.event.ProcessorEventMessage;
 import io.vertx.core.http.ServerWebSocket;
@@ -86,7 +88,22 @@ public class PipelineEventBroadcaster {
 	 * @param runFilter      pipeline run UUID to filter on, or {@code null} for all
 	 */
 	public void addSubscriber(ServerWebSocket ws, String pipelineFilter, String runFilter) {
-		Subscriber subscriber = new Subscriber(ws, pipelineFilter, runFilter, DEFAULT_QUEUE_CAPACITY);
+		addSubscriber(ws, pipelineFilter, runFilter, null);
+	}
+
+	/**
+	 * Register a UI client WebSocket, remembering which user authenticated it.
+	 *
+	 * <p>
+	 * The user uuid is what makes the per-user {@link #broadcastNotification(UUID, NotificationEventMessage)} channel possible. It is
+	 * {@code null} for a socket that authenticated without a token, which lenient mode (the default) still accepts — such a subscriber must never
+	 * match a notification recipient.
+	 * </p>
+	 *
+	 * @param userUuid the authenticated user, or {@code null} when the socket carries no identity
+	 */
+	public void addSubscriber(ServerWebSocket ws, String pipelineFilter, String runFilter, UUID userUuid) {
+		Subscriber subscriber = new Subscriber(ws, pipelineFilter, runFilter, DEFAULT_QUEUE_CAPACITY, userUuid);
 		subscribers.put(ws, subscriber);
 		log.info("Pipeline event subscriber connected. Total: {} (pipeline: {}, run: {})",
 			subscribers.size(), pipelineFilter == null ? "none" : pipelineFilter,
@@ -194,6 +211,49 @@ public class PipelineEventBroadcaster {
 	}
 
 	/**
+	 * Deliver a notification frame to <b>one user's</b> sockets.
+	 *
+	 * <p>
+	 * ⚠️ Read this before "harmonising" it with the two methods above. {@code broadcastProcessorEvent} and {@code broadcastNodeRegistryEvent} are
+	 * fleet-wide fan-outs that deliberately bypass per-subscriber filtering. This one is the opposite: it is addressed, and it <b>fails closed
+	 * twice</b>.
+	 * </p>
+	 *
+	 * <ol>
+	 * <li>A null recipient reaches nobody, rather than everybody.</li>
+	 * <li>A subscriber whose socket resolved no user — the lenient-auth tokenless case, which is the <b>default</b> configuration — never equals any
+	 * recipient, so it receives nothing.</li>
+	 * </ol>
+	 *
+	 * <p>
+	 * Getting either wrong would broadcast every user's inbox to any anonymous connection.
+	 * </p>
+	 *
+	 * @param recipientUuid the only user who may see this frame
+	 */
+	public void broadcastNotification(UUID recipientUuid, NotificationEventMessage event) {
+		if (recipientUuid == null || subscribers.isEmpty()) {
+			return;
+		}
+		String json = null; // lazy-encode — only serialize once we have a live matching subscriber
+		for (var entry : subscribers.entrySet()) {
+			ServerWebSocket ws = entry.getKey();
+			Subscriber subscriber = entry.getValue();
+			if (subscriber.userUuid == null || !recipientUuid.equals(subscriber.userUuid)) {
+				continue;
+			}
+			if (ws.isClosed()) {
+				subscribers.remove(ws);
+				continue;
+			}
+			if (json == null) {
+				json = Json.encode(event);
+			}
+			subscriber.send(json);
+		}
+	}
+
+	/**
 	 * Return the number of currently connected subscribers.
 	 */
 	public int subscriberCount() {
@@ -209,12 +269,15 @@ public class PipelineEventBroadcaster {
 		private final ServerWebSocket ws;
 		private final String pipelineFilter;
 		private final String runFilter;
+		/** The authenticated user, or null for a tokenless socket. Never matches a notification recipient when null. */
+		private final UUID userUuid;
 		private volatile long droppedCount;
 
-		Subscriber(ServerWebSocket ws, String pipelineFilter, String runFilter, int queueCapacity) {
+		Subscriber(ServerWebSocket ws, String pipelineFilter, String runFilter, int queueCapacity, UUID userUuid) {
 			this.ws = ws;
 			this.pipelineFilter = pipelineFilter;
 			this.runFilter = runFilter;
+			this.userUuid = userUuid;
 		}
 
 		/**

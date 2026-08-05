@@ -18,6 +18,7 @@ import {
   HistoryOutlined, CloudUploadOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
+import NotificationPopover from "../features/notifications/NotificationPopover";
 import { useAuth } from "../context/AuthContext";
 import { useUploads } from "../features/uploads/UploadContext";
 import { useTranslation } from "react-i18next";
@@ -75,7 +76,7 @@ function contentNavItems(t: (k: string) => string, activeUploads: number): NavIt
       badge: activeUploads > 0 ? activeUploads : undefined,
     },
     { label: t("sidebar.nav.collections"), path: "/collections", icon: <CollectionsOutlined fontSize="small" /> },
-    { label: t("sidebar.nav.tasks"), path: "/tasks", icon: <TaskAltOutlined fontSize="small" />, badge: 3 },
+    { label: t("sidebar.nav.tasks"), path: "/tasks", icon: <TaskAltOutlined fontSize="small" /> },
     { label: t("sidebar.nav.detection"), path: "/detection", icon: <VisibilityOutlined fontSize="small" /> },
     { label: t("sidebar.nav.tags"), path: "/tags", icon: <LocalOfferOutlined fontSize="small" /> },
     { label: t("sidebar.nav.workflow"), path: "/workflow", icon: <SpeedOutlined fontSize="small" /> },
@@ -273,6 +274,8 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
             </Typography>
           </Box>
         )}
+
+        <NotificationPopover />
 
         {/* User avatar — top right */}
         <Tooltip title={collapsed ? (username ?? "") : ""} placement="right">

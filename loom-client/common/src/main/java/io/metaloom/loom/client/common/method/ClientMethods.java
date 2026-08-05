@@ -18,6 +18,7 @@ public interface ClientMethods extends
 	CollectionMethods,
 	AnnotationMethods,
 	TaskMethods,
+	NotificationMethods,
 	TagMethods,
 	AuthenticationMethods,
 	ReactionMethods,

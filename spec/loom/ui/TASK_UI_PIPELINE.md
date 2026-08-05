@@ -49,6 +49,11 @@ no caller anywhere in `src/`. An open run-detail panel therefore only refreshes 
 list refetches, and there is no way to deep-link to a run (from a notification, the monitoring
 view, or a shared URL) without first loading and scanning the list.
 
+> **Now load-bearing.** A `PIPELINE_RUN_FAILED` notification links to `/monitoring?run=<uuid>`
+> (`features/notifications/notificationLink.ts`), and nothing on `/monitoring` reads that parameter
+> yet — the link lands on the view but does not focus the run. Implementing this task is what makes
+> that link do what it says.
+
 **Improvement Summary:** Refresh the focused run from its own endpoint and support opening a run
 by id.
 

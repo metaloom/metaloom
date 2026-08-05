@@ -170,6 +170,7 @@ from .enums import (
     EmbeddingType,
     NodeRegistrationRejectionReason,
     NodeRegistryEventType,
+    NotificationType,
     PipelineEventType,
     ProcessorCapability,
     ProcessorEventType,
@@ -228,6 +229,12 @@ from .nodes import (
     NodeAvailability,
     NodeDescriptorsResponse,
     NodeRegistryEventMessage,
+)
+from .notification import (
+    NotificationEventMessage,
+    NotificationListResponse,
+    NotificationResponse,
+    NotificationUpdateRequest,
 )
 from .person import (
     PersonCreateRequest,
@@ -345,6 +352,9 @@ from .tag import (
     TagUpdateRequest,
 )
 from .task import (
+    TaskAssignRequest,
+    TaskAssigneeListResponse,
+    TaskAssigneeResponse,
     TaskCreateRequest,
     TaskListResponse,
     TaskResponse,
@@ -515,6 +525,11 @@ __all__ = [
     "NodeResultListResponse",
     "NodeResultResponse",
     "NodeTaskResultMessage",
+    "NotificationEventMessage",
+    "NotificationListResponse",
+    "NotificationResponse",
+    "NotificationType",
+    "NotificationUpdateRequest",
     "PagingInfo",
     "PersonCreateRequest",
     "PersonListResponse",
@@ -603,6 +618,9 @@ __all__ = [
     "TagReference",
     "TagResponse",
     "TagUpdateRequest",
+    "TaskAssignRequest",
+    "TaskAssigneeListResponse",
+    "TaskAssigneeResponse",
     "TaskCreateRequest",
     "TaskListResponse",
     "TaskPriority",

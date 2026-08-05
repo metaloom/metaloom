@@ -48,6 +48,7 @@ from .similarity import SimilarityMethods
 from .skill import SkillMethods
 from .space import SpaceMethods
 from .tag import TagMethods
+from .notification import NotificationMethods
 from .task import TaskMethods
 from .token import TokenMethods
 from .transcript import TranscriptMethods
@@ -90,6 +91,7 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     SkillMethods,
     SpaceMethods,
     TagMethods,
+    NotificationMethods,
     TaskMethods,
     TokenMethods,
     TranscriptMethods,
@@ -132,6 +134,7 @@ __all__ = [
     "SkillMethods",
     "SpaceMethods",
     "TagMethods",
+    "NotificationMethods",
     "TaskMethods",
     "TokenMethods",
     "TranscriptMethods",

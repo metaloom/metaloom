@@ -275,7 +275,13 @@ public enum JooqLoomPermission implements EnumType {
 
     UPDATE_DEDUP("UPDATE_DEDUP"),
 
-    DELETE_DEDUP("DELETE_DEDUP");
+    DELETE_DEDUP("DELETE_DEDUP"),
+
+    READ_NOTIFICATION("READ_NOTIFICATION"),
+
+    UPDATE_NOTIFICATION("UPDATE_NOTIFICATION"),
+
+    DELETE_NOTIFICATION("DELETE_NOTIFICATION");
 
     private final String literal;
 

@@ -138,6 +138,11 @@ import io.metaloom.loom.rest.model.tag.TagRatingRequest;
 import io.metaloom.loom.rest.model.tag.TagRatingResponse;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.loom.rest.model.tag.TagUpdateRequest;
+import io.metaloom.loom.rest.model.notification.NotificationListResponse;
+import io.metaloom.loom.rest.model.notification.NotificationResponse;
+import io.metaloom.loom.rest.model.notification.NotificationUpdateRequest;
+import io.metaloom.loom.rest.model.task.TaskAssignRequest;
+import io.metaloom.loom.rest.model.task.TaskAssigneeListResponse;
 import io.metaloom.loom.rest.model.task.TaskCreateRequest;
 import io.metaloom.loom.rest.model.task.TaskListResponse;
 import io.metaloom.loom.rest.model.task.TaskResponse;
@@ -1331,6 +1336,69 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> unassignTaskFromAnnotation(UUID annotationUuid, UUID taskUuid) {
 		return deleteRequest("annotations/" + annotationUuid + "/tasks/" + taskUuid);
+	}
+
+	// TASK - ASSIGNEE
+
+	@Override
+	public LoomClientHttpRequest<TaskAssigneeListResponse> listTaskAssignees(UUID taskUuid) {
+		return getRequest("tasks/" + taskUuid + "/assignees", TaskAssigneeListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<TaskAssigneeListResponse> assignTask(UUID taskUuid, TaskAssignRequest request) {
+		return postRequest("tasks/" + taskUuid + "/assignees", request, TaskAssigneeListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> unassignTaskFromUser(UUID taskUuid, UUID userUuid) {
+		return deleteRequest("tasks/" + taskUuid + "/assignees/users/" + userUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> unassignTaskFromGroup(UUID taskUuid, UUID groupUuid) {
+		return deleteRequest("tasks/" + taskUuid + "/assignees/groups/" + groupUuid);
+	}
+
+	// NOTIFICATION
+
+	@Override
+	public LoomClientHttpRequest<NotificationListResponse> listNotifications() {
+		return getRequest("notifications", NotificationListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NotificationListResponse> listUnreadNotifications() {
+		// addQueryParameter, not a "?..." suffix: the path is added with addPathSegments, which
+		// percent-encodes the question mark into the path.
+		LoomClientHttpRequest<NotificationListResponse> request = getRequest("notifications", NotificationListResponse.class);
+		request.addQueryParameter("unread", "true");
+		return request;
+	}
+
+	@Override
+	public LoomClientHttpRequest<NotificationResponse> loadNotification(UUID notificationUuid) {
+		return getRequest("notifications/" + notificationUuid, NotificationResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NotificationResponse> updateNotification(UUID notificationUuid, NotificationUpdateRequest request) {
+		return postRequest("notifications/" + notificationUuid, request, NotificationResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GenericMessageResponse> markAllNotificationsRead() {
+		return postRequest("notifications/read-all", GenericMessageResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteNotification(UUID notificationUuid) {
+		return deleteRequest("notifications/" + notificationUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> clearNotifications() {
+		return deleteRequest("notifications");
 	}
 
 	// ATTACHMENT

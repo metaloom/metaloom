@@ -13,6 +13,7 @@ export interface TaskResponse {
   taskStatus?: string;
   dueDate?: string;
   comments?: CommentResponse[];
+  assignees?: TaskAssigneeResponse[];
   meta?: Record<string, unknown>;
   status?: {
     creator?: { uuid: string; name: string };
@@ -20,6 +21,29 @@ export interface TaskResponse {
     editor?: { uuid: string; name: string };
     edited?: string;
   };
+}
+
+// One assignment of a task to a user OR a group — exactly one of userUuid/groupUuid
+// is present. `name` is denormalised onto the response so a chip can render without a
+// second lookup per row.
+export interface TaskAssigneeResponse {
+  userUuid?: string;
+  groupUuid?: string;
+  name?: string;
+  assigned?: string;
+  assignerUuid?: string;
+}
+
+export interface TaskAssigneeListResponse {
+  data: TaskAssigneeResponse[];
+}
+
+// Additive: the listed targets are added to whatever the task already has. Omitting
+// an existing assignee does not remove them — that is a separate DELETE, so a stale
+// client cannot silently unassign somebody.
+export interface TaskAssignRequest {
+  userUuids?: string[];
+  groupUuids?: string[];
 }
 
 export interface TaskListResponse {
@@ -137,6 +161,55 @@ export async function unassignTaskFromAsset(token: string, assetUuid: string, ta
     method: "DELETE",
     headers: authHeaders(token),
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
+// ── Task assignees (people) ───────────────────────────────────────────
+//
+// Distinct from the asset/annotation links above: these say who is RESPONSIBLE for
+// the task. Unassign is two explicit sub-paths because a collection DELETE cannot
+// name which assignee.
+
+export async function listTaskAssignees(token: string, taskUuid: string): Promise<TaskAssigneeListResponse> {
+  const res = await fetch(`${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/assignees`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<TaskAssigneeListResponse>(res);
+}
+
+export async function assignTask(
+  token: string,
+  taskUuid: string,
+  request: TaskAssignRequest,
+): Promise<TaskAssigneeListResponse> {
+  const res = await fetch(`${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/assignees`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(request),
+  });
+  return handleResponse<TaskAssigneeListResponse>(res);
+}
+
+export async function unassignTaskFromUser(token: string, taskUuid: string, userUuid: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/assignees/users/${encodeURIComponent(userUuid)}`,
+    { method: "DELETE", headers: authHeaders(token) },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
+export async function unassignTaskFromGroup(token: string, taskUuid: string, groupUuid: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/tasks/${encodeURIComponent(taskUuid)}/assignees/groups/${encodeURIComponent(groupUuid)}`,
+    { method: "DELETE", headers: authHeaders(token) },
+  );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`API error ${res.status}: ${text}`);

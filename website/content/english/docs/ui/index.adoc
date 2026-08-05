@@ -158,6 +158,36 @@ it is about, in which case it also shows up in the *Tasks* tab of that asset's d
 
 image::tasks.png[Task board,role=img-fluid]
 
+==== Assigning work
+
+A task can be assigned to individual people, to whole groups, or to any mix of the two. Pick the
+assignees when you create the task, or add and remove them later from the edit panel. Assignees appear
+as avatars on the task board and on the asset the task belongs to.
+
+Assigning to a group does not freeze who is in it. The group's current members are responsible for the
+task, so somebody who joins the team afterwards inherits the work without anyone having to reassign it.
+
+Everyone you assign is told about it — see <<notifications>>.
+
+[#notifications]
+=== Notifications
+
+The bell at the top of the sidebar is your inbox. It carries a badge with the number of unread entries
+and opens a list of what has happened to you:
+
+* a task was assigned to you, or taken off you — directly or through a group you belong to
+* a task you are responsible for changed status
+* somebody commented on a task you own or are assigned to
+* somebody replied to one of your comments
+* a pipeline run you started failed
+
+Entries arrive live, without reloading the page, and a short message appears in the corner when one
+does. Clicking an entry marks it read and takes you to whatever it is about. You can dismiss entries
+one at a time, mark everything as read, or clear the inbox entirely.
+
+You are never notified about your own actions: assigning a task to yourself, or commenting on your own
+task, tells nobody. Notifications are private — you only ever see your own.
+
 === Face Detection
 
 The Detection view aggregates face, object and LLM detections. The *Faces* tab manages face clusters and
