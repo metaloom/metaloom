@@ -1442,6 +1442,8 @@ function NodeDetailSidebar({
 
   return (
     <Box
+      data-testid="pipeline-node-detail"
+      data-open={open ? "true" : "false"}
       sx={{
         width: open ? 280 : 0,
         flexShrink: 0,
@@ -1467,7 +1469,7 @@ function NodeDetailSidebar({
       </Box>
 
       {/* Content */}
-      <Box sx={{ flex: 1, overflow: "auto" }}>
+      <Box data-testid="pipeline-node-detail-body" sx={{ flex: 1, overflow: "auto" }}>
         {node && cfg ? (
           <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
             {/* Tabs */}

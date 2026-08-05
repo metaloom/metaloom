@@ -226,4 +226,39 @@ describe("detectionRegions", () => {
     const regions = detectionRegions([face({ index: 2 }), face({ index: 5 })]);
     expect(regions.map(r => r.id)).toEqual(["2", "5"]);
   });
+
+  describe("frame filtering", () => {
+    // The regression this whole argument exists for: a video detector reports one element per face
+    // *per sampled frame*, and the port preview is a single still. Ten elements over four sampled
+    // frames used to come out as ten boxes stacked on the two faces that are actually in the shot.
+    const clip = [
+      face({ index: 0, frame: 195 }),
+      face({ index: 1, frame: 195 }),
+      face({ index: 2, frame: 240 }),
+      face({ index: 3, frame: 255 }),
+      face({ index: 4, frame: 270 }),
+    ];
+
+    it("draws only the detections measured against the previewed frame", () => {
+      expect(detectionRegions(clip, 195).map(r => r.id)).toEqual(["0", "1"]);
+      expect(detectionRegions(clip, 240).map(r => r.id)).toEqual(["2"]);
+    });
+
+    it("draws everything when no frame is given", () => {
+      // A still has no frame, and neither does a preview from before the field existed. Filtering
+      // on a frame nobody recorded would blank the overlay rather than fix it.
+      expect(detectionRegions(clip)).toHaveLength(5);
+      expect(detectionRegions(clip, null)).toHaveLength(5);
+    });
+
+    it("keeps elements that carry no frame of their own", () => {
+      // The image path emits none. Excluding those would hide every box on a photograph.
+      expect(detectionRegions([face({ index: 9 })], 195).map(r => r.id)).toEqual(["9"]);
+    });
+
+    it("treats frame 0 as a frame, not as absent", () => {
+      expect(detectionRegions([face({ index: 0, frame: 0 })], 0)).toHaveLength(1);
+      expect(detectionRegions([face({ index: 0, frame: 0 })], 7)).toHaveLength(0);
+    });
+  });
 });

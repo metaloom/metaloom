@@ -1,0 +1,56 @@
+{
+  "kind" : "tag",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "offline",
+  "state" : "COMPLETED",
+  "durationMs" : 1,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "id" : "tag",
+    "collection" : "docs",
+    "rules" : [ {
+      "id" : "r-has-transcript",
+      "tag" : "has-transcript",
+      "when" : [ {
+        "input" : "text",
+        "op" : "NOT_BLANK"
+      } ]
+    } ]
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "applied" : {
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"tagBy\":\"RULES\",\"collection\":\"docs\",\"dryRun\":false,\"applied\":[{\"tag\":\"has-transcript\",\"collection\":\"docs\",\"ruleId\":\"r-has-transcript\",\"confidence\":1.0}],\"withdrawn\":[],\"rejected\":[],\"skippedRules\":[]}"
+      } ]
+    },
+    "count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 1
+      } ]
+    }
+  },
+  "previews" : { }
+}

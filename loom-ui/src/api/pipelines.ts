@@ -443,6 +443,18 @@ export interface NodePreviewMeta {
    */
   markdown?: string;
   skippedReason?: string;
+  /**
+   * The video frame this preview is of, when it is a frame of anything.
+   *
+   * A node that scans a video samples many frames but can only show one, while the elements it
+   * emitted are spread across all of them. Without this the overlay has no way to tell which boxes
+   * belong to the picture underneath and has to draw every one of them — which is how four sampled
+   * frames of two people came out as ten boxes piled on two faces.
+   *
+   * Absent for a still: an image preview is not frame 0 of anything, and "no frame applies" has to
+   * stay distinguishable from "the first one".
+   */
+  frame?: number;
 }
 
 /**

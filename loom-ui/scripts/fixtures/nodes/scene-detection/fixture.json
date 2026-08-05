@@ -1,0 +1,33 @@
+{
+  "kind" : "scene-detection",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "native:video4j/OpenCV",
+  "state" : "COMPLETED",
+  "durationMs" : 2617,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : { },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "scenes" : {
+      "contentType" : "struct/segments",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "io.metaloom.cortex.media.scene.SceneDetectionResult@6eda012b"
+      } ]
+    }
+  },
+  "previews" : { }
+}

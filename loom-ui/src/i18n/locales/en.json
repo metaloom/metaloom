@@ -1110,6 +1110,7 @@
         "raw": "Raw"
       },
       "previewNote": "Reduced preview, not the original file",
+      "frameNote": "frame {{frame}} · {{shown}} of {{total}} detections were found on it",
       "previewSkipped": "No preview",
       "mediaUnavailable": "This file is on the worker that produced it and cannot be played here."
     },

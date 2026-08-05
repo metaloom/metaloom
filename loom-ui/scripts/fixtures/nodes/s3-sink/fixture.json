@@ -1,0 +1,60 @@
+{
+  "kind" : "s3-sink",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:object store (http://127.0.0.1:9000/minio/health/live)",
+  "state" : "COMPLETED",
+  "durationMs" : 19,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "id" : "s3-sink",
+    "bucket" : "media"
+  },
+  "upstream" : [ {
+    "kind" : "thumbnail",
+    "sourcePort" : "thumbnail",
+    "targetPort" : "artifacts"
+  } ],
+  "outputs" : {
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "DONE"
+      } ]
+    },
+    "count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 1
+      } ]
+    },
+    "result" : {
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"bucket\":\"media\",\"nodeId\":\"s3-sink\",\"count\":1,\"uploaded\":1,\"artifacts\":[{\"state\":\"UPLOADED\",\"sourceNode\":\"artifacts\",\"sourceKey\":\"artifacts\",\"index\":0,\"localFile\":\"/tmp/docs-fixture-s3-sink4810172574335486829/thumbnail_bin/ab/contact-sheet.thumb\",\"uri\":\"s3://media/cortex/artifacts/artifacts/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15.thumb\",\"bucket\":\"media\",\"key\":\"cortex/artifacts/artifacts/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15.thumb\",\"etag\":\"35589f9bb75999fe07c190fa7c81016d\",\"size\":57850,\"contentType\":\"image/jpeg\"}]}"
+      } ]
+    }
+  },
+  "previews" : { }
+}

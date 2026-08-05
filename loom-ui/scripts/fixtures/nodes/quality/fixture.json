@@ -1,0 +1,105 @@
+{
+  "kind" : "quality",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "native:video4j/OpenCV",
+  "state" : "COMPLETED",
+  "durationMs" : 337,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : { },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "blurriness" : {
+      "contentType" : "scalar/number",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 2.468876591435185
+      } ]
+    },
+    "width" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 3840
+      } ]
+    },
+    "height" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 2160
+      } ]
+    },
+    "fps" : {
+      "contentType" : "scalar/number",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 25.0
+      } ]
+    },
+    "frame_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 397
+      } ]
+    },
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "SUCCESS"
+      } ]
+    },
+    "metrics" : {
+      "contentType" : "struct/quality",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"width\":3840,\"height\":2160,\"fps\":25.0,\"frame_count\":397,\"blurriness\":2.468876591435185,\"flag\":\"SUCCESS\"}"
+      } ]
+    }
+  },
+  "previews" : { }
+}

@@ -1,0 +1,55 @@
+{
+  "captioning": {
+    "status": "pending",
+    "reason": "needs a vision model server on :8000 (SmolVLM for images, a video endpoint for clips) — not downloaded"
+  },
+  "dedup": {
+    "status": "pending",
+    "reason": "this node declares no output ports — it reports what it did in the run log, so the node card has nothing to show. Its debug view needs the run-detail view rather than the card, which the capture script does not yet take"
+  },
+  "depthmap": {
+    "status": "pending",
+    "reason": "no Python environment for the sidecars on this machine — `python3 -m venv` fails because python3-venv is not installed, and the stack it needs (torch) is a multi-gigabyte install; then `sidecars/depth/setup.sh && run.sh` (:9120)"
+  },
+  "facedescription": {
+    "status": "pending",
+    "reason": "needs a *vision* model on :8080, which its client hardcodes; the text model running there cannot answer it"
+  },
+  "imagegen": {
+    "status": "pending",
+    "reason": "no Python environment for the sidecars on this machine — `python3 -m venv` fails because python3-venv is not installed, and the stack it needs (torch) is a multi-gigabyte install; then `sidecars/ideogram-sidecar/setup.sh && run.sh` (:9200) — the weights are already in the HF cache"
+  },
+  "objectdetect": {
+    "status": "pending",
+    "pictures": [
+      "config",
+      "debug"
+    ],
+    "reason": "the node landed after this capture run; both pictures follow once its descriptor is staged and a detector model is available"
+  },
+  "scene-layout": {
+    "status": "pending",
+    "reason": "needs a real depth map on its input port, so it follows the depthmap sidecar"
+  },
+  "sentiment": {
+    "status": "pending",
+    "reason": "no Python environment for the sidecars on this machine — `python3 -m venv` fails because python3-venv is not installed, and the stack it needs (torch) is a multi-gigabyte install; then `sidecars/sentiment/setup.sh && run.sh` (:9110)"
+  },
+  "tts": {
+    "status": "pending",
+    "reason": "no Python environment for the sidecars on this machine — `python3 -m venv` fails because python3-venv is not installed, and the stack it needs (torch) is a multi-gigabyte install; then `sidecars/tts/setup.sh && run.sh` (:9100)"
+  },
+  "videogen": {
+    "status": "pending",
+    "reason": "no Python environment for the sidecars on this machine — `python3 -m venv` fails because python3-venv is not installed, and the stack it needs (torch) is a multi-gigabyte install; then `sidecars/ltx2-sidecar/setup.sh && run.sh` (:9220) — the weights are already in the HF cache"
+  },
+  "vlm": {
+    "status": "pending",
+    "reason": "needs a vision model server on :8000; the Qwen2.5-VL GGUF is referenced in the HF cache but its blobs are not downloaded (~6 GB)"
+  },
+  "whisper": {
+    "status": "blocked",
+    "reason": "no Whisper model is present on the machine that builds these pictures",
+    "unblockedBy": "download a ggml Whisper model and re-run DocsFixtureGenerator for the whisper kind"
+  }
+}

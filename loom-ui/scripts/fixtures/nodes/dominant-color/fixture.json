@@ -1,0 +1,93 @@
+{
+  "kind" : "dominant-color",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "offline",
+  "state" : "COMPLETED",
+  "durationMs" : 40,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : { },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "result" : {
+      "contentType" : "struct/color",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"image\":{\"width\":600,\"height\":750},\"sampling\":{\"maxSamples\":40000,\"clusterCount\":5,\"seed\":42,\"alphaThreshold\":128},\"regions\":[{\"id\":\"whole\",\"source\":\"image\",\"kind\":\"IMAGE\",\"bbox\":{\"x\":0,\"y\":0,\"w\":600,\"h\":750},\"pixels\":28200,\"converged\":true,\"dominant\":{\"share\":0.2685,\"hex\":\"#C4BDB4\",\"rgb\":{\"r\":196,\"g\":189,\"b\":180},\"hsl\":{\"h\":33.7,\"s\":11.9,\"l\":73.7},\"lab\":{\"l\":77.0,\"a\":0.73,\"b\":5.45},\"lch\":{\"c\":5.5,\"h\":82.3},\"name\":{\"term\":\"grey\",\"lightness\":\"LIGHT\",\"chroma\":\"ACHROMATIC\",\"en\":\"light grey\",\"de\":\"helles Grau\",\"distance\":0.0}},\"palette\":[{\"share\":0.2685,\"hex\":\"#C4BDB4\",\"rgb\":{\"r\":196,\"g\":189,\"b\":180},\"hsl\":{\"h\":33.7,\"s\":11.9,\"l\":73.7},\"lab\":{\"l\":77.0,\"a\":0.73,\"b\":5.45},\"lch\":{\"c\":5.5,\"h\":82.3},\"name\":{\"term\":\"grey\",\"lightness\":\"LIGHT\",\"chroma\":\"ACHROMATIC\",\"en\":\"light grey\",\"de\":\"helles Grau\",\"distance\":0.0}},{\"share\":0.2365,\"hex\":\"#EDE7DF\",\"rgb\":{\"r\":237,\"g\":231,\"b\":223},\"hsl\":{\"h\":34.3,\"s\":28.0,\"l\":90.2},\"lab\":{\"l\":91.77,\"a\":0.71,\"b\":4.61},\"lch\":{\"c\":4.67,\"h\":81.3},\"name\":{\"term\":\"white\",\"lightness\":\"VERY_LIGHT\",\"chroma\":\"ACHROMATIC\",\"en\":\"white\",\"de\":\"Weiß\",\"distance\":0.0}},{\"share\":0.2095,\"hex\":\"#37476A\",\"rgb\":{\"r\":55,\"g\":71,\"b\":106},\"hsl\":{\"h\":221.2,\"s\":31.7,\"l\":31.6},\"lab\":{\"l\":30.25,\"a\":4.18,\"b\":-22.45},\"lch\":{\"c\":22.83,\"h\":280.5},\"name\":{\"term\":\"purple\",\"lightness\":\"DARK\",\"chroma\":\"GREYISH\",\"en\":\"dark greyish purple\",\"de\":\"dunkles graustichiges Violett\",\"distance\":11.52}},{\"share\":0.1731,\"hex\":\"#231714\",\"rgb\":{\"r\":35,\"g\":23,\"b\":20},\"hsl\":{\"h\":12.0,\"s\":27.3,\"l\":10.8},\"lab\":{\"l\":9.2,\"a\":5.28,\"b\":4.62},\"lch\":{\"c\":7.02,\"h\":41.2},\"name\":{\"term\":\"black\",\"lightness\":\"VERY_DARK\",\"chroma\":\"ACHROMATIC\",\"en\":\"black\",\"de\":\"Schwarz\",\"distance\":0.0}},{\"share\":0.1123,\"hex\":\"#D69D76\",\"rgb\":{\"r\":214,\"g\":157,\"b\":118},\"hsl\":{\"h\":24.4,\"s\":53.9,\"l\":65.1},\"lab\":{\"l\":69.12,\"a\":16.59,\"b\":28.34},\"lch\":{\"c\":32.84,\"h\":59.7},\"name\":{\"term\":\"brown\",\"lightness\":\"LIGHT\",\"chroma\":\"MUTED\",\"en\":\"light brown\",\"de\":\"helles Braun\",\"distance\":7.08}}]}],\"truncated\":{\"regions\":0,\"dropped\":0}}"
+      } ]
+    },
+    "region_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 1
+      } ]
+    },
+    "hex" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "#C4BDB4"
+      } ]
+    },
+    "term" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "grey"
+      } ]
+    },
+    "name_en" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "light grey"
+      } ]
+    },
+    "name_de" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "helles Grau"
+      } ]
+    }
+  },
+  "previews" : { }
+}

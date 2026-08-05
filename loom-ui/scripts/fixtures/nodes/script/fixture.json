@@ -1,0 +1,81 @@
+{
+  "kind" : "script",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "offline",
+  "state" : "COMPLETED",
+  "durationMs" : 125,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "id" : "script",
+    "type" : "script",
+    "script" : "const transcript = JSON.parse(data.text);\nconst frames = transcript.segments\n  .filter(s => new RegExp(params.pattern, 'i').test(s.text))\n  .map(s => ({ startMs: Math.round(s.start * 1000), endMs: Math.round(s.end * 1000), label: s.text }));\nout.timeframes('chapter_frames', frames);\nout.list('chapter_titles', frames.map(f => f.label));\nout.integer('chapter_count', frames.length);\nlog.info('derived ' + frames.length + ' chapter marks');\n",
+    "params" : {
+      "pattern" : "chapter"
+    },
+    "outputs" : [ {
+      "key" : "chapter_frames",
+      "type" : "TIMEFRAMES"
+    }, {
+      "key" : "chapter_titles",
+      "type" : "TEXT_LIST"
+    }, {
+      "key" : "chapter_count",
+      "type" : "INTEGER"
+    } ]
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "chapter_frames" : {
+      "contentType" : "struct/segments",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "[{\"startMs\":2000,\"endMs\":3500,\"label\":\"Chapter one\"},{\"startMs\":9000,\"endMs\":10250,\"label\":\"Chapter two\"}]"
+      } ]
+    },
+    "chapter_titles" : {
+      "contentType" : "text/plain",
+      "cardinality" : "MANY",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 2
+        },
+        "value" : "Chapter one"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 1,
+          "total" : 2
+        },
+        "value" : "Chapter two"
+      } ]
+    },
+    "chapter_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 2
+      } ]
+    }
+  },
+  "previews" : { }
+}

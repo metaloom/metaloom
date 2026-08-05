@@ -1,0 +1,64 @@
+{
+  "kind" : "scene-layout",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "file:../cortex/nodes/facedetect/core/packs/Pikachu",
+  "state" : "COMPLETED",
+  "durationMs" : 65,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/scene-frame-240.png"
+  },
+  "nodeData" : {
+    "depthMode" : "RELATIVE",
+    "sourceFrame" : 240
+  },
+  "upstream" : [ {
+    "kind" : "depthmap",
+    "sourcePort" : "meta",
+    "targetPort" : "depth"
+  }, {
+    "kind" : "facedetect",
+    "sourcePort" : "detections",
+    "targetPort" : "detections"
+  } ],
+  "outputs" : {
+    "result" : {
+      "contentType" : "struct/scene-layout",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"image\":{\"width\":3840,\"height\":2160},\"depth\":{\"model\":\"depth-anything/Depth-Anything-V2-Small-hf\",\"convention\":\"NEARNESS\",\"source\":\"RELATIVE\",\"mapWidth\":1024,\"mapHeight\":576,\"sceneQuantiles\":{\"background\":0.193561,\"foreground\":0.456458}},\"objects\":[{\"id\":\"face-0\",\"label\":\"face\",\"type\":\"face\",\"source\":\"detections\",\"bbox\":{\"x\":1228.0,\"y\":642.0,\"w\":340.0,\"h\":288.0},\"confidence\":1.0,\"depth\":{\"near\":0.561975,\"p25\":0.553552,\"p75\":0.568795,\"spread\":0.015244,\"pixels\":1794,\"band\":\"FOREGROUND\"}},{\"id\":\"face-1\",\"label\":\"face\",\"type\":\"face\",\"source\":\"detections\",\"bbox\":{\"x\":2182.0,\"y\":567.0,\"w\":279.0,\"h\":289.0},\"confidence\":1.0,\"depth\":{\"near\":0.39469,\"p25\":0.389532,\"p75\":0.396612,\"spread\":0.00708,\"pixels\":1482,\"band\":\"MIDGROUND\"}}],\"relations\":[{\"subject\":\"face-0\",\"predicate\":\"IN_FRONT_OF\",\"object\":\"face-1\",\"confidence\":1.0,\"evidence\":{\"deltaNear\":0.167285,\"z\":14.98566}},{\"subject\":\"face-0\",\"predicate\":\"LEFT_OF\",\"object\":\"face-1\",\"confidence\":1.0,\"evidence\":{\"gapRatio\":1.952305}},{\"subject\":\"face-1\",\"predicate\":\"BEHIND\",\"object\":\"face-0\",\"confidence\":1.0,\"evidence\":{\"deltaNear\":-0.167285,\"z\":-14.98566}},{\"subject\":\"face-1\",\"predicate\":\"RIGHT_OF\",\"object\":\"face-0\",\"confidence\":1.0,\"evidence\":{\"gapRatio\":1.952305}}],\"phrases\":[\"face-0 is in the foreground\",\"face-1 is in the midground\",\"face-0 is in front of face-1\",\"face-0 is left of face-1\",\"face-1 is behind face-0\",\"face-1 is right of face-0\"],\"truncated\":{\"objects\":0,\"unsampled\":0,\"relations\":0}}"
+      } ]
+    },
+    "object_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 2
+      } ]
+    },
+    "relation_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 4
+      } ]
+    }
+  },
+  "previews" : { }
+}

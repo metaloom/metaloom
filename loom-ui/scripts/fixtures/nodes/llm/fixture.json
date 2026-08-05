@@ -1,0 +1,40 @@
+{
+  "kind" : "llm",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:language model (http://127.0.0.1:8080/v1/models)",
+  "state" : "COMPLETED",
+  "durationMs" : 1599,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "prompts" : {
+      "summary" : {
+        "model" : "ggml-org/Qwen3-4B-GGUF:Q4_K_M",
+        "prompt" : "Given only the file name ${name}, guess what the file contains.\nAnswer with a JSON object and nothing else, with the keys:\n  \"subject\"    - a short phrase naming the likely subject\n  \"media_type\" - one of \"video\", \"image\", \"audio\", \"document\"\n  \"confidence\" - a number between 0 and 1\n"
+      }
+    }
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "result_summary" : {
+      "contentType" : "text/plain",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"subject\":\"Jack Sparrow\",\"media_type\":\"video\",\"confidence\":0.95}"
+      } ]
+    }
+  },
+  "previews" : { }
+}

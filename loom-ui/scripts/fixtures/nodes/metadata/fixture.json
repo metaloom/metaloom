@@ -1,0 +1,45 @@
+{
+  "kind" : "metadata",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "offline",
+  "state" : "COMPLETED",
+  "durationMs" : 150,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : { },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "metadata" : {
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"v\":1,\"dc\":{\"creator\":[],\"subject\":[],\"contributor\":[],\"type\":\"StillImage\",\"format\":\"image/jpeg\",\"relation\":[]},\"provenance\":{\"dc.format\":\"container:ContentType\"},\"sources\":[]}"
+      } ]
+    },
+    "text" : {
+      "contentType" : "text/plain",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : ""
+      } ]
+    }
+  },
+  "previews" : { }
+}

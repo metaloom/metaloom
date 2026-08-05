@@ -1,0 +1,33 @@
+{
+  "kind" : "ocr",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "file:/usr/share/tesseract-ocr/5/tessdata",
+  "state" : "COMPLETED",
+  "durationMs" : 419,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/albert_einstein.png"
+  },
+  "nodeData" : { },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "text" : {
+      "contentType" : "text/plain",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "Albert Einstein\n\nAlbert Einstein (* 14, Marz 1879 in Ulm; + 18. April 1955\n\nin Princeton, New Jersey, heimatberechtigt ab 1901 in\n\nZirich) war ein theoretischer Physiker. Er gilt als einer der \\\n\nbedeutendsten Physiker der Wissenschaftsgeschichte und f\n\nweltweit als einer der bekanntesten Wissenschaftler der Hat (os ae\n\nNeuzeit. Seine Forschungen zur Struktur von Materie, Raum [Bl +\n\nund Zeit sowie zum Wesen der Gravitation verdnderten fy se \\ p a ~\nmaBgeblich das zuvor geltende newtonsche Weltbild. 1999 ff 0)\n\nwurde Albert Einstein in einer durch die Fachzeitschrift [)) ™ y\n\nPhysics World durchgefihhrten Umfrage unter fihrenden 7\n\nPhysikern vor Isaac Newton, James Clerk Maxwell, Niels [i €\n\nBohr und Werner Heisenberg zum bedeutendsten Physiker JAIN\n\naller Zeiten gewahlt.21 z\n\nEinsteins Hauptwerk, die Relativititstheorie, machte ihn [Beemer FE\n\nweltweit bekannt. Im Jahr 1905 erschien seine Arbeit mit\n\ndem Titel Zur Elektrodynamik bewegter Kérper, deren Inhalt jpert Einstein, Fotografie von Ferdinand\nheute als Spezielle Relativitatstheorie bezeichnet wird. 1915 Schmutzer, 1921,\n\npublizierte er die Allgemeine Relativitatstheorie. Auch zur A\n\nQuantenphysik leistete er wesentliche Beitrage. ,Fir seine Cte #- Seite,\nVerdienste um die Theoretische Physik, besonders fiir seine\n\nEntdeckung des Gesetzes des photoelektrischen Effekts\",\n\nerhielt er den Nobelpreis des Jahres 1921, der ihm 1922 iberreicht wurde. Seine theoretischen Arbeiten\nspielten — im Gegensatz zur weit verbreiteten Meinung ~ beim Bau der Atombombe und der Entwicklung\nder Kernenergie nur eine indirekte Rolle.21\n\nEinstein gilt als Inbegriff des Forschers und Genies. Er nutzte seine auRerordentliche Bekanntheit auch\nauSerhalb der naturwissenschaftlichen Fachwelt bei seinem Einsatz fiir Vélkerverstandigung, Frieden und\nSozialismus !$]\n"
+      } ]
+    }
+  },
+  "previews" : { }
+}

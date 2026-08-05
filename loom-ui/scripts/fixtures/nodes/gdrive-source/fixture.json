@@ -1,0 +1,33 @@
+{
+  "kind" : "gdrive-source",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "stub",
+  "requirement" : "offline",
+  "state" : "COMPLETED",
+  "durationMs" : 0,
+  "message" : null,
+  "source" : {
+    "path" : "gdrive://my/file-1/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "driveId" : "my",
+    "useDelta" : true,
+    "emitStates" : "NEW, MODIFIED, MOVED"
+  },
+  "upstream" : [ ],
+  "outputs" : {
+    "media" : {
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "gdrive://my/file-1/pexels-jack-sparrow-5977265.mp4"
+      } ]
+    }
+  },
+  "previews" : { }
+}

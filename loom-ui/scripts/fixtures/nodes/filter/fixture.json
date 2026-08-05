@@ -1,0 +1,70 @@
+{
+  "kind" : "filter",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:language model (http://127.0.0.1:8080/v1/models)",
+  "state" : "COMPLETED",
+  "durationMs" : 688,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "id" : "filter",
+    "filterBy" : "LANGUAGE",
+    "model" : "ggml-org/Qwen3-4B-GGUF:Q4_K_M",
+    "buckets" : [ {
+      "id" : "de",
+      "label" : "German",
+      "match" : "German"
+    }, {
+      "id" : "en",
+      "label" : "English",
+      "match" : "English"
+    } ]
+  },
+  "upstream" : [ {
+    "kind" : "tika",
+    "sourcePort" : "content",
+    "targetPort" : "text"
+  } ],
+  "outputs" : {
+    "de" : {
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+      } ]
+    },
+    "passed" : {
+      "contentType" : "control/filter",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : true
+      } ]
+    },
+    "bucket" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "de"
+      } ]
+    }
+  },
+  "previews" : { }
+}

@@ -153,8 +153,12 @@ export default function NodeResultDetail({
   // Boxes over the preview, for a port whose elements carry them. `detectionRegions` drops any
   // element that does not know the dimensions its pixels were measured against, so a port with
   // nothing to draw simply draws nothing.
-  const regions = previewKind(payload.contentType) === "detection"
-    ? detectionRegions(elements.map(element => element.value))
+  //
+  // The preview's frame is what keeps a video honest: the elements span every frame the node
+  // sampled, this picture is one of them, and only the boxes measured against it belong on it.
+  const isDetection = previewKind(payload.contentType) === "detection";
+  const regions = isDetection
+    ? detectionRegions(elements.map(element => element.value), preview?.frame)
     : [];
   // The box outline reads against both the amber of a held node and whatever is in the picture;
   // the family colour would put a pink box on a face and call it a label.
@@ -267,10 +271,17 @@ export default function NodeResultDetail({
                 </Box>
               ))}
             </Box>
-            <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>
+            <Typography variant="caption" sx={{ color: tokens.text.tertiary }} data-testid="result-image-note">
               {/* Say it plainly: this is a reduced copy, not the artifact itself. */}
               {t("pipeline.resultDetail.previewNote")}
               {preview.width ? ` (${preview.width}×${preview.height})` : ""}
+              {/* And, for a video, which moment it is — otherwise the boxes look like they lost
+                  seven of the ten detections the header just counted. */}
+              {isDetection && preview.frame != null
+                ? ` · ${t("pipeline.resultDetail.frameNote", {
+                  frame: preview.frame, shown: regions.length, total: elements.length,
+                })}`
+                : ""}
             </Typography>
 
             {elementPreviews.length > 0 && (

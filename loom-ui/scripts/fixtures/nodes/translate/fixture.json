@@ -1,0 +1,61 @@
+{
+  "kind" : "translate",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:language model (http://127.0.0.1:8080/v1/models)",
+  "state" : "COMPLETED",
+  "durationMs" : 1753,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "sourceLanguage" : "de",
+    "targetLanguage" : "en",
+    "model" : "ggml-org/Qwen3-4B-GGUF:Q4_K_M"
+  },
+  "upstream" : [ {
+    "kind" : "whisper",
+    "sourcePort" : "transcript",
+    "targetPort" : "text"
+  } ],
+  "outputs" : {
+    "translation" : {
+      "contentType" : "text/plain",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "Hello. We have received the delivery today, but two boxes were damaged. Please contact us so that we can arrange replacement."
+      } ]
+    },
+    "language" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "en"
+      } ]
+    },
+    "result" : {
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"text\":\"Hello. We have received the delivery today, but two boxes were damaged. Please contact us so that we can arrange replacement.\",\"targetLanguage\":\"en\",\"sourceLanguage\":\"de\",\"model\":\"ggml-org/Qwen3-4B-GGUF:Q4_K_M\",\"chunkCount\":1,\"sourceChars\":147,\"translatedChars\":125}"
+      } ]
+    }
+  },
+  "previews" : { }
+}

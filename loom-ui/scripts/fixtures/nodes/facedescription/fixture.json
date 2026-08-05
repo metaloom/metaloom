@@ -1,0 +1,45 @@
+{
+  "kind" : "facedescription",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "multimodal model on http://127.0.0.1:8080 (facedescription — its URL constant is hardcoded to 8080)",
+  "state" : "COMPLETED",
+  "durationMs" : 4760,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/scene-frame-240.png"
+  },
+  "nodeData" : {
+    "endpointUrl" : "http://127.0.0.1:8080/v1",
+    "model" : "google/gemma-3-27b-it",
+    "servedBy" : "ggml-org/Qwen2.5-VL-7B-Instruct-GGUF:Q4_K_M",
+    "sourceFrame" : 240
+  },
+  "upstream" : [ {
+    "kind" : "facedetect",
+    "sourcePort" : "detections",
+    "targetPort" : "detections"
+  } ],
+  "outputs" : {
+    "descriptions" : {
+      "contentType" : "text/plain",
+      "cardinality" : "MANY",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 2
+        },
+        "value" : "{\"nsfw\":false,\"eyes_status\":\"closed\",\"hair_color\":\"blonde\",\"mouth_status\":\"closed\",\"face_age\":35,\"face_gender\":\"male\",\"face_race\":\"caucasian\",\"face_occluded_by\":\"\",\"face_occluded\":false,\"face_frontal_view\":false,\"face_profile_view\":true}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 1,
+          "total" : 2
+        },
+        "value" : "{\"nsfw\":false,\"eyes_status\":\"closed\",\"hair_color\":\"unknown\",\"mouth_status\":\"scream\",\"face_age\":25,\"face_gender\":\"female\",\"face_race\":\"caucasian\",\"face_occluded_by\":\"\",\"face_occluded\":false,\"face_frontal_view\":true,\"face_profile_view\":false}"
+      } ]
+    }
+  },
+  "previews" : { }
+}

@@ -1,0 +1,59 @@
+{
+  "kind" : "sentiment",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:sentiment sidecar (http://127.0.0.1:9110/health)",
+  "state" : "COMPLETED",
+  "durationMs" : 11954,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "language" : "auto"
+  },
+  "upstream" : [ {
+    "kind" : "whisper",
+    "sourcePort" : "transcript",
+    "targetPort" : "text"
+  } ],
+  "outputs" : {
+    "label" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "NEGATIVE"
+      } ]
+    },
+    "score" : {
+      "contentType" : "scalar/number",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 0.927632
+      } ]
+    },
+    "result" : {
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"label\":\"NEGATIVE\",\"score\":0.927632,\"polarity\":-0.901223,\"scores\":{\"positive\":0.026409,\"neutral\":0.045959,\"negative\":0.927632},\"lang\":\"de\",\"model\":\"oliverguhr/german-sentiment-bert\",\"chunks\":1,\"truncated\":false,\"textChars\":147}"
+      } ]
+    }
+  },
+  "previews" : { }
+}

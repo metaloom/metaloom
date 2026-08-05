@@ -1,0 +1,56 @@
+{
+  "kind" : "watermark",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "offline",
+  "state" : "COMPLETED",
+  "durationMs" : 50,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "relX" : 0.72,
+    "relY" : 0.78,
+    "scale" : 0.18
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "DONE"
+      } ]
+    },
+    "image" : {
+      "contentType" : "artifact/image",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "/tmp/docs-fixture-watermark5582505688680062854/watermark_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-38c935c7e6bc.png"
+      } ]
+    }
+  },
+  "previews" : {
+    "image" : {
+      "file" : "image.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 410,
+      "height" : 512
+    }
+  }
+}

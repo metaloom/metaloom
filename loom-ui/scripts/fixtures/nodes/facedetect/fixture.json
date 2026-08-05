@@ -1,0 +1,201 @@
+{
+  "kind" : "facedetect",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "file:../cortex/nodes/facedetect/core/packs/Pikachu",
+  "state" : "COMPLETED",
+  "durationMs" : 2201,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "videoChopRate" : 5
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "video"
+  } ],
+  "outputs" : {
+    "face_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 10
+      } ]
+    },
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "SUCCESS"
+      } ]
+    },
+    "detections" : {
+      "contentType" : "detection/face",
+      "cardinality" : "MANY",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 10
+        },
+        "value" : "{\"index\":0,\"type\":\"face\",\"label\":\"face\",\"frame\":293,\"bbox\":{\"x\":2036,\"y\":617,\"w\":315,\"h\":280},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 1,
+          "total" : 10
+        },
+        "value" : "{\"index\":1,\"type\":\"face\",\"label\":\"face\",\"frame\":233,\"bbox\":{\"x\":2152,\"y\":577,\"w\":284,\"h\":281},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 2,
+          "total" : 10
+        },
+        "value" : "{\"index\":2,\"type\":\"face\",\"label\":\"face\",\"frame\":323,\"bbox\":{\"x\":2039,\"y\":619,\"w\":318,\"h\":266},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 3,
+          "total" : 10
+        },
+        "value" : "{\"index\":3,\"type\":\"face\",\"label\":\"face\",\"frame\":308,\"bbox\":{\"x\":2031,\"y\":630,\"w\":321,\"h\":259},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 4,
+          "total" : 10
+        },
+        "value" : "{\"index\":4,\"type\":\"face\",\"label\":\"face\",\"frame\":263,\"bbox\":{\"x\":2160,\"y\":552,\"w\":282,\"h\":267},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 5,
+          "total" : 10
+        },
+        "value" : "{\"index\":5,\"type\":\"face\",\"label\":\"face\",\"frame\":353,\"bbox\":{\"x\":2027,\"y\":598,\"w\":286,\"h\":268},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 6,
+          "total" : 10
+        },
+        "value" : "{\"index\":6,\"type\":\"face\",\"label\":\"face\",\"frame\":248,\"bbox\":{\"x\":2188,\"y\":560,\"w\":279,\"h\":273},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 7,
+          "total" : 10
+        },
+        "value" : "{\"index\":7,\"type\":\"face\",\"label\":\"face\",\"frame\":368,\"bbox\":{\"x\":1983,\"y\":600,\"w\":289,\"h\":269},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 8,
+          "total" : 10
+        },
+        "value" : "{\"index\":8,\"type\":\"face\",\"label\":\"face\",\"frame\":278,\"bbox\":{\"x\":2099,\"y\":577,\"w\":283,\"h\":292},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 9,
+          "total" : 10
+        },
+        "value" : "{\"index\":9,\"type\":\"face\",\"label\":\"face\",\"frame\":338,\"bbox\":{\"x\":2056,\"y\":613,\"w\":286,\"h\":246},\"confidence\":1.0,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160}"
+      } ]
+    }
+  },
+  "previews" : {
+    "detections" : {
+      "file" : "detections.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 512,
+      "height" : 288,
+      "markdown" : "| # | confidence | box (x, y, w, h) | frame |\n|---|---|---|---|\n| 0 | 1.0 | 2036, 617, 315, 280 | 293 |\n| 1 | 1.0 | 2152, 577, 284, 281 | 233 |\n| 2 | 1.0 | 2039, 619, 318, 266 | 323 |\n| 3 | 1.0 | 2031, 630, 321, 259 | 308 |\n| 4 | 1.0 | 2160, 552, 282, 267 | 263 |\n| 5 | 1.0 | 2027, 598, 286, 268 | 353 |\n| 6 | 1.0 | 2188, 560, 279, 273 | 248 |\n| 7 | 1.0 | 1983, 600, 289, 269 | 368 |\n| 8 | 1.0 | 2099, 577, 283, 292 | 278 |\n| 9 | 1.0 | 2056, 613, 286, 246 | 338 |\n",
+      "frame" : 293
+    },
+    "detections#0" : {
+      "file" : "detections-0.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 181,
+      "frame" : 293
+    },
+    "detections#1" : {
+      "file" : "detections-1.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 191,
+      "frame" : 233
+    },
+    "detections#2" : {
+      "file" : "detections-2.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 176,
+      "frame" : 323
+    },
+    "detections#3" : {
+      "file" : "detections-3.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 173,
+      "frame" : 308
+    },
+    "detections#4" : {
+      "file" : "detections-4.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 187,
+      "frame" : 263
+    },
+    "detections#5" : {
+      "file" : "detections-5.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 186,
+      "frame" : 353
+    },
+    "detections#6" : {
+      "file" : "detections-6.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 190,
+      "frame" : 248
+    },
+    "detections#7" : {
+      "file" : "detections-7.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 185,
+      "frame" : 368
+    },
+    "detections#8" : {
+      "file" : "detections-8.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 189,
+      "height" : 192,
+      "frame" : 278
+    },
+    "detections#9" : {
+      "file" : "detections-9.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 179,
+      "frame" : 338
+    }
+  }
+}

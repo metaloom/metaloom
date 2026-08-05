@@ -1,0 +1,38 @@
+{
+  "kind" : "captioning",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "multimodal model on http://127.0.0.1:8000 (captioning)",
+  "state" : "COMPLETED",
+  "durationMs" : 3007,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "videoEndpointUrl" : "http://localhost:8000",
+    "videoModel" : "ggml-org/Qwen2.5-VL-7B-Instruct-GGUF:Q4_K_M",
+    "videoStrategy" : "WHOLE",
+    "frameCount" : 8
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "video"
+  } ],
+  "outputs" : {
+    "caption" : {
+      "contentType" : "text/caption",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "The woman picks up her coffee and takes a sip."
+      } ]
+    }
+  },
+  "previews" : { }
+}

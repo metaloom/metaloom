@@ -131,12 +131,22 @@ export interface DetectionRegion {
  *
  * Elements without dimensions are dropped rather than guessed at: a box drawn against the wrong
  * reference is worse than no box, because it looks authoritative.
+ *
+ * **`frame` is the same argument applied to time.** A video detector reports one element per
+ * detection *per sampled frame* — `facedetect` scans every *n*th frame — but the port-level preview
+ * is a single still. Drawing all of them over that one still stacks boxes from moments the picture
+ * is not of: two people walking through four sampled frames arrive as ten boxes over two faces,
+ * which reads as a broken detector rather than as a time series. Pass the preview's own frame and
+ * only the elements measured against it are drawn. Omit it (a still, or a preview with no frame
+ * recorded) and nothing is filtered, which is the old behaviour.
  */
-export function detectionRegions(values: unknown[]): DetectionRegion[] {
+export function detectionRegions(values: unknown[], frame?: number | null): DetectionRegion[] {
   const regions: DetectionRegion[] = [];
   values.forEach((value, index) => {
     const record = asDetection(value);
     if (!record) return;
+    // A detection with no frame of its own cannot be excluded by one — an image detector emits none.
+    if (frame != null && record.frame != null && Number(record.frame) !== frame) return;
     const box = record.bbox && typeof record.bbox === "object" ? (record.bbox as Record<string, unknown>) : null;
     const imageWidth = Number(record.imageWidth);
     const imageHeight = Number(record.imageHeight);

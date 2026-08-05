@@ -1101,6 +1101,7 @@
         "raw": "Rohdaten"
       },
       "previewNote": "Verkleinerte Vorschau, nicht die Originaldatei",
+      "frameNote": "Bild {{frame}} · {{shown}} von {{total}} Erkennungen stammen daraus",
       "previewSkipped": "Keine Vorschau",
       "mediaUnavailable": "Diese Datei liegt auf dem Worker, der sie erzeugt hat, und kann hier nicht abgespielt werden."
     },

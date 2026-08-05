@@ -1,0 +1,42 @@
+{
+  "kind" : "vlm",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "multimodal model on http://127.0.0.1:8000 (vlm)",
+  "state" : "COMPLETED",
+  "durationMs" : 8061,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/albert_einstein.png"
+  },
+  "nodeData" : {
+    "endpointUrl" : "http://127.0.0.1:8000",
+    "prompts" : {
+      "transcription" : {
+        "model" : "ggml-org/Qwen2.5-VL-7B-Instruct-GGUF:Q4_K_M",
+        "responseFormat" : "TEXT",
+        "prompt" : "Transcribe the text of this page. Reply with the text only, preserving the line breaks, and add nothing of your own."
+      }
+    }
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "result_transcription" : {
+      "contentType" : "text/plain",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "Albert Einstein (* 14. März 1879 in Ulm; † 18. April 1955 in Princeton, New Jersey, heimatberechtigt ab 1901 in Zürich) war ein theoretischer Physiker. Er gilt als einer der bedeutendsten Physiker der Wissenschaftsgeschichte und weltweit als einer der bekanntesten Wissenschaftler der Neuzeit. Seine Forschungen zur Struktur von Materie, Raum und Zeit sowie zum Wesen der Gravitation veränderten maßgeblich das zuvor geltende newtonsche Weltbild. 1999 wurde Albert Einstein in einer durch die Fachzeitschrift Physics World durchgeführten Umfrage unter führenden Physikern vor Isaac Newton, James Clerk Maxwell, Niels Bohr und Werner Heisenberg zum bedeutendsten Physiker aller Zeiten gewählt.[1]\n\nEinstens Hauptwerk, die Relativitätstheorie, machte ihn weltweit bekannt. Im Jahr 1905 erschien seine Arbeit mit dem Titel Zur Elektrodynamik bewegter Körper, deren Inhalt heute als Spezielle Relativitätstheorie bezeichnet wird. 1915 publizierte er die Allgemeine Relativitätstheorie. Auch zur Quantenphysik leistete er wesentliche Beiträge. „Für seine Verdienste um die Theoretische Physik, besonders für seine Entdeckung des Gesetzes des photoelektrischen Effekts“, erhielt er den Nobelpreis des Jahres 1921, der ihm 1922 überreicht wurde. Seine theoretischen Arbeiten spielten – im Gegensatz zur weit verbreiteten Meinung – beim Bau der Atombombe und der Entwicklung der Kernenergie nur eine indirekte Rolle.[2]\n\nEinstein gilt als Inbegriff des Forschers und Genies. Er nutzte seine außerordentliche Bekanntheit auch außerhalb der naturwissenschaftlichen Fachwelt bei seinem Einsatz für Völkerverständigung, Frieden und Sozialismus.[3]"
+      } ]
+    }
+  },
+  "previews" : { }
+}

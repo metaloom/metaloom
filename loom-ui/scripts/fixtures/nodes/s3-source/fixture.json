@@ -1,0 +1,33 @@
+{
+  "kind" : "s3-source",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:object store (http://127.0.0.1:9000/minio/health/live)",
+  "state" : "COMPLETED",
+  "durationMs" : 0,
+  "message" : null,
+  "source" : {
+    "path" : "s3://media/docs/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "bucket" : "media",
+    "prefix" : "docs/",
+    "emitStates" : "NEW, MODIFIED"
+  },
+  "upstream" : [ ],
+  "outputs" : {
+    "media" : {
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "s3://media/docs/pexels-jack-sparrow-5977265.mp4"
+      } ]
+    }
+  },
+  "previews" : { }
+}
