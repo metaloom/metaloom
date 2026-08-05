@@ -4558,7 +4558,7 @@
                     "confidence" : 0.97,
                     "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
                   }, {
-                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                     "status" : {
                       "creator" : {
                         "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
@@ -4571,17 +4571,14 @@
                       },
                       "edited" : "2018-11-20T20:12:01Z"
                     },
-                    "meta" : {
-                      "gender" : "male",
-                      "age" : 30
-                    },
-                    "type" : "facedetection",
-                    "frameNumber" : 0,
-                    "bboxX" : 0.3,
-                    "bboxY" : 0.2,
-                    "bboxWidth" : 0.12,
-                    "bboxHeight" : 0.2,
-                    "confidence" : 0.97,
+                    "type" : "objectdetection",
+                    "label" : "dog",
+                    "frameNumber" : 120,
+                    "bboxX" : 0.51,
+                    "bboxY" : 0.34,
+                    "bboxWidth" : 0.18,
+                    "bboxHeight" : 0.27,
+                    "confidence" : 0.88,
                     "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
                   } ],
                   "_metainfo" : {
@@ -18246,7 +18243,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "a7d0239a-7542-4263-8cdf-fc55611f4159",
+                    "versionUuid" : "a9f8b71f-6651-4239-80da-d153d9b7df57",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18273,7 +18270,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "5e8872c2-8430-47cf-8d6d-4ce531861813",
+                    "versionUuid" : "5ad97047-1a5b-4c64-9139-9faa275b3048",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18380,7 +18377,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "a9a8158f-45cb-4af5-8f71-b3b72475eb0f",
+                  "versionUuid" : "087258d7-a5cf-422a-b1d8-16a15d18df78",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18466,7 +18463,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "4534bfa7-dad1-45a9-973d-d79cd2c5e948",
+                  "versionUuid" : "9ba47245-8965-4bdf-820d-fae190ab1059",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18573,7 +18570,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "69199780-bbd6-4f02-817e-9aa7300ecc8c",
+                  "versionUuid" : "6ab8fd2f-996b-4b38-82f6-63e571c3a741",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18735,7 +18732,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "411f25ed-be72-44b4-94f6-08176bf1fd40",
+                  "runUuid" : "da1f2285-485e-4c38-b670-b29751d91e23",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -18861,11 +18858,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "85200d31-ac92-4129-a501-cb8a60a456e1",
-                    "pipelineUuid" : "37922369-df3e-4553-94b9-7c692c1e8c1e",
+                    "uuid" : "593c5701-031b-49e2-b7b1-5ec4b0d5a4bb",
+                    "pipelineUuid" : "faf1c79b-62d5-4254-b18d-992f4a84e53a",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-05T08:39:52.954864752Z",
-                    "finished" : "2026-08-05T08:39:52.954975392Z",
+                    "started" : "2026-08-05T21:08:42.870140317Z",
+                    "finished" : "2026-08-05T21:08:42.870246307Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18874,11 +18871,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "ca2fa591-825d-4c74-a384-03428404c3ee",
-                    "pipelineUuid" : "deca2253-4b6d-4eb6-97a0-24e589edded3",
+                    "uuid" : "531911d5-e773-4478-bd74-45cbe0313199",
+                    "pipelineUuid" : "722b384b-fc79-441b-abe3-5acce17f6f4a",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-05T08:39:52.955004912Z",
-                    "finished" : "2026-08-05T08:39:52.955008142Z",
+                    "started" : "2026-08-05T21:08:42.870273347Z",
+                    "finished" : "2026-08-05T21:08:42.870276427Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18971,11 +18968,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "175ee031-0051-4ff2-9cd3-d6ac726ad585",
-                  "pipelineUuid" : "458f09cf-6b43-4bd8-9934-7329d6c1d4e6",
+                  "uuid" : "5e249ddb-f532-4d08-832f-41fb0560deea",
+                  "pipelineUuid" : "6e63ca45-b374-48fd-9240-08b8bbb91714",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-05T08:39:52.955680292Z",
-                  "finished" : "2026-08-05T08:39:52.955687222Z",
+                  "started" : "2026-08-05T21:08:42.871173706Z",
+                  "finished" : "2026-08-05T21:08:42.871190686Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -19465,16 +19462,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "79ffa825-86da-4204-a399-1e91079cd03c",
-                    "runUuid" : "dc5e6f33-2c82-449e-8701-fe3d19ea5692",
+                    "uuid" : "72c84027-458f-456a-bdd5-2143f95f7c5e",
+                    "runUuid" : "5c9ecd87-ce54-4cc2-a03e-b8de04d080aa",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "cd8200b3-050a-417d-a0d4-9022f1ef51ae",
-                    "runUuid" : "ce58de50-d3eb-465d-a375-f8a862e2b738",
+                    "uuid" : "4bb02003-0389-42ba-9bc9-b5acf2e07ea4",
+                    "runUuid" : "87bca605-1a11-46f3-b63d-b1acf91bff3c",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -19575,9 +19572,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "169701d1-fa70-40f5-9be6-e9fc3509f80e",
-                    "itemUuid" : "71f3728a-2182-43b9-9c07-fbda6df726e6",
-                    "runUuid" : "da2aaaba-b262-4b7b-b5b1-03674e9c5445",
+                    "uuid" : "3c1be197-0c77-429b-85a8-38326493ce47",
+                    "itemUuid" : "db2e70e9-6ee2-4120-8394-2d8c2ea86ca8",
+                    "runUuid" : "09f88e40-9b6d-4eef-a03f-616582adb037",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -20243,7 +20240,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "eb87a3d4-44ea-4011-9140-a6091e20e1ea",
+                    "versionUuid" : "34f3288a-d4fa-4af8-9135-0612e45fca73",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20270,7 +20267,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "c3eaecb3-9c10-4f16-bd53-12629198d529",
+                    "versionUuid" : "20448ead-5af9-4b6e-bf5f-786097740533",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20381,7 +20378,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "951df207-1131-4765-be4c-d8774f42163e",
+                  "versionUuid" : "9e16d139-a698-40de-acf3-aff22437b3f7",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -20506,7 +20503,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "1e3879c3-6b1f-4fcb-bad7-de5a6367b705",
+                  "versionUuid" : "2646ec03-9ef9-4232-bd45-e33a0ffc3687",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

@@ -65,6 +65,7 @@ public final class NodeSpecCatalog {
 		"io.metaloom.cortex.node.thumbnail.ThumbnailNode",
 		"io.metaloom.cortex.node.facedetect.FacedetectNode",
 		"io.metaloom.cortex.node.facedescription.FacedescriptionNode",
+		"io.metaloom.cortex.node.objectdetect.ObjectDetectNode",
 		"io.metaloom.cortex.node.ocr.OCRNode",
 		"io.metaloom.cortex.node.tika.TikaNode",
 		"io.metaloom.cortex.node.metadata.MetadataNode",

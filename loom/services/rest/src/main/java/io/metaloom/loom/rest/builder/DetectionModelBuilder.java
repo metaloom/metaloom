@@ -11,6 +11,9 @@ public interface DetectionModelBuilder extends ModelBuilder, UserModelBuilder {
 		DetectionResponse response = new DetectionResponse();
 		response.setUuid(detection.getUuid());
 		response.setType(detection.getType());
+		// Written since the column existed, readable only now. An object detection whose class does not
+		// survive the round trip is findable by geometry alone, which is not what anyone asks a detector.
+		response.setLabel(detection.getLabel());
 		response.setFrameNumber(detection.getFrameNumber());
 		response.setBboxX(detection.getBboxX());
 		response.setBboxY(detection.getBboxY());

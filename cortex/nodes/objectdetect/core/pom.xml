@@ -1,0 +1,68 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>cortex-objectdetect-node</artifactId>
+	<packaging>jar</packaging>
+
+	<parent>
+		<groupId>io.metaloom.cortex</groupId>
+		<artifactId>cortex-nodes</artifactId>
+		<relativePath>../../pom.xml</relativePath>
+		<version>1.0.0-SNAPSHOT</version>
+	</parent>
+
+	<name>MetaLoom // Cortex :: Nodes :: Objectdetect</name>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.metaloom</groupId>
+				<artifactId>bom</artifactId>
+				<version>${project.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<!-- Logging -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+		</dependency>
+
+		<!--
+			The detection engine: FFM bindings over libyolib.so / YOLOs-CPP / ONNX Runtime. It brings
+			video4j (and through it opencv-ffm) transitively, which is also what the video frame
+			sampling here uses - the Mat handed to libyolib has to come from the same OpenCV line.
+		-->
+		<dependency>
+			<groupId>io.metaloom.yolo4j</groupId>
+			<artifactId>yolo4j</artifactId>
+		</dependency>
+
+		<!-- Test -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.metaloom.cortex</groupId>
+			<artifactId>cortex-api</artifactId>
+			<version>1.0.0-SNAPSHOT</version>
+		</dependency>
+	</dependencies>
+</project>

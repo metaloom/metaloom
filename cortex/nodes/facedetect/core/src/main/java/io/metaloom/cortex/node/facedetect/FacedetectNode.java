@@ -242,7 +242,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 		// Crops are taken from the full-resolution decode, before anything downsamples it. A face is a
 		// small part of a large frame - cutting it out of a 512px preview instead would yield a 30px
 		// smudge on any modern source.
-		previewDetections(ctx, image, detections, null);
+		previewDetections(ctx, new PreviewFrame(image, null), detections, null);
 		persist(ctx, asset, detections);
 		return ctx.origin(COMPUTED).next();
 	}
@@ -308,17 +308,22 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * </p>
 	 *
 	 * @param ctx        the context to attach to
-	 * @param frame      the image the boxes were measured against, or {@code null} when none could be obtained
+	 * @param source     the image the boxes were measured against and which frame of the video it is
 	 * @param detections the faces, in element order
-	 * @param crops      ready-made crops in the same order, or {@code null} to cut them from {@code frame}
+	 * @param crops      ready-made crops in the same order, or {@code null} to cut them from the image
 	 */
-	private void previewDetections(NodeContext<LoomMedia> ctx, BufferedImage frame, List<Detection> detections,
+	private void previewDetections(NodeContext<LoomMedia> ctx, PreviewFrame source, List<Detection> detections,
 		List<BufferedImage> crops) {
 		if (!ctx.capturePreviews() || detections.isEmpty()) {
 			return;
 		}
+		BufferedImage frame = source.image();
 		if (frame != null) {
-			ctx.preview(OUT_DETECTIONS, ImagePreviews.fromImage(frame));
+			// Stamped with the frame it came from, because the elements are spread over every frame
+			// the scan sampled and only some of them were measured against this one. A viewer with no
+			// frame to compare against has to draw all of them, which turns four sampled frames of two
+			// people into ten boxes piled on two faces.
+			ctx.preview(OUT_DETECTIONS, ImagePreviews.fromImage(frame).withFrame(source.frame()));
 		}
 		for (int i = 0; i < detections.size(); i++) {
 			BufferedImage crop = crops != null && i < crops.size() ? crops.get(i) : null;
@@ -326,9 +331,19 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 				crop = cropFace(frame, detections.get(i).boundingBox());
 			}
 			if (crop != null) {
-				ctx.preview(OUT_DETECTIONS, i, ImagePreviews.fromImage(crop, FACE_PREVIEW_EDGE_PX));
+				// The crop *is* its detection, so it carries that detection's own frame rather than the
+				// port-level one — the ten faces in a video come from several different moments.
+				ctx.preview(OUT_DETECTIONS, i,
+					ImagePreviews.fromImage(crop, FACE_PREVIEW_EDGE_PX).withFrame(source.frame() == null ? null : detections.get(i).frameIndex()));
 			}
 		}
+	}
+
+	/**
+	 * A picture for the overlay together with the video frame it is, or {@code null} for both when the
+	 * media was a still and no frame index applies.
+	 */
+	private record PreviewFrame(BufferedImage image, Integer frame) {
 	}
 
 	/**
@@ -377,18 +392,23 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * agree with at least one row of the table, which beats an arbitrary keyframe showing nothing.
 	 * </p>
 	 *
-	 * @return the frame, or {@code null} if it could not be read — previews degrade, the node does not
+	 * @return the frame and its index; the image is {@code null} if it could not be read — previews
+	 *         degrade, the node does not
 	 */
-	private static BufferedImage detectionFrame(VideoFile video, List<Detection> detections) {
+	private static PreviewFrame detectionFrame(VideoFile video, List<Detection> detections) {
 		if (detections.isEmpty()) {
-			return null;
+			return new PreviewFrame(null, null);
 		}
+		int index = detections.get(0).frameIndex();
 		try {
-			video.seekToFrame(detections.get(0).frameIndex());
-			return video.frameToImage();
+			video.seekToFrame(index);
+			// The index travels back with the picture rather than being re-derived at the call site:
+			// "which frame the overlay is of" and "which frame we seeked to" are the same decision, and
+			// splitting them across two places is how they drift apart.
+			return new PreviewFrame(video.frameToImage(), index);
 		} catch (RuntimeException e) {
 			log.debug("Could not read a frame for the detection preview", e);
-			return null;
+			return new PreviewFrame(null, null);
 		}
 	}
 

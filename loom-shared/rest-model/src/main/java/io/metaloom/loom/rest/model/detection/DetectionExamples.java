@@ -50,6 +50,31 @@ public interface DetectionExamples extends ExampleValues {
 		return model;
 	}
 
+	/**
+	 * The other shape a detection comes in: a classed box from {@code objectdetect}.
+	 *
+	 * <p>
+	 * Documented alongside the face example because {@code label} is populated for one and null for
+	 * the other — a reader shown only the face response would reasonably conclude detections have no
+	 * classes at all.
+	 * </p>
+	 */
+	default DetectionResponse objectDetectionResponse() {
+		DetectionResponse model = new DetectionResponse();
+		model.setUuid(uuidB());
+		model.setType("objectdetection");
+		model.setLabel("dog");
+		model.setFrameNumber(120);
+		model.setBboxX(0.51f);
+		model.setBboxY(0.34f);
+		model.setBboxWidth(0.18f);
+		model.setBboxHeight(0.27f);
+		model.setConfidence(0.88f);
+		model.setAssetUuid(uuidA().toString());
+		setCreatorEditor(model);
+		return model;
+	}
+
 	default DetectionCreateRequest detectionCreateRequest() {
 		DetectionCreateRequest model = new DetectionCreateRequest();
 		model.setType("facedetection");
@@ -80,7 +105,7 @@ public interface DetectionExamples extends ExampleValues {
 		DetectionListResponse model = new DetectionListResponse();
 		model.setMetainfo(pagingInfo());
 		model.add(detectionResponse());
-		model.add(detectionResponse());
+		model.add(objectDetectionResponse());
 		return model;
 	}
 

@@ -22,6 +22,7 @@
         <module>consistency</module>
         <module>fingerprint</module>
         <module>facedetect</module>
+        <module>objectdetect</module>
         <module>scene-detection</module>
         <module>ocr</module>
         <module>llm</module>

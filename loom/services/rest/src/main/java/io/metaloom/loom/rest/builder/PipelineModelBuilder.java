@@ -216,6 +216,20 @@ public interface PipelineModelBuilder extends ModelBuilder, UserModelBuilder {
 			} else {
 				entry.put("skippedReason", preview.getString("skippedReason"));
 			}
+			// The two fields that are independent of the bytes, so they are copied outside the branch.
+			//
+			// `markdown` was being dropped here entirely: a node's own description of its port was
+			// stored, was read back by the engine, and then never left the server. The debugging view
+			// offers a "Description" tab whenever a preview carries Markdown, so against a real
+			// deployment that tab could not appear for any node — only against a mocked backend.
+			if (preview.getString("markdown") != null) {
+				entry.put("markdown", preview.getString("markdown"));
+			}
+			// Which frame of a video the picture is, so the overlay can draw only the detections that
+			// were measured against it rather than every frame's boxes at once.
+			if (preview.getInteger("frame") != null) {
+				entry.put("frame", preview.getInteger("frame"));
+			}
 			rendered.put(portId, entry);
 		}
 		return rendered.isEmpty() ? null : rendered;

@@ -6,6 +6,7 @@ import io.metaloom.cortex.node.consistency.ConsistencyNodeModule;
 import io.metaloom.cortex.node.dedup.DedupNodeModule;
 import io.metaloom.cortex.node.depthmap.DepthmapNodeModule;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
+import io.metaloom.cortex.node.objectdetect.ObjectDetectNodeModule;
 import io.metaloom.cortex.node.fp.FingerprintNodeModule;
 import io.metaloom.cortex.node.hash.HashNodeModule;
 import io.metaloom.cortex.node.imagegen.ImageGenNodeModule;
@@ -44,6 +45,7 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	FingerprintNodeModule.class,
 	OCRNodeModule.class,
 	FacedetectNodeModule.class,
+	ObjectDetectNodeModule.class,
 	DedupNodeModule.class,
 	MetadataNodeModule.class,
 	TikaNodeModule.class,

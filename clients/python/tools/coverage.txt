@@ -455,6 +455,7 @@ detection.DetectionCreateRequest <- io.metaloom.loom.rest.model.detection.Detect
 detection.DetectionListResponse <- io.metaloom.loom.rest.model.detection.DetectionListResponse (ListResponse)
 detection.DetectionResponse <- io.metaloom.loom.rest.model.detection.DetectionResponse (CreatorEditorResponse)
     type <- String type (wire: type)
+    label <- String label (wire: label)
     frame_number <- Integer frameNumber (wire: frameNumber)
     bbox_x <- Float bboxX (wire: bboxX)
     bbox_y <- Float bboxY (wire: bboxY)

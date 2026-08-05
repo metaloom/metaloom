@@ -7,6 +7,17 @@ public class DetectionResponse extends AbstractCreatorEditorRestResponse<Detecti
 
 	private String type;
 
+	/**
+	 * The detected class, for a detection that has one.
+	 *
+	 * <p>
+	 * Null for a face — {@code facedetect} has no classes to report. It was missing here entirely
+	 * until {@code objectdetect} arrived: the column, the create request and the DAO all carried it,
+	 * so a label could be written and then never read back.
+	 * </p>
+	 */
+	private String label;
+
 	private Integer frameNumber;
 
 	private Float bboxX;
@@ -29,6 +40,15 @@ public class DetectionResponse extends AbstractCreatorEditorRestResponse<Detecti
 	@Override
 	public DetectionResponse setType(String type) {
 		this.type = type;
+		return this;
+	}
+
+	public String getLabel() {
+		return label;
+	}
+
+	public DetectionResponse setLabel(String label) {
+		this.label = label;
 		return this;
 	}
 

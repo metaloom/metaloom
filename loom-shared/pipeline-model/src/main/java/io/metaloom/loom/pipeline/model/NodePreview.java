@@ -64,24 +64,27 @@ public class NodePreview {
 	private final byte[] data;
 	private final String markdown;
 	private final String skippedReason;
+	private final Integer frame;
 
 	@JsonCreator
 	public NodePreview(@JsonProperty("mimeType") String mimeType, @JsonProperty("width") int width,
 		@JsonProperty("height") int height, @JsonProperty("data") byte[] data,
 		@JsonProperty("markdown") String markdown,
-		@JsonProperty("skippedReason") String skippedReason) {
+		@JsonProperty("skippedReason") String skippedReason,
+		@JsonProperty("frame") Integer frame) {
 		this.mimeType = mimeType;
 		this.width = width;
 		this.height = height;
 		this.data = data;
 		this.markdown = markdown;
 		this.skippedReason = skippedReason;
+		this.frame = frame;
 	}
 
 	/** A preview that carries bytes. */
 	public static NodePreview image(String mimeType, int width, int height, byte[] data) {
 		return new NodePreview(Objects.requireNonNull(mimeType, "A mime type must be set"), width, height,
-			Objects.requireNonNull(data, "Preview data must be set"), null, null);
+			Objects.requireNonNull(data, "Preview data must be set"), null, null, null);
 	}
 
 	/**
@@ -99,7 +102,7 @@ public class NodePreview {
 	 * </p>
 	 */
 	public static NodePreview markdown(String markdown) {
-		return new NodePreview(null, 0, 0, null, Objects.requireNonNull(markdown, "Markdown must be set"), null);
+		return new NodePreview(null, 0, 0, null, Objects.requireNonNull(markdown, "Markdown must be set"), null, null);
 	}
 
 	/**
@@ -111,7 +114,7 @@ public class NodePreview {
 	 * </p>
 	 */
 	public static NodePreview skipped(String reason) {
-		return new NodePreview(null, 0, 0, null, null, reason);
+		return new NodePreview(null, 0, 0, null, null, reason, null);
 	}
 
 	public String getMimeType() {
@@ -141,6 +144,27 @@ public class NodePreview {
 		return markdown;
 	}
 
+	/**
+	 * The video frame this preview was taken from, or {@code null} when it is not a frame of anything.
+	 *
+	 * <p>
+	 * Only meaningful for a node that samples a video and then shows one of the frames it sampled.
+	 * {@code facedetect} is the case this exists for: it scans every <em>n</em>th frame of a clip and
+	 * emits one element per face <em>per frame</em>, but the port-level preview can only be one
+	 * picture. Without this, anything drawing those elements over that picture has no way to tell
+	 * which of them were measured against it, so it draws all of them — and four sampled frames of
+	 * two people become ten boxes stacked over two faces.
+	 * </p>
+	 *
+	 * <p>
+	 * Nullable rather than a sentinel: an image node's preview is not frame 0 of anything, and a
+	 * consumer must be able to tell "no frame applies" from "the first one".
+	 * </p>
+	 */
+	public Integer getFrame() {
+		return frame;
+	}
+
 	@JsonIgnore
 	public boolean hasData() {
 		return data != null && data.length > 0;
@@ -160,7 +184,19 @@ public class NodePreview {
 	 * </p>
 	 */
 	public NodePreview withMarkdown(String markdown) {
-		return new NodePreview(mimeType, width, height, data, markdown, skippedReason);
+		return new NodePreview(mimeType, width, height, data, markdown, skippedReason, frame);
+	}
+
+	/**
+	 * Stamp the video frame this preview was taken from — see {@link #getFrame()}.
+	 *
+	 * <p>
+	 * Applied by the node after the image has been encoded rather than passed into the encoder,
+	 * because which frame was picked is a fact about the node's scan, not about the picture.
+	 * </p>
+	 */
+	public NodePreview withFrame(Integer frame) {
+		return new NodePreview(mimeType, width, height, data, markdown, skippedReason, frame);
 	}
 
 	@Override

@@ -347,6 +347,63 @@ public class PipelineNodeTaskEndpointTest {
 	}
 
 	@Test
+	@DisplayName("A preview's Markdown and video frame are served alongside the fetch URL")
+	void testPreviewMetadataCarriesMarkdownAndFrame() throws Exception {
+		// Both are stored, both were read back by the engine, and `markdown` used to be dropped by
+		// the response builder — so the "Description" tab the debugging view offers whenever a
+		// preview carries Markdown could never appear against a real server, only a mocked one.
+		//
+		// `frame` is what lets the overlay draw only the boxes measured against this picture. A
+		// video detector emits one element per face *per sampled frame*; without the frame every
+		// one of them lands on the single still, and two people become ten stacked boxes.
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PipelineRunItem item = createItem();
+			PipelineRun run = runOf(item);
+			PipelineNodeTask task = addTask(item, "pn3", "facedetect", 0, "DONE",
+				payload("detections", "detection/face", "MANY", "{\"index\":0}"));
+			JsonObject stored = storedPreview("detections", new byte[] { 9, 9, 9 });
+			stored.getJsonObject("detections")
+				.put("markdown", "| # | confidence |\n|---|---|\n| 0 | 1.0 |")
+				.put("frame", 255);
+			task.setPreviews(stored);
+			nodeTaskDao().update(task);
+
+			JsonObject entry = client
+				.listPipelineRunItemTasks(run.getPipelineUuid(), run.getUuid(), item.getUuid()).sync().body()
+				.getData().get(0).getPreviews().getJsonObject("detections");
+
+			assertThat(entry.getString("markdown")).contains("confidence");
+			assertThat(entry.getInteger("frame")).isEqualTo(255);
+			assertThat(entry.getString("url")).isNotNull();
+		}
+	}
+
+	@Test
+	@DisplayName("A preview of a still carries no frame at all")
+	void testPreviewWithoutFrameOmitsIt() throws Exception {
+		// Absent, never zero: the overlay filters on this value, and frame 0 is a real frame. A
+		// defaulted zero would mean "draw only what was found on the first frame" — nothing, on
+		// every image the node ever looks at.
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			PipelineRunItem item = createItem();
+			PipelineRun run = runOf(item);
+			PipelineNodeTask task = addTask(item, "pn4", "thumbnail", 0, "DONE",
+				payload("thumbnail", "artifact/image", "ONE", "/var/cortex/thumb.jpg"));
+			task.setPreviews(storedPreview("thumbnail", new byte[] { 1 }));
+			nodeTaskDao().update(task);
+
+			JsonObject entry = client
+				.listPipelineRunItemTasks(run.getPipelineUuid(), run.getUuid(), item.getUuid()).sync().body()
+				.getData().get(0).getPreviews().getJsonObject("thumbnail");
+
+			assertThat(entry.containsKey("frame")).isFalse();
+			assertThat(entry.containsKey("markdown")).isFalse();
+		}
+	}
+
+	@Test
 	@DisplayName("The preview route serves the bytes, and revalidates with an ETag")
 	void testPreviewBytesAreServed() throws Exception {
 		Vertx vertx = Vertx.vertx();

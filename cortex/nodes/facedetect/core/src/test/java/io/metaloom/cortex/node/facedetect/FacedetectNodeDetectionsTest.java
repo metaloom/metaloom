@@ -4,6 +4,7 @@ import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -12,6 +13,8 @@ import static org.mockito.Mockito.when;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
 
@@ -19,11 +22,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.metaloom.cortex.api.node.NodeInputs;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.pipeline.test.StubLoomMedia;
+import io.metaloom.loom.pipeline.model.NodePreview;
 import io.metaloom.utils.hash.SHA512;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
@@ -184,5 +189,27 @@ class FacedetectNodeDetectionsTest {
 		doReturn(null).when(inspireface).detectFaces(any(BufferedImage.class));
 
 		assertThatNoException().isThrownBy(() -> node().process(NodeContext.create(media)));
+	}
+
+	@Test
+	void testImagePreviewsCarryNoFrame() {
+		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class));
+
+		// capturePreviews is what turns the pictures on at all; a production run pays for none of this.
+		NodeResult result = node().process(NodeContext.create(media,
+			new NodeInputs(Map.of(), Set.of(), null, null, true)));
+		assertThat(result).isSuccess();
+
+		// A still is not frame 0 of anything. The overlay filters boxes by the preview's frame, so a
+		// zero here would be read as "only draw the detections stamped frame 0" — which on the image
+		// path is all of them today, and would silently become none the moment a detector stamped a
+		// real frame index. Absent is the only honest value.
+		NodePreview port = result.getPreviews().get(FacedetectNode.OUT_DETECTIONS.id());
+		assertNotNull(port, "the detections port must carry the frame the boxes were measured on");
+		assertNull(port.getFrame(), "an image preview must not claim to be a video frame");
+
+		NodePreview crop = result.getPreviews().get(FacedetectNode.OUT_DETECTIONS.id() + "#0");
+		assertNotNull(crop, "each detection must carry its own crop");
+		assertNull(crop.getFrame());
 	}
 }

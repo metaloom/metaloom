@@ -55,6 +55,7 @@ class DetectionResponse(CreatorEditorResponse):
     """Mirrors ``io.metaloom.loom.rest.model.detection.DetectionResponse``."""
 
     type: str | None = None
+    label: str | None = None
     frame_number: int | None = None
     bbox_x: float | None = None
     bbox_y: float | None = None

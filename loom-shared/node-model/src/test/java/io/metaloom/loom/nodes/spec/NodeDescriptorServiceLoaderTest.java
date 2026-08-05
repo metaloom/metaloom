@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(40, registry.size(),
-			"Expected 40 advertised node kinds but found " + registry.size()
+		assertEquals(41, registry.size(),
+			"Expected 41 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -72,6 +72,7 @@ public class NodeDescriptorServiceLoaderTest {
 			"filter",             // former cortex-filter-api; the eight filter-* kinds collapsed into this one
 			"thumbnail",          // former cortex-thumbnail-api
 			"facedetect",         // former cortex-facedetect-api
+			"objectdetect",       // YOLO object detection; the first producer of detection/object
 			"fingerprint",        // former cortex-fingerprint-api
 			"whisper",            // former cortex-whisper-api
 			"ocr",                // former cortex-ocr-api

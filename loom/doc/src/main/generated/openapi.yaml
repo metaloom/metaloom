@@ -3225,7 +3225,7 @@ paths:
                   bboxHeight: 0.2
                   confidence: 0.97
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
-                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status:
                     creator:
                       uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
@@ -3235,16 +3235,14 @@ paths:
                       uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                       name: joedoe
                     edited: 2018-11-20T20:12:01Z
-                  meta:
-                    gender: male
-                    age: 30
-                  type: facedetection
-                  frameNumber: 0
-                  bboxX: 0.3
-                  bboxY: 0.2
-                  bboxWidth: 0.12
-                  bboxHeight: 0.2
-                  confidence: 0.97
+                  type: objectdetection
+                  label: dog
+                  frameNumber: 120
+                  bboxX: 0.51
+                  bboxY: 0.34
+                  bboxWidth: 0.18
+                  bboxHeight: 0.27
+                  confidence: 0.88
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                 _metainfo:
                   perPage: 2
@@ -12540,7 +12538,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 52aae807-481d-4885-99fa-e0366759d0a9
+                  versionUuid: 5283c25f-2b6f-4d13-8910-53c4bc3fe1bf
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12561,7 +12559,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 8d3a64eb-3a7f-40c2-ae10-abcc09d6d099
+                  versionUuid: d2dad585-4c74-4c2b-beae-5be0ffab5165
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12634,7 +12632,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: be998517-a1c5-4791-b809-6e30f3362194
+                versionUuid: d2887fd7-6034-4d49-9585-b6e34dd92404
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12693,7 +12691,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 962c0fa4-48d3-4e2b-849f-439c31a31ac8
+                versionUuid: 4f5d9a77-2f5c-43d9-b51b-edbddbdd6e4b
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12765,7 +12763,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: a3c70d53-fadb-4823-b1de-e89832810823
+                versionUuid: 92f08a9a-15a6-4983-84ad-c4d36cbf1ab8
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12874,7 +12872,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 48cb5f7e-86b6-4647-b43f-6a59978ba5d0
+                runUuid: a5aaabf5-fadc-490b-b757-a34b77fa3b7e
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -12962,11 +12960,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: de4df0de-cc0f-4ad7-b624-5fc5b3a378bc
-                  pipelineUuid: cfa821b9-e126-4642-92f6-bc5be4a38fef
+                - uuid: 2f993a11-75a7-4c67-b467-bdd6d8457b3a
+                  pipelineUuid: e9b96e64-8346-43be-b6a0-e16ccb40e890
                   pipelineVersion: 1
-                  started: 2026-08-05T08:39:53.067995919Z
-                  finished: 2026-08-05T08:39:53.068009429Z
+                  started: 2026-08-05T21:08:42.994245880Z
+                  finished: 2026-08-05T21:08:42.994259130Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12974,11 +12972,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 9a65fb44-73ee-449c-8225-a1e1dcfd3b3c
-                  pipelineUuid: bb66c8f3-a979-4a44-b8de-6a674dce5935
+                - uuid: fd10d92e-bbf6-4f70-bf98-3a8ddbf71e08
+                  pipelineUuid: 97f6dca1-9692-43c1-b3d4-0bf75fac3dfc
                   pipelineVersion: 1
-                  started: 2026-08-05T08:39:53.068034079Z
-                  finished: 2026-08-05T08:39:53.068036769Z
+                  started: 2026-08-05T21:08:42.994286250Z
+                  finished: 2026-08-05T21:08:42.994289100Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -13041,11 +13039,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: aef7491d-d57b-40e7-a2d9-112d4e600718
-                pipelineUuid: 51a47e05-dedd-4f22-aa97-252123b7a574
+                uuid: 42d1a065-57e1-49c4-970e-4be8755c2109
+                pipelineUuid: 2bba8d83-6d86-469d-a043-5cb466cf9753
                 pipelineVersion: 1
-                started: 2026-08-05T08:39:53.068076599Z
-                finished: 2026-08-05T08:39:53.068082859Z
+                started: 2026-08-05T21:08:42.994339470Z
+                finished: 2026-08-05T21:08:42.994342410Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -13387,15 +13385,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: b6e4535a-bbe3-4bf1-a727-34a46f2f3e97
-                  runUuid: 4e9ffcf7-4332-4b5e-8af9-0eb04eb0b063
+                - uuid: a0433a51-ec1b-4ea5-a9ff-21925cd16cb2
+                  runUuid: 4823dbeb-6807-45f6-a710-d4f34ad0fe69
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: c2fb6a7f-ae04-4c0d-9cf5-991cf0ff5134
-                  runUuid: 3dc214bd-66e2-42e4-a61c-8e4230d45513
+                - uuid: f1f9937e-92a9-4646-8e95-a2aacb65f06b
+                  runUuid: 47ebb371-a94d-4a7f-a940-9d0f50b7066b
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -13467,9 +13465,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 4903d23b-0672-4346-89b8-abbcefcf0be9
-                  itemUuid: eb9b2a17-af9a-4b6c-9861-fb0e6b2de0d5
-                  runUuid: dd94a7f6-47fc-4b6b-bb51-40289d2f01a3
+                - uuid: b6100112-ad59-4505-a356-a61987d0f693
+                  itemUuid: 7f85ee33-2eac-4de4-8bcb-0a4fc392c3ac
+                  runUuid: fdd4977b-4869-41aa-8f04-f8aff625e1f7
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -13932,7 +13930,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: cb1689d5-2467-4226-b4ad-472e93cc3e0e
+                  versionUuid: 7c140d20-7467-4a5b-a02a-0b67d19abb04
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -13953,7 +13951,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: ab37a3df-be88-4a73-848f-6a23782a79c0
+                  versionUuid: 07a4975b-df8e-4adc-8025-2697638b0d16
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -14029,7 +14027,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: bc9a89ec-5724-4fd1-9569-fac0275ed6ba
+                versionUuid: b3b4bfbe-3cc3-456e-bbb2-5a84ad8a4531
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -14115,7 +14113,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 762158f3-c13d-484b-ac02-b141e4f40df6
+                versionUuid: 3bd091cd-baf5-42a8-84e8-de8beaa0aeb5
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

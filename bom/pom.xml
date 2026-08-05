@@ -41,6 +41,7 @@
             with the video4j checkout's own version, or the natives and the bindings disagree.
         -->
         <video4j.version>4.10.0-SNAPSHOT</video4j.version>
+        <yolo4j.version>0.1.0-SNAPSHOT</yolo4j.version>
 
         <!-- Sonar /  Maven -->
         <jacoco.version>0.8.8</jacoco.version>
@@ -641,6 +642,18 @@
                 <groupId>io.metaloom.video</groupId>
                 <artifactId>video4j-facedetect-dlib</artifactId>
                 <version>${video4j.version}</version>
+            </dependency>
+
+            <!--
+                Yolo4j - FFM bindings over libyolib.so / YOLOs-CPP / ONNX Runtime, used by the
+                objectdetect node. It carries its own video4j dependency, which must stay on the
+                same line as ${video4j.version} above: two OpenCV majors on one class path means the
+                native Mat handles it hands to libyolib disagree with the ones opencv-ffm allocates.
+            -->
+            <dependency>
+                <groupId>io.metaloom.yolo4j</groupId>
+                <artifactId>yolo4j</artifactId>
+                <version>${yolo4j.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

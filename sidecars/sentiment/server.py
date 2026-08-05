@@ -143,7 +143,10 @@ def _detect_lang(text: str) -> str:
     if _detector is None:
         from lingua import LanguageDetectorBuilder, Language
 
-        wanted = [lang for lang in Language if lang.iso_code_639_1.name.lower() in LANGS]
+        # `Language.all()`, not `for lang in Language`: lingua 2.x moved the enum into a Rust
+        # extension type that is not iterable, so the comprehension raised
+        # "TypeError: 'type' object is not iterable" and every lang="auto" request answered 500.
+        wanted = [lang for lang in Language.all() if lang.iso_code_639_1.name.lower() in LANGS]
         _detector = LanguageDetectorBuilder.from_languages(*wanted).build()
     detected = _detector.detect_language_of(text)
     if detected is None:

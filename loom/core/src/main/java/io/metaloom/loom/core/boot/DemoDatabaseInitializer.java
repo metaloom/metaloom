@@ -1013,10 +1013,18 @@ public class DemoDatabaseInitializer {
 	private Detection createDetection(User admin, Asset asset, String type, int frameNumber,
 		float bboxX, float bboxY, float bboxWidth, float bboxHeight, float confidence, JsonObject meta) {
 		Detection detection = detectionDao.createDetection(admin.getUuid(), type);
-		// Faces are what the facedetect node produces; the demo's object boxes have no node behind
-		// them yet, so they keep the DAO's "manual" attribution.
+		// Both kinds now have a producer node, so both are attributed to one. Leaving the object boxes
+		// on the DAO's "manual" attribution made the demo library look like somebody had drawn them by
+		// hand, which is exactly the wrong story for a catalogue selling automated enrichment.
 		if ("facedetection".equals(type)) {
 			detection.setNodeKind("facedetect");
+		} else if ("objectdetection".equals(type)) {
+			detection.setNodeKind("objectdetect");
+			// Promote the class out of meta into the indexed column the schema added for it. The demo
+			// predates objectdetect and only ever carried it in the JSON blob, where nothing can find it.
+			if (meta != null && meta.getString("label") != null) {
+				detection.setLabel(meta.getString("label"));
+			}
 		}
 		String frameKey = asset.getUuid() + "|" + detection.getNodeKind() + "|" + frameNumber;
 		detection.setDetectionIndex(detectionOrdinals.merge(frameKey, 1, Integer::sum) - 1);
@@ -1394,6 +1402,17 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe6", "pn5", "metadata", "pn6", "struct")));
 	}
 
+	/**
+	 * The full production shape: route, identify, analyse and deliver.
+	 *
+	 * <p>
+	 * {@code objectdetect} is deliberately <em>not</em> here, for the same reason as the GPU nodes:
+	 * the demo container ships neither the YOLO runtime nor an ONNX model, so seeding a pipeline that
+	 * cannot run would present a broken graph as an example. The demo's object detections are still
+	 * attributed to it — the rows are real data about what the node produces, and only the execution
+	 * is missing.
+	 * </p>
+	 */
 	static JsonObject complexDefinition() {
 		return new JsonObject()
 				.put("nodes", new JsonArray()

@@ -2,6 +2,7 @@ package io.metaloom.loom.core.endpoint.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -185,6 +186,69 @@ public class DetectionEndpointTest extends AbstractCRUDEndpointTest {
 			assertEquals(5, response.getTotal());
 			assertEquals(0, response.getFailed());
 			assertEquals(5, response.getDetections().size());
+		}
+	}
+
+	/**
+	 * The class label has to survive the round trip.
+	 *
+	 * <p>
+	 * {@code detection.label} is an indexed column added for object detection — "Detected class for
+	 * object detection, e.g. dog" — and the create request has always carried it. The response did
+	 * not, so a label could be written and never read back: an {@code objectdetect} row was findable
+	 * by geometry and by nothing else.
+	 * </p>
+	 */
+	@org.junit.jupiter.api.Test
+	public void testLabelIsReadBack() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			AssetResponse asset = createTestAsset(client);
+			DetectionCreateRequest request = new DetectionCreateRequest();
+			request.setType("objectdetection");
+			request.setLabel("dog");
+			request.setFrameNumber(0);
+			request.setBboxX(0.1f);
+			request.setBboxY(0.2f);
+			request.setBboxWidth(0.3f);
+			request.setBboxHeight(0.4f);
+			request.setConfidence(0.9f);
+
+			DetectionResponse created = client.createAssetDetection(asset.getUuid(), request).sync().body();
+			assertEquals("dog", created.getLabel(), "the create response must echo the label");
+
+			DetectionResponse loaded = client.loadAssetDetection(asset.getUuid(), created.getUuid()).sync().body();
+			assertEquals("dog", loaded.getLabel(), "the label must survive a read");
+
+			DetectionResponse listed = client.listAssetDetections(asset.getUuid()).sync().body().getData().stream()
+				.filter(d -> created.getUuid().equals(d.getUuid()))
+				.findFirst()
+				.orElseThrow();
+			assertEquals("dog", listed.getLabel(), "the label must survive a list");
+		}
+	}
+
+	/**
+	 * A face detection has no class, and must not invent one.
+	 */
+	@org.junit.jupiter.api.Test
+	public void testAnUnlabelledDetectionReadsBackNull() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+
+			AssetResponse asset = createTestAsset(client);
+			DetectionCreateRequest request = new DetectionCreateRequest();
+			request.setType("facedetection");
+			request.setFrameNumber(0);
+			request.setBboxX(0.1f);
+			request.setBboxY(0.2f);
+			request.setBboxWidth(0.3f);
+			request.setBboxHeight(0.4f);
+			request.setConfidence(0.9f);
+
+			DetectionResponse created = client.createAssetDetection(asset.getUuid(), request).sync().body();
+			assertNull(client.loadAssetDetection(asset.getUuid(), created.getUuid()).sync().body().getLabel());
 		}
 	}
 

@@ -1701,6 +1701,144 @@
   "defaultBlocking" : true,
   "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
 }, {
+  "nodeId" : "objectdetect",
+  "kind" : "objectdetect",
+  "name" : "Object Detection",
+  "description" : "Detect objects in images and video frames with YOLO.",
+  "icon" : "detection",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "image",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A still image to search for objects"
+  }, {
+    "id" : "video",
+    "label" : "Video",
+    "contentType" : "media/video",
+    "cardinality" : "ONE",
+    "required" : true,
+    "group" : "media_alt",
+    "description" : "A video whose frames are sampled and searched"
+  } ],
+  "outputPorts" : [ {
+    "id" : "detections",
+    "label" : "Detections",
+    "contentType" : "detection/object",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "One element per detected object, so a downstream node can run once per object rather than once per file"
+  }, {
+    "id" : "labels",
+    "label" : "Labels",
+    "contentType" : "scalar/string",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "The distinct classes found, one element each; feeds the tag node directly"
+  }, {
+    "id" : "object_count",
+    "label" : "Object Count",
+    "contentType" : "scalar/integer",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "How many objects were detected"
+  }, {
+    "id" : "flag",
+    "label" : "Flag",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "Processing marker recording how this node finished for the item"
+  } ],
+  "inputGroups" : [ {
+    "id" : "media_alt",
+    "mode" : "XOR",
+    "required" : true,
+    "label" : "Media"
+  } ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "modelPath",
+    "type" : "STRING",
+    "defaultValue" : "models/yolo/YOLOv11n_voc.onnx",
+    "label" : "Model Path",
+    "description" : "ONNX detection model, e.g. YOLOv11n_voc.onnx"
+  }, {
+    "key" : "labelsPath",
+    "type" : "STRING",
+    "defaultValue" : "models/yolo/voc.names",
+    "label" : "Labels Path",
+    "description" : "Class names for the model, one per line (voc.names, coco.names)"
+  }, {
+    "key" : "useGpu",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Use GPU",
+    "description" : "Run inference on the GPU when a CUDA execution provider is available"
+  }, {
+    "key" : "minConfidence",
+    "type" : "NUMBER",
+    "defaultValue" : 0.5,
+    "label" : "Min Confidence",
+    "description" : "Discard detections scoring below this; the engine never reports below 0.4",
+    "min" : 0.4,
+    "max" : 1.0,
+    "step" : 0.05
+  }, {
+    "key" : "videoChopRate",
+    "type" : "INTEGER",
+    "defaultValue" : 25,
+    "label" : "Video Chop Rate",
+    "description" : "Detect on every Nth video frame",
+    "min" : 1
+  }, {
+    "key" : "videoScaleSize",
+    "type" : "INTEGER",
+    "defaultValue" : 1024,
+    "label" : "Scale Size (px)",
+    "description" : "Rescale frames to this longest edge before inference",
+    "min" : 1
+  }, {
+    "key" : "maxDetections",
+    "type" : "INTEGER",
+    "defaultValue" : 500,
+    "label" : "Max Detections",
+    "description" : "Stop after this many detections for one asset",
+    "min" : 1
+  }, {
+    "key" : "classFilter",
+    "type" : "ENUM_SET",
+    "defaultValue" : [ ],
+    "label" : "Class Filter",
+    "description" : "Keep only these class names; empty keeps all of them"
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
   "nodeId" : "ocr",
   "kind" : "ocr",
   "name" : "OCR",

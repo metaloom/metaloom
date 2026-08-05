@@ -60,6 +60,11 @@ public final class NodePreviews {
 			if (preview.hasMarkdown()) {
 				encoded.put("markdown", preview.getMarkdown());
 			}
+			// Which frame of a video this picture is. Independent of the bytes for the same reason,
+			// and absent for a still rather than zero — see NodePreview#getFrame().
+			if (preview.getFrame() != null) {
+				encoded.put("frame", preview.getFrame());
+			}
 			if (encoded.isEmpty()) {
 				continue;
 			}
@@ -89,7 +94,13 @@ public final class NodePreviews {
 						encoded.getInteger("width", 0),
 						encoded.getInteger("height", 0),
 						Base64.getDecoder().decode(data));
-				previews.put(portId, markdown == null ? preview : preview.withMarkdown(markdown));
+				if (markdown != null) {
+					preview = preview.withMarkdown(markdown);
+				}
+				// getInteger returns null when the key is absent, which is exactly the value a still
+				// should carry — do not default it to zero.
+				preview = preview.withFrame(encoded.getInteger("frame"));
+				previews.put(portId, preview);
 			} catch (Exception e) {
 				// A hand-edited row, or one written by a future shape. Drop this one port.
 			}
