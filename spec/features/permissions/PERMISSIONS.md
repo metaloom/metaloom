@@ -80,7 +80,7 @@ Non-CRUD and partial-quad constants:
 
 | Constant(s) | Note |
 |---|---|
-| `TAG_ASSET`, `UNTAG_ASSET` | Relationship verbs |
+| `TAG_ASSET`, `UNTAG_ASSET` | Relationship verbs. `UNTAG_ASSET` also guards `DELETE /assets/:uuid/tag-placements/:placementUuid`, which removes one placement of a tag rather than all of them (`V2.71`) |
 | `CREATE/READ/UPDATE/DELETE_PIPELINE_RUN` | Run lifecycle; `UPDATE_PIPELINE_RUN` governs pause/resume/cancel |
 | `READ_PIPELINE_VERSION`, `RESTORE_PIPELINE_VERSION` | No `CREATE`/`UPDATE`/`DELETE` on the Java side |
 | `READ_SKILL_VERSION`, `RESTORE_SKILL_VERSION` | Same shape |
@@ -554,6 +554,18 @@ To give a test user a *specific* permission set, grant via **role + group** — 
 direct user grant, which allows only one row (§3.1). `SkillEndpointTest` is the
 reference pattern; it is reproduced in [../rbac/RBAC.md](../rbac/RBAC.md) §6 and
 required by [../../guidelines/CODING.md](../../guidelines/CODING.md).
+`AbstractEndpointTest.loginClientWith(username, Permission…)` now packages that
+provisioning — a fresh user, role and group in one call — for the case a permissionless
+client cannot express: a route whose *required set depends on the request*, where the
+caller must hold one permission and lack the other.
+
+`PUT /assets/:uuid/tags` is the first such route. It needs `TAG_ASSET`, and
+`UNTAG_ASSET` additionally when the request withdraws anything, via
+`AbstractEndpointService.checkPerms(lrc, action, Permission…)` — the all-or-nothing
+variant. `TagAssetEndpointTest.testBulkWithdrawRequiresTheUntagPermission` asserts the
+caller holding only `TAG_ASSET` is refused **the whole call**, which matters because the
+route is one transaction: serving the attachments and denying the removals would leave
+the asset in a state neither side asked for.
 
 **The generic contract covers create / read / list / delete only — there is no generic
 RBAC case for `update`**, which is why most `UPDATE_*` constants read `test:none`.
@@ -561,10 +573,12 @@ RBAC case for `update`**, which is why most `UPDATE_*` constants read `test:none
 Non-CRUD tests carrying their own permission assertions: `SearchEndpointTest`,
 `DedupGroupEndpointTest`, `MemoryEndpointTest`, `MemoryDenyRuleEndpointTest`,
 `PipelineRun{Pause,Cancel,Item,Stats}EndpointTest`, `AssetBinaryDataEndpointTest`,
-`SimilarAssetsEndpointTest`.
+`SimilarAssetsEndpointTest`, `TagAssetEndpointTest` (403 on `TAG_ASSET` and
+`UNTAG_ASSET`, both of which read `test:none` until then, plus the request-dependent
+case above).
 
 Non-CRUD tests with **no** permission assertion at all (open work):
-`TranscriptEndpointTest`, `TagAssetEndpointTest`, `AssetComponentEndpointTest`,
+`TranscriptEndpointTest`, `AssetComponentEndpointTest`,
 `JsonCompEndpointTest`, `NodeResultEndpointTest`, `AssetTaskEndpointTest`,
 `AnnotationTaskEndpointTest`, `ProcessorEndpointTest`,
 `PipelineRunCompletionEndpointTest`, `ChatStreamEndpointTest`, `GraphQLEndpointTest`.
@@ -749,11 +763,11 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 ### 13.5 Test gaps
 
 - [ ] No generic RBAC case for `update` — most `UPDATE_*` constants read `test:none` (§8.2)
-- [ ] 11 non-CRUD `*EndpointTest` classes assert no permission behaviour (§8.2)
+- [ ] 10 non-CRUD `*EndpointTest` classes assert no permission behaviour (§8.2)
 - [ ] No endpoint test for collection, comment, reaction, token or blacklist
 - [ ] No test covers group-membership changes affecting effective permissions
       (masked by the cache being invalidated only on role-permission writes, §4.4)
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
-_Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-02 (role permissions are now persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`; `RolePermission` mirrors `Permission`)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_

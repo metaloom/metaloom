@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.jooq.exception.DataAccessException;
@@ -23,6 +24,7 @@ import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.tag.AssetTag;
 import io.metaloom.loom.db.model.tag.Tag;
 import io.metaloom.loom.db.model.tag.TagDao;
+import io.metaloom.loom.db.model.tag.TagDao.AssetTagBulkResult;
 import io.metaloom.loom.db.model.user.User;
 import io.vertx.core.json.JsonObject;
 
@@ -153,19 +155,128 @@ public class TagDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<Tag
 		assertEquals(1, getDao().assetTags(asset).stream().filter(t -> t.getUuid().equals(tag.getUuid())).count(),
 			"The tag must be listed once on the asset");
 
-		// The second write updates the region rather than being ignored.
-		tag.setAreaStartX(10);
-		tag.setAreaStartY(20);
-		tag.setAreaWidth(30);
-		tag.setAreaHeight(40);
-		getDao().tagAsset(tag, asset);
+		// Correcting the *extent* of a box updates the same placement: areaWidth/areaHeight sit outside
+		// the placement key precisely so a resized box does not become a second tag on the picture. Moving
+		// the box to a different corner is a different placement - see TagPlacementDaoTest.
+		AssetTag boxed = getDao().createAssetTag(user, "repeatable", "quality");
+		boxed.setAreaStartX(10);
+		boxed.setAreaStartY(20);
+		boxed.setAreaWidth(30);
+		boxed.setAreaHeight(40);
+		getDao().resolveOrCreateAssetTag(boxed);
+		getDao().tagAsset(boxed, asset);
 
-		AssetTag reloaded = getDao().assetTags(asset).stream()
-			.filter(t -> t.getUuid().equals(tag.getUuid()))
-			.findFirst()
-			.orElseThrow();
-		assertEquals(10, reloaded.getAreaStartX(), "The region must be updated by the second write");
-		assertEquals(40, reloaded.getAreaHeight(), "The region must be updated by the second write");
+		boxed.setAreaWidth(60);
+		boxed.setAreaHeight(80);
+		getDao().tagAsset(boxed, asset);
+
+		List<AssetTag> boxes = getDao().assetTags(asset).stream()
+			.filter(t -> t.getUuid().equals(tag.getUuid()) && t.getAreaStartX() != null)
+			.toList();
+		assertEquals(1, boxes.size(), "Resizing a box must update the placement rather than add one");
+		assertEquals(60, boxes.get(0).getAreaWidth(), "The box extent must be updated by the second write");
+		assertEquals(80, boxes.get(0).getAreaHeight(), "The box extent must be updated by the second write");
+	}
+
+	/**
+	 * The bulk write is the single-tag write applied to a set: every tag is still resolved on its natural key, so a name already in the catalog is
+	 * attached rather than duplicated.
+	 */
+	@Test
+	public void testBulkTagAssetAppliesTheWholeSet() {
+		User user = dummyUser();
+		Asset asset = asset();
+
+		// One of the three already exists, written by somebody else.
+		AssetTag existing = getDao().createAssetTag(user, "bulk_existing", "quality");
+		UUID existingUuid = getDao().resolveOrCreateAssetTag(existing);
+
+		List<AssetTag> tags = List.of(
+			getDao().createAssetTag(user, "bulk_existing", "quality"),
+			getDao().createAssetTag(user, "bulk_one", "quality"),
+			getDao().createAssetTag(user, "bulk_two", "quality"));
+
+		AssetTagBulkResult result = getDao().bulkTagAsset(asset, tags, null);
+
+		assertEquals(3, result.applied().size(), "Every tag of the set must be applied");
+		assertEquals(0, result.withdrawn(), "Nothing was named for withdrawal");
+		assertEquals(existingUuid, tags.get(0).getUuid(), "An existing name must resolve to the existing tag");
+		assertEquals(1, context.ctx().fetchCount(TAG, TAG.NAME.eq("bulk_existing").and(TAG.COLLECTION.eq("quality"))),
+			"The shared tag must not have been duplicated");
+		assertEquals(3, getDao().assetTags(asset).stream().filter(t -> t.getName().startsWith("bulk_")).count(),
+			"All three tags must be attached to the asset");
+
+		// Re-applying the same set changes nothing - the normal case for a pipeline running twice.
+		getDao().bulkTagAsset(asset, tags, null);
+		assertEquals(3, getDao().assetTags(asset).stream().filter(t -> t.getName().startsWith("bulk_")).count(),
+			"Re-applying the same set must not duplicate the attachments");
+	}
+
+	/**
+	 * 🔴 Withdrawal removes exactly what the caller names and nothing else.
+	 *
+	 * <p>
+	 * The tempting semantic for a bulk write - "these are the tags now, delete the rest" - is what this test forbids. A writer may only remove what it
+	 * can point at; deleting by omission would let one writer destroy another's curation.
+	 * </p>
+	 */
+	@Test
+	public void testBulkTagAssetWithdrawsOnlyWhatItNames() {
+		User user = dummyUser();
+		Asset asset = asset();
+
+		AssetTag mine = getDao().createAssetTag(user, "withdraw_mine", "quality");
+		AssetTag doomed = getDao().createAssetTag(user, "withdraw_doomed", "quality");
+		AssetTag someoneElses = getDao().createAssetTag(user, "withdraw_theirs", "curated");
+		getDao().bulkTagAsset(asset, List.of(mine, doomed, someoneElses), null);
+
+		AssetTagBulkResult result = getDao().bulkTagAsset(asset, List.of(mine), List.of(doomed.getUuid()));
+
+		assertEquals(1, result.withdrawn(), "Exactly the one named attachment must be removed");
+		assertEquals(0, context.ctx().fetchCount(TAG_ASSET,
+			TAG_ASSET.TAG_UUID.eq(doomed.getUuid()).and(TAG_ASSET.ASSET_UUID.eq(asset.getUuid()))),
+			"The withdrawn tag must no longer be attached");
+		assertNotNull(getDao().load(doomed.getUuid()), "Withdrawing detaches the tag; it must not delete it");
+		assertEquals(1, getDao().assetTags(asset).stream().filter(t -> t.getUuid().equals(someoneElses.getUuid())).count(),
+			"A tag the call did not name must survive, even though it was absent from the applied set");
+	}
+
+	/** Naming a tag which is not attached is not an error - a writer reconciling its own list cannot know what a concurrent run already removed. */
+	@Test
+	public void testBulkWithdrawIgnoresATagThatIsNotAttached() {
+		User user = dummyUser();
+		Asset asset = asset();
+
+		AssetTag unattached = getDao().createAssetTag(user, "never_attached", "quality");
+		getDao().resolveOrCreateAssetTag(unattached);
+
+		AssetTagBulkResult result = getDao().bulkTagAsset(asset, List.of(), List.of(unattached.getUuid()));
+
+		assertEquals(0, result.withdrawn(), "Nothing was attached, so nothing can be withdrawn");
+		assertNotNull(getDao().load(unattached.getUuid()), "The tag itself must survive");
+	}
+
+	/**
+	 * The point of the transaction: a set is applied whole or not at all. Without it an asset could be left carrying the tags that happened to be
+	 * written before the failing one, which is precisely the half-tagged state a reconciling writer cannot recover from.
+	 */
+	@Test
+	public void testBulkTagAssetRollsBackTheWholeSet() {
+		User user = dummyUser();
+		Asset asset = asset();
+
+		AssetTag good = getDao().createAssetTag(user, "rollback_good", "quality");
+		// name is NOT NULL, so this one cannot be inserted.
+		AssetTag broken = getDao().createAssetTag(user, null, "quality");
+
+		assertThrows(DataAccessException.class,
+			() -> getDao().bulkTagAsset(asset, List.of(good, broken), null),
+			"A set with an unwritable tag must fail");
+
+		assertEquals(0, context.ctx().fetchCount(TAG, TAG.NAME.eq("rollback_good")),
+			"The tag written before the failure must have been rolled back");
+		assertEquals(0, getDao().assetTags(asset).stream().filter(t -> "rollback_good".equals(t.getName())).count(),
+			"The asset must carry none of the set");
 	}
 
 	/**

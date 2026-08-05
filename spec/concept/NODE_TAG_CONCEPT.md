@@ -35,7 +35,7 @@
 | **How does it extend?** | A `tagBy` strategy seam, exactly like `FilterBy` in the `filter` node. Ship `RULES` and `LABELS`; `LLM`/`VLM` are later strategies, not later nodes |
 | **What does it write?** | `tag` + `tag_asset` through the REST client, **plus** an `asset_json_comp` (`schemaType=tags`, `variant`=node id) recording what it applied, **plus** the standard `asset_node_result` ledger row |
 | **Why is that third write there?** | It is the only record of *which tags this node put there*. Without it (and until B3 is fixed) the node cannot safely withdraw a tag it no longer stands behind, because nothing distinguishes an auto tag from one a human typed |
-| **Blocked by** | B1 and B2 — both **fixed** (§2). B3–B6 remain quality/scale, and B4 still bounds v1 to asset-level tags |
+| **Blocked by** | Nothing. B1, B2 (§2), B6 (P1) and now B3 + B4 (`V2.71`) are all fixed; the node writes asset-level tags today, and region tags are unblocked (X1) |
 | **Closest sibling to copy** | `cortex/nodes/filter` — same `PipelineConfigurable` shape, same per-instance rule rows, same config-hash cache key, same per-node-id ledger scoping |
 
 ---
@@ -50,21 +50,25 @@ CREATE TABLE "tag" (uuid, name, collection, meta jsonb, rating int, color char(6
                     created, creator_uuid, edited, editor_uuid);
 CREATE UNIQUE INDEX ON "tag" ("name", "collection");     -- ← the natural key. Tags are GLOBAL.
 
--- V2.8__add_asset.sql:95
-CREATE TABLE "tag_asset" (tag_uuid, asset_uuid,
+-- V2.8__add_asset.sql:95, as amended by V2.71__tag_asset_placements.sql
+CREATE TABLE "tag_asset" (uuid PRIMARY KEY,                    -- ← V2.71: the placement's identity
+                          tag_uuid, asset_uuid,
                           time_from, time_to, areaStartX, areaStartY, areaWidth, areaHeight,
-                          PRIMARY KEY (tag_uuid, asset_uuid));
+                          node_kind DEFAULT 'manual', node_id, producer_version,  -- ← V2.71
+                          confidence, created, creator_uuid,                      -- ← V2.71
+                          UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid,
+                                                     time_from, time_to, areaStartX, areaStartY));
 ```
 
 Three consequences an auto-tagger lives or dies by:
 
 1. **A tag is a global, shared object.** `(name, collection)` is unique across the whole instance.
    A node that invents names writes into a namespace humans share — §3.6 exists because of this.
-2. **The join row carries no provenance.** No `creator_uuid`, no `confidence`, no node id, no
-   timestamp. `tag.creator_uuid` records who created *the tag*, which for a shared tag is whoever got
-   there first — not who attached it to this asset.
-3. **`collection` is the only grouping axis that exists today**, so it is the only handle a UI has for
-   "show me the machine-written tags" without a migration.
+2. **A tag may sit on one asset several times** (`V2.71`) — once per face, once per timecode. The
+   placement, not the tag, is what a caller removes when it means one region.
+3. **The join row records its writer** (`V2.71`): `node_kind` (`manual` for a person), `node_id`,
+   `producer_version`, `confidence`, `created`, `creator_uuid`. Before that, `collection` was the only
+   handle a UI had for "show me the machine-written tags".
 
 ### 1.2 The REST surface and the client
 
@@ -151,21 +155,42 @@ re-running the same pipeline over the same asset — the normal case, and the re
 path upserts — failed. It now upserts on the join key with the region columns as the update set
 (`TagDaoTest.testTagAssetIsIdempotent`, `TagAssetEndpointTest.testTagSameAssetTwice`).
 
-### B3 — no provenance on the join row · blocks safe reconciliation
+### B3 — no provenance on the join row ✅ FIXED (`V2.71`)
 
-Nothing on `tag_asset` says a machine wrote it, which node did, at what confidence, or when. Two
-consequences: the UI cannot offer "hide auto tags", and **the node must never delete a tag it cannot
-prove it wrote**. §3.5 works around this with its own `asset_json_comp` record; the real fix is a
-migration adding `node_kind`, `node_id`, `producer_version`, `confidence`, `created` (§6, P2).
+Nothing on `tag_asset` said a machine wrote it, which node did, at what confidence, or when. Two
+consequences: the UI could not offer "hide auto tags", and **the node could not delete a tag it could
+not prove it wrote** — §3.5 works around that with its own `asset_json_comp` record.
 
-### B4 — one placement per (tag, asset) · bounds v1 to asset-level tags
+`V2.71` adds `node_kind` (default `manual`), `node_id`, `producer_version`, `confidence`, `created`
+and `creator_uuid`, mirroring `detection` (`V2.43`). Two rules ride on them:
 
-Recorded already as [DB_SCHEMA_FEEDBACK §5.1](../features/DB_SCHEMA_FEEDBACK.md) (HIGH): the PK defeats
-the `time_*`/`area*` columns, so a tag can be placed **once** per asset. Tagging two faces in one photo,
-or one person in two shots, is impossible. **Region tagging is therefore out of scope for v1** — the
-node writes asset-level tags and leaves `area` null. Revisit when §5.1 lands a surrogate PK.
-Note also (§5.2) that `tag_asset` uses absolute-int boxes while `detection` uses normalized reals — a
-detection-driven region tag must convert.
+- **The first author keeps the row.** The placement upsert carries
+  `WHERE tag_asset.node_id IS NOT DISTINCT FROM excluded.node_id`, so a node attaching a tag a person
+  already placed leaves that row alone instead of taking authorship — which matters because
+  reconciliation deletes by `node_id`.
+- **A writer withdraws only its own placements** (`TagDao.bulkTagAsset`, scoped by `node_id`). A
+  person's request removes them all.
+
+The client-side read-back of §3.5 is now belt *and* braces rather than the only proof, and P2.1 can
+retire it.
+
+### B4 — one placement per (tag, asset) ✅ FIXED (`V2.71`)
+
+Was [DB_SCHEMA_FEEDBACK §5.1](../features/DB_SCHEMA_FEEDBACK.md) (HIGH): the primary key defeated the
+`time_*`/`area*` columns in its own table, so a tag could be placed **once** per asset — tagging two
+faces in one photo, or one person in two shots, was impossible, though that is exactly what face
+detection and clustering produce.
+
+`V2.71` replaces the key with a surrogate `uuid` plus
+`UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)`.
+`NULLS NOT DISTINCT` is the load-bearing part: an asset-level tag is all-NULL in the region columns,
+and under default semantics those rows never conflict, so re-tagging would append forever. It needs
+**PostgreSQL 15+**. `areaWidth`/`areaHeight` stay outside the key, so resizing a box updates the
+placement while moving it creates one.
+
+Still true (§5.2): `tag_asset` uses absolute-int boxes while `detection` uses normalized reals, so a
+detection-driven region tag must convert. `V2.71` deliberately left that alone - it is a data
+migration over existing rows, not a schema change.
 
 ### B5 — `TAG_ASSET` silently confers tag creation
 
@@ -178,12 +203,17 @@ pipeline run rather than at configuration time. The 403 cases are still untested
 ([PERMISSIONS.md](../features/permissions/PERMISSIONS.md); grant via group+role, never a direct user
 grant).
 
-### B6 — one HTTP round trip per tag, and one search refresh per row
+### B6 — one HTTP round trip per tag ✅ FIXED
 
-Five tags on a 100k-asset run is 500k `POST`s, each firing `tg_search_tag_asset` →
-`search_document_refresh_asset` for the *same* document. `detections/bulk` already exists as the
-precedent (`bulkCreateAssetDetections`, `DetectionBulkCreateRequest`). §6 P1 proposes the tag
-equivalent, which also makes reconciliation atomic.
+Five tags on a 100k-asset run was 500k `POST`s, each firing `tg_search_tag_asset` →
+`search_document_refresh_asset` for the *same* document. `PUT /assets/:uuid/tags` (P1) now carries the
+whole set: one request per asset, one transaction, and the node uses it
+([RESTAPI.md](../loom/RESTAPI.md) §4.4).
+
+**Half of B6 is not fixed, and cannot be here.** `tg_search_tag_asset` is a `FOR EACH ROW` trigger, so
+five tags still rebuild the document five times *inside* the one transaction. Only a statement-level
+trigger with a transition table would change that, and it belongs to the search schema rather than to
+this route — the round trips and the transactions are what P1 removed.
 
 ---
 
@@ -348,7 +378,8 @@ graph LR
 
 Three writes, in this order, all guarded by `asset != null && client() != null` (a clean no-op offline):
 
-1. **`tag_asset`** — one `tagAsset` call per added tag (P1 turns this into one bulk call).
+1. **`tag_asset`** — one `bulkTagAsset` call carrying every added tag and every withdrawal (P1). An
+   item that matched no rule and has nothing to take back makes no call at all.
 2. **`asset_json_comp`**, `schemaType = "tags"`, `variant = <pipeline node id>`, data:
    ```json
    { "tagBy": "RULES", "collection": "quality", "dryRun": false,
@@ -368,6 +399,14 @@ it appears in the **previous `applied` list of this node instance** (read back f
 its collection matches the one this node is configured to write. Anything else — a tag a user typed, a
 tag another node instance wrote — is never touched. When B3/P2 lands, the condition becomes a server-side
 `node_id` match and this client-side read-back can go away.
+
+The route enforces the same restraint from its own side: `withdraw` names uuids and removes exactly
+those, never "everything not in the set" (§6 P1). Two independent barriers now stand between a
+misconfigured node and somebody's curated tag.
+
+**One behaviour changed with P1.** A rejected withdrawal used to be logged and skipped, because the
+removals were separate requests; the bulk route applies the request whole or not at all, so it now
+fails the item. A worker whose token may tag but not untag must run with `removeWithdrawn` off.
 
 **Failure semantics:** a rejected write (permission, unreachable Loom, constraint violation) is
 `ctx.failure(msg).abort()` — not a skip. The worker could not do the job it was given.
@@ -447,32 +486,55 @@ a prompt instead of hand-written regexes.
 - Tests: two assets, one tag name (the B1 reproducer); the same asset twice (B2); an existing tag keeps
   its original `creator_uuid` and `created`.
 
-**P1 — a bulk / reconcile route (fixes B6).** Mirror `detections/bulk`:
+**P1 — a bulk / reconcile route (fixes B6).** ✅ **BUILT**, with one deviation from the sketch below:
+the request withdraws **by uuid** and never by omission. A desired-set body ("these are the tags now")
+reads better and cannot be implemented safely until B3 lands — without provenance on the join row the
+server cannot tell a worker's tag from a person's, so "delete the rest" would delete human curation.
+`removeWithdrawn` therefore stays a node-side option that produces an explicit `withdraw` list, and
+becomes a server-side flag when P2 makes it provable. The sketch as originally proposed:
 ```
 PUT /api/v1/assets/:uuid/tags        // the desired set for one writer
 body: { "collection": "quality", "nodeKind": "tag", "nodeId": "quality-tags",
         "tags": [ {"name": "blurry", "confidence": 1.0} ], "removeWithdrawn": true }
 ```
-One transaction, one search refresh, and reconciliation server-side where it belongs. Permission
-`TAG_ASSET` (+ `UNTAG_ASSET` when `removeWithdrawn`).
+What was built instead:
+```
+PUT /api/v1/assets/:uuid/tags
+body: { "collection": "quality",
+        "tags":     [ {"name": "blurry"}, {"name": "amber", "collection": "colors"} ],
+        "withdraw": [ "<tag-uuid>" ] }
+```
+`nodeKind`/`nodeId` are absent because there is nowhere to store them: they belong to the P2 columns,
+and accepting fields the server discards would be a worse contract than not having them. One
+transaction (`TagDao.bulkTagAsset`); the search refresh stays per row (B6). Permission `TAG_ASSET`
+(+ `UNTAG_ASSET` when `withdraw` is non-empty) through `checkPerms`, the all-or-nothing variant.
 
-**P2 — provenance on `tag_asset` (fixes B3, and B4 if taken together).** Flyway migration adding
-`node_kind`, `node_id`, `producer_version`, `confidence real`, `created`, plus the surrogate PK from
-[DB_SCHEMA_FEEDBACK §5.1](../features/DB_SCHEMA_FEEDBACK.md). 🔴 Run `loom/db/jooq/generate.sh` and then
-`./setup-pool.sh` after any migration — a stale pool produces misleading failures. Adds "auto vs. human"
-to `TagReference`, and makes the client-side read-back in §3.5 unnecessary.
+**P2 — provenance and placements on `tag_asset` (fixes B3 + B4).** ✅ **BUILT** as
+`V2.71__tag_asset_placements.sql`: surrogate `uuid` PK, `UNIQUE NULLS NOT DISTINCT` placement key, and
+the six provenance columns. `TagReference` now carries `placementUuid`, `nodeKind`, `nodeId`,
+`confidence`, `attached` and `attachedBy`, so "auto vs. human" is answerable by any client;
+`DELETE /assets/:uuid/tag-placements/:placementUuid` removes one placement.
 
-**P3 — permissions (B5).** Decide `TAG_ASSET` vs. `CREATE_TAG` for a new name; add the 403 cases
-(`TAG_ASSET` and `UNTAG_ASSET` are both marked `test:none` in `Permission.java` today); grant the Cortex
-token its permissions via group+role.
+What the migration did **not** do, deliberately: convert the absolute-int boxes to the normalized
+reals `detection` uses (§5.2). That is a data migration over existing rows rather than a schema
+change, and it would have turned an additive migration into a destructive one.
+
+🔴 The order that works: edit the migration → `mvn -pl loom/db/flyway install` →
+`loom/db/jooq/generate.sh` → `./setup-pool.sh`. A stale pool produces failures that look like code
+bugs (`column "node_kind" ... does not exist` from a leased database made before the pool was
+recreated).
+
+**P3 — permissions (B5).** Decided and half built: `TAG_ASSET` implies creating the tag row when the
+name is new (§2 B5), and the 403 cases now exist — `TagAssetEndpointTest` covers `TAG_ASSET`,
+`UNTAG_ASSET` and the request-dependent set of the bulk route, so neither constant reads `test:none`
+any more. What remains is deployment-side: granting the Cortex token its permissions via group+role.
 
 **P4 — UI + docs.** Distinguish machine tags in `AssetDetail`, filter by tag in search, a
 `website/content/english/docs/nodes/tag/index.adoc` page plus the three `_index.adoc` edits
 ([NEW_NODE.md §4](../guidelines/NEW_NODE.md)).
 
-**Build order: P0 → node (§3) → P1 → P2 → P3/P4.** P0 and the node are done; P1–P3 are open. P1 is the
-one that matters at scale — five tags on a 100k-asset run is 500k `POST`s today, each firing the search
-refresh for the same document.
+**Build order: P0 → node (§3) → P1 → P2 → P3/P4.** P0, the node, P1, P2 and P3's tests are done. What
+is left is P2.1 (retire the client-side read-back), the deployment half of P3, and P4's UI work.
 
 ---
 
@@ -545,14 +607,28 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
 - [x] **N5** Decided: `rules` is a `JSON` parameter, not `PORT_LIST` (§3.4 explains why)
 - [x] **D1** `tag` seeded into the demo `medium` pipeline off the `metadata` node
 - [x] Website page `docs/nodes/tag/` + the three `_index.adoc` edits
+- [x] **P1** `PUT /assets/:uuid/tags`: `AssetTagBulkRequest`/`Response`, `TagDao.bulkTagAsset` (one
+      transaction), the Java and Python client methods, and the node rewritten onto it. 4 DAO tests
+      (including the rollback probe), 6 endpoint tests (including the 403 cases P3 wanted)
+- [x] **P2** `V2.71__tag_asset_placements`: surrogate PK + `NULLS NOT DISTINCT` placement key (B4) and
+      the provenance columns (B3), with the first-author-wins upsert and ownership-scoped withdrawal.
+      `TagPlacementDaoTest` (8), `TagAssetEndpointTest` (+5), and the node now declares itself on every write
+- [x] **N6** `TagNodeIntegrationTest`: the tag is attached and searchable against a real server, two
+      assets share one tag row, and a run withdraws its own stale tag while sparing a hand-typed one
 
 **Open work**
-- [ ] **P1** `PUT /assets/:uuid/tags` bulk/reconcile + client method + endpoint & permission tests (B6)
-- [ ] **P2** Migration: provenance columns + surrogate PK on `tag_asset` (B3 + B4); jOOQ regen; `./setup-pool.sh`
-- [ ] **P2.1** Once P2 lands: drop the client-side read-back, reconcile by `node_id` server-side
-- [ ] **P3** Permission decision + 403 cases for `TAG_ASSET`/`UNTAG_ASSET` (B5)
+- [ ] **P2.1** Drop the client-side read-back of §3.5 now that `node_id` is on the row: the node can ask
+      the server "which placements here are mine" (`TagDao.assetTagsByNode`) instead of reading back the
+      component it wrote. The *safety* half of this already landed with P2 — the server scopes every
+      withdrawal to the caller's own `node_id` — so what remains is removing the redundant read
+- [ ] **P3.1** Grant the Cortex token `TAG_ASSET`/`UNTAG_ASSET` via group+role in the deployment docs
+- [ ] Statement-level `tg_search_tag_asset` so a five-tag write rebuilds the document once (the half of
+      B6 the route could not fix)
 - [ ] **P4** UI: machine tags shown distinctly; tag facet in search. A rule-row editor for the `rules` parameter (§3.4)
-- [ ] **X1** Region tags (`area` on the join row) — blocked on P2/§5.1, and needs the absolute-int ↔ normalized-real conversion (§2 B4)
+- [ ] **X1** Region tags in the node itself — **unblocked** by `V2.71` (the REST surface and the DAO
+      already place them; `TagAssetEndpointTest.testTagTwoFacesOfOneAssetWithOneTag` covers it). What is
+      left is a node that has regions to write, i.e. a `tagBy` strategy fed by `detections`, plus the
+      absolute-int ↔ normalized-real conversion (§5.2)
 - [ ] **X2** `tagBy: LLM` / `VLM` strategies via `cortex/llm-common`, vocabulary-gated
 - [ ] **X3** `ScriptValueType.TAGS` on the `script` node, over the same P1 route (§5 #1)
 - [ ] **X4** Loom-side retroactive "smart tags" (§5 #3)
@@ -596,9 +672,10 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
   `TagDaoTest.testStoreCannotShareATagName` is there to catch it.
 - ⚠️ **Resolving must never overwrite the tag it resolved.** jOOQ marks null fields as changed, so a
   whole-record upsert silently wipes a curated tag's meta and colour (§2, B1).
-- 🔴 **Never delete a tag you cannot prove you wrote.** Until P2 the only proof is this node's own
-  `asset_json_comp` record, and the guard is *both* "in my previous applied set" *and* "in my
-  collection". A reconciliation bug here silently destroys human curation.
+- 🔴 **Never delete a tag you cannot prove you wrote.** Two independent guards since `V2.71`: the node
+  withdraws only what is *both* in its own previous applied set *and* in its own collection, and the
+  server deletes only placements carrying the caller's `node_id`. A reconciliation bug here silently
+  destroys human curation, which is why the redundancy is deliberate.
 - 🔴 **Tags are global.** `(name, collection)` is unique instance-wide, so a template rule without
   `allowedTags` lets one bad regex litter the shared namespace permanently.
 - 🔴 **No `MANY` output port.** A `PER_ELEMENT` node declaring one is rejected *on the declaration*
@@ -615,7 +692,8 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
 - ⚠️ **`tag_asset` boxes are absolute ints; `detection` boxes are normalized reals** (DB_SCHEMA_FEEDBACK
   §5.2). Any future region tag must convert.
 - ⚠️ **Every `tag_asset` row refreshes the asset's search document** (`tg_search_tag_asset`). Five tags
-  is five refreshes of the same row until P1.
+  is still five refreshes of the same row after P1 — the trigger is `FOR EACH ROW`, so batching the
+  request changed the round trips, not the refreshes.
 - ⚠️ **`listTags()` has no filter parameter** — a worker cannot resolve a tag by name over REST. The
   resolve must stay server-side.
 - ⚠️ **Count, never quote.** Kind/provider/content-type counts belong in the guard tests and the
@@ -647,7 +725,9 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
 
 ---
 
-_Git HEAD revision: `55848543`_
-_Last updated: 2026-08-04 (built: P0 fixed both write-path defects, the node ships with 50 tests, and the
-two design decisions this file left open — the upsert semantics and the `rules` widget — are recorded in
-§2 and §3.4)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (P2 built: `V2.71` gives every placement its own identity and its writer, so one tag
+can sit on an asset several times — two faces, one photo — and machine tags are distinguishable from curated
+ones. Earlier the same day: P1 built and the node moved onto it: `PUT /assets/:uuid/tags` in one
+transaction, withdrawal by uuid rather than by omission and why, the 403 cases P3 wanted, and the
+end-to-end `TagNodeIntegrationTest`)_

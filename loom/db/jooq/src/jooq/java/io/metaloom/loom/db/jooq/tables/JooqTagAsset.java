@@ -4,22 +4,24 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.tables.records.JooqTagAssetRecord;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function8;
+import org.jooq.Function15;
+import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row8;
+import org.jooq.Row15;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -32,7 +34,9 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Store tag &lt;-&gt; asset reference
+ * Placements of a tag on an asset. One row per (tag, asset, region); an
+ * asset-level tag has NULL in every region column. Rows written before V2.71
+ * are labelled node_kind = manual because nothing recorded their author.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
@@ -55,12 +59,12 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
     /**
      * The column <code>public.tag_asset.tag_uuid</code>.
      */
-    public final TableField<JooqTagAssetRecord, UUID> TAG_UUID = createField(DSL.name("tag_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqTagAssetRecord, java.util.UUID> TAG_UUID = createField(DSL.name("tag_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
      * The column <code>public.tag_asset.asset_uuid</code>.
      */
-    public final TableField<JooqTagAssetRecord, UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqTagAssetRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
      * The column <code>public.tag_asset.time_from</code>.
@@ -92,12 +96,58 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
      */
     public final TableField<JooqTagAssetRecord, Integer> AREAHEIGHT = createField(DSL.name("areaHeight"), SQLDataType.INTEGER, this, "");
 
+    /**
+     * The column <code>public.tag_asset.uuid</code>. Identity of the placement,
+     * which is what a caller removes when it wants one region rather than every
+     * occurrence of the tag
+     */
+    public final TableField<JooqTagAssetRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "Identity of the placement, which is what a caller removes when it wants one region rather than every occurrence of the tag");
+
+    /**
+     * The column <code>public.tag_asset.node_kind</code>. Which node kind
+     * attached the tag; the literal "manual" for a person
+     */
+    public final TableField<JooqTagAssetRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'manual'::character varying", SQLDataType.VARCHAR)), this, "Which node kind attached the tag; the literal \"manual\" for a person");
+
+    /**
+     * The column <code>public.tag_asset.node_id</code>. Pipeline node id of the
+     * writer, so two instances of one node kind stay distinguishable. NULL for
+     * a person
+     */
+    public final TableField<JooqTagAssetRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "Pipeline node id of the writer, so two instances of one node kind stay distinguishable. NULL for a person");
+
+    /**
+     * The column <code>public.tag_asset.producer_version</code>. Version of the
+     * answer the writer stands behind; changes when the meaning of the tag
+     * changes
+     */
+    public final TableField<JooqTagAssetRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "Version of the answer the writer stands behind; changes when the meaning of the tag changes");
+
+    /**
+     * The column <code>public.tag_asset.confidence</code>. How sure the writer
+     * was, 0.0 - 1.0. NULL when the question does not apply, which is the
+     * normal case for a person
+     */
+    public final TableField<JooqTagAssetRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "How sure the writer was, 0.0 - 1.0. NULL when the question does not apply, which is the normal case for a person");
+
+    /**
+     * The column <code>public.tag_asset.created</code>.
+     */
+    public final TableField<JooqTagAssetRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
+
+    /**
+     * The column <code>public.tag_asset.creator_uuid</code>. The principal that
+     * made the call, person or worker token. Authorship is node_kind; this is
+     * accountability
+     */
+    public final TableField<JooqTagAssetRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "The principal that made the call, person or worker token. Authorship is node_kind; this is accountability");
+
     private JooqTagAsset(Name alias, Table<JooqTagAssetRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqTagAsset(Name alias, Table<JooqTagAssetRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Store tag <-> asset reference"), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Placements of a tag on an asset. One row per (tag, asset, region); an asset-level tag has NULL in every region column. Rows written before V2.71 are labelled node_kind = manual because nothing recorded their author."), TableOptions.table());
     }
 
     /**
@@ -131,17 +181,28 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
     }
 
     @Override
+    public List<Index> getIndexes() {
+        return Arrays.asList(Indexes.IDX_TAG_ASSET_ASSET, Indexes.IDX_TAG_ASSET_NODE);
+    }
+
+    @Override
     public UniqueKey<JooqTagAssetRecord> getPrimaryKey() {
         return Keys.TAG_ASSET_PKEY;
     }
 
     @Override
+    public List<UniqueKey<JooqTagAssetRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.TAG_ASSET_PLACEMENT_KEY);
+    }
+
+    @Override
     public List<ForeignKey<JooqTagAssetRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.TAG_ASSET__TAG_ASSET_TAG_UUID_FKEY, Keys.TAG_ASSET__TAG_ASSET_ASSET_UUID_FKEY);
+        return Arrays.asList(Keys.TAG_ASSET__TAG_ASSET_TAG_UUID_FKEY, Keys.TAG_ASSET__TAG_ASSET_ASSET_UUID_FKEY, Keys.TAG_ASSET__TAG_ASSET_CREATOR_UUID_FKEY);
     }
 
     private transient JooqTag _tag;
     private transient JooqAsset _asset;
+    private transient JooqUser _user;
 
     /**
      * Get the implicit join path to the <code>public.tag</code> table.
@@ -161,6 +222,16 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
             _asset = new JooqAsset(this, Keys.TAG_ASSET__TAG_ASSET_ASSET_UUID_FKEY);
 
         return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.user</code> table.
+     */
+    public JooqUser user() {
+        if (_user == null)
+            _user = new JooqUser(this, Keys.TAG_ASSET__TAG_ASSET_CREATOR_UUID_FKEY);
+
+        return _user;
     }
 
     @Override
@@ -203,18 +274,18 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row8 type methods
+    // Row15 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<UUID, UUID, Integer, Integer, Integer, Integer, Integer, Integer> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row15<java.util.UUID, java.util.UUID, Integer, Integer, Integer, Integer, Integer, Integer, java.util.UUID, String, String, String, Float, LocalDateTime, java.util.UUID> fieldsRow() {
+        return (Row15) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function8<? super UUID, ? super UUID, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function15<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Float, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -222,7 +293,7 @@ public class JooqTagAsset extends TableImpl<JooqTagAssetRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super UUID, ? super UUID, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function15<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super Float, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

@@ -132,6 +132,8 @@ import io.metaloom.loom.rest.model.role.RoleCreateRequest;
 import io.metaloom.loom.rest.model.role.RoleListResponse;
 import io.metaloom.loom.rest.model.role.RoleResponse;
 import io.metaloom.loom.rest.model.role.RoleUpdateRequest;
+import io.metaloom.loom.rest.model.tag.AssetTagBulkRequest;
+import io.metaloom.loom.rest.model.tag.AssetTagBulkResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagListResponse;
 import io.metaloom.loom.rest.model.tag.TagRatingRequest;
@@ -465,8 +467,18 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<AssetTagBulkResponse> bulkTagAsset(AssetId assetId, AssetTagBulkRequest request) {
+		return putRequest(assetPath(assetId) + "/tags", request, AssetTagBulkResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<NoResponse> untagAsset(AssetId assetId, UUID tagUuid) {
 		return deleteRequest(assetPath(assetId) + "/tags/" + tagUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> removeTagPlacement(AssetId assetId, UUID placementUuid) {
+		return deleteRequest(assetPath(assetId) + "/tag-placements/" + placementUuid);
 	}
 
 	// LOCATION

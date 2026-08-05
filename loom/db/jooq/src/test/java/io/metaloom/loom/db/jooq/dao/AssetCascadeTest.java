@@ -1,20 +1,24 @@
 package io.metaloom.loom.db.jooq.dao;
 
 import static io.metaloom.loom.db.jooq.tables.JooqAnnotationAsset.ANNOTATION_ASSET;
+import static io.metaloom.loom.db.jooq.tables.JooqAssetTask.ASSET_TASK;
+import static io.metaloom.loom.db.jooq.tables.JooqAssetUserMeta.ASSET_USER_META;
+import static io.metaloom.loom.db.jooq.tables.JooqCollectionAsset.COLLECTION_ASSET;
+import static io.metaloom.loom.db.jooq.tables.JooqLibraryAsset.LIBRARY_ASSET;
 import static io.metaloom.loom.db.jooq.tables.JooqPersonImage.PERSON_IMAGE;
+import static io.metaloom.loom.db.jooq.tables.JooqTagAsset.TAG_ASSET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
 
-import org.jooq.exception.DataAccessException;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.api.attachment.AttachmentType;
 import io.metaloom.loom.api.embedding.EmbeddingType;
+import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.asset.Asset;
@@ -33,9 +37,11 @@ import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.attachment.Attachment;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.collection.Collection;
+import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.embedding.Embedding;
 import io.metaloom.loom.db.model.person.Person;
+import io.metaloom.loom.db.model.reaction.Reaction;
 import io.metaloom.loom.db.model.tag.AssetTag;
 import io.metaloom.loom.db.model.task.Task;
 import io.metaloom.loom.db.model.user.User;
@@ -54,9 +60,25 @@ import io.vertx.core.json.JsonObject;
  * </p>
  *
  * <p>
- * The tail of the class pins the tables that do <b>not</b> cascade yet — {@code collection_asset}, {@code tag_asset} and {@code asset_task} are still
- * plain foreign keys, so an asset that is linked there cannot be deleted at all. These block-on-delete tests document the current state until the
- * §2.6 cleanup decides whether those links should cascade, detach or block.
+ * The tail of the class covers everything an asset is <em>linked</em> to, where the interesting part of a cascade is what <b>survives</b> it. Each of
+ * these foreign keys used to block the delete outright and was settled in turn — {@code tag_asset} in V2.72, {@code collection_asset} /
+ * {@code asset_task} / {@code asset_user_meta} in V2.73, {@code comment} / {@code reaction} / {@code library_asset} in V2.74 — with the same answer:
+ * what is said <em>about</em> the asset goes with it, and the shared object on the other end (the tag, collection, task, library, user) stays, together
+ * with every other asset linked to it.
+ * </p>
+ *
+ * <p>
+ * Those tests share one fixture, {@link #linkedPair}: two assets wired into the same tag, collection, task and library, each carrying its own user
+ * meta, comment (with a reply and a reaction on that comment) and reaction — plus a comment and a reaction on the <b>task</b>, which are social content
+ * that no asset owns. Every test deletes the first asset, asserts the specific thing it is about, and then calls
+ * {@link #assertOnlyTheVictimsLinksAreGone} to assert the other half: the second asset still has all nine of its links, the shared objects are all
+ * there, and the task's own comment and reaction were not caught in the blast. Without that second asset "the tag survived" would also be true of a
+ * delete that did nothing at all.
+ * </p>
+ *
+ * <p>
+ * After V2.74 the only foreign keys to {@code asset} that are not {@code CASCADE} are the two deliberate {@code SET NULL}s —
+ * {@code dedup_group.keep_asset_uuid} and {@code person.primary_image_uuid}.
  * </p>
  *
  * <p>
@@ -265,6 +287,180 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertEquals(1, countPersonImage(d.person), "person_image gallery row of the other asset must survive");
 	}
 
+	// ---------------------------------------------------------------------------------------------
+	// Link fixture: two assets wired into the same shared objects.
+	//
+	// Every test below deletes the first asset and then asserts *both* halves of the contract - the
+	// victim's own links are gone, and nothing else is: the shared objects survive, the second
+	// asset keeps every link of its own, and social content anchored somewhere other than an asset
+	// is untouched. Without the second asset "the tag survived" would also be true of a delete that
+	// did nothing at all.
+	// ---------------------------------------------------------------------------------------------
+
+	/**
+	 * Objects that are linked to an asset but not owned by one. Deleting an asset may never remove any of these.
+	 */
+	private static class Shared {
+		AssetTag tag;
+		UUID collection;
+		UUID task;
+		UUID library;
+		/** A comment and a reaction on the <b>task</b> - social content that is not about any asset. */
+		UUID taskComment;
+		UUID taskReaction;
+	}
+
+	/**
+	 * One asset's links into a {@link Shared} graph, plus the social content written about that asset.
+	 */
+	private static class Links {
+		UUID asset;
+		UUID comment;
+		UUID reply;
+		UUID commentReaction;
+		UUID reaction;
+	}
+
+	private static class Fixture {
+		Shared shared;
+		Asset victim;
+		Links victimLinks;
+		Asset bystander;
+		Links bystanderLinks;
+	}
+
+	private Shared shared(User user, String seed) {
+		Shared s = new Shared();
+
+		s.tag = tagDao().createAssetTag(user, "shared-tag-" + seed, "colors");
+		tagDao().resolveOrCreateAssetTag(s.tag);
+		s.collection = COLLECTION_UUID;
+		s.library = LIBRARY_UUID;
+
+		Task task = taskDao().createTask(user, "shared-task-" + seed);
+		taskDao().store(task);
+		s.task = task.getUuid();
+
+		Comment taskComment = commentDao().createCommentForTask(user.getUuid(), s.task, "task-comment-" + seed, "about the task");
+		commentDao().store(taskComment);
+		s.taskComment = taskComment.getUuid();
+
+		Reaction taskReaction = reactionDao().createReaction(user, ReactionType.THUMBSUP.name());
+		taskReaction.setTaskUuid(s.task);
+		reactionDao().store(taskReaction);
+		s.taskReaction = taskReaction.getUuid();
+
+		return s;
+	}
+
+	/**
+	 * Link one asset into every shared object, and write a comment (with a reply and a reaction on it) plus a reaction onto the asset itself.
+	 */
+	private Links link(Shared s, Asset asset, User user, String seed) {
+		Links l = new Links();
+		l.asset = asset.getUuid();
+
+		tagDao().tagAsset(s.tag, asset);
+		collectionDao().linkAsset(s.collection, asset.getUuid());
+		taskDao().assignToAsset(s.task, asset.getUuid());
+
+		// library_asset and asset_user_meta have no DAO writer, so both rows are inserted directly.
+		context.ctx().insertInto(LIBRARY_ASSET, LIBRARY_ASSET.LIBRARY_UUID, LIBRARY_ASSET.ASSET_UUID)
+			.values(s.library, asset.getUuid())
+			.execute();
+		context.ctx().insertInto(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, ASSET_USER_META.USER_UUID, ASSET_USER_META.META)
+			.values(asset.getUuid(), user.getUuid(), new JsonObject().put("rating", 5))
+			.execute();
+
+		Comment comment = commentDao().createComment(user.getUuid(), asset.getUuid(), "comment-" + seed, "about the asset");
+		commentDao().store(comment);
+		l.comment = comment.getUuid();
+
+		Comment reply = commentDao().createComment(user.getUuid(), asset.getUuid(), "reply-" + seed, "re: about the asset");
+		reply.setParentUuid(l.comment);
+		commentDao().store(reply);
+		l.reply = reply.getUuid();
+
+		Reaction commentReaction = reactionDao().createReaction(user, ReactionType.THUMBSUP.name());
+		commentReaction.setCommentUuid(l.comment);
+		reactionDao().store(commentReaction);
+		l.commentReaction = commentReaction.getUuid();
+
+		Reaction reaction = reactionDao().createReaction(user, ReactionType.SATISFIED.name());
+		reaction.setAssetUuid(asset.getUuid());
+		reactionDao().store(reaction);
+		l.reaction = reaction.getUuid();
+
+		return l;
+	}
+
+	private Fixture linkedPair(User user, int victimIndex, int bystanderIndex, String seed) {
+		Fixture f = new Fixture();
+		f.shared = shared(user, seed);
+		f.victim = storeAsset(user, victimIndex);
+		f.bystander = storeAsset(user, bystanderIndex);
+		f.victimLinks = link(f.shared, f.victim, user, seed + "-victim");
+		f.bystanderLinks = link(f.shared, f.bystander, user, seed + "-bystander");
+		return f;
+	}
+
+	private int countFor(org.jooq.Table<?> table, org.jooq.TableField<?, UUID> assetField, UUID assetUuid) {
+		return context.ctx().fetchCount(table, assetField.eq(assetUuid));
+	}
+
+	private void assertLinkRowsGone(Links l) {
+		assertEquals(0, countFor(TAG_ASSET, TAG_ASSET.ASSET_UUID, l.asset), "tag_asset must cascade with the asset (V2.72)");
+		assertEquals(0, countFor(COLLECTION_ASSET, COLLECTION_ASSET.ASSET_UUID, l.asset), "collection_asset must cascade with the asset (V2.73)");
+		assertEquals(0, countFor(ASSET_TASK, ASSET_TASK.ASSET_UUID, l.asset), "asset_task must cascade with the asset (V2.73)");
+		assertEquals(0, countFor(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, l.asset), "asset_user_meta must cascade with the asset (V2.73)");
+		assertEquals(0, countFor(LIBRARY_ASSET, LIBRARY_ASSET.ASSET_UUID, l.asset), "library_asset must cascade with the asset (V2.74)");
+		assertNull(commentDao().load(l.comment), "a comment about the asset must cascade with it (V2.74)");
+		assertNull(commentDao().load(l.reply), "the reply subtree goes with the comment it hangs from (V2.35)");
+		assertNull(reactionDao().load(l.commentReaction), "a reaction on a cascade-deleted comment goes with it (V2.35)");
+		assertNull(reactionDao().load(l.reaction), "a reaction to the asset must cascade with it (V2.74)");
+	}
+
+	/**
+	 * Every link of the untouched asset, except its tag placement - split out so the tag-delete test can reuse the rest.
+	 */
+	private void assertNonTagLinkRowsPresent(Links l) {
+		assertEquals(1, countFor(COLLECTION_ASSET, COLLECTION_ASSET.ASSET_UUID, l.asset), "the other asset must stay in the collection");
+		assertEquals(1, countFor(ASSET_TASK, ASSET_TASK.ASSET_UUID, l.asset), "the other asset must stay on the task");
+		assertEquals(1, countFor(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, l.asset), "the other asset must keep its per-user meta");
+		assertEquals(1, countFor(LIBRARY_ASSET, LIBRARY_ASSET.ASSET_UUID, l.asset), "the other asset must stay in the library");
+		assertNotNull(commentDao().load(l.comment), "a comment on the other asset must survive");
+		assertNotNull(commentDao().load(l.reply), "a reply on the other asset must survive");
+		assertNotNull(reactionDao().load(l.commentReaction), "a reaction on the other asset's comment must survive");
+		assertNotNull(reactionDao().load(l.reaction), "a reaction to the other asset must survive");
+	}
+
+	private void assertLinkRowsPresent(Links l) {
+		assertEquals(1, countFor(TAG_ASSET, TAG_ASSET.ASSET_UUID, l.asset), "the other asset must keep its tag placement");
+		assertNonTagLinkRowsPresent(l);
+	}
+
+	private void assertSharedIntact(Shared s) {
+		assertNotNull(tagDao().load(s.tag.getUuid()), "the tag is a shared object and must survive");
+		assertNotNull(collectionDao().load(s.collection), "the collection must survive");
+		assertNotNull(taskDao().load(s.task), "the task must survive");
+		assertNotNull(libraryDao().load(s.library), "the library must survive");
+		assertNotNull(commentDao().load(s.taskComment), "a comment on the task is not about any asset and must survive");
+		assertNotNull(reactionDao().load(s.taskReaction), "a reaction on the task is not about any asset and must survive");
+		assertNotNull(userDao().load(ADMIN_UUID), "the user who wrote all of this must survive");
+	}
+
+	/**
+	 * The one assertion every link test shares: the victim's links are gone and <b>nothing else is</b>.
+	 */
+	private void assertOnlyTheVictimsLinksAreGone(Fixture f) {
+		assertNull(assetDao().load(f.victim.getUuid()), "the deleted asset is gone");
+		assertLinkRowsGone(f.victimLinks);
+
+		assertNotNull(assetDao().load(f.bystander.getUuid()), "the second asset must survive");
+		assertLinkRowsPresent(f.bystanderLinks);
+		assertSharedIntact(f.shared);
+	}
+
 	/**
 	 * Deleting an asset removes every dependent row that cascades from it, and leaves an identical set on a second asset untouched.
 	 */
@@ -291,53 +487,194 @@ public class AssetCascadeTest extends AbstractJooqTest {
 	}
 
 	/**
-	 * {@code collection_asset} is still a plain FK, so an asset that is a member of a collection cannot be deleted - the delete raises a foreign-key
-	 * violation. Pins the current state until §2.6 decides the collection-membership delete behaviour.
+	 * Deleting an asset removes it from its collections and leaves the collections themselves alone (V2.73).
+	 *
+	 * <p>
+	 * Membership is not content: the row only says that this asset sits in that collection. Until V2.73 it blocked the delete outright, so an asset
+	 * that had been filed anywhere could not be deleted at all.
+	 * </p>
 	 */
 	@Test
-	public void testCollectionMembershipBlocksAssetDelete() {
+	public void testDeletingAssetLeavesTheCollection() {
 		User user = adminUser();
-		Asset asset = storeAsset(user, 3);
+		Fixture f = linkedPair(user, 3, 9, "coll");
+		Collection collection = collectionDao().load(f.shared.collection);
 
-		Collection collection = collectionDao().load(COLLECTION_UUID);
-		collectionDao().linkAsset(collection.getUuid(), asset.getUuid());
+		assetDao().delete(f.victim.getUuid());
 
-		assertThrows(DataAccessException.class, () -> assetDao().delete(asset.getUuid()),
-			"collection_asset does not cascade, so the delete must be rejected");
-		assertNotNull(assetDao().load(asset.getUuid()), "The rejected delete must leave the asset in place");
+		assertEquals(0, countFor(COLLECTION_ASSET, COLLECTION_ASSET.ASSET_UUID, f.victim.getUuid()),
+			"its collection membership must have gone with it");
+		assertNotNull(collectionDao().load(collection.getUuid()), "the collection itself must survive");
+		assertEquals(1, context.ctx().fetchCount(COLLECTION_ASSET,
+			COLLECTION_ASSET.COLLECTION_UUID.eq(collection.getUuid()).and(COLLECTION_ASSET.ASSET_UUID.eq(f.bystander.getUuid()))),
+			"...and keep every other asset filed in it");
+
+		assertOnlyTheVictimsLinksAreGone(f);
 	}
 
 	/**
-	 * {@code tag_asset} is still a plain FK, so a tagged asset cannot be deleted. Pins the current state.
+	 * Deleting an asset removes the per-user metadata written onto it (V2.73).
+	 *
+	 * <p>
+	 * {@code asset_user_meta} has no DAO writer yet, so the row is inserted directly with jOOQ - the same way {@code annotation_asset} and
+	 * {@code person_image} are handled above. The cascade is pinned now so that the table cannot grow a writer and an orphan problem at the same time.
+	 * </p>
 	 */
 	@Test
-	public void testTagLinkBlocksAssetDelete() {
+	public void testDeletingAssetRemovesUserMeta() {
 		User user = adminUser();
-		Asset asset = storeAsset(user, 4);
+		Fixture f = linkedPair(user, 10, 18, "meta");
 
-		AssetTag tag = tagDao().createAssetTag(user, "cascade-tag", "colors");
-		tagDao().store(tag);
-		tagDao().tagAsset(tag, asset);
+		assetDao().delete(f.victim.getUuid());
 
-		assertThrows(DataAccessException.class, () -> assetDao().delete(asset.getUuid()),
-			"tag_asset does not cascade, so the delete must be rejected");
-		assertNotNull(assetDao().load(asset.getUuid()), "The rejected delete must leave the asset in place");
+		assertEquals(0, countFor(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, f.victim.getUuid()),
+			"asset_user_meta must cascade with the asset");
+		assertNotNull(userDao().load(user.getUuid()), "the user must survive - only their note on this asset is gone");
+
+		assertOnlyTheVictimsLinksAreGone(f);
 	}
 
 	/**
-	 * {@code asset_task} is still a plain FK, so an asset with an assigned task cannot be deleted. Pins the current state.
+	 * Deleting a tagged asset removes its tag <em>assignments</em> and nothing else (V2.72).
+	 *
+	 * <p>
+	 * A tag assignment is a statement that this tag applies to that asset; with the asset gone the statement is meaningless. The tag is not: it is a
+	 * global object which other assets carry, and which a curator may have created before using it. Until V2.72 the join row blocked the delete
+	 * outright, so deleting a tagged asset answered 500.
+	 * </p>
 	 */
 	@Test
-	public void testAssignedTaskBlocksAssetDelete() {
+	public void testDeletingATaggedAssetKeepsTheTag() {
 		User user = adminUser();
-		Asset asset = storeAsset(user, 5);
+		Fixture f = linkedPair(user, 4, 7, "tag");
 
-		Task task = taskDao().createTask(user, "asset_cascade_task");
-		taskDao().store(task);
-		taskDao().assignToAsset(task.getUuid(), asset.getUuid());
+		assetDao().delete(f.victim.getUuid());
 
-		assertThrows(DataAccessException.class, () -> assetDao().delete(asset.getUuid()),
-			"asset_task does not cascade, so the delete must be rejected");
-		assertNotNull(assetDao().load(asset.getUuid()), "The rejected delete must leave the asset in place");
+		assertEquals(0, countFor(TAG_ASSET, TAG_ASSET.ASSET_UUID, f.victim.getUuid()), "its tag assignments must have gone with it");
+		assertNotNull(tagDao().load(f.shared.tag.getUuid()), "the tag itself must survive");
+		assertEquals(1, tagDao().assetTags(f.bystander).stream().filter(t -> t.getUuid().equals(f.shared.tag.getUuid())).count(),
+			"...and stay attached to every other asset carrying it");
+
+		assertOnlyTheVictimsLinksAreGone(f);
+	}
+
+	/**
+	 * The mirror image: deleting a tag removes its assignments and leaves both assets - and everything else they are linked to - alone.
+	 */
+	@Test
+	public void testDeletingATagKeepsTheAsset() {
+		User user = adminUser();
+		Fixture f = linkedPair(user, 8, 19, "tagdel");
+
+		tagDao().delete(f.shared.tag.getUuid());
+
+		assertNull(tagDao().load(f.shared.tag.getUuid()), "the tag is gone");
+		assertEquals(0, context.ctx().fetchCount(TAG_ASSET, TAG_ASSET.TAG_UUID.eq(f.shared.tag.getUuid())),
+			"its assignments must have gone with it");
+
+		// Only the assignments. Both assets, all their other links and the rest of the shared graph are untouched.
+		assertNotNull(assetDao().load(f.victim.getUuid()), "the asset the tag was on must survive");
+		assertNotNull(assetDao().load(f.bystander.getUuid()), "so must the second asset");
+		assertNonTagLinkRowsPresent(f.victimLinks);
+		assertNonTagLinkRowsPresent(f.bystanderLinks);
+		assertNotNull(collectionDao().load(f.shared.collection), "the collection must survive a tag delete");
+		assertNotNull(taskDao().load(f.shared.task), "the task must survive a tag delete");
+		assertNotNull(libraryDao().load(f.shared.library), "the library must survive a tag delete");
+		assertNotNull(commentDao().load(f.shared.taskComment), "the comment on the task must survive a tag delete");
+		assertNotNull(reactionDao().load(f.shared.taskReaction), "the reaction on the task must survive a tag delete");
+	}
+
+	/**
+	 * Deleting an asset takes it out of the tasks that referenced it, and the tasks themselves stay (V2.73).
+	 *
+	 * <p>
+	 * A task may be about several assets - {@code asset_task} has been many-to-many since V2.8 - so losing one of them must drop that one link rather
+	 * than the task. The task keeps its title, status, comments and reactions, and every other asset it referenced. Until V2.73 an asset with a task on
+	 * it could not be deleted at all.
+	 * </p>
+	 */
+	@Test
+	public void testDeletingAssetLeavesTheTask() {
+		User user = adminUser();
+		Fixture f = linkedPair(user, 5, 11, "task");
+
+		assetDao().delete(f.victim.getUuid());
+
+		assertEquals(0, countFor(ASSET_TASK, ASSET_TASK.ASSET_UUID, f.victim.getUuid()), "its task link must have gone with it");
+		assertNotNull(taskDao().load(f.shared.task), "the task itself must survive");
+		assertEquals(1, context.ctx().fetchCount(ASSET_TASK,
+			ASSET_TASK.TASK_UUID.eq(f.shared.task).and(ASSET_TASK.ASSET_UUID.eq(f.bystander.getUuid()))),
+			"...and keep referencing the other asset it was about");
+
+		assertOnlyTheVictimsLinksAreGone(f);
+	}
+
+	/**
+	 * Deleting an asset deletes the comments written about it, and their replies (V2.74).
+	 *
+	 * <p>
+	 * Unlike a membership row this is content somebody wrote, but it is content <em>about the asset</em> - with the asset gone the thread has nothing
+	 * left to be about. Replies follow through {@code comment.parent_uuid} and reactions on those comments through {@code reaction.comment_uuid}, both
+	 * of which have cascaded since V2.35. What must not move is a comment anchored elsewhere: the one on the task is written by the same user in the
+	 * same test and has to survive.
+	 * </p>
+	 */
+	@Test
+	public void testDeletingAssetRemovesItsComments() {
+		User user = adminUser();
+		Fixture f = linkedPair(user, 12, 13, "comment");
+
+		assetDao().delete(f.victim.getUuid());
+
+		assertNull(commentDao().load(f.victimLinks.comment), "the comment about the asset must go with it");
+		assertNull(commentDao().load(f.victimLinks.reply), "and so must its reply subtree");
+		assertNull(reactionDao().load(f.victimLinks.commentReaction), "and the reactions on that comment");
+		assertEquals(0, commentDao().loadForAsset(f.victim.getUuid()).size(), "no comment may be left pointing at the deleted asset");
+
+		assertEquals(2, commentDao().loadForAsset(f.bystander.getUuid()).size(), "the other asset keeps its comment and its reply");
+		assertEquals(1, commentDao().loadForTask(f.shared.task).size(), "a comment on the task is about the task, not the asset");
+
+		assertOnlyTheVictimsLinksAreGone(f);
+	}
+
+	/**
+	 * Deleting an asset deletes the reactions to it (V2.74) - and only those.
+	 */
+	@Test
+	public void testDeletingAssetRemovesItsReactions() {
+		User user = adminUser();
+		Fixture f = linkedPair(user, 14, 15, "reaction");
+
+		assetDao().delete(f.victim.getUuid());
+
+		assertNull(reactionDao().load(f.victimLinks.reaction), "the reaction to the asset must go with it");
+		assertNotNull(reactionDao().load(f.bystanderLinks.reaction), "a reaction to the other asset must survive");
+		assertNotNull(reactionDao().load(f.shared.taskReaction), "a reaction on the task must survive");
+
+		assertOnlyTheVictimsLinksAreGone(f);
+	}
+
+	/**
+	 * Deleting an asset removes it from its libraries; the library survives with everything else in it (V2.74).
+	 *
+	 * <p>
+	 * {@code library_asset} has no DAO writer yet, so both rows are inserted directly with jOOQ. The direction that stays blocked is the other one:
+	 * {@code library_asset.library_uuid} is still a plain reference, so a library cannot be deleted out from under the assets in it.
+	 * </p>
+	 */
+	@Test
+	public void testDeletingAssetLeavesTheLibrary() {
+		User user = adminUser();
+		Fixture f = linkedPair(user, 16, 17, "library");
+
+		assetDao().delete(f.victim.getUuid());
+
+		assertEquals(0, countFor(LIBRARY_ASSET, LIBRARY_ASSET.ASSET_UUID, f.victim.getUuid()), "its library membership must have gone with it");
+		assertNotNull(libraryDao().load(f.shared.library), "the library itself must survive");
+		assertEquals(1, context.ctx().fetchCount(LIBRARY_ASSET,
+			LIBRARY_ASSET.LIBRARY_UUID.eq(f.shared.library).and(LIBRARY_ASSET.ASSET_UUID.eq(f.bystander.getUuid()))),
+			"...and keep every other asset in it");
+
+		assertOnlyTheVictimsLinksAreGone(f);
 	}
 }

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
@@ -33,6 +34,10 @@ import io.metaloom.loom.rest.model.asset.info.HashInfo;
 import io.metaloom.loom.rest.model.asset.info.ImageInfo;
 import io.metaloom.loom.rest.model.asset.info.MediaInfo;
 import io.metaloom.loom.rest.model.asset.info.VideoInfo;
+import io.metaloom.loom.rest.model.comment.CommentCreateRequest;
+import io.metaloom.loom.rest.model.comment.CommentResponse;
+import io.metaloom.loom.rest.model.reaction.ReactionCreateRequest;
+import io.metaloom.loom.rest.model.reaction.ReactionResponse;
 import io.metaloom.utils.hash.SHA512;
 import io.vertx.core.json.JsonObject;
 
@@ -315,6 +320,55 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest implements Repla
 		assertEquals(3, response.getTotal());
 		assertEquals(3, response.getCreated()); // 'created' field is reused for successful count
 		assertEquals(0, response.getFailed());
+	}
+
+	/**
+	 * Deleting an asset that is referenced by a task and carries a reaction succeeds, and takes only the asset's own things with it (V2.73, V2.74).
+	 *
+	 * <p>
+	 * {@code asset_task} and {@code reaction.asset_uuid} were plain foreign keys, so the delete failed on a foreign-key violation and the route
+	 * answered 500. Both cascade now. What must not move is anything anchored somewhere other than this asset: the task itself - which may be about
+	 * several assets - along with the comment and the reaction written on the task, and the fixture asset's own reaction.
+	 * </p>
+	 */
+	@Test
+	public void testDeleteAssetReferencedByTask() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			SHA512 sha = SHA512.fromString(
+				"dd000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001");
+			AssetCreateRequest request = new AssetCreateRequest();
+			request.setFile(new FileInfo().setMimeType(IMAGE_MIMETYPE).setFilename("tasked.png").setSize(100L).setOrigin(INITIAL_ORIGIN));
+			request.setHashes(new HashInfo().setSHA512(sha));
+			AssetResponse asset = client.createAsset(request).sync().body();
+
+			client.assignTaskToAsset(asset.getUuid(), TASK_UUID).sync().body();
+			assertEquals(1, client.listAssetTasks(asset.getUuid()).sync().body().getData().size(), "The task is linked before the delete");
+
+			ReactionCreateRequest reactionRequest = new ReactionCreateRequest();
+			reactionRequest.setRating(42);
+			reactionRequest.setType(ReactionType.PLUS_ONE);
+			ReactionResponse assetReaction = client.createAssetReaction(asset.getUuid(), reactionRequest).sync().body();
+
+			// Bystanders: social content on the task, and a reaction on a different asset.
+			CommentCreateRequest commentRequest = new CommentCreateRequest();
+			commentRequest.setTitle("Task feedback");
+			commentRequest.setText("Nothing to do with the asset");
+			CommentResponse taskComment = client.createTaskComment(TASK_UUID, commentRequest).sync().body();
+			ReactionResponse taskReaction = client.createTaskReaction(TASK_UUID, reactionRequest).sync().body();
+			ReactionResponse otherAssetReaction = client.createAssetReaction(ASSET_UUID, reactionRequest).sync().body();
+
+			client.deleteAsset(asset.getUuid()).sync().body();
+
+			expect(404, "Not Found", client.loadAsset(asset.getUuid()));
+			expect(404, "Not Found", client.loadAssetReaction(asset.getUuid(), assetReaction.getUuid()));
+
+			assertNotNull(client.loadTask(TASK_UUID).sync().body(), "The task must survive the deletion of an asset it referenced");
+			assertNotNull(client.loadComment(taskComment.getUuid()).sync().body(), "A comment on the task is not about the asset");
+			assertNotNull(client.loadTaskReaction(TASK_UUID, taskReaction.getUuid()).sync().body(), "Nor is a reaction on the task");
+			assertNotNull(client.loadAssetReaction(ASSET_UUID, otherAssetReaction.getUuid()).sync().body(),
+				"A reaction on another asset must be untouched");
+		}
 	}
 
 	// --- Meta handling tests ---

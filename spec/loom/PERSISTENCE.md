@@ -25,7 +25,7 @@ delete-cascade test per entity) · [RESTAPI.md](RESTAPI.md) · [CONFIGURATION.md
 ```mermaid
 graph TD
   API["loom-db-api<br/>Dao / CRUDDao / DaoCollection<br/>model + DAO interfaces"]
-  FLY["loom-db-flyway<br/>V1 … V2.63"]
+  FLY["loom-db-flyway<br/>V1 … V2.74"]
   GEN["loom-db-jooq-gen<br/>LoomJooqStrategy"]
   JOOQ["loom-db-jooq<br/>AbstractJooqDao + *DaoImpl<br/>src/jooq/java (generated)"]
   MEM["loom-db-memory<br/>(vestigial)"]
@@ -131,7 +131,7 @@ and `FILE_SIZE` (`SizeFilterKey "size"`). Add new keys there and handle them in 
 ## Flyway migrations
 
 `loom/db/flyway/src/main/resources/db/migration/` — PostgreSQL only, `validateMigrationNaming=true`.
-There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.63`.
+There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.74`.
 
 | Migration | Change |
 |---|---|
@@ -199,6 +199,10 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.63`.
 | `V2.62__add_dedup_permission` | `READ/CREATE/UPDATE/DELETE_DEDUP` enum values only |
 | `V2.63__library_storage_pool` | `library.pool_uuid` → asset_pool, `ON DELETE RESTRICT`, NULL = legacy local upload dir |
 | `V2.69__add_task_assignee` | `task_assignee` — who is responsible for a task. One row per target, exactly one of `user_uuid`/`group_uuid` (CHECK `num_nonnulls = 1`). **No PK**: a PK cannot hold nullable columns, so uniqueness is two *partial* unique indexes, which is also what makes assign idempotent. Group membership is resolved on read, not snapshotted |
+| `V2.74__asset_social_cascade` | `comment`, `reaction` and `library_asset` get `ON DELETE CASCADE` on their asset FK. Comments and reactions about an asset die with it - replies and comment reactions follow through the V2.35 cascades - and the asset leaves its libraries. Comments/reactions on tasks and annotations, and the library itself, are untouched. `library_asset.library_uuid` stays a plain reference so a library cannot be deleted out from under its assets |
+| `V2.73__asset_link_cascade` | `collection_asset`, `asset_task` and `asset_user_meta` get `ON DELETE CASCADE` on their asset FK. Deleting an asset takes it out of its collections and tasks and removes its per-user notes; the collection, the task (which may reference several assets) and the user all survive. Together with V2.72 this makes `DELETE_ASSET` work for every link a library writes - `comment` and `reaction` still block, deliberately |
+| `V2.72__tag_asset_cascade` | Both `tag_asset` foreign keys become `ON DELETE CASCADE`. Deleting an asset drops its tag assignments, deleting a tag drops them everywhere, and neither touches the object on the other side. Until then a tagged asset could not be deleted at all - the FK violation surfaced as a 500 |
+| `V2.71__tag_asset_placements` | `tag_asset` gains a surrogate `uuid` PK, `UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)` and provenance (`node_kind` default `manual`, `node_id`, `producer_version`, `confidence`, `created`, `creator_uuid`). One tag may now sit on one asset several times - once per face, once per timecode - and every placement says who put it there. 🔴 Needs **PostgreSQL 15+** for `NULLS NOT DISTINCT`; without it an asset-level tag would re-attach on every write, since NULL region columns never conflict under the default semantics |
 | `V2.70__add_notification` | `notification` — the per-user inbox, plus `READ/UPDATE/DELETE_NOTIFICATION` enum values (no CREATE — dispatch is server-side). `type` is varchar + CHECK, not an enum. Fan-out is one row per recipient at dispatch time. Partial index on unread + one index per subject FK |
 
 ### Migration patterns
@@ -290,7 +294,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | Library | `LibraryDao` | `library`(+joins, `pool_uuid`) | `LibraryDaoTest` CRUD | — |
 | Collection | `CollectionDao` | `collection`(+joins) | `CollectionDaoTest` CRUD +1 | own |
 | Space | `SpaceDao` | `project`(+joins) | ⚠️ `SpaceDaoTest` is an **empty class** | — |
-| Tag | `TagDao` | `tag`(+joins) | `TagDaoTest` CRUD +1; `TagUserRatingDaoTest` (3) | own |
+| Tag | `TagDao` | `tag`(+joins) | `TagDaoTest` CRUD +9 (natural-key resolve, placement upsert, `bulkTagAsset` incl. a rollback probe); `TagPlacementDaoTest` (8: multi-placement, provenance, first-author-wins); `TagUserRatingDaoTest` (3) | own |
 | Embedding | `EmbeddingDao` | `embedding`, `embedding_cluster` | `EmbeddingDaoTest` CRUD | `ClusterDaoTest` |
 | Cluster | `ClusterDao` | `cluster`(+joins) | `ClusterDaoTest` CRUD +1 | own |
 | Detection | `DetectionDao` | `detection` | — | `AssetCascadeTest` (asset side only) |
@@ -341,6 +345,13 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 - **`./setup-pool.sh` is not optional.** DAO tests lease from the `loom-dev` pool; without it they
   fail with "Pool not found {loom-dev}", and after a migration change a stale pool silently tests
   the old schema. Install `loom/db/flyway` first if a brand-new migration file is not picked up.
+- 🔴 **"Found more than one migration with version X" means a stale shaded jar, not a duplicate file.**
+  `loom-container-server` and `loom-container-demo` bundle `db/migration/*.sql`, and an `install`
+  without `clean` re-shades the previous fat jar — so a migration that was renamed or deleted in the
+  source tree survives inside the jar and collides with its replacement. Every DB-booting test in
+  `integration-test` then fails at server start. Fix: `mvn -o -pl loom/containers/server,loom/containers/demo clean install`
+  (and `loom/db/flyway` too if the file is brand new). `find`ing the version in the source tree proves
+  nothing; `unzip -l` the jars.
 - **`JooqTestContext.afterEach` is commented out** — leased databases are never released, so a test
   class with ~20+ methods can exhaust the pool. The trailing failures in `ProviderExtension.beforeEach`
   are a capacity artefact, not a regression; the class passes in isolation.
@@ -348,6 +359,13 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
   `DaoCollection` implementation (so no pipeline/asset/component/agent DAOs), and no module depends
   on it — it appears only in `loom/pom.xml` `dependencyManagement`. Do not describe it as the
   fast-test path; every DAO test uses real Postgres.
+- 🔴 **Inside `ctx().transaction(...)`, only `cfg.dsl()` is in the transaction.** `ctx()` returns the
+  DAO's own `DSLContext`, which takes its own connection from the pool, so a helper method called
+  inside the lambda commits separately and cannot see the transaction's uncommitted rows. A DAO method
+  that needs a transaction has to route every statement through the `DSLContext` it is handed —
+  `TagDaoImpl.bulkTagAsset` and its private `resolveOrCreate`/`attach` pair are the reference; the
+  read-back inside `resolveOrCreate` is spelled out rather than delegating to `load()` for exactly
+  this reason. `RoleDaoImpl.setPermissions` is the simpler, single-method form.
 - **Not every DAO extends `CRUDDao`** (table above) — `CRUDDaoTestcases` cannot be applied to those.
 - **`AssetBinaryDao` maps to `asset_location`, not `attachment_binary`** — "binary" is the REST name
   for a location.
@@ -362,10 +380,23 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 - **A `loom_permission` value added by `ALTER TYPE … ADD VALUE` cannot be used in the same
   migration** (Flyway wraps each in one transaction). Seed grants belong in a later migration —
   see V2.57 and V2.62.
-- `AssetCascadeTest` deliberately pins the FKs that do **not** cascade: `collection_asset`,
-  `tag_asset` and `asset_task` still *block* an asset delete.
+- **Everything said about an asset dies with it; the things it was linked to do not.** After V2.72
+  (`tag_asset`), V2.73 (`collection_asset`, `asset_task`, `asset_user_meta`) and V2.74 (`comment`,
+  `reaction`, `library_asset`), the only foreign keys to `asset` that are not `CASCADE` are two
+  intentional `SET NULL`s — `dedup_group.keep_asset_uuid` and `person.primary_image_uuid`. The tag,
+  collection, task, library and user all survive, as does social content anchored to a task rather
+  than an asset. `AssetCascadeTest` asserts both halves over a shared two-asset fixture; the second
+  asset is what stops "it survived" from being true of a delete that did nothing.
 - **jOOQ codegen output is committed** under `loom/db/jooq/src/jooq/java` — regenerate and commit it
   with the migration, or downstream modules fail to compile.
+- **`reaction.type` is a varchar the REST layer treats as an enum.** The create path stores
+  `ReactionType.name()` and `ReactionModelBuilder.toResponse` reads it back with `valueOf`, so any
+  other string in that column makes every REST read of the row a **500**. Java writers (fixtures,
+  DAO tests, demo data) must pass `ReactionType.X.name()`. The fixture stored the asset's *mime
+  type* there until it was fixed; `ReactionEndpointTest` now reads every fixture reaction to keep it
+  that way.
+- **Changing `TestFixtureProvider` needs `./setup-pool.sh`** — like a migration change. The fixture
+  rows are baked into the pooled databases, so an edit is invisible until the pool is rebuilt.
 
 ## Where do I find …?
 
@@ -412,11 +443,11 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 
 ## Progress Assessment
 
-Schema current through **`V2.63`**. Work items live in
+Schema current through **`V2.74`**. Work items live in
 [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) / [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md).
 
 - [x] jOOQ DAO layer, generated tables committed, Dagger registry (39 DAOs)
-- [x] Flyway chain `V1`–`V2.63`, migration naming validated
+- [x] Flyway chain `V1`–`V2.74`, migration naming validated
 - [x] Asset-component rework (V2.38–V2.42) with provenance + idempotent `upsert()` and full tests
 - [x] Detection/embedding/attachment provenance rework (V2.43–V2.44) — schema side
 - [x] `asset_node_result` processing ledger + test
@@ -440,5 +471,5 @@ Schema current through **`V2.63`**. Work items live in
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (verified against code: migrations now run to V2.63, test DBs come from the pooled provider rather than Testcontainers, and the DAO/test matrix was rebuilt from the actual classes.)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (fixed the fixture's reaction types - they stored a mime type in a column the REST layer reads with ReactionType.valueOf, so every read of a fixture reaction was a 500; ReactionEndpointTest now guards it. V2.74 finished the asset-delete cascades - comments, reactions and library membership - leaving only two intentional SET NULLs; V2.73 cascaded `collection_asset`, `asset_task` and `asset_user_meta` from the asset, so an asset that is filed or referenced can be deleted at last; V2.72 made the `tag_asset` links cascade both ways; V2.71 gave `tag_asset` a surrogate PK, a `NULLS NOT DISTINCT` placement key and provenance columns — one tag may now sit on an asset several times and every placement names its writer. Also added the transaction gotcha — inside `ctx().transaction(...)` only `cfg.dsl()` is in the transaction — and `TagDao.bulkTagAsset` as its reference. Earlier: migrations to V2.63, pooled test DBs, DAO/test matrix rebuilt from the actual classes.)_

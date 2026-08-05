@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from ..assets import AssetId
 from ..models.tag import (
+    AssetTagBulkRequest,
+    AssetTagBulkResponse,
     TagCreateRequest,
     TagListResponse,
     TagRatingRequest,
@@ -56,11 +58,42 @@ class TagMethods:
         """Apply a tag to an asset, creating the tag if it does not exist yet."""
         return self._post(f"{self._asset_sub(asset_id)}/tags", request, TagResponse)
 
+    def bulk_tag_asset(
+        self, asset_id: AssetId | _uuid_mod.UUID | str, request: AssetTagBulkRequest
+    ) -> LoomRequest[AssetTagBulkResponse]:
+        """Apply a whole set of tags to one asset, and detach the ones named in ``withdraw``.
+
+        Prefer this over a loop of :meth:`tag_asset` whenever more than one tag is
+        involved: the server applies the set in one transaction, so tagging a library
+        costs one request per asset rather than one per tag.
+
+        Needs ``TAG_ASSET``, and ``UNTAG_ASSET`` as well when ``withdraw`` is non-empty.
+        """
+        return self._put(
+            f"{self._asset_sub(asset_id)}/tags", request, AssetTagBulkResponse
+        )
+
     def untag_asset(
         self, asset_id: AssetId | _uuid_mod.UUID | str, tag_uuid: _uuid_mod.UUID | str
     ) -> LoomRequest[None]:
-        """Remove a tag from an asset. The tag itself is not deleted."""
+        """Remove a tag from an asset, with every placement of it.
+
+        A tag may sit on one asset several times -- once per face, once per timecode.
+        This clears the picture; :meth:`remove_tag_placement` clears one face. The tag
+        itself is not deleted.
+        """
         return self._delete(f"{self._asset_sub(asset_id)}/tags/{self._uuid(tag_uuid)}")
+
+    def remove_tag_placement(
+        self, asset_id: AssetId | _uuid_mod.UUID | str, placement_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[None]:
+        """Remove one placement of a tag, keeping the tag's other placements.
+
+        The placement uuid comes from ``placement_uuid`` on the asset's tag references.
+        """
+        return self._delete(
+            f"{self._asset_sub(asset_id)}/tag-placements/{self._uuid(placement_uuid)}"
+        )
 
     # -- ratings -------------------------------------------------------------
 

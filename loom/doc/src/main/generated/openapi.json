@@ -7003,8 +7003,204 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/tag-placements/{placementUuid}" : {
+      "description" : "Remove one placement of a tag from an asset, keeping its other placements",
+      "delete" : {
+        "tags" : [ "assets" ],
+        "summary" : "Remove one placement of a tag from an asset, keeping its other placements",
+        "description" : "Remove one placement of a tag from an asset, keeping its other placements",
+        "operationId" : "deleteAssetsByUuidTagplacementsByPlacementUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "placementUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced placement",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/tags" : {
       "description" : "Tag the asset",
+      "put" : {
+        "tags" : [ "assets" ],
+        "summary" : "Apply a set of tags to the asset in one request",
+        "description" : "Apply a set of tags to the asset in one request",
+        "operationId" : "putAssetsByUuidTags",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "collection" : "colors",
+                "tags" : [ {
+                  "name" : "red",
+                  "collection" : "colors"
+                }, {
+                  "name" : "amber",
+                  "collection" : "colors"
+                } ],
+                "withdraw" : [ "f04e89d0-076d-4d90-b192-715a25a2cd59" ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The bulk asset tagging response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "tags" : [ {
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "red",
+                    "area" : {
+                      "from" : 12,
+                      "to" : 42,
+                      "width" : 480,
+                      "height" : 200,
+                      "startX" : 120,
+                      "startY" : 240
+                    },
+                    "color" : "1681de",
+                    "collection" : "colors"
+                  } ],
+                  "total" : 2,
+                  "applied" : 2,
+                  "withdrawn" : 1
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "post" : {
         "tags" : [ "assets" ],
         "summary" : "Tag the asset",
@@ -7075,11 +7271,11 @@
       } ]
     },
     "/api/v1/assets/{uuid}/tags/{tagUuid}" : {
-      "description" : "Remove a tag from an asset",
+      "description" : "Remove a tag from an asset, with every placement of it",
       "delete" : {
         "tags" : [ "assets" ],
-        "summary" : "Remove a tag from an asset",
-        "description" : "Remove a tag from an asset",
+        "summary" : "Remove a tag from an asset, with every placement of it",
+        "description" : "Remove a tag from an asset, with every placement of it",
         "operationId" : "deleteAssetsByUuidTagsByTagUuid",
         "responses" : {
           "400" : {
@@ -18050,7 +18246,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "81b113b9-ac4b-46cb-93e0-bb03c85ae80c",
+                    "versionUuid" : "a7d0239a-7542-4263-8cdf-fc55611f4159",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18077,7 +18273,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "37e7832c-fcdf-4708-9c85-4b6c3a0adf6b",
+                    "versionUuid" : "5e8872c2-8430-47cf-8d6d-4ce531861813",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18184,7 +18380,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "5f28842c-2db5-4b5f-b2ed-834ecf9db5d0",
+                  "versionUuid" : "a9a8158f-45cb-4af5-8f71-b3b72475eb0f",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18270,7 +18466,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "906b7207-ffce-4d21-a6c3-1ea5b658137d",
+                  "versionUuid" : "4534bfa7-dad1-45a9-973d-d79cd2c5e948",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18377,7 +18573,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "a09afc4d-569f-43ee-84e4-8ac718a9488a",
+                  "versionUuid" : "69199780-bbd6-4f02-817e-9aa7300ecc8c",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18539,7 +18735,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "f9126055-a060-44e3-9ef1-59d9e1d8804f",
+                  "runUuid" : "411f25ed-be72-44b4-94f6-08176bf1fd40",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -18665,11 +18861,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "33b4f6a0-8f36-48ed-b694-a321a2ed9bf6",
-                    "pipelineUuid" : "c7fc286d-3cfd-4fed-b2bc-3d4a9326c9ee",
+                    "uuid" : "85200d31-ac92-4129-a501-cb8a60a456e1",
+                    "pipelineUuid" : "37922369-df3e-4553-94b9-7c692c1e8c1e",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-05T00:06:34.563771390Z",
-                    "finished" : "2026-08-05T00:06:34.563861350Z",
+                    "started" : "2026-08-05T08:39:52.954864752Z",
+                    "finished" : "2026-08-05T08:39:52.954975392Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18678,11 +18874,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "7f0fe7c3-1ee7-4f5d-95d0-eeee677c4c86",
-                    "pipelineUuid" : "38ee510e-dd29-46fe-879a-087896e9e9ff",
+                    "uuid" : "ca2fa591-825d-4c74-a384-03428404c3ee",
+                    "pipelineUuid" : "deca2253-4b6d-4eb6-97a0-24e589edded3",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-05T00:06:34.563890580Z",
-                    "finished" : "2026-08-05T00:06:34.563893490Z",
+                    "started" : "2026-08-05T08:39:52.955004912Z",
+                    "finished" : "2026-08-05T08:39:52.955008142Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18775,11 +18971,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "782e94cb-3274-40b6-8754-de4c4c9faa1d",
-                  "pipelineUuid" : "c800bc53-ecbf-4618-9e29-ae2cc0727317",
+                  "uuid" : "175ee031-0051-4ff2-9cd3-d6ac726ad585",
+                  "pipelineUuid" : "458f09cf-6b43-4bd8-9934-7329d6c1d4e6",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-05T00:06:34.564518970Z",
-                  "finished" : "2026-08-05T00:06:34.564525090Z",
+                  "started" : "2026-08-05T08:39:52.955680292Z",
+                  "finished" : "2026-08-05T08:39:52.955687222Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -19269,16 +19465,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "4bb08051-0102-4b21-8cb9-74642eed5bc8",
-                    "runUuid" : "3da8f0e1-a91e-4b1d-a54f-bdeca9d9582d",
+                    "uuid" : "79ffa825-86da-4204-a399-1e91079cd03c",
+                    "runUuid" : "dc5e6f33-2c82-449e-8701-fe3d19ea5692",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "f148c336-c144-4667-9413-5adedf295e58",
-                    "runUuid" : "2d714db9-0331-4860-a05f-56fb2c1646ea",
+                    "uuid" : "cd8200b3-050a-417d-a0d4-9022f1ef51ae",
+                    "runUuid" : "ce58de50-d3eb-465d-a375-f8a862e2b738",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -19379,9 +19575,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "3697a835-e289-4975-8319-f8d91a77be78",
-                    "itemUuid" : "1f4d0bca-caa7-4115-96ed-94d3d28a67ef",
-                    "runUuid" : "0bc9a4cd-96e1-4369-a583-65c3b4d5de53",
+                    "uuid" : "169701d1-fa70-40f5-9be6-e9fc3509f80e",
+                    "itemUuid" : "71f3728a-2182-43b9-9c07-fbda6df726e6",
+                    "runUuid" : "da2aaaba-b262-4b7b-b5b1-03674e9c5445",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -20047,7 +20243,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "0b32e01c-7331-4e6f-b984-7c9fb0300884",
+                    "versionUuid" : "eb87a3d4-44ea-4011-9140-a6091e20e1ea",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20074,7 +20270,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "082b7acd-4955-49db-8039-f74fd4b227e1",
+                    "versionUuid" : "c3eaecb3-9c10-4f16-bd53-12629198d529",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20185,7 +20381,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "c366ec45-93c2-44d4-b90d-5c5c9a6dfd80",
+                  "versionUuid" : "951df207-1131-4765-be4c-d8774f42163e",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -20310,7 +20506,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "25e44e5e-328e-4b12-89bc-5f444de8d2b6",
+                  "versionUuid" : "1e3879c3-6b1f-4fcb-bad7-de5a6367b705",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

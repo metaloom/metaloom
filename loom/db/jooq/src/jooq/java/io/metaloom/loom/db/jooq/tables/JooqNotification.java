@@ -14,9 +14,9 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Function;
 
+import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Function17;
@@ -32,13 +32,16 @@ import org.jooq.TableField;
 import org.jooq.TableOptions;
 import org.jooq.UniqueKey;
 import org.jooq.impl.DSL;
+import org.jooq.impl.Internal;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
 
 
 /**
- * One durable inbox entry for one user. Group notifications are fanned out to one
- * row per member at dispatch time.
+ * One durable inbox entry for one user. Group notifications are fanned out to
+ * one row per member at dispatch time - see the header of V2.70 for why the
+ * audience is resolved when the event happens rather than when the inbox is
+ * read
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqNotification extends TableImpl<JooqNotificationRecord> {
@@ -61,78 +64,104 @@ public class JooqNotification extends TableImpl<JooqNotificationRecord> {
     /**
      * The column <code>public.notification.uuid</code>.
      */
-    public final TableField<JooqNotificationRecord, UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+    public final TableField<JooqNotificationRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
+
     /**
-     * The column <code>public.notification.recipient_uuid</code>. Always a concrete user, never a group
+     * The column <code>public.notification.recipient_uuid</code>. Always a
+     * concrete user, never a group
      */
-    public final TableField<JooqNotificationRecord, UUID> RECIPIENT_UUID = createField(DSL.name("recipient_uuid"), SQLDataType.UUID.nullable(false), this, "Always a concrete user, never a group");
+    public final TableField<JooqNotificationRecord, java.util.UUID> RECIPIENT_UUID = createField(DSL.name("recipient_uuid"), SQLDataType.UUID.nullable(false), this, "Always a concrete user, never a group");
+
     /**
-     * The column <code>public.notification.type</code>. What happened
+     * The column <code>public.notification.type</code>. What happened. varchar
+     * + CHECK rather than an enum because this list churns and Postgres cannot
+     * drop an enum value
      */
-    public final TableField<JooqNotificationRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.CLOB.nullable(false), this, "What happened");
+    public final TableField<JooqNotificationRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR.nullable(false), this, "What happened. varchar + CHECK rather than an enum because this list churns and Postgres cannot drop an enum value");
+
     /**
      * The column <code>public.notification.read</code>.
      */
     public final TableField<JooqNotificationRecord, Boolean> READ = createField(DSL.name("read"), SQLDataType.BOOLEAN.nullable(false).defaultValue(DSL.field("false", SQLDataType.BOOLEAN)), this, "");
+
     /**
-     * The column <code>public.notification.read_at</code>. When the recipient marked it read
+     * The column <code>public.notification.read_at</code>. When the recipient
+     * marked it read. Null while unread
      */
-    public final TableField<JooqNotificationRecord, LocalDateTime> READ_AT = createField(DSL.name("read_at"), SQLDataType.LOCALDATETIME(6), this, "When the recipient marked it read");
+    public final TableField<JooqNotificationRecord, LocalDateTime> READ_AT = createField(DSL.name("read_at"), SQLDataType.LOCALDATETIME(6), this, "When the recipient marked it read. Null while unread");
+
     /**
-     * The column <code>public.notification.title</code>. Pre-rendered summary line
+     * The column <code>public.notification.title</code>. Pre-rendered summary
+     * line. Rendered at dispatch so the inbox does not have to re-resolve
+     * deleted subjects at read time
      */
-    public final TableField<JooqNotificationRecord, String> TITLE = createField(DSL.name("title"), SQLDataType.CLOB.nullable(false), this, "Pre-rendered summary line");
+    public final TableField<JooqNotificationRecord, String> TITLE = createField(DSL.name("title"), SQLDataType.VARCHAR.nullable(false), this, "Pre-rendered summary line. Rendered at dispatch so the inbox does not have to re-resolve deleted subjects at read time");
+
     /**
      * The column <code>public.notification.body</code>.
      */
-    public final TableField<JooqNotificationRecord, String> BODY = createField(DSL.name("body"), SQLDataType.CLOB, this, "");
+    public final TableField<JooqNotificationRecord, String> BODY = createField(DSL.name("body"), SQLDataType.VARCHAR, this, "");
+
     /**
      * The column <code>public.notification.task_uuid</code>.
      */
-    public final TableField<JooqNotificationRecord, UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+    public final TableField<JooqNotificationRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
     /**
      * The column <code>public.notification.comment_uuid</code>.
      */
-    public final TableField<JooqNotificationRecord, UUID> COMMENT_UUID = createField(DSL.name("comment_uuid"), SQLDataType.UUID, this, "");
+    public final TableField<JooqNotificationRecord, java.util.UUID> COMMENT_UUID = createField(DSL.name("comment_uuid"), SQLDataType.UUID, this, "");
+
     /**
      * The column <code>public.notification.pipeline_run_uuid</code>.
      */
-    public final TableField<JooqNotificationRecord, UUID> PIPELINE_RUN_UUID = createField(DSL.name("pipeline_run_uuid"), SQLDataType.UUID, this, "");
+    public final TableField<JooqNotificationRecord, java.util.UUID> PIPELINE_RUN_UUID = createField(DSL.name("pipeline_run_uuid"), SQLDataType.UUID, this, "");
+
     /**
      * The column <code>public.notification.asset_uuid</code>.
      */
-    public final TableField<JooqNotificationRecord, UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID, this, "");
+    public final TableField<JooqNotificationRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID, this, "");
+
     /**
-     * The column <code>public.notification.via_group_uuid</code>. The group through which the recipient was reached
+     * The column <code>public.notification.via_group_uuid</code>. The group
+     * through which the recipient was reached, when it was not a direct
+     * mention. Explanatory only
      */
-    public final TableField<JooqNotificationRecord, UUID> VIA_GROUP_UUID = createField(DSL.name("via_group_uuid"), SQLDataType.UUID, this, "The group through which the recipient was reached");
+    public final TableField<JooqNotificationRecord, java.util.UUID> VIA_GROUP_UUID = createField(DSL.name("via_group_uuid"), SQLDataType.UUID, this, "The group through which the recipient was reached, when it was not a direct mention. Explanatory only");
+
     /**
-     * The column <code>public.notification.meta</code>. Custom meta properties
+     * The column <code>public.notification.meta</code>.
      */
-    public final TableField<JooqNotificationRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties", new JsonObjectConverter());
+    public final TableField<JooqNotificationRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "", new JsonObjectConverter());
+
     /**
      * The column <code>public.notification.created</code>.
      */
     public final TableField<JooqNotificationRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
+
     /**
-     * The column <code>public.notification.creator_uuid</code>. The ACTOR whose action produced this, not the recipient
+     * The column <code>public.notification.creator_uuid</code>. The ACTOR whose
+     * action produced this, not the recipient. Null for machine-generated
+     * events such as a failed pipeline run
      */
-    public final TableField<JooqNotificationRecord, UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "The ACTOR whose action produced this, not the recipient");
+    public final TableField<JooqNotificationRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "The ACTOR whose action produced this, not the recipient. Null for machine-generated events such as a failed pipeline run");
+
     /**
      * The column <code>public.notification.edited</code>.
      */
     public final TableField<JooqNotificationRecord, LocalDateTime> EDITED = createField(DSL.name("edited"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
+
     /**
      * The column <code>public.notification.editor_uuid</code>.
      */
-    public final TableField<JooqNotificationRecord, UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
+    public final TableField<JooqNotificationRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
     private JooqNotification(Name alias, Table<JooqNotificationRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqNotification(Name alias, Table<JooqNotificationRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("One durable inbox entry for one user."), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("One durable inbox entry for one user. Group notifications are fanned out to one row per member at dispatch time - see the header of V2.70 for why the audience is resolved when the event happens rather than when the inbox is read"), TableOptions.table());
     }
 
     /**
@@ -273,6 +302,13 @@ public class JooqNotification extends TableImpl<JooqNotificationRecord> {
     }
 
     @Override
+    public List<Check<JooqNotificationRecord>> getChecks() {
+        return Arrays.asList(
+            Internal.createCheck(this, DSL.name("notification_type_check"), "(((type)::text = ANY ((ARRAY['TASK_ASSIGNED'::character varying, 'TASK_UNASSIGNED'::character varying, 'TASK_STATUS_CHANGED'::character varying, 'TASK_COMMENT'::character varying, 'COMMENT_REPLY'::character varying, 'PIPELINE_RUN_FAILED'::character varying])::text[])))", true)
+        );
+    }
+
+    @Override
     public JooqNotification as(String alias) {
         return new JooqNotification(DSL.name(alias), this);
     }
@@ -316,14 +352,14 @@ public class JooqNotification extends TableImpl<JooqNotificationRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row17<UUID, UUID, String, Boolean, LocalDateTime, String, String, UUID, UUID, UUID, UUID, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+    public Row17<java.util.UUID, java.util.UUID, String, Boolean, LocalDateTime, String, String, java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
         return (Row17) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function17<? super UUID, ? super UUID, ? super String, ? super Boolean, ? super LocalDateTime, ? super String, ? super String, ? super UUID, ? super UUID, ? super UUID, ? super UUID, ? super UUID, ? super JsonObject, ? super LocalDateTime, ? super UUID, ? super LocalDateTime, ? super UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function17<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Boolean, ? super LocalDateTime, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -331,7 +367,7 @@ public class JooqNotification extends TableImpl<JooqNotificationRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function17<? super UUID, ? super UUID, ? super String, ? super Boolean, ? super LocalDateTime, ? super String, ? super String, ? super UUID, ? super UUID, ? super UUID, ? super UUID, ? super UUID, ? super JsonObject, ? super LocalDateTime, ? super UUID, ? super LocalDateTime, ? super UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function17<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super Boolean, ? super LocalDateTime, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

@@ -44,7 +44,10 @@ import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompResponse;
+import io.metaloom.loom.rest.model.tag.AssetTagBulkRequest;
+import io.metaloom.loom.rest.model.tag.AssetTagBulkResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
+import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
@@ -317,11 +320,8 @@ public class TagNode extends AbstractMediaNode<TagNodeOptions> implements Pipeli
 		List<AppliedTag> withdrawn = List.of();
 
 		if (asset != null && client() != null && !options().isDryRun()) {
-			List<AppliedTag> previous = previouslyApplied(asset);
-			for (AppliedTag tag : verdict.applied()) {
-				tag.setUuid(attach(asset, tag));
-			}
-			withdrawn = reconcile(asset, previous, verdict.applied());
+			withdrawn = toWithdraw(previouslyApplied(asset), verdict.applied());
+			apply(asset, verdict.applied(), withdrawn);
 		}
 
 		JsonObject record = record(verdict, withdrawn, skippedRules);
@@ -341,16 +341,63 @@ public class TagNode extends AbstractMediaNode<TagNodeOptions> implements Pipeli
 		return record;
 	}
 
-	/** Attach one tag and return the uuid of the (possibly pre-existing, globally shared) tag row. */
-	private UUID attach(AssetResponse asset, AppliedTag tag) throws LoomClientException {
-		TagCreateRequest request = new TagCreateRequest();
-		request.setName(tag.name());
-		request.setCollection(tag.collection());
-		return client().tagAsset(asset.getUuid(), request).sync().body().getUuid();
+	/**
+	 * Attach the whole set and detach the withdrawn tags in one request.
+	 *
+	 * <p>
+	 * One call per item, not one per tag. Tagging a library through the single-tag route means a request,
+	 * a transaction and a rebuild of the same search document for every tag of every asset; the bulk
+	 * route applies the set in one transaction, so an item is never left half tagged.
+	 * </p>
+	 *
+	 * <p>
+	 * That is also why a rejected withdrawal now fails the item rather than being logged and skipped: the
+	 * server applies the request whole or not at all, so there is no half-applied state left to report as
+	 * a success. A worker whose token may tag but not untag must therefore run with
+	 * {@code removeWithdrawn} off.
+	 * </p>
+	 */
+	private void apply(AssetResponse asset, List<AppliedTag> applied, List<AppliedTag> withdraw) throws LoomClientException {
+		if (applied.isEmpty() && withdraw.isEmpty()) {
+			// An item that matched no rule and has nothing to take back needs no write at all.
+			return;
+		}
+		AssetTagBulkRequest request = new AssetTagBulkRequest();
+		request.setCollection(options().getCollection());
+		// Say who is writing. The join row records it (V2.71), which is what lets a UI separate these tags
+		// from curated ones - and what makes the withdrawal below safe: the server removes only placements
+		// carrying this node id, so a tag a person put on the same asset under the same name survives even
+		// though this node named it.
+		request.setNodeKind(name());
+		request.setNodeId(nodeId());
+		request.setProducerVersion(producerVersion());
+		for (AppliedTag tag : applied) {
+			request.add(new TagCreateRequest()
+				.setName(tag.name())
+				.setCollection(tag.collection())
+				.setConfidence((float) tag.confidence()));
+		}
+		for (AppliedTag tag : withdraw) {
+			request.withdraw(tag.uuid());
+		}
+
+		AssetTagBulkResponse response = client().bulkTagAsset(asset.getUuid(), request).sync().body();
+
+		// Carry the uuids of the persisted rows into the record: a later run can only withdraw a tag whose
+		// uuid it wrote down, so losing them here would quietly disable reconciliation.
+		Map<String, UUID> persisted = new LinkedHashMap<>();
+		if (response != null && response.getTags() != null) {
+			for (TagResponse tag : response.getTags()) {
+				persisted.put(key(tag.getName(), tag.getCollection()), tag.getUuid());
+			}
+		}
+		for (AppliedTag tag : applied) {
+			tag.setUuid(persisted.get(key(tag.name(), tag.collection())));
+		}
 	}
 
 	/**
-	 * Withdraw the tags this node applied on an earlier run and no longer stands behind.
+	 * The tags this node applied on an earlier run and no longer stands behind.
 	 *
 	 * <p>
 	 * 🔴 <strong>The safety property of this node.</strong> A tag may be removed only when both hold:
@@ -359,8 +406,13 @@ public class TagNode extends AbstractMediaNode<TagNodeOptions> implements Pipeli
 	 * node instance applied, is never touched — {@code tag_asset} carries no provenance of its own, so
 	 * that read-back is the only proof available, and a bug here silently destroys human curation.
 	 * </p>
+	 *
+	 * <p>
+	 * The server enforces the same restraint from its side: the bulk route removes exactly the uuids it
+	 * is given and never "everything else", so no reading of this list can turn into a desired-set delete.
+	 * </p>
 	 */
-	private List<AppliedTag> reconcile(AssetResponse asset, List<AppliedTag> previous, List<AppliedTag> applied) {
+	private List<AppliedTag> toWithdraw(List<AppliedTag> previous, List<AppliedTag> applied) {
 		if (!options().isRemoveWithdrawn() || previous.isEmpty()) {
 			return List.of();
 		}
@@ -375,13 +427,7 @@ public class TagNode extends AbstractMediaNode<TagNodeOptions> implements Pipeli
 			if (keep.contains(key(tag.name(), tag.collection())) || !mine.contains(tag.collection()) || tag.uuid() == null) {
 				continue;
 			}
-			try {
-				client().untagAsset(asset.getUuid(), tag.uuid()).sync();
-				withdrawn.add(tag);
-			} catch (Exception e) {
-				// One tag that will not come off must not lose the tags that did go on.
-				log.warn("Failed to withdraw tag {} from asset {}: {}", tag.name(), asset.getUuid(), e.getMessage());
-			}
+			withdrawn.add(tag);
 		}
 		return withdrawn;
 	}

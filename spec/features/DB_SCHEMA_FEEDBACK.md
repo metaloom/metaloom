@@ -35,7 +35,7 @@ the REST client (see §3.1), where the audit found exactly one.
 
 | Group | Findings |
 |---|---|
-| Real correctness defects, cheap to fix | §7.1 ACL primary keys · §2.6 asset delete cascades · §5.1 `tag_asset` PK · §2.4 `filekey_*` widths |
+| Real correctness defects, cheap to fix | §7.1 ACL primary keys · §2.4 `filekey_*` widths |
 | Missing referential integrity / typing in the pipeline tables | §6.1, §6.2, §6.4, §6.5, §6.6 |
 | Undecided design questions | §4.2 vector storage · §3.6 ledger retention · §8.1 `timestamptz` |
 
@@ -72,28 +72,62 @@ migrates the old row's tags, annotations, detections, embeddings or components, 
 All four should be `bigint`. This silently corrupts scanner change-detection rather than failing
 loudly.
 
-### 2.6 Deleting an asset is still impossible for tagged / collected / assigned assets — HIGH
+### 2.6 Deleting an asset — RESOLVED
 
 Partly fixed: `detection` (`V2.43`), `attachment` (`V2.44`), `reaction`/`comment` → `annotation`
 (`V2.48`), `embedding_cluster` (`V2.51`) now cascade, alongside the `asset_*_comp` tables,
 `asset_location`, `annotation`, `annotation_asset`, `person_image`, `blacklist` and
 `asset_node_result`.
 
-**Still plain FKs to `asset` (`V2.8`), so `DELETE FROM asset` raises a FK violation:**
+`tag_asset` was fixed in `V2.72` — **both** its foreign keys now cascade, so deleting an asset drops
+its tag assignments and deleting a tag drops the assignments to every asset. Neither delete touches
+the object on the other side: a tag outlives the assets that carried it, and an asset outlives the
+tags it wore. The tag is deliberately not reference-counted; an unused tag is an empty tag, not a
+deleted one. `AssetCascadeTest.testDeletingATaggedAssetKeepsTheTag` / `testDeletingATagKeepsTheAsset`
+assert it from both directions, `TagAssetEndpointTest` the same over REST — where this used to be a
+**500**.
 
-- `collection_asset.asset_uuid`
-- `tag_asset.asset_uuid`
-- `asset_task.asset_uuid`
-- `asset_user_meta.asset_uuid`
+`V2.73` finished the job for the other three links, each with the same shape — the link goes, the
+thing on the far end stays:
 
-The current state is **pinned by tests** in
-`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/AssetCascadeTest.java`
-(`testCollectionMembershipBlocksAssetDelete`, `testTagLinkBlocksAssetDelete`,
-`testAssignedTaskBlocksAssetDelete`) — fixing the schema means flipping those assertions.
-`DELETE_ASSET` exists as a permission, so the operation is meant to work.
+| Link | Deleting the asset… | …leaves |
+| --- | --- | --- |
+| `collection_asset` | takes it out of its collections | the **collection**, with every other asset filed in it |
+| `asset_task` | drops that one reference | the **task** — title, status, comments, assignees — and the other assets it is about (`asset_task` has been many-to-many since `V2.8`) |
+| `asset_user_meta` | removes the per-user notes on it | the **user** |
 
-**Recommendation:** cascade all four (they are join/ownership rows, not social content) in one
-migration, and update `AssetCascadeTest`.
+`AssetCascadeTest.testDeletingAssetLeavesTheCollection` / `testDeletingAssetLeavesTheTask` /
+`testDeletingAssetRemovesUserMeta` assert it — each creating a second asset on the same
+collection/task as a negative control, so "it survived" cannot be satisfied by a delete that did
+nothing. `AssetEndpointTest.testDeleteAssetReferencedByTask` covers it over REST, where this used to
+be a **500**. Collection membership has no REST route to link through (it is DAO-only), so that half
+is pinned at DAO level alone.
+
+`V2.74` closed the last three, on an explicit product decision:
+
+| Link | Deleting the asset… | …leaves |
+| --- | --- | --- |
+| `comment` | deletes the comments written **about it**, and their reply subtrees (`comment.parent_uuid`, `V2.35`) and any reactions on those comments (`reaction.comment_uuid`, `V2.35`) | every comment anchored to a **task** or an **annotation** |
+| `reaction` | deletes the reactions **to it** | reactions on tasks, comments and annotations |
+| `library_asset` | removes it from its libraries | the **library**, with every other asset in it |
+
+The other direction of `library_asset` is deliberately *not* a cascade: `library_uuid` stays a plain
+reference so a library cannot be deleted out from under the assets in it — the stance `V2.63` already
+took for `library → asset_pool`.
+
+**After `V2.74` the only non-`CASCADE` foreign keys to `asset` are the two intentional `SET NULL`s**,
+`dedup_group.keep_asset_uuid` and `person.primary_image_uuid`. `DELETE_ASSET` works for every link
+the system writes.
+
+**How the tests are built.** All eight link tests share one fixture (`AssetCascadeTest.linkedPair`):
+two assets wired into the same tag, collection, task and library, each with its own user meta,
+comment (plus a reply and a reaction on that comment) and reaction — and a comment and a reaction on
+the **task**, which no asset owns. Each test deletes the first asset, asserts its own point, then
+calls `assertOnlyTheVictimsLinksAreGone`, which asserts the other half: the second asset still holds
+all of its links, every shared object is still there, and the task's social content was not caught in
+the blast. `AssetEndpointTest.testDeleteAssetReferencedByTask` and `TagAssetEndpointTest` do the same
+over REST. Collection and library membership have no REST route to link through (both are DAO-only),
+so those two are pinned at DAO level alone.
 
 ---
 
@@ -198,23 +232,46 @@ relation between them — two competing models of the same concept (see
 
 ## 5. Tagging and annotation
 
-### 5.1 `tag_asset` PK defeats its own columns — HIGH
+### 5.1 `tag_asset` PK defeats its own columns — ✅ RESOLVED (`V2.71`)
 
-`PRIMARY KEY (tag_uuid, asset_uuid)` alongside `time_from`, `time_to`, `areaStartX/Y`,
-`areaWidth/Height` (`V2.8`, unchanged). The extra columns exist to place a tag at a timecode or a
-region; the PK allows **one placement per (tag, asset)**. Tagging the same person in two shots of
-a video, or in two faces of a photo, is impossible — which is exactly the output
-`FacedetectNode` + clustering is meant to produce.
+Was: `PRIMARY KEY (tag_uuid, asset_uuid)` alongside the region columns, so a tag could be placed
+**once** per asset and tagging two faces in one photo was impossible.
 
-**Recommendation:** surrogate `uuid` PK plus
-`UNIQUE (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)`, or split the spatial
-placement into its own table.
+Fixed as recommended: surrogate `uuid` primary key plus
+`UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)`.
+`NULLS NOT DISTINCT` is load-bearing — an asset-level tag has NULL in every region column, and
+under the default semantics those rows would never conflict, so re-tagging would append forever.
+It requires **PostgreSQL 15+** (test env 16.3, chart 17). `areaWidth`/`areaHeight` sit outside the
+key on purpose: resizing a box updates the placement, moving it creates one.
 
-### 5.2 Region conventions — partly resolved
+The same migration added the provenance §5.4 records. `TagPlacementDaoTest` pins the behaviour.
+
+### 5.2 Region conventions — still open
 
 `V2.43` unified `detection` + `embedding` on normalized `real` bbox. `tag_asset` and `annotation`
 still carry absolute-int `areaStartX/Y` + `areaWidth/Height`, so two conventions remain and the UI
-still needs two code paths. Fold them onto the normalized convention when §5.1 is fixed.
+still needs two code paths.
+
+§5.1 was the event this was waiting on, and `V2.71` deliberately did **not** take it: converting the
+columns is a data migration over existing region tags, not a schema change, and it would have made a
+migration that is otherwise additive destructive. A detection-driven region tag must convert until
+then — absolute ints in, normalized reals out.
+
+### 5.4 `tag_asset` had no provenance — ✅ RESOLVED (`V2.71`)
+
+Nothing on the join row said whether a person or a pipeline attached a tag, which meant the UI could
+not offer "hide auto tags" and a node could not prove a tag was its own before withdrawing it — it
+had to read back a component it wrote itself. The row now carries `node_kind` (defaulting to
+`manual`), `node_id`, `producer_version`, `confidence`, `created` and `creator_uuid`, mirroring
+`detection` (`V2.43`).
+
+Two rules ride on those columns, both pinned by `TagPlacementDaoTest`:
+
+- **The first author keeps the row.** The upsert carries
+  `WHERE tag_asset.node_id IS NOT DISTINCT FROM excluded.node_id`, so a node attaching a tag a person
+  already placed leaves that row untouched rather than taking authorship of it.
+- **A writer withdraws only its own placements.** `TagDao.bulkTagAsset` scopes its delete by
+  `node_id` when the caller names one; a person (no node id) removes them all.
 
 ### 5.3 `annotation` has both a direct FK and a join table — LOW
 
@@ -433,6 +490,8 @@ What is left, in order:
 - [x] §2.1 asset identity — `uuid` PK, `sha512sum NOT NULL UNIQUE` (`V2.46`)
 - [x] §2.3 `asset_location` natural key (`V2.48`, `V2.63`)
 - [x] §2.5 dead S3 columns dropped (`V2.46`)
+- [x] §2.6 asset delete cascades — `tag_asset` (`V2.72`), `collection_asset` / `asset_task` / `asset_user_meta` (`V2.73`), `comment` / `reaction` / `library_asset` (`V2.74`); `AssetCascadeTest` rewritten from block-pins to survival assertions over a shared two-asset fixture
+- [x] §5.1 surrogate PK for `tag_asset` (`V2.71`)
 - [x] §3.1 node results reach the catalog — ~15 writers (one gap left, `asset_doc_comp`)
 - [x] §3.2 component idempotency keys (`V2.38`–`V2.42`)
 - [x] §3.3 `source` split into `node_kind`/`node_id`/`producer_version` (`V2.38`–`V2.42`)
@@ -449,8 +508,6 @@ What is left, in order:
 ### Open — correctness
 
 - [ ] §7.1 promote the unique index to PK on `role_permission`, `user_permission`, `token_permission`
-- [ ] §2.6 cascade `collection_asset`, `tag_asset`, `asset_task`, `asset_user_meta`; update `AssetCascadeTest`
-- [ ] §5.1 surrogate PK for `tag_asset`
 - [ ] §2.4 widen `filekey_*` to `bigint`
 - [ ] §8.4 `reaction` unique index on `task_uuid` + `num_nonnulls` CHECK
 - [ ] §4.3 `cluster` name uniqueness → `(type, name)`
@@ -488,5 +545,5 @@ mvn -q install -pl loom/db/flyway
 mvn -q test -pl loom/db/jooq -Dtest='AssetCascadeTest,AssetComponentKeyTest,EmbeddingDaoTest'
 ```
 
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified against the `V2.63` migration chain; closed findings compacted to one-liners, residual defects and a new "schema with no producer" section kept in detail)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (`V2.74` closes §2.6 outright — comments and reactions about an asset, and its library membership, now go with it, so the only non-cascading asset FKs left are two intentional SET NULLs. `V2.73` had closed the links a library actually writes — `collection_asset`, `asset_task` and `asset_user_meta` now cascade, so an asset that is filed in a collection or referenced by a task can finally be deleted; the collection, the task and its other assets survive. What is left of §2.6 is `comment`/`reaction`, a content decision, plus the dormant `library_asset`. `V2.72` makes the `tag_asset` links cascade both ways, so deleting a tagged asset — previously a 500 — removes the assignment and keeps the tag; §2.6 narrowed to the three remaining links. Earlier: `V2.71` closes §5.1 with a surrogate PK and a `NULLS NOT DISTINCT` placement key, and adds the provenance now recorded as §5.4; §5.2 restated as still open with the reason V2.71 did not take it)_

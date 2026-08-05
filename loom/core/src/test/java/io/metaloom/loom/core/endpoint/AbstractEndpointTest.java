@@ -12,7 +12,9 @@ import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
 import io.metaloom.loom.db.dagger.DaoCollection;
+import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.perm.Permission;
+import io.metaloom.loom.db.model.role.Role;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
 import io.vertx.core.json.JsonArray;
@@ -61,6 +63,44 @@ public abstract class AbstractEndpointTest implements EndpointTest {
 
 		LoomHttpClient client = loom.httpClient();
 		AuthLoginResponse login = client.login("nobody", "secret").sync().body();
+		client.setToken(login.getToken());
+		return client;
+	}
+
+	/**
+	 * Provision a fresh, enabled user holding exactly the given permissions and return a client already logged in as that user.
+	 *
+	 * <p>
+	 * For routes whose required permission set depends on the request: a caller holding one of the two permissions and not the other must be rejected,
+	 * and a permissionless user cannot show that.
+	 * </p>
+	 *
+	 * <p>
+	 * The grant goes through a role and a group rather than {@code user_permission}, whose primary key allows only one direct grant per user.
+	 * </p>
+	 *
+	 * @param username
+	 *            must be unique within the test; the role and the group are named after it
+	 */
+	protected LoomHttpClient loginClientWith(String username, Permission... permissions) throws LoomClientException {
+		DaoCollection daos = daos();
+		User user = daos.userDao().createUser(adminUuid(), username);
+		user.enable();
+		user.setPasswordHash(loom.internal().authService().encodePassword("secret"));
+		daos.userDao().store(user);
+
+		Role role = daos.roleDao().createRole(adminUuid(), username + "-role");
+		daos.roleDao().store(role);
+		for (Permission permission : permissions) {
+			daos.permissionDao().grantRolePermission(role.getUuid(), permission);
+		}
+		Group group = daos.groupDao().create(user, username + "-group");
+		daos.groupDao().store(group);
+		daos.groupDao().addRoleToGroup(group, role);
+		daos.groupDao().addUserToGroup(group, user);
+
+		LoomHttpClient client = loom.httpClient();
+		AuthLoginResponse login = client.login(username, "secret").sync().body();
 		client.setToken(login.getToken());
 		return client;
 	}

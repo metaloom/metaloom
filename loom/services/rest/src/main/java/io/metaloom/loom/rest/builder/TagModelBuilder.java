@@ -24,19 +24,33 @@ public interface TagModelBuilder extends ModelBuilder, UserModelBuilder {
 		return response;
 	}
 
+	/**
+	 * A tag as it appears on an asset.
+	 *
+	 * <p>
+	 * Since V2.71 the reference carries the <em>placement</em>: its own uuid, and who attached it. Both are what a client needs in order to act on one
+	 * occurrence of a tag rather than on all of them, and to tell a machine tag from one a person typed.
+	 * </p>
+	 */
 	default TagReference toReference(Tag tag) {
 		TagReference reference = new TagReference();
 		reference.setName(tag.getName()).setUuid(tag.getUuid());
-		if (tag instanceof AssetTag at && hasRegion(at)) {
-			reference.setArea(tagArea(at));
+		if (tag instanceof AssetTag at) {
+			if (hasRegion(at)) {
+				reference.setArea(tagArea(at));
+			}
+			reference.setPlacementUuid(at.getPlacementUuid());
+			reference.setNodeKind(at.getNodeKind());
+			reference.setNodeId(at.getNodeId());
+			reference.setConfidence(at.getConfidence());
+			reference.setAttached(at.getAttached());
+			reference.setAttachedBy(at.getAttachedBy());
 		}
 		return reference;
 	}
 
 	default boolean hasRegion(AssetTag tag) {
-		return tag.getTimeFrom() != null || tag.getTimeTo() != null
-			|| tag.getAreaStartX() != null || tag.getAreaStartY() != null
-			|| tag.getAreaWidth() != null || tag.getAreaHeight() != null;
+		return tag.hasRegion();
 	}
 
 	default TagListResponse toTagList(Page<Tag> page) {

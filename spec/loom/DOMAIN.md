@@ -82,7 +82,7 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 | **Asset Location** | `asset_location` | Physical placement of the binary: `path` (fs path *within the pool*, or an S3 object key), `filekey_inode`, lock, state, license. **0..n per asset**, natural key `(library_uuid, path)`. Exposed over REST as "binary". | → Asset, Library, Asset Pool | V2.10; `pool_uuid` V2.20; key fixed V2.48; `(pool_uuid, path)` index V2.63 |
 | **Asset Pool** | `asset_pool` | Storage backend — filesystem dir **XOR** S3 bucket (CHECK constraint), free/used space tracked. | ← Asset Location, ← Library, ← Attachment Binary, ← Chat Session | V2.20, V2.24 |
 | **Asset Remix** | `asset_remix` | Derivation/relation link between two assets (`asset_a_uuid`/`asset_b_uuid`). **No DAO, no code references.** | Asset ↔ Asset | V2.8 |
-| **Asset User Meta** | `asset_user_meta` | Per-user metadata overlay (PK `asset_uuid`+`user_uuid`). **No DAO.** | Asset ↔ User | V2.8 |
+| **Asset User Meta** | `asset_user_meta` | Per-user metadata overlay (PK `asset_uuid`+`user_uuid`). **No DAO.** Deleting the asset removes the notes on it (V2.73); the user is untouched. | Asset ↔ User | V2.8, V2.73 |
 | **Attachment** | `attachment`, `attachment_binary` | Derived/auxiliary binaries. `attachment_type` ∈ ASSET_THUMBNAIL, EMBEDDING_ATTACHMENT, CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO. Carries node provenance (`node_kind`/`node_id`/`producer_version`/`variant`/`run_uuid`/`task_uuid`); idempotency is a **partial** unique index `(asset_uuid, type, node_kind, variant) WHERE asset_uuid IS NOT NULL AND node_kind IS NOT NULL`. `attachment_binary` is content-addressed by `sha512sum` and points at a pool. | → Asset (CASCADE), → Embedding (CASCADE), → Asset Pool | V2.13; provenance V2.44; `pool_uuid` V2.63 |
 | **Blacklist** | `blacklist` | Blocked assets (copyright, virus scan) with review count and a `name` label. Identity is `(asset_uuid, creator_uuid)`. | → Asset | V2.14; `name` V2.50 |
 | **Annotation** | `annotation`, `annotation_asset`, `annotation_tag`, `annotation_task` | Time-/area-scoped markers on an asset: FEEDBACK, TAG, CHAPTER (`annotation_type`). `annotation.thumbnail` is superseded by a POSTER_FRAME attachment. `annotation_asset` has no DAO/code references. | → Asset, Tag, Task | V2.16; comment/reaction CASCADE V2.48 |
@@ -92,9 +92,9 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
 | **Space** | `project`, `project_library`, `project_collection` | Outermost workspace grouping libraries + collections. DB table is `project`, exposed as *Space*; permissions renamed to `SPACE_*` in V2.22. Also scopes SPACE-level agent memory via `chat.space_uuid`. | ↔ Library, Collection | V2.11 |
-| **Library** | `library`, `library_asset`, `library_collection` | Container of assets and collections; the scanner root that asset locations belong to. `pool_uuid` decides where uploaded bytes go (NULL = the legacy `LOOM_STORAGE_UPLOAD_DIR`). | ↔ Asset, Collection; ← Asset Location; → Asset Pool (RESTRICT) | V2.9; `pool_uuid` V2.63 |
-| **Collection** | `collection`, `collection_asset`, `collection_cluster`, `tag_collection` | Hierarchical folder grouping assets & clusters. | self-parent; ↔ Asset, Cluster, Tag | V2.7 |
-| **Tag** | `tag`, `tag_asset`, `tag_cluster`, `tag_collection`, `tag_user_meta` | Named label with `rating` and `color`. Uniqueness is `(name, collection)` where `collection` is a **plain varchar namespace**, not an FK. Placement on an asset may be time-/area-scoped (`tag_asset`). | ↔ Asset, Cluster, Collection, Annotation | V2.2 |
+| **Library** | `library`, `library_asset`, `library_collection` | Container of assets and collections; the scanner root that asset locations belong to. `pool_uuid` decides where uploaded bytes go (NULL = the legacy `LOOM_STORAGE_UPLOAD_DIR`). Deleting an asset removes it from its libraries (V2.74); the library survives. The other direction still blocks on purpose — a library cannot be deleted out from under the assets in it. `library_asset` has **no DAO writer yet**. | ↔ Asset (CASCADE V2.74), Collection; ← Asset Location; → Asset Pool (RESTRICT) | V2.9; `pool_uuid` V2.63; asset cascade V2.74 |
+| **Collection** | `collection`, `collection_asset`, `collection_cluster`, `tag_collection` | Hierarchical folder grouping assets & clusters. Membership is not content: deleting an asset takes it out of its collections (V2.73) and the collection keeps everything else in it. | self-parent; ↔ Asset (CASCADE V2.73), Cluster, Tag | V2.7, V2.73 |
+| **Tag** | `tag`, `tag_asset`, `tag_cluster`, `tag_collection`, `tag_user_meta` | Named label with `rating` and `color`. Uniqueness is `(name, collection)` where `collection` is a **plain varchar namespace**, not an FK. Assignments cascade both ways (V2.72): deleting an asset or a tag removes the assignment and nothing else. A tag may be placed on one asset **several times** since V2.71 — once per face, once per timecode — and each placement has its own uuid and records its writer (`node_kind` = `manual` for a person, `node_id`, `producer_version`, `confidence`). | ↔ Asset, Cluster, Collection, Annotation | V2.2, V2.71, V2.72 |
 | **Tag User Meta** | `tag_user_meta` | Per-user rating for a tag (PK `tag_uuid`+`user_uuid`). **No DAO.** | Tag ↔ User | V2.2 |
 
 > **Naming pitfall:** `tag.collection` (varchar namespace, e.g. `people`, `places`) and the
@@ -171,9 +171,9 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
-| **Task** | `task`, `asset_task`, `annotation_task`, `task_assignee` | Workflow item: title, `task_status` ∈ PENDING/REJECTED/ACCEPTED/REVIEW, `task_priority` ∈ LOW/MEDIUM/HIGH/CRITICAL, due date. `task_assignee` says who is **responsible**: one row per target, exactly one of `user_uuid`/`group_uuid` set (CHECK). No PK — nullable targets force two *partial* unique indexes, so jOOQ emits a `TableRecord` and the table is driven from `TaskDaoImpl` like `asset_task`. Group membership is resolved on **read**, so joining a team inherits its work. | ↔ Asset, Annotation; → User/Group (CASCADE) | V2.3; priority enum V2.34; cascade V2.35; assignees V2.69 |
-| **Comment** | `comment` | Threaded comment on a task, asset or annotation. | self-parent; → Task/Asset/Annotation (annotation CASCADE V2.48) | V2.17 |
-| **Reaction** | `reaction` | Social reaction/rating (e.g. thumbsup) on asset, task, comment or annotation. | → Asset/Task/Comment/Annotation | V2.17 |
+| **Task** | `task`, `asset_task`, `annotation_task`, `task_assignee` | Workflow item: title, `task_status` ∈ PENDING/REJECTED/ACCEPTED/REVIEW, `task_priority` ∈ LOW/MEDIUM/HIGH/CRITICAL, due date. `task_assignee` says who is **responsible**: one row per target, exactly one of `user_uuid`/`group_uuid` set (CHECK). No PK — nullable targets force two *partial* unique indexes, so jOOQ emits a `TableRecord` and the table is driven from `TaskDaoImpl` like `asset_task`. Group membership is resolved on **read**, so joining a team inherits its work. A task may be about **several assets**; deleting one of them drops that reference and leaves the task and its other assets in place (V2.73). | ↔ Asset (CASCADE V2.73), Annotation; → User/Group (CASCADE) | V2.3; priority enum V2.34; cascade V2.35; assignees V2.69; asset cascade V2.73 |
+| **Comment** | `comment` | Threaded comment on a task, asset or annotation. A comment about an asset dies with the asset (V2.74), taking its reply subtree and the reactions on it (V2.35); comments on tasks and annotations are unaffected. | self-parent (CASCADE V2.35); → Task/Asset (CASCADE V2.74)/Annotation (CASCADE V2.48) | V2.17, V2.74 |
+| **Reaction** | `reaction` | Social reaction/rating (e.g. thumbsup) on asset, task, comment or annotation. A reaction to an asset dies with it (V2.74); reactions on tasks, comments and annotations are unaffected. | → Asset (CASCADE V2.74)/Task/Comment (CASCADE V2.35)/Annotation | V2.17, V2.74 |
 | **Notification** | `notification` | One durable inbox entry for **one** user. `recipient_uuid` is always a concrete user: a group notification is **fanned out to one row per member at dispatch time**, deliberately the opposite choice to `task_assignee`, because "you were told" is a historical fact while ownership is a live one. `type` is a varchar + CHECK (∈ TASK_ASSIGNED, TASK_UNASSIGNED, TASK_STATUS_CHANGED, TASK_COMMENT, COMMENT_REPLY, PIPELINE_RUN_FAILED) rather than an enum — V2.55 shows what removing an enum value costs. `creator_uuid` is the **actor**, not the recipient, and is nullable for machine-generated events. Subject FKs CASCADE (a bell row that deep-links to a 404 is worse than none); actor and group SET NULL. | → User (recipient CASCADE, actor SET NULL), Task/Comment/PipelineRun/Asset (CASCADE), Group (SET NULL) | V2.70 |
 
 ### 9. Search
@@ -346,14 +346,18 @@ erDiagram
         char color
     }
     tag_asset {
-        uuid tag_uuid PK
-        uuid asset_uuid PK
+        uuid uuid PK "the placement (V2.71)"
+        uuid tag_uuid "UNIQUE NULLS NOT DISTINCT with asset+region"
+        uuid asset_uuid
         int time_from "video range"
         int time_to
         int areaStartX "bounding box"
         int areaStartY
-        int areaWidth
+        int areaWidth "outside the key: resize updates"
         int areaHeight
+        varchar node_kind "'manual' for a person (V2.71)"
+        varchar node_id "the writing pipeline node"
+        real confidence
     }
 ```
 
@@ -491,5 +495,5 @@ ledger row in `asset_node_result`. "The node ran and produced nothing" is expres
 | Test DB pool setup | `./setup-pool.sh` (`io.metaloom.loom.test.PoolSetupRunner`) |
 | Spec index / routing | [../CONTEXT.md](../CONTEXT.md) |
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (rebuilt the entity inventory from the Flyway migrations through V2.63)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (V2.74: comments and reactions about an asset, and its library membership, cascade too - deleting an asset is now possible for every link the system writes. V2.73: collection membership, task references and per-user meta cascade from the asset. V2.72: tag assignments cascade from both sides. V2.71: `tag_asset` rows are placements with their own identity and provenance, so one tag can sit on an asset several times and machine tags are distinguishable from curated ones. Earlier: entity inventory rebuilt from the migrations through V2.63)_

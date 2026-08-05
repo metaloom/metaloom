@@ -343,6 +343,8 @@ from .space import (
     SpaceUpdateRequest,
 )
 from .tag import (
+    AssetTagBulkRequest,
+    AssetTagBulkResponse,
     TagCreateRequest,
     TagListResponse,
     TagRatingRequest,
@@ -417,6 +419,8 @@ __all__ = [
     "AssetReference",
     "AssetResponse",
     "AssetS3Meta",
+    "AssetTagBulkRequest",
+    "AssetTagBulkResponse",
     "AssetUpdateRequest",
     "AttachmentListResponse",
     "AttachmentResponse",

@@ -18,12 +18,16 @@ import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * One durable inbox entry for one user.
+ * One durable inbox entry for one user. Group notifications are fanned out to
+ * one row per member at dispatch time - see the header of V2.70 for why the
+ * audience is resolved when the event happens rather than when the inbox is
+ * read
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotificationRecord> implements Record17<UUID, UUID, String, Boolean, LocalDateTime, String, String, UUID, UUID, UUID, UUID, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
+
     /**
      * Setter for <code>public.notification.uuid</code>.
      */
@@ -37,32 +41,41 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public UUID getUuid() {
         return (UUID) get(0);
     }
+
     /**
-     * Setter for <code>public.notification.recipient_uuid</code>. Always a concrete user, never a group
+     * Setter for <code>public.notification.recipient_uuid</code>. Always a
+     * concrete user, never a group
      */
     public void setRecipientUuid(UUID value) {
         set(1, value);
     }
 
     /**
-     * Getter for <code>public.notification.recipient_uuid</code>. Always a concrete user, never a group
+     * Getter for <code>public.notification.recipient_uuid</code>. Always a
+     * concrete user, never a group
      */
     public UUID getRecipientUuid() {
         return (UUID) get(1);
     }
+
     /**
-     * Setter for <code>public.notification.type</code>. What happened
+     * Setter for <code>public.notification.type</code>. What happened. varchar
+     * + CHECK rather than an enum because this list churns and Postgres cannot
+     * drop an enum value
      */
     public void setType(String value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.notification.type</code>. What happened
+     * Getter for <code>public.notification.type</code>. What happened. varchar
+     * + CHECK rather than an enum because this list churns and Postgres cannot
+     * drop an enum value
      */
     public String getType() {
         return (String) get(2);
     }
+
     /**
      * Setter for <code>public.notification.read</code>.
      */
@@ -76,32 +89,41 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public Boolean getRead() {
         return (Boolean) get(3);
     }
+
     /**
-     * Setter for <code>public.notification.read_at</code>. When the recipient marked it read
+     * Setter for <code>public.notification.read_at</code>. When the recipient
+     * marked it read. Null while unread
      */
     public void setReadAt(LocalDateTime value) {
         set(4, value);
     }
 
     /**
-     * Getter for <code>public.notification.read_at</code>. When the recipient marked it read
+     * Getter for <code>public.notification.read_at</code>. When the recipient
+     * marked it read. Null while unread
      */
     public LocalDateTime getReadAt() {
         return (LocalDateTime) get(4);
     }
+
     /**
-     * Setter for <code>public.notification.title</code>. Pre-rendered summary line
+     * Setter for <code>public.notification.title</code>. Pre-rendered summary
+     * line. Rendered at dispatch so the inbox does not have to re-resolve
+     * deleted subjects at read time
      */
     public void setTitle(String value) {
         set(5, value);
     }
 
     /**
-     * Getter for <code>public.notification.title</code>. Pre-rendered summary line
+     * Getter for <code>public.notification.title</code>. Pre-rendered summary
+     * line. Rendered at dispatch so the inbox does not have to re-resolve
+     * deleted subjects at read time
      */
     public String getTitle() {
         return (String) get(5);
     }
+
     /**
      * Setter for <code>public.notification.body</code>.
      */
@@ -115,6 +137,7 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public String getBody() {
         return (String) get(6);
     }
+
     /**
      * Setter for <code>public.notification.task_uuid</code>.
      */
@@ -128,6 +151,7 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public UUID getTaskUuid() {
         return (UUID) get(7);
     }
+
     /**
      * Setter for <code>public.notification.comment_uuid</code>.
      */
@@ -141,6 +165,7 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public UUID getCommentUuid() {
         return (UUID) get(8);
     }
+
     /**
      * Setter for <code>public.notification.pipeline_run_uuid</code>.
      */
@@ -154,6 +179,7 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public UUID getPipelineRunUuid() {
         return (UUID) get(9);
     }
+
     /**
      * Setter for <code>public.notification.asset_uuid</code>.
      */
@@ -167,32 +193,39 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public UUID getAssetUuid() {
         return (UUID) get(10);
     }
+
     /**
-     * Setter for <code>public.notification.via_group_uuid</code>. The group through which the recipient was reached
+     * Setter for <code>public.notification.via_group_uuid</code>. The group
+     * through which the recipient was reached, when it was not a direct
+     * mention. Explanatory only
      */
     public void setViaGroupUuid(UUID value) {
         set(11, value);
     }
 
     /**
-     * Getter for <code>public.notification.via_group_uuid</code>. The group through which the recipient was reached
+     * Getter for <code>public.notification.via_group_uuid</code>. The group
+     * through which the recipient was reached, when it was not a direct
+     * mention. Explanatory only
      */
     public UUID getViaGroupUuid() {
         return (UUID) get(11);
     }
+
     /**
-     * Setter for <code>public.notification.meta</code>. Custom meta properties
+     * Setter for <code>public.notification.meta</code>.
      */
     public void setMeta(JsonObject value) {
         set(12, value);
     }
 
     /**
-     * Getter for <code>public.notification.meta</code>. Custom meta properties
+     * Getter for <code>public.notification.meta</code>.
      */
     public JsonObject getMeta() {
         return (JsonObject) get(12);
     }
+
     /**
      * Setter for <code>public.notification.created</code>.
      */
@@ -206,19 +239,25 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public LocalDateTime getCreated() {
         return (LocalDateTime) get(13);
     }
+
     /**
-     * Setter for <code>public.notification.creator_uuid</code>. The ACTOR whose action produced this, not the recipient
+     * Setter for <code>public.notification.creator_uuid</code>. The ACTOR whose
+     * action produced this, not the recipient. Null for machine-generated
+     * events such as a failed pipeline run
      */
     public void setCreatorUuid(UUID value) {
         set(14, value);
     }
 
     /**
-     * Getter for <code>public.notification.creator_uuid</code>. The ACTOR whose action produced this, not the recipient
+     * Getter for <code>public.notification.creator_uuid</code>. The ACTOR whose
+     * action produced this, not the recipient. Null for machine-generated
+     * events such as a failed pipeline run
      */
     public UUID getCreatorUuid() {
         return (UUID) get(14);
     }
+
     /**
      * Setter for <code>public.notification.edited</code>.
      */
@@ -232,6 +271,7 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public LocalDateTime getEdited() {
         return (LocalDateTime) get(15);
     }
+
     /**
      * Setter for <code>public.notification.editor_uuid</code>.
      */
@@ -245,6 +285,7 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public UUID getEditorUuid() {
         return (UUID) get(16);
     }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -267,295 +308,364 @@ public class JooqNotificationRecord extends UpdatableRecordImpl<JooqNotification
     public Row17<UUID, UUID, String, Boolean, LocalDateTime, String, String, UUID, UUID, UUID, UUID, UUID, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
         return (Row17) super.valuesRow();
     }
+
     @Override
     public Field<UUID> field1() {
         return JooqNotification.NOTIFICATION.UUID;
     }
+
     @Override
     public Field<UUID> field2() {
         return JooqNotification.NOTIFICATION.RECIPIENT_UUID;
     }
+
     @Override
     public Field<String> field3() {
         return JooqNotification.NOTIFICATION.TYPE;
     }
+
     @Override
     public Field<Boolean> field4() {
         return JooqNotification.NOTIFICATION.READ;
     }
+
     @Override
     public Field<LocalDateTime> field5() {
         return JooqNotification.NOTIFICATION.READ_AT;
     }
+
     @Override
     public Field<String> field6() {
         return JooqNotification.NOTIFICATION.TITLE;
     }
+
     @Override
     public Field<String> field7() {
         return JooqNotification.NOTIFICATION.BODY;
     }
+
     @Override
     public Field<UUID> field8() {
         return JooqNotification.NOTIFICATION.TASK_UUID;
     }
+
     @Override
     public Field<UUID> field9() {
         return JooqNotification.NOTIFICATION.COMMENT_UUID;
     }
+
     @Override
     public Field<UUID> field10() {
         return JooqNotification.NOTIFICATION.PIPELINE_RUN_UUID;
     }
+
     @Override
     public Field<UUID> field11() {
         return JooqNotification.NOTIFICATION.ASSET_UUID;
     }
+
     @Override
     public Field<UUID> field12() {
         return JooqNotification.NOTIFICATION.VIA_GROUP_UUID;
     }
+
     @Override
     public Field<JsonObject> field13() {
         return JooqNotification.NOTIFICATION.META;
     }
+
     @Override
     public Field<LocalDateTime> field14() {
         return JooqNotification.NOTIFICATION.CREATED;
     }
+
     @Override
     public Field<UUID> field15() {
         return JooqNotification.NOTIFICATION.CREATOR_UUID;
     }
+
     @Override
     public Field<LocalDateTime> field16() {
         return JooqNotification.NOTIFICATION.EDITED;
     }
+
     @Override
     public Field<UUID> field17() {
         return JooqNotification.NOTIFICATION.EDITOR_UUID;
     }
+
     @Override
     public UUID component1() {
         return getUuid();
     }
+
     @Override
     public UUID component2() {
         return getRecipientUuid();
     }
+
     @Override
     public String component3() {
         return getType();
     }
+
     @Override
     public Boolean component4() {
         return getRead();
     }
+
     @Override
     public LocalDateTime component5() {
         return getReadAt();
     }
+
     @Override
     public String component6() {
         return getTitle();
     }
+
     @Override
     public String component7() {
         return getBody();
     }
+
     @Override
     public UUID component8() {
         return getTaskUuid();
     }
+
     @Override
     public UUID component9() {
         return getCommentUuid();
     }
+
     @Override
     public UUID component10() {
         return getPipelineRunUuid();
     }
+
     @Override
     public UUID component11() {
         return getAssetUuid();
     }
+
     @Override
     public UUID component12() {
         return getViaGroupUuid();
     }
+
     @Override
     public JsonObject component13() {
         return getMeta();
     }
+
     @Override
     public LocalDateTime component14() {
         return getCreated();
     }
+
     @Override
     public UUID component15() {
         return getCreatorUuid();
     }
+
     @Override
     public LocalDateTime component16() {
         return getEdited();
     }
+
     @Override
     public UUID component17() {
         return getEditorUuid();
     }
+
     @Override
     public UUID value1() {
         return getUuid();
     }
+
     @Override
     public UUID value2() {
         return getRecipientUuid();
     }
+
     @Override
     public String value3() {
         return getType();
     }
+
     @Override
     public Boolean value4() {
         return getRead();
     }
+
     @Override
     public LocalDateTime value5() {
         return getReadAt();
     }
+
     @Override
     public String value6() {
         return getTitle();
     }
+
     @Override
     public String value7() {
         return getBody();
     }
+
     @Override
     public UUID value8() {
         return getTaskUuid();
     }
+
     @Override
     public UUID value9() {
         return getCommentUuid();
     }
+
     @Override
     public UUID value10() {
         return getPipelineRunUuid();
     }
+
     @Override
     public UUID value11() {
         return getAssetUuid();
     }
+
     @Override
     public UUID value12() {
         return getViaGroupUuid();
     }
+
     @Override
     public JsonObject value13() {
         return getMeta();
     }
+
     @Override
     public LocalDateTime value14() {
         return getCreated();
     }
+
     @Override
     public UUID value15() {
         return getCreatorUuid();
     }
+
     @Override
     public LocalDateTime value16() {
         return getEdited();
     }
+
     @Override
     public UUID value17() {
         return getEditorUuid();
     }
+
     @Override
     public JooqNotificationRecord value1(UUID value) {
         setUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value2(UUID value) {
         setRecipientUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value3(String value) {
         setType(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value4(Boolean value) {
         setRead(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value5(LocalDateTime value) {
         setReadAt(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value6(String value) {
         setTitle(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value7(String value) {
         setBody(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value8(UUID value) {
         setTaskUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value9(UUID value) {
         setCommentUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value10(UUID value) {
         setPipelineRunUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value11(UUID value) {
         setAssetUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value12(UUID value) {
         setViaGroupUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value13(JsonObject value) {
         setMeta(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value14(LocalDateTime value) {
         setCreated(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value15(UUID value) {
         setCreatorUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value16(LocalDateTime value) {
         setEdited(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord value17(UUID value) {
         setEditorUuid(value);
         return this;
     }
+
     @Override
     public JooqNotificationRecord values(UUID value1, UUID value2, String value3, Boolean value4, LocalDateTime value5, String value6, String value7, UUID value8, UUID value9, UUID value10, UUID value11, UUID value12, JsonObject value13, LocalDateTime value14, UUID value15, LocalDateTime value16, UUID value17) {
         value1(value1);

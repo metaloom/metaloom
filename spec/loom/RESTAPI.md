@@ -252,7 +252,8 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/assets/bulk/create` | POST | Literal prefix — registered before the `:uuid` wildcard |
 | `/assets/bulk/update` | POST | ″ |
 | `/assets/upload` | POST | Multipart, creates an asset from raw bytes |
-| `/assets/:uuid/tags` · `/tags/:tagUuid` | POST · DELETE | Tag / untag |
+| `/assets/:uuid/tags` · `/tags/:tagUuid` | POST, **PUT** · DELETE | Tag / untag. PUT applies a whole set in one transaction — see below. DELETE removes **every** placement of the tag |
+| `/assets/:uuid/tag-placements/:placementUuid` | DELETE | Remove **one** placement, keeping the tag's others. `UNTAG_ASSET`; 404 when the placement belongs to another asset |
 | `/assets/:uuid/tasks` · `/tasks/:taskUuid` | GET · POST, DELETE | Assign / unassign existing tasks |
 | `/assets/:uuid/reactions` · `/reactions/:reactionUuid` | POST, GET · GET, POST, DELETE | |
 | `/assets/:uuid/comments` | POST, GET | |
@@ -271,6 +272,39 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 
 Byte routes, storage backends and the on-disk/S3 layout:
 [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md).
+
+**`PUT /assets/:uuid/tags` — the bulk tagging route.** Tagging one tag per request does not survive a
+library: five tags over a hundred thousand assets is half a million `POST`s, half a million
+transactions and half a million rebuilds of the same search document. The `PUT` carries the set:
+
+```json
+{ "collection": "quality",
+  "tags": [ {"name": "blurry"}, {"name": "amber", "collection": "colors"} ],
+  "withdraw": [ "<tag-uuid>" ] }
+```
+
+- Entries are **upserted** on the tag's natural key, so an existing name is attached rather than
+  duplicated, and re-sending the same set changes nothing. `collection` is the default for entries
+  that do not name one.
+- The whole request is **one transaction** (`TagDao.bulkTagAsset`), so an asset is never left half
+  tagged. The `search_document` trigger is still row-level, so the refresh count is unchanged — what
+  the route removes is the round trips and the transactions, not the trigger.
+- 🔴 **`withdraw` names uuids and removes exactly those**, never "everything not in `tags`". The
+  desired-set reading remains unavailable: `tag_asset` now records *who* wrote a placement (`V2.71`),
+  but not which of a writer's earlier answers it stands behind, so "delete the rest" would still
+  discard tags the caller never meant to touch.
+- **Provenance travels with the request.** `nodeKind`, `nodeId` and `producerVersion` may be set on
+  the request (defaults for every entry) or per entry; `confidence` is per entry. A caller that says
+  nothing is recorded as `manual`, i.e. a person. Since `V2.71` those land on the placement row and
+  come back on `TagReference` — `placementUuid`, `nodeKind`, `nodeId`, `confidence`, `attached`,
+  `attachedBy` — which is how a client tells machine tags from curated ones.
+- 🔴 **A writer that names itself withdraws only its own placements.** With one tag able to sit on an
+  asset several times, `withdraw` scoped by tag alone would take a person's placement of the same
+  name along with the node's. A request carrying `nodeId` deletes only rows with that `node_id`; a
+  person's request (no `nodeId`) removes them all, which is what an untag means from a human.
+- Permissions depend on the request: `TAG_ASSET`, plus `UNTAG_ASSET` when `withdraw` is non-empty
+  (`checkPerms`, the all-or-nothing variant). A caller holding only the first is refused the whole
+  call rather than served the attachments and denied the removals.
 
 ### 4.5 Pipelines
 
@@ -728,5 +762,5 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
 
 ---
 
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Pipeline node re-execution route, with the first per-option validation in the API. Earlier: the run-item `/tasks` and preview routes, and the four breakpoint/stepping routes. Earlier: annotation comment sub-resource; role `permissions` persisted and returned)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (tag placements: `V2.71` lets one tag sit on an asset several times, so `TagReference` now carries `placementUuid` and the provenance of the placement, and `DELETE /assets/:uuid/tag-placements/:placementUuid` removes one of them. Earlier the same day: `PUT /assets/:uuid/tags`, the bulk tagging route: one transaction, withdrawal by uuid, and the first route whose required permission set depends on the request. Earlier: pipeline node re-execution route, with the first per-option validation in the API. Earlier: the run-item `/tasks` and preview routes, and the four breakpoint/stepping routes. Earlier: annotation comment sub-resource; role `permissions` persisted and returned)_

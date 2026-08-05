@@ -138,7 +138,9 @@ authoritative list.
 | POST   | `/api/v1/assets/:uuid` | Update asset by UUID
 | DELETE | `/api/v1/assets/:uuid` | Delete asset by UUID
 | POST   | `/api/v1/assets/:uuid/tags` | Add tag to asset
-| DELETE | `/api/v1/assets/:uuid/tags/:tagUuid` | Remove tag from asset
+| PUT    | `/api/v1/assets/:uuid/tags` | Add a whole set of tags at once, and remove the ones listed in `withdraw`
+| DELETE | `/api/v1/assets/:uuid/tags/:tagUuid` | Remove tag from asset, with every placement of it
+| DELETE | `/api/v1/assets/:uuid/tag-placements/:placementUuid` | Remove one placement of a tag — one face, one timecode — keeping the others
 | POST   | `/api/v1/assets/:uuid/reactions` | Add reaction
 | GET    | `/api/v1/assets/:uuid/reactions` | List reactions
 | GET    | `/api/v1/assets/:uuid/reactions/:reactionUuid` | Load reaction

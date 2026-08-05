@@ -37,7 +37,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: fail this test rather than quietly leave the Python client behind.
 #: 211 abstract declarations plus 21 ``default`` overloads. Cross-checked both ways
 #: against ``LoomHttpClientImpl``, which implements exactly these 232.
-EXPECTED_JAVA_METHOD_COUNT = 246
+EXPECTED_JAVA_METHOD_COUNT = 248
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -317,8 +317,8 @@ class ServerRouteParityTest(unittest.TestCase):
         rejected = {n for n, verb, p in self.routes if verb == "ERROR"}
         self.assertEqual(
             len(rejected),
-            16,
-            f"expected the 16 asset sub-resource methods to reject a hash, got {sorted(rejected)}",
+            18,
+            f"expected the 18 asset sub-resource methods to reject a hash, got {sorted(rejected)}",
         )
         for name, verb, path in self.routes:
             if verb == "ERROR":

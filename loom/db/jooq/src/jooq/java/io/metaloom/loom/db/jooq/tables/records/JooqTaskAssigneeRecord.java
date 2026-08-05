@@ -17,7 +17,9 @@ import org.jooq.impl.TableRecordImpl;
 
 /**
  * Who is responsible for a task: a user or a group, one target per row, several
- * rows per task.
+ * rows per task. Written by explicit insert/delete on TaskDaoImpl like
+ * asset_task - it has no uuid and therefore no DAO of its own, and jOOQ
+ * generates a TableRecord rather than an UpdatableRecord for it
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqTaskAssigneeRecord extends TableRecordImpl<JooqTaskAssigneeRecord> implements Record5<UUID, UUID, UUID, LocalDateTime, UUID> {
@@ -39,56 +41,70 @@ public class JooqTaskAssigneeRecord extends TableRecordImpl<JooqTaskAssigneeReco
     }
 
     /**
-     * Setter for <code>public.task_assignee.user_uuid</code>.
+     * Setter for <code>public.task_assignee.user_uuid</code>. The assigned
+     * user. Null when this row assigns to a group instead
      */
     public void setUserUuid(UUID value) {
         set(1, value);
     }
 
     /**
-     * Getter for <code>public.task_assignee.user_uuid</code>.
+     * Getter for <code>public.task_assignee.user_uuid</code>. The assigned
+     * user. Null when this row assigns to a group instead
      */
     public UUID getUserUuid() {
         return (UUID) get(1);
     }
 
     /**
-     * Setter for <code>public.task_assignee.group_uuid</code>.
+     * Setter for <code>public.task_assignee.group_uuid</code>. The assigned ACL
+     * group. Membership is resolved on read, not snapshotted here, so adding
+     * someone to the group hands them the task
      */
     public void setGroupUuid(UUID value) {
         set(2, value);
     }
 
     /**
-     * Getter for <code>public.task_assignee.group_uuid</code>.
+     * Getter for <code>public.task_assignee.group_uuid</code>. The assigned ACL
+     * group. Membership is resolved on read, not snapshotted here, so adding
+     * someone to the group hands them the task
      */
     public UUID getGroupUuid() {
         return (UUID) get(2);
     }
 
     /**
-     * Setter for <code>public.task_assignee.assigned</code>.
+     * Setter for <code>public.task_assignee.assigned</code>. When the
+     * assignment was made
      */
     public void setAssigned(LocalDateTime value) {
         set(3, value);
     }
 
     /**
-     * Getter for <code>public.task_assignee.assigned</code>.
+     * Getter for <code>public.task_assignee.assigned</code>. When the
+     * assignment was made
      */
     public LocalDateTime getAssigned() {
         return (LocalDateTime) get(3);
     }
 
     /**
-     * Setter for <code>public.task_assignee.assigner_uuid</code>.
+     * Setter for <code>public.task_assignee.assigner_uuid</code>. Who made the
+     * assignment. Nullable: the assigner may since have been deleted, and a
+     * machine-made assignment has none. This is what lets a notification say
+     * who assigned you, and what self-notification suppression tests against
      */
     public void setAssignerUuid(UUID value) {
         set(4, value);
     }
 
     /**
-     * Getter for <code>public.task_assignee.assigner_uuid</code>.
+     * Getter for <code>public.task_assignee.assigner_uuid</code>. Who made the
+     * assignment. Nullable: the assigner may since have been deleted, and a
+     * machine-made assignment has none. This is what lets a notification say
+     * who assigned you, and what self-notification suppression tests against
      */
     public UUID getAssignerUuid() {
         return (UUID) get(4);

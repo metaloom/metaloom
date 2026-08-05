@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.api.annotation.AnnotationType;
+import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.asset.Asset;
@@ -99,7 +100,7 @@ public class AnnotationDaoTest extends AbstractJooqTest {
 		User user = dummyUser();
 		Annotation annotation = storeAnnotation(user, asset());
 
-		Reaction reaction = reactionDao().createReaction(user, "thumbsup");
+		Reaction reaction = reactionDao().createReaction(user, ReactionType.THUMBSUP.name());
 		reaction.setAnnotationUuid(annotation.getUuid());
 		reactionDao().store(reaction);
 

@@ -124,8 +124,8 @@ public enum Permission {
 	READ_TAG,                 // doc:yes  ui:yes test:TagEndpointTest (403 cases)
 	DELETE_TAG,               // doc:yes  ui:yes test:TagEndpointTest (403 cases)
 	UPDATE_TAG,               // doc:yes  ui:yes test:none
-	TAG_ASSET,                // doc:yes  ui:yes test:none
-	UNTAG_ASSET,              // doc:yes  ui:yes test:none
+	TAG_ASSET,                // doc:yes  ui:yes test:TagAssetEndpointTest (403 cases)
+	UNTAG_ASSET,              // doc:yes  ui:yes test:TagAssetEndpointTest (403 cases)
 
 	// Token
 	CREATE_TOKEN,             // doc:yes  ui:yes test:none

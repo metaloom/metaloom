@@ -6,20 +6,23 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 import io.metaloom.loom.db.jooq.tables.JooqTagAsset;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Field;
-import org.jooq.Record2;
-import org.jooq.Record8;
-import org.jooq.Row8;
+import org.jooq.Record1;
+import org.jooq.Record15;
+import org.jooq.Row15;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Store tag &lt;-&gt; asset reference
+ * Placements of a tag on an asset. One row per (tag, asset, region); an
+ * asset-level tag has NULL in every region column. Rows written before V2.71
+ * are labelled node_kind = manual because nothing recorded their author.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> implements Record8<UUID, UUID, Integer, Integer, Integer, Integer, Integer, Integer> {
+public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> implements Record15<UUID, UUID, Integer, Integer, Integer, Integer, Integer, Integer, UUID, String, String, String, Float, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -135,27 +138,147 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
         return (Integer) get(7);
     }
 
+    /**
+     * Setter for <code>public.tag_asset.uuid</code>. Identity of the placement,
+     * which is what a caller removes when it wants one region rather than every
+     * occurrence of the tag
+     */
+    public void setUuid(UUID value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.tag_asset.uuid</code>. Identity of the placement,
+     * which is what a caller removes when it wants one region rather than every
+     * occurrence of the tag
+     */
+    public UUID getUuid() {
+        return (UUID) get(8);
+    }
+
+    /**
+     * Setter for <code>public.tag_asset.node_kind</code>. Which node kind
+     * attached the tag; the literal "manual" for a person
+     */
+    public void setNodeKind(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.tag_asset.node_kind</code>. Which node kind
+     * attached the tag; the literal "manual" for a person
+     */
+    public String getNodeKind() {
+        return (String) get(9);
+    }
+
+    /**
+     * Setter for <code>public.tag_asset.node_id</code>. Pipeline node id of the
+     * writer, so two instances of one node kind stay distinguishable. NULL for
+     * a person
+     */
+    public void setNodeId(String value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.tag_asset.node_id</code>. Pipeline node id of the
+     * writer, so two instances of one node kind stay distinguishable. NULL for
+     * a person
+     */
+    public String getNodeId() {
+        return (String) get(10);
+    }
+
+    /**
+     * Setter for <code>public.tag_asset.producer_version</code>. Version of the
+     * answer the writer stands behind; changes when the meaning of the tag
+     * changes
+     */
+    public void setProducerVersion(String value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.tag_asset.producer_version</code>. Version of the
+     * answer the writer stands behind; changes when the meaning of the tag
+     * changes
+     */
+    public String getProducerVersion() {
+        return (String) get(11);
+    }
+
+    /**
+     * Setter for <code>public.tag_asset.confidence</code>. How sure the writer
+     * was, 0.0 - 1.0. NULL when the question does not apply, which is the
+     * normal case for a person
+     */
+    public void setConfidence(Float value) {
+        set(12, value);
+    }
+
+    /**
+     * Getter for <code>public.tag_asset.confidence</code>. How sure the writer
+     * was, 0.0 - 1.0. NULL when the question does not apply, which is the
+     * normal case for a person
+     */
+    public Float getConfidence() {
+        return (Float) get(12);
+    }
+
+    /**
+     * Setter for <code>public.tag_asset.created</code>.
+     */
+    public void setCreated(LocalDateTime value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.tag_asset.created</code>.
+     */
+    public LocalDateTime getCreated() {
+        return (LocalDateTime) get(13);
+    }
+
+    /**
+     * Setter for <code>public.tag_asset.creator_uuid</code>. The principal that
+     * made the call, person or worker token. Authorship is node_kind; this is
+     * accountability
+     */
+    public void setCreatorUuid(UUID value) {
+        set(14, value);
+    }
+
+    /**
+     * Getter for <code>public.tag_asset.creator_uuid</code>. The principal that
+     * made the call, person or worker token. Authorship is node_kind; this is
+     * accountability
+     */
+    public UUID getCreatorUuid() {
+        return (UUID) get(14);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
 
     @Override
-    public Record2<UUID, UUID> key() {
-        return (Record2) super.key();
+    public Record1<UUID> key() {
+        return (Record1) super.key();
     }
 
     // -------------------------------------------------------------------------
-    // Record8 type implementation
+    // Record15 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<UUID, UUID, Integer, Integer, Integer, Integer, Integer, Integer> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row15<UUID, UUID, Integer, Integer, Integer, Integer, Integer, Integer, UUID, String, String, String, Float, LocalDateTime, UUID> fieldsRow() {
+        return (Row15) super.fieldsRow();
     }
 
     @Override
-    public Row8<UUID, UUID, Integer, Integer, Integer, Integer, Integer, Integer> valuesRow() {
-        return (Row8) super.valuesRow();
+    public Row15<UUID, UUID, Integer, Integer, Integer, Integer, Integer, Integer, UUID, String, String, String, Float, LocalDateTime, UUID> valuesRow() {
+        return (Row15) super.valuesRow();
     }
 
     @Override
@@ -199,6 +322,41 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
     }
 
     @Override
+    public Field<UUID> field9() {
+        return JooqTagAsset.TAG_ASSET.UUID;
+    }
+
+    @Override
+    public Field<String> field10() {
+        return JooqTagAsset.TAG_ASSET.NODE_KIND;
+    }
+
+    @Override
+    public Field<String> field11() {
+        return JooqTagAsset.TAG_ASSET.NODE_ID;
+    }
+
+    @Override
+    public Field<String> field12() {
+        return JooqTagAsset.TAG_ASSET.PRODUCER_VERSION;
+    }
+
+    @Override
+    public Field<Float> field13() {
+        return JooqTagAsset.TAG_ASSET.CONFIDENCE;
+    }
+
+    @Override
+    public Field<LocalDateTime> field14() {
+        return JooqTagAsset.TAG_ASSET.CREATED;
+    }
+
+    @Override
+    public Field<UUID> field15() {
+        return JooqTagAsset.TAG_ASSET.CREATOR_UUID;
+    }
+
+    @Override
     public UUID component1() {
         return getTagUuid();
     }
@@ -239,6 +397,41 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
     }
 
     @Override
+    public UUID component9() {
+        return getUuid();
+    }
+
+    @Override
+    public String component10() {
+        return getNodeKind();
+    }
+
+    @Override
+    public String component11() {
+        return getNodeId();
+    }
+
+    @Override
+    public String component12() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public Float component13() {
+        return getConfidence();
+    }
+
+    @Override
+    public LocalDateTime component14() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID component15() {
+        return getCreatorUuid();
+    }
+
+    @Override
     public UUID value1() {
         return getTagUuid();
     }
@@ -276,6 +469,41 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
     @Override
     public Integer value8() {
         return getAreaheight();
+    }
+
+    @Override
+    public UUID value9() {
+        return getUuid();
+    }
+
+    @Override
+    public String value10() {
+        return getNodeKind();
+    }
+
+    @Override
+    public String value11() {
+        return getNodeId();
+    }
+
+    @Override
+    public String value12() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public Float value13() {
+        return getConfidence();
+    }
+
+    @Override
+    public LocalDateTime value14() {
+        return getCreated();
+    }
+
+    @Override
+    public UUID value15() {
+        return getCreatorUuid();
     }
 
     @Override
@@ -327,7 +555,49 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
     }
 
     @Override
-    public JooqTagAssetRecord values(UUID value1, UUID value2, Integer value3, Integer value4, Integer value5, Integer value6, Integer value7, Integer value8) {
+    public JooqTagAssetRecord value9(UUID value) {
+        setUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqTagAssetRecord value10(String value) {
+        setNodeKind(value);
+        return this;
+    }
+
+    @Override
+    public JooqTagAssetRecord value11(String value) {
+        setNodeId(value);
+        return this;
+    }
+
+    @Override
+    public JooqTagAssetRecord value12(String value) {
+        setProducerVersion(value);
+        return this;
+    }
+
+    @Override
+    public JooqTagAssetRecord value13(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqTagAssetRecord value14(LocalDateTime value) {
+        setCreated(value);
+        return this;
+    }
+
+    @Override
+    public JooqTagAssetRecord value15(UUID value) {
+        setCreatorUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqTagAssetRecord values(UUID value1, UUID value2, Integer value3, Integer value4, Integer value5, Integer value6, Integer value7, Integer value8, UUID value9, String value10, String value11, String value12, Float value13, LocalDateTime value14, UUID value15) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -336,6 +606,13 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
         value6(value6);
         value7(value7);
         value8(value8);
+        value9(value9);
+        value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
         return this;
     }
 
@@ -353,7 +630,7 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
     /**
      * Create a detached, initialised JooqTagAssetRecord
      */
-    public JooqTagAssetRecord(UUID tagUuid, UUID assetUuid, Integer timeFrom, Integer timeTo, Integer areastartx, Integer areastarty, Integer areawidth, Integer areaheight) {
+    public JooqTagAssetRecord(UUID tagUuid, UUID assetUuid, Integer timeFrom, Integer timeTo, Integer areastartx, Integer areastarty, Integer areawidth, Integer areaheight, UUID uuid, String nodeKind, String nodeId, String producerVersion, Float confidence, LocalDateTime created, UUID creatorUuid) {
         super(JooqTagAsset.TAG_ASSET);
 
         setTagUuid(tagUuid);
@@ -364,5 +641,12 @@ public class JooqTagAssetRecord extends UpdatableRecordImpl<JooqTagAssetRecord> 
         setAreastarty(areastarty);
         setAreawidth(areawidth);
         setAreaheight(areaheight);
+        setUuid(uuid);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setConfidence(confidence);
+        setCreated(created);
+        setCreatorUuid(creatorUuid);
     }
 }

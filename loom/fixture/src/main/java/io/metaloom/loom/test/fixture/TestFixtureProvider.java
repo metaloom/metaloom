@@ -6,6 +6,7 @@ import java.util.UUID;
 import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.api.attachment.AttachmentType;
 import io.metaloom.loom.api.embedding.EmbeddingType;
+import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.core.dagger.LoomCoreComponent;
 import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.asset.Asset;
@@ -131,8 +132,13 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		return chat;
 	}
 
+	/**
+	 * {@code reaction.type} is a plain varchar, but the REST layer round-trips it through {@link ReactionType}: the create path stores
+	 * {@code type.name()} and {@code ReactionModelBuilder.toResponse} reads it back with {@code valueOf}. A fixture row whose type is not an enum
+	 * <b>constant name</b> therefore makes every REST read of that reaction answer 500, so these four must use {@code name()} and nothing else.
+	 */
 	private Reaction reactOn(UUID uuid, User user, Asset asset) {
-		Reaction reaction = reactionDao().createReaction(user, IMAGE_MIMETYPE);
+		Reaction reaction = reactionDao().createReaction(user, ReactionType.THUMBSUP.name());
 		reaction.setUuid(uuid);
 		reaction.setAssetUuid(asset.getUuid());
 		reactionDao().store(reaction);
@@ -140,7 +146,7 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 	}
 
 	private Reaction reactOn(UUID uuid, User user, Task task) {
-		Reaction reaction = reactionDao().createReaction(user, IMAGE_MIMETYPE);
+		Reaction reaction = reactionDao().createReaction(user, ReactionType.PLUS_ONE.name());
 		reaction.setUuid(uuid);
 		reaction.setTaskUuid(task.getUuid());
 		reactionDao().store(reaction);
@@ -148,7 +154,7 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 	}
 
 	private Reaction reactOn(UUID uuid, User user, Comment comment) {
-		Reaction reaction = reactionDao().createReaction(user, IMAGE_MIMETYPE);
+		Reaction reaction = reactionDao().createReaction(user, ReactionType.SATISFIED.name());
 		reaction.setUuid(uuid);
 		reaction.setCommentUuid(comment.getUuid());
 		reactionDao().store(reaction);
@@ -156,7 +162,7 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 	}
 
 	private Reaction reactOn(UUID uuid, User user, Annotation task) {
-		Reaction reaction = reactionDao().createReaction(user, "thumbsup");
+		Reaction reaction = reactionDao().createReaction(user, ReactionType.THUMBSUP.name());
 		reaction.setUuid(uuid);
 		reaction.setAnnotationUuid(task.getUuid());
 		reactionDao().store(reaction);

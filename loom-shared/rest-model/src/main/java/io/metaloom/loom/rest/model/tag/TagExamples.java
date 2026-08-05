@@ -23,6 +23,14 @@ public interface TagExamples extends ExampleValues {
 		return new ExampleImpl(tagListResponse(), "The tag list response", HttpResponseStatus.OK);
 	}
 
+	default Example assetTagBulkRequestExample() {
+		return new ExampleImpl(assetTagBulkRequest(), "The bulk asset tagging request", HttpResponseStatus.OK);
+	}
+
+	default Example assetTagBulkResponseExample() {
+		return new ExampleImpl(assetTagBulkResponse(), "The bulk asset tagging response", HttpResponseStatus.OK);
+	}
+
 	default Example tagRatingRequestExample() {
 		return new ExampleImpl(tagRatingRequest(), "The tag rating request", HttpResponseStatus.OK);
 	}
@@ -76,6 +84,24 @@ public interface TagExamples extends ExampleValues {
 		model.setMetainfo(pagingInfo());
 		model.add(tagResponse());
 		model.add(tagResponse());
+		return model;
+	}
+
+	default AssetTagBulkRequest assetTagBulkRequest() {
+		AssetTagBulkRequest model = new AssetTagBulkRequest();
+		model.setCollection("colors");
+		model.add(new TagCreateRequest().setName("red").setCollection("colors"));
+		model.add(new TagCreateRequest().setName("amber").setCollection("colors"));
+		model.withdraw(uuidA());
+		return model;
+	}
+
+	default AssetTagBulkResponse assetTagBulkResponse() {
+		AssetTagBulkResponse model = new AssetTagBulkResponse();
+		model.add(tagResponse());
+		model.setTotal(2);
+		model.setApplied(2);
+		model.setWithdrawn(1);
 		return model;
 	}
 

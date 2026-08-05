@@ -95,7 +95,24 @@ itself instead of leaving the old verdict behind.
 
 It will only ever remove a tag it can prove it wrote: one that is in its own record from a previous
 run *and* in the collection it writes into. A tag you added by hand, or one a different Tag node
-applied, is never touched.
+applied, is never touched — and the server enforces the same rule from its side, because every tag on
+an asset records who put it there.
+
+Adding and removing happen together in a single write, so an asset is never left carrying the new
+verdict alongside the old one. The flip side is that a worker which is allowed to tag but not to
+untag cannot do half the job: with **Remove withdrawn** on it will report the item as failed rather
+than quietly adding without removing.
+
+== Telling machine tags from your own
+
+Every tag on an asset carries the name of whatever attached it — a node, or `manual` when a person
+did — along with the confidence and the time. Tags you typed and tags a pipeline worked out sit side
+by side and stay distinguishable, so a view can show them differently, or hide the machine ones, or
+let you confirm them one at a time.
+
+The same asset can also carry one tag several times, each in its own place: two faces in a photo, one
+person at three points in a video. Each of those placements can be removed on its own without
+disturbing the others.
 
 == Use Cases
 
@@ -116,5 +133,8 @@ applied, is never touched.
   afresh.
 * Two Tag nodes can sit in one pipeline — one for quality, one for colour — and each keeps its own
   record of what it applied, so neither can undo the other's work.
-* Attaching a tag needs the worker's Loom token to be allowed to tag assets. Without it the item
-  fails rather than quietly tagging nothing.
+* Attaching a tag needs the worker's Loom token to be allowed to tag assets, and **Remove withdrawn**
+  additionally needs it to be allowed to untag them. Without the permission the item fails rather than
+  quietly tagging nothing.
+* All the tags for one item are written in one go, however many rules fired — tagging a large library
+  costs one write per asset, not one per tag.

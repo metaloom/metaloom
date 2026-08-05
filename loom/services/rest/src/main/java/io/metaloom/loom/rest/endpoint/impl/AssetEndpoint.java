@@ -245,10 +245,24 @@ public class AssetEndpoint extends AbstractEndpoint {
 				tagService.tagAsset(lrc, lrc.pathParamAssetId("uuid"));
 			});
 
+		addRoute(basePath() + "/:uuid/tags", PUT,
+			"Apply a set of tags to the asset in one request",
+			examples.assetTagBulkRequestExample(),
+			examples.assetTagBulkResponseExample(),
+			lrc -> {
+				tagService.bulkTagAsset(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
 		addRoute(basePath() + "/:uuid/tags/:tagUuid", DELETE,
-			"Remove a tag from an asset",
+			"Remove a tag from an asset, with every placement of it",
 			lrc -> {
 				tagService.untagAsset(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("tagUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/tag-placements/:placementUuid", DELETE,
+			"Remove one placement of a tag from an asset, keeping its other placements",
+			lrc -> {
+				tagService.removeTagPlacement(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("placementUuid"));
 			});
 
 		// --- TASK (UUID-based sub-resource) ---

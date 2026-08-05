@@ -53,6 +53,7 @@ import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptor;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
+import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
@@ -77,7 +78,6 @@ import io.metaloom.loom.db.jooq.tables.JooqTagCluster;
 import io.metaloom.loom.db.jooq.tables.JooqTagCollection;
 import io.metaloom.loom.db.jooq.tables.JooqTagUserMeta;
 import io.metaloom.loom.db.jooq.tables.JooqTask;
-import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqTaskAssignee;
 import io.metaloom.loom.db.jooq.tables.JooqToken;
 import io.metaloom.loom.db.jooq.tables.JooqTokenPermission;
@@ -421,6 +421,14 @@ public class JooqPublic extends SchemaImpl {
     public final JooqNodeDescriptorInstance NODE_DESCRIPTOR_INSTANCE = JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE;
 
     /**
+     * One durable inbox entry for one user. Group notifications are fanned out
+     * to one row per member at dispatch time - see the header of V2.70 for why
+     * the audience is resolved when the event happens rather than when the
+     * inbox is read
+     */
+    public final JooqNotification NOTIFICATION = JooqNotification.NOTIFICATION;
+
+    /**
      * The table <code>public.person</code>.
      */
     public final JooqPerson PERSON = JooqPerson.PERSON;
@@ -524,7 +532,10 @@ public class JooqPublic extends SchemaImpl {
     public final JooqTag TAG = JooqTag.TAG;
 
     /**
-     * Store tag &lt;-&gt; asset reference
+     * Placements of a tag on an asset. One row per (tag, asset, region); an
+     * asset-level tag has NULL in every region column. Rows written before
+     * V2.71 are labelled node_kind = manual because nothing recorded their
+     * author.
      */
     public final JooqTagAsset TAG_ASSET = JooqTagAsset.TAG_ASSET;
 
@@ -546,15 +557,13 @@ public class JooqPublic extends SchemaImpl {
     /**
      * The table <code>public.task</code>.
      */
-    /**
-     * The table <code>public.notification</code>.
-     */
-    public final JooqNotification NOTIFICATION = JooqNotification.NOTIFICATION;
-
     public final JooqTask TASK = JooqTask.TASK;
 
     /**
-     * The table <code>public.task_assignee</code>.
+     * Who is responsible for a task: a user or a group, one target per row,
+     * several rows per task. Written by explicit insert/delete on TaskDaoImpl
+     * like asset_task - it has no uuid and therefore no DAO of its own, and
+     * jOOQ generates a TableRecord rather than an UpdatableRecord for it
      */
     public final JooqTaskAssignee TASK_ASSIGNEE = JooqTaskAssignee.TASK_ASSIGNEE;
 
@@ -660,6 +669,7 @@ public class JooqPublic extends SchemaImpl {
             JooqMemoryEntry.MEMORY_ENTRY,
             JooqNodeDescriptor.NODE_DESCRIPTOR,
             JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE,
+            JooqNotification.NOTIFICATION,
             JooqPerson.PERSON,
             JooqPersonImage.PERSON_IMAGE,
             JooqPipeline.PIPELINE,
@@ -683,7 +693,6 @@ public class JooqPublic extends SchemaImpl {
             JooqTagCluster.TAG_CLUSTER,
             JooqTagCollection.TAG_COLLECTION,
             JooqTagUserMeta.TAG_USER_META,
-            JooqNotification.NOTIFICATION,
             JooqTask.TASK,
             JooqTaskAssignee.TASK_ASSIGNEE,
             JooqToken.TOKEN,

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,13 +32,14 @@ import io.metaloom.cortex.pipeline.test.StubLoomMedia;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.client.http.impl.LoomClientResponseImpl;
-import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompCreateRequest;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompListResponse;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
+import io.metaloom.loom.rest.model.tag.AssetTagBulkRequest;
+import io.metaloom.loom.rest.model.tag.AssetTagBulkResponse;
 import io.metaloom.loom.rest.model.tag.TagCreateRequest;
 import io.metaloom.loom.rest.model.tag.TagResponse;
 import io.metaloom.utils.hash.SHA512;
@@ -90,20 +92,22 @@ class TagNodePersistenceTest {
 		when(assetReq.sync()).thenReturn(new LoomClientResponseImpl<>(asset, 200, "OK", Map.of()));
 		when(client.loadAsset(nullable(SHA512.class))).thenReturn(assetReq);
 
-		// Every tag name resolves to its own shared row, keyed by name so a test can assert which
-		// uuid was untagged.
-		when(client.tagAsset(any(UUID.class), any(TagCreateRequest.class))).thenAnswer(invocation -> {
-			TagCreateRequest request = invocation.getArgument(1);
-			LoomClientRequest<TagResponse> tagReq = mock(LoomClientRequest.class);
-			when(tagReq.sync()).thenReturn(new LoomClientResponseImpl<>(
-				(TagResponse) new TagResponse().setName(request.getName()).setCollection(request.getCollection()).setUuid(uuidOf(request.getName())),
-				201, "Created", Map.of()));
-			return tagReq;
+		// The server resolves every name to its own shared row, keyed by name here so a test can assert
+		// which uuid was withdrawn.
+		when(client.bulkTagAsset(any(UUID.class), any(AssetTagBulkRequest.class))).thenAnswer(invocation -> {
+			AssetTagBulkRequest request = invocation.getArgument(1);
+			AssetTagBulkResponse body = new AssetTagBulkResponse();
+			body.setTotal(request.getTags().size());
+			body.setApplied(request.getTags().size());
+			body.setWithdrawn(request.getWithdraw().size());
+			for (TagCreateRequest tag : request.getTags()) {
+				String collection = tag.getCollection() == null ? request.getCollection() : tag.getCollection();
+				body.add((TagResponse) new TagResponse().setName(tag.getName()).setCollection(collection).setUuid(uuidOf(tag.getName())));
+			}
+			LoomClientRequest<AssetTagBulkResponse> bulkReq = mock(LoomClientRequest.class);
+			when(bulkReq.sync()).thenReturn(new LoomClientResponseImpl<>(body, 200, "OK", Map.of()));
+			return bulkReq;
 		});
-
-		LoomClientRequest<NoResponse> untagReq = mock(LoomClientRequest.class);
-		when(untagReq.sync()).thenReturn(new LoomClientResponseImpl<>(null, 204, "No Content", Map.of()));
-		when(client.untagAsset(any(UUID.class), any(UUID.class))).thenReturn(untagReq);
 
 		LoomClientRequest<JsonCompListResponse> listReq = mock(LoomClientRequest.class);
 		when(listReq.sync()).thenAnswer(i -> new LoomClientResponseImpl<>(existingComps, 200, "OK", Map.of()));
@@ -176,8 +180,10 @@ class TagNodePersistenceTest {
 	void testAttachesTheTagAndRecordsTheComponentAndLedgerRow() {
 		assertThat(run(node(nodeDef("quality-tags", "blurry")))).isSuccess();
 
-		verify(client).tagAsset(eq(assetUuid),
-			argThat((TagCreateRequest r) -> "blurry".equals(r.getName()) && "quality".equals(r.getCollection())));
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> r.getTags().size() == 1
+			&& "blurry".equals(r.getTags().get(0).getName())
+			&& "quality".equals(r.getTags().get(0).getCollection())
+			&& r.getWithdraw().isEmpty()));
 
 		verify(client).createAssetJsonComp(eq(assetUuid), argThat((JsonCompCreateRequest r) -> "tag".equals(r.getNodeKind())
 			&& TagNode.SCHEMA_TYPE.equals(r.getSchemaType())
@@ -203,7 +209,7 @@ class TagNodePersistenceTest {
 		assertThat(run(node)).isSuccess();
 		assertThat(run(node)).isSuccess();
 
-		verify(client, times(1)).tagAsset(any(UUID.class), any(TagCreateRequest.class));
+		verify(client, times(1)).bulkTagAsset(any(UUID.class), any(AssetTagBulkRequest.class));
 		verify(client, times(1)).createAssetJsonComp(any(), any());
 	}
 
@@ -212,7 +218,7 @@ class TagNodePersistenceTest {
 	void testDryRunWritesNoTagButStillRecords() {
 		assertThat(run(node(nodeDef("quality-tags", "blurry").put("dryRun", true)))).isSuccess();
 
-		verify(client, never()).tagAsset(any(UUID.class), any(TagCreateRequest.class));
+		verify(client, never()).bulkTagAsset(any(UUID.class), any(AssetTagBulkRequest.class));
 		verify(client).createAssetJsonComp(eq(assetUuid),
 			argThat((JsonCompCreateRequest r) -> Boolean.TRUE.equals(r.getData().getBoolean("dryRun"))
 				&& r.getData().getJsonArray("applied").size() == 1));
@@ -229,9 +235,46 @@ class TagNodePersistenceTest {
 		NodeResult result = run(node(nodeDef("quality-tags", "blurry").put("removeWithdrawn", true)));
 
 		assertThat(result).isSuccess();
-		verify(client).untagAsset(assetUuid, uuidOf("sharp"));
+		// The attachment and the withdrawal travel in one request, so the item cannot end up carrying the
+		// new tag and the old one at once.
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> r.getWithdraw().equals(List.of(uuidOf("sharp")))
+			&& r.getTags().size() == 1
+			&& "blurry".equals(r.getTags().get(0).getName())));
 		JsonObject record = new JsonObject((String) result.get(TagNode.OUT_APPLIED));
 		assertEquals("sharp", record.getJsonArray("withdrawn").getJsonObject(0).getString("tag"));
+	}
+
+	/**
+	 * The node says who it is on every write. Since V2.71 the join row keeps that, which is what lets a
+	 * UI separate machine tags from curated ones - and what makes withdrawal safe, because the server
+	 * then removes only placements carrying this node id.
+	 */
+	@Test
+	void testDeclaresItsOwnProvenance() {
+		TagNode node = node(nodeDef("quality-tags", "blurry"));
+		assertThat(run(node)).isSuccess();
+
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> "tag".equals(r.getNodeKind())
+			// Scoped per pipeline node id, so two tag nodes in one graph own their placements separately.
+			&& "tag:quality-tags".equals(r.getNodeId())
+			&& r.getProducerVersion() != null && r.getProducerVersion().startsWith("tag/1:")
+			&& r.getTags().get(0).getConfidence() != null));
+	}
+
+	/** An item that matches no rule and has nothing to take back is not worth a request at all. */
+	@Test
+	void testWritesNothingWhenThereIsNothingToWrite() {
+		JsonObject def = nodeDef("quality-tags", "blurry");
+		// A rule that cannot fire: the flag port is not wired in this test.
+		def.getJsonArray("rules").getJsonObject(0).put("when",
+			new JsonArray().add(new JsonObject().put("input", "flag").put("op", "EQ").put("value", true)));
+
+		assertThat(run(node(def))).isSuccess();
+
+		verify(client, never()).bulkTagAsset(any(UUID.class), any(AssetTagBulkRequest.class));
+		// The verdict is still recorded: "nothing matched" is an answer, and the ledger row is what keeps
+		// the item from being re-evaluated on the next run.
+		verify(client).createAssetJsonComp(any(), any());
 	}
 
 	/** A tag that is still desired stays put; withdrawing and re-adding it would churn the search index. */
@@ -241,7 +284,7 @@ class TagNodePersistenceTest {
 
 		assertThat(run(node(nodeDef("quality-tags", "blurry").put("removeWithdrawn", true)))).isSuccess();
 
-		verify(client, never()).untagAsset(any(UUID.class), any(UUID.class));
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> r.getWithdraw().isEmpty()));
 	}
 
 	/**
@@ -254,7 +297,7 @@ class TagNodePersistenceTest {
 		// The previous verdict belongs to a different node instance...
 		previousVerdict("other-tag-node", "sharp");
 		assertThat(run(node(nodeDef("quality-tags", "blurry").put("removeWithdrawn", true)))).isSuccess();
-		verify(client, never()).untagAsset(any(UUID.class), any(UUID.class));
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> r.getWithdraw().isEmpty()));
 	}
 
 	/** ...and a tag outside the collection this instance writes is equally off limits. */
@@ -273,7 +316,7 @@ class TagNodePersistenceTest {
 
 		assertThat(run(node(nodeDef("quality-tags", "blurry").put("removeWithdrawn", true)))).isSuccess();
 
-		verify(client, never()).untagAsset(any(UUID.class), any(UUID.class));
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> r.getWithdraw().isEmpty()));
 	}
 
 	/** Without {@code removeWithdrawn} nothing is deleted, and the read-back is not even requested. */
@@ -283,7 +326,7 @@ class TagNodePersistenceTest {
 
 		assertThat(run(node(nodeDef("quality-tags", "blurry")))).isSuccess();
 
-		verify(client, never()).untagAsset(any(UUID.class), any(UUID.class));
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> r.getWithdraw().isEmpty()));
 		verify(client, never()).listAssetJsonComps(any());
 	}
 
@@ -294,7 +337,7 @@ class TagNodePersistenceTest {
 	 */
 	@Test
 	void testARejectedWriteFailsTheNodeAndRecordsAFailedRow() {
-		when(client.tagAsset(any(UUID.class), any(TagCreateRequest.class))).thenThrow(new RuntimeException("403 Forbidden"));
+		when(client.bulkTagAsset(any(UUID.class), any(AssetTagBulkRequest.class))).thenThrow(new RuntimeException("403 Forbidden"));
 
 		NodeResult result = run(node(nodeDef("quality-tags", "blurry")));
 
@@ -315,6 +358,6 @@ class TagNodePersistenceTest {
 
 		assertThat(run(node(nodeDef("quality-tags", "blurry").put("removeWithdrawn", true)))).isSuccess();
 
-		verify(client, never()).untagAsset(any(UUID.class), any(UUID.class));
+		verify(client).bulkTagAsset(eq(assetUuid), argThat((AssetTagBulkRequest r) -> r.getWithdraw().isEmpty()));
 	}
 }

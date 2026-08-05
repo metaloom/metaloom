@@ -283,6 +283,12 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
 - [x] REST endpoints for the new tables — `FingerprintCompEndpointService`,
       `SegmentCompEndpointService`, `JsonCompEndpointService`, `NodeResultEndpointService`
       (`/assets/:uuid/node-results`)
+- [x] **Asset delete cascades (§2.6)** — `tag_asset` (`V2.72`), `collection_asset` / `asset_task` /
+      `asset_user_meta` (`V2.73`), `comment` / `reaction` / `library_asset` (`V2.74`). Everything
+      said *about* an asset dies with it; the tag, collection, task, library and user survive, as
+      does social content anchored to a task. The only remaining non-cascading asset FKs are two
+      intentional `SET NULL`s. Asserted from both sides by `AssetCascadeTest` over a shared
+      two-asset fixture, and over REST by `AssetEndpointTest` / `TagAssetEndpointTest`
 - [x] Node write-back — most Cortex nodes now persist through `client()`
       (`createAssetJsonComp`, `createAssetSegmentComps`, `createAssetFingerprintComp`,
       `createAssetTranscript`), and `AbstractMediaNode` records the ledger row generically
@@ -297,15 +303,15 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
 - [ ] **ACL primary keys** — `user_permission` / `token_permission` / `role_permission` are
       still `PRIMARY KEY (user_uuid)` etc. (`V2.1`, unchanged) —
       [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §7.1
-- [ ] **`tag_asset`** — still `PRIMARY KEY (tag_uuid, asset_uuid)` with its own placement
-      columns, so one tag can be placed only once per asset (§5.1)
+- [x] **`tag_asset`** — done in `V2.71`: surrogate `uuid` PK plus
+      `UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)`,
+      so one tag can be placed once per *region* rather than once per asset, and provenance columns
+      (`node_kind` default `manual`, `node_id`, `producer_version`, `confidence`, `created`,
+      `creator_uuid`) say who attached it (§5.1, §5.4). ⚠️ Needs PostgreSQL 15+
 - [ ] **`timestamptz` sweep** (§8.1) — no migration uses `timestamptz`; and `filekey_*`
       widening on `asset_location` (still `int`, `V2.10`) (§2.4)
 - [ ] **pgvector vs. external vector index** — `embedding.vector` still has no ANN index
       (§4.2; also [../../loom/DOMAIN.md](../../loom/DOMAIN.md))
-- [ ] **Asset delete cascades on the join tables** — `detection` (`V2.43`), `attachment`
-      (`V2.44`), `annotation` (`V2.48`) and `embedding_cluster` (`V2.51`) are done; the
-      remaining join tables still block deletion (§2.6, pinned by `AssetCascadeTest`)
 - [ ] **Execution-ledger retention** — policy decided in
       [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) §10.1a (7 days of per-item detail,
       30 for failures, the `pipeline_run` row forever); no sweep is implemented
@@ -366,5 +372,5 @@ that the migration count quoted there is historical — the schema now runs to *
 
 ---
 
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (the skipped-test note no longer names Ollama)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (`V2.74` closed the asset-delete cascades for good — comments and reactions about an asset and its library membership go with it, so §2.6 is done; `V2.73` cascaded the remaining written asset links — collection membership, task references, per-user meta — leaving only `comment`/`reaction`; `V2.71` closed the `tag_asset` placement item and `V2.72` its half of the asset-delete cascades. Earlier: the skipped-test note no longer names Ollama)_

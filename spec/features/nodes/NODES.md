@@ -126,7 +126,7 @@ shadows the base method — do not copy it.
 | `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
 | `metadata` | `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=metadata`) **+** `assets/:uuid/components` → `asset_geo_comp`, one row per reading (`method` = `exif`/`xmp`/`sidecar`) | `createAssetJsonComp`, `createAssetComponent` |
 | `script` | `asset_json_comp` (`variant` = node id) **+** `asset_segment_comp` for `TIMEFRAMES` outputs | `createAssetJsonComp`, `createAssetSegmentComps` |
-| `tag` | `assets/:uuid/tags` → `tag` + `tag_asset` (resolve-or-create on `(name, collection)`) **+** `asset_json_comp` (`schemaType=tags`, `variant` = node id) recording what it applied | `tagAsset`, `untagAsset`, `createAssetJsonComp` |
+| `tag` | `PUT assets/:uuid/tags` → `tag` + `tag_asset` (resolve-or-create on `(name, collection)`, whole set in one transaction, each placement stamped with `node_kind`/`node_id`/`producer_version`/`confidence`) **+** `asset_json_comp` (`schemaType=tags`, `variant` = node id) recording what it applied | `bulkTagAsset`, `createAssetJsonComp` |
 | `s3-sink` | one `asset` **per uploaded artifact** (`origin` = the `s3://` URI) + `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) on the source asset | `createAsset`, `createAssetJsonComp` |
 | `fingerprint-dedup` | `dedup-groups` → `dedup_group` + `dedup_group_member` | `createDedupGroup` |
 | `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
@@ -135,10 +135,10 @@ shadows the base method — do not copy it.
 `quality`, `tika`, `metadata`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`,
 `s3-artifact`, `tags`.
 
-`tag` is the only node that writes into the **catalog** rather than a per-asset component table, and
-the component it also writes is not a duplicate of the tags: `tag_asset` carries no `node_id`,
-`confidence` or timestamp, so the `tags` component is the sole evidence of which node instance put a
-tag there — and therefore the only thing that makes withdrawing one safe (§3.4).
+`tag` is the only node that writes into the **catalog** rather than a per-asset component table. Since
+`V2.71` the join row carries `node_kind`/`node_id`/`producer_version`/`confidence`, so the server knows
+which placements belong to which node instance and scopes every withdrawal accordingly; the `tags`
+component the node also writes is now a second, client-side guard rather than the only evidence (§3.4).
 
 `metadata` is the **only node that writes a typed component through the generic
 `/assets/:uuid/components` endpoint**. That endpoint now *upserts* (it used to plain-insert, which
@@ -215,8 +215,8 @@ Notes worth knowing:
 - **`watermark` branches by two outputs.** It writes `image` *or* `video` per item; the unwritten
   port simply delivers nothing downstream. No filter node needed.
 - **`llm` / `vlm` / `script` have dynamic ports** derived from their own options
-  (`LlmPortResolver`, `VlmPortResolver`, `ScriptOutputSpec`). They are exempt from
-  `NodePortConformanceTest` via `DYNAMIC_KINDS`.
+  (`LlmPortResolver`, `VlmPortResolver`, `ScriptOutputSpec`), so their descriptor ports are the
+  declared minimum rather than the whole set.
 - **`scene-layout` and `depthmap` must share an affinity group** — the depth PNG is worker-local.
   Same for `s3-sink` and whatever produced its artifacts.
 - **`captioning`'s `videoStrategy`**: `WHOLE` (N frames → one prompt), `SCENE` (optical-flow
@@ -316,11 +316,20 @@ outlives the run that created it: `normalize` (before anything else), `allowedTa
 vocabulary), `maxTags` (a template over a gathered list has no natural bound) and `collection` (the
 only axis a UI can group machine tags by without a migration).
 
-🔴 **Withdrawal is provenance-guarded.** With `removeWithdrawn` on, the node may remove a tag only
-when it appears in *this instance's* previous `applied` list (read back from its own `tags` component)
-**and** its collection is one this instance writes. A failed read-back withdraws nothing. `tag_asset`
-has no provenance columns, so that record is the only proof available and a bug here would silently
-destroy human curation.
+🔴 **Withdrawal is provenance-guarded, twice.** Client side: with `removeWithdrawn` on, the node may
+remove a tag only when it appears in *this instance's* previous `applied` list (read back from its own
+`tags` component) **and** its collection is one this instance writes; a failed read-back withdraws
+nothing. Server side (`V2.71`): the request carries the node's id, and the delete is scoped to
+placements written by that node — so a tag a person placed under the same name on the same asset
+survives, which matters now that one tag can sit on an asset several times. `withdraw` also names
+uuids and removes exactly those, never "everything not in the set".
+
+⚠️ **One request per item, not per tag.** The node writes through `PUT /assets/:uuid/tags`
+([RESTAPI.md](../../loom/RESTAPI.md) §4.4), which carries the attachments and the withdrawals together
+in one transaction — five tags over a 100k-asset run was 500k `POST`s. An item that matched no rule and
+has nothing to take back makes no call at all. Because the request is applied whole or not at all, a
+rejected withdrawal now **fails the item** instead of being logged and skipped: a worker whose token may
+tag but not untag has to run with `removeWithdrawn` off.
 
 ⚠️ **`POST /assets/:uuid/tags` had to be made idempotent before this node could exist.** It used to
 insert a new `tag` row unconditionally, so the second asset to receive one name violated
@@ -609,8 +618,8 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XOptionsValidationTest` | same | `validate()`: defaults valid, each invalid field reported. Uses the generated `assertj` helpers |
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
-| `NodePortConformanceTest` | `integration-test/.../node/` | port constants ↔ descriptor `PortSpec`s, both directions |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | the 28/38 literals + no duplicate kinds |
+| `NodeSpecGoldenTest` | `integration-test/.../node/` | every `@NodeSpec` class is in the committed `node-descriptors.json`, and the resource is regenerated from it |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 40 advertised kinds, no duplicates |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,
@@ -668,8 +677,9 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 - [x] **In-Cortex DAG executor removed** — `PipelineExecutor`, `ReactivePipelineExecutor`,
       `DefaultPipeline`, `PipelineManager`, `LoomPipelineLoader`, `StubPipelineNode`, `LoomNode` all
       deleted; execution is Loom-side (`PipelineRunEngine`) + `NodeTaskRunner`.
-- [x] **Cross-tree port conformance test exists** — `NodePortConformanceTest`, 23 kinds,
-      `DYNAMIC_KINDS` exempting `script`/`llm`/`vlm`.
+- [x] **Cross-tree port conformance** — `NodePortConformanceTest` is gone with the hand-written
+      descriptor providers it checked (§5.2). The port constants are now the single source: the
+      harvest reads them, and `NodeSpecGoldenTest` keeps the committed resource in step.
 - [x] **`cortex/pipeline-common` caches** — deleted 2026-08-02. `NodeCacheProvider`, its five impls
       and `PipelineNode.cacheProvider()` are gone; they were never consulted by any runtime path.
       The two caches that remain do different jobs: `LocalResultCache` (result, across items) and
@@ -798,8 +808,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | Descriptor count guard | `loom-shared/node-model/.../NodeDescriptorServiceLoaderTest.java` |
 | The list of node classes the harvest looks at | `cortex/api/.../node/spec/NodeSpecCatalog.java` — `BUILT_IN_NODE_CLASSES`; a node missing here is runnable but unauthorable |
 | The generated contract set + its regeneration | `loom-shared/node-model/src/main/resources/node-descriptors.json` · `integration-test/.../node/NodeSpecGoldenTest.java` |
-| The tag write path a `tag` node depends on | `loom/db/jooq/.../dao/tag/TagDaoImpl.java` (`resolveOrCreateAssetTag`, `tagAsset`) |
-| Port ↔ descriptor conformance | `integration-test/.../node/NodePortConformanceTest.java` |
+| The tag write path a `tag` node depends on | `loom/db/jooq/.../dao/tag/TagDaoImpl.java` (`resolveOrCreateAssetTag`, `tagAsset`, `bulkTagAsset`) |
 | Per-node end-to-end ITs | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/` |
 | Test scaffolding | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/` |
 | Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `imagegen` 9200/9210, `videogen` 9220) |
@@ -809,9 +818,8 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `55848543`_
-_Last updated: 2026-08-04 (added the `tag` node: §3.4, persistence table, node table, cache key,
-options, counts 35 kind bindings / 40 descriptor kinds / 32 modules. Also corrected §5.2 and §5.3 —
-`NodePortConformanceTest` and the hand-written descriptor providers are gone, and the two silent
-registration touch-points (`NodeSpecCatalog.BUILT_IN_NODE_CLASSES`, the integration-test dependency)
-are now recorded)_
+_Git HEAD revision: `97127ed2`_
+_Last updated: 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
+one request per item, one transaction, and a rejected withdrawal fails the item; added
+`TagNodeIntegrationTest` to the per-node ITs. Also finished removing `NodePortConformanceTest` from the
+test tables and the file map, where three references survived the 2026-08-04 correction)_

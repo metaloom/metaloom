@@ -13,6 +13,41 @@ if TYPE_CHECKING:
 
 
 @dataclass
+class AssetTagBulkRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.tag.AssetTagBulkRequest``."""
+
+    #: Collection to use for entries which do not name one. Tags are global, so a collection separates one
+    #: writer's tags from another's.
+    collection: str | None = None
+    #: The tags to attach. Existing tags are reused, and re-sending the same set changes nothing.
+    tags: list[TagCreateRequest] = field(default_factory=list)
+    #: Uuids of tags to detach from this asset. Requires the UNTAG_ASSET permission. The tags themselves are
+    #: not deleted, and every placement of a named tag on this asset goes.
+    withdraw: list[str] = field(default_factory=list)
+    #: Which node kind is attaching these tags, for entries which do not name one. Left unset by a person, and
+    #: recorded as 'manual'.
+    node_kind: str | None = None
+    #: Pipeline node id of the writer, for entries which do not name one.
+    node_id: str | None = None
+    #: Version of the answer the writer stands behind, for entries which do not name one.
+    producer_version: str | None = None
+
+
+@dataclass
+class AssetTagBulkResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.tag.AssetTagBulkResponse``."""
+
+    #: The tags now attached to the asset by this call, as they are persisted.
+    tags: list[TagResponse] = field(default_factory=list)
+    #: How many tags the request asked to attach.
+    total: int = 0
+    #: How many tags were attached.
+    applied: int = 0
+    #: How many tag attachments were removed from the asset.
+    withdrawn: int = 0
+
+
+@dataclass
 class TagCreateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.tag.TagCreateRequest``."""
 
@@ -22,8 +57,17 @@ class TagCreateRequest(Model):
     collection: str | None = None
     #: Additional custom meta properties for the element.
     meta: dict[str, Any] | None = None
-    #: Spatial or temporal area of the asset that the tag references.
+    #: Spatial or temporal area of the asset that the tag references. Two calls naming different areas place
+    #: the tag twice on the same asset - once per face, once per timecode.
     area: AreaInfo | None = None
+    #: Which node kind is attaching the tag. Left unset by a person, and recorded as 'manual'.
+    node_kind: str | None = None
+    #: Pipeline node id of the writer, so two instances of one node kind stay distinguishable.
+    node_id: str | None = None
+    #: Version of the answer the writer stands behind; it changes when the meaning of the tag changes.
+    producer_version: str | None = None
+    #: How sure the writer is, 0.0 - 1.0.
+    confidence: float | None = None
 
 
 @dataclass
@@ -56,6 +100,23 @@ class TagReference(NamedReference):
 
     #: Spatial or temporal region of the asset that the tag references. Only set for region tags.
     area: AreaInfo | None = None
+    #: Identity of this placement of the tag on the asset. A tag may sit on one asset several times - once per
+    #: face, once per timecode - and this is what identifies the one you mean.
+    placement_uuid: str | None = None
+    #: Which node kind attached the tag, or 'manual' when a person did. This is how machine tags are told
+    #: apart from curated ones.
+    node_kind: str | None = None
+    #: Pipeline node id of the writer, so two instances of one node kind stay distinguishable. Absent for a
+    #: person.
+    node_id: str | None = None
+    #: How sure the writer was, 0.0 - 1.0. Absent when the question does not apply, which is the normal case
+    #: for a person.
+    confidence: float | None = None
+    #: When the tag was attached to this asset. Not when the tag itself was created.
+    #: NOTE: epoch seconds, not an ISO string -- see parse_instant()
+    attached: float | None = None
+    #: The principal that made the call, person or worker token.
+    attached_by: str | None = None
 
 
 @dataclass

@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Function5;
@@ -29,13 +30,16 @@ import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
 import org.jooq.impl.DSL;
+import org.jooq.impl.Internal;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
 
 
 /**
  * Who is responsible for a task: a user or a group, one target per row, several
- * rows per task.
+ * rows per task. Written by explicit insert/delete on TaskDaoImpl like
+ * asset_task - it has no uuid and therefore no DAO of its own, and jOOQ
+ * generates a TableRecord rather than an UpdatableRecord for it
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqTaskAssignee extends TableImpl<JooqTaskAssigneeRecord> {
@@ -61,35 +65,38 @@ public class JooqTaskAssignee extends TableImpl<JooqTaskAssigneeRecord> {
     public final TableField<JooqTaskAssigneeRecord, UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
     /**
-     * The column <code>public.task_assignee.user_uuid</code>. The assigned user.
-     * Null when this row assigns to a group instead
+     * The column <code>public.task_assignee.user_uuid</code>. The assigned
+     * user. Null when this row assigns to a group instead
      */
     public final TableField<JooqTaskAssigneeRecord, UUID> USER_UUID = createField(DSL.name("user_uuid"), SQLDataType.UUID, this, "The assigned user. Null when this row assigns to a group instead");
 
     /**
      * The column <code>public.task_assignee.group_uuid</code>. The assigned ACL
-     * group.
+     * group. Membership is resolved on read, not snapshotted here, so adding
+     * someone to the group hands them the task
      */
-    public final TableField<JooqTaskAssigneeRecord, UUID> GROUP_UUID = createField(DSL.name("group_uuid"), SQLDataType.UUID, this, "The assigned ACL group");
+    public final TableField<JooqTaskAssigneeRecord, UUID> GROUP_UUID = createField(DSL.name("group_uuid"), SQLDataType.UUID, this, "The assigned ACL group. Membership is resolved on read, not snapshotted here, so adding someone to the group hands them the task");
 
     /**
-     * The column <code>public.task_assignee.assigned</code>. When the assignment
-     * was made
+     * The column <code>public.task_assignee.assigned</code>. When the
+     * assignment was made
      */
     public final TableField<JooqTaskAssigneeRecord, LocalDateTime> ASSIGNED = createField(DSL.name("assigned"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "When the assignment was made");
 
     /**
      * The column <code>public.task_assignee.assigner_uuid</code>. Who made the
-     * assignment
+     * assignment. Nullable: the assigner may since have been deleted, and a
+     * machine-made assignment has none. This is what lets a notification say
+     * who assigned you, and what self-notification suppression tests against
      */
-    public final TableField<JooqTaskAssigneeRecord, UUID> ASSIGNER_UUID = createField(DSL.name("assigner_uuid"), SQLDataType.UUID, this, "Who made the assignment");
+    public final TableField<JooqTaskAssigneeRecord, UUID> ASSIGNER_UUID = createField(DSL.name("assigner_uuid"), SQLDataType.UUID, this, "Who made the assignment. Nullable: the assigner may since have been deleted, and a machine-made assignment has none. This is what lets a notification say who assigned you, and what self-notification suppression tests against");
 
     private JooqTaskAssignee(Name alias, Table<JooqTaskAssigneeRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqTaskAssignee(Name alias, Table<JooqTaskAssigneeRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Who is responsible for a task: a user or a group, one target per row, several rows per task."), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("Who is responsible for a task: a user or a group, one target per row, several rows per task. Written by explicit insert/delete on TaskDaoImpl like asset_task - it has no uuid and therefore no DAO of its own, and jOOQ generates a TableRecord rather than an UpdatableRecord for it"), TableOptions.table());
     }
 
     /**
@@ -124,7 +131,7 @@ public class JooqTaskAssignee extends TableImpl<JooqTaskAssigneeRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.IDX_TASK_ASSIGNEE_GROUP, Indexes.IDX_TASK_ASSIGNEE_USER);
+        return Arrays.asList(Indexes.IDX_TASK_ASSIGNEE_GROUP, Indexes.IDX_TASK_ASSIGNEE_USER, Indexes.TASK_ASSIGNEE_GROUP_KEY, Indexes.TASK_ASSIGNEE_USER_KEY);
     }
 
     @Override
@@ -177,6 +184,13 @@ public class JooqTaskAssignee extends TableImpl<JooqTaskAssigneeRecord> {
             _taskAssigneeAssignerFkey = new JooqUser(this, Keys.TASK_ASSIGNEE__TASK_ASSIGNEE_ASSIGNER_FKEY);
 
         return _taskAssigneeAssignerFkey;
+    }
+
+    @Override
+    public List<Check<JooqTaskAssigneeRecord>> getChecks() {
+        return Arrays.asList(
+            Internal.createCheck(this, DSL.name("task_assignee_exactly_one_target"), "((num_nonnulls(user_uuid, group_uuid) = 1))", true)
+        );
     }
 
     @Override
