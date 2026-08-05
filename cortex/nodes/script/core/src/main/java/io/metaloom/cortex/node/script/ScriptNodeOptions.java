@@ -38,7 +38,7 @@ public class ScriptNodeOptions extends AbstractNodeOptions<ScriptNodeOptions> {
 	// an empty box - which is exactly what @ParamDoc#defaultValue exists for.
 	@ParamDoc(label = "Script", description = "The script body. Runs once per media item",
 		type = ParameterType.CODE, language = "javascript", rows = 16, order = 50,
-		defaultValue = "// Runs once per media item.\n//   media    - { path, absolutePath, size, sha512, isVideo, isImage, isAudio, isDocument }\n//   upstream - upstream[\"<nodeId>\"][\"<outputKey>\"]\n//   params   - the Parameters bag below\n//   out      - out.text/number/integer/bool/json/list/timeframes/image/path(key, value)\n//   log      - log.info/warn/error(msg)\n//   ctx      - ctx.skip(reason) / ctx.fail(reason)\nout.text('result', 'hello from ' + media.path);\n")
+		defaultValue = "// Runs once per media item.\n//   media    - { path, absolutePath, size, sha512, isVideo, isImage, isAudio, isDocument }\n//   data     - the wired 'data' payload; wired 'text' arrives as data.text\n//   params   - the Parameters bag below\n//   out      - out.text/number/integer/bool/json/list/timeframes/image/path(key, value)\n//   log      - log.info/warn/error(msg)\n//   ctx      - ctx.skip(reason) / ctx.fail(reason)\nout.text('result', 'hello from ' + media.path);\n")
 	private String script;
 
 	/** Declared outputs as {@code [{"key": ..., "type": ...}]}; parsed by {@link ScriptOutputSpec#parse(JsonArray)}. */

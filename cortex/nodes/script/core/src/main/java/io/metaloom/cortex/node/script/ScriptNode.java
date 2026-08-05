@@ -67,14 +67,14 @@ import io.vertx.core.json.JsonObject;
  * a Cortex release.
  * </p>
  *
- * <h3>Configuration is per node instance</h3>
+ * <h2>Configuration is per node instance</h2>
  * <p>
  * The script lives in the pipeline definition, so this node implements {@link PipelineConfigurable}
  * and is reconfigured per task. <strong>It must therefore never be a Dagger {@code @Singleton}</strong> -
  * see {@link PipelineConfigurable} for why. {@code ScriptNodeSingletonTest} guards this.
  * </p>
  *
- * <h3>Outputs</h3>
+ * <h2>Outputs</h2>
  * <p>
  * Outputs are declared in configuration and filled at runtime (see {@link ScriptValueType}). A
  * value may be multi-valued - a list of timeframes, several texts, several images - which is what
@@ -82,7 +82,7 @@ import io.vertx.core.json.JsonObject;
  * items.
  * </p>
  *
- * <h3>Persistence</h3>
+ * <h2>Persistence</h2>
  * <p>
  * Scalar, list and JSON outputs land in one {@code asset_json_comp} row with
  * {@code variant = nodeId}, so several script nodes coexist on one asset. {@code TIMEFRAMES}

@@ -19,7 +19,7 @@ each would otherwise be a development project.
 |===
 | Kind | `script`
 | Applies to | Any asset
-| Input ports | `media`, plus `data` for whatever you connect from upstream
+| Input ports | `media`, plus `data` for structured input and `text` for text from upstream
 | Output ports | Whatever you declare — see <<outputs>>. A list type becomes a **many** port
 | Languages | JavaScript
 | Requirements | None. The script runs inside the Cortex worker; no external service is involved
@@ -35,19 +35,20 @@ The script runs once per media item. Six values are available to it:
 |===
 | Name | What it gives you
 | `media` | The current item: `path`, `absolutePath`, `size`, `sha512`, `isVideo`, `isImage`, `isAudio`, `isDocument`
-| `upstream` | What arrived on the connected inputs, keyed by node and port: `upstream['whisper']['transcript']`
+| `data` | What arrived on the connected inputs. The `data` port's JSON is unpacked into it field by field, and whatever you connect to the `text` port appears as `data.text`
 | `params` | The constants you set in the node's *Parameters* field, so one script can be reused with different settings
 | `out` | How you produce results — `out.text`, `out.number`, `out.integer`, `out.bool`, `out.json`, `out.list`, `out.timeframes`, `out.image`, `out.path`
 | `log` | `log.info`, `log.warn`, `log.error` — written to the worker log, prefixed with the node's name
 | `ctx` | `ctx.skip('reason')` to record the item as skipped, `ctx.fail('reason')` to record it as failed
 |===
 
-A complete example — turning a transcript into chapter marks:
+A complete example — turning a transcript into chapter marks. Connect the whisper node's
+`transcript` output to this node's `text` input, and it arrives as `data.text`:
 
 [source,javascript]
 ----
 const re = new RegExp(params.pattern, 'i');
-const transcript = JSON.parse(upstream['whisper']['transcript']);
+const transcript = JSON.parse(data.text);
 
 const frames = transcript.segments
   .filter(s => re.test(s.text))

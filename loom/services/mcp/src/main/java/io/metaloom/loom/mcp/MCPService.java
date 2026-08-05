@@ -43,7 +43,7 @@ import io.vertx.ext.web.handler.BodyHandler;
  *       useful for tools that produce incremental results.</li>
  * </ol>
  *
- * <h3>Internal dispatch via Vert.x EventBus</h3>
+ * <h2>Internal dispatch via Vert.x EventBus</h2>
  * <p>Tool calls received over either transport are dispatched through the Vert.x EventBus.
  * Each registered {@link io.metaloom.loom.mcp.tool.MCPTool} listens on address
  * {@code mcp.tool.<name>}. This architecture was chosen because:</p>
@@ -54,7 +54,7 @@ import io.vertx.ext.web.handler.BodyHandler;
  *   <li>The EventBus provides natural back-pressure and request/reply semantics.</li>
  * </ul>
  *
- * <h3>Authentication</h3>
+ * <h2>Authentication</h2>
  * <p>Authentication can be enabled via {@code LOOM_MCP_AUTH_ENABLED} and supports:</p>
  * <ul>
  *   <li><strong>SSE (/mcp/sse)</strong>: Token via {@code ?token=} query parameter OR {@code Authorization: Bearer} header</li>

@@ -32,7 +32,7 @@ import io.vertx.core.json.JsonObject;
 /**
  * A parsed JavaScript script, executed inside a fresh polyglot context per run.
  *
- * <h3>Why a context per execution</h3>
+ * <h2>Why a context per execution</h2>
  * <p>
  * Reusing one context across media items would be faster, but a script could then stash state in
  * a global and leak it from one asset to the next - the kind of bug that only shows up in
@@ -41,7 +41,7 @@ import io.vertx.core.json.JsonObject;
  * cost is context setup, not parsing.
  * </p>
  *
- * <h3>Two independent stop conditions</h3>
+ * <h2>Two independent stop conditions</h2>
  * <p>
  * The statement limit catches a tight loop deterministically; the wall-clock watchdog catches
  * everything else, including a script blocked in a host call the statement counter never

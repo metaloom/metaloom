@@ -41,8 +41,10 @@ import io.vertx.core.json.JsonObject;
 public class ScriptNodeIntegrationTest extends AbstractNodeIntegrationTest {
 
 	private static final String SCRIPT = """
-		// One upstream text in; a scalar, a list and a timeline out.
-		const transcript = JSON.parse(upstream['whisper']['whisper_result']);
+		// One upstream text in; a scalar, a list and a timeline out. Wired text arrives as
+		// data.text - the old upstream['<nodeId>']['<outputKey>'] bag is gone, because it broke
+		// whenever the pipeline author renamed the node it named.
+		const transcript = JSON.parse(data.text);
 		const frames = transcript.segments
 		  .filter(s => new RegExp(params.pattern, 'i').test(s.text))
 		  .map(s => ({ startMs: Math.round(s.start * 1000), endMs: Math.round(s.end * 1000), label: s.text }));
@@ -94,7 +96,8 @@ public class ScriptNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			NodeResult result = node.process(ctx);
 
 			assertThat(result.getState()).as(result.getMessage()).isEqualTo(ResultState.SUCCESS);
-			assertThat(result.getOutputs().get("chapter_count")).isEqualTo(2L);
+			// getOutputs() is keyed by port id and holds a PortOutput, not the bare value.
+			assertThat(result.getOutputs().get("chapter_count").single()).isEqualTo(2L);
 
 			// The scalar/list outputs land in one JSON component, keyed by node id so that several
 			// script nodes can coexist on one asset.

@@ -42,7 +42,16 @@ public class RecordingRunStateStore implements RunStateStore {
 		dispatchedWorkers.add(workerId);
 	}
 
+	@Override
+	public void segmentTaskDispatched(UUID itemUuid, NodeTask task, String workerId, UUID dispatchUuid) {
+		taskDispatched(itemUuid, task, workerId);
+		segmentDispatchUuids.add(dispatchUuid);
+	}
+
 	public final List<String> dispatchedWorkers = new ArrayList<>();
+
+	/** One entry per segment member, so a test can assert they shared a single dispatch. */
+	public final List<UUID> segmentDispatchUuids = new ArrayList<>();
 
 	@Override
 	public void taskSettled(UUID itemUuid, NodeTaskResult result) {

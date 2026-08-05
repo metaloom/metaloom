@@ -251,7 +251,51 @@ over the topological order.
 | `PipelineGraphParser` | Node ids present + unique; kind present and **known to the registry**; edges reference existing nodes; ports present; edge dedupe; exactly one source |
 | `PortGraphAnalyzer` | Port existence, assignability, required-input satisfaction, XOR/EXCLUSIVE groups, multi-edge only into `MANY`, and `SINGLE`/`PER_ELEMENT` classification + `fanOutDriver`. See [NODE_DATA_TYPES.md §6.3](NODE_DATA_TYPES.md) |
 | `AffinityValidator` | Produces `AffinityWarning`s for affinity groups that cannot help |
-| `PipelineSegmenter` | Splits the graph into maximal **connected** same-affinity segments. The source node is never in one (the engine synthesises its result). A grouping that would create a segment-level cycle is split rather than accepted |
+| `PipelineSegmenter` | Splits the graph into maximal same-affinity segments whose members are **related** — joined by an edge, or reading the same producer. The source node is never in one (the engine synthesises its result). A grouping that would create a segment-level cycle, or that needs two values for one input port id, is split rather than accepted |
+
+**Related means an edge the parser accepts, or a shared producer.** Requiring an edge
+*between* members was too strict once ports became typed. An edge joins two *compatible*
+ports, so a chain of analysis nodes is usually not expressible: `sha512` emits `hash/sha512`
+and every media analyser consumes `media/*`, which makes `hash → chunk-hash → thumbnail`
+three siblings of one source rather than a chain. Under an edges-only rule that group fused
+into three segments and the saving vanished silently. Nodes therefore also group when they
+consume the same producer — the shared input is exactly the cost affinity exists to pay once.
+The producer is a bridge, not a member, which is what keeps the source out of a segment even
+though everything reads it.
+
+Two cases are refused, both because a segment is dispatched as one unit with one shared map
+of inputs:
+
+- **Consumers of different branches of a filter.** An edge leaving a `selective` port is
+  excluded on both sides. Two consumers of one filter can sit on different branches, so one
+  of them must not run at all, and the worker has no verdict to tell them apart. Consumers of
+  a producer merely *downstream* of a filter are fine — they inherit the same routing and skip
+  together.
+- **Two members needing different values for one input port id.** `SegmentNode` carries no
+  bindings, so the inputs map is keyed by port id and shared; the engine would keep the first
+  and the second would silently receive its neighbour's data. The group falls back to per-node
+  dispatch. Only edges from *outside* the group count — an edge between two members is
+  satisfied on the worker and never reaches that map, which is why an ordinary chain, every
+  node reading `media` from the one before it, is not a collision.
+
+> 🔴 Fusing siblings is only sound because `SegmentTaskRunner` scopes what a member can see
+> (§7). Merging every member's outputs into one pool made *being in a segment* a source of
+> data: `consistency` emits `is_complete` and `thumbnail` declares one, so fusing them would
+> have fed `thumbnail` a value it has no edge to, and an affinity label — a scheduling hint —
+> would have changed what the pipeline computes.
+
+**A segment is one dispatch and N rows.** `PipelineRunEngine.dispatchSegment` writes a
+`pipeline_node_task` row per member through `RunStateStore.segmentTaskDispatched`, each with
+its own uuid (the row key is the execution) and all carrying the segment request's uuid in
+`meta.dispatchUuid` — the only record, after the fact, that they cost one round trip rather
+than N. The first member keeps the segment's task uuid as its row id, so a reference already
+holding it still resolves.
+
+> 🔴 Attributing the whole segment to its first node instead — one row, the rest fabricated
+> from their results — lost this twice over. The fabricated rows carried no `leased_by`, and
+> they reused the task uuid the worker echoes back on *every* member's result, so all but the
+> first collided on `pipeline_node_task_pkey`. The flush failed, the outcomes were dropped and
+> the run still reported SUCCESS. `PipelineAffinitySegmentIntegrationTest` covers it.
 
 **Source resolution** is deliberately strict: one node with `source: true` wins;
 several is an error; none falls back to the single dependency-free node, and *more
@@ -470,7 +514,7 @@ Five classes; that is the whole thing.
 | Class | Contract |
 |---|---|
 | `NodeTaskRunner` | One `NodeTask` → one `NodeTaskResult`. Knows nothing about dependencies, ordering, filters or run state. A node that throws — including a `ValueCoercionException` on emit — becomes a `FAILED` result rather than propagating |
-| `SegmentTaskRunner` | Same work with N > 1, one round trip instead of N. Merges each node's outputs **by port id** into the pool the next node reads. Skips a node whose dependency `FAILED` **only if that node is blocking**, matching the engine exactly. Every node is accounted for — a skip is reported, never omitted |
+| `SegmentTaskRunner` | Same work with N > 1, one round trip instead of N. Each member sees the segment's external inputs plus the outputs of the members it **declares as dependencies**, matched by port id — never every member's outputs merged into one pool, which would make *being in a segment* a source of data. Skips a node whose dependency `FAILED` **only if that node is blocking**, matching the engine exactly. Every node is accounted for — a skip is reported, never omitted |
 | `SourceTaskRunner` | Runs a source and streams `MediaRef` batches. **Acks are the backpressure**: send batch → wait for ack (`DEFAULT_ACK_TIMEOUT_MS = 60_000`) → send next. Always terminates with exactly one `sendComplete`. ⚠️ `run(...)` **blocks** — never call it on a Vert.x event loop |
 | `ResultBatcher` | Groups results per run. Size comes from the definition's `resultBatchSize`; `batchSize <= 1` sends immediately. `DEFAULT_MAX_HOLD_MS = 500`, and `PipelineTaskHandler` calls `flushExpired()` every **250 ms** (`BATCH_FLUSH_INTERVAL_MS`). The timer is not an optimisation — without it a run's tail never reaches the size threshold and the run never closes |
 | `NodeResultMapper` | The single type boundary. Coerces every emitted value against its port's declared content type, stamps each element with an `Origin`, and maps state |
@@ -892,11 +936,18 @@ NODE_TASK_RESULT_BATCH, ERROR`
 plus the same `elementSeq`. `SEGMENT_TASK` carries `getInputs()` and a list of
 `SegmentNode`s.
 
-⚠️ **`SegmentNode` carries no input bindings**, so a segment-internal edge is matched
-by **port id alone**: a node reading `text` picks up whatever earlier node in the
-segment emitted a port called `text`. Engine-level dispatch has the real bindings and
-does not rely on this — until the segment wire model carries them, do not group nodes
-whose port ids collide with a different meaning.
+⚠️ **`SegmentNode` carries no input bindings**, only `dependencies`, so a segment-internal
+edge is matched by **port id alone** *within a declared dependency*: a node reading `text`
+picks up the port called `text` emitted by a member it depends on. Two consequences, both
+still live:
+
+- An edge whose two ends are named differently (`a.summary → b.text`) is not carried locally.
+- A node cannot distinguish two dependencies that emit the same port id; the later one wins.
+
+What is no longer a hazard is a *coincidence*: a member never sees the output of a member it
+does not depend on, so grouping nodes whose port ids collide is safe unless a real edge joins
+them. The segmenter additionally refuses a group needing two different values for one input
+port id from outside (§5).
 
 **Nodes never see a node id.** Envelope, coercion rules and fan-out semantics:
 [NODE_DATA_TYPES.md §7-§8](NODE_DATA_TYPES.md).
@@ -1162,7 +1213,8 @@ produce failure messages that name the port. Legacy-tree asserts live in
 - [ ] `retryFailed` advertised by every descriptor, read by nothing
 - [ ] 10 descriptor kinds have no runtime producer; `asset-source` and `sha512-dedup`
       have no descriptor
-- [ ] `SegmentNode` carries no input bindings — segment-internal edges match by port id
+- [ ] `SegmentNode` carries no input bindings — a segment-internal edge matches by port id
+      within a declared dependency, so a renamed-port edge is not carried locally
 - [ ] Orphaned SPIs: `PipelineFilter`/`MediaFilter`; dormant `LoomBulkSyncCollector`
 - [ ] No pipeline DAOs in `loom/db/memory`; no pipeline gRPC surface
 - [ ] `Subscriber.queueCapacity` / `DEFAULT_QUEUE_CAPACITY` are dead
@@ -1172,5 +1224,5 @@ See [PIPELINE_TASKS.md](PIPELINE_TASKS.md) for the actionable breakdown and
 
 ---
 
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Added §6.4b re-executing a held node with different settings, and the `V2.68` generation column. Earlier: §6.4a breakpoints and §9.1a previews; recovery does not restore breakpoints.)_
+_Git HEAD revision: `1ce29d78`_
+_Last updated: 2026-08-05 (§5 affinity segments now group on a shared producer, not only on an edge between members, with two refusals — different filter branches, and two values needed for one input port id; §7 `SegmentTaskRunner` scopes a member's visible inputs to its declared dependencies, which is what makes that sound. Earlier: §6.4b re-executing a held node with different settings and the `V2.68` generation column.)_

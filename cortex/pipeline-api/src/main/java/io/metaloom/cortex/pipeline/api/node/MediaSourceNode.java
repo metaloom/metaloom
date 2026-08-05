@@ -21,7 +21,9 @@ import io.reactivex.rxjava3.core.Flowable;
  * so implementations should stream rather than materialise a full list where the
  * underlying source allows it.</p>
  *
- * @see io.metaloom.cortex.runtime.SourceTaskRunner
+ * <p>The executor that drives this is {@code io.metaloom.cortex.runtime.SourceTaskRunner}. It is
+ * named rather than linked on purpose: it lives in {@code cortex/node-runtime}, which depends on
+ * this module, so a resolvable {@code @see} here would mean inverting that.</p>
  */
 public interface MediaSourceNode extends PipelineNode {
 

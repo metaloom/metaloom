@@ -200,6 +200,26 @@ public class SegmentTaskRunnerTest {
 		assertEquals(ContentTypeRegistry.HASH_SHA512, hash.getContentType());
 	}
 
+	/**
+	 * The converse of the test above, and the rule that lets independent analysers share a
+	 * segment at all. Affinity groups fuse nodes that read the same media, and such nodes
+	 * routinely emit ports their neighbours also declare — {@code consistency} emits
+	 * {@code is_complete} and {@code thumbnail} has one. If being in a segment were enough to
+	 * see a value, adding an affinity label would change what the pipeline computes, which is
+	 * the one thing an optimisation must never do.
+	 */
+	@Test
+	void testANodeDoesNotSeeTheOutputOfAMemberItDoesNotDependOn() {
+		register("a", emits(OUT_HASH, "deadbeef"));
+		RecordingNode b = register("b", Map.of());
+
+		// 'b' names no dependencies: it is a sibling of 'a', not its consumer.
+		runner().run(task(List.of(segNode("a", true), segNode("b", true)), Map.of()));
+
+		assertNull(b.seenInputs.get(0).get(OUT_HASH.id()),
+			"A segment must not be a source of data: 'b' has no edge to 'a'");
+	}
+
 	@Test
 	void testInputsFromOutsideTheSegmentAreVisible() {
 		RecordingNode a = register("a", Map.of());

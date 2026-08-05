@@ -50,6 +50,32 @@ public interface RunStateStore {
 	void taskDispatched(UUID itemUuid, NodeTask task, String workerId);
 
 	/**
+	 * Record that one node of an affinity segment was handed to a worker as part of a single
+	 * dispatch.
+	 *
+	 * <p>
+	 * Every member of the segment gets its own row, because the row key is the execution and the
+	 * store has to be able to settle each node's outcome onto its own. What they share is
+	 * {@code dispatchUuid}: the one request that carried all of them, which is the saving affinity
+	 * exists for and the only thing that distinguishes a segment from N independent dispatches
+	 * after the fact.
+	 * </p>
+	 *
+	 * <p>
+	 * Attributing the whole segment to its first node instead - one row, the rest fabricated when
+	 * their results arrived - lost both. The fabricated rows carried no worker, and they reused the
+	 * task uuid the worker echoes back, so every member after the first collided on the primary key
+	 * and was dropped by the flush while the run still reported success.
+	 * </p>
+	 *
+	 * @param itemUuid     the item
+	 * @param task         the dispatched task, carrying this node's own row uuid
+	 * @param workerId     the worker that took the segment, never null
+	 * @param dispatchUuid the uuid of the segment request all members were carried by
+	 */
+	void segmentTaskDispatched(UUID itemUuid, NodeTask task, String workerId, UUID dispatchUuid);
+
+	/**
 	 * Record a node's terminal outcome, whether it ran, was skipped, or failed.
 	 *
 	 * @param itemUuid the item
@@ -120,6 +146,10 @@ public interface RunStateStore {
 
 		@Override
 		public void taskDispatched(UUID itemUuid, NodeTask task, String workerId) {
+		}
+
+		@Override
+		public void segmentTaskDispatched(UUID itemUuid, NodeTask task, String workerId, UUID dispatchUuid) {
 		}
 
 		@Override

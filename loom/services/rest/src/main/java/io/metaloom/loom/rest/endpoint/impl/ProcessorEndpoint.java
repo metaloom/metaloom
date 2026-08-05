@@ -53,7 +53,7 @@ import io.vertx.core.json.JsonObject;
  * JSON messages using the {@link ProcessorMessage} envelope format. The endpoint also
  * exposes REST routes for listing and inspecting registered processors.</p>
  * 
- * <h1>WebSocket Protocol</h1>
+ * <h2>WebSocket Protocol</h2>
  * <ol>
  *   <li>Processor connects and sends a {@code REGISTER} message with its capabilities</li>
  *   <li>Loom responds with {@code REGISTERED} acknowledgement</li>

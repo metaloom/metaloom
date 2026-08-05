@@ -6,4 +6,4 @@ docker run \
    -v /opt/postgres:/var/lib/postgresql/data \
   --rm \
    -e POSTGRES_PASSWORD=finger \
-      postgres:13.2
+      postgres:16.3-bullseye

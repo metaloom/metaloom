@@ -106,9 +106,12 @@ public class SegmentTaskRunner {
 				task.getSegmentId(), List.of(), describe(e));
 		}
 
-		// Seeded with what came from outside the segment; nodes inside it add to this
-		// as they go, and those additions never cross the network.
-		Map<String, PortPayload> available = new LinkedHashMap<>(task.getInputs());
+		// What came from outside the segment. Every member sees all of it; the engine already
+		// narrowed it to ports that genuinely arrive from elsewhere.
+		Map<String, PortPayload> external = new LinkedHashMap<>(task.getInputs());
+		// What each member produced, kept per node rather than merged into one pool. A member
+		// reads a fellow member's output only by declaring it as a dependency - see visibleInputs.
+		Map<String, Map<String, PortPayload>> produced = new LinkedHashMap<>();
 		Map<String, NodeState> states = new LinkedHashMap<>();
 		List<NodeTaskResult> wireResults = new ArrayList<>();
 
@@ -125,16 +128,46 @@ public class SegmentTaskRunner {
 					continue;
 				}
 
-				NodeTaskResult result = runOne(task, node, media, available, artifacts);
+				NodeTaskResult result = runOne(task, node, media, visibleInputs(node, external, produced), artifacts);
 				wireResults.add(result);
 				states.put(node.getNodeId(), result.getState());
-				// A node's outputs become the next node's inputs, matched by port id.
-				available.putAll(result.getOutputs());
+				produced.put(node.getNodeId(), result.getOutputs());
 			}
 		}
 
 		return new SegmentTaskResult(task.getTaskUuid(), task.getRunUuid(), task.getItemId(), task.getSegmentId(),
 			wireResults, null);
+	}
+
+	/**
+	 * What one member of the segment is allowed to see: everything from outside the segment, plus
+	 * the outputs of the members it <em>declares</em> as dependencies.
+	 *
+	 * <p>
+	 * Merging every member's outputs into one pool instead would make being in a segment a source
+	 * of data. Affinity groups exist to fuse independent analysers of the same media, and those
+	 * routinely share port names — {@code consistency} emits {@code is_complete} and
+	 * {@code thumbnail} declares one — so a node would pick up a value it has no edge to and
+	 * compute something different purely because of a scheduling hint. Dependencies are on the
+	 * wire precisely so the worker can tell an edge from a coincidence.
+	 * </p>
+	 *
+	 * <p>
+	 * Port ids still do the matching within a declared edge, so an edge whose two ends are named
+	 * differently is not carried locally - the limitation the segment wire model already had, now
+	 * confined to edges that genuinely exist.
+	 * </p>
+	 */
+	private Map<String, PortPayload> visibleInputs(SegmentNode node, Map<String, PortPayload> external,
+		Map<String, Map<String, PortPayload>> produced) {
+		Map<String, PortPayload> visible = new LinkedHashMap<>(external);
+		for (String dependency : node.getDependencies()) {
+			Map<String, PortPayload> outputs = produced.get(dependency);
+			if (outputs != null) {
+				visible.putAll(outputs);
+			}
+		}
+		return visible;
 	}
 
 	/**

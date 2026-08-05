@@ -136,7 +136,7 @@ public class PipelineDistributedExecutionIntegrationTest extends AbstractIntegra
 			.as("The hash must run on the worker that accepts 'sha512', not on the scanner")
 			.isEqualTo(HASH_WORKER_ID);
 
-		assertThat(taskOutput(firstRun, "hash", "sha512"))
+		assertThat(taskOutput(firstRun, "hash", "hash"))
 			.as("The computed hash must reach Loom and be the correct one")
 			.isEqualTo(expectedSha512);
 
@@ -156,7 +156,7 @@ public class PipelineDistributedExecutionIntegrationTest extends AbstractIntegra
 			.as("The hash result was already known, so no worker should have been asked to recompute it")
 			.isNull();
 
-		assertThat(taskOutput(secondRun, "hash", "sha512"))
+		assertThat(taskOutput(secondRun, "hash", "hash"))
 			.as("The reused result must carry its outputs forward, not settle as an empty skip")
 			.isEqualTo(expectedSha512);
 	}
@@ -209,7 +209,9 @@ public class PipelineDistributedExecutionIntegrationTest extends AbstractIntegra
 					// reaches the asset.
 					.put("syncToLoom", true)))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "scan").put("target", "hash")));
+				// Ports are mandatory: the parser refuses an edge that does not say which two it joins.
+				.add(new JsonObject().put("source", "scan").put("sourcePort", "media")
+					.put("target", "hash").put("targetPort", "media")));
 	}
 
 	private void triggerRun(int restPort, String token, UUID pipelineUuid, String glob) throws Exception {
@@ -309,7 +311,10 @@ public class PipelineDistributedExecutionIntegrationTest extends AbstractIntegra
 			}, 1);
 		assertThat(rows).hasSize(1);
 		assertThat(rows.get(0)[0]).as("Node '%s' recorded no outputs", nodeId).isNotNull();
-		return new JsonObject(rows.get(0)[0]).getString(outputKey);
+		// The column holds one port payload envelope per output port, not a flat key/value bag:
+		// {"<port>": {"contentType": ..., "cardinality": ..., "elements": [{"value": ..., "origin": ...}]}}.
+		return new JsonObject(rows.get(0)[0]).getJsonObject(outputKey)
+			.getJsonArray("elements").getJsonObject(0).getString("value");
 	}
 
 	private boolean assetExistsWithSha512(String sha512) throws Exception {

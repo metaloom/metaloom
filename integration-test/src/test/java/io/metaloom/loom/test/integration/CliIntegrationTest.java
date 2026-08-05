@@ -361,14 +361,18 @@ public class CliIntegrationTest extends AbstractIntegrationTest {
 
 	// ── Helpers ──────────────────────────────────────────────────────────
 
-	/** A minimal but valid pipeline: exactly one source node, as the parser requires. */
+	/**
+	 * A minimal but valid pipeline: exactly one source node, as the parser requires, and an edge
+	 * that names the ports it joins - {@code PipelineGraphParser} rejects a portless edge.
+	 */
 	private PipelineResponse createPipeline(String name) throws Exception {
 		JsonObject definition = new JsonObject()
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
 				.add(new JsonObject().put("id", "hash").put("type", "sha512")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("target", "hash")));
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media")
+					.put("target", "hash").put("targetPort", "media")));
 
 		PipelineCreateRequest request = new PipelineCreateRequest();
 		request.setName(name);

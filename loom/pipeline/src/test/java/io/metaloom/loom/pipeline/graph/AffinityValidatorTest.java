@@ -81,15 +81,32 @@ public class AffinityValidatorTest {
 	}
 
 	@Test
-	void testDisconnectedNodesSharingALabelAreAlsoReported() {
+	void testNodesSharingALabelAndAProducerAreNotReported() {
 		PipelineGraph g = graph(
 			new JsonArray().add(node("a", "sha512", "video")).add(node("b", "md5", "video")),
 			new JsonArray().add(edge("src", "a")).add(edge("src", "b")));
 
 		List<AffinityWarning> warnings = validator.validate(g, kinds -> true);
 
-		// Same label, no path between them, so no intermediate result can stay on the
-		// worker. Worth saying: the author thinks these are co-located and they are not.
+		// These used to be reported as split: no edge joined them, so the segmenter made
+		// two segments out of one label. They read the same input, which is enough to run
+		// them as one unit, so there is nothing left to warn about.
+		assertEquals(List.of(), warnings);
+	}
+
+	@Test
+	void testNodesSharingOnlyALabelAreStillReported() {
+		PipelineGraph g = graph(
+			new JsonArray()
+				.add(node("a", "sha512", "video"))
+				.add(node("mid", "md5", "other"))
+				.add(node("b", "sha512", "video")),
+			new JsonArray().add(edge("src", "a")).add(edge("src", "mid")).add(edge("mid", "b")));
+
+		List<AffinityWarning> warnings = validator.validate(g, kinds -> true);
+
+		// Neither an edge nor a shared input: nothing can keep these on one worker, so the
+		// author's belief that they are co-located is still worth contradicting.
 		assertEquals(1, warnings.size());
 		assertEquals(AffinityWarning.Kind.GROUP_SPLIT, warnings.get(0).getKind());
 	}

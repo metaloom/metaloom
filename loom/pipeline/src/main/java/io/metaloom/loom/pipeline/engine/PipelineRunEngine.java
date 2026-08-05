@@ -1548,7 +1548,9 @@ public class PipelineRunEngine {
 		// One dispatch, one slot: a segment is a single outstanding request no matter
 		// how many nodes it carries.
 		inFlightCount++;
-		store.taskDispatched(itemUuid(state), toNodeTask(task, segment), worker);
+		for (NodeTask memberTask : toNodeTasks(task, segment)) {
+			store.segmentTaskDispatched(itemUuid(state), memberTask, worker, taskUuid);
+		}
 		return false;
 	}
 
@@ -1590,16 +1592,30 @@ public class PipelineRunEngine {
 	}
 
 	/**
-	 * Represent a segment to the state store, which records per node task.
+	 * Represent a segment to the state store, which records one task per node.
 	 *
-	 * <p>Attributed to the segment's first node: the store's key is
-	 * {@code (item, node)}, and the remaining nodes get their rows when their results
-	 * arrive.</p>
+	 * <p>
+	 * One task per member, each with its own row uuid. The store's key is the execution, so a
+	 * member that shared a uuid with another could not settle onto a row of its own - which is
+	 * exactly what happened while the whole segment was attributed to its first node: the rest
+	 * collided on the primary key and their outcomes were dropped. The segment's own task uuid is
+	 * passed separately, as the dispatch they were all carried by.
+	 * </p>
+	 *
+	 * <p>
+	 * The first member keeps the segment's task uuid as its row id, so anything already holding
+	 * that id - {@code asset_segment_comp.task_uuid}, an operator following a log line - still
+	 * resolves to a row.
+	 * </p>
 	 */
-	private NodeTask toNodeTask(SegmentTask task, PipelineSegment segment) {
-		String first = segment.getNodeIds().get(0);
-		return new NodeTask(task.getTaskUuid(), runUuid, task.getItemId(), first,
-			graph.getNode(first).getKind(), task.getMedia(), Map.of(), task.getInputs());
+	private List<NodeTask> toNodeTasks(SegmentTask task, PipelineSegment segment) {
+		List<NodeTask> tasks = new ArrayList<>();
+		for (String nodeId : segment.getNodeIds()) {
+			UUID rowUuid = tasks.isEmpty() ? task.getTaskUuid() : UUID.randomUUID();
+			tasks.add(new NodeTask(rowUuid, runUuid, task.getItemId(), nodeId,
+				graph.getNode(nodeId).getKind(), task.getMedia(), Map.of(), task.getInputs()));
+		}
+		return tasks;
 	}
 
 	/**

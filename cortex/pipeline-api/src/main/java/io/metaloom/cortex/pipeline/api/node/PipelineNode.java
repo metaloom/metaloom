@@ -20,7 +20,7 @@ import io.metaloom.cortex.api.media.LoomMedia;
  * Downstream nodes connected with a specific {@link FilterBranch} are skipped when
  * the branch does not match.</p>
  *
- * <h3>Usage</h3>
+ * <h2>Usage</h2>
  * <pre>
  * sourceNode.connectTo(sizeFilter);
  * sizeFilter.connectTo(hashNode, FilterBranch.PASS);

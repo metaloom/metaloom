@@ -84,9 +84,9 @@ public interface LoomCoreComponent {
 
 		/**
 		 * Inject configuration options.
-		 * 
-		 * @param options
-		 * @return
+		 *
+		 * @param lookup the options source the component resolves configuration through
+		 * @return this builder
 		 */
 		@BindsInstance
 		Builder configuration(LoomOptionsLookup lookup);

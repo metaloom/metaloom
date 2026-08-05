@@ -139,11 +139,30 @@ public class DaoRunStateStore implements RunStateStore {
 
 	@Override
 	public synchronized void taskDispatched(UUID itemUuid, NodeTask task, String workerId) {
+		dispatched(itemUuid, task, workerId, null);
+	}
+
+	@Override
+	public synchronized void segmentTaskDispatched(UUID itemUuid, NodeTask task, String workerId, UUID dispatchUuid) {
+		dispatched(itemUuid, task, workerId, dispatchUuid);
+	}
+
+	/**
+	 * @param dispatchUuid the segment request that carried this node, or null for an ordinary
+	 *                     per-node dispatch, where the row's own uuid already is the dispatch
+	 */
+	private void dispatched(UUID itemUuid, NodeTask task, String workerId, UUID dispatchUuid) {
 		if (itemUuid == null) {
 			return;
 		}
 		PipelineNodeTask row = taskDao.createNodeTask(userUuid, itemUuid, task.getRunUuid(), task.getNodeId(),
 			task.getNodeKind());
+		if (dispatchUuid != null) {
+			// Every member of a segment carries the uuid of the one request they arrived in, which
+			// is the only thing distinguishing "three nodes, one round trip" from three dispatches
+			// once the rows are on disk.
+			row.setMeta(new JsonObject().put("dispatchUuid", dispatchUuid.toString()));
+		}
 		row.setUuid(task.getTaskUuid());
 		// A refused dispatch is recorded as PENDING with no lease: it was never handed
 		// to anyone, so it must not look reclaimable.

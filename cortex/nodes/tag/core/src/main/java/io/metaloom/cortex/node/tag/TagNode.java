@@ -67,7 +67,7 @@ import io.vertx.core.json.JsonObject;
  * node writes into a namespace it shares with every person using it. That is why {@code normalize},
  * {@code allowedTags} and {@code maxTags} are not optional extras, why {@code removeWithdrawn}
  * defaults to off, and why the node may only withdraw a tag it can prove it wrote — see
- * {@link #reconcile}.
+ * {@link #toWithdraw(java.util.List, java.util.List)}.
  * </p>
  *
  * <p>

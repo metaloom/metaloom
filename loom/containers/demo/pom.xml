@@ -145,7 +145,22 @@
                                     Files live in src/main/resources/META-INF/native-image/io.metaloom.loom/loom-demo/
                                 -->
                                 <buildArg>-H:ConfigurationFileDirectories=${project.basedir}/src/main/resources/META-INF/native-image/io.metaloom.loom/loom-demo</buildArg>
-                                <buildArg>-J-Xmx6g</buildArg>
+                                <!-- Raised from 6g, which the reachable code outgrew: the build died with a bare
+                                     OutOfMemoryError rather than anything diagnostic. Measured peak is ~8.3 GB,
+                                     so this is that with headroom. -->
+                                <buildArg>-J-Xmx12g</buildArg>
+                                <!--
+                                    Capped well below the 24 cores this would otherwise take. The points-to
+                                    analysis finishes by calling ForkJoinPool.awaitQuiescence, and on JDK 25 that
+                                    intermittently misses its wakeup: every worker parks, `main` stays in
+                                    externalHelpQuiesce, and the build sits at [1/8] holding 0.67 GB until the
+                                    deadlock watchdog kills it. It presents as a hang and reads like memory
+                                    pressure, which it is not - raising the heap does not help, and it struck the
+                                    demo image at 12g having passed at 20g. Fewer workers, fewer chances to lose
+                                    the race. Costs build time; a build that finishes slowly beats one that
+                                    fails three runs in four.
+                                -->
+                                <buildArg>--parallelism=6</buildArg>
                             </buildArgs>
                         </configuration>
                     </plugin>

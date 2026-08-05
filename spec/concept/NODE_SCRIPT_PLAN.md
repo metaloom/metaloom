@@ -162,11 +162,14 @@ No dedicated environment variables. Relevant existing ones:
       descriptor parameters — but `GraalJsCompiledScript.install()` installs only `media`, `data`,
       `params`, `out`, `log`, `ctx`, and `newContext()` never reads either flag. A script asking for
       `http` gets `undefined`, and a *trusted* script gets `allowAllAccess(true)` regardless.
-- [ ] **The documented `upstream` binding does not exist.** Both
-      `website/content/english/docs/nodes/script/index.adoc` and
-      `ScriptDescriptorProvider.DEFAULT_SCRIPT` — the body **every new script node is created with** —
-      still show `upstream['whisper']['transcript']`. The runtime bindings are `media`/`data`/`params`/
-      `out`/`log`/`ctx`. Fix both; the default script is the higher-priority half.
+- [x] **The documented `upstream` binding does not exist.** *(fixed 2026-08-05)* Both the website
+      page and the default script body — `ScriptNodeOptions.script`'s `@ParamDoc(defaultValue=...)`,
+      which is what **every new script node is created with** — showed
+      `upstream['whisper']['transcript']`, and a script copied from either died with
+      `ReferenceError: upstream is not defined`. Both now document the real bindings:
+      `media`/`data`/`params`/`out`/`log`/`ctx`, with wired text arriving as `data.text`.
+      Regenerate `node-descriptors.json` after touching the `@ParamDoc` — see
+      `NodeSpecGoldenTest`.
 - [ ] **Memory is unbounded.** Heap and CPU-time `ResourceLimits` need the optimized Truffle runtime,
       which a stock JDK does not provide. `statementLimit` and the wall-clock watchdog are the only
       guards. **Do not claim a memory bound.**

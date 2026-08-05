@@ -61,6 +61,11 @@ public class SceneLayoutNodeIntegrationTest extends AbstractNodeIntegrationTest 
 		return file;
 	}
 
+	/**
+	 * One element of the {@code detections} port, in the shape {@code FacedetectNode} emits: the
+	 * box plus the convention and the dimensions it was measured against, repeated on every
+	 * element because an element is what travels downstream on its own.
+	 */
 	private static JsonObject detection(int index, double x, double y, double w, double h) {
 		return new JsonObject()
 			.put("index", index)
@@ -68,7 +73,10 @@ public class SceneLayoutNodeIntegrationTest extends AbstractNodeIntegrationTest 
 			.put("label", "face")
 			.put("frame", 0)
 			.put("bbox", new JsonObject().put("x", x).put("y", y).put("w", w).put("h", h))
-			.put("confidence", 1.0d);
+			.put("confidence", 1.0d)
+			.put("coordinates", "ABSOLUTE_PIXELS")
+			.put("imageWidth", IMAGE_W)
+			.put("imageHeight", IMAGE_H);
 	}
 
 	@Test
@@ -91,18 +99,13 @@ public class SceneLayoutNodeIntegrationTest extends AbstractNodeIntegrationTest 
 				.put("imageWidth", IMAGE_W).put("imageHeight", IMAGE_H)
 				.put("path", mapFile.getAbsolutePath());
 
-			JsonObject detections = new JsonObject()
-				.put("imageWidth", IMAGE_W)
-				.put("imageHeight", IMAGE_H)
-				.put("coordinates", "ABSOLUTE_PIXELS")
-				.put("detections", new JsonArray()
-					.add(detection(0, 40, 40, 80, 80))
-					.add(detection(1, 280, 40, 80, 80)));
-
+			// The port is MANY: one element per box, not one element listing every box.
 			NodeContext<io.metaloom.cortex.api.media.LoomMedia> ctx = NodeContext.create(media(image1()),
 				NodeInputs.builder()
 					.input(SceneLayoutNode.IN_DEPTH, depthMeta.encode())
-					.inputs(SceneLayoutNode.IN_DETECTIONS, List.of(detections.encode()))
+					.inputs(SceneLayoutNode.IN_DETECTIONS, List.of(
+						detection(0, 40, 40, 80, 80).encode(),
+						detection(1, 280, 40, 80, 80).encode()))
 					.build());
 
 			NodeResult result = node.process(ctx);

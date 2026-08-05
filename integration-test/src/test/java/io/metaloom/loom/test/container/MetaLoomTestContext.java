@@ -48,7 +48,11 @@ public class MetaLoomTestContext implements AutoCloseable {
 
 	private static final Logger log = LoggerFactory.getLogger(MetaLoomTestContext.class);
 
-	public static final String POSTGRES_IMAGE = "postgres:13.2";
+	// 16.3 to match the pooled test databases and the rest of the compose files. Not below 15:
+	// V2.71 uses UNIQUE NULLS NOT DISTINCT, so an older server fails the migration on boot and the
+	// container never reports healthy - which reads as "the image is broken" rather than
+	// "the database is too old".
+	public static final String POSTGRES_IMAGE = "postgres:16.3-bullseye";
 	private static final String DB_ALIAS = "postgres";
 	private static final String DB_NAME = "loom";
 	private static final String DB_USER = "sa";

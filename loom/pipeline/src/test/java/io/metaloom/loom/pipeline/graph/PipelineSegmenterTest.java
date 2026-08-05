@@ -93,19 +93,107 @@ public class PipelineSegmenterTest {
 	}
 
 	@Test
-	void testSameGroupButDisconnectedStaysSeparate() {
-		// Two branches off the source, both labelled "video", never joined.
+	void testSiblingsOfOneProducerBecomeOneSegment() {
+		// Two branches off the source, both labelled "video", never joined to each other.
 		PipelineGraph g = graph(
 			new JsonArray().add(node("a", "video-decode", "video")).add(node("b", "video-decode", "video")),
 			new JsonArray().add(edge("src", "a")).add(edge("src", "b")));
 
 		List<PipelineSegment> segments = segmenter.segment(g);
 
-		// A shared label is not a shared unit of work. Merging these would pin
-		// unrelated work to one worker and gain nothing, since no intermediate result
-		// passes between them.
-		assertEquals(2, segments.size());
-		assertTrue(segments.stream().allMatch(PipelineSegment::isSingleNode));
+		// No intermediate result passes between them, but they read the same input, and
+		// reading it once is the saving affinity exists for. Requiring an edge between
+		// members would lose it here for good: typed ports make analysers of one medium
+		// siblings rather than a chain, so the edge this used to demand cannot exist.
+		assertEquals(1, segments.size());
+		assertEquals(List.of("a", "b"), segments.get(0).getNodeIds());
+	}
+
+	@Test
+	void testSameGroupWithNoSharedProducerStaysSeparate() {
+		// 'a' reads the source; 'b' reads 'mid', which is in another group. Same label,
+		// nothing in common - neither an edge nor an input.
+		PipelineGraph g = graph(
+			new JsonArray()
+				.add(node("a", "video-decode", "video"))
+				.add(node("mid", "sha512", "other"))
+				.add(node("b", "video-decode", "video")),
+			new JsonArray().add(edge("src", "a")).add(edge("src", "mid")).add(edge("mid", "b")));
+
+		List<PipelineSegment> segments = segmenter.segment(g);
+
+		// A shared label is still not a shared unit of work. Merging these would pin
+		// unrelated work to one worker for nothing.
+		assertEquals(2, segmentsWithAffinity(segments, "video"));
+		assertFalse(segmentContaining(segments, "a").getNodeIds().contains("b"));
+	}
+
+	/**
+	 * Two consumers of one <em>filter</em> are not siblings in the sense that matters: the item
+	 * goes down exactly one branch, so one of them must not run at all. Fusing them would hand a
+	 * worker a unit of work containing a node this item was routed away from, and the worker has
+	 * no verdict to tell which.
+	 */
+	@Test
+	void testSiblingsOnDifferentBranchesOfAFilterStaySeparate() {
+		PipelineGraphParser typed = new PipelineGraphParser(io.metaloom.loom.pipeline.TestDescriptors.registry());
+		PipelineGraph g = typed.parse("routed", new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "test-source").put("source", true))
+				.add(new JsonObject().put("id", "r").put("type", "router").put("affinity", "other"))
+				.add(new JsonObject().put("id", "left").put("type", "describe").put("affinity", "video"))
+				.add(new JsonObject().put("id", "right").put("type", "describe").put("affinity", "video")))
+			.put("edges", new JsonArray()
+				.add(edge("src", "r"))
+				.add(new JsonObject().put("source", "r").put("sourcePort", "a")
+					.put("target", "left").put("targetPort", "media"))
+				.add(new JsonObject().put("source", "r").put("sourcePort", "b")
+					.put("target", "right").put("targetPort", "media"))),
+			true, false, 0);
+
+		List<PipelineSegment> segments = segmenter.segment(g);
+
+		assertFalse(segmentContaining(segments, "left").getNodeIds().contains("right"),
+			"consumers of two different branches must not travel together: " + segments);
+	}
+
+	/**
+	 * A segment carries one map of inputs keyed by port id, shared by every member, so a group
+	 * needing two different values for the same port id cannot be dispatched as one unit — the
+	 * second member would silently receive the first's data. Being chatty is the right answer.
+	 */
+	@Test
+	void testAGroupNeedingTwoValuesForOnePortIsSplit() {
+		PipelineGraphParser typed = new PipelineGraphParser(io.metaloom.loom.pipeline.TestDescriptors.registry());
+		PipelineGraph g = typed.parse("ambiguous", new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "test-source").put("source", true))
+				.add(new JsonObject().put("id", "p1").put("type", "describe").put("affinity", "other"))
+				.add(new JsonObject().put("id", "p2").put("type", "describe").put("affinity", "other"))
+				.add(new JsonObject().put("id", "shared").put("type", "describe").put("affinity", "other"))
+				// Both read "left", but from different producers; both read "right" from 'shared',
+				// which is what puts them in one group in the first place.
+				.add(new JsonObject().put("id", "z1").put("type", "zipper").put("affinity", "video"))
+				.add(new JsonObject().put("id", "z2").put("type", "zipper").put("affinity", "video")))
+			.put("edges", new JsonArray()
+				.add(edge("src", "p1")).add(edge("src", "p2")).add(edge("src", "shared"))
+				.add(textEdge("p1", "z1", "left")).add(textEdge("shared", "z1", "right"))
+				.add(textEdge("p2", "z2", "left")).add(textEdge("shared", "z2", "right"))),
+			true, false, 0);
+
+		List<PipelineSegment> segments = segmenter.segment(g);
+
+		assertFalse(segmentContaining(segments, "z1").getNodeIds().contains("z2"),
+			"'left' would have to be p1.text and p2.text at once: " + segments);
+	}
+
+	private JsonObject textEdge(String from, String to, String targetPort) {
+		return new JsonObject().put("source", from).put("sourcePort", "text")
+			.put("target", to).put("targetPort", targetPort);
+	}
+
+	private long segmentsWithAffinity(List<PipelineSegment> segments, String affinity) {
+		return segments.stream().filter(s -> affinity.equals(s.getAffinity())).count();
 	}
 
 	@Test

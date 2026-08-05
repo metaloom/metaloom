@@ -7,6 +7,10 @@ The node ([`HelloWorldNode`](./src/main/java/io/metaloom/cortex/node/hello/Hello
 reads a media file, computes its size and a naive word count, emits those on two declared **output
 ports**, and — when running online — posts the result to Loom over REST.
 
+**Your node appears in the pipeline editor automatically.** Annotate it, drop the jar on a worker's
+classpath, and it is placeable — no change to Loom, and no Loom rebuild. See
+[Reaching the pipeline editor](#reaching-the-pipeline-editor) below.
+
 ## The node contract
 
 A node extends `AbstractMediaNode<O>` and implements two methods:
@@ -35,6 +39,90 @@ public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
 *is-processable* check, and (in online mode) fetching the `AssetResponse` from Loom before
 `compute(...)` runs. In **offline mode** (no `LoomClient` configured) `asset` is `null` and the node
 simply skips the remote persistence — which is exactly what the unit tests exercise.
+
+
+## Reaching the pipeline editor
+
+A node used to be *runnable but unauthorable*: Loom would dispatch tasks to it, because the worker
+said it could run `hello-world`, but the editor could not place it and the graph parser rejected it
+as an unknown type. The contract lived in Loom's own jar, so a third-party node had nowhere to put
+one.
+
+The worker now **announces** its contracts. Three pieces make that work:
+
+### 1. Annotate the node
+
+```java
+@NodeSpec(nodeId = "hello-world", name = "Hello World", icon = "description",
+    category = NodeCategory.ANALYSIS,
+    description = "Example custom node: reports a file's size and estimated word count.")
+public class HelloWorldNode extends AbstractMediaNode<HelloWorldNodeOptions> {
+
+    @PortDoc(label = "Hash", description = "An SHA-256 hash produced upstream.", required = false)
+    public static final InputPort<String> IN_HASH =
+        InputPort.one("hash", ContentTypeRegistry.HASH_SHA256, String.class);
+```
+
+Note what is **not** in the annotation: no port list, no content types, no cardinalities. Those are
+read off the `InputPort`/`OutputPort` constants the node already executes against, so the contract
+cannot drift from the code. The annotation carries only what reflection cannot know — display names,
+descriptions, an icon, a category.
+
+### 2. Annotate the options
+
+```java
+@ParamDoc(label = "Compute File Size", description = "Emit the file_size output port")
+private boolean computeFileSize = true;
+```
+
+The parameter key is the field name, the type is the field type, and the default is whatever a
+default-constructed options instance holds. `enabled`, `processIncomplete` and `retryFailed` come
+from `AbstractNodeOptions` and are declared once there, for every node.
+
+### 3. Register a `NodeSpecSource`
+
+Cortex knows its own built-in nodes by name and finds yours through `ServiceLoader`:
+
+```java
+public class HelloWorldNodeSpecSource implements NodeSpecSource {
+    public Collection<Class<?>> nodeClasses() {
+        return List.of(HelloWorldNode.class);
+    }
+}
+```
+
+…listed in
+`src/main/resources/META-INF/services/io.metaloom.cortex.api.node.spec.NodeSpecSource`.
+
+Return **class literals**, never instances: a class literal does not run the class's static
+initializer, so listing a node here costs nothing even if it loads native libraries.
+
+### What happens at runtime
+
+```
+worker starts
+  └─ REGISTER            ─▶ Loom: "I can run hello-world"      (this is what dispatch reads)
+  ◀─ REGISTERED
+  └─ NODE_REGISTRATION   ─▶ Loom: "and here is what it looks like"
+  ◀─ NODE_REGISTRATION_ACK  per-node: accepted, or rejected with a reason
+```
+
+The contract is then **durable**. Stop the worker and the node stays in the palette, greyed out and
+labelled offline — a pipeline that uses it still opens, still validates and still saves. It simply
+cannot run, which a run request answers with a 503 naming the missing worker. That split is
+deliberate: deleting contracts when a worker disconnects would turn a 30-second restart into "your
+saved pipeline no longer validates".
+
+### Things worth knowing
+
+| | |
+|---|---|
+| **Built-in wins** | Announcing a contract for a node id Loom already ships is rejected with reason `BUILTIN` and the announcement is ignored. The rejection is reported in the ack — check your worker log if an edit seems to have no effect. |
+| **Icons are a fixed set** | `icon` is a key into a compile-time map in the editor. An unknown name falls back to the category icon, so your node still renders — it just cannot introduce a new icon. |
+| **Content types are free** | A port may name a content type nobody has ever declared (`struct/nsfw`). Assignability is structural, so it connects correctly and Loom synthesizes a label for the editor. |
+| **Lowest version wins** | When several workers offer one node on different versions, Loom serves the **lowest** — the contract every worker in the fleet can honour. A port that only exists on newer workers appears once the last old one is gone. |
+| **Turning it off** | `CORTEX_NODE_SPEC_ANNOUNCE=false` restores the previous behaviour exactly: the worker still registers and still runs everything it could before, but nothing Loom does not itself ship stays authorable. |
+
 
 ## Declaring ports
 

@@ -49,9 +49,9 @@ import io.vertx.core.json.JsonObject;
  * <h2>The topology</h2>
  *
  * <pre>
- *   Cortex SCAN      filesystem-source only        walks the folder
- *   Cortex ANALYSE   sha512 + chunk-hash + thumbnail   runs the whole segment
- *   Cortex PARTIAL   sha512 only                   must NOT receive the segment
+ *   Cortex SCAN      filesystem-source + sha512              walks the folder, hashes
+ *   Cortex ANALYSE   consistency + thumbnail + fingerprint   runs the whole segment
+ *   Cortex PARTIAL   thumbnail only                          must NOT receive the segment
  * </pre>
  *
  * <p>The third worker is the point of the test. It can run one of the segment's
@@ -59,11 +59,6 @@ import io.vertx.core.json.JsonObject;
  * split the group across it. A segment needs <em>one</em> worker covering
  * <em>every</em> kind, and this is what proves that rule is enforced rather than
  * merely intended.</p>
- *
- * <p>⚠️ The pipeline uses {@code chunk-hash} where a fingerprint node would be more
- * natural. {@code fingerprint} is not a registered node kind - the module exists and
- * carries a descriptor, but nothing wires a producer into the factory, so a task for
- * it resolves to nothing. Swapping it in is a one-line change once that is fixed.</p>
  */
 public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationTest {
 
@@ -74,7 +69,7 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 	private static final String PARTIAL_WORKER = "it-cortex-partial";
 
 	/** The nodes that must end up together. */
-	private static final List<String> SEGMENT_NODES = List.of("hash", "chunks", "thumb");
+	private static final List<String> SEGMENT_NODES = List.of("check", "thumb", "fp");
 
 	private Loom server;
 	private final List<Cortex> workers = new ArrayList<>();
@@ -98,10 +93,12 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 		String glob = data.root().toAbsolutePath() + "/**/" + media.path().getFileName();
 		String expectedSha512 = media.sha512().toString();
 
-		startWorker(SCAN_WORKER, restPort, Set.of("filesystem-source"));
-		startWorker(ANALYSE_WORKER, restPort, Set.of("sha512", "chunk-hash", "thumbnail"));
+		// sha512 lives here rather than on ANALYSE so that the hash node, which is outside the
+		// affinity group, cannot muddy the "who ran the segment" assertions below.
+		startWorker(SCAN_WORKER, restPort, Set.of("filesystem-source", "sha512"));
+		startWorker(ANALYSE_WORKER, restPort, Set.of("consistency", "thumbnail", "fingerprint"));
 		// Can run one of the segment's kinds, but not all three. It must be passed over.
-		startWorker(PARTIAL_WORKER, restPort, Set.of("sha512"));
+		startWorker(PARTIAL_WORKER, restPort, Set.of("thumbnail"));
 
 		String token;
 		UUID pipelineUuid;
@@ -138,7 +135,7 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 			.as("The whole affinity group must run on exactly one worker - that is the entire point")
 			.hasSize(1);
 		assertThat(segmentWorkers.get(0))
-			.as("It must be the worker that can run all three kinds, not the one that can run only sha512")
+			.as("It must be the worker that can run all three kinds, not the one that can run only thumbnails")
 			.isEqualTo(ANALYSE_WORKER);
 
 		// ---------- Nothing was handed to the partially-capable worker ----------
@@ -146,18 +143,26 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 			.noneSatisfy(row -> assertThat(row[1]).isEqualTo(PARTIAL_WORKER));
 
 		// ---------- One dispatch, not three ----------
+		// Each member owns its row - the uuid is the primary key, so it cannot be the shared id -
+		// and records the request that carried it in meta.dispatchUuid.
 		List<String> dispatchIds = tasks.stream()
 			.filter(row -> SEGMENT_NODES.contains(row[0]))
-			.map(row -> row[3])
+			.map(row -> row[4])
 			.distinct()
 			.toList();
 		assertThat(dispatchIds)
 			.as("Three nodes sent as one segment share a single dispatch; three ids would mean "
 				+ "three round trips and no saving at all")
 			.hasSize(1);
+		assertThat(dispatchIds.get(0)).as("...and it must be a real dispatch, not an absent one").isNotNull();
+
+		assertThat(tasks.stream().filter(row -> SEGMENT_NODES.contains(row[0])).map(row -> row[3]).distinct())
+			.as("Every member still needs a row of its own; a shared row id would collide on the "
+				+ "primary key and silently drop all but the first node's outcome")
+			.hasSize(SEGMENT_NODES.size());
 
 		// ---------- The results still came back individually ----------
-		assertThat(taskOutput(runUuid, "hash", "sha512"))
+		assertThat(taskOutput(runUuid, "hash", "hash"))
 			.as("Per-node outcomes must survive the segment; one verdict for the group would lose them")
 			.isEqualTo(expectedSha512);
 		for (String nodeId : SEGMENT_NODES) {
@@ -173,26 +178,50 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 	}
 
 	/**
-	 * scan -> (hash -> chunks -> thumb), the last three sharing one affinity group.
+	 * scan -> hash, and scan -> (check -> thumb, check -> fp) with the last three sharing one
+	 * affinity group.
 	 *
-	 * <p>They are chained rather than fanned out so the group is genuinely connected:
-	 * nodes sharing a label but sitting on separate branches are deliberately
-	 * <em>not</em> merged, because no intermediate result passes between them.</p>
+	 * <p>The three would group on their shared producer alone — they all read {@code scan.media} —
+	 * so this deliberately wires them as well: {@code consistency}'s {@code is_complete} verdict
+	 * feeds the optional {@code is_complete} input of both {@code thumbnail} and
+	 * {@code fingerprint}, which is exactly what that port is for. Real edges are what make the
+	 * per-node outputs below meaningful, since a member only sees a fellow member's output when it
+	 * declares the dependency.</p>
+	 *
+	 * <p>⚠️ A chain of hashing nodes cannot express this. Under the typed port model an edge must
+	 * join two compatible ports, and {@code sha512} emits {@code hash/sha512} while every analysis
+	 * node consumes {@code media/*} - so {@code hash -> chunks -> thumb} is not a wiring the parser
+	 * will accept, it is three siblings of one source. That is precisely why sharing a producer
+	 * groups nodes: under an edges-only rule those three fused into three segments and the saving
+	 * disappeared. Here {@code hash} stays out of the group by carrying no affinity label, so the
+	 * "who ran the segment" assertions stay unambiguous.</p>
 	 */
 	private JsonObject definition() {
 		return new JsonObject()
 			.put("nodes", new JsonArray()
 				.add(new JsonObject().put("id", "scan").put("type", "filesystem-source").put("source", true))
-				.add(new JsonObject().put("id", "hash").put("type", "sha512")
-					.put("affinity", "analysis").put("syncToLoom", true))
-				.add(new JsonObject().put("id", "chunks").put("type", "chunk-hash")
+				// Outside the group, and runnable only by the scan worker.
+				.add(new JsonObject().put("id", "hash").put("type", "sha512").put("syncToLoom", true))
+				.add(new JsonObject().put("id", "check").put("type", "consistency")
 					.put("affinity", "analysis"))
 				.add(new JsonObject().put("id", "thumb").put("type", "thumbnail")
+					.put("affinity", "analysis"))
+				.add(new JsonObject().put("id", "fp").put("type", "fingerprint")
 					.put("affinity", "analysis")))
 			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "scan").put("target", "hash"))
-				.add(new JsonObject().put("source", "hash").put("target", "chunks"))
-				.add(new JsonObject().put("source", "chunks").put("target", "thumb")));
+				.add(edge("scan", "media", "hash", "media"))
+				.add(edge("scan", "media", "check", "media"))
+				.add(edge("scan", "media", "thumb", "media"))
+				.add(edge("scan", "media", "fp", "media"))
+				// The two edges that make the group one connected unit rather than three siblings.
+				.add(edge("check", "is_complete", "thumb", "is_complete"))
+				.add(edge("check", "is_complete", "fp", "is_complete")));
+	}
+
+	private static JsonObject edge(String from, String fromPort, String to, String toPort) {
+		return new JsonObject()
+			.put("source", from).put("sourcePort", fromPort)
+			.put("target", to).put("targetPort", toPort);
 	}
 
 	// ----------------------------------------------------------------------
@@ -269,10 +298,10 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 	// Assertions against the database
 	// ----------------------------------------------------------------------
 
-	/** @return rows of {nodeId, leasedBy, state, taskUuid} */
+	/** @return rows of {nodeId, leasedBy, state, taskUuid, dispatchUuid} */
 	private List<String[]> tasksFor(UUID runUuid) throws Exception {
-		return query("SELECT node_id, leased_by, state, uuid FROM pipeline_node_task WHERE run_uuid = ?",
-			ps -> ps.setObject(1, runUuid), 4);
+		return query("SELECT node_id, leased_by, state, uuid, meta->>'dispatchUuid'"
+			+ " FROM pipeline_node_task WHERE run_uuid = ?", ps -> ps.setObject(1, runUuid), 5);
 	}
 
 	private String taskState(UUID runUuid, String nodeId) throws Exception {
@@ -293,7 +322,10 @@ public class PipelineAffinitySegmentIntegrationTest extends AbstractIntegrationT
 			}, 1);
 		assertThat(rows).hasSize(1);
 		assertThat(rows.get(0)[0]).as("Node '%s' recorded no outputs", nodeId).isNotNull();
-		return new JsonObject(rows.get(0)[0]).getString(outputKey);
+		// The column holds one port payload envelope per output port, not a flat key/value bag:
+		// {"<port>": {"contentType": ..., "cardinality": ..., "elements": [{"value": ..., "origin": ...}]}}.
+		return new JsonObject(rows.get(0)[0]).getJsonObject(outputKey)
+			.getJsonArray("elements").getJsonObject(0).getString("value");
 	}
 
 	private boolean assetExistsWithSha512(String sha512) throws Exception {

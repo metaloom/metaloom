@@ -53,6 +53,11 @@ public class PipelineRunEngineReuseTest {
 		}
 
 		@Override
+		public void segmentTaskDispatched(UUID itemUuid, io.metaloom.loom.pipeline.model.NodeTask task,
+			String workerId, UUID dispatchUuid) {
+		}
+
+		@Override
 		public void taskSettled(UUID itemUuid, NodeTaskResult result) {
 		}
 

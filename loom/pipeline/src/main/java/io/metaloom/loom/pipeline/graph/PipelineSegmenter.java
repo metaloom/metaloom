@@ -13,10 +13,29 @@ import java.util.Set;
  * Splits a graph into affinity segments.
  *
  * <p>A segment is a maximal set of nodes that share an affinity group <em>and</em>
- * are connected through edges within that group. Connectivity is the part that is
- * easy to get wrong: two nodes with the same group label but no path between them
- * are not one unit of work, and merging them would force unrelated work onto the
- * same worker for no benefit.</p>
+ * are related closely enough to be one unit of work. Two nodes qualify when an edge
+ * inside the group joins them, or when they consume the same producer — see below.
+ * A shared label alone is not enough: merging nodes that have nothing in common would
+ * force unrelated work onto the same worker for no benefit.</p>
+ *
+ * <h2>Siblings of one producer are one unit of work</h2>
+ *
+ * <p>Requiring an edge <em>between</em> members was too strict once ports became typed.
+ * An edge has to join two compatible ports, so independent analysers of the same media
+ * cannot chain — {@code sha512} emits {@code hash/sha512} while every analyser consumes
+ * {@code media/*}. Under an edges-only rule a group of them fused into N segments rather
+ * than one and the saving disappeared silently, which is the worst way for an
+ * optimisation to fail.</p>
+ *
+ * <p>So nodes that share an affinity group <em>and</em> a producer are one segment. What
+ * they have in common is the input they all read, which is exactly the cost affinity
+ * exists to pay once. The producer itself is not pulled in; only its consumers are.</p>
+ *
+ * <p>This is safe only because a member sees a fellow member's output when it declares
+ * it as a dependency, never merely because they are in the same segment. Without that
+ * rule, fusing {@code consistency} with {@code thumbnail} would hand {@code thumbnail}
+ * an {@code is_complete} it has no edge to, and an affinity label — a scheduling hint —
+ * would change what the pipeline computes.</p>
  *
  * <h2>The source node is never in a segment</h2>
  *
@@ -57,12 +76,14 @@ public class PipelineSegmenter {
 		// Splitting can only ever increase the segment count, and each split strictly
 		// reduces the size of the offending group, so this terminates.
 		List<List<String>> acyclic = splitUntilAcyclic(graph, groups);
-		return toSegments(graph, acyclic);
+		// After the cycle pass, so it sees the groups that will actually be dispatched. Splitting
+		// cannot create a cycle - it only ever removes merged dependencies - so the order is safe.
+		return toSegments(graph, splitAmbiguousInputs(graph, acyclic));
 	}
 
 	/**
-	 * Gather every node reachable from the seed through edges that stay inside its
-	 * affinity group, in either direction.
+	 * Gather every node related to the seed that stays inside its affinity group: joined
+	 * by an edge in either direction, or reading the same producer.
 	 */
 	private List<String> collectConnected(PipelineGraph graph, String seed) {
 		String affinity = graph.getNode(seed).getAffinity();
@@ -74,10 +95,7 @@ public class PipelineSegmenter {
 		while (!queue.isEmpty()) {
 			String current = queue.poll();
 			for (String neighbour : neighboursOf(graph, current)) {
-				if (found.contains(neighbour) || neighbour.equals(graph.getSourceNodeId())) {
-					continue;
-				}
-				if (!affinity.equals(graph.getNode(neighbour).getAffinity())) {
+				if (!admissible(graph, affinity, found, neighbour)) {
 					continue;
 				}
 				if (isRoutingEdge(graph, current, neighbour)) {
@@ -91,6 +109,13 @@ public class PipelineSegmenter {
 				found.add(neighbour);
 				queue.add(neighbour);
 			}
+			for (String sibling : sharedProducerSiblings(graph, current)) {
+				if (!admissible(graph, affinity, found, sibling)) {
+					continue;
+				}
+				found.add(sibling);
+				queue.add(sibling);
+			}
 		}
 
 		// Topological order within the segment, so a worker can run them as listed.
@@ -101,6 +126,58 @@ public class PipelineSegmenter {
 			}
 		}
 		return ordered;
+	}
+
+	/**
+	 * @return true when the candidate may still join this segment: not already in it, not the
+	 *         source (whose result the engine synthesises rather than dispatches), and carrying
+	 *         the same affinity label
+	 */
+	private boolean admissible(PipelineGraph graph, String affinity, Set<String> found, String candidate) {
+		return !found.contains(candidate)
+			&& !candidate.equals(graph.getSourceNodeId())
+			&& affinity.equals(graph.getNode(candidate).getAffinity());
+	}
+
+	/**
+	 * Every other consumer of a producer this node consumes.
+	 *
+	 * <p>
+	 * The producer is a bridge, not a member: it supplies the shared input but is not pulled into
+	 * the segment, which is what keeps the source out of one even though everything reads it.
+	 * </p>
+	 *
+	 * <p>
+	 * Edges leaving a {@link io.metaloom.loom.nodes.spec.PortSpec#isSelective() selective} port are
+	 * excluded on both sides. Two consumers of one filter can sit on <em>different</em> branches, so
+	 * fusing them would put a node that must not run this item into the same unit of work as one
+	 * that must — and the worker has no verdict to tell them apart. Consumers of a producer that is
+	 * merely downstream of a filter are fine: they inherit the same routing and skip together.
+	 * </p>
+	 */
+	private List<String> sharedProducerSiblings(PipelineGraph graph, String nodeId) {
+		List<String> siblings = new ArrayList<>();
+		for (String producer : plainProducersOf(graph, nodeId)) {
+			for (String consumer : graph.getChildren(producer)) {
+				if (!consumer.equals(nodeId) && plainProducersOf(graph, consumer).contains(producer)) {
+					siblings.add(consumer);
+				}
+			}
+		}
+		return siblings;
+	}
+
+	/**
+	 * @return the nodes feeding this one through an edge no branch verdict governs
+	 */
+	private Set<String> plainProducersOf(PipelineGraph graph, String nodeId) {
+		Set<String> producers = new LinkedHashSet<>();
+		for (InputBinding binding : graph.getNode(nodeId).getInputBindings()) {
+			if (!binding.sourceSelective()) {
+				producers.add(binding.sourceNodeId());
+			}
+		}
+		return producers;
 	}
 
 	/**
@@ -170,6 +247,60 @@ public class PipelineSegmenter {
 			}
 		}
 		return current;
+	}
+
+	/**
+	 * Break up any group that would need two different values for one input port id.
+	 *
+	 * <p>
+	 * A segment is dispatched with a <em>single</em> map of inputs keyed by port id and shared by
+	 * every member, because {@code SegmentNode} carries no bindings. Two members reading a port of
+	 * the same name from different producers cannot both be served by it: the engine keeps the
+	 * first and the second silently receives its neighbour's data. Falling back to per-node
+	 * dispatch costs the round trips affinity was meant to save; feeding a node the wrong input
+	 * would be a wrong answer, so this errs towards the round trips.
+	 * </p>
+	 *
+	 * <p>
+	 * Only edges from <em>outside</em> the group count. An edge between two members is satisfied on
+	 * the worker and never reaches the shared map, which is why an ordinary chain — every node
+	 * reading {@code media} from the one before it — is not a collision.
+	 * </p>
+	 */
+	private List<List<String>> splitAmbiguousInputs(PipelineGraph graph, List<List<String>> groups) {
+		List<List<String>> result = new ArrayList<>();
+		for (List<String> group : groups) {
+			if (group.size() < 2 || !hasAmbiguousExternalInput(graph, group)) {
+				result.add(group);
+				continue;
+			}
+			for (String nodeId : group) {
+				result.add(List.of(nodeId));
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * @return true when two members of the group read the same input port id from different
+	 *         producers outside it
+	 */
+	private boolean hasAmbiguousExternalInput(PipelineGraph graph, List<String> group) {
+		Set<String> members = new LinkedHashSet<>(group);
+		Map<String, String> sourceOfPort = new LinkedHashMap<>();
+		for (String nodeId : group) {
+			for (InputBinding binding : graph.getNode(nodeId).getInputBindings()) {
+				if (members.contains(binding.sourceNodeId())) {
+					continue;
+				}
+				String origin = binding.sourceNodeId() + "." + binding.sourcePortId();
+				String seen = sourceOfPort.putIfAbsent(binding.targetPortId(), origin);
+				if (seen != null && !seen.equals(origin)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private Map<String, Integer> indexNodes(List<List<String>> groups) {

@@ -185,7 +185,11 @@ public class S3SinkNodeIntegrationTest extends AbstractNodeIntegrationTest {
 			String key = onlyKeyIn(payloadOf(client, source.asset(), "archive"));
 			SHA512 hash = HashUtils.computeSHA512(thumb.toFile());
 
-			assertThat(key).isEqualTo("cortex/thumbnail/thumbnail_path/"
+			// {sourceNode}/{sourceKey} of the default template are both the port an artifact
+			// arrived on. They used to be the producing node id and its output key; the sink no
+			// longer knows either, because an edge into the typed artifacts port is what selects a
+			// file now.
+			assertThat(key).isEqualTo("cortex/artifacts/artifacts/"
 				+ hash.toString().substring(0, 4) + "/" + hash + ".thumb");
 		});
 	}
@@ -248,9 +252,11 @@ public class S3SinkNodeIntegrationTest extends AbstractNodeIntegrationTest {
 
 			JsonObject payload = payloadOf(client, source.asset(), "archive");
 			assertThat(payload.getInteger("count")).isEqualTo(2);
+			// "artifacts" is the port the wired file arrived on - the sink cannot name the node
+			// that produced it any more. "media" is still the marker for the source archive.
 			assertThat(payload.getJsonArray("artifacts").stream()
 				.map(o -> ((JsonObject) o).getString("sourceNode")))
-					.containsExactlyInAnyOrder("thumbnail", "media");
+					.containsExactlyInAnyOrder("artifacts", "media");
 		});
 	}
 

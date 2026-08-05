@@ -24,11 +24,10 @@ import io.vertx.ext.auth.User;
  * during the migration; set {@code LOOM_WS_STRICT_AUTH=true} (or JVM property
  * {@code loom.ws.strictAuth}) to require a token on every connection.</p>
  *
- * <p>Close codes:
+ * <p>Close codes:</p>
  * <ul>
  *   <li>{@code 4401} — unauthorized (missing token in strict mode, or invalid token)</li>
  * </ul>
- * </p>
  */
 @Singleton
 public class WebSocketAuthenticator {
