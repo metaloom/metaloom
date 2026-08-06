@@ -9,13 +9,13 @@
 > the part that is still genuinely missing, and keeps **one** recommended design.
 >
 > **Companion documents — read before changing anything here:**
-> - [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) — the built port model: content types, lattice,
+> - [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) — the built port model: content types, lattice,
 >   cardinality, groups, dynamic ports, per-kind port table. **A schema must never contradict it.**
 > - [NODE_DATA_TYPES_PLAN.md](NODE_DATA_TYPES_PLAN.md) — rationale and recorded divergences.
-> - [PIPELINE.md](PIPELINE.md) — engine, definition JSON, validation call sites, REST surface.
-> - [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) — the richest source of the *prose* a node
+> - [PIPELINE.md](../features/pipeline/PIPELINE.md) — engine, definition JSON, validation call sites, REST surface.
+> - [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) — the richest source of the *prose* a node
 >   card needs: lifecycle, options, persistence targets, side effects, sidecars.
-> - [../../SPEC_RULES.md](../../SPEC_RULES.md), [../../guidelines/CODING.md](../../guidelines/CODING.md).
+> - [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md), [../../guidelines/CODING.md](../guidelines/CODING.md).
 >
 > **Source of truth is the code.** Where this file and the code disagree, the code wins — fix this file
 > in the same change.
@@ -50,11 +50,11 @@ directory) is dropped as disproportionate. See §3 for the post-mortem table.
 | # | Gap | Evidence | Still worth doing? |
 |---|---|---|---|
 | **A** | 🔴 **`resolvePorts` is not served over REST.** The endpoint serves the *static* descriptor only, so the editor cannot ask the server what a configured `script`/`llm`/`vlm` node's ports actually are. `loom-ui` therefore **re-implements the three Java resolvers in TypeScript** — `loom-ui/src/features/pipeline/portResolvers.ts`, consumed by `PipelineEditor.tsx:55,160` | Two implementations of one rule set, pinned only by `portResolvers.test.ts` mirroring `NodePortResolverTest` by hand | ✅ **Yes — this is the one real machine gap** |
-| **B** | ⚠️ **The descriptor carries no domain knowledge.** It knows content type and cardinality. It does **not** know that `hash-dedup` *moves files*, that `scene-layout` **must** share an affinity group with `depthmap`, that `tts` needs a sidecar, or that `modelPath` is worker-scoped and ignored in the pipeline JSON. `NodeParameter` has `key/type/defaultValue/label/description/min/max/step/values/language/rows` — **no `scope`** | `NodeParameter.java`; [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §3, §5 | ✅ Yes, as **prose**, not as a second type system |
-| **C** | ⚠️ **A descriptor is not a registration.** Kinds with a descriptor but no runtime producer validate but cannot run | [PIPELINE.md](PIPELINE.md) §8; [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §12 | ✅ Cheap — one boolean, derived from the `@StringKey` set |
+| **B** | ⚠️ **The descriptor carries no domain knowledge.** It knows content type and cardinality. It does **not** know that `hash-dedup` *moves files*, that `scene-layout` **must** share an affinity group with `depthmap`, that `tts` needs a sidecar, or that `modelPath` is worker-scoped and ignored in the pipeline JSON. `NodeParameter` has `key/type/defaultValue/label/description/min/max/step/values/language/rows` — **no `scope`** | `NodeParameter.java`; [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §3, §5 | ✅ Yes, as **prose**, not as a second type system |
+| **C** | ⚠️ **A descriptor is not a registration.** Kinds with a descriptor but no runtime producer validate but cannot run | [PIPELINE.md](../features/pipeline/PIPELINE.md) §8; [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §12 | ✅ Cheap — one boolean, derived from the `@StringKey` set |
 | **D** | ⚠️ No **JSON Schema** for the definition JSON / per-kind `options` block, so an editor or agent gets no shape checking before POSTing | — | 🟡 Optional; nice-to-have, generated |
 | **E** | ⚠️ The snapshot is staged by a **manual copy** — nothing regenerates `website/static/pipeline-editor/node-descriptors.json` on build | `NodeDescriptorGenerator` javadoc: *"a manual copy — nothing does it automatically"* | ✅ Yes — a staleness test |
-| — | The legacy inline `dependencies[]` fallback in `PipelineGraphParser` | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §6.1 | ❌ Unrelated to schemas — delete it regardless |
+| — | The legacy inline `dependencies[]` fallback in `PipelineGraphParser` | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §6.1 | ❌ Unrelated to schemas — delete it regardless |
 
 ---
 
@@ -186,7 +186,7 @@ pass `NodeSchemaExampleTest` (§5.2).
 ```
 
 **Why the ports are absent from the card:** the descriptor is authoritative and already fetchable, and
-[NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) already documents the lattice, cardinality and fan-out
+[NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) already documents the lattice, cardinality and fan-out
 semantics. Restating either in 41 files guarantees 41 stale copies. The card carries **only what no
 generator can produce**.
 
@@ -196,7 +196,7 @@ generator can produce**.
 |---|---|
 | Port ids, content types, cardinalities, groups | `NodeDescriptor` owns them and `NodePortConformanceTest` guards them |
 | Parameter types, min/max/step/values | `NodeParameter` owns them |
-| Restatements of the lattice, fan-out or gather rules | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §2/§6/§8 owns them |
+| Restatements of the lattice, fan-out or gather rules | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §2/§6/§8 owns them |
 | Anything `PortGraphAnalyzer` cannot enforce, phrased as a rule | 🔴 A schema that can express what the engine cannot check is a lie with good formatting |
 
 ---
@@ -227,13 +227,13 @@ advice.
 | `kind` | `<Kind>DescriptorProvider.setKind(...)` | Must exist in `GET /pipeline/node-descriptors` |
 | `module` | `find . -path '*/cortex/nodes/*' -name '<Kind>Node.java'` | Path must exist |
 | `runtime.registered` / `bindingKey` | Set difference of descriptor kinds vs `grep -rho '@StringKey("[^"]*")' cortex/` | Compute **once**, reuse for all 41 |
-| `runtime.{sidecar,model,externalBinary,gpu}` | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §3 **and** the node's options class | Port numbers must match the options-class default, not the prose |
+| `runtime.{sidecar,model,externalBinary,gpu}` | [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §3 **and** the node's options class | Port numbers must match the options-class default, not the prose |
 | `runtime.mediaTypes` | The node's `isProcessable(ctx)` body | Read the method; the NODES.md column is a summary |
-| `runtime.affinityWith` | 🔴 markers in [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §3 | Known: `scene-layout`→`depthmap`, `s3-sink`→its producer. Grep "affinity" before concluding "none" |
-| `effects.persistence` | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2 payload table | The `LoomClient` method must still exist |
+| `runtime.affinityWith` | 🔴 markers in [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §3 | Known: `scene-layout`→`depthmap`, `s3-sink`→its producer. Grep "affinity" before concluding "none" |
+| `effects.persistence` | [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §2 payload table | The `LoomClient` method must still exist |
 | `effects.mutatesSource` | Read the node. 🔴 `true` only for `hash-dedup`, `fingerprint-dedup-apply` | Never guess |
 | `parameterScopes` | `INSTANCE` iff the node implements `PipelineConfigurable` (`script`, `s3-sink` today), else `WORKER` | `grep -l PipelineConfigurable cortex/nodes/*/src/main/java/**/*Node.java` |
-| prose body | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §3/§5 and the kind's `NODE_*_PLAN.md` | **Every pitfall must trace to a 🔴/⚠️ in a spec file or a code comment** |
+| prose body | [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §3/§5 and the kind's `NODE_*_PLAN.md` | **Every pitfall must trace to a 🔴/⚠️ in a spec file or a code comment** |
 
 **Writing rules**
 
@@ -302,7 +302,7 @@ from*:
 |---|---|---|
 | `VITE_API_BASE_URL` | `http://localhost:8092/api/v1` | loom-ui API base; decides which server's `/pipeline/node-descriptors` (and, later, `/resolve-ports`) the editor calls — `loom-ui/src/api/config.ts` |
 | *(none)* | — | The static website editor has **no** backend; it reads the checked-in `website/static/pipeline-editor/node-descriptors.json` snapshot |
-| `CORTEX_NODES_*` (per-node worker config) | per node | Where **`WORKER`-scoped** parameters actually come from — see [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §5.1. Setting these keys in the pipeline JSON has no effect |
+| `CORTEX_NODES_*` (per-node worker config) | per node | Where **`WORKER`-scoped** parameters actually come from — see [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §5.1. Setting these keys in the pipeline JSON has no effect |
 
 ---
 
@@ -335,7 +335,7 @@ from*:
 - [ ] **Gap A follow-up** — `loom-ui` calls the route; delete or demote `portResolvers.ts` to a pinned
       optimistic pre-render
 - [ ] **Gap C** — compute the descriptor-vs-`@StringKey` set difference once and record it (a table in
-      [PIPELINE.md](PIPELINE.md) §8 is enough if cards are not written)
+      [PIPELINE.md](../features/pipeline/PIPELINE.md) §8 is enough if cards are not written)
 - [ ] **Gap E** — snapshot staleness test (§5.3)
 - [ ] **Gap B** — `NodeSchemaExampleTest` first, then pilot `whisper.node.md`, review the **template**,
       then sweep by module (trivial hashes → sources → filters → analysis → fan-out pair → affinity
@@ -388,7 +388,7 @@ from*:
   registry, or it asserts nothing.
 - ⚠️ **Every source kind must name its output port `media`** — `PipelineRunEngine.SOURCE_MEDIA_PORT` is
   the literal string; a source named otherwise validates and delivers nothing
-  ([NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §5).
+  ([NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §5).
 - ⚠️ **Cardinality is where fan-out comes from.** Changing a port `ONE`→`MANY` silently converts every
   downstream `ONE` consumer to per-element dispatch: a behaviour change, not documentation.
 - ⚠️ **`parameters[].defaultValue` in a descriptor is not always the running default** — the options
@@ -401,7 +401,7 @@ from*:
 - ⚠️ **Count, never quote.** Kind and content-type counts have been wrong in three spec files. Read the
   snapshot or call `ContentTypeRegistry.all()`.
 - ⚠️ **Do not add a fourth copy of graph validation.** Any out-of-JVM validator is one by definition —
-  keep it thin and pin it against the Java one with shared fixtures ([PIPELINE.md](PIPELINE.md) §11.2).
+  keep it thin and pin it against the Java one with shared fixtures ([PIPELINE.md](../features/pipeline/PIPELINE.md) §11.2).
 
 ---
 
@@ -415,18 +415,17 @@ from*:
 | Descriptor providers (the source of truth) | `loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/*DescriptorProvider.java` |
 | Dynamic port resolvers | `…/spec/{Script,Prompt,Llm,Vlm}PortResolver.java` |
 | The TypeScript mirror to be retired | `loom-ui/src/features/pipeline/portResolvers.ts` |
-| The built port model (vocabulary, lattice, cardinality, groups) | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §2–§3 |
-| The per-kind port table | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §4 |
-| The five validation rules and where they run | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §6.3 |
-| Fan-out, gather, per-element dispatch | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §8 |
-| Definition JSON shape and edge rules | [PIPELINE.md](PIPELINE.md) §9.2 |
-| Node lifecycle, options, persistence targets, side effects (**the card's raw material**) | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §1–§5 |
+| The built port model (vocabulary, lattice, cardinality, groups) | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §2–§3 |
+| The per-kind port table | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4 |
+| The five validation rules and where they run | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §6.3 |
+| Fan-out, gather, per-element dispatch | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §8 |
+| Definition JSON shape and edge rules | [PIPELINE.md](../features/pipeline/PIPELINE.md) §9.2 |
+| Node lifecycle, options, persistence targets, side effects (**the card's raw material**) | [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) §1–§5 |
 | Per-node deep dives (script, dedup, depthmap, s3, watermark, …) | `../pipeline-nodes/NODE_*_PLAN.md` |
 | Descriptor ↔ node port parity test | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/NodePortConformanceTest.java` |
 | Seeded reference pipelines | `loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java` |
-| Spec authoring rules / definition of done | [../../SPEC_RULES.md](../../SPEC_RULES.md), [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Spec authoring rules / definition of done | [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md), [../../guidelines/CODING.md](../guidelines/CODING.md) |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (the machine contract shipped; cut four concepts to one authored-prose card plus a resolve-ports route)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

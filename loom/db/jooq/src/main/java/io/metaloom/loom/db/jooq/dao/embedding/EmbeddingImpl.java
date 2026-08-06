@@ -1,8 +1,8 @@
 package io.metaloom.loom.db.jooq.dao.embedding;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
-import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.embedding.Embedding;
 
@@ -16,6 +16,8 @@ public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements
 
 	private Integer dimensions;
 
+	private Float confidence;
+
 	private UUID detectionUuid;
 
 	private int frameNumber;
@@ -24,9 +26,17 @@ public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements
 
 	private Float[] vector;
 
-	private EmbeddingType type;
+	private String type;
 
 	private UUID assetUuid;
+
+	private Boolean dirty;
+
+	private LocalDateTime syncedAt;
+
+	private Integer indexVersion;
+
+	private Boolean normalized;
 
 	public EmbeddingImpl() {
 	}
@@ -120,12 +130,12 @@ public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements
 	}
 
 	@Override
-	public EmbeddingType getType() {
+	public String getType() {
 		return type;
 	}
 
 	@Override
-	public Embedding setType(EmbeddingType type) {
+	public Embedding setType(String type) {
 		this.type = type;
 		return this;
 	}
@@ -138,6 +148,61 @@ public class EmbeddingImpl extends AbstractEditableElement<Embedding> implements
 	@Override
 	public Embedding setVector(Float[] vectorData) {
 		this.vector = vectorData;
+		return this;
+	}
+
+	@Override
+	public Boolean getDirty() {
+		return dirty;
+	}
+
+	@Override
+	public Embedding setDirty(Boolean dirty) {
+		this.dirty = dirty;
+		return this;
+	}
+
+	@Override
+	public LocalDateTime getSyncedAt() {
+		return syncedAt;
+	}
+
+	@Override
+	public Embedding setSyncedAt(LocalDateTime syncedAt) {
+		this.syncedAt = syncedAt;
+		return this;
+	}
+
+	@Override
+	public Integer getIndexVersion() {
+		return indexVersion;
+	}
+
+	@Override
+	public Embedding setIndexVersion(Integer indexVersion) {
+		this.indexVersion = indexVersion;
+		return this;
+	}
+
+	@Override
+	public Boolean getNormalized() {
+		return normalized;
+	}
+
+	@Override
+	public Embedding setNormalized(Boolean normalized) {
+		this.normalized = normalized;
+		return this;
+	}
+
+	@Override
+	public Float getConfidence() {
+		return confidence;
+	}
+
+	@Override
+	public Embedding setConfidence(Float confidence) {
+		this.confidence = confidence;
 		return this;
 	}
 

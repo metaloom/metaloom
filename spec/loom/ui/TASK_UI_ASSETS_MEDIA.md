@@ -3,7 +3,7 @@
 > Open UI work items for the Assets & Media entities (Asset, Asset Component, Attachment,
 > Asset Binary, Annotation, Transcript, Blacklist, Asset Pool), derived from a code audit of
 > `loom-ui/` and `loom/services/rest/.../endpoint/impl/` on 2026-08-01.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [LOOM_UI.md](LOOM_UI.md) (UI spec — routes, api-client shape, test setup) ·
 > [../RESTAPI.md](../RESTAPI.md) · [../DOMAIN.md](../DOMAIN.md) group 2
@@ -14,12 +14,12 @@
 > **Owned elsewhere — do not duplicate here:**
 > * **Search UI** (`/api/v1/search/{results,assets,suggestions,status}` is built; `loom-ui` has
 >   no `src/api/search.ts`, no `/search` route, no search bar) →
->   [../../features/search/SEARCH_PLAN.md](../../features/search/SEARCH_PLAN.md) **P1-16…P1-20**,
+>   [../../features/search/SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) **P1-16…P1-20**,
 >   plus **P0-5** which deletes the unreachable `src/{Admin,Asset,Content,Dashboard,User}` trees.
 >   `AssetBrowser`/`LibraryView` server-side paging is **P1-18/P1-19** there.
 > * **Dedup-group review UI** (`/api/v1/dedup-groups`, `/api/v1/assets/:uuid/dedup-groups`) →
 >   [TASK_UI_AI_ML.md](TASK_UI_AI_ML.md) Task 4, per
->   [../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../features/pipeline-nodes/NODE_DEDUP_PLAN.md) §"Review UI".
+>   [../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) §"Review UI".
 > * **Reactions on assets/annotations** → [TASK_UI_COLLABORATION.md](TASK_UI_COLLABORATION.md).
 
 ---
@@ -208,6 +208,5 @@ if internal, spec note only and no test.
   relocate needs a backend route first.
 * **Asset Remix** — the `asset_remix` table exists ([../DOMAIN.md](../DOMAIN.md) group 2) but no
   endpoint and no UI type. Asset-to-asset derivation browsing is a backend task.
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (collapsed the delivered annotation/transcript/binary-meta/asset-task work to outcome records and kept only the five open items)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

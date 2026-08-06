@@ -4,8 +4,8 @@
 > works, and what is deliberately not built yet.
 >
 > **Scope split.** Vectors / embeddings / hybrid ranking → [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
-> Remaining build order and task IDs → [SEARCH_PLAN.md](SEARCH_PLAN.md). Perceptual fingerprint
-> k-NN (a *different* index, on Lucene) → [LUCENE_PLAN.md](LUCENE_PLAN.md). Table/column reference →
+> Remaining build order and task IDs → [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md). Perceptual fingerprint
+> k-NN (a *different* index, on Lucene) → [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md). Table/column reference →
 > [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
 
 ## 0. Status — read this first
@@ -36,7 +36,7 @@ feature of any kind". That was true before `V2.57`–`V2.59` landed and is false
 
 ⚠️ **`loom/services/lucene` is NOT a stub and must not be deleted.** It holds
 `LuceneSimilarityIndex` + `NoopSimilarityIndex` + a test, and serves the perceptual **fingerprint**
-k-NN index ([LUCENE_PLAN.md](LUCENE_PLAN.md)). Lucene is rejected for *lexical* search only (§3).
+k-NN index ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)). Lucene is rejected for *lexical* search only (§3).
 
 ---
 
@@ -141,7 +141,7 @@ with `available:false`, so a UI can hide its search box rather than render a bro
 
 🔴 **Lucene's rejection is scoped to lexical search.** A lexical index is a queryable system of record
 spanning many entities; making it per-replica local state means two pods answer the same query
-differently. The **fingerprint** index in [LUCENE_PLAN.md](LUCENE_PLAN.md) is one float vector per
+differently. The **fingerprint** index in [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) is one float vector per
 asset derived entirely from `asset_fingerprint_comp` and rebuildable with one REST call, so the same
 argument does not apply. Both statements are simultaneously true; §0 records the consequence.
 
@@ -402,7 +402,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | `SearchMethods` | `io.metaloom.loom.client.common.method` | ✅ in `ClientMethods:36`, impl `LoomHttpClientImpl:1537+` |
 | `JooqSearchDocument(Record)`, `JooqSearchDocumentDeleted(Record)` | `loom/db/jooq/src/jooq/java/...tables` | ✅ generated |
 | `ElasticsearchSearchProvider`, `ElasticsearchIndexSyncService` | `loom/services/elasticsearch` | ⬜ module has **no `src/`** |
-| `LuceneSimilarityIndex`, `NoopSimilarityIndex` | `io.metaloom.loom.similarity(.lucene)` (`loom/services/lucene`) | ✅ but **fingerprint k-NN, not search** — [LUCENE_PLAN.md](LUCENE_PLAN.md) |
+| `LuceneSimilarityIndex`, `NoopSimilarityIndex` | `io.metaloom.loom.similarity(.lucene)` (`loom/services/lucene`) | ✅ but **fingerprint k-NN, not search** — [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) |
 
 ## 10. Conventions and Gotchas
 
@@ -434,9 +434,9 @@ is why the DB-side tests are split into three classes of ≤ 15.
 
 | Need | Look here |
 |---|---|
-| Remaining build order, task IDs, build-order rules | [SEARCH_PLAN.md](SEARCH_PLAN.md) |
+| Remaining build order, task IDs, build-order rules | [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) |
 | Vector / embedding / hybrid search | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
-| Fingerprint similarity (the *other* index, on Lucene) | [LUCENE_PLAN.md](LUCENE_PLAN.md) |
+| Fingerprint similarity (the *other* index, on Lucene) | [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) |
 | `search_document` column reference, schema-wide open items | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
 | Full DDL, extraction + refresh functions | `loom/db/flyway/src/main/resources/db/migration/V2.58__add_search_document.sql` |
 | Triggers + backfill | `…/V2.59__add_search_triggers.sql` |
@@ -449,7 +449,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | Tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/`, `loom/core/src/test/java/.../SearchEndpointTest.java` |
 | Highest migration | `V2.63__library_storage_pool.sql` — verify before claiming a version |
 | Permission model / REST conventions | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../guidelines/CODING.md](../../guidelines/CODING.md) |
-| Node → text mapping | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) |
+| Node → text mapping | [../pipeline-nodes/NODES.md](../nodes/NODES.md) |
 
 ## 12. Progress Assessment
 
@@ -486,7 +486,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [x] The outbox already exists and is maintained: `dirty` / `synced_at` / `es_synced_at` + `search_document_deleted`
 - [ ] Nothing consumes it — `loom/services/elasticsearch` has **no `src/`**; `LOOM_SEARCH_PROVIDER=elasticsearch` binds `NoopSearchProvider`
 - [ ] No `LOOM_SEARCH_ES_*` options exist yet
-- [ ] Everything else — see [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 2, gated on the P2-1 spike
+- [ ] Everything else — see [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) Phase 2, gated on the P2-1 spike
 - [ ] ⚠️ Correction to older plans: **do not delete `loom/services/lucene`** — it now serves fingerprint k-NN
 
 **Phase 3 — semantic / hybrid** — not started, see [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). `loom/services/qdrant` has no `src/`.
@@ -505,6 +505,5 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so a tagged asset cannot be deleted — shapes the delete-cascade test
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (rewritten against the shipped implementation; the "no search exists" premise was stale)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -88,6 +88,7 @@ tags:
   description: API tokens for programmatic access
 - name: users
   description: Users of the RBAC model
+- name: vector-index
 paths:
   /api/v1:
     description: Load REST API info
@@ -3612,6 +3613,99 @@ paths:
                   bboxHeight: 0.2
                   confidence: 0.97
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                total: 2
+                created: 2
+                failed: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/embeddings/bulk:
+    description: Bulk create embeddings on an asset
+    post:
+      tags:
+      - assets
+      summary: Bulk create embeddings on an asset
+      description: Bulk create embeddings on an asset
+      operationId: postAssetsByUuidEmbeddingsBulk
+      requestBody:
+        content:
+          application/json:
+            example:
+              embeddings:
+              - meta:
+                  abc: cdef
+                type: face
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                nodeKind: facedetect
+                model: inspireface-r18
+                frameNumber: 0
+                subjectIndex: 0
+              - meta:
+                  abc: cdef
+                type: face
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                nodeKind: facedetect
+                model: inspireface-r18
+                frameNumber: 0
+                subjectIndex: 0
+      responses:
+        "200":
+          description: The embedding bulk response
+          content:
+            application/json:
+              example:
+                embeddings:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status: {}
+                  meta:
+                    abc: cdef
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status: {}
+                  meta:
+                    abc: cdef
                 total: 2
                 created: 2
                 failed: 0
@@ -10098,11 +10192,16 @@ paths:
             example:
               meta:
                 abc: cdef
+              type: face
               vector:
               - 0.42
               - 0.24
               - 0.44
               - 21.5
+              nodeKind: facedetect
+              model: inspireface-r18
+              frameNumber: 0
+              subjectIndex: 0
       responses:
         "200":
           description: The embedding response
@@ -12538,7 +12637,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 1ecf25a5-a22e-4515-8331-dc8aa0a475eb
+                  versionUuid: d02b9621-c6a1-485c-80ac-16f9464fd7ae
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12559,7 +12658,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 493dc7f3-6e0d-4b2d-81a3-114dfb1fb196
+                  versionUuid: 21082756-80f8-40e3-b8d1-12a1b0f6bcb5
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12632,7 +12731,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 0a18bbe0-3513-4db7-80c6-cd5b567a5032
+                versionUuid: 00510408-ddbf-4d6c-95d5-7630a8b3ab36
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12691,7 +12790,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 6e6b49ce-4fb4-4ab4-bb89-0a8532761f26
+                versionUuid: 48ba0e8c-d9bb-47af-abf0-24d56963f2ac
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12763,7 +12862,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 6d789041-7b2c-44b3-bad2-538b45abe188
+                versionUuid: 32117489-6526-47b8-8d42-6ed0434fd4b6
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12872,7 +12971,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: aa5c1a96-2fd3-4a84-a3fd-776658552a1b
+                runUuid: db675590-24a0-4b64-a010-26ed0c7ad82c
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -12960,11 +13059,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: a0f3d460-657b-4524-8409-ce9d53dfcf05
-                  pipelineUuid: bfbe454f-8930-447e-ab9c-abfe8861d76f
+                - uuid: 33db1ae5-7a0a-426c-b8c8-55b696b5de7d
+                  pipelineUuid: 481b7dfb-59a5-407e-9b7b-f147487bc882
                   pipelineVersion: 1
-                  started: 2026-08-06T16:29:35.685259219Z
-                  finished: 2026-08-06T16:29:35.685270829Z
+                  started: 2026-08-06T17:56:22.977639712Z
+                  finished: 2026-08-06T17:56:22.977654822Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12972,11 +13071,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 55be11a1-bcfd-4322-b5f0-3e58b176ddc1
-                  pipelineUuid: 98ef36f7-446d-4c1f-8375-336f2fe78b10
+                - uuid: 8269421e-3f21-40b8-a63e-73d1f42bd36c
+                  pipelineUuid: 91489303-10dc-4617-aa0a-9a4aff637bf2
                   pipelineVersion: 1
-                  started: 2026-08-06T16:29:35.685295779Z
-                  finished: 2026-08-06T16:29:35.685298249Z
+                  started: 2026-08-06T17:56:22.977688452Z
+                  finished: 2026-08-06T17:56:22.977691822Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -13039,11 +13138,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: db3eb960-1dbc-4dd6-ac97-4dfbfae1c21d
-                pipelineUuid: 50d8c46f-ae03-4b56-b3f3-cdfab9f08666
+                uuid: 609cd139-a121-47ed-9a5e-3be99161ea92
+                pipelineUuid: dbf9a937-34bb-425b-b234-2143b664be1b
                 pipelineVersion: 1
-                started: 2026-08-06T16:29:35.685334829Z
-                finished: 2026-08-06T16:29:35.685337229Z
+                started: 2026-08-06T17:56:22.977767763Z
+                finished: 2026-08-06T17:56:22.977772453Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -13385,15 +13484,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 9cc6df28-b982-4739-b2e9-8ac2917ddf94
-                  runUuid: 54581456-f16f-484c-8f56-31cf40fcde9c
+                - uuid: 34f8ddc8-f580-44cf-948f-2002e91d27a3
+                  runUuid: b161c83a-293e-4f7e-944d-649c274a2308
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 5a8530fc-e9cc-4bbd-a5e2-68e4bfd35c4a
-                  runUuid: 1aee8d3e-0fc0-420e-91d7-90740527c262
+                - uuid: fed0127d-fb4a-4cd5-a922-1d0afdaeb293
+                  runUuid: d162f0a7-a2a8-48f1-8a99-39afb8060d15
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -13465,9 +13564,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: ada3f836-87e8-4fef-98d5-e199f776a517
-                  itemUuid: 9107b4f3-9571-446d-867b-60b9809da7f8
-                  runUuid: 9a904e8a-0baf-4b1a-8f60-3b5bd93ede18
+                - uuid: eaaa781b-2cda-427f-bdab-55b31a09211a
+                  itemUuid: 86e46c3f-1dde-461c-8ce5-20b916968af3
+                  runUuid: 05a51950-d62f-409f-881e-c38829018243
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -13930,7 +14029,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 66c9cffb-35ad-44cb-986a-5a6cab9cd34b
+                  versionUuid: a84ffc45-7f48-456e-bc86-8cd3d4941ef8
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -13951,7 +14050,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: f89946fd-6571-42e5-ac8b-3b6e8186cc10
+                  versionUuid: f410965a-8493-43f3-babb-459855ab84e0
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -14027,7 +14126,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 63435b06-7264-4fad-a2c3-21ccdd6204b9
+                versionUuid: aff60b9f-dc51-42d8-bfe5-a9e443802d08
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -14113,7 +14212,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 60cc6dae-e958-4773-a0c5-7223fb925f5d
+                versionUuid: 379f3fd7-de9c-439e-97a4-0f972d2003c3
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1
@@ -18774,6 +18873,107 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/vector-index/rebuild:
+    description: Rebuild the embedding vector index from the stored embeddings
+    post:
+      tags:
+      - vector-index
+      summary: Rebuild the embedding vector index from the stored embeddings
+      description: Rebuild the embedding vector index from the stored embeddings
+      operationId: postVectorindexRebuild
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/vector-index/status:
+    description: Report which vector index backend is bound and whether it is usable
+    get:
+      tags:
+      - vector-index
+      summary: Report which vector index backend is bound and whether it is usable
+      description: Report which vector index backend is bound and whether it is usable
+      operationId: getVectorindexStatus
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/vector-index/sync:
+    description: Index the embeddings that have not yet been written to the vector
+      index
+    post:
+      tags:
+      - vector-index
+      summary: Index the embeddings that have not yet been written to the vector index
+      description: Index the embeddings that have not yet been written to the vector
+        index
+      operationId: postVectorindexSync
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
 components:
   schemas:
     GenericMessageResponse:

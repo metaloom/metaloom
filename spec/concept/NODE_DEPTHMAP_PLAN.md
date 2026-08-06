@@ -24,8 +24,8 @@ written"* (§9 tests). Those were stale and are removed. Two further statements 
 submodule) · **Package**: `io.metaloom.cortex.node.depthmap` · **Sidecar**: `sidecars/depth` (:9120).
 
 **Consumer**: [NODE_SCENE_LAYOUT_PLAN.md](NODE_SCENE_LAYOUT_PLAN.md). The node system as a whole is
-[NODES.md](NODES.md); ports and content types are [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md);
-the recipe for adding a node is [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md).
+[NODES.md](../features/nodes/NODES.md); ports and content types are [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md);
+the recipe for adding a node is [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md).
 **The code under `cortex/` and `sidecars/depth/` is the source of truth.**
 
 ---
@@ -52,7 +52,7 @@ the recipe for adding a node is [../../guidelines/NEW_NODE.md](../../guidelines/
 | Integration test (stubbed client, real in-process Loom, ledger read back over REST) | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/DepthmapNodeIntegrationTest.java` |
 | Port-conformance + descriptor-count guards | `integration-test/.../node/NodePortConformanceTest.java:73`; `loom-shared/node-model/.../NodeDescriptorServiceLoaderTest.java:85` |
 | Customer docs | `website/content/english/docs/nodes/depthmap/index.adoc` (+ 3 links in `nodes/_index.adoc`) |
-| Catalogue rows | [NODES.md](NODES.md) §2/§3/§5/§12; [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4 |
+| Catalogue rows | [NODES.md](../features/nodes/NODES.md) §2/§3/§5/§12; [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4 |
 
 ### 1.1 What the node actually does
 
@@ -117,7 +117,7 @@ flowchart LR
 
 Loom has **no byte-ingest endpoint for produced derivatives**, so the PNG stays worker-local and only
 the ledger marker reaches Loom — the same shape as `thumbnail`, `tts`, `imagegen`, `videogen` and
-`watermark` ([NODES.md](NODES.md) §2.1). That is a deliberate, accepted decision, and its consequence
+`watermark` ([NODES.md](../features/nodes/NODES.md) §2.1). That is a deliberate, accepted decision, and its consequence
 is the affinity rule in §6.
 
 ---
@@ -220,7 +220,7 @@ Everything below is operational or a deliberate v1 exclusion. **No node or sidec
       glass and sky, and no model here exports an uncertainty map. Consumers must treat small depth
       differences as noise — which is exactly what `scene-layout`'s `z`-threshold does.
 - [ ] 🔴 **Cache-key hygiene.** `LocalResultCache` is keyed on the media path **only**, so the node
-      re-uses a cached map when `mode`, `model` or `maxDim` changed ([NODES.md](NODES.md) §4). Copy
+      re-uses a cached map when `mode`, `model` or `maxDim` changed ([NODES.md](../features/nodes/NODES.md) §4). Copy
       `dominant-color`'s key (path + hash of every result-affecting option).
 
 ---
@@ -272,16 +272,16 @@ Everything below is operational or a deliberate v1 exclusion. **No node or sidec
 | The node itself | `cortex/nodes/depthmap/core/src/main/java/io/metaloom/cortex/node/depthmap/DepthmapNode.java` |
 | The sidecar and its model table | `sidecars/depth/server.py`, `sidecars/depth/README.md` |
 | The NEARNESS normalization | `sidecars/depth/server.py` (`_normalize`, `_encode_png16`) |
-| Port ids and content types | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4; `ContentTypeRegistry` |
-| The persistence model (typed comp + ledger) | [NODES.md](NODES.md) §2 / §2.1 |
+| Port ids and content types | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4; `ContentTypeRegistry` |
+| The persistence model (typed comp + ledger) | [NODES.md](../features/nodes/NODES.md) §2 / §2.1 |
 | Where a node registers as a runnable kind | its `*NodeModule` (`@StringKey`) + `NodeCollectionModule.includes` |
 | Where a node registers for the UI | `loom-shared/node-model/.../spec/` + the `META-INF/services` file |
-| How to add a node at all | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| How to add a node at all | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | The hash-segmented output path | `ThumbnailNode.resolveThumbnailPath`; `HashUtils.segmentPath` |
 | Affinity / segmentation | `loom/pipeline/.../graph/{PipelineSegmenter,AffinityValidator,PipelineGraphNode}.java` |
 | Sibling sidecar nodes | [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md), [NODE_IMAGEGEN_PLAN.md](NODE_IMAGEGEN_PLAN.md); `sidecars/README.md` |
 | Cortex config precedence | [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
-| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../guidelines/CODING.md) |
 | Model licence records | `website/content/english/docs/legal/model-licenses/index.adoc` |
 | Customer docs | `website/content/english/docs/nodes/depthmap/index.adoc` |
 
@@ -299,7 +299,7 @@ Everything below is operational or a deliberate v1 exclusion. **No node or sidec
 - [x] NEARNESS convention implemented once, in the sidecar, for both model families; node hard-validates it
 - [x] Model choice resolved: Depth-Anything-V2-Small (Apache-2.0) default, ZoeDepth (MIT) for `METRIC`
 - [x] 29 unit tests + `DepthmapNodeIntegrationTest`; `NodePortConformanceTest` entry
-- [x] Customer docs (`nodes/depthmap/index.adoc` + 3 `_index.adoc` links); [NODES.md](NODES.md) and [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) rows
+- [x] Customer docs (`nodes/depthmap/index.adoc` + 3 `_index.adoc` links); [NODES.md](../features/nodes/NODES.md) and [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) rows
 
 ### Open (all in §5)
 - [ ] Live GPU smoke test against a real checkpoint (never yet run)
@@ -319,16 +319,15 @@ Everything below is operational or a deliberate v1 exclusion. **No node or sidec
 
 ## 10. References
 
-- [NODES.md](NODES.md) — node system, persistence model (§2), registration (§5), capability matrix (§12)
-- [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) — port ids, content types, cardinality
-- [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) — the add-a-node recipe
+- [NODES.md](../features/nodes/NODES.md) — node system, persistence model (§2), registration (§5), capability matrix (§12)
+- [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) — port ids, content types, cardinality
+- [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) — the add-a-node recipe
 - [NODE_SCENE_LAYOUT_PLAN.md](NODE_SCENE_LAYOUT_PLAN.md) — the consumer node, designed alongside this one
 - [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md) — sibling sidecar-backed node; the sidecar template
 - [NODE_IMAGEGEN_PLAN.md](NODE_IMAGEGEN_PLAN.md) — sibling ledger-only binary-artifact node
-- [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) — pipeline engine, segmentation, affinity
-- [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md), [../../guidelines/CODING.md](../../guidelines/CODING.md), [../../SPEC_RULES.md](../../SPEC_RULES.md)
+- [../pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) — pipeline engine, segmentation, affinity
+- [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md), [../../guidelines/CODING.md](../guidelines/CODING.md), [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md)
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (verified BUILT against the tree; removed the stale "not built"/"not implemented" section headers, corrected the output-key claims to typed ports and the `ICON_MAP` fiction, and reduced the design narrative to an inventory plus the operational open items.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

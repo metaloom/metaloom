@@ -50,6 +50,7 @@ import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NotificationEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SkillEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.VectorIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TaskEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TokenEndpoint;
@@ -220,7 +221,7 @@ public class LoomOpenAPI {
 		endpoints.add(new AnnotationEndpoint(null, null, null, null, deps, examples));
 		endpoints.add(new AssetBinaryEndpoint(null, deps, examples));
 		endpoints.add(new AssetComponentEndpoint(null, deps, examples));
-		endpoints.add(new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps, examples));
+		endpoints.add(new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps, examples));
 		endpoints.add(new AssetPoolEndpoint(null, deps, examples));
 		endpoints.add(new AttachmentEndpoint(null, deps, examples));
 		endpoints.add(new BlacklistEndpoint(null, deps, examples));
@@ -247,6 +248,7 @@ public class LoomOpenAPI {
 		endpoints.add(new NotificationEndpoint(null, deps, examples));
 		endpoints.add(new SkillEndpoint(null, deps, examples));
 		endpoints.add(new SpaceEndpoint(null, deps, examples));
+		endpoints.add(new VectorIndexEndpoint(null, deps));
 		endpoints.add(new TagEndpoint(null, deps, examples));
 		endpoints.add(new TaskEndpoint(null, null, null, deps, examples));
 		endpoints.add(new TokenEndpoint(null, deps, examples));

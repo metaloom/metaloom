@@ -1,7 +1,7 @@
 # Task File Format
 
 Required structure for every `*_TASKS.md` file in this tree (see
-[CONTEXT.md](CONTEXT.md) §0.3 and [SPEC_RULES.md](SPEC_RULES.md)). Task files hold
+[CONTEXT.md](CONTEXT.md) §0.3 and [SPEC_RULES.md](../guidelines/SPEC_RULES.md)). Task files hold
 **actionable work items only** — design rationale belongs in the matching spec file and is
 linked, not duplicated.
 
@@ -11,7 +11,7 @@ linked, not duplicated.
 # <Area> — Task List
 
 > Work items for <feature>, derived from a code audit on <YYYY-MM-DD>.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](TASKS.template.md).
 >
 > **Context:** [FEATURE.md](FEATURE.md) (technical spec) · [FEATURE_REQUIREMENTS.md](FEATURE_REQUIREMENTS.md)
 >
@@ -54,8 +54,7 @@ command to run them.
 * All four labelled fields are mandatory: **Argumentation Summary**, **Improvement Summary**,
   **References**, **Test Requirements** — plus the fenced agent prompt between them.
 * Cross-reference with relative links instead of restating spec content.
-* Close with the two-line footer required by [SPEC_RULES.md](SPEC_RULES.md): git HEAD revision
+* Close with the two-line footer required by [SPEC_RULES.md](../guidelines/SPEC_RULES.md): git HEAD revision
   and last-updated date.
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (aligned the template with the numbering, DONE marker, preamble and separator conventions the real *_TASKS.md files use)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

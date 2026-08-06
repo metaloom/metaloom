@@ -4,8 +4,8 @@ FastAPI model server behind the Cortex `sentiment` node. Five files, no Python p
 
 **Scope of this file:** the Python process — HTTP contract, model routing, chunking, env, deployment.
 The **node** (ports, persistence, options, open product work) is
-[../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md);
-do not duplicate it here. Node system reference: [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md).
+[../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../concept/NODE_SENTIMENT_PLAN.md);
+do not duplicate it here. Node system reference: [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md).
 Sidecar index and port allocation: [`sidecars/README.md`](../../sidecars/README.md).
 
 ---
@@ -101,7 +101,7 @@ it does not parse `detail`. An empty array also raises. Timeouts: 30 s connect, 
 Per-request `models[lang]` wins over env (`_model_id`, `server.py:107`). All three are ≤135M 3-class
 encoders → one shared label schema. Licence rationale and the rejected checkpoints (notably the
 CC-BY-NC `tabularisai/multilingual-sentiment-analysis`) are in
-[NODE_SENTIMENT_PLAN.md §2](../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md).
+[NODE_SENTIMENT_PLAN.md §2](../concept/NODE_SENTIMENT_PLAN.md).
 
 **Label normalisation** (`LABEL_ALIASES`, `server.py:93`) maps `positive/pos/label_2/4-5 stars`,
 `neutral/neu/label_1/3 stars`, `negative/neg/label_0/1-2 stars` → `POSITIVE|NEUTRAL|NEGATIVE`.
@@ -136,7 +136,7 @@ Read in `run.sh` only (**not** by `server.py`):
 | `SENTIMENT_PORT` | `9110` | uvicorn port |
 | `PYTHON` | `python3` | interpreter used by `setup.sh` to create `.venv` |
 
-⚠️ [NODE_SENTIMENT_PLAN.md §4](../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md) lists a `PORT`
+⚠️ [NODE_SENTIMENT_PLAN.md §4](../concept/NODE_SENTIMENT_PLAN.md) lists a `PORT`
 env var — **that is wrong**; `PORT` appears nowhere in `server.py` or `run.sh`.
 
 No `HF_TOKEN` and no gated repos. Standard HF vars (`HF_HOME`, `HF_HUB_OFFLINE`, `TRANSFORMERS_CACHE`)
@@ -252,8 +252,8 @@ Java test conventions: [../guidelines/CODING.md](../guidelines/CODING.md).
 | Endpoint handlers | `server.py:283` (`/health`), `server.py:293` (`/v1/sentiment`) |
 | Label aliases / chunking / aggregation | `server.py:93` / `:157-203` / `:224-264` |
 | Java HTTP client | `cortex/nodes/sentiment/core/src/main/java/io/metaloom/cortex/node/sentiment/SentimentClient.java` |
-| Node behaviour, ports, persistence | [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md) |
-| Node system reference | [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) |
+| Node behaviour, ports, persistence | [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../concept/NODE_SENTIMENT_PLAN.md) |
+| Node system reference | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
 | Typed port / content-type model | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | Sidecar index + port allocation | [`sidecars/README.md`](../../sidecars/README.md) |
 | Repo entry point / module map | [../CONTEXT.md](../CONTEXT.md) |
@@ -308,3 +308,5 @@ Java test conventions: [../guidelines/CODING.md](../guidelines/CODING.md).
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

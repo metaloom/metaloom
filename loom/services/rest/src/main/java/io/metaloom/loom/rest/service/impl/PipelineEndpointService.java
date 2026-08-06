@@ -83,8 +83,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private final PipelineGraphParser graphParser;
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
-	private final io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker circuitBreaker =
-		new io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker();
+	private final io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker circuitBreaker;
 	private final io.vertx.core.Vertx vertx;
 
 	/** How often aggregated node counters are pushed to subscribers. */
@@ -108,6 +107,9 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		io.vertx.core.Vertx vertx, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.metrics = metrics;
+		// One breaker for the whole process, so its per-kind trip counter and state gauge describe
+		// the fleet rather than whichever run happened to notice first.
+		this.circuitBreaker = new io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker(metrics);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
 		this.pipelineRunDao = pipelineRunDao;
@@ -398,6 +400,9 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		RunStateStore stateStore = new DaoRunStateStore(pipelineRunDao, pipelineRunItemDao, pipelineNodeTaskDao,
 			runUuid, userUuid);
 		PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid, stateStore);
+		// Dispatch-to-result latency, retries and dead-letters are only knowable here: the engine is
+		// the one party that sees a task leave and its result come back.
+		engine.setMetrics(metrics);
 		// Outputs of nodes marked syncToLoom land on the asset, not just in the run
 		// record. Without this the hash a pipeline computes is invisible everywhere
 		// an asset is actually looked at.

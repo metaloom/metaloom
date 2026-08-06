@@ -7,10 +7,10 @@
 >
 > **Not in scope** — covered elsewhere, do not duplicate:
 > - Node lifecycle, per-node configuration and persistence targets, capability matrix →
->   [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md)
+>   [../pipeline-nodes/NODES.md](../nodes/NODES.md)
 > - Engine internals, run state, dispatch protocol, segmentation, affinity, DB schema →
 >   [PIPELINE.md](PIPELINE.md)
-> - Design rationale, locked decisions, phase plan → [NODE_DATA_TYPES_PLAN.md](NODE_DATA_TYPES_PLAN.md)
+> - Design rationale, locked decisions, phase plan → [NODE_DATA_TYPES_PLAN.md](../../concept/NODE_DATA_TYPES_PLAN.md)
 > - DAOs and persistence → [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md),
 >   [../../loom/DOMAIN.md](../../loom/DOMAIN.md)
 >
@@ -369,7 +369,7 @@ picked their source by the element's origin node id would reintroduce `nodeId:ou
 
 A fourth sink, `loom`, used to sit here with three optional hash input ports. Porting it to bind by
 **port type** killed the `md5sum` id-override trap; it was then deleted altogether, because every
-hash node persists its own hash inside `compute()`. See [NODES.md](../pipeline-nodes/NODES.md) §2.
+hash node persists its own hash inside `compute()`. See [NODES.md](../nodes/NODES.md) §2.
 
 ---
 
@@ -405,7 +405,7 @@ while still validating at save time.
 
 The rest of the media-reference story (`ProcessableMedia.reference()`, `MediaReferenceResolver`,
 `s3://` URIs, the S3 materializer and cache) is unchanged and documented in
-[../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) and
+[../pipeline-nodes/NODES.md](../nodes/NODES.md) and
 [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md).
 
 ---
@@ -755,7 +755,7 @@ plus stamping cases in `PortGraphAnalyzerTest` and two segment cases in `Pipelin
 ## 9. Known Gaps
 
 The historical defect audit — what the typed-port model fixed and why — lives in
-[NODE_DATA_TYPES_PLAN.md](NODE_DATA_TYPES_PLAN.md). What follows is only what is **still open**.
+[NODE_DATA_TYPES_PLAN.md](../../concept/NODE_DATA_TYPES_PLAN.md). What follows is only what is **still open**.
 
 | # | Gap | Detail |
 |---|---|---|
@@ -911,7 +911,7 @@ unchanged: [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md),
 | **Count runnable kinds** | `grep -ran '@StringKey(' cortex/ --include=*.java \| grep -v target \| grep -v /test/` (subtract the one script-*engine* binding) + `factory.register(` in `cortex/cli/.../RegistryNodeRegistrar.java` |
 | The TS mirrors and the editor | `loom-ui/src/features/pipeline/{contentTypes,portResolvers}.ts`, `PipelineEditor.tsx` |
 | Docs diagram vocabulary | `website/themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` (`TYPES`) |
-| Typed payload persistence targets | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2 |
+| Typed payload persistence targets | [../pipeline-nodes/NODES.md](../nodes/NODES.md) §2 |
 
 > **Gotcha when grepping the UI:** `PipelineEditor.tsx` has lines long enough that GNU grep treats it
 > as binary and reports nothing. Always use `grep -a` on it.
@@ -955,7 +955,7 @@ cd loom-ui && yarn playwright test e2e/pipeline-ports-mocked.spec.ts
 | `pipeline-ports-mocked.spec.ts` | — | One handle per declared port, a valid connection, a refused incompatible connection with a reason, XOR sibling disabling, script handles from the `outputs` option, and a save → reload → save round trip preserving ports and `branch` |
 
 Per-node end-to-end coverage lives in `integration-test/` — see
-[../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §12. Those **do** need `./setup-pool.sh`.
+[../pipeline-nodes/NODES.md](../nodes/NODES.md) §12. Those **do** need `./setup-pool.sh`.
 
 ---
 
@@ -1041,6 +1041,5 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [ ] Elements by reference for large gathers (a gather task ships all N elements inline)
 
 ---
-
-_Git HEAD revision: `55848543`_
-_Last updated: 2026-08-04 (added the `tag` port row to §4.6, and why it has no MANY output and no MANY struct input)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

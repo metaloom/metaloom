@@ -25,7 +25,7 @@ statements were wrong:
 
 | Previously specified | Actually built |
 |---|---|
-| `depthNodeId` (default `"depthmap"`) and `detectionSources` (default `["facedetect"]`) options | 🔴 **Both deleted** (commit `1f718676`). Replaced by declared ports `depth : struct/depthmap ONE` and `detections : detection/* MANY` — the pipeline author draws an edge instead ([NODES.md](NODES.md) §6.4) |
+| `depthNodeId` (default `"depthmap"`) and `detectionSources` (default `["facedetect"]`) options | 🔴 **Both deleted** (commit `1f718676`). Replaced by declared ports `depth : struct/depthmap ONE` and `detections : detection/* MANY` — the pipeline author draws an edge instead ([NODES.md](../features/nodes/NODES.md) §6.4) |
 | Output keys `scene_layout_result` / `_object_count` / `_relation_count` (`NodeOutputKey`) | **Typed ports** `result`, `object_count`, `relation_count` (`OutputPort` + `ContentTypeRegistry`) |
 | Normalized boxes on the REST fallback get a logged rescale heuristic | Normalized rows are **refused**, not rescaled — nothing records source image dimensions, so they cannot be converted at all. Only the ">1.0 ⇒ pixels" branch is usable |
 | `loom-ui` `ICON_MAP` gains `schema` | 🔴 `PipelineEditor.tsx` has **no `ICON_MAP`** — the palette is descriptor-driven. `setIcon("schema")` in the descriptor is the only icon choice |
@@ -34,9 +34,9 @@ statements were wrong:
 **Package**: `io.metaloom.cortex.node.scenelayout` · **No model, no sidecar.**
 
 **Hard prerequisite**: [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md). Node system:
-[NODES.md](NODES.md). Ports and content types:
-[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4. Adding a node:
-[../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md).
+[NODES.md](../features/nodes/NODES.md). Ports and content types:
+[../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4. Adding a node:
+[../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md).
 
 > **Naming.** First sketched as "correlation"; renamed because *correlation* means a statistical
 > relationship between variables, which is not what this does. Any reference to
@@ -68,7 +68,7 @@ statements were wrong:
 | Unit tests — `RelationSolverTest` (15), `SceneLayoutNodeTest` (15), `DepthSamplerTest` (9), `SceneLayoutNodePersistenceTest` (7), `SceneLayoutOptionsValidationTest` (7), `SceneLayoutNodePipelineTest` (6) + `SceneLayoutFixtures`, `assertj/` helpers | `cortex/nodes/scene-layout/core/src/test/java/io/metaloom/cortex/node/scenelayout/` |
 | Port-conformance guard; Loom-side two-input-join fixtures | `integration-test/.../NodePortConformanceTest.java:74`; `PipelineGraphParserTest.java:238,316`; `PipelineRunEngineTest.java:369` |
 | Customer docs | `website/content/english/docs/nodes/scene-layout/index.adoc` (+ 4 links in `nodes/_index.adoc`) |
-| Catalogue rows | [NODES.md](NODES.md) §2/§3/§5/§12; [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4 |
+| Catalogue rows | [NODES.md](../features/nodes/NODES.md) §2/§3/§5/§12; [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4 |
 
 ### 1.1 What the node actually does
 
@@ -183,7 +183,7 @@ configuration from the pipeline definition (options key `scene-layout`). Cortex-
 | `emitPhrases` | boolean | `true` | — | Emit the readable `phrases[]` array |
 
 🔴 **Deleted, do not reintroduce**: `depthNodeId` and `detectionSources`. Naming an upstream node in a
-string option is the anti-pattern that ports replaced ([NODES.md](NODES.md) §6.4).
+string option is the anti-pattern that ports replaced ([NODES.md](../features/nodes/NODES.md) §6.4).
 
 ---
 
@@ -269,7 +269,7 @@ It plugged in with **zero changes here**, exactly as predicted: `IN_DETECTIONS` 
       `WHEN 'scene-layout'` branch is added.
 - [ ] **Cache key ignores every input.** `LocalResultCache` is keyed on `absolutePath` alone, so
       rewiring the depth map, swapping detectors or changing any threshold re-serves a stale layout
-      ([NODES.md](NODES.md) §4 names `dominant-color` as the model to copy: path + hash of the wired
+      ([NODES.md](../features/nodes/NODES.md) §4 names `dominant-color` as the model to copy: path + hash of the wired
       payloads and every result-affecting option).
 - [ ] **`minCorePixels` is not a descriptor parameter**, so it is unreachable from the pipeline editor.
 
@@ -277,7 +277,7 @@ It plugged in with **zero changes here**, exactly as predicted: `IN_DETECTIONS` 
 
 - [ ] **Extend `DetectionResponse`** (P4) with `nodeKind` / `detectionIndex`. `label` landed with
       `objectdetect`, covered by `DetectionEndpointTest#testLabelIsReadBack`; the remaining two carry
-      the same endpoint-test obligation per [../../guidelines/CODING.md](../../guidelines/CODING.md).
+      the same endpoint-test obligation per [../../guidelines/CODING.md](../guidelines/CODING.md).
 - [ ] **Repair the `detection` geometry convention.** `V2.43__rework_detection_embedding.sql` comments
       the column as "normalized 0-1, the single geometry convention", `FacedetectNode.persist` writes
       **absolute pixels**, `DetectionModelValidator` validates nothing, and no source dimensions are
@@ -390,20 +390,20 @@ mvn -pl integration-test -Dtest=SceneLayoutNodeIntegrationTest test
 | The relation algorithm | `cortex/nodes/scene-layout/core/src/main/java/io/metaloom/cortex/node/scenelayout/RelationSolver.java` |
 | The depth sampling | `.../DepthSampler.java`, `.../DepthMap.java` |
 | The depth map this node consumes | [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md) |
-| Port ids, content types, cardinality | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4 |
-| Why `depthNodeId` / `detectionSources` are gone | [NODES.md](NODES.md) §6.4 |
-| The `asset_json_comp` + ledger write shape | [NODES.md](NODES.md) §2; `cortex/nodes/sentiment/core/.../SentimentNode.java` (`persist`) |
+| Port ids, content types, cardinality | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4 |
+| Why `depthNodeId` / `detectionSources` are gone | [NODES.md](../features/nodes/NODES.md) §6.4 |
+| The `asset_json_comp` + ledger write shape | [NODES.md](../features/nodes/NODES.md) §2; `cortex/nodes/sentiment/core/.../SentimentNode.java` (`persist`) |
 | How face boxes are produced and persisted | `cortex/nodes/facedetect/core/.../FacedetectNode.java` |
 | The detection schema and its bbox comment | `loom/db/flyway/.../V2.43__rework_detection_embedding.sql` |
 | The `asset_json_comp` schema and promotion policy | `loom/db/flyway/.../V2.40__rework_asset_json_comp.sql` |
 | The search-document extractor (missing this schema type) | `loom/db/flyway/.../V2.58__add_search_document.sql` |
-| How to add a node at all | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| How to add a node at all | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | Where a node registers as a runnable kind | its `*NodeModule` (`@StringKey`) + `NodeCollectionModule.includes` |
 | Where a node registers for the UI | `loom-shared/node-model/.../spec/` + the `META-INF/services` file |
 | Affinity / segmentation | `loom/pipeline/.../graph/{PipelineSegmenter,AffinityValidator,PipelineGraphNode}.java` |
 | Customer docs | `website/content/english/docs/nodes/scene-layout/index.adoc` |
 | Cortex config precedence | [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
-| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../guidelines/CODING.md) |
 
 ---
 
@@ -419,7 +419,7 @@ mvn -pl integration-test -Dtest=SceneLayoutNodeIntegrationTest test
 - [x] Persistence: `asset_json_comp` (`schemaType="scene-layout"`, `producerVersion` = depth model) + ledger `resultRef`
 - [x] **P1** depthmap built and wired; **P2** `FacedetectNode` `detections` output + `FacedetectNodeDetectionsTest`
 - [x] 59 unit tests across six classes; `NodePortConformanceTest` entry
-- [x] Customer docs; [NODES.md](NODES.md) and [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) rows
+- [x] Customer docs; [NODES.md](../features/nodes/NODES.md) and [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) rows
 
 ### Open
 - [ ] 🔴 Fix `SceneLayoutNodeIntegrationTest` — pre-port payload shape, currently asserts `SUCCESS` on a skip (§4.1)
@@ -445,16 +445,15 @@ mvn -pl integration-test -Dtest=SceneLayoutNodeIntegrationTest test
 ## 10. References
 
 - [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md) — the required upstream node, designed alongside this one
-- [NODES.md](NODES.md) — node system, persistence (§2), registration (§5), the deleted node-id options (§6.4), capability matrix (§12)
-- [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) — port ids, content types, cardinality
-- [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) — the add-a-node recipe
+- [NODES.md](../features/nodes/NODES.md) — node system, persistence (§2), registration (§5), the deleted node-id options (§6.4), capability matrix (§12)
+- [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) — port ids, content types, cardinality
+- [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) — the add-a-node recipe
 - [NODE_SENTIMENT_PLAN.md](NODE_SENTIMENT_PLAN.md) — the `asset_json_comp` persistence exemplar
-- [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) — pipeline engine, segmentation, affinity
-- [../search/SEARCH.md](../search/SEARCH.md) — a downstream consumer, blocked on §4.3
-- [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md), [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) — schema-audit context for the detection-geometry issue
-- [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md), [../../guidelines/CODING.md](../../guidelines/CODING.md), [../../SPEC_RULES.md](../../SPEC_RULES.md)
+- [../pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) — pipeline engine, segmentation, affinity
+- [../search/SEARCH.md](../features/search/SEARCH.md) — a downstream consumer, blocked on §4.3
+- [../db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md), [../DB_SCHEMA_FEEDBACK.md](../features/DB_SCHEMA_FEEDBACK.md) — schema-audit context for the detection-geometry issue
+- [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md), [../../guidelines/CODING.md](../guidelines/CODING.md), [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md)
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (verified BUILT against the tree; removed the stale "not implemented"/"not written" section headers and the deleted `depthNodeId`/`detectionSources` options, and replaced the design narrative with an inventory plus four newly found defects — the broken integration test, hardcoded `truncated.relations`, dead `INSIDE` predicate and the missing search-document branch.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

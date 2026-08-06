@@ -19,13 +19,13 @@
 > 3. 🔴 **Outputs are typed ports**, not the old `s3_sink_*` keys: `result : struct/json`,
 >    `count : scalar/integer`, `flag : scalar/string`.
 > 4. **Phases 2 and 3 are no longer this file's work.** They are superseded by
->    [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
+>    [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
 > 5. SPI counts are now **26 providers / 34 kinds**, not 22/36.
 >
 > **This file is now a design record, not a plan.** The code is the source of truth.
 
-Read alongside [NODES.md](NODES.md) (the node system, the persistence matrix, the affinity gap),
-[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) (the `artifact/*` family and
+Read alongside [NODES.md](../features/nodes/NODES.md) (the node system, the persistence matrix, the affinity gap),
+[../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) (the `artifact/*` family and
 ONE/MANY cardinality), [NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md) (the ingest half, which owns
 `cortex/s3-common`) and [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) (the
 `CORTEX_S3_*` flags this node shares with `s3-source`).
@@ -53,7 +53,7 @@ ONE/MANY cardinality), [NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md) (the inges
 | Two demo pipelines using `s3-sink` | `loom/core/…/boot/DemoDatabaseInitializer.java` |
 | Customer-facing docs | `website/content/english/docs/nodes/s3-sink/index.adoc` |
 
-**What it persists** (see [NODES.md](NODES.md) §2): one `asset` **per uploaded artifact**
+**What it persists** (see [NODES.md](../features/nodes/NODES.md) §2): one `asset` **per uploaded artifact**
 (`origin` = the `s3://` URI) plus an `asset_json_comp` (`schemaType = s3-artifact`,
 `variant` = node id) and an `asset_node_result` ledger row (`producerVersion` = bucket) on the
 **source** asset.
@@ -69,9 +69,9 @@ credentials and registers the artifact as a new Loom asset.
 
 🔴 **That is not the same as raw-byte ingest into Loom's binary storage.** The real gap — a node
 handing bytes to Loom so they land in whichever backend the target library uses — is owned by
-[../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md),
+[../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md),
 with the byte endpoints and pool model in
-[../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md). **Do not restate either here.**
+[../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md). **Do not restate either here.**
 
 Non-goals: a general upload endpoint in Loom (`AssetUploadEndpointService` already handles multipart
 into a local directory); presigned URLs or a Loom read proxy for S3 objects; replacing the local
@@ -169,7 +169,7 @@ definition is stored in Postgres and rendered verbatim in the editor, and `Param
 | `enabled` | `BOOLEAN` | `true` | Standard node parameter |
 
 🔴 **`deleteAfterUpload` defaults to `false`, and the reason belongs in the javadoc, the descriptor
-and [NODES.md](NODES.md):** `SceneLayoutNode` reads `depthmap_path` from the **same worker's**
+and [NODES.md](../features/nodes/NODES.md):** `SceneLayoutNode` reads `depthmap_path` from the **same worker's**
 `depthmap_bin` cache. A sink that deleted by default would break that chain, and it would surface as
 `scene-layout` skipping with "depth map not found" — which looks like a depthmap bug and is not.
 When enabled: delete only artifacts confirmed present in S3; **never** the media file; only files
@@ -195,7 +195,7 @@ success, which is the failure mode this node works hardest to avoid.
 ## 7. Conventions and Gotchas
 
 🔴 **`ctx.failure(msg).abort()`, never `.next()`.** `NodeContextImpl.next()` ignores a recorded
-failure cause and reports SUCCESS ([NODES.md](NODES.md)). For a sink, "green node, nothing in the
+failure cause and reports SUCCESS ([NODES.md](../features/nodes/NODES.md)). For a sink, "green node, nothing in the
 bucket" is the worst possible outcome.
 
 🔴 **`validate()` deliberately does not require `bucket`.** `RegistryNodeRegistrar.adapt` validates
@@ -259,13 +259,13 @@ the *worker's* options for every node it builds, so a `bucket`-required `validat
 - [x] Descriptor + SPI registration (26 providers / 34 kinds)
 - [x] Integration test — `S3SinkNodeIntegrationTest`, 7 tests against real MinIO
 - [x] Docs & demo — `website/content/english/docs/nodes/s3-sink/`, two demo pipelines,
-      [NODES.md](NODES.md), the `start-minio.sh` recipe
+      [NODES.md](../features/nodes/NODES.md), the `start-minio.sh` recipe
 - [x] **Migration to the typed port model** — `artifacts` MANY input over `artifact/*`; the
       `artifacts` option and `autoDiscover` deleted; outputs are `result`/`count`/`flag`
 - [x] **Loom-side phase 2** (2026-08-01, done elsewhere) — `poolUuid` through `AssetBinary`/REST, the
       S3 branches of `AssetBinaryEndpointService`, and the location-cardinality answer (an asset has
       0..n locations keyed `(library_uuid, path)`; the primary is the oldest).
-      See [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md)
+      See [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md)
 
 ### Open
 
@@ -276,7 +276,7 @@ the *worker's* options for every node it builds, so a `bucket`-required `validat
       the pool row's or the worker's `S3ClientOptions.endpoint`?
 - [ ] 🔴 **Raw-byte ingest into Loom binary storage.** The general cross-node gap this sink works
       around is specified in
-      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md),
+      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md),
       which supersedes this file's former phases 2 and 3. Not this node's work.
 - [ ] **The derivation edge.** `attachment` (`V2.44`) has `node_kind`, `node_id`,
       `producer_version`, `variant`, `run_uuid` and is the sanctioned home for node-produced derived
@@ -358,12 +358,11 @@ Re-run and confirm `Last Modified` is unchanged (the `IF_DIFFERENT` skip);
 | Demo pipelines | `loom/core/…/boot/DemoDatabaseInitializer.java` |
 | Customer-facing docs | `website/content/english/docs/nodes/s3-sink/index.adoc` |
 | The `CORTEX_S3_*` flags | [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
-| The `artifact/*` type family and MANY ports | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
-| Loom's byte endpoints and pool model | [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) |
-| The real fix this node substitutes for | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
-| How to build the next node | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| The `artifact/*` type family and MANY ports | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Loom's byte endpoints and pool model | [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
+| The real fix this node substitutes for | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| How to build the next node | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced to a design record — shipped work collapsed into one table, the stale `setNodeId("")` claim corrected, and the removed `artifacts`/`autoDiscover` options replaced by the typed `artifacts` MANY port.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

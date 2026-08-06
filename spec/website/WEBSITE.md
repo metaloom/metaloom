@@ -15,11 +15,11 @@ coding agent that has to add or restructure site content, or fix the build/publi
 | Topic | Spec |
 |---|---|
 | Definition of done for a code change (incl. **the customer-docs rules**) | [../guidelines/CODING.md](../guidelines/CODING.md) |
-| Definition of done for a spec change | [../SPEC_RULES.md](../SPEC_RULES.md) |
+| Definition of done for a spec change | [../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 | Spec-tree entry point / routing | [../CONTEXT.md](../CONTEXT.md) |
 | The `/pipeline-editor/` page (backend-free editor + simulator) | [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
 | Typed ports, content types, cardinality (vocabulary the docs must match) | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
-| Node catalogue / adding a node | [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md), [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
+| Node catalogue / adding a node | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md), [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | REST API (source of the staged OpenAPI document) | [../loom/RESTAPI.md](../loom/RESTAPI.md) |
 | The product pipeline editor in `loom-ui` | [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) |
 | MetaLoom Studio commercial claims | [metaloom-saas/spec/METALOOM_STUDIO_PLAN.md](../../../metaloom-saas/spec/METALOOM_STUDIO_PLAN.md) |
@@ -185,7 +185,7 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 
 | Section | Pages |
 |---|---|
-| **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (15 screenshots) · `cli/` · `deployment/` (`_index` + `helm/`) |
+| **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (17 screenshots, from **two** scripts — see below) · `cli/` · `deployment/` (`_index` + `helm/`) |
 | **`playbooks/`** | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
 | **`nodes/`** | `_index` + **36 node pages** (35 with a staged descriptor, plus `guard`): `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filter · fingerprint · gdrive-source · guard · hash · image-manipulation · imagegen · llm · metadata · objectdetect · ocr · onedrive-source · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · tag · thumbnail · tika · translate · tts · videogen · vlm · watermark · whisper`. **The count drifts** — `check-node-screenshots.mjs` is what notices, by mapping every kind in the descriptor snapshot to exactly one page |
 | **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
@@ -583,7 +583,7 @@ link, the *1.0.0 — not released yet* badge). **Footer headings carry `data-toc
   values back. Two components are **non-commercial** (`#restricted`): the **InspireFace model packs**
   used by `facedetect` (Apache-2.0 code, InsightFace academic-only packs, which taints
   `facedescription` downstream) and **Ideogram 4.0**, the backing model of the `imagegen` node
-  ([../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md)).
+  ([../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md)).
   Conditional (`#conditional`): the Gemma defaults and the gated Llama-3.2 Kartoffel TTS checkpoint.
   `#clean-stack` gives the permissive-only configuration; `#runtimes` covers redistributed native
   libraries incl. the FFmpeg `--enable-gpl` caveat.
@@ -626,7 +626,9 @@ docker rm -f loom postgres-demo cortex-demo
 
 Filenames must stay stable so refreshes overwrite in place: `chat`, `chat-sessions`, `skills`,
 `memory`, `assets`, `asset-detail`, `library`, `tags`, `tasks`, `face-detection`, `pipeline-editor`,
-`pipeline-versions`, `cortex`, `monitoring`, `users`, `acl-roles`, `api-keys`.
+`pipeline-versions`, `cortex`, `monitoring`, `users`, `acl-roles`, `api-keys`. The two remaining
+images in the bundle — `uploads` and `uploads-sidebar` — come from a **different, mocked** script
+([Capturing the upload screen](#capturing-the-upload-screen-docsui)); this one does not take them.
 
 * `DemoDatabaseInitializer` seeds every screen with real content, and **paints real image bytes**, so
   the asset browser shows pictures. Video/audio/PDF stay as placeholders — expected, not a failure.
@@ -644,6 +646,41 @@ Filenames must stay stable so refreshes overwrite in place: `chat`, `chat-sessio
   fails the registration handshake) on the shared `dev` network; it needs a local OpenCV 5.1 build.
 * Docs images get click-to-zoom (`.ml-lightbox*` in `custom.less` + vanilla JS in
   `assets/js/script.js`) — a theme feature on every docs page, not just this one.
+
+## Capturing the upload screen (`docs/ui/`)
+
+`docs/ui/` § Uploads carries two more images, refreshed by
+`loom-ui/scripts/capture-upload-screenshots.mjs`. Like the debug capture below — and unlike the
+script above — it needs **no demo container and no Postgres**: it intercepts the REST calls the way
+the mocked specs in `loom-ui/e2e/` do, and starts a Vite dev server if none is listening.
+
+```bash
+cd loom-ui && node scripts/capture-upload-screenshots.mjs    # env: VITE_PORT, OUT_DIR
+```
+
+Filenames: `uploads` (the screen, three files in flight) · `uploads-sidebar` (the nav entry's badge
+and progress bar, cropped, while another screen is open).
+
+* **Three uploads in progress is a transient state**, which is why this one is mocked too. Against a
+  live stack the files would have to be big enough to still be in flight when the shutter opens, and
+  the percentages, the byte counts and which file is furthest along would differ every run — so the
+  picture and the prose beside it could not be kept in step.
+* **The network is played, not the UI.** The real `UploadView`, the real module-level queue and the
+  real `uploadAssetWithProgress` transport all run, including its concurrency cap of three — which
+  is why the picture has exactly three bars in it.
+* **Route interception cannot produce this picture.** A route decides what comes *back*; the bars are
+  drawn from `XMLHttpRequest`'s `upload.onprogress` on the way *out*. The script therefore
+  **subclasses** the browser's XHR: any other URL still goes through the native implementation, and
+  an upload gets one real `ProgressEvent` at a planned fraction of its bytes and is then never
+  answered. That is precisely what a slow link looks like, and it holds still.
+* The three files are written to a temp dir and handed over as **paths, not buffers** — the file
+  input needs real bytes for the size labels to be the ones the product's own formatters derive, and
+  20 MB has no business crossing the CDP connection.
+* **The window is 760px tall, not the 1000px the other `docs/ui/` captures use.** This screen is a
+  form, a drop zone and a three-row list; the rest of a 1000px window is empty canvas, which
+  survives into the page as a third of the figure showing nothing.
+* `reducedMotion: "reduce"`, for the same reason the node captures set it: the bars animate, and a
+  re-run that catches a different frame reads as a change.
 
 ## Capturing Debug Mode screenshots (`docs/pipeline/`)
 
@@ -743,6 +780,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Add a release announcement | `content/english/announcements/<slug>/index.adoc` with `status` / `status_label` / `version` / `image` |
 | Refresh the OpenAPI / GraphQL / node-descriptor files | [Staged generated artefacts](#staged-generated-artefacts) |
 | Refresh the Loom UI screenshots | [Capturing Loom UI screenshots](#capturing-loom-ui-screenshots-docsui) |
+| Refresh the upload screenshots | [Capturing the upload screen](#capturing-the-upload-screen-docsui) — mocked, no container |
 | Refresh a node page's settings picture | `cd loom-ui && node scripts/capture-node-config-screenshots.mjs [page]` |
 | Refresh a node page's debug picture | regenerate its fixture (`DocsFixtureGenerator`), then `node scripts/capture-node-screenshots.mjs [page]` |
 | Add a node page for a new kind | the page folder, plus an entry in `loom-ui/scripts/node-capture-plan.mjs` — the build gate fails until both exist |
@@ -881,7 +919,10 @@ review**.
 - [x] `/pipeline-editor/` page — spec'd in [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md)
 - [x] `/announcements/` + the MetaLoom 1.0.0 page, marked **not released yet** in badge, lead and card
 - [x] `/blog/` (6 posts) + `/author/` with the shared reading system
-- [x] Docs landing, Getting Started, Operation, Pipeline, Loom UI (15 screenshots), CLI, Deployment
+- [x] Docs landing, Getting Started, Operation, Pipeline, Loom UI (17 screenshots), CLI, Deployment
+- [x] The upload screen documented on `docs/ui/` — target selection, the batch in flight, duplicates
+      and failures, and background progress — with two mocked captures of three uploads running at
+      once ([Capturing the upload screen](#capturing-the-upload-screen-docsui))
 - [x] Loom docs: REST API (Swagger UI), GraphQL API (GraphiQL), Java client, **Python client**, auth,
       configuration, metrics, features, chat (incl. coding sandbox), binary storage, artifacts,
       containers, helm
@@ -920,7 +961,7 @@ review**.
       `cortex/nodes/image-generation/` with a registered `ImageGenDescriptorProvider`, and
       `docs/nodes/imagegen/` is a published page. Drop "(planned)" from the row and the prose while
       keeping the Ideogram 4.0 non-commercial `[WARNING]`. Plan:
-      [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md).
+      [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md).
 - [ ] **`docs/loom/_index.adoc` calls the gRPC API "(planned)"** — `loom/services/grpc` ships and
       `docs/loom/maven-artifacts/` already documents the `loom-grpc-client` coordinates.
 - [ ] **No docs page for the MCP server.** It ships (`loom/services/mcp`, spec
@@ -968,10 +1009,5 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-
-_Git HEAD revision: `fcf6ea7d`_
-_Last updated: 2026-08-06 (docs sidebar reduced to one themed scroller; nodeviz port text measured
-and wrapped; a detection player on the pipeline and facedetect pages built from a real facedetect
-run; settings-panel screenshots and real debug views on every node page with a staged descriptor,
-with the `DocsFixtureGenerator` harness, two capture scripts and the `check-node-screenshots.mjs`
-gate)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -2,7 +2,7 @@
 
 > Open UI work items for the Organization entities (Collection, Library, Space, Tag),
 > re-verified against `loom-ui/src` on 2026-08-01.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [LOOM_UI.md](LOOM_UI.md) · [../RESTAPI.md](../RESTAPI.md) · [../DOMAIN.md](../DOMAIN.md).
 > REST routes read from `CollectionEndpoint.java`, `LibraryEndpoint.java`, `SpaceEndpoint.java`,
@@ -132,6 +132,5 @@ Keep scope minimal — this is wiring, not new screens.
 | Tag CRUD + drag-and-drop grouping | [TagsView.tsx](../../../loom-ui/src/features/tags/TagsView.tsx); `e2e/tags-backend.spec.ts` |
 | Tag rating (set / read / clear) | `rateTag` / `loadTagRating` / `deleteTagRating` in TagsView; `e2e/tag-rating-backend.spec.ts`, `workflow-rating-mocked.spec.ts` |
 | Tagging and untagging assets | [AssetDetail.tsx](../../../loom-ui/src/features/assetDetail/AssetDetail.tsx); `e2e/region-tags-backend.spec.ts` |
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified against loom-ui; two tasks remain — SpaceContext wiring and single-resource deep links)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

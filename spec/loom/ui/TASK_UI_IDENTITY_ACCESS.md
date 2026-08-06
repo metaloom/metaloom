@@ -2,7 +2,7 @@
 
 > Open UI work items for the RBAC entities (User, Group, Role, Permission, Token, Login/OAuth2),
 > derived from a code audit of `loom-ui/` and `loom/services/rest/.../endpoint/impl/` on
-> 2026-08-01. Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> 2026-08-01. Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [LOOM_UI.md](LOOM_UI.md) (UI spec) · [../RESTAPI.md](../RESTAPI.md) §2.3, §3.2 ·
 > [../../features/rbac/RBAC.md](../../features/rbac/RBAC.md) ·
@@ -178,6 +178,5 @@ not restore the session. Run: `cd loom-ui && yarn test && yarn e2e --grep sso`.
 * **No permission-catalog endpoint.** There is no route that enumerates valid permissions, so the
   UI catalog is a hand-maintained mirror (Task 1 step 3). If such a route is added, drive
   `PERMISSION_GROUPS` from it and delete the constant.
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (recorded the RoleEndpointService permission no-op as the blocking task, collapsed the delivered CRUD to outcome records, and noted the missing group-membership REST surface)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

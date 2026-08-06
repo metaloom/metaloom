@@ -22,6 +22,7 @@ import io.metaloom.loom.rest.service.impl.AssetBinaryEndpointService;
 import io.metaloom.loom.rest.service.impl.AssetUploadEndpointService;
 import io.metaloom.loom.rest.service.impl.CommentEndpointService;
 import io.metaloom.loom.rest.service.impl.DetectionEndpointService;
+import io.metaloom.loom.rest.service.impl.EmbeddingEndpointService;
 import io.metaloom.loom.rest.service.impl.FingerprintCompEndpointService;
 import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
@@ -45,6 +46,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final ReactionEndpointService reactionService;
 	private final CommentEndpointService commentService;
 	private final DetectionEndpointService detectionService;
+	private final EmbeddingEndpointService embeddingService;
 	private final TranscriptEndpointService transcriptService;
 	private final NodeResultEndpointService nodeResultService;
 	private final JsonCompEndpointService jsonCompService;
@@ -61,6 +63,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		ReactionEndpointService reactionService,
 		CommentEndpointService commentService,
 		DetectionEndpointService detectionService,
+		EmbeddingEndpointService embeddingService,
 		TranscriptEndpointService transcriptService,
 		NodeResultEndpointService nodeResultService,
 		JsonCompEndpointService jsonCompService,
@@ -78,6 +81,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.reactionService = reactionService;
 		this.commentService = commentService;
 		this.detectionService = detectionService;
+		this.embeddingService = embeddingService;
 		this.transcriptService = transcriptService;
 		this.nodeResultService = nodeResultService;
 		this.jsonCompService = jsonCompService;
@@ -355,6 +359,16 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.detectionBulkResponseExample(),
 			lrc -> {
 				detectionService.bulkCreateAssetDetections(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
+		// --- EMBEDDING (bulk write, the shape a Cortex node needs) ---
+
+		addRoute(basePath() + "/:uuid/embeddings/bulk", POST,
+			"Bulk create embeddings on an asset",
+			examples.embeddingBulkCreateRequestExample(),
+			examples.embeddingBulkResponseExample(),
+			lrc -> {
+				embeddingService.bulkCreateAssetEmbeddings(lrc, lrc.pathParamAssetId("uuid"));
 			});
 
 		addRoute(basePath() + "/:uuid/detections/:detectionUuid", DELETE,

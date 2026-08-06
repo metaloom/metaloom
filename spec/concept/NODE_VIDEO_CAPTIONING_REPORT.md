@@ -24,7 +24,7 @@
 > | `NativeVideoCaptioningNode` / kind `video-captioning-native` | `videoStrategy = NATIVE` | `VideoCaptioner.captionNative` |
 >
 > Design rationale and remaining work: [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md).
-> Node reference: [NODES.md](NODES.md).
+> Node reference: [NODES.md](../features/nodes/NODES.md).
 
 ---
 
@@ -321,7 +321,7 @@ Node-side options used during the runs (`frameCount=8`, `targetFrameSize=512`,
   recorded in `producerVersion`.
 - **Do not "clean up" the measurements.** This file is a record — correct stale paths and add
   outcome annotations, but never restate a number that was not measured
-  ([SPEC_RULES.md](../../SPEC_RULES.md)).
+  ([SPEC_RULES.md](../guidelines/SPEC_RULES.md)).
 
 ---
 
@@ -331,9 +331,9 @@ Node-side options used during the runs (`frameCount=8`, `targetFrameSize=512`,
 |---|---|
 | Raw result sets + captured environment | [video-captioning-results/](video-captioning-results/) |
 | Design rationale, options and open work | [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) |
-| Node system reference | [NODES.md](NODES.md) |
-| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
-| New-node checklist | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| Node system reference | [NODES.md](../features/nodes/NODES.md) |
+| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| New-node checklist | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | The harness | `cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/VideoCaptioningComparisonIT.java` |
 | Strategy implementations | `cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioner.java` |
 | Scene detector | `cortex/nodes/scene-detection/core/src/main/java/io/metaloom/cortex/node/scene/` |
@@ -364,6 +364,5 @@ Node-side options used during the runs (`frameCount=8`, `targetFrameSize=512`,
 - [ ] Re-measure the `SCENE` strategy post-fix — §7's scene rows are pre-fix single-scene runs
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (measurements preserved; historical `video-captioning` class names and paths remapped to the merged `captioning` node, outcome annotations and spec-required sections added)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

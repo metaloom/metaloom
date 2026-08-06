@@ -10,10 +10,7 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record22;
-import org.jooq.Row22;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -22,7 +19,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * detection - this table no longer carries a second, absolute-pixel copy of it.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord> implements Record22<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, Integer, Float[], UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord> {
 
     private static final long serialVersionUID = 1L;
 
@@ -358,6 +355,78 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
         return (UUID) get(21);
     }
 
+    /**
+     * Setter for <code>public.embedding.synced_at</code>. When this row was
+     * last drained into the vector index. Paired with dirty to make the export
+     * incremental.
+     */
+    public void setSyncedAt(LocalDateTime value) {
+        set(22, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.synced_at</code>. When this row was
+     * last drained into the vector index. Paired with dirty to make the export
+     * incremental.
+     */
+    public LocalDateTime getSyncedAt() {
+        return (LocalDateTime) get(22);
+    }
+
+    /**
+     * Setter for <code>public.embedding.index_version</code>. Bumped when the
+     * index layout changes, so a stale index can be recognised and rebuilt
+     * rather than silently queried.
+     */
+    public void setIndexVersion(Integer value) {
+        set(23, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.index_version</code>. Bumped when the
+     * index layout changes, so a stale index can be recognised and rebuilt
+     * rather than silently queried.
+     */
+    public Integer getIndexVersion() {
+        return (Integer) get(23);
+    }
+
+    /**
+     * Setter for <code>public.embedding.dirty</code>. True while the row has
+     * not been written to the vector index. New rows start dirty;
+     * EmbeddingSyncService clears it.
+     */
+    public void setDirty(Boolean value) {
+        set(24, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.dirty</code>. True while the row has
+     * not been written to the vector index. New rows start dirty;
+     * EmbeddingSyncService clears it.
+     */
+    public Boolean getDirty() {
+        return (Boolean) get(24);
+    }
+
+    /**
+     * Setter for <code>public.embedding.normalized</code>. True when the vector
+     * was unit-normalized at write time. Normalized vectors rank identically
+     * under cosine and inner product.
+     */
+    public void setNormalized(Boolean value) {
+        set(25, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding.normalized</code>. True when the vector
+     * was unit-normalized at write time. Normalized vectors rank identically
+     * under cosine and inner product.
+     */
+    public Boolean getNormalized() {
+        return (Boolean) get(25);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -367,508 +436,6 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
         return (Record1) super.key();
     }
 
-    // -------------------------------------------------------------------------
-    // Record22 type implementation
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row22<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, Integer, Float[], UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row22) super.fieldsRow();
-    }
-
-    @Override
-    public Row22<UUID, UUID, String, String, String, UUID, UUID, Float, String, String, Integer, Float[], UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row22) super.valuesRow();
-    }
-
-    @Override
-    public Field<UUID> field1() {
-        return JooqEmbedding.EMBEDDING.UUID;
-    }
-
-    @Override
-    public Field<UUID> field2() {
-        return JooqEmbedding.EMBEDDING.ASSET_UUID;
-    }
-
-    @Override
-    public Field<String> field3() {
-        return JooqEmbedding.EMBEDDING.NODE_KIND;
-    }
-
-    @Override
-    public Field<String> field4() {
-        return JooqEmbedding.EMBEDDING.NODE_ID;
-    }
-
-    @Override
-    public Field<String> field5() {
-        return JooqEmbedding.EMBEDDING.PRODUCER_VERSION;
-    }
-
-    @Override
-    public Field<UUID> field6() {
-        return JooqEmbedding.EMBEDDING.RUN_UUID;
-    }
-
-    @Override
-    public Field<UUID> field7() {
-        return JooqEmbedding.EMBEDDING.TASK_UUID;
-    }
-
-    @Override
-    public Field<Float> field8() {
-        return JooqEmbedding.EMBEDDING.CONFIDENCE;
-    }
-
-    @Override
-    public Field<String> field9() {
-        return JooqEmbedding.EMBEDDING.TYPE;
-    }
-
-    @Override
-    public Field<String> field10() {
-        return JooqEmbedding.EMBEDDING.MODEL;
-    }
-
-    @Override
-    public Field<Integer> field11() {
-        return JooqEmbedding.EMBEDDING.DIMENSIONS;
-    }
-
-    @Override
-    public Field<Float[]> field12() {
-        return JooqEmbedding.EMBEDDING.VECTOR;
-    }
-
-    @Override
-    public Field<UUID> field13() {
-        return JooqEmbedding.EMBEDDING.DETECTION_UUID;
-    }
-
-    @Override
-    public Field<Integer> field14() {
-        return JooqEmbedding.EMBEDDING.FRAME_NUMBER;
-    }
-
-    @Override
-    public Field<Integer> field15() {
-        return JooqEmbedding.EMBEDDING.SUBJECT_INDEX;
-    }
-
-    @Override
-    public Field<Long> field16() {
-        return JooqEmbedding.EMBEDDING.TIME_FROM;
-    }
-
-    @Override
-    public Field<Long> field17() {
-        return JooqEmbedding.EMBEDDING.TIME_TO;
-    }
-
-    @Override
-    public Field<JsonObject> field18() {
-        return JooqEmbedding.EMBEDDING.META;
-    }
-
-    @Override
-    public Field<LocalDateTime> field19() {
-        return JooqEmbedding.EMBEDDING.CREATED;
-    }
-
-    @Override
-    public Field<UUID> field20() {
-        return JooqEmbedding.EMBEDDING.CREATOR_UUID;
-    }
-
-    @Override
-    public Field<LocalDateTime> field21() {
-        return JooqEmbedding.EMBEDDING.EDITED;
-    }
-
-    @Override
-    public Field<UUID> field22() {
-        return JooqEmbedding.EMBEDDING.EDITOR_UUID;
-    }
-
-    @Override
-    public UUID component1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID component2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String component3() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String component4() {
-        return getNodeId();
-    }
-
-    @Override
-    public String component5() {
-        return getProducerVersion();
-    }
-
-    @Override
-    public UUID component6() {
-        return getRunUuid();
-    }
-
-    @Override
-    public UUID component7() {
-        return getTaskUuid();
-    }
-
-    @Override
-    public Float component8() {
-        return getConfidence();
-    }
-
-    @Override
-    public String component9() {
-        return getType();
-    }
-
-    @Override
-    public String component10() {
-        return getModel();
-    }
-
-    @Override
-    public Integer component11() {
-        return getDimensions();
-    }
-
-    @Override
-    public Float[] component12() {
-        return getVector();
-    }
-
-    @Override
-    public UUID component13() {
-        return getDetectionUuid();
-    }
-
-    @Override
-    public Integer component14() {
-        return getFrameNumber();
-    }
-
-    @Override
-    public Integer component15() {
-        return getSubjectIndex();
-    }
-
-    @Override
-    public Long component16() {
-        return getTimeFrom();
-    }
-
-    @Override
-    public Long component17() {
-        return getTimeTo();
-    }
-
-    @Override
-    public JsonObject component18() {
-        return getMeta();
-    }
-
-    @Override
-    public LocalDateTime component19() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID component20() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime component21() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID component22() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public UUID value1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID value2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String value3() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String value4() {
-        return getNodeId();
-    }
-
-    @Override
-    public String value5() {
-        return getProducerVersion();
-    }
-
-    @Override
-    public UUID value6() {
-        return getRunUuid();
-    }
-
-    @Override
-    public UUID value7() {
-        return getTaskUuid();
-    }
-
-    @Override
-    public Float value8() {
-        return getConfidence();
-    }
-
-    @Override
-    public String value9() {
-        return getType();
-    }
-
-    @Override
-    public String value10() {
-        return getModel();
-    }
-
-    @Override
-    public Integer value11() {
-        return getDimensions();
-    }
-
-    @Override
-    public Float[] value12() {
-        return getVector();
-    }
-
-    @Override
-    public UUID value13() {
-        return getDetectionUuid();
-    }
-
-    @Override
-    public Integer value14() {
-        return getFrameNumber();
-    }
-
-    @Override
-    public Integer value15() {
-        return getSubjectIndex();
-    }
-
-    @Override
-    public Long value16() {
-        return getTimeFrom();
-    }
-
-    @Override
-    public Long value17() {
-        return getTimeTo();
-    }
-
-    @Override
-    public JsonObject value18() {
-        return getMeta();
-    }
-
-    @Override
-    public LocalDateTime value19() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID value20() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime value21() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID value22() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public JooqEmbeddingRecord value1(UUID value) {
-        setUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value2(UUID value) {
-        setAssetUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value3(String value) {
-        setNodeKind(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value4(String value) {
-        setNodeId(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value5(String value) {
-        setProducerVersion(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value6(UUID value) {
-        setRunUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value7(UUID value) {
-        setTaskUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value8(Float value) {
-        setConfidence(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value9(String value) {
-        setType(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value10(String value) {
-        setModel(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value11(Integer value) {
-        setDimensions(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value12(Float[] value) {
-        setVector(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value13(UUID value) {
-        setDetectionUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value14(Integer value) {
-        setFrameNumber(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value15(Integer value) {
-        setSubjectIndex(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value16(Long value) {
-        setTimeFrom(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value17(Long value) {
-        setTimeTo(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value18(JsonObject value) {
-        setMeta(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value19(LocalDateTime value) {
-        setCreated(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value20(UUID value) {
-        setCreatorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value21(LocalDateTime value) {
-        setEdited(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord value22(UUID value) {
-        setEditorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqEmbeddingRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, Float value8, String value9, String value10, Integer value11, Float[] value12, UUID value13, Integer value14, Integer value15, Long value16, Long value17, JsonObject value18, LocalDateTime value19, UUID value20, LocalDateTime value21, UUID value22) {
-        value1(value1);
-        value2(value2);
-        value3(value3);
-        value4(value4);
-        value5(value5);
-        value6(value6);
-        value7(value7);
-        value8(value8);
-        value9(value9);
-        value10(value10);
-        value11(value11);
-        value12(value12);
-        value13(value13);
-        value14(value14);
-        value15(value15);
-        value16(value16);
-        value17(value17);
-        value18(value18);
-        value19(value19);
-        value20(value20);
-        value21(value21);
-        value22(value22);
-        return this;
-    }
 
     // -------------------------------------------------------------------------
     // Constructors
@@ -884,7 +451,7 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     /**
      * Create a detached, initialised JooqEmbeddingRecord
      */
-    public JooqEmbeddingRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, String type, String model, Integer dimensions, Float[] vector, UUID detectionUuid, Integer frameNumber, Integer subjectIndex, Long timeFrom, Long timeTo, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqEmbeddingRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, Float confidence, String type, String model, Integer dimensions, Float[] vector, UUID detectionUuid, Integer frameNumber, Integer subjectIndex, Long timeFrom, Long timeTo, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, LocalDateTime syncedAt, Integer indexVersion, Boolean dirty, Boolean normalized) {
         super(JooqEmbedding.EMBEDDING);
 
         setUuid(uuid);
@@ -909,5 +476,9 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
+        setSyncedAt(syncedAt);
+        setIndexVersion(indexVersion);
+        setDirty(dirty);
+        setNormalized(normalized);
     }
 }

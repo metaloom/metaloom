@@ -4,8 +4,8 @@
 >
 > **Scope split — do not duplicate:**
 > - Lexical search (`search_document`, `SearchProvider` SPI, REST surface, options) → [SEARCH.md](SEARCH.md). **Read it first; it is built.**
-> - Remaining build order and task IDs → [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 3.
-> - Perceptual **fingerprint** k-NN (a different corpus, on Lucene, **built**) → [LUCENE_PLAN.md](LUCENE_PLAN.md).
+> - Remaining build order and task IDs → [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) Phase 3.
+> - Perceptual **fingerprint** k-NN (a different corpus, on Lucene, **built**) → [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md).
 > - Table/column reference → [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
 >
 > **Source of truth is the code.** Where a claim here disagrees with the tree, the code wins — fix
@@ -13,7 +13,13 @@
 
 ## 0. Status — read this first
 
-🔴 **Vector search is not built. Not one embedding has ever been written, and no ANN index exists.**
+🟡 **Text→media semantic search is not built. Face vectors, and the index that serves them, now are.**
+
+`FacedetectNode` writes an embedding per face, `VectorIndex` + `LuceneVectorIndex` answer nearest-neighbour
+queries over them, and `embedding` is the system of record with the index as a derived cache. What is still
+missing is everything §5 and §6 describe: a whole-image/text model, `QueryEmbedder`, RRF fusion, and the
+`SearchMode.SEMANTIC` wiring. A face vector cannot consume the user's `q`, so none of that is unblocked by
+the above — see §1.1.
 
 🟡 **But the seams for it are built and tested.** The previous revision of this file opened with
 *"nothing here is implemented"*. That is now too broad and misleads an agent into re-designing API
@@ -35,23 +41,51 @@ vector ranker behind the enum value.
 
 | Thing | State |
 |---|---|
-| `embedding` rows | 🔴 **Zero.** No node writes one. `EmbeddingDao` has `createEmbedding`/`upsertEmbedding` and **no nearest-neighbour method** |
-| pgvector / `CREATE EXTENSION vector` / HNSW / IVFFlat / cosine operator anywhere | 🔴 Absent. The only `hnsw` in the tree is Lucene's, in `LuceneSimilarityIndex` ([LUCENE_PLAN.md](LUCENE_PLAN.md)) |
-| `embedding.vector real[]` (`V2.43`) | 🟡 Column exists, indexed on `asset_uuid`/`detection_uuid` **only** — a staging buffer with no ANN index |
+| `embedding` rows | ✅ Written by `FacedetectNode` (`type='face'`). `EmbeddingDao` gained `findDirty`/`streamAll`/`markSynced`; k-NN lives on `VectorIndex`, not the DAO |
+| `VectorIndex` SPI + `LuceneVectorIndex` + `NoopVectorIndex` | ✅ built | `loom-shared/api/…/api/search/VectorIndex.java`, `loom/services/lucene/…/vector/` |
+| `POST /assets/:uuid/embeddings/bulk` | ✅ built | `EmbeddingEndpointService.bulkCreateAssetEmbeddings` |
+| `/vector-index/{rebuild,sync,status}` | ✅ built | `VectorIndexEndpoint` |
+| pgvector / `CREATE EXTENSION vector` / HNSW / IVFFlat / cosine operator anywhere | 🔴 Absent. The only `hnsw` in the tree is Lucene's, in `LuceneSimilarityIndex` ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)) |
+| `embedding.vector real[]` (`V2.43`) | ✅ The **system of record**. ANN lives outside Postgres behind `VectorIndex`; `V2.75` added `dirty`/`synced_at`/`index_version`/`normalized`, the dimensions CHECK, and `model` in the unique key |
 | `vector_config(name, weights jsonb)` (`V2.6`) | 🟡 Table + jOOQ record only. **No DAO, no endpoint, no reader** |
 | `loom/services/qdrant` | 🔴 `pom.xml` + Eclipse metadata, **no `src/`** |
 | GraphQL `search` field | 🔴 Absent from `loom/services/graphql/src/main/resources/loom.graphqls` |
 | loom-ui | 🔴 No `src/api/search.ts`, no search view — lexical *or* semantic |
 
-🔴 **Face embeddings are computed and thrown away.** `VideoFace.getEmbedding()` returns the `float[]`
-and `VideoFaceScanner:86` gates on `hasEmbedding()`, but `FacedetectNode.persist(...)` builds only
-bounding-box `DetectionCreateRequest`s. `FaceStorage.java` is entirely commented out.
+✅ **Face embeddings are computed and persisted.** This paragraph used to read *"computed and thrown
+away"*, and understated it: they were never computed at all. The node called only `detectFaces(image)`,
+which sets no embedding, and video4j's `detectEmbeddings`/`extractEmbeddings` had zero callers, so
+`getEmbedding()` returned `null` in the running pipeline. The `VideoFaceScanner:86` `hasEmbedding()` gate
+described here had already been deleted — see the comment at `VideoFaceScanner:99-111` explaining that it
+silently discarded every face.
 
-⚠️ `EmbeddingType` is a **three-value enum** (`DLIB_FACE_RESNET_v1`, `VIDEO4J_FINGERPRINT_V1/_V2`) on
-`AssetCreateRequest.addEmbedding` — a legacy fingerprint path, not the `embedding` table's free-text
-`type`. Do not conflate the two when adding a `clip` type.
+Now: `InspireFacedetector.detectFaces(img, withEmbeddings)` (video4j) produces the vectors in the same pass
+as the boxes, the video path embeds the selected faces from their crops, and `FacedetectNode.persist(...)`
+writes detections and then embeddings, linking each vector to the `detection_uuid` the first call returned.
+Controlled by `LOOM_CORTEX_FACEDETECTION_EMBEDDINGS_ENABLED` / `..._EMBEDDING_MODEL`.
 
-### 0.2 The open decision this document closes
+⚠️ `FaceStorage.java` is still 85 commented-out lines of a per-asset Avro store. It is dead and superseded;
+delete it.
+
+✅ `EmbeddingType` no longer types the embedding path. It was a **closed three-value enum**
+(`DLIB_FACE_RESNET_v1`, `VIDEO4J_FINGERPRINT_V1/_V2`) on `Embedding`, `EmbeddingDao` and all four
+rest-models, even though the column is `varchar` — so every new model meant a code change and a redeploy,
+which is incompatible with the model changing at all. `type` is now a `String` end to end. The enum
+survives only as the vocabulary of the legacy `AssetCreateRequest.addEmbedding` fingerprint path, mapped via
+`name()`. A `clip` type needs no enum value.
+
+### 0.2 The open decision — closed for face similarity (`V2.75`)
+
+`embedding.vector` stays a plain `real[]` and stays authoritative; the ANN structure lives **outside
+Postgres** behind the `VectorIndex` SPI, with Lucene HNSW as the first backend. That avoids §2.2 entirely:
+no `CREATE EXTENSION`, no image change, nothing that can break `generate.sh` or `setup-pool.sh`. §2's
+pgvector decision still stands for **text→media hybrid ranking**, which is a different question — a face
+vector cannot participate in RRF because it cannot consume `q` (§1.1). Both can be true at once; if the
+text path later lands on pgvector, `PgVectorIndex` is a second implementation of the same SPI.
+
+The original wording, now superseded:
+
+### 0.2.1 The original open decision
 
 `V2.43__rework_detection_embedding.sql:124` (mirrored into `JooqEmbedding.java`):
 
@@ -70,7 +104,11 @@ comment itself must be rewritten in the same change as the migration.
 - **No exporter contract** — no `synced_at`, `index_version` or `dirty`, so nothing can incrementally
   feed an index.
 
-All three are fixed in §3.
+All three are fixed **and shipped** in `V2.75`, plus a fourth the list did not mention: the unique key
+`(asset_uuid, node_kind, type, frame_number, subject_index)` had **no model discriminator**, so re-running a
+node under a new model upserted over the old model's row. A model upgrade was therefore destructive and
+irreversible — there was no moment at which both vector sets existed to be compared. `model` is now part of
+that key.
 
 ---
 
@@ -80,17 +118,26 @@ All three are fixed in §3.
 graph TB
     subgraph cortex["Cortex"]
         EN["EmbeddingNode ⬜ new<br/>CLIP/SigLIP whole-image"]
-        FD["FacedetectNode ✅<br/>computes vectors, DISCARDS them"]
+        FD["FacedetectNode ✅<br/>computes AND persists face vectors"]
     end
-    EN -->|"POST /embeddings"| EMB
-    FD -.->|"P3 step 2"| EMB
+    EN -->|"POST /embeddings ⬜"| EMB
+    FD -->|"POST /assets/:uuid/embeddings/bulk ✅"| EMB
 
-    subgraph pg["Postgres"]
-        EMB[("embedding ✅ table / 🔴 empty<br/>vector real[] · staging buffer<br/>+ dirty/synced_at ⬜")]
-        VEC[("embedding_vec_768 ⬜<br/>vector(768) + HNSW<br/>derived · rebuildable")]
+    subgraph pg["Postgres — system of record"]
+        EMB[("embedding ✅ written<br/>vector real[] · dirty/synced_at<br/>UNIQUE incl. model")]
         DOC[("search_document ✅<br/>lexical — SEARCH.md §5")]
-        EMB -->|"EmbeddingSyncService ⬜<br/>(dirty drain)"| VEC
+        VEC[("embedding_vec_768 ⬜<br/>vector(768) + HNSW<br/>needs pgvector — §2.2")]
     end
+
+    EMB -->|"EmbeddingIndexSyncService ✅<br/>write hook + dirty drain"| LVI
+    EMB -.->|"⬜ if the text path lands on pgvector"| VEC
+
+    subgraph idx["VectorIndex SPI ✅ — derived, rebuildable"]
+        LVI[("LuceneVectorIndex ✅<br/>HNSW per (type, model, dimensions)")]
+        PVI["PgVectorIndex ⬜<br/>same SPI, swappable"]
+    end
+
+    LVI --> FACE["face similarity ⬜ route<br/>person clustering ⬜"]
 
     Q["user query q"] --> QE["QueryEmbedder ⬜"]
     QE --> VEC
@@ -120,11 +167,17 @@ node **first** and face second, even though the face vectors already exist in me
 
 ---
 
-## 2. Decision: pgvector, not Qdrant
+## 2. Decision: pgvector, not Qdrant — for **text→media** only
+
+> 🔴 **Scope.** Everything in this section argues from hybrid ranking: fusing vector hits with lexical hits
+> in one SQL statement (§2.1.2), against `search_document`. That argument only applies to a ranker that can
+> consume the user's `q`. **Face similarity does not, and is served by Lucene** via `VectorIndex` /
+> `LuceneVectorIndex` — the same reasoning that keeps `LuceneSimilarityIndex` off pgvector (§2.2). The two
+> decisions do not conflict; a later `PgVectorIndex` is one more implementation of the same SPI.
 
 > ⚠️ **A second vector workload already ships.** Perceptual **fingerprint** similarity (near-duplicate
 > video detection) is served by a Lucene HNSW index — `LuceneSimilarityIndex` in
-> `loom/services/lucene`, **built and verified** ([LUCENE_PLAN.md](LUCENE_PLAN.md)). Different corpus
+> `loom/services/lucene`, **built and verified** ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)). Different corpus
 > (one 256-dim fingerprint per asset), different question ("same recording?" vs "about this?"). It
 > deliberately avoids pgvector because it must not depend on a Postgres extension — see §2.2. Its
 > `SimilarityIndex` SPI mirrors the `VectorIndex` SPI in §8, so the two can be unified later if that
@@ -182,7 +235,7 @@ check only has to keep the capability set honest.
 
 **The alternative** — switching every image to `pgvector/pgvector:pg17` — is cleaner but is an
 infrastructure decision spanning local dev, CI and Helm. The guard is what lets Phase 3 land without
-blocking on it. [SEARCH_PLAN.md](SEARCH_PLAN.md) P3-2 is the spike that picks one.
+blocking on it. [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) P3-2 is the spike that picks one.
 
 ### 2.4 When to revisit Qdrant
 
@@ -271,7 +324,7 @@ embeddings. Not face.** Reason in §1.1: only a joint text–image model makes t
 | Order | Node | `type` | `detection_uuid` | Purpose |
 |---|---|---|---|---|
 | 1 | new `cortex/nodes/embedding` — `EmbeddingNode` | `clip` | NULL | text→media search, hybrid, "more like this" |
-| 2 | `FacedetectNode` (persist what it already computes) | `inspireface` | set | person clustering — **not** text search |
+| 2 | ✅ **done** — `FacedetectNode` computes and persists | `face` | set | person clustering — **not** text search |
 | 3 | transcript-chunk text embeddings | `text` | NULL | semantic transcript retrieval, RAG for the agent |
 
 **Node 1** follows the `cortex/nodes/captioning/` module layout: `EmbeddingNode extends
@@ -280,9 +333,9 @@ AbstractMediaNode<EmbeddingNodeOptions>`, `name() = "embedding"`, an HTTP client
 `NodeDescriptor` + `*DescriptorProvider` with real ports and a `NodePortConformanceTest` entry
 ([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)). Persist via
 `client().createEmbedding(...)` **and** an `asset_node_result` ledger row — the two-step pattern
-`WhisperNode` establishes ([../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2).
+`WhisperNode` establishes ([../pipeline-nodes/NODES.md](../nodes/NODES.md) §2).
 
-⚠️ **The inference host needs a spike** ([SEARCH_PLAN.md](SEARCH_PLAN.md) P3-1): ONNX Runtime
+⚠️ **The inference host needs a spike** ([SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) P3-1): ONNX Runtime
 in-process versus a Python sidecar under `sidecars/` (precedent: `sidecars/tts` FastAPI service;
 node-side precedent: `CaptioningNode → SmolVLMClient → FastAPI`). The choice fixes the dimension, which
 fixes the table name in §3.3.
@@ -383,16 +436,18 @@ Clusters are the **output** of similarity, not an input to search.
 | `SearchProvider` / `PostgresSearchProvider` | `…/api/search`, `io.metaloom.loom.db.jooq.search` | The SPI a vector-capable provider extends |
 | `SearchOptions` | `io.metaloom.loom.api.options` | Where the `LOOM_SEARCH_*` vars in §9 land |
 | `EmbeddingDao` / `Embedding` | `io.metaloom.loom.db.model.embedding` | CRUD + `upsertEmbedding`; **no kNN method** |
-| `SimilarityIndex` / `LuceneSimilarityIndex` | `io.metaloom.loom.similarity[.lucene]` | The *fingerprint* index — the shape `VectorIndex` should mirror ([LUCENE_PLAN.md](LUCENE_PLAN.md)) |
-| `VideoFace` / `VideoFaceScanner` | `io.metaloom.cortex.node.facedetect.video` | Where the discarded face vectors live |
+| `SimilarityIndex` / `LuceneSimilarityIndex` | `io.metaloom.loom.similarity[.lucene]` | The *fingerprint* index — the shape `VectorIndex` should mirror ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)) |
+| `VideoFace` / `VideoFaceScanner` | `io.metaloom.cortex.node.facedetect.video` | Where the face vectors are produced (`scan(video, n, withEmbeddings)`) |
+| `VectorIndex` / `VectorSpace` / `VectorRecord` / `VectorQuery` / `VectorHit` | `io.metaloom.loom.api.search` | ✅ built — the ANN SPI. Every operation is scoped by `(type, model, dimensions)` |
+| `LuceneVectorIndex` / `NoopVectorIndex` | `io.metaloom.loom.vector[.lucene]` | ✅ built — HNSW backend and its honest-rejection fallback |
+| `EmbeddingIndexSyncService` / `EmbeddingIndexDrainer` | `io.metaloom.loom.rest.vector` | ✅ built — write hook, dirty drain, rebuild |
+| `VectorIndexOptions` | `io.metaloom.loom.api.options` | ✅ built — the `LOOM_VECTOR_INDEX_*` vars |
 
 **To be created** (nothing below exists):
 
 | Class | Package / module | Purpose |
 |---|---|---|
-| `VectorIndex` | `io.metaloom.loom.api.search` | ANN SPI — sibling of `SearchProvider` |
-| `PgVectorIndex` | `io.metaloom.loom.db.jooq.search` | pgvector implementation |
-| `EmbeddingSyncService` | `io.metaloom.loom.db.jooq.search` | `embedding` → `embedding_vec` dirty drain |
+| `PgVectorIndex` | `io.metaloom.loom.db.jooq.search` | pgvector implementation **of the existing `VectorIndex` SPI**, if the text path needs it |
 | `RrfFusion` | `io.metaloom.loom.api.search` | Rank fusion, shared by both providers |
 | `QueryEmbedder` | `io.metaloom.loom.db.jooq.search` | Embeds the user's `q` for text→media |
 | `VectorConfigDao` | `io.metaloom.loom.db.model.vector` | Search-profile registry (§6) |
@@ -400,8 +455,22 @@ Clusters are the **output** of similarity, not an input to search.
 
 ## 9. Configuration
 
-**Shipped:** the 10 `LOOM_SEARCH_*` vars on `SearchOptions` — see [SEARCH.md](SEARCH.md) §9. **None of
-the following exist yet**; they extend the same options class.
+**Shipped:** the 10 `LOOM_SEARCH_*` vars on `SearchOptions` — see [SEARCH.md](SEARCH.md) §9 — plus the six
+`LOOM_VECTOR_INDEX_*` vars on `VectorIndexOptions`, which govern the face vector index:
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `LOOM_VECTOR_INDEX_PROVIDER` | `none` | `none` \| `lucene`. An unknown value is **rejected at boot**, never silently ignored |
+| `LOOM_VECTOR_INDEX_PATH` | `vector-index` | On-disk index directory, separate from the fingerprint index |
+| `LOOM_VECTOR_INDEX_TOPK` | `10` | Default neighbours per query |
+| `LOOM_VECTOR_INDEX_SCORE_THRESHOLD` | `0.35` | Similarity floor |
+| `LOOM_VECTOR_INDEX_SYNC_INTERVAL_MS` | `5000` | Dirty-row drain interval; `0` disables the background drain |
+| `LOOM_VECTOR_INDEX_SYNC_BATCH_SIZE` | `500` | Rows per drain pass |
+
+Node side: `LOOM_CORTEX_FACEDETECTION_EMBEDDINGS_ENABLED` (default `true`) and
+`LOOM_CORTEX_FACEDETECTION_EMBEDDING_MODEL` (default `inspireface-r18`).
+
+**None of the following exist yet**; they extend `SearchOptions`.
 
 | Env var | Default | Meaning |
 |---|---|---|
@@ -440,7 +509,7 @@ Make that an explicit test step, not an assumption.
   fusion that ignores its parameters is a common silent bug).
 - ✅ **Mode rejection is already covered** (`SearchQueryBehaviourTest`, `SearchEndpointTest`). Extend
   those two rather than writing a third: once the capability is advertised, the assertions invert.
-- **`EmbeddingNode` tests** per [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md): unit test with
+- **`EmbeddingNode` tests** per [../pipeline-nodes/NODES.md](../nodes/NODES.md): unit test with
   a mocked client; a persistence test asserting both the `embedding` row **and** the
   `asset_node_result` ledger row; an options `validate()` test; a `NodePortConformanceTest` entry; and a
   per-node E2E in `integration-test` extending `AbstractNodeIntegrationTest` with the model client
@@ -463,7 +532,11 @@ Make that an explicit test step, not an assumption.
 | **Score fusion** | 🔴 Never linearly blend `ts_rank_cd` with cosine — incomparable scales. Use RRF (§5) |
 | **Silent degradation** | 🔴 A provider lacking `SEMANTIC` must **reject** the mode. Already enforced; keep it that way |
 | **Face vs. text** | ⚠️ Face embeddings cannot consume a text query, so they cannot drive hybrid search. Whole-image first (§1.1, §4) |
-| **Two `EmbeddingType`s** | ⚠️ The `EmbeddingType` enum (3 fingerprint/dlib values) is not the `embedding.type` free-text column. Do not merge them |
+| **`EmbeddingType`** | ✅ Gone from the embedding path — `type` is a `String` everywhere. The enum remains only as the legacy `AssetCreateRequest.addEmbedding` fingerprint vocabulary. A new embedding kind needs no code change |
+| **Model changes** | 🔴 `model` is part of both the SQL unique key and the `VectorSpace`. Change `LOOM_CORTEX_FACEDETECTION_EMBEDDING_MODEL` whenever the model pack changes, or two incompatible vector populations merge under one name |
+| **Detection ↔ embedding order** | 🔴 The node pairs vectors to detection uuids **by position** in the bulk response, and refuses to write if the counts disagree. Do not "fix" that guard by zipping the shorter list |
+| **`detectEmbeddings(VideoFrame)`** | 🔴 Runs detection **unfiltered**, so its ordinals do not match `detectFaces`. Never zip the two — use `detectFaces(img, true)` |
+| **Two Lucene indexes** | ⚠️ `LuceneSimilarityIndex` (fingerprints, one vector per asset) and `LuceneVectorIndex` (embeddings, many per asset) are separate directories and separate writers. Do not merge them |
 | **Lucene module** | ⚠️ `loom/services/lucene` is **built** (fingerprint k-NN), not a stub. `loom/services/qdrant` and `loom/services/elasticsearch` are the empty ones |
 | **Normalization** | ⚠️ Normalize at write time and record it in `normalized`; then cosine and inner product rank identically |
 
@@ -472,14 +545,14 @@ Make that an explicit test step, not an assumption.
 | Need | Look here |
 |---|---|
 | Lexical search design (SPI, REST, `search_document`) — **built** | [SEARCH.md](SEARCH.md) |
-| Task order, IDs and dependencies | [SEARCH_PLAN.md](SEARCH_PLAN.md) Phase 3 |
-| Fingerprint k-NN (the other vector index) — **built** | [LUCENE_PLAN.md](LUCENE_PLAN.md) |
+| Task order, IDs and dependencies | [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) Phase 3 |
+| Fingerprint k-NN (the other vector index) — **built** | [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) |
 | Table/column reference for `embedding`, `cluster`, `vector_config` | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
 | The original open decision | `V2.43__rework_detection_embedding.sql:124`; [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.2 |
 | DDL | `loom/db/flyway/src/main/resources/db/migration/{V2.43,V2.12,V2.6}…` |
 | The mode/capability seams | `loom-shared/api/src/main/java/io/metaloom/loom/api/search/{SearchMode,SearchCapability,SearchRequest}.java` |
 | Face vectors that are currently discarded | `cortex/nodes/facedetect/core/.../video/{VideoFace,VideoFaceScanner}.java` |
-| Node result persistence pattern | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2; `WhisperNode` |
+| Node result persistence pattern | [../pipeline-nodes/NODES.md](../nodes/NODES.md) §2; `WhisperNode` |
 | Port/descriptor obligations for a new node | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
 | Sidecar precedent for a Python model server | `sidecars/tts/`; `cortex/nodes/captioning/` (`SmolVLMClient`) |
 | Postgres image pins to change or guard | `start-postgres.sh`, `test-database/*.y*ml`, `loom/db/jooq/pom.xml:109`, `helm/loom/values.yaml` |
@@ -492,7 +565,7 @@ Make that an explicit test step, not an assumption.
 - [x] `SearchRequest.{mode, profile, clusterUuid}` and the `?profile=` query parameter
 - [x] Honest 400 rejection of an unsupported mode + `/search/status` capability reporting, with tests
 - [x] `cluster` rows indexed into `search_document` (`V2.59`) — searchable with no vectors at all
-- [x] Fingerprint k-NN on Lucene ([LUCENE_PLAN.md](LUCENE_PLAN.md)) — a separate, working vector path
+- [x] Fingerprint k-NN on Lucene ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)) — a separate, working vector path
 
 **Decisions closed by this document**
 
@@ -521,9 +594,15 @@ Make that an explicit test step, not an assumption.
 - [ ] `SearchRequest.clusterUuid` honoured by the provider (§7 item 2)
 - [ ] Elasticsearch `dense_vector` population + native `rrf`/`knn` (the field is declared in the Phase 2
       mapping, so no reindex is needed)
-- [ ] `FacedetectNode` persists its existing InspireFace vectors (§4 order 2)
+- [x] `FacedetectNode` computes and persists InspireFace vectors (§4 order 2)
+- [x] `VectorIndex` SPI + `LuceneVectorIndex` + `NoopVectorIndex`, bound by `VectorIndexModule`
+- [x] `EmbeddingIndexSyncService` write hook + `EmbeddingIndexDrainer` dirty drain
+- [x] `POST /assets/:uuid/embeddings/bulk`; `/vector-index/{rebuild,sync,status}`
+- [x] `V2.75` — exporter columns, dimensions CHECK, `model` in the unique key
+- [x] `EmbeddingType` removed from the embedding path; `type` is free text
+- [ ] Face similarity **query** route (`/assets/:uuid/similar-faces`) and person clustering off `embedding_cluster` — the SPI is shaped for it, nothing calls it yet
 - [ ] UI: there is **no search UI at all yet** — the mode toggle, "more like this" and cluster filter
-      come after [SEARCH_PLAN.md](SEARCH_PLAN.md)'s loom-ui work, not before it
+      come after [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md)'s loom-ui work, not before it
 - [ ] Tests per §10 — **including the guard test that protects the build**
 - [ ] Website docs + spec sync ([../../guidelines/CODING.md](../../guidelines/CODING.md))
 
@@ -534,6 +613,5 @@ Make that an explicit test step, not an assumption.
 - [ ] Nothing has ever written an embedding, so all latency and recall figures here are estimates
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (corrected the status: the mode/capability seams and cluster indexing are built; only the vector ranker is missing)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

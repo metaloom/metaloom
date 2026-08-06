@@ -7,7 +7,7 @@ Cortex **`videogen`** node.
 
 **Scope of this file:** the Python sidecar — HTTP contract, loading/quantization, env vars,
 deployment. The Java node that calls it (ports, options, persistence, pipeline behaviour)
-is specified in [NODES.md](../features/pipeline-nodes/NODES.md) and
+is specified in [NODES.md](../features/nodes/NODES.md) and
 [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md); node option defaults in
 [CONFIGURATION.md](../cortex/CONFIGURATION.md). Do not duplicate those here.
 
@@ -213,7 +213,7 @@ Java-side coverage lives with the node and **mocks `VideoGenClient`** — no ser
   so the sidecar's own defaults only apply to direct HTTP callers. `negative_prompt` is the one
   exception — the node omits it when blank so the sidecar default applies.
 - Generated MP4s go to `metaPath/videogen_bin/<hash-segment>/<sha512>.mp4` — worker-local, not Loom
-  binaries. Wire an `s3-sink` to keep them (see [NODE_S3SINK_PLAN.md](../features/pipeline-nodes/NODE_S3SINK_PLAN.md)).
+  binaries. Wire an `s3-sink` to keep them (see [NODE_S3SINK_PLAN.md](../concept/NODE_S3SINK_PLAN.md)).
 
 ## Key Files Reference
 
@@ -241,13 +241,15 @@ Java-side coverage lives with the node and **mocks `VideoGenClient`** — no ser
 | The exact request/response JSON | `sidecars/ltx2-sidecar/server.py` (module docstring + route handlers) |
 | Why it fits 24 GB / what was ruled out | `sidecars/ltx2-sidecar/ltx_loader.py` module docstring |
 | The port table for all sidecars | `sidecars/README.md` |
-| The node's options and their defaults | [CONFIGURATION.md](../cortex/CONFIGURATION.md), [NODES.md](../features/pipeline-nodes/NODES.md) |
+| The node's options and their defaults | [CONFIGURATION.md](../cortex/CONFIGURATION.md), [NODES.md](../features/nodes/NODES.md) |
 | The node's port types / content types | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | Why the MP4 is not stored in Loom | [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | The metric names emitted per AI call | [METRICS.md](../features/ops/METRICS.md) |
 | How to add another sidecar-backed node | [NEW_NODE.md](../guidelines/NEW_NODE.md), [CODING.md](../guidelines/CODING.md) |
-| The pattern this sidecar was copied from | `sidecars/mage-flow-sidecar/`, [imagegen-node.md](../plans/imagegen-node.md), [NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md) |
+| The pattern this sidecar was copied from | `sidecars/mage-flow-sidecar/`, [imagegen-node.md](../plans/imagegen-node.md), [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) |
 | Customer-facing docs for the node | `website/content/english/docs/nodes/videogen/index.adoc` |
 | Where the sidecar sits in the repo map | [CONTEXT.md](../CONTEXT.md), [METALOOM.md](../METALOOM.md) |
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

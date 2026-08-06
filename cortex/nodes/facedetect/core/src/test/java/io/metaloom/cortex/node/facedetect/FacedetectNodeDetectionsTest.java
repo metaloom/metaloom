@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -100,7 +101,7 @@ class FacedetectNodeDetectionsTest {
 
 	@Test
 	void testEmitsOneElementPerFaceWithCoordinateMarkerAndDimensions() {
-		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class));
+		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class), anyBoolean());
 
 		NodeResult result = node().process(NodeContext.create(media));
 		assertThat(result).isSuccess();
@@ -138,7 +139,7 @@ class FacedetectNodeDetectionsTest {
 
 	@Test
 	void testEmitsNoElementsWhenNoFaces() {
-		doReturn(List.of()).when(inspireface).detectFaces(any(BufferedImage.class));
+		doReturn(List.of()).when(inspireface).detectFaces(any(BufferedImage.class), anyBoolean());
 
 		NodeResult result = node().process(NodeContext.create(media));
 		assertThat(result).isSuccess();
@@ -154,7 +155,7 @@ class FacedetectNodeDetectionsTest {
 
 	@Test
 	void testDetectionElementsSurviveACacheHit() {
-		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class));
+		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class), anyBoolean());
 
 		FacedetectNode node = node();
 		NodeResult first = node.process(NodeContext.create(media));
@@ -171,7 +172,7 @@ class FacedetectNodeDetectionsTest {
 
 	@Test
 	void testAFaceLessImageStillCaches() {
-		doReturn(List.of()).when(inspireface).detectFaces(any(BufferedImage.class));
+		doReturn(List.of()).when(inspireface).detectFaces(any(BufferedImage.class), anyBoolean());
 
 		FacedetectNode node = node();
 		assertThat(node.process(NodeContext.create(media))).isSuccess();
@@ -186,14 +187,14 @@ class FacedetectNodeDetectionsTest {
 
 	@Test
 	void testNullFaceListDoesNotThrow() {
-		doReturn(null).when(inspireface).detectFaces(any(BufferedImage.class));
+		doReturn(null).when(inspireface).detectFaces(any(BufferedImage.class), anyBoolean());
 
 		assertThatNoException().isThrownBy(() -> node().process(NodeContext.create(media)));
 	}
 
 	@Test
 	void testImagePreviewsCarryNoFrame() {
-		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class));
+		doReturn(List.of(face(10, 20, 30, 40), face(100, 50, 60, 60))).when(inspireface).detectFaces(any(BufferedImage.class), anyBoolean());
 
 		// capturePreviews is what turns the pictures on at all; a production run pays for none of this.
 		NodeResult result = node().process(NodeContext.create(media,

@@ -16,11 +16,11 @@ Dublin Core mapping, or the precedence rules.
 
 | Also read | Why |
 |---|---|
-| [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) | **The single most relevant existing plan.** It already settled *"which shape does a produced artifact take"* — attachment vs new asset. This concept obeys that table rather than inventing a parallel answer |
+| [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) | **The single most relevant existing plan.** It already settled *"which shape does a produced artifact take"* — attachment vs new asset. This concept obeys that table rather than inventing a parallel answer |
 | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) | The byte endpoints, the pool model, the content-addressed layout |
-| [../features/pipeline-nodes/NODE_WATERMARK_PLAN.md](../features/pipeline-nodes/NODE_WATERMARK_PLAN.md) | The **worked example of a node that produces new bytes** — `.part` + atomic move, `FfmpegRunner`, artifact cache path, "the source file is never modified" |
+| [../features/pipeline-nodes/NODE_WATERMARK_PLAN.md](NODE_WATERMARK_PLAN.md) | The **worked example of a node that produces new bytes** — `.part` + atomic move, `FfmpegRunner`, artifact cache path, "the source file is never modified" |
 | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) | Rules: registration touch-points, persistence template, required tests |
-| [../features/pipeline-nodes/NODE_S3SINK_PLAN.md](../features/pipeline-nodes/NODE_S3SINK_PLAN.md) | The existing "get bytes out of MetaLoom" node — the natural downstream of this one |
+| [../features/pipeline-nodes/NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) | The existing "get bytes out of MetaLoom" node — the natural downstream of this one |
 | [../loom/DOMAIN.md](../loom/DOMAIN.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) | `asset`, `attachment`, `asset_remix` |
 
 ---
@@ -63,7 +63,7 @@ design record says in bold: **"The source file is never modified."**
 | …but the media API exposes xattrs **read-only** | `ProcessableMedia.listXAttr()` — no `setXAttr` |
 | `ffmpeg`/`ffprobe` are already a supported runtime dependency, behind one class | `cortex/nodes/watermark/…/FfmpegRunner.java`, whose javadoc claims it is **the only class under `cortex/` that starts an external process** (the other `ProcessBuilder` in the repo is the agent sandbox's Podman backend) |
 | Atomic-write helper already exists (`.part` + replacing move) | `cortex/nodes/watermark/…/AtomicFiles.java` |
-| Six nodes already produce bytes and leave them on the worker (`metaPath/<name>_bin/…`), ledger row only | `thumbnail`, `depthmap`, `imagegen`, `videogen`, `tts`, `script` — table in [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §"The gap" |
+| Six nodes already produce bytes and leave them on the worker (`metaPath/<name>_bin/…`), ledger row only | `thumbnail`, `depthmap`, `imagegen`, `videogen`, `tts`, `script` — table in [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §"The gap" |
 | **Attachment is the sanctioned sink for derived binaries** — decided, with `V2.44` saying so in its own header | that plan, §2 "Which shape does an artifact take?" |
 | Attachment bytes can already be stored and served; the client can already upload one against an asset | `AttachmentEndpointService.create` → `BinaryStorage.store`; `AttachmentMethods.uploadAttachment(File, mimeType, assetUuid, type)` |
 | 🔴 **The Java `AttachmentType` enum is out of sync with the database enum.** Java has `ASSET_THUMBNAIL`, `EMBEDDING_ATTACHMENT`. `V2.44` added `CONTACT_SHEET`, `POSTER_FRAME`, `WAVEFORM`, `PROXY`, `EXTRACTED_AUDIO` to the PG type | `io/metaloom/loom/api/attachment/AttachmentType.java` vs `V2.44__attachment_provenance.sql` |
@@ -150,7 +150,7 @@ produces a use case that T1 and T2 genuinely cannot serve.
 The bytes are rewritten with metadata inside, at
 `metaPath/metadata_write_bin/<segment>/<sha512>-<profileHash>.<ext>` — the `watermark` artifact-cache
 convention, unchanged. Then, per the settled table in
-[REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §2](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md):
+[REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §2](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md):
 
 - **attachment** (`type` = a new `RENDITION`, or `PROXY`) when it is a *view of the source asset* —
   the normal case. `variant` carries the profile name so "web delivery" and "archive" copies coexist
@@ -367,7 +367,7 @@ rights-management information) — separate from any infringement question. Ther
 | # | Gap | Fix | Phase |
 |---|---|---|---|
 | **G1** | 🔴 Java `AttachmentType` has 2 values; the PG enum has 7. No type fits "a file carrying this asset's metadata" | Sync the enum, and add `SIDECAR` + `RENDITION` to both (a migration `ALTER TYPE … ADD VALUE` + the Java enum + the model). Pre-existing bug — it blocks any node from creating a `CONTACT_SHEET` today either | 1 |
-| **G2** | Attachment provenance is invisible above the DB — `node_kind`/`node_id`/`producer_version`/`variant` cannot be set through REST | Already tracked as **A1** in [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §3](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md). This concept is a second consumer of that work; **do not fork it** | 1 |
+| **G2** | Attachment provenance is invisible above the DB — `node_kind`/`node_id`/`producer_version`/`variant` cannot be set through REST | Already tracked as **A1** in [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §3](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md). This concept is a second consumer of that work; **do not fork it** | 1 |
 | **G3** | No typed lineage between a source asset and a derived one. `asset_remix` is an untyped, undirected pair table with no writer | Decide: extend `asset_remix` with a `relation` discriminator + direction, or add `asset_derivation (source_uuid, derived_uuid, node_kind, node_id, producer_version, relation)`. Needed the moment T2 produces a **new asset** rather than an attachment | 2 |
 | **G4** | Nothing to write for licence — no field in the schema or `AssetResponse` (`// private List<LicenseInfo> licenses` is commented out) | The ingest concept's §5.4 / G10 (`asset_rights_comp`). Until then the node reads `rights` out of the `metadata` JSON component | 2 |
 | **G5** | No per-asset "what was published where" record | The ledger + `attachment.variant` covers it thinly. A real publish history is a separate feature | 3 |
@@ -450,7 +450,7 @@ read rule — is **done**: [METADATA_OVERVIEW.md](../features/nodes/metadata/MET
 
 - [ ] **G1** — sync the Java `AttachmentType` enum with the PG enum, and add `SIDECAR` + `RENDITION`
 - [ ] **G8** — promote `FfmpegRunner` out of `watermark` into a shared `ExternalProcessRunner`
-- [ ] **G2** — attachment provenance through REST (already owned by [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) A1 — coordinate, do not fork)
+- [ ] **G2** — attachment provenance through REST (already owned by [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) A1 — coordinate, do not fork)
 
 **Phase 1 — sidecars (T1)**
 
@@ -529,7 +529,7 @@ read rule — is **done**: [METADATA_OVERVIEW.md](../features/nodes/metadata/MET
 | Attachment Java enum (out of sync) | `loom-shared/…/io/metaloom/loom/api/attachment/AttachmentType.java` |
 | Attachment REST + storage | `loom/services/rest/…/service/impl/AttachmentEndpointService.java`, `BinaryStorage`, `BinaryStorageResolver` |
 | Lineage table (untyped, unused) | `asset_remix` in `V2.8__add_asset.sql` |
-| The settled "attachment vs new asset" table | [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §2](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| The settled "attachment vs new asset" table | [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §2](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | Transcript storage | `V2.39__rework_asset_transcript_comp.sql` (`transcript_text`, `transcript_json`, `lang`, `stream_index`) |
 | The canonical envelope this node serialises | [METADATA_OVERVIEW.md §6](../features/nodes/metadata/METADATA_OVERVIEW.md) |
 | Content-type constants | `loom-shared/node-model/…/nodes/spec/ContentTypeRegistry.java` (`ARTIFACT_FILE`, `STRUCT_JSON`, `TEXT_TRANSCRIPT`) |
@@ -540,7 +540,5 @@ read rule — is **done**: [METADATA_OVERVIEW.md](../features/nodes/metadata/MET
 | exiftool | <https://exiftool.org/> — the writer's tag names and `-overwrite_original` semantics |
 
 ---
-
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 — initial concept. Repository claims verified against this checkout;
-the standards material (IPTC, C2PA, XMP, DMCA §1202) is external reference, not code._
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

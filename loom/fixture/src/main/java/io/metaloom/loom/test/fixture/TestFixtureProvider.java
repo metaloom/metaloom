@@ -208,7 +208,7 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 	}
 
 	private Embedding createEmbedding(UUID uuid, User user, Asset asset, int subjectIndex) {
-		Embedding embedding = embeddingDao().createEmbedding(user, asset, VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1);
+		Embedding embedding = embeddingDao().createEmbedding(user, asset, VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1.name());
 		embedding.setUuid(uuid);
 		embedding.setSubjectIndex(subjectIndex);
 		embeddingDao().store(embedding);

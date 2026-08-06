@@ -5,10 +5,10 @@
 MetaLoom depends on it. Treat this file as a *demolition/implementation brief*, not as a
 description of a working subsystem.
 
-> ⚠️ Read this before believing older docs: [../../loom/LOOM.md](../../loom/LOOM.md) §module table
+> ⚠️ Read this before believing older docs: [../../loom/LOOM.md](../loom/LOOM.md) §module table
 > describes `services/image`, `services/video` as *"Image/video processing helpers"*. **That claim is
 > wrong** — neither module performs any processing. Per the "code wins" rule in
-> [../../guidelines/CODING.md](../../guidelines/CODING.md), the LOOM.md row should be corrected to
+> [../../guidelines/CODING.md](../guidelines/CODING.md), the LOOM.md row should be corrected to
 > "empty stubs" in the same change that touches this area.
 
 ---
@@ -17,10 +17,10 @@ description of a working subsystem.
 
 | Covered here | Covered elsewhere |
 | --- | --- |
-| The Maven module `loom/services/image` and its two types | Actual image work in Cortex nodes → [NODES.md](NODES.md) |
-| Why it is orphaned and what the options are | Image generation → [NODE_IMAGEGEN_PLAN.md](NODE_IMAGEGEN_PLAN.md) |
-| Its (non-)configuration and (non-)tests | Colour analysis → [NODE_DOMINANT_COLOR_PLAN.md](NODE_DOMINANT_COLOR_PLAN.md) |
-| — | Binary/thumbnail storage → [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) |
+| The Maven module `loom/services/image` and its two types | Actual image work in Cortex nodes → [NODES.md](../features/nodes/NODES.md) |
+| Why it is orphaned and what the options are | Image generation → [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) |
+| Its (non-)configuration and (non-)tests | Colour analysis → [NODE_DOMINANT_COLOR_PLAN.md](../concept/NODE_DOMINANT_COLOR_PLAN.md) |
+| — | Binary/thumbnail storage → [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 
 This file is filed under `spec/features/pipeline-nodes/` because every consumer that *would*
 plausibly use it is a Cortex node; the module itself is Loom-side (`loom/services/`).
@@ -155,13 +155,13 @@ Route work here instead of extending this stub:
 
 | Need | Real location | Spec |
 | --- | --- | --- |
-| Thumbnail / sprite generation | `cortex/nodes/thumbnail/core/…/ThumbnailNode.java` (video4j) | [NODES.md](NODES.md) `thumbnail` |
-| Dominant colour, palettes, colour naming | `cortex/nodes/dominant-color/core/…/DominantColorNode.java` | [NODE_DOMINANT_COLOR_PLAN.md](NODE_DOMINANT_COLOR_PLAN.md) |
-| Image generation / remix | `cortex/nodes/image-generation/core/…/ImageGenNode.java` + sidecars `:9200`/`:9210` | [NODE_IMAGEGEN_PLAN.md](NODE_IMAGEGEN_PLAN.md) |
-| Depth maps, watermarks | `cortex/nodes/…` | [NODE_DEPTHMAP_PLAN.md](NODE_DEPTHMAP_PLAN.md), [NODE_WATERMARK_PLAN.md](NODE_WATERMARK_PLAN.md) |
-| Storing/serving image binaries | `loom/services/fs`, `loom/services/s3` (`BinaryStorage` SPI) | [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) |
+| Thumbnail / sprite generation | `cortex/nodes/thumbnail/core/…/ThumbnailNode.java` (video4j) | [NODES.md](../features/nodes/NODES.md) `thumbnail` |
+| Dominant colour, palettes, colour naming | `cortex/nodes/dominant-color/core/…/DominantColorNode.java` | [NODE_DOMINANT_COLOR_PLAN.md](../concept/NODE_DOMINANT_COLOR_PLAN.md) |
+| Image generation / remix | `cortex/nodes/image-generation/core/…/ImageGenNode.java` + sidecars `:9200`/`:9210` | [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) |
+| Depth maps, watermarks | `cortex/nodes/…` | [NODE_DEPTHMAP_PLAN.md](../concept/NODE_DEPTHMAP_PLAN.md), [NODE_WATERMARK_PLAN.md](../concept/NODE_WATERMARK_PLAN.md) |
+| Storing/serving image binaries | `loom/services/fs`, `loom/services/s3` (`BinaryStorage` SPI) | [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | Image metadata extraction | `loom/services/tika/…/TikaProcessorImpl.java` | none yet |
-| Alt text / captions (the thing `altText()` gestures at) | Cortex `captioning` / `vlm` nodes → `asset_json_comp` | [NODES.md](NODES.md) §result persistence |
+| Alt text / captions (the thing `altText()` gestures at) | Cortex `captioning` / `vlm` nodes → `asset_json_comp` | [NODES.md](../features/nodes/NODES.md) §result persistence |
 
 **Note the overlap:** `MediaAsset.altText()` duplicates, in an unused form, a capability the
 `captioning`/`vlm` nodes already deliver end to end and persist as `asset_json_comp` rows. Any
@@ -176,7 +176,7 @@ there is no code that could. Verified: the two source files contain no `System.g
 `System.getProperty`, no `*Options` type, and no `@Inject`ed config.
 
 Loom-wide configuration lives in [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md); Cortex
-node options are tabulated in [NODES.md](NODES.md) §options.
+node options are tabulated in [NODES.md](../features/nodes/NODES.md) §options.
 
 ---
 
@@ -199,7 +199,7 @@ Conventions for a service-module unit test (pattern: `loom/services/s3/…/S3Loc
 
 - Plain JUnit 5 `@Test` + AssertJ; **no** `LoomCoreTestExtension`, no pooled test DB.
 - `./setup-pool.sh` is irrelevant here — it is only needed for modules that hit the database
-  (see the project `CLAUDE.md` and [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md)).
+  (see the project `CLAUDE.md` and [../../loom/PERSISTENCE.md](../loom/PERSISTENCE.md)).
 - Do **not** redeclare `@RegisterExtension LoomCoreTestExtension` if a future test ever subclasses
   an endpoint test base — configure the inherited field instead.
 
@@ -236,7 +236,7 @@ concrete consumer is being written in the same change.
 
 ## 10. Conventions and Gotchas
 
-- **The module table lies.** [../../loom/LOOM.md](../../loom/LOOM.md) calls these "Image/video
+- **The module table lies.** [../../loom/LOOM.md](../loom/LOOM.md) calls these "Image/video
   processing helpers". They process nothing. Do not plan work on the assumption that a helper layer
   already exists.
 - **"It's in the reactor" ≠ "it's used".** `loom/pom.xml` `<dependencyManagement>` only pins a
@@ -252,7 +252,7 @@ concrete consumer is being written in the same change.
 - **Don't grow this module to serve a Cortex node.** Cortex workers do not depend on `loom-service-*`
   jars; they talk to Loom over REST/gRPC. Image logic needed by a node belongs in
   `cortex/nodes/<kind>/core` or a shared `cortex/*` module — see
-  [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md).
+  [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md).
 - **Use `rg` or `/usr/bin/grep`.** Plain `grep` silently returns nothing on some files in this repo,
   which can make a dead module look alive (or a live one look dead).
 - **`services/video` is in exactly the same state** and should be handled in the same change; its
@@ -272,13 +272,15 @@ concrete consumer is being written in the same change.
 | The sibling stub | `loom/services/video/src/main/java/io/metaloom/loom/video/VideoAsset.java` |
 | A service-module unit-test template | `loom/services/s3/src/test/java/io/metaloom/loom/storage/s3/S3LocatorTest.java` |
 | Test deps to copy into the pom | `loom/services/s3/pom.xml` (`<scope>test</scope>` block) |
-| Loom module overview + the gap list | [../../loom/LOOM.md](../../loom/LOOM.md) §module table, §13.7 |
+| Loom module overview + the gap list | [../../loom/LOOM.md](../loom/LOOM.md) §module table, §13.7 |
 | Spec catalogue / routing | [../../CONTEXT.md](../../CONTEXT.md) |
 | Real image nodes | `cortex/nodes/{thumbnail,dominant-color,image-generation}/core/` |
-| Node system reference | [NODES.md](NODES.md) |
-| Pipeline execution model | [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) |
-| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Node system reference | [NODES.md](../features/nodes/NODES.md) |
+| Pipeline execution model | [../pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../guidelines/CODING.md) |
 
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

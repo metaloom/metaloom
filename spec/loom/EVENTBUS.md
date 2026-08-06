@@ -285,9 +285,8 @@ database.
 - [ ] **EB-8** Document both WebSocket endpoints and their frame schemas in the OpenAPI output.
 - [ ] **EB-9** Retire `ProcessorMessageType.PIPELINE_EVENT` once no deployed worker emits it.
 - [ ] **EB-10** Revisit clustering only if Loom becomes multi-instance — a clustered Vert.x EventBus
-      would need a `ClusterManager` and would still not reach Cortex workers. See [../CLUSTERING.md](../CLUSTERING.md).
+      would need a `ClusterManager` and would still not reach Cortex workers. See [../CLUSTERING.md](../concept/CLUSTERING.md).
 
 ---
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (rewritten after verifying against code: pipeline events are now Loom-emitted under Variant C, the Cortex bus is vestigial, and the Vert.x EventBus also carries asset events.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

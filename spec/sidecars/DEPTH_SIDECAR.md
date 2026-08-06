@@ -3,7 +3,7 @@
 > **Audience: AI coding agents.** The Python side of the `depthmap` feature: a FastAPI monocular
 > depth server on **:9120**. This file covers the **sidecar only** (server, models, HTTP contract,
 > env, deployment). The Java node, its ports, persistence, tests and open node-side work are in
-> [../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md)
+> [../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../concept/NODE_DEPTHMAP_PLAN.md)
 > — do not duplicate them here.
 
 **Status: BUILT, never run.** All five files exist and the Java side is fully wired against them.
@@ -199,7 +199,7 @@ sentiment `9110`, **depth `9120`**, imagegen `9200`/`9210`, videogen `9220`.
 There is **no Python test of any kind** for this sidecar — no pytest, no `TestClient`, no fixture.
 All depthmap coverage is Java and stubs `DepthmapClient` by subclassing, so the Python code is
 exercised by **nothing** in CI. See §4 of
-[../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md)
+[../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../concept/NODE_DEPTHMAP_PLAN.md)
 for the 29 unit tests + integration test on the Java side, and `DepthmapTestFixtures` for the canned
 response shape those tests assert against — that fixture is the de-facto contract snapshot.
 
@@ -264,11 +264,11 @@ automated test can catch this.
 | Model ids, licences, rejected alternatives | `sidecars/depth/README.md` §Models; `setup.sh` banner |
 | The request/response schema | §3 above; `DepthRequest` + `_estimate` in `server.py` |
 | The Java caller | `cortex/nodes/depthmap/core/.../DepthmapClient.java` |
-| Node options, ports, persistence, node tests | [../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md) |
-| The consumer of the produced map | [../features/pipeline-nodes/NODE_SCENE_LAYOUT_PLAN.md](../features/pipeline-nodes/NODE_SCENE_LAYOUT_PLAN.md) |
+| Node options, ports, persistence, node tests | [../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../concept/NODE_DEPTHMAP_PLAN.md) |
+| The consumer of the produced map | [../features/pipeline-nodes/NODE_SCENE_LAYOUT_PLAN.md](../concept/NODE_SCENE_LAYOUT_PLAN.md) |
 | Sidecar port allocation + deployment shape | [../../sidecars/README.md](../../sidecars/README.md) |
 | A Dockerfile to copy | `sidecars/ideogram-sidecar/Dockerfile`, `sidecars/ltx2-sidecar/Dockerfile` |
-| Sibling sidecar contracts | [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md), [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md) |
+| Sibling sidecar contracts | [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../concept/NODE_SENTIMENT_PLAN.md), [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) |
 | Where node options come from | [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) (`nodes/depthmap`) |
 | Customer-facing docs | `website/content/english/docs/nodes/depthmap/index.adoc` |
 | Definition of done for a code change | [../guidelines/CODING.md](../guidelines/CODING.md) |
@@ -312,3 +312,5 @@ automated test can catch this.
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

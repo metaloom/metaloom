@@ -110,7 +110,7 @@ on the type, and is absent for `HEARTBEAT` / `HEARTBEAT_ACK`.
 | `SEGMENT_TASK_RESULT` | `SegmentTaskResult` | `handleSegmentTaskResult` | One result per node, never one segment verdict |
 | `TASK_RETURNED` | `TaskReturnedMessage` | `handleTaskReturned` | Immediate re-placement (§3.6) |
 | `PIPELINE_RUN_COMPLETED` | free-form JSON | `handlePipelineRunCompleted` | **Cortex no longer sends this.** Retained so an older worker can still close a run |
-| `PIPELINE_EVENT` | `PipelineEventMessage` | `handlePipelineEvent` | **Accepted and dropped** — Loom owns run events (§4.5) |
+| `PIPELINE_EVENT` | `PipelineEventMessage` | `handlePipelineEvent` | **Accepted and dropped** — Loom owns run events (§4.6) |
 
 **Loom → worker**
 
@@ -318,8 +318,9 @@ assimilated; the re-dispatched copy is recognised as a duplicate.
 
 **Gap.** A `SOURCE_TASK` has no reclaim path — a source already enumerating is
 abandoned at the deadline and the run waits for a `SOURCE_COMPLETE` that never
-comes. Fabricating one would mark a truncated scan as whole. See task 9 in
-[../cortex/METALOOM_ARCHITECTURE_TASK.md](../cortex/METALOOM_ARCHITECTURE_TASK.md).
+comes. Fabricating one would mark a truncated scan as whole. See "Reclaim work
+from a vanished worker" in
+[../tasks/METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md).
 
 ### 3.7 Placement
 
@@ -431,7 +432,7 @@ plus `itemUuid` and `elementSeq` on the breakpoint frames.
 `NODE_BUFFERED`, `NODE_BREAKPOINT_HELD`, `NODE_BREAKPOINT_RELEASED`, `NODE_STATS`.
 
 **Run-level frames come from `PipelineEndpointService`, not `RunStatsAggregator`**
-(§4.5). The aggregator only ever sees *node settles*, so it cannot know that a run
+(§4.6). The aggregator only ever sees *node settles*, so it cannot know that a run
 started, was paused, or was cancelled. The four run-level types carry no counters —
 a client wanting numbers reads the next `NODE_STATS` tick or refetches the run.
 
@@ -506,7 +507,7 @@ with it; runs are closed by the engine's `onCompletion` callback in
 `PipelineEndpointService`, and Loom still handles the message only so an older
 worker can close a run.
 
-### 4.6 Backpressure — what it actually does
+### 4.7 Backpressure — what it actually does
 
 ⚠️ Frequently mis-stated. There is **no per-subscriber queue**. Each broadcast:
 
@@ -525,7 +526,7 @@ worker can close a run.
 capacity. `subscribers.size()` is exported as the gauge
 `loom_pipeline_event_subscribers`.
 
-### 4.7 Route ordering
+### 4.8 Route ordering
 
 Only `PipelineEventEndpoint` needs it, because `/api/v1/pipelines*` has a
 wildcard auth route that would otherwise swallow the upgrade:
@@ -672,7 +673,7 @@ Run the pooled-DB setup before the Java suites — see
 1. **The chat stream is SSE, not a WebSocket.** `SseAgentEventSink` /
    `text/event-stream`. Anything describing "the chat WebSocket" is wrong.
 2. **Backpressure drops the newest frame, not the oldest**, and there is no
-   1024-entry queue (§4.6). `DEFAULT_QUEUE_CAPACITY` is dead.
+   1024-entry queue (§4.7). `DEFAULT_QUEUE_CAPACITY` is dead.
 3. **Worker backoff is linear; UI backoff is exponential** (§5). Neither is a
    typo, and specs that claim otherwise are stale.
 4. **`NodeTask.inputs` is keyed by the receiving node's port ids**, never by the
@@ -751,6 +752,6 @@ Run the pooled-DB setup before the Java suites — see
 | REST conventions and auth | [RESTAPI.md](RESTAPI.md) |
 
 ---
-
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Added `NODE_BREAKPOINT_HELD`/`NODE_BREAKPOINT_RELEASED` and the `itemUuid`/`elementSeq` fields they carry. Earlier the same day: the run-level lifecycle frames `RUN_PAUSED`/`RUN_RESUMED` and the previously-declared-but-never-emitted `PIPELINE_STARTED`/`PIPELINE_COMPLETED`.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (link/cross-reference sweep: de-duplicated §4.6, fixed the
+task-file link label — no content changes)_

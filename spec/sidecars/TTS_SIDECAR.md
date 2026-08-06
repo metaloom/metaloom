@@ -1,10 +1,10 @@
 # TTS Sidecar — Technical Specification
 
 Covers **`sidecars/tts/`** only: the FastAPI text-to-speech model server and its HTTP contract.
-The Java consumer (`TtsNode`) is covered by [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md);
+The Java consumer (`TtsNode`) is covered by [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md);
 node option deserialization by [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md).
-Sibling sidecar specs with the same shape: [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md) (§4 sidecar env),
-[../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md) (§3.2).
+Sibling sidecar specs with the same shape: [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../concept/NODE_SENTIMENT_PLAN.md) (§4 sidecar env),
+[../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../concept/NODE_DEPTHMAP_PLAN.md) (§3.2).
 
 ## Status
 
@@ -197,7 +197,7 @@ Running Cortex/Loom tests still needs the pooled test DB — see the repo `CLAUD
   a slow vLLM can exhaust the client budget first).
 - **Ledger-only persistence.** The WAV stays in `metaPath/tts_bin/<segment>/<sha512>.wav`; Loom gets
   an `asset_node_result` row with no `result_ref`, because no byte-ingest endpoint for produced media
-  exists — see [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
+  exists — see [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md).
   Wiring `audio` into `s3-sink` is the only way to keep the bytes, and the sink must run on the
   **same worker**.
 - **`producerVersion` is `"{language}:{voice}"`**, not a model id. Changing `ORPHEUS_REPO_DE` on the
@@ -229,15 +229,15 @@ Running Cortex/Loom tests still needs the pooled test DB — see the repo `CLAUD
 |---|---|
 | the HTTP contract | `sidecars/tts/server.py` (§2 here) |
 | which port | `sidecars/README.md`, `TtsNodeOptions.ttsPort` = `9100` |
-| how the node consumes it | `cortex/nodes/tts/core/.../TtsNode.java`, [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) |
+| how the node consumes it | `cortex/nodes/tts/core/.../TtsNode.java`, [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
 | node options schema / defaults | `TtsDescriptorProvider`, [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
 | port types + cardinality rules | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
-| where the WAV bytes go | `metaPath/tts_bin/…`; [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) §2.1 |
-| why nothing is uploaded to Loom | [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| where the WAV bytes go | `metaPath/tts_bin/…`; [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) §2.1 |
+| why nothing is uploaded to Loom | [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | metrics emitted (`recordAiCall`/`recordAiCacheHit` with `"tts"`) | [../features/ops/METRICS.md](../features/ops/METRICS.md) |
 | customer-facing docs | `website/content/english/docs/nodes/tts/index.adoc` |
 | model licence posture | `website/content/english/docs/legal/model-licenses/index.adoc` |
-| another sidecar to copy from | `sidecars/sentiment/`, `sidecars/depth/`; [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md) |
+| another sidecar to copy from | `sidecars/sentiment/`, `sidecars/depth/`; [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../concept/NODE_SENTIMENT_PLAN.md) |
 | how to add a new node + sidecar | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 
 ## 10. Progress Assessment
@@ -273,3 +273,5 @@ Running Cortex/Loom tests still needs the pooled test DB — see the repo `CLAUD
       pure HTTP client, matching the `CaptioningNode` → SmolVLM pattern
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

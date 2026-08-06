@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
-import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.rest.model.RestRequestModel;
 import io.metaloom.loom.rest.model.annotation.AreaInfo;
 import io.vertx.core.json.JsonObject;
@@ -20,7 +19,7 @@ public class EmbeddingUpdateRequest implements EmbeddingModel<EmbeddingUpdateReq
 	@JsonPropertyDescription("The area information for the embedding (e.g. )")
 	private AreaInfo area;
 
-	private EmbeddingType type;
+	private String type;
 
 	private Float[] vector;
 
@@ -60,12 +59,12 @@ public class EmbeddingUpdateRequest implements EmbeddingModel<EmbeddingUpdateReq
 	}
 
 	@Override
-	public EmbeddingType getType() {
+	public String getType() {
 		return type;
 	}
 
 	@Override
-	public EmbeddingUpdateRequest setType(EmbeddingType type) {
+	public EmbeddingUpdateRequest setType(String type) {
 		this.type = type;
 		return this;
 	}

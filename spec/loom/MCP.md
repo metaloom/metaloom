@@ -467,7 +467,7 @@ tool definitions → model emits calls → `tools/call` per call → feed result
 - **Body limit 1 MB, hardcoded** in `MCPService.start()`.
 - **No SSE heartbeat** — idle streams can be dropped by intermediaries.
 - **EventBus dispatch is node-local.** Despite the clustering rationale in the
-  Javadoc, tool calls do not cross cluster nodes today ([../CLUSTERING.md](../CLUSTERING.md)).
+  Javadoc, tool calls do not cross cluster nodes today ([../CLUSTERING.md](../concept/CLUSTERING.md)).
 - **Tool descriptions are prompts.** They are handed verbatim to the model; word
   them as instructions to a model (`put_memory`'s "this is the ONLY way…" exists for
   that reason), and keep destructive semantics explicit.
@@ -635,6 +635,5 @@ Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 `WebSocketAuthenticator`, `TokenDao`.
 
 ---
-
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (the two LLM-driven tests now guard on `LlmBackendAvailability` against an OpenAI-compatible server)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

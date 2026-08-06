@@ -16,7 +16,7 @@
 > **Two things changed after this plan was written and the plan text was stale until now:**
 > 1. The `textSources` option is **gone**. The node no longer picks its own upstream source —
 >    it declares a typed `text` **input port** and the pipeline edge decides what feeds it
->    (see [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)).
+>    (see [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md)).
 > 2. Consequently `variant` is now `""` (one sentiment row per asset) and the persisted payload
 >    no longer carries a `source` block.
 >
@@ -24,7 +24,7 @@
 > (`sidecars/sentiment/.venv` does not exist), and `SentimentNodeIntegrationTest` still asserts
 > the pre-port-model payload shape. See §3.
 >
-> Source of truth is the code under `cortex/`. Node reference: [NODES.md](NODES.md).
+> Source of truth is the code under `cortex/`. Node reference: [NODES.md](../features/nodes/NODES.md).
 
 ---
 
@@ -49,7 +49,7 @@
 | Port conformance | `NodePortConformanceTest` maps `SentimentNode` → `sentiment`; not a `DYNAMIC_KINDS` member, so its ports must match the descriptor exactly |
 | Kind-registration guard | `NodeRegistrarTest` executable-kind assertion; `NodeDescriptorServiceLoaderTest` spot-check list |
 | Customer docs | `website/content/english/docs/nodes/sentiment/index.adoc` + `nodes/_index.adoc` |
-| Spec entries | [NODES.md](NODES.md) §2/§3/§5/§12, [spec/CONTEXT.md](../../CONTEXT.md), [sidecars/README.md](../../../sidecars/README.md) |
+| Spec entries | [NODES.md](../features/nodes/NODES.md) §2/§3/§5/§12, [spec/CONTEXT.md](../../CONTEXT.md), [sidecars/README.md](../reports/README.md) |
 
 ### Shipped data flow
 
@@ -175,9 +175,9 @@ change, not a sentiment change.
   CHECK-constraint migration [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) flagged
   and which likewise was never written; that route costs `./setup-pool.sh` + `loom/db/jooq/generate.sh`.
 - **Search integration.** Sentiment stays **out** of the `search_extract_json_text` whitelist in
-  [SEARCH.md](../search/SEARCH.md) — it is a label plus numbers. Range-filtering on `polarity` is
+  [SEARCH.md](../features/search/SEARCH.md) — it is a label plus numbers. Range-filtering on `polarity` is
   the trigger both for adding it and for promoting sentiment out of `asset_json_comp` into a typed
-  table (policy: [DATABASE_TASKS.md](../db/DATABASE_TASKS.md)).
+  table (policy: [DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md)).
 - **Aspect-based sentiment** (sentiment *per entity*, e.g. `yangheng/deberta-v3-base-absa`) is a
   different node, not an option on this one.
 
@@ -256,11 +256,11 @@ No gated repos, no `HF_TOKEN`.
 - **Use `AbstractMediaNode.recordNodeResult(...)`**, not `WhisperNode`'s older private copy.
 - **On a `LocalResultCache` hit, skip persistence too** — the durable copy is already in Loom.
 - **The cache is keyed by path only**, so a re-run with a *different* wired text source re-uses the
-  first score within a worker lifetime (see [NODES.md](NODES.md)).
+  first score within a worker lifetime (see [NODES.md](../features/nodes/NODES.md)).
 - **Port 9100 is the TTS sidecar**; sentiment is 9110, depthmap 9120, imagegen 9200/9210, videogen 9220.
 - **Never adopt CC-BY-NC checkpoints.**
 - **The code is the source of truth.** Where this document and `cortex/` disagree, the code wins —
-  fix this file in the same change ([SPEC_RULES.md](../../SPEC_RULES.md)).
+  fix this file in the same change ([SPEC_RULES.md](../guidelines/SPEC_RULES.md)).
 
 ---
 
@@ -268,20 +268,20 @@ No gated repos, no `HF_TOKEN`.
 
 | Concept | Path |
 |---|---|
-| Node system reference | [NODES.md](NODES.md) |
-| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
-| New-node checklist | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
-| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Node system reference | [NODES.md](../features/nodes/NODES.md) |
+| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| New-node checklist | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../guidelines/CODING.md) |
 | Node implementation | `cortex/nodes/sentiment/core/src/main/java/io/metaloom/cortex/node/sentiment/` |
 | Sidecar | `sidecars/sentiment/` (`server.py`, `setup.sh`, `run.sh`, `README.md`) |
-| Sidecar index + port table | [sidecars/README.md](../../../sidecars/README.md) |
+| Sidecar index + port table | [sidecars/README.md](../reports/README.md) |
 | UI descriptor | `loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/SentimentDescriptorProvider.java` |
 | Descriptor SPI registration | `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` |
 | Dagger module registration | [NodeCollectionModule.java](../../../cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java) |
 | Unit tests | `cortex/nodes/sentiment/core/src/test/java/io/metaloom/cortex/node/sentiment/` |
 | Integration test | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/SentimentNodeIntegrationTest.java` |
 | Port conformance test | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/NodePortConformanceTest.java` |
-| Component-table promotion policy | [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md) |
+| Component-table promotion policy | [../db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md) |
 | Customer-facing node docs | `website/content/english/docs/nodes/sentiment/index.adoc` |
 
 ---
@@ -349,6 +349,5 @@ No gated repos, no `HF_TOKEN`.
 - Lingua language detector (Apache-2.0) — <https://github.com/pemistahl/lingua-py>
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (verified shipped against code; reduced to a status + open-work document, corrected for the typed-port migration that deleted `textSources`)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -85,6 +85,8 @@ import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionListResponse;
 import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.loom.rest.model.detection.DetectionUpdateRequest;
+import io.metaloom.loom.rest.model.embedding.EmbeddingBulkCreateRequest;
+import io.metaloom.loom.rest.model.embedding.EmbeddingBulkResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.loom.rest.model.embedding.EmbeddingListResponse;
 import io.metaloom.loom.rest.model.graphql.GraphQLRequest;
@@ -879,6 +881,10 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 	public LoomClientHttpRequest<DetectionBulkResponse> bulkCreateAssetDetections(AssetId assetId, DetectionBulkCreateRequest request) {
 		return postRequest(assetPath(assetId) + "/detections/bulk", request, DetectionBulkResponse.class);
+	}
+
+	public LoomClientHttpRequest<EmbeddingBulkResponse> bulkCreateAssetEmbeddings(AssetId assetId, EmbeddingBulkCreateRequest request) {
+		return postRequest(assetPath(assetId) + "/embeddings/bulk", request, EmbeddingBulkResponse.class);
 	}
 
 	// COMMENT REACTION

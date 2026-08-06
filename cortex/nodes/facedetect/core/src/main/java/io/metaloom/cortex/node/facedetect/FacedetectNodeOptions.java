@@ -15,6 +15,12 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 
 	private static final String DEFAULT_PACK_PATH = "packs/Pikachu";
 
+	/** Matches the recognition model in the default Pikachu pack. */
+	public static final String DEFAULT_EMBEDDING_MODEL = "inspireface-r18";
+
+	/** The {@code embedding.type} this node writes. */
+	public static final String EMBEDDING_TYPE = "face";
+
 	@Override
 	protected FacedetectNodeOptions self() {
 		return this;
@@ -79,10 +85,55 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 	private String inspirefacePackPath = DEFAULT_PACK_PATH;
 
 	/**
+	 * Whether a recognition embedding is computed for each detected face and written to Loom.
+	 *
+	 * <p>
+	 * A bounding box says where a face is; only the embedding can say whether two faces are the same person. Without it the node produces detections
+	 * that can be drawn but never matched or clustered, which is what it did before this option existed.
+	 * </p>
+	 *
+	 * <p>
+	 * Costs one extra model pass per face, so it can be switched off for a run that only needs boxes.
+	 * </p>
+	 */
+	@ParamDoc(label = "Compute Embeddings", description = "Compute a recognition embedding per face so faces can be matched and clustered")
+	private boolean embeddingsEnabled = true;
+
+	/**
+	 * The readable model identifier recorded on every embedding this node writes.
+	 *
+	 * <p>
+	 * It is part of the embedding's identity in Loom, so raising it is how a model upgrade is performed: the new vectors land beside the old ones
+	 * rather than overwriting them, both remain queryable, and the old set is dropped once the new one has been shown to be better. Changing the model
+	 * without changing this value would silently mix two incompatible vector populations under one name.
+	 * </p>
+	 */
+	@ParamDoc(label = "Embedding Model", description = "Model identifier recorded on each embedding; change it whenever the model pack changes")
+	private String embeddingModel = DEFAULT_EMBEDDING_MODEL;
+
+	/**
 	 * Set of enabled face detection capabilities.
 	 */
 	@ParamDoc(label = "Backends", values = { "INSPIREFACE", "DLIB" })
 	private Set<FacedetectNodeCapabilities> capabilities = Set.of(FacedetectNodeCapabilities.INSPIREFACE);
+
+	public boolean isEmbeddingsEnabled() {
+		return embeddingsEnabled;
+	}
+
+	public FacedetectNodeOptions setEmbeddingsEnabled(boolean embeddingsEnabled) {
+		this.embeddingsEnabled = embeddingsEnabled;
+		return this;
+	}
+
+	public String getEmbeddingModel() {
+		return embeddingModel;
+	}
+
+	public FacedetectNodeOptions setEmbeddingModel(String embeddingModel) {
+		this.embeddingModel = embeddingModel;
+		return this;
+	}
 
 	public int getVideoChopRate() {
 		return videoChopRate;
@@ -188,6 +239,12 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 		// inspirefacePackPath must not be empty
 		if (inspirefacePackPath == null || inspirefacePackPath.isBlank()) {
 			errors.add("inspirefacePackPath must not be empty");
+		}
+
+		// An unnamed model would make every embedding this node writes indistinguishable from those of
+		// the next model, which is exactly what the identifier exists to prevent.
+		if (embeddingsEnabled && (embeddingModel == null || embeddingModel.isBlank())) {
+			errors.add("embeddingModel must not be empty when embeddingsEnabled is true");
 		}
 		
 		// capabilities must not be empty

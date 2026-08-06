@@ -5,8 +5,8 @@ SharePoint, on a shared provider seam that a third cloud can plug into.
 
 This file owns `cortex/cloud-common` the way
 [NODE_S3SOURCE_PLAN.md](NODE_S3SOURCE_PLAN.md) owns `cortex/s3-common`. The node system itself is
-[NODES.md](NODES.md); the rules for adding a node are
-[../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md).
+[NODES.md](../features/nodes/NODES.md); the rules for adding a node are
+[../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md).
 
 ---
 
@@ -254,6 +254,5 @@ above.
 | `CloudModule` / `MediaResolverModule` | `cortex/core` | Per-provider support values; the composite resolver |
 
 ---
-
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (initial version — both kinds built end to end)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

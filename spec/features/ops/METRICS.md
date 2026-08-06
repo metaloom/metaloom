@@ -5,8 +5,12 @@
 >
 > ⚠️ **Status: PARTIALLY IMPLEMENTED.** The transport (registry, `/metrics` routes, both catalogs) is
 > built and test-covered. **12 meters listed in earlier revisions of this file did not exist or were
-> never recorded** — they are now segregated into §5 "Declared but never recorded / not implemented".
-> Do not treat §3/§4 tables as a wish list: only rows there are live.
+> never recorded** — they were segregated into §5 "Declared but never recorded / not implemented".
+> **Five of those are now live** (plus four new meters they needed to be readable — see §3.1);
+> **seven remain** in §5, which is still the gap list.
+> Do not treat §3/§4 tables as a wish list: only rows there are live — and
+> `MetricsCatalogScrapeTest` now enforces that in both directions, so a row in the wrong section
+> fails the build rather than misleading a dashboard.
 >
 > **The source of truth is the code** — if this contradicts it, the code wins and this file is fixed
 > in the same change.
@@ -49,7 +53,7 @@ flowchart LR
       loomMon["MonitoringService :8989\nLOOM_SERVER_MON_PORT\nGET /metrics only"]
       loomReg[("PrometheusMeterRegistry\nVertxModule.meterRegistry()")]
       loomImpl["MicrometerLoomMetrics\n(@Binds LoomMetrics)"]
-      loomSites["Sites: PipelineEndpointService, PipelineRunTracker,\nWebSocketNodeDispatcher, ProcessorEndpoint,\nProcessorRegistry, LeaseReaper,\nPipelineEventBroadcaster, WebSocketAuthenticator,\nPipelineRunRecovery, NodeResultEndpointService"]
+      loomSites["Sites: PipelineEndpointService, PipelineRunTracker,\nWebSocketNodeDispatcher, ProcessorEndpoint,\nProcessorRegistry, PipelineRunRegistry, LeaseReaper,\nPipelineEventBroadcaster, WebSocketAuthenticator,\nPipelineRunRecovery, NodeResultEndpointService,\nPipelineRunEngine, NodeKindCircuitBreaker (loom-pipeline)"]
       loomSites --> loomImpl --> loomReg --> loomMon
       loomVertx["Vertx built-ins + JVM/process binders"] --> loomReg
     end
@@ -85,6 +89,14 @@ Every row below has a verified registration **and** an increment/bind call site.
 | `loom_pipeline_runs_recovered_total` | counter | — | `PipelineRunRecovery:119` |
 | `loom_node_tasks_dispatched_total` | counter | `kind` (+ literal `segment`) | `WebSocketNodeDispatcher:72,98` |
 | `loom_node_tasks_dispatch_failed_total` | counter | `reason`=no_processor\|socket_gone | `WebSocketNodeDispatcher:59,68,87,94` |
+| `loom_node_task_latency_seconds` | timer | `kind`, `state`=completed\|failed\|skipped | `PipelineRunEngine.recordLatency` (from `record`) |
+| `loom_node_tasks_retried_total` | counter | `kind` | `PipelineRunEngine.scheduleRetry` |
+| `loom_node_tasks_deadlettered_total` | counter | `kind` | `PipelineRunEngine.onNodeTaskLost` (budget exhausted) |
+| `loom_node_tasks_inflight` | gauge | — | `PipelineRunRegistry` (`bindGauge`, summed over live runs) |
+| `loom_node_tasks_inflight_ceiling` | gauge | — | `PipelineRunRegistry` (`bindGauge`, summed `getMaxInFlight`) |
+| `loom_pipeline_runs_active` | gauge | — | `PipelineRunRegistry` (`bindGauge`, `activeRunCount`) |
+| `loom_node_circuit_breaker_state` | gauge | `kind` — 0 closed, 1 half_open, 2 open | `NodeKindCircuitBreaker.statsFor` (bound on first sight of a kind) |
+| `loom_node_circuit_breaker_trips_total` | counter | `kind` | `NodeKindCircuitBreaker.trip` |
 | `loom_node_results_received_total` | counter | `kind`, `state` | `ProcessorEndpoint:521` |
 | `loom_source_items_received_total` | counter | — | `ProcessorEndpoint:413` |
 | `loom_asset_node_results_written_total` | counter | `kind`, `state` | `NodeResultEndpointService:72` |
@@ -92,6 +104,7 @@ Every row below has a verified registration **and** an increment/bind call site.
 | `loom_leases_reclaimed_total` | counter | — | `LeaseReaper:138` |
 | `loom_orphans_deadlettered_total` | counter | — | `LeaseReaper:185` |
 | `loom_processors_connected` | gauge | — | `ProcessorRegistry:86` (`bindGauge`, `processors::size`) |
+| `loom_processors_by_state` | gauge | `state`=starting\|online\|offline\|paused\|terminating | `ProcessorRegistry` ctor (one `bindGauge` per enum constant) |
 | `loom_processor_registrations_total` | counter | — | `ProcessorRegistry:141` |
 | `loom_processor_disconnects_total` | counter | — | `ProcessorRegistry:194` |
 | `loom_processor_heartbeats_total` | counter | — | `ProcessorRegistry:239` |
@@ -105,6 +118,34 @@ Every row below has a verified registration **and** an increment/bind call site.
 **`loom_tasks_returned_total` vs `loom_leases_reclaimed_total`** — the same recovery, but paid for at
 announcement rather than after a lease interval. A fleet that scales down often and shows reclaims
 instead of returns has workers dying rather than draining.
+
+### 3.1 The four fleet-health signals
+
+`loom_node_tasks_dispatched_total` rises identically whether the fleet is fast or wedged. These four
+are what tell those apart, and none of them existed before:
+
+- **`loom_node_task_latency_seconds`** — dispatch to result, the only meter that closes the loop
+  dispatch counters open. Silent for a dispatch **no worker took**: the engine starts the clock only
+  after the dispatcher returns a worker id, so a fleet at zero capacity shows
+  `loom_node_tasks_dispatch_failed_total` rather than a suspiciously fast p99. A retried attempt is
+  likewise not timed — it never settles; it is counted by `loom_node_tasks_retried_total`. On the
+  **segment** path every member's clock starts at the one dispatch, so a member's latency includes
+  the time its predecessors in the segment ran.
+- **`loom_node_tasks_inflight` vs `loom_node_tasks_inflight_ceiling`** — depth alone cannot
+  distinguish busy from saturated, and it is saturation that decides whether adding workers helps.
+  Both are summed **across live runs** by `PipelineRunRegistry`, never labelled per run: a run is a
+  UUID, and that is the cardinality rule. Divide by `loom_pipeline_runs_active` for a per-run mean.
+  A run configured as unlimited contributes 0 to the ceiling.
+- **`loom_node_circuit_breaker_state{kind}`** — a parked kind produces no dispatches, no failures
+  and no errors; throughput simply goes flat. Encoded by severity (0 closed, 1 half_open, 2 open),
+  deliberately *not* `State.ordinal()`, so `max()` across kinds reads as "how bad". Pair it with
+  `loom_node_circuit_breaker_trips_total{kind}`: the gauge says whether a kind is parked *now*, the
+  counter separates one bad deployment from a kind that has been flapping all afternoon (each failed
+  probe counts a further trip).
+- **`loom_processors_by_state{state}`** — attached is not the same as usable; only `ONLINE` workers
+  are placeable. A rolling restart that leaves the fleet in `TERMINATING` reads perfectly healthy on
+  `loom_processors_connected` alone while no work moves. One series per enum constant, bound at
+  construction, so a state with no workers reads 0 rather than vanishing.
 
 ---
 
@@ -178,15 +219,17 @@ never appears in a scrape.
 
 | Metric | Component | Reality |
 |---|---|---|
-| `loom_node_tasks_inflight` | Loom | `loom/pipeline` has **zero** metrics instrumentation. `PipelineRunEngine` never sees `LoomMetrics`. |
-| `loom_node_tasks_retried_total` | Loom | idem |
-| `loom_node_tasks_deadlettered_total` | Loom | idem |
-| `loom_node_circuit_breaker_trips_total` | Loom | `NodeKindCircuitBreaker` contains no `metric` reference at all. |
-| `loom_result_store_flush_batch_size` | Loom | No summary is registered; `DaoRunStateStore` is uninstrumented. |
-| `loom_processors_by_state` | Loom | Only `loom_processors_connected` exists; there is no per-state gauge. |
-| `loom_processor_cpu_load` | Loom | `ProcessorRegistry` stores `SystemStatusInfo` but binds no gauge from it. |
+| `loom_result_store_flush_batch_size` | Loom | No summary is registered; `DaoRunStateStore` is uninstrumented. The catalog has no distribution-summary helper yet — adding one is part of this row. |
+| `loom_processor_cpu_load` | Loom | `ProcessorRegistry` stores `SystemStatusInfo` but binds no gauge from it. Unlike `loom_processors_by_state`, this cannot use a fixed set of series: it would be labelled per `node_id`, bound and unbound as workers come and go, and `bindGauge` has no unbind. |
 | `loom_processor_memory_used_bytes` | Loom | idem |
 | `cortex_results_pending` | Cortex | No `bindGauge("cortex_results_pending", …)` anywhere; `ResultBatcher.pendingFor()` is not bound. |
+
+The structural blocker this section named — *"`loom/pipeline` has zero metrics instrumentation;
+`PipelineRunEngine` never sees `LoomMetrics`"* — is gone. `loom-pipeline` now depends on
+`loom-common` for the catalog **interface only** (no Micrometer), and the engine takes it through
+`setMetrics`, alongside the circuit breaker and the retry scheduler, so the several thousand lines
+of evaluation semantics stay constructible from nothing but a graph and a dispatcher. The
+`ban-cortex-dependencies` enforcer is untouched: the orchestrator still must not see the worker.
 
 ### 5.3 Partially dead labels
 
@@ -226,7 +269,7 @@ never appears in a scrape.
 
 | Class | Package / Module | Purpose |
 |---|---|---|
-| `LoomMetrics` | `loom/common` · `io.metaloom.loom.common.metrics` | Loom catalog **interface** (18 typed helpers + `bindGauge`). No Micrometer dependency. |
+| `LoomMetrics` | `loom/common` · `io.metaloom.loom.common.metrics` | Loom catalog **interface** (22 typed helpers + two `bindGauge` overloads). No Micrometer dependency. Depended on by `loom-pipeline` for the interface alone. |
 | `MicrometerLoomMetrics` | `loom/services/monitoring` · `io.metaloom.loom.monitoring` | Micrometer impl; the only place `loom_*` meter names are written. |
 | `NoopLoomMetrics` | `loom/common` · `…common.metrics` | No-op for tests / manual construction. |
 | `MonitoringService` (Loom) | `loom/services/monitoring` · `io.metaloom.loom.monitoring` | Own `HttpServer`; registers `GET /metrics` via `PrometheusScrapingHandler`. Mirrors `MCPService`. |
@@ -272,6 +315,16 @@ never appears in a scrape.
   path is **not** node-op-counted — the primary deployment is the online daemon.
 - **`bindGauge` is idempotent per name** and uses `strongReference(true)`, so the supplier's captured
   state is not collected. Bind gauges to existing live state rather than mirroring it into a counter.
+  The four-argument overload adds one label and is idempotent per `(name, tag)` — Micrometer keys a
+  meter by name *and* tags and keeps the first registration, which is what makes it safe to call from
+  a lookup path that runs on every dispatch (`NodeKindCircuitBreaker.statsFor`). Use it only for a
+  **bounded** value set: an enum, a node kind. There is no unbind, so it is the wrong tool for
+  anything keyed by a worker that comes and goes.
+- **A gauge supplier must not take a lock the hot path holds.** It runs on the scrape thread. The
+  breaker's state gauge reads a `volatile` field rather than calling its own `synchronized`
+  `stateOf`, so a Prometheus scrape can never queue behind a run that is busy dispatching. For the
+  same reason a gauge should not walk per-item state: `loom_node_tasks_inflight` sums a counter each
+  engine already maintains, not `nodeProgressSnapshot()`, which is O(items × nodes).
 - **Interface upstream, impl downstream.** The catalog interface sits in `*-common` (no Micrometer
   dependency), reachable by every layer; the Micrometer impl and its dependency stay in the service /
   core module and are wired with `@Binds`.
@@ -286,14 +339,23 @@ never appears in a scrape.
 |---|---|---|
 | `MetricsEndpointTest` | `cortex/core` (`…impl.monitoring`) | Boots a router with `MetricsEndpoint` on port 0, records `cortex_node_operations` + `cortex_files_missing`, asserts a 200 scrape containing both plus `jvm_memory_used_bytes`. |
 | `MonitoringServiceTest` | `loom/services/monitoring` | Starts `MonitoringService` with `restPort=0`; asserts `/metrics` → 200 containing `loom_pipeline_runs_completed_total` + `jvm_memory_used_bytes`, and `/api/v1/health` on the monitoring port → **404**. |
+| `MicrometerLoomMetricsTest` | `loom/services/monitoring` | Per-helper `registry.scrape()` assertions for the new meters, plus tagged-gauge behaviour: one series per tag value, and re-binding the same `(name, tag)` does not duplicate it. |
+| `MetricsCatalogScrapeTest` | `loom/services/rest` | **Parses this file.** Every `loom_*` name in a §3 table must appear in a real scrape; every `loom_*` name in a §5 table must not. Gauges are published by constructing the production sites (`ProcessorRegistry`, `PipelineRunRegistry`, `PipelineEventBroadcaster`, `NodeKindCircuitBreaker`) and running a `PipelineRunEngine`, not by binding names in the test. |
+| `PipelineRunEngineMetricsTest` | `loom/pipeline` | The engine's call sites: latency by kind and state, no latency for a dispatch no worker took, retry vs dead-letter counters, in-flight against its ceiling. |
+| `NodeKindCircuitBreakerMetricsTest` | `loom/pipeline` | State gauge per kind through closed → open → half-open → closed, trip counting including failed probes, and reset. |
 
-Neither test needs a database, so `./setup-pool.sh` is not required for them (it *is* required for
+None of these need a database, so `./setup-pool.sh` is not required for them (it *is* required for
 any Loom REST/DAO test you add alongside). No Flyway migration is involved, so no jOOQ regeneration.
+
+`RecordingLoomMetrics` (`loom/pipeline` test scope) extends `NoopLoomMetrics` and remembers what it
+was told, including tagged gauges keyed as `name{key=value}` — use it rather than a mock when
+asserting an engine-side instrumentation site.
 
 **Gaps in test coverage:**
 - No test asserts the **REST** port 404s on `/metrics` (only the mirror-image assertion exists).
-- No unit test per catalog helper — most `loom_*` / `cortex_*` names are only exercised through the
-  two smoke tests above. A `registry.scrape()`-contains assertion per helper would have caught §5.
+- `MetricsCatalogScrapeTest` covers the `loom_*` catalog only. There is no equivalent for §4's
+  `cortex_*` names, which is why the three §5.1 rows are still discoverable by reading rather than
+  by a failing build.
 
 ---
 
@@ -309,6 +371,9 @@ any Loom REST/DAO test you add alongside). No Flyway migration is involved, so n
 | Where the registry + JVM binders are created (Cortex) | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/CortexBindModule.java` |
 | The Loom `/metrics` route | `loom/services/monitoring/src/main/java/io/metaloom/loom/monitoring/MonitoringService.java` |
 | The Cortex `/metrics` route | `cortex/core/src/main/java/io/metaloom/cortex/impl/monitoring/MetricsEndpoint.java` |
+| The engine's own meters (latency, retries, dead-letters) | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/engine/PipelineRunEngine.java` — `recordLatency`, `scheduleRetry`, `onNodeTaskLost`; installed via `setMetrics` |
+| Circuit-breaker state + trips | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/engine/NodeKindCircuitBreaker.java` — `statsFor` binds, `trip` counts |
+| Fleet in-flight depth and its ceiling | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineRunRegistry.java` |
 | Most Cortex task/node-op instrumentation | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/PipelineTaskHandler.java` |
 | Cortex resource gauges | `cortex/core/src/main/java/io/metaloom/cortex/impl/loom/LoomControlChannel.java` (:230-247) |
 | How an AI node instruments a provider call | `cortex/nodes/llm/core/.../LLMNode.java` (:106-130) — the reference shape |
@@ -333,6 +398,9 @@ any Loom REST/DAO test you add alongside). No Flyway migration is involved, so n
 **Instrumentation — partial**
 
 - [x] Loom: pipeline runs, dispatch, results ingestion, workers, leases, event broadcast, recovery
+- [x] Loom pipeline engine: dispatch→result latency, retries, dead-letters, in-flight depth against
+      its ceiling, per-kind circuit-breaker state and trips (`loom-pipeline` now sees `LoomMetrics`)
+- [x] Loom workers: per-state gauges alongside the connection count
 - [x] Cortex: control channel, tasks, node ops, missing files, bulk sync, source enumeration, AI calls (11 nodes), resource gauges
 
 **Open work items (each corresponds to a row in §5)**
@@ -341,14 +409,17 @@ any Loom REST/DAO test you add alongside). No Flyway migration is involved, so n
       `cortex_results_sent_total` + `cortex_results_batches_sent_total`
 - [ ] Wire `recordSourceAckTimeout` into `SourceTaskRunner` — unblocks `cortex_source_ack_timeouts_total`
 - [ ] Bind `cortex_results_pending` to `ResultBatcher.pendingFor()`
-- [ ] Instrument `loom/pipeline`: in-flight gauge, retries, dead-letters, circuit-breaker trips
-      (`PipelineRunEngine`, `NodeKindCircuitBreaker` currently have no `LoomMetrics` reference at all)
-- [ ] `loom_result_store_flush_batch_size` summary in `DaoRunStateStore`
-- [ ] `loom_processors_by_state`, `loom_processor_cpu_load`, `loom_processor_memory_used_bytes` from
-      `ProcessorRegistry`'s stored `SystemStatusInfo`
+- [ ] `loom_result_store_flush_batch_size` summary in `DaoRunStateStore` — needs a
+      distribution-summary helper on `LoomMetrics` first; the catalog has counters, timers and gauges only
+- [ ] `loom_processor_cpu_load`, `loom_processor_memory_used_bytes` from `ProcessorRegistry`'s stored
+      `SystemStatusInfo` — these are per `node_id` and workers come and go, so they need an unbind
+      (or a single multi-gauge rebuilt on presence change), which `bindGauge` does not offer
 - [ ] Emit `loom_auth_failures_total{type=jwt|permission}` from the REST 401/403 path
 - [ ] c3p0 DB-pool gauges (`JooqModule`) — Vert.x pool metrics do not cover it
-- [ ] Per-helper unit tests asserting `registry.scrape()` output, so a helper cannot ship without a caller
+- [x] Per-helper unit tests asserting `registry.scrape()` output, so a helper cannot ship without a
+      caller (`MicrometerLoomMetricsTest`), plus `MetricsCatalogScrapeTest` checking this file
+      against a real scrape in both directions
+- [ ] The same catalogue-vs-scrape check for `cortex_*`, which would turn §5.1 into a build failure
 - [ ] **Customer-facing doc leak:** `website/content/english/docs/cortex/metrics/index.adoc` documents
       three §5.1 meters as if live — `cortex_results_sent_total` (:83), `cortex_results_batches_sent_total`
       (:84), `cortex_source_ack_timeouts_total` (:87) — and its PromQL example (:90) compares
@@ -357,5 +428,6 @@ any Loom REST/DAO test you add alongside). No Flyway migration is involved, so n
 
 ---
 
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (the `cortex_ai_calls_total` provider label for `LLMNode` is now `llm`)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (the four fleet-health signals of §3.1 are implemented; `loom-pipeline` now
+carries instrumentation, and `MetricsCatalogScrapeTest` checks §3/§5 against a real scrape)_

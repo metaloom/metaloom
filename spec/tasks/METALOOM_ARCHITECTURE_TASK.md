@@ -9,9 +9,9 @@ multi-site federation, Cortex as a coordinator, cross-instance delegation,
 recursive worker protocols — have been **dropped**, not deferred. See
 [Dropped](#dropped).
 
-For what exists and why see [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md);
+For what exists and why see [METALOOM_ARCHITECTURE.md](../cortex/METALOOM_ARCHITECTURE.md);
 for the phase-by-phase record
-[METALOOM_ARCHITECTURE_V2_PLAN_C.md](METALOOM_ARCHITECTURE_V2_PLAN_C.md).
+[METALOOM_ARCHITECTURE_V2_PLAN_C.md](../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md).
 Pipeline internals, definition schema and node registration live in
 [PIPELINE_TASKS.md](PIPELINE_TASKS.md).
 
@@ -65,8 +65,8 @@ lease or make it resumable.
     re-dispatched, or a resumable enumeration that can report a partial scan honestly.
 ```
 
-**References:** [../loom/WEBSOCKET.md §3.8.1, §3.10](../loom/WEBSOCKET.md),
-[CORTEX.md §7.4](CORTEX.md)
+**References:** [../loom/WEBSOCKET.md §3.6, §3.7](../loom/WEBSOCKET.md),
+[CORTEX.md §7.4](../cortex/CORTEX.md)
 **Test Requirements:** A disconnect test asserting leases held by the departing
 worker are re-placed without waiting out the lease; a drain-mid-enumeration test
 asserting the run still reaches a terminal state.
@@ -129,7 +129,7 @@ dispatch exactly as "can run this kind" does. Fail at dispatch when no worker ca
 path, rather than letting the worker fail the task.
 ```
 
-**References:** [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md),
+**References:** [METALOOM_ARCHITECTURE.md](../cortex/METALOOM_ARCHITECTURE.md),
 [../loom/WEBSOCKET.md §3.6, §3.13](../loom/WEBSOCKET.md)
 **Test Requirements:** Dispatch-selection tests for the no-eligible-worker case and
 for root-overlap filtering.
@@ -168,7 +168,7 @@ other kind persists its own typed payload from inside compute(). hash/chunk is t
 genuine omission (the cortex-side writer handles HASH_CHUNK, DaoAssetSink does not).
 ```
 
-**References:** [../features/pipeline-nodes/NODES.md §2](../features/pipeline-nodes/NODES.md),
+**References:** [../features/pipeline-nodes/NODES.md §2](../features/nodes/NODES.md),
 [../features/pipeline/PIPELINE.md §12](../features/pipeline/PIPELINE.md)
 **Test Requirements:** If deleted, assert nothing references the collector. If
 batched, assert one request covers N node results and that a partial failure does
@@ -206,7 +206,7 @@ Remaining:
 
 **References:** [../loom/WEBSOCKET.md §2, §6.2](../loom/WEBSOCKET.md),
 [../loom/LOOM.md](../loom/LOOM.md),
-[METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md)
+[METALOOM_ARCHITECTURE.md](../cortex/METALOOM_ARCHITECTURE.md)
 **Test Requirements:** Connection tests for missing/invalid/valid tokens under both
 modes; a test that a worker's result for an unowned task is refused.
 
@@ -242,39 +242,6 @@ asserting `pipeline_run` survives while its detail rows go.
 
 ---
 
-## Task: Close the metrics gaps
-
-**Argumentation Summary:** Prometheus is wired on both sides and several meters
-exist, but the four signals that actually describe fleet health are still absent.
-The documentation half is settled — `METRICS.md` now self-describes as PARTIALLY
-IMPLEMENTED and segregates the unrecorded names into its §5 — so what remains is
-implementation, and §5 is the work list.
-**Improvement Summary:** Add the missing meters and move each one out of §5.
-
-```
-Existing: MonitoringService exposes GET /metrics on LOOM_SERVER_MON_PORT (8989); cortex
-MetricsEndpoint on 8093. Catalogue LoomMetrics / MicrometerLoomMetrics, CortexMetrics /
-MicrometerCortexMetrics. Already emitted: loom_node_results_received{kind,state} (per-kind
-failure rate is derivable), loom_leases_reclaimed, loom_orphans_deadlettered,
-loom_tasks_returned{node}, loom_processors_connected, loom_pipeline_event_subscribers,
-loom_pipeline_run_duration.
-
-Missing (METRICS.md §5 lists them all; the four that matter most):
-  - Dispatch latency. Dispatch is counter-only (recordNodeTaskDispatched /
-    recordNodeTaskDispatchFailed in WebSocketNodeDispatcher). Add a timer dispatch->result.
-  - Queue depth / in-flight vs ceiling per run — loom_node_tasks_inflight has no bindGauge.
-  - Circuit breaker state per kind. NodeKindCircuitBreaker
-    (loom/pipeline/.../engine/NodeKindCircuitBreaker.java) contains zero metrics
-    references.
-  - Per-state processor gauges: only loom_processors_connected exists.
-The root cause named in §5 is structural: loom/pipeline has no metrics instrumentation at
-all — PipelineRunEngine never sees LoomMetrics. Thread it in first.
-```
-
-**References:** [../features/ops/METRICS.md](../features/ops/METRICS.md),
-[../features/ops/MONITORING.md](../features/ops/MONITORING.md)
-**Test Requirements:** Assert each new meter is registered and moves; a scrape test
-that every name in `METRICS.md` is present.
 
 ---
 
@@ -304,7 +271,7 @@ Remaining:
     so the reference Python worker has no stable identity unless set. Align it.
 ```
 
-**References:** [CORTEX.md](CORTEX.md),
+**References:** [CORTEX.md](../cortex/CORTEX.md),
 [../loom/WEBSOCKET.md §3.2, §3.6](../loom/WEBSOCKET.md)
 **Test Requirements:** Restart test asserting the same identity re-registers and
 reclaims rather than duplicating.
@@ -317,14 +284,14 @@ One-line outcome records. Detail lives in the code and in the linked specs.
 
 | Task | Where it landed |
 |---|---|
-| Graceful shutdown with drain (announce, finish/return in-flight, immediate reclaim) | `LoomControlChannel#drain` from `CortexBootstrapInitializer#deinit` via a JVM shutdown hook; `PipelineTaskHandler` refuses late dispatches and sends `TASK_RETURNED`; `PipelineRunEngine#onNodeTaskReturned` re-places and refunds the attempt, capped at three per execution — [../loom/WEBSOCKET.md §3.8.1](../loom/WEBSOCKET.md), [CORTEX.md §7.4](CORTEX.md) |
+| Graceful shutdown with drain (announce, finish/return in-flight, immediate reclaim) | `LoomControlChannel#drain` from `CortexBootstrapInitializer#deinit` via a JVM shutdown hook; `PipelineTaskHandler` refuses late dispatches and sends `TASK_RETURNED`; `PipelineRunEngine#onNodeTaskReturned` re-places and refunds the attempt, capped at three per execution — [../loom/WEBSOCKET.md §3.8.1](../loom/WEBSOCKET.md), [CORTEX.md §7.4](../cortex/CORTEX.md) |
 | Run *item* inspection endpoint | `GET /api/v1/pipelines/:uuid/runs/:runUuid/items` — `PipelineEndpoint#listRunItems`, `READ_PIPELINE_RUN`, `PipelineRunItemListResponse`, `PipelineRunItemEndpointTest`; also in `LoomHttpClientImpl`, the CLI `run items` command and `loom-ui/src/api/pipelines.ts` |
 | Node-*task* inspection endpoint | `GET /api/v1/pipelines/:uuid/runs/:runUuid/items/:itemUuid/tasks` (plus `.../tasks/:taskUuid/previews/:portId`) — nested under the item rather than flat under the run; `PipelineNodeTaskRecord` / `PipelineNodeTaskListResponse`, `PipelineModelBuilder#toPipelineNodeTaskRecord`, `PipelineNodeTaskEndpointTest`, client `listPipelineRunItemTasks`. GraphQL mirror still missing — see task 3 |
 | Item identity on the event stream | `PipelineEventMessage` carries `itemUuid` and `elementSeq`; the `?item=` subscription filter is the remainder of task 3 |
 | `METRICS.md` over-claims corrected | Self-describes as PARTIALLY IMPLEMENTED; the 12 declared-but-never-recorded meters moved into §5, so §3/§4 are live meters only. Implementing them is task 8 |
 | DAO test pool collisions | Gone. `mvn test -pl loom/db/jooq` runs green (389 tests, 0 failures) against a freshly seeded pool; `PipelineFixtures` centralises the pipeline → version → run scaffolding. `.claude/CLAUDE.md` documents the `./setup-pool.sh` re-run obligation after every Flyway change |
 | `syncToLoom` finally means something | `PipelineRunEngine#syncToLoom` gates `assetSink.persist`; `DaoAssetSink` selects hashes by *content type* (`hash/sha512|sha256|md5`), not port name, and is installed by `PipelineEndpointService` |
-| Per-node result persistence replaced `LoomNode` | Each result-producing node writes its typed payload plus an `asset_node_result` ledger row from inside `compute()`; `LoomNode` deleted — [../features/pipeline-nodes/NODES.md §2](../features/pipeline-nodes/NODES.md) |
+| Per-node result persistence replaced `LoomNode` | Each result-producing node writes its typed payload plus an `asset_node_result` ledger row from inside `compute()`; `LoomNode` deleted — [../features/pipeline-nodes/NODES.md §2](../features/nodes/NODES.md) |
 | Processor WebSocket authentication | `WebSocketAuthenticator` validates `?token=<jwt>`, closes 4401; strictness via `LOOM_WS_STRICT_AUTH` (still lenient by default — see task 6) |
 | Prometheus scrape endpoints | Loom `GET /metrics` on `LOOM_SERVER_MON_PORT` (8989) via `MonitoringService`; Cortex `MetricsEndpoint` on 8093; `LoomMetrics` / `CortexMetrics` catalogues |
 | Worker id made mandatory | `CORTEX_NODE_ID` checked by `CortexMain#hasNodeId` (exits `EXIT_INVALID_CONFIGURATION`), guarded again in `LoomControlChannel`; keys `cortex_instance`, restrictions reconciled on re-register |
@@ -350,12 +317,8 @@ Recorded so nobody re-derives them and wonders why they vanished.
 | Deferred / async node SPI | Orthogonal to Variant C; revisit only against a concrete need |
 | Variant D as a separate design | Segmented dispatch *is* what was built — affinity segments, with per-node dispatch as the degenerate case |
 | End-of-run sync flush / `flush-sync` work order | Nothing buffers any more; superseded by per-node persistence — [../features/pipeline/PIPELINE.md §12](../features/pipeline/PIPELINE.md) |
-| Node capability whitelist, node affinity, durable item queue with leases | **Built**, not dropped — see [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md) |
+| Node capability whitelist, node affinity, durable item queue with leases | **Built**, not dropped — see [METALOOM_ARCHITECTURE.md](../cortex/METALOOM_ARCHITECTURE.md) |
 
 ---
-
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 (re-verified all ten tasks against the code: the node-task
-inspection endpoint and the `METRICS.md` correction landed, the DAO pool collisions are
-gone — `mvn test -pl loom/db/jooq` green — and those became outcome records; nine tasks
-remain)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

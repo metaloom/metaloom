@@ -11,7 +11,7 @@
 > - Port specs, content types, cardinality, the analyzer rules, `ValueCoercer` →
 >   [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md)
 > - Node lifecycle, per-node persistence targets, the node catalogue →
->   [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md)
+>   [../pipeline-nodes/NODES.md](../nodes/NODES.md)
 > - Engine internals, run state, dispatch protocol, DB schema → [PIPELINE.md](PIPELINE.md)
 > - Asset components and the query side → [../../loom/DOMAIN.md](../../loom/DOMAIN.md)
 >
@@ -131,7 +131,7 @@ downstream tasks the edges say should receive it.
 
 Your intuition of *"an asset that gets appended a list of comp entries"* is **exactly right about
 Loom, and exactly wrong about the wire.** Every persisting node writes its own typed component
-inside `compute()` and records a ledger row ([NODES.md](../pipeline-nodes/NODES.md) §2):
+inside `compute()` and records a ledger row ([NODES.md](../nodes/NODES.md) §2):
 
 ```
 asset (uuid, sha512, …)
@@ -308,10 +308,10 @@ The model is simpler than it currently reads. Every item below is a genuine defe
 
 2. **The word "output" means two things.** A node's *output port* (wire) and a node's *persisted
    component* (catalogue) are written by the same `compute()` method and are described in the same
-   breath in [NODES.md](../pipeline-nodes/NODES.md) §2. They have different lifetimes, different
+   breath in [NODES.md](../nodes/NODES.md) §2. They have different lifetimes, different
    consumers and different keys.
 
-3. **Node bodies and descriptors still disagree in places.** [NODES.md](../pipeline-nodes/NODES.md)
+3. **Node bodies and descriptors still disagree in places.** [NODES.md](../nodes/NODES.md)
    §3 still lists legacy string "Output Keys" (`whisper_result`, `llm_result_{promptId}`) beside a
    port table that says `transcript` and `result_<promptId>`. Reading both leaves you unsure which
    is real. The descriptor is the contract; the node body is the debt.
@@ -357,7 +357,7 @@ gaps are in coverage and ergonomics.
    [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §17.
 
 6. **Finish the descriptor/body reconciliation and drop the legacy "Output Keys" column** from
-   [NODES.md](../pipeline-nodes/NODES.md) §3 once the sweep lands, so there is one answer to "what
+   [NODES.md](../nodes/NODES.md) §3 once the sweep lands, so there is one answer to "what
    does this node emit?".
 
 7. **Name ports for their role, not their type** — a convention for node authors. `transcript` and
@@ -429,7 +429,7 @@ Six sentences that between them answer almost every "what travels?" question:
 | The element envelope | `loom-shared/pipeline-model/.../model/{PortPayload,DataElement,Origin}.java` |
 | A node's own view of all this | `cortex/api/.../node/context/NodeContext.java` |
 | How the asset row is resolved | `cortex/common/.../node/AbstractMediaNode.java` → `fetchAsset` |
-| Where node output becomes a catalogue component | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) §2 |
+| Where node output becomes a catalogue component | [../pipeline-nodes/NODES.md](../nodes/NODES.md) §2 |
 | The per-kind port table | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) §4 |
 | Demo graphs | `loom/core/.../boot/DemoDatabaseInitializer.java` |
 
@@ -500,7 +500,7 @@ mvn -q test -pl loom-shared/node-model
 - [ ] A demo pipeline that actually fans out — no shipped kind declares a `ONE` `detection/*` input
       (§7 item 4)
 - [ ] `k/N elements` progress per node in the run monitor (§7 item 5)
-- [ ] Drop the legacy "Output Keys" column from [NODES.md](../pipeline-nodes/NODES.md) §3 once the
+- [ ] Drop the legacy "Output Keys" column from [NODES.md](../nodes/NODES.md) §3 once the
       Cortex sweep lands (§7 item 6)
 - [ ] Port-naming convention ("name for the role, not the type") into
       [../../guidelines/CODING.md](../../guidelines/CODING.md) (§7 item 7)
@@ -513,10 +513,5 @@ recovery re-parsing with a null registry) are listed in [NODE_DATA_TYPES.md](NOD
 and §17. They affect whether the flow *works*, not what it *is*.
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (new file — answers "what travels through the pipeline?" as the conceptual
-companion to NODE_DATA_TYPES.md: the item/media-reference/port-payload split, the bag that lives in
-Loom rather than on the wire, why the edge and not the node resolves ambiguity, and a review of the
-accumulating-envelope and `*`-primary-output proposals. Surfaces that `llm` has no text input port,
-so the transcribe→LLM chain in the original question is not currently expressible.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -6,6 +6,8 @@ import uuid as _uuid_mod
 from typing import TYPE_CHECKING
 
 from ..models.embedding import (
+    EmbeddingBulkCreateRequest,
+    EmbeddingBulkResponse,
     EmbeddingCreateRequest,
     EmbeddingListResponse,
     EmbeddingResponse,
@@ -13,6 +15,7 @@ from ..models.embedding import (
 )
 
 if TYPE_CHECKING:
+    from ..models.asset import AssetId
     from ..request import LoomRequest
 
 
@@ -42,3 +45,24 @@ class EmbeddingMethods:
     def delete_embedding(self, embedding_uuid: _uuid_mod.UUID | str) -> LoomRequest[None]:
         """Delete a embedding. Answers 204 with no body."""
         return self._delete(f"embeddings/{self._uuid(embedding_uuid)}")
+
+    def bulk_create_asset_embeddings(
+        self, asset_id: AssetId | _uuid_mod.UUID | str, request: EmbeddingBulkCreateRequest
+    ) -> LoomRequest[EmbeddingBulkResponse]:
+        """Record many embeddings for one asset in a single request.
+
+        Each item is upserted on its natural key -- (asset, node kind, type, model, frame,
+        subject) -- so re-running a producer rewrites its own rows instead of appending
+        duplicates, and raising ``model`` adds rows beside the old ones rather than
+        replacing them.
+
+        Pair it with :meth:`bulk_create_asset_detections`: write the detections first and
+        carry the UUIDs it returns into each ``detection_uuid``, so every vector points at
+        the region it was computed from.
+
+        The response reports ``total``/``created``/``failed``, so check the counts rather
+        than only the HTTP status.
+        """
+        return self._post(
+            f"{self._asset_sub(asset_id)}/embeddings/bulk", request, EmbeddingBulkResponse
+        )

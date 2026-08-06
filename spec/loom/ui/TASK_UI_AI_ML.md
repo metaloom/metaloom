@@ -2,7 +2,7 @@
 
 > Open UI work items for the AI/ML entities (Embedding, Cluster, Detection, Person, Dedup Group),
 > derived from a code audit of `loom-ui/` and `loom/services/rest/.../endpoint/impl/` on
-> 2026-08-01. Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> 2026-08-01. Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [LOOM_UI.md](LOOM_UI.md) (UI spec) · [../RESTAPI.md](../RESTAPI.md) ·
 > [../DOMAIN.md](../DOMAIN.md) group 4
@@ -16,7 +16,7 @@
 > * **Semantic / vector search UI** → [../../features/search/SEMANTIC_SEARCH.md](../../features/search/SEMANTIC_SEARCH.md).
 >   Nothing can be built here yet: `embedding.vector` is a staging buffer with **no ANN index and
 >   no producer**, so any similarity query is a full scan.
-> * **Lexical search UI** → [../../features/search/SEARCH_PLAN.md](../../features/search/SEARCH_PLAN.md) P1-16…P1-20.
+> * **Lexical search UI** → [../../features/search/SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) P1-16…P1-20.
 
 ---
 
@@ -187,7 +187,7 @@ strings and `features/workflow/WorkflowView.tsx`'s "deduplication" mode, which r
 computed candidates and persists nothing. The dedup pipeline node therefore writes PENDING groups
 that no operator can confirm, and the apply node has nothing CONFIRMED to act on: the feature is
 end-to-end blocked on this UI.
-[NODE_DEDUP_PLAN.md](../../features/pipeline-nodes/NODE_DEDUP_PLAN.md) names this file as the
+[NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) names this file as the
 owner of the task.
 
 **Improvement Summary:** Add `api/dedupGroups.ts` and make the workflow deduplication mode read
@@ -214,7 +214,7 @@ Edge cases: a group whose members were deleted between discovery and review; a c
 ```
 
 **References:** [DedupGroupEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/DedupGroupEndpoint.java) ·
-[../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../features/pipeline-nodes/NODE_DEDUP_PLAN.md) §2.1 (route/permission table) ·
+[../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) §2.1 (route/permission table) ·
 [WorkflowView.tsx](../../../loom-ui/src/features/workflow/WorkflowView.tsx) · migration `V2.61`
 
 **Test Requirements:** `loom-ui/src/api/dedupGroups.test.ts`; `loom-ui/e2e/dedup-mocked.spec.ts`
@@ -271,6 +271,5 @@ plus a mocked list spec asserting the raw vector is never rendered.
 * **`POST /api/v1/similarity-index/rebuild`** (`SimilarityIndexEndpoint`, perceptual fingerprint
   k-NN) has no UI consumer. If an operator action is wanted it belongs on the maintenance screen —
   see [TASK_UI_SYSTEM.md](TASK_UI_SYSTEM.md), not here.
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (closed the chat/detection/cluster/person wiring items, added the workflow mock-removal and dedup-group review tasks, and reframed embeddings as a decision)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

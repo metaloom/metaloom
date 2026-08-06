@@ -9,7 +9,7 @@
 > state knows what it is signing up for.
 >
 > **Cortex is the opposite**: workers are stateless and scale horizontally on purpose
-> ([features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md)). Nothing here restricts Cortex.
+> ([features/helm/HELM_CORTEX.md](../features/helm/HELM_CORTEX.md)). Nothing here restricts Cortex.
 
 | Component | Scales horizontally today? | Where enforced |
 |---|---|---|
@@ -85,14 +85,14 @@ through V2.63). The authority over a live run remains an in-heap `PipelineRunEng
 | **B-8** ⚠️ | `LuceneSimilarityIndex` / `SimilarityModule` | `loom/services/lucene`, `io.metaloom.loom.core.dagger` | exclusive Lucene `write.lock` on `LOOM_SIMILARITY_INDEX_PATH` | Two instances must never share one index directory. 🔴 **Failure is silent by design** — see §3. |
 | **B-9** ⚠️ | `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | `ConcurrentHashMap<ServerWebSocket, Subscriber>`, 1024-entry queues | A UI socket on A never sees events from a run on B. Sticky sessions are necessary but **not sufficient**. |
 | **B-10** ⚠️ | `VertxModule` | `io.metaloom.loom.common.dagger` (`loom/common`) | builds a plain `Vertx` — **no `ClusterManager`** | `vertx.eventBus()` reaches handlers in this JVM only. `vertx-hazelcast` appears solely in root `pom.xml` `<dependencyManagement>` (line ~119) and is on no runtime classpath. `loom/services/eventbus` is a pom-and-README placeholder with no `src/`. |
-| **B-11** ⚠️ | `MCPToolRegistry` | `io.metaloom.loom.mcp.tool` (`loom/services/mcp`) | `Map<String, MCPTool> tools`, `Map<String, MessageConsumer<JsonObject>> consumers` | Tool dispatch rides the **local** EventBus (B-10) → MCP tools only reach handlers in the same JVM. The maps are mostly filled once at boot from a Dagger `Set<MCPTool>`, but `register`/`unregister` are public, so any *dynamic* registration diverges per instance. See [loom/MCP.md](loom/MCP.md). |
+| **B-11** ⚠️ | `MCPToolRegistry` | `io.metaloom.loom.mcp.tool` (`loom/services/mcp`) | `Map<String, MCPTool> tools`, `Map<String, MessageConsumer<JsonObject>> consumers` | Tool dispatch rides the **local** EventBus (B-10) → MCP tools only reach handlers in the same JVM. The maps are mostly filled once at boot from a Dagger `Set<MCPTool>`, but `register`/`unregister` are public, so any *dynamic* registration diverges per instance. See [loom/MCP.md](../loom/MCP.md). |
 | **B-12** 🔴 | `MCPService` | `io.metaloom.loom.mcp` (`loom/services/mcp`) | `Map<String, HttpServerResponse> sseSessions` | An MCP SSE stream is an open response object pinned to one JVM. A client's follow-up `POST /message?sessionId=…` landing on another instance finds no session and fails. Session affinity is **mandatory**, not an optimisation. |
 | **B-13** ⚠️ | `AgentService` | `loom/agent/chat` | `ConcurrentHashMap<UUID, AgentLoop> activeRuns` (each loop's `cancelled` is a local `AtomicBoolean`) | "One agent run per chat" stops holding; cancel issued on the wrong instance is a silent no-op. |
 | **B-14** ⚠️ | `SandboxOrchestrator` | `loom/agent/sandbox` | `ConcurrentHashMap<String, SandboxHandle> handles`, `ConcurrentHashMap<String, ReentrantLock> locks`, `volatile SandboxBackend backend` | The `maxConcurrent` quota is checked as `handles.size() >= cfg().getMaxConcurrent()` — a **per-JVM** quota, so N instances allow N× containers. `locks` is a per-session mutex that does not span instances → two sandboxes for one chat session. |
 | **B-15** ⚠️ | `SandboxReaper` | `loom/agent/sandbox` | `volatile long timerId`, sweeps only its own orchestrator's `handles` | *Leaks* the other instance's containers (it does not double-reap). |
 | **B-16** ⚠️ | `NodeKindCircuitBreaker` | `io.metaloom.loom.pipeline.engine` | `ConcurrentHashMap<String, KindStats> byKind` | Instantiated per `PipelineEndpointService` (process-wide, shared across every run on that instance). A kind tripped on A is still hammered from B → the effective failure budget is N×. |
 | **B-17** ⚠️ | `PermissionCache` | `io.metaloom.loom.auth` (`loom/services/auth/auth-common`) | Caffeine, `maximumSize(10_000)` only — **no TTL**, and no `invalidate()` is even exposed | A permission revoked on A is honoured **indefinitely** by B. Converges nowhere, even single-instance, until restart. |
-| **B-18** ⚠️ | `BinaryStorageResolver` | `io.metaloom.loom.rest.service.impl` | `Map<UUID, BinaryStorage> cache`, `Map<UUID, String> kindCache` — **never evicted** (deliberate; building an `S3Client` is expensive) | Caches a *mutable* authority (`asset_pool` rows). An operator editing a pool's bucket/endpoint/credentials needs a restart — of **every** instance. See [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md). |
+| **B-18** ⚠️ | `BinaryStorageResolver` | `io.metaloom.loom.rest.service.impl` | `Map<UUID, BinaryStorage> cache`, `Map<UUID, String> kindCache` — **never evicted** (deliberate; building an `S3Client` is expensive) | Caches a *mutable* authority (`asset_pool` rows). An operator editing a pool's bucket/endpoint/credentials needs a restart — of **every** instance. See [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md). |
 | **B-19** ⚠️ | `GrpcHealthService` | `io.metaloom.loom.server.grpc.impl` (`loom/services/grpc`) | `Map<String, ServingStatus> statuses`, `Map<String, Set<GrpcServerResponse<…>>> watchers` | Health watch streams are per-JVM, and `statuses` reports only this instance's view — a gRPC health check is never a fleet answer. |
 | **B-20** ⚠️ | `DatabaseInitializer` | `io.metaloom.loom.core.boot` (`loom/core`) | — (check-then-act) | `loadAdmin()` → create → `store()` with no transaction and no unique-constraint retry: simultaneous first boots race on the admin user / `admins` group / `admin-role`. `DemoDatabaseInitializer` swallows the failure with a `log.warn`, hiding it. |
 | **B-21** ✅⚠️ | `BootstrapInitializer` | same | — | `init(migrate)` calls `flyway.migrate()` first. Flyway takes a Postgres advisory lock internally, so concurrent migration is **serialized, not corrupting**. Residual risk is operational: the second instance blocks for the migration while its liveness probe ticks, and any migration failure is a fatal boot error. |
@@ -119,7 +119,7 @@ through V2.63). The authority over a live run remains an in-heap `PipelineRunEng
 2. 🔴 **The failure is silent by design.** `SimilarityModule` catches every failure path — disabled,
    unwritable path, unopenable index, any exception — and binds `NoopSimilarityIndex` rather than
    failing boot; similarity is a capability, not a dependency
-   ([features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) §3). The instance starts normally
+   ([features/search/LUCENE_PLAN.md](LUCENE_PLAN.md) §3). The instance starts normally
    and every similar-assets route answers **503**. Nothing else about that instance looks wrong, so
    behind a load balancer the symptom presents as "duplicate detection stopped working on *some*
    requests" — the shape of bug that costs a day.
@@ -137,7 +137,7 @@ through V2.63). The authority over a live run remains an in-heap `PipelineRunEng
 Mitigating factor: `LOOM_SIMILARITY_ENABLED` defaults to **`false`**, so the lock only bites an
 operator who deliberately turned similarity on.
 
-> Distinct from [features/search/SEARCH.md](features/search/SEARCH.md) §2, which *rejects* Lucene for
+> Distinct from [features/search/SEARCH.md](../features/search/SEARCH.md) §2, which *rejects* Lucene for
 > lexical search precisely because a per-replica index is unacceptable for a system-of-record.
 > Fingerprint similarity accepts the same trade because it is derived and rebuildable. Both statements
 > are correct; they are about different indexes.
@@ -153,10 +153,10 @@ So a future clustering effort does not "fix" it twice:
 | **Run/task durability** | `DaoRunStateStore` persists items and settled tasks to `pipeline_run_item` / `pipeline_node_task`; recovery replays them. *Ownership* is the missing piece, not durability. |
 | **Cortex worker identity** | `cortex_instance` (V2.33) persists node id, restrictions and last-seen; leases live in `pipeline_node_task.leased_by`. |
 | **S3 asset pools** | `S3BinaryStorage` + `asset_pool` / `library.pool_uuid` (V2.63) — genuinely shared binaries for libraries that opt in. |
-| **Agent memory** | Postgres-backed on purpose; `LOOM_AGENT_MEMORY_MOUNT_PATH` is a path *inside the Session Runner container*, not server-local disk. [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md) |
-| **Lexical search** | Postgres `tsvector` maintained by DB triggers; no per-instance index by deliberate choice. [features/search/SEARCH.md](features/search/SEARCH.md) §2 |
+| **Agent memory** | Postgres-backed on purpose; `LOOM_AGENT_MEMORY_MOUNT_PATH` is a path *inside the Session Runner container*, not server-local disk. [features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+| **Lexical search** | Postgres `tsvector` maintained by DB triggers; no per-instance index by deliberate choice. [features/search/SEARCH.md](../features/search/SEARCH.md) §2 |
 | **OAuth2 / PKCE** | `OAuth2EndpointService` keeps the PKCE verifier and OAuth state in `__Host-` cookies, not a server-side map — no affinity needed. |
-| **Everything in Postgres** | assets, components, pipelines, RBAC, the dedup review model. [features/pipeline-nodes/NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md) |
+| **Everything in Postgres** | assets, components, pipelines, RBAC, the dedup review model. [features/pipeline-nodes/NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md) |
 | **Cortex workers** | Stateless; identity is `CORTEX_NODE_ID`. |
 
 ---
@@ -214,7 +214,7 @@ C-3 and C-7 are cheapest: both are backend swaps behind an SPI that already exis
 
 There is **no clustering configuration** — no `LOOM_CLUSTER_*` variable exists. What follows is the
 set of options that are *per-instance* and must not be shared. Full option reference:
-[loom/CONFIGURATION.md](loom/CONFIGURATION.md).
+[loom/CONFIGURATION.md](../loom/CONFIGURATION.md).
 
 | Env var | Default | Multi-instance rule |
 |---|---|---|
@@ -235,7 +235,7 @@ set of options that are *per-instance* and must not be shared. Full option refer
   which breaks token validity even at `replicaCount: 1`.
 - ✅ *Fixed since the previous revision:* the `LOOM_BINARY_DIR` mismatch. `StorageOptions` now accepts
   it as an alias (canonical `LOOM_STORAGE_UPLOAD_DIR` wins when both are set) and the chart emits the
-  canonical name. See [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) G5.
+  canonical name. See [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) G5.
 
 ---
 
@@ -275,13 +275,13 @@ directory or a live run it does not own. The current silence is the real hazard.
 | **Silent degradation** | 🔴 The Lucene lock does **not** fail boot; it downgrades to `NoopSimilarityIndex`. Absence of an error is not evidence of a working index — grep the boot log for "could not be opened". |
 | **`runRegistry.get(...) == null`** | 🔴 Means "not owned *by this process*", **not** "not running". `LeaseReaper.reclaim` reads it as the latter and dead-letters. `ProcessorEndpoint#resolveEngine` reads the same way for all six inbound message types, so under N>1 a worker's `NODE_TASK_RESULT` / `TASK_RETURNED` for a run owned by another instance is silently dropped and the task waits out its lease anyway. |
 | **Durable ≠ owned** | ⚠️ `DaoRunStateStore` made run state survive a restart; that is *not* progress toward clustering. Recovery is what makes a second instance dangerous — it adopts everything it can see. |
-| **Derived vs. system-of-record** | ⚠️ Per-instance state is acceptable only when *derived and rebuildable* (the similarity index). The same pattern is rejected for lexical search because that index would be a system-of-record — [features/search/SEARCH.md](features/search/SEARCH.md) §2. |
+| **Derived vs. system-of-record** | ⚠️ Per-instance state is acceptable only when *derived and rebuildable* (the similarity index). The same pattern is rejected for lexical search because that index would be a system-of-record — [features/search/SEARCH.md](../features/search/SEARCH.md) §2. |
 | **Caches of mutable authority** | ⚠️ `PermissionCache` (B-17) and `BinaryStorageResolver` (B-18) cache DB rows with **no TTL and no invalidation**; the first is security-relevant. Adding another such cache without a TTL is a bug, not a trade-off. `MemoryDenylist` looks like a third but is not — it re-reads its rules every call and keys the cache by pattern text. Check which kind you are writing. |
 | **New `@Singleton` holding a `Map`** | ⚠️ A clustering blocker by construction. If it enforces a cap, a lock, or "only one X at a time", add a row to §2 rather than leaving it to be found later. |
 | **Heap-counter quotas** | ⚠️ `SandboxOrchestrator.maxConcurrent` and `PipelineRunEngine`'s per-kind caps are `map.size()` / `int` checks. Every such limit silently becomes **N× configured**, and reads as a config bug rather than a topology bug when it happens. |
-| **Metrics are per-instance** | ⚠️ `loom_processors_connected` and `loom_pipeline_event_subscribers` are gauges bound to *local* collections (`processors::size`, `subscribers::size`). Under N>1 they must be summed across scrape targets, never read as a fleet total. [features/ops/MONITORING.md](features/ops/MONITORING.md) |
+| **Metrics are per-instance** | ⚠️ `loom_processors_connected` and `loom_pipeline_event_subscribers` are gauges bound to *local* collections (`processors::size`, `subscribers::size`). Under N>1 they must be summed across scrape targets, never read as a fleet total. [features/ops/MONITORING.md](../features/ops/MONITORING.md) |
 | **Local EventBus** | ⚠️ `vertx.eventBus()` reaches handlers in this JVM only. `vertx-hazelcast` sits in root `<dependencyManagement>` and is on no runtime classpath — do not infer clustering from a pinned version. |
-| **Tests boot a server per method** | ⚠️ Anything the server opens exclusively (an index, a lock file, a fixed port) needs per-test isolation. See [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) §9. |
+| **Tests boot a server per method** | ⚠️ Anything the server opens exclusively (an index, a lock file, a fixed port) needs per-test isolation. See [features/search/LUCENE_PLAN.md](LUCENE_PLAN.md) §9. |
 | **Cortex ≠ Loom** | ⚠️ Cortex scaling is supported and unrelated. Do not generalise this document to workers. |
 
 ---
@@ -290,17 +290,17 @@ directory or a live run it does not own. The current silence is the real hazard.
 
 | Need | Look here |
 |---|---|
-| Why `replicaCount` must stay 1 | `helm/loom/values.yaml:7`; [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md) |
-| The index-lock rule and its rebuild escape hatch | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) §4, §9 |
-| Why Lucene was rejected for *lexical* search | [features/search/SEARCH.md](features/search/SEARCH.md) §2 |
-| S3 pools / the shared-binary story | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md); `loom/services/s3`, migration `V2.63__library_storage_pool.sql` |
-| Clustered-EventBus TODOs | [loom/EVENTBUS.md](loom/EVENTBUS.md); `loom/services/eventbus/README.md` |
-| MCP's local-only dispatch | [loom/MCP.md](loom/MCP.md) |
-| The one subsystem designed replica-safe | [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md) |
-| Run/task lease mechanics | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md); `PipelineNodeTaskDao` |
-| Every env var and its default | [loom/CONFIGURATION.md](loom/CONFIGURATION.md) |
-| Cortex worker scaling (supported) | [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
-| Health/readiness probes | [features/ops/MONITORING.md](features/ops/MONITORING.md) |
+| Why `replicaCount` must stay 1 | `helm/loom/values.yaml:7`; [features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) |
+| The index-lock rule and its rebuild escape hatch | [features/search/LUCENE_PLAN.md](LUCENE_PLAN.md) §4, §9 |
+| Why Lucene was rejected for *lexical* search | [features/search/SEARCH.md](../features/search/SEARCH.md) §2 |
+| S3 pools / the shared-binary story | [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md); `loom/services/s3`, migration `V2.63__library_storage_pool.sql` |
+| Clustered-EventBus TODOs | [loom/EVENTBUS.md](../loom/EVENTBUS.md); `loom/services/eventbus/README.md` |
+| MCP's local-only dispatch | [loom/MCP.md](../loom/MCP.md) |
+| The one subsystem designed replica-safe | [features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
+| Run/task lease mechanics | [features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md); `PipelineNodeTaskDao` |
+| Every env var and its default | [loom/CONFIGURATION.md](../loom/CONFIGURATION.md) |
+| Cortex worker scaling (supported) | [features/helm/HELM_CORTEX.md](../features/helm/HELM_CORTEX.md) |
+| Health/readiness probes | [features/ops/MONITORING.md](../features/ops/MONITORING.md) |
 
 ---
 
@@ -345,6 +345,5 @@ directory or a live run it does not own. The current silence is the real hazard.
       cross-instance routing? C-6 and C-1 depend on that choice.
 
 ---
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (re-verified every blocker against the code, added four new ones plus a verified non-blocker list, and replaced the fixed LOOM_BINARY_DIR gap with the LOOM_AUTH_KEYSTORE_PATH chart dead end.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

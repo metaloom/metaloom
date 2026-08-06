@@ -10,14 +10,14 @@
 > dead workers, a restart resumes, and results can be batched.
 >
 > **For what the system does today, read
-> [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md).** Open work is in
-> [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md). Deferred design
+> [METALOOM_ARCHITECTURE.md](../cortex/METALOOM_ARCHITECTURE.md).** Open work is in
+> [METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md). Deferred design
 > lives in [../plans/TASKS.md](../plans/TASKS.md).
 >
 > The variant comparison that justified this choice was deleted as outdated:
 > Variant C is no longer one option among four, it is the architecture. The
 > rejected ideas are recorded under
-> [METALOOM_ARCHITECTURE_TASK.md § Dropped](METALOOM_ARCHITECTURE_TASK.md).
+> [METALOOM_ARCHITECTURE_TASK.md § Dropped](../tasks/METALOOM_ARCHITECTURE_TASK.md).
 
 ---
 
@@ -70,7 +70,7 @@ are kept because the reasoning is not recoverable from the code.
 
 | # | Question | Decision | Consequence |
 |---|---|---|---|
-| Q1 | Must standalone Cortex pipeline execution survive? | **No — Loom-only is acceptable** | Cortex holds no pipelines and needs no local driver. Offline use had been limited to the legacy `cortex process run --actions` path, which has since been removed with the rest of the CLI. README/website still claim otherwise — [METALOOM_ARCHITECTURE_TASK.md §2](METALOOM_ARCHITECTURE_TASK.md) |
+| Q1 | Must standalone Cortex pipeline execution survive? | **No — Loom-only is acceptable** | Cortex holds no pipelines and needs no local driver. Offline use had been limited to the legacy `cortex process run --actions` path, which has since been removed with the rest of the CLI. README/website still claim otherwise — [METALOOM_ARCHITECTURE_TASK.md §2](../tasks/METALOOM_ARCHITECTURE_TASK.md) |
 | Q4 | Push or pull dispatch? | **Push** | Loom sends `NODE_TASK`/`SEGMENT_TASK` when work becomes ready. Revisited when leases arrived and **kept**: push + leases + per-worker caps gives the same backpressure without a second protocol rewrite |
 | Q5 | Version the definition format? | **Yes** | Delivered late (see §1) after the format had already gained `syncToLoom`, filter branches, options, `affinity` and `resultBatchSize` |
 | — | Where do intermediate results live? | In the node implementation's own cache, reached through the segment-scoped `ArtifactCache` | **Shipped** 2026-08-02 — `NodeInputs.artifacts()`, owned by the segment execution, opt-in per node. Affinity grouping on its own still saves only round trips; the scope is what removes the re-read. [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §7.4 |
@@ -119,14 +119,14 @@ than merely fast:
 Aggregated per-node counters are implemented (`RunStatsAggregator`). A **per-item
 opt-in stream**, for debugging one file without turning the firehose back on, is
 not — no per-item event type or subscription exists. Also listed in
-[METALOOM_ARCHITECTURE_TASK.md §3](METALOOM_ARCHITECTURE_TASK.md).
+[METALOOM_ARCHITECTURE_TASK.md §3](../tasks/METALOOM_ARCHITECTURE_TASK.md).
 
 ### 3.4 Run inspection
 
 `GET /api/v1/pipelines/:uuid/runs/:runUuid/items` exists and is paged
 (`PipelineEndpoint`, covered by `PipelineRunItemEndpointTest`). The **per-node
 task** view — `leased_by`, attempt history, dead-letter reason — has no route.
-Owned by [METALOOM_ARCHITECTURE_TASK.md §3](METALOOM_ARCHITECTURE_TASK.md).
+Owned by [METALOOM_ARCHITECTURE_TASK.md §3](../tasks/METALOOM_ARCHITECTURE_TASK.md).
 
 ### 3.5 Task state retention
 
@@ -135,7 +135,7 @@ per-node task rows. The windows (7 days of detail, 30 days for
 `FAILED`/`DEAD_LETTER`, the `pipeline_run` row forever) are settled in
 [../features/pipeline/PIPELINE.md §10.1a](../features/pipeline/PIPELINE.md). No
 sweep exists yet — tracked in
-[METALOOM_ARCHITECTURE_TASK.md §10](METALOOM_ARCHITECTURE_TASK.md).
+[METALOOM_ARCHITECTURE_TASK.md §10](../tasks/METALOOM_ARCHITECTURE_TASK.md).
 
 ---
 
@@ -173,6 +173,5 @@ The benchmark is disabled by default: it needs `/opt/metaloom/loom-testdata`.
 - [ ] Task retention sweep (§3.5)
 
 ---
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (reduced to an implemented-items table plus the open refinements; corrected stale claims about versioning, load-aware placement, retention and run inspection)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

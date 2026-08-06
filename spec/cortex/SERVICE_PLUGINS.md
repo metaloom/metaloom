@@ -9,10 +9,10 @@
 
 **Scope delineation.** This file covers the Maven module `loom/services/plugins` only.
 It does **not** cover the shipped extension mechanisms — those have their own specs:
-Cortex nodes → [NODES.md](NODES.md) and [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md);
-node descriptors → [../pipeline/NODE_SCHEMA_CONCEPT.md](../pipeline/NODE_SCHEMA_CONCEPT.md);
-MCP tools → [../../loom/MCP.md](../../loom/MCP.md);
-scripted logic → [NODE_SCRIPT_PLAN.md](NODE_SCRIPT_PLAN.md).
+Cortex nodes → [NODES.md](../features/nodes/NODES.md) and [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md);
+node descriptors → [../pipeline/NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md);
+MCP tools → [../../loom/MCP.md](../loom/MCP.md);
+scripted logic → [NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md).
 
 ---
 
@@ -58,9 +58,9 @@ The javadoc states the *intent*: a plugin would be "a registration in loom which
 and endpoint". No code implements that intent. The nearest shipped primitives are:
 
 - **API keys** → the Token subsystem, `/api/v1/tokens` CRUD, `TokenEndpoint` / `TokenDao`
-  (see [../../loom/RESTAPI.md](../../loom/RESTAPI.md) §3 and [../rbac/RBAC.md](../rbac/RBAC.md)).
+  (see [../../loom/RESTAPI.md](../loom/RESTAPI.md) §3 and [../rbac/RBAC.md](../features/rbac/RBAC.md)).
 - **A registered external worker with a token** → Cortex worker registration
-  (see [../../cortex/CORTEX.md](../../cortex/CORTEX.md)).
+  (see [../../cortex/CORTEX.md](CORTEX.md)).
 
 Neither of them mentions `LoomPlugin`.
 
@@ -83,7 +83,7 @@ file, no classpath scan, no `URLClassLoader`, no directory watcher, no jar loadi
 no sandbox, no permission gate. A plugin would today run — if anything loaded it — on the flat
 application classpath with full JVM privileges. The only sandboxing that exists in Loom is unrelated:
 the agent coding sandbox (`loom/agent/sandbox`, podman/kubernetes) and the GraalJS script node
-([NODE_SCRIPT_PLAN.md](NODE_SCRIPT_PLAN.md)).
+([NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md)).
 
 ## 5. Extension points the module hooks into
 
@@ -144,7 +144,7 @@ reads it** — it is inert.
 | `helm/loom/templates/deployment.yaml` | 173–175, 213–220 | conditional `plugins` volume mounted at `/plugins` |
 | `website/content/english/docs/playbooks/docker/index.adoc` | 152 | "The image also declares `/plugins`. Mount it only if you ship plugins." — customer-facing promise with no implementation behind it |
 
-Cross-refs: [../helm/HELM_LOOM.md](../helm/HELM_LOOM.md) (PVC table), [../../loom/BUILD.md](../../loom/BUILD.md) (volume table).
+Cross-refs: [../helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) (PVC table), [../../loom/BUILD.md](../../loom/BUILD.md) (volume table).
 
 ## 8. Environment variables and options
 
@@ -172,7 +172,7 @@ When the subsystem gets real code, follow the repo conventions:
   first (see the root `CLAUDE.md`), and grant permissions via group+role, never a direct
   `user_permission` row.
 - Endpoint + permission tests are **mandatory** for any new REST route per
-  [../../guidelines/CODING.md](../../guidelines/CODING.md).
+  [../../guidelines/CODING.md](../guidelines/CODING.md).
 - A ServiceLoader-based loader should get a test modelled on
   `loom-shared/node-model/src/test/java/io/metaloom/loom/nodes/spec/NodeDescriptorServiceLoaderTest.java`
   — that is the in-repo reference for "the provider file and the classes agree".
@@ -195,7 +195,7 @@ When the subsystem gets real code, follow the repo conventions:
 - [ ] Tests — none
 - [ ] Customer-facing docs beyond the dead `/plugins` mention in the Docker playbook — none
 - [ ] Resolve the contradiction: either implement a loader for `/plugins`, or drop the volume and the
-      docs sentence and delete the module (tracked in [../../loom/LOOM.md](../../loom/LOOM.md) §13.7)
+      docs sentence and delete the module (tracked in [../../loom/LOOM.md](../loom/LOOM.md) §13.7)
 
 ## 11. Key Classes Reference
 
@@ -213,10 +213,10 @@ When the subsystem gets real code, follow the repo conventions:
 ## 12. Conventions and Gotchas
 
 1. **Do not "extend the plugin system" — there isn't one.** A request to "add a plugin" almost always
-   means one of: a Cortex node ([../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md)), a node
-   descriptor provider ([../pipeline/NODE_SCHEMA_CONCEPT.md](../pipeline/NODE_SCHEMA_CONCEPT.md)), an
-   MCP tool ([../../loom/MCP.md](../../loom/MCP.md)), or a script node
-   ([NODE_SCRIPT_PLAN.md](NODE_SCRIPT_PLAN.md)). Route there first.
+   means one of: a Cortex node ([../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md)), a node
+   descriptor provider ([../pipeline/NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md)), an
+   MCP tool ([../../loom/MCP.md](../loom/MCP.md)), or a script node
+   ([NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md)). Route there first.
 2. **The `/plugins` volume is a trap.** It exists in every container image, in the Helm chart and in
    the public Docker playbook, which makes the subsystem look shipped. No Java code opens that path.
 3. **The module is built but not linked.** Because no pom depends on `loom-service-plugins`, adding
@@ -233,7 +233,7 @@ When the subsystem gets real code, follow the repo conventions:
    already configure the shade plugin's `ServicesResourceTransformer`, so provider files merge
    correctly in the fat jar. A directory-scanning `URLClassLoader` would additionally break the
    GraalVM native images (`Containerfile.native`), which cannot load classes at runtime.
-8. **Spec obligation.** [../../loom/LOOM.md](../../loom/LOOM.md) §13.7 lists "No spec for
+8. **Spec obligation.** [../../loom/LOOM.md](../loom/LOOM.md) §13.7 lists "No spec for
    `services/plugins`" as an open item — flip that checkbox when linking this file, and add the entry
    to [CONTEXT.md](../../CONTEXT.md)'s tree if the subsystem becomes real.
 
@@ -246,12 +246,14 @@ When the subsystem gets real code, follow the repo conventions:
 | Why `/plugins` exists | `loom/containers/{server,demo}/Containerfile{,.native}`; `helm/loom/values.yaml` `persistence.plugins`; `website/content/english/docs/playbooks/docker/index.adoc:152` |
 | The real, working SPI | `loom-shared/node-model/src/main/resources/META-INF/services/io.metaloom.loom.nodes.spec.NodeDescriptorProvider` + `NodeDescriptorRegistry` |
 | An example of extending MetaLoom | `examples/cortex-custom-node/` (node), `examples/cortex-custom/` (daemon), `examples/cortex-python/` (Python worker); `examples/README.md` |
-| How a custom node persists results | `POST /api/v1/assets/:uuid/json-comps` → `asset_json_comp`; see `examples/cortex-custom-node/README.md` and [NODES.md](NODES.md) |
-| The "API key" primitive | `loom/services/rest/.../endpoint/impl/TokenEndpoint.java` (`/api/v1/tokens`), [../../loom/RESTAPI.md](../../loom/RESTAPI.md) §3 |
-| Sandboxing prior art | `loom/agent/sandbox/` (podman/k8s), GraalJS script node [NODE_SCRIPT_PLAN.md](NODE_SCRIPT_PLAN.md) |
-| The module map for all of Loom | [../../loom/LOOM.md](../../loom/LOOM.md) §"services/*", [../../METALOOM.md](../../METALOOM.md) |
-| Rules before changing code here | [../../guidelines/CODING.md](../../guidelines/CODING.md), [../../SPEC_RULES.md](../../SPEC_RULES.md) |
+| How a custom node persists results | `POST /api/v1/assets/:uuid/json-comps` → `asset_json_comp`; see `examples/cortex-custom-node/README.md` and [NODES.md](../features/nodes/NODES.md) |
+| The "API key" primitive | `loom/services/rest/.../endpoint/impl/TokenEndpoint.java` (`/api/v1/tokens`), [../../loom/RESTAPI.md](../loom/RESTAPI.md) §3 |
+| Sandboxing prior art | `loom/agent/sandbox/` (podman/k8s), GraalJS script node [NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md) |
+| The module map for all of Loom | [../../loom/LOOM.md](../loom/LOOM.md) §"services/*", [../../METALOOM.md](../METALOOM.md) |
+| Rules before changing code here | [../../guidelines/CODING.md](../guidelines/CODING.md), [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

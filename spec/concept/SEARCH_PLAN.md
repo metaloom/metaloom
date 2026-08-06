@@ -5,9 +5,9 @@
 > demo data, website docs) and all of Phase 2 (Elasticsearch) and Phase 3 (semantic).
 >
 > **This file is the execution order for what remains.** Shipped work is collapsed into one table below —
-> do not re-plan it. Design, rationale and the full class reference live in [SEARCH.md](SEARCH.md); read it
-> first. Phase 3 is designed in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). The repurposed Lucene module is
-> [LUCENE_PLAN.md](LUCENE_PLAN.md). Schema context: [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
+> do not re-plan it. Design, rationale and the full class reference live in [SEARCH.md](../features/search/SEARCH.md); read it
+> first. Phase 3 is designed in [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md). The repurposed Lucene module is
+> [LUCENE_PLAN.md](LUCENE_PLAN.md). Schema context: [../../loom/DOMAIN.md](../loom/DOMAIN.md).
 
 **Status legend:** ✅ done · 🔨 partial · ⬜ not started · ⏭️ deliberately skipped
 
@@ -15,7 +15,7 @@
 
 Ship **Postgres full-text search** behind a provider SPI, then swap in **Elasticsearch/OpenSearch** behind
 the same SPI without touching the endpoint, the models or the UI. The hinge is the `search_document` table
-([SEARCH.md](SEARCH.md) §5): it is the Postgres index, the pre-assembled Elasticsearch document, *and* the
+([SEARCH.md](../features/search/SEARCH.md) §5): it is the Postgres index, the pre-assembled Elasticsearch document, *and* the
 outbox that feeds it. That hinge is **built**. Phase 2 therefore adds a provider and a drain loop; it does
 not rebuild the pipeline.
 
@@ -91,16 +91,16 @@ correct, unconsumed feed, so P2-4 starts from a populated outbox rather than a b
 
 | ID | Status | Task | Depends on |
 |---|---|---|---|
-| **P0-5** | ⬜ | Delete the orphaned `loom-ui/src/{Dashboard,User,Content}/` trees (all three still present). **Verify reachability from `main.tsx` per file first** — `AppShell.tsx` is the only live route table, and both `MainSearchBar` copies live in this dead tree ([SEARCH.md](SEARCH.md) §1.4). | — |
+| **P0-5** | ⬜ | Delete the orphaned `loom-ui/src/{Dashboard,User,Content}/` trees (all three still present). **Verify reachability from `main.tsx` per file first** — `AppShell.tsx` is the only live route table, and both `MainSearchBar` copies live in this dead tree ([SEARCH.md](../features/search/SEARCH.md) §1.4). | — |
 | **P1-16** | ⬜ | `loom-ui/src/api/search.ts` (`search`, `searchAssets`, `suggest`, `searchStatus` + types) following `src/api/tags.ts`'s `API_BASE_URL` / `authHeaders` / `handleResponse<T>` shape, plus `src/api/search.test.ts`. | — |
 | **P1-17** | ⬜ | `src/features/search/useSearch.ts` (250 ms debounce, `AbortController`, `q.length >= 2` gate); `SearchView.tsx` (grouped by entity type, transcript hits deep-link to `/assets/:id?t=<ms>`, empty/error/unavailable states); `src/layout/GlobalSearchBar.tsx`; `/search` route in `AppShell.tsx`; Cmd/Ctrl-K overlay.<br>⚠️ The live shell has **no top bar** — this is a shell-layout change, not a drop-in.<br>ℹ️ `/search/status` returns 200 with `available:false` precisely so the bar can be hidden rather than rendered broken. | P1-16, P0-5 |
 | **P1-18** | ⬜ | `AssetBrowser.tsx` → `searchAssets` with **server-side paging**. Also fixes a real scaling bug: `listAssets(token)` takes no parameters and loads the entire catalog. | P1-16 |
 | **P1-19** | ⬜ | `LibraryView.tsx` → server-side, scoped by library. | P1-18 |
 | **P1-20** | ⬜ | Playwright `e2e/search-mocked.spec.ts` and `e2e/search-backend.spec.ts`. | P1-17, P1-21 |
 | **P1-21** | ⬜ | `DemoDatabaseInitializer` search fixtures: a transcript with distinctive text, an `ocr` comp, a `tika` comp, searchable tag names, one annotation title. Pick **one** magic string (e.g. `"aurora"`) shared by the website docs page and the backend e2e test. Required by CODING.md. | — |
-| **P1-22** | ⬜ | Un-stub the MCP tools on the SPI. `SearchAssetsTool` still calls `assetDao.loadPage(null, limit, null, null, null)` — inject `SearchProvider`, issue a real `SearchRequest`, add `library`/`tag`/`offset` params. `SearchTranscriptTool` → `types=[TRANSCRIPT]`, `highlight=true`, return snippet + `assetUuid` + `timeFromMs`; ⚠️ its comment still points at `asset_doc_comp.doc_plain_text` — rewrite it. Neither needs new registration.<br>⚠️ `MCPTool.execute(JsonObject)` carries no user context, so per-type narrowing cannot apply there. Acceptable (matches today's global-gate model) but record it in [../rbac/RBAC.md](../rbac/RBAC.md). | — |
+| **P1-22** | ⬜ | Un-stub the MCP tools on the SPI. `SearchAssetsTool` still calls `assetDao.loadPage(null, limit, null, null, null)` — inject `SearchProvider`, issue a real `SearchRequest`, add `library`/`tag`/`offset` params. `SearchTranscriptTool` → `types=[TRANSCRIPT]`, `highlight=true`, return snippet + `assetUuid` + `timeFromMs`; ⚠️ its comment still points at `asset_doc_comp.doc_plain_text` — rewrite it. Neither needs new registration.<br>⚠️ `MCPTool.execute(JsonObject)` carries no user context, so per-type narrowing cannot apply there. Acceptable (matches today's global-gate model) but record it in [../rbac/RBAC.md](../features/rbac/RBAC.md). | — |
 | **P1-23** | ⬜ | GraphQL: **one** new top-level `search(q, types, mode, limit, offset)` field plus `SearchResult`/`SearchHit` types and the two enums. Do **not** add filter args to the ~20 existing list fields. Guard with `READ_SEARCH` via `GraphQLPermissionChecker`; test through `AbstractGraphQLEndpointTest`. | — |
-| **P1-24** | ⬜ | Customer-facing docs page under `website/content/english/docs/` (🔴 per CODING.md: no spec-file references, no internal class names, SVG not ASCII art). Spec sync still owed: [../rbac/RBAC.md](../rbac/RBAC.md), [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../loom/MCP.md](../../loom/MCP.md), [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md). | — |
+| **P1-24** | ⬜ | Customer-facing docs page under `website/content/english/docs/` (🔴 per CODING.md: no spec-file references, no internal class names, SVG not ASCII art). Spec sync still owed: [../rbac/RBAC.md](../features/rbac/RBAC.md), [../permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md), [../../loom/RESTAPI.md](../loom/RESTAPI.md), [../../loom/MCP.md](../loom/MCP.md), [../db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md). | — |
 | **P1-26** | ⬜ | Emit `DETECTION` and `SEGMENT` documents. Both enum constants and their permission mappings exist, but **no refresh function writes those rows** — their text folds into the owning asset's `keywords`, so it is findable but never surfaces as its own hit. One more refresh function plus triggers. | — |
 
 ---
@@ -121,7 +121,7 @@ correct, unconsumed feed, so P2-4 starts from a populated outbox rather than a b
 | **P2-8** | ⬜ | Testcontainers ES tests + a **provider-parity test**: same fixture corpus in both backends returns the same *top-5 set* for a fixed query list. Use `refresh=wait_for`. ⚠️ `org.testcontainers:elasticsearch` is managed at **1.17.6 — old** (open item 2). Keep classes ≤15 methods (gotcha 6). | P2-5 |
 | **P2-9** | ⬜ | Ops: an `elasticsearch` service behind a **compose profile** (so the default dev loop stays fast); a `search:` block in `helm/loom/values.yaml`; optional bundled single-node StatefulSet following the chart's "official images, no third-party subcharts, works offline" policy. | P2-6 |
 | **P2-10** | ⬜ | `POST /api/v1/search/results` — body-encoded for long queries and many filters. | — |
-| **P2-11** | ⬜ | `?q=` substring narrowing on list routes (`ILIKE`/trigram in the DAO `WHERE`, **keyset paging untouched**, no ranking) + DAO tests. A different feature from `/search/*` — [SEARCH.md](SEARCH.md) §7.2. | — |
+| **P2-11** | ⬜ | `?q=` substring narrowing on list routes (`ILIKE`/trigram in the DAO `WHERE`, **keyset paging untouched**, no ranking) + DAO tests. A different feature from `/search/*` — [SEARCH.md](../features/search/SEARCH.md) §7.2. | — |
 | **P2-12** | ⬜ | Migrate remaining UI views to `?q=`. 🔴 **Criterion, so nobody churns views for free:** migrate a view when its list can plausibly exceed 500 rows. Migrate `TagsView` (keep client-side tree grouping — a render concern), `CollectionsView`, `AssetPoolsView`, the six `AdminArea` boxes, the detection views. **Do not migrate** `CortexView` or `PipelineEditor`. | P2-11 |
 | **P2-13** | ⬜ | `/search/facets` + facet UI. The provider already computes facets for `mime_type`/`entity_type`/`lang`; this is the dedicated route and the UI. | P2-5 |
 
@@ -129,7 +129,7 @@ correct, unconsumed feed, so P2-4 starts from a populated outbox rather than a b
 
 ## Phase 3 — Semantic / hybrid — ⬜ not started
 
-**Planned in full in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) (P3-1…P3-11) — not repeated here.** Order in
+**Planned in full in [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) (P3-1…P3-11) — not repeated here.** Order in
 one line: two spikes (embedding model/host; pgvector availability) → guarded `vector` migration →
 `VectorConfigDao` + `/api/v1/vector-configs` → `cortex/nodes/embedding` → `embedding_vec` sync job
 (mirrors P2-4) → `VectorIndex` SPI + `PgVectorIndex` (`SearchMode.SEMANTIC` already exists and is
@@ -141,7 +141,7 @@ correctly *rejected* today) → RRF fusion (`HYBRID`) → ES `dense_vector`/`knn
 ## Configuration
 
 All ten are `@EnvironmentVariable`-annotated on `SearchOptions`; descriptions and the design reasoning are
-in [SEARCH.md](SEARCH.md) §9, semantic additions in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §9.
+in [SEARCH.md](../features/search/SEARCH.md) §9, semantic additions in [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §9.
 
 | Variable | Default | Note |
 |---|---|---|
@@ -158,7 +158,7 @@ in [SEARCH.md](SEARCH.md) §9, semantic additions in [SEMANTIC_SEARCH.md](SEMANT
 
 ## Conventions and Gotchas
 
-Build-order rules for *this* plan; design-level ones are [SEARCH.md](SEARCH.md) §12. Every one below was
+Build-order rules for *this* plan; design-level ones are [SEARCH.md](../features/search/SEARCH.md) §12. Every one below was
 learned the hard way while building Phase 1 — none is theoretical.
 
 | # | Rule |
@@ -170,7 +170,7 @@ learned the hard way while building Phase 1 — none is theoretical.
 | 5 | 🔴 **`SET LOCAL` is discarded outside a transaction.** `pg_trgm.similarity_threshold` is a session GUC the `%` operator reads, so the SET and the query must share one `ctx.transactionResult(...)` — which also pins the pooled connection and leaves nothing mutated. |
 | 6 | ⚠️ **A 33-method class has been seen failing with *"Got error from server {Unknown error}"***, which looks like a logic bug and is not; it was attributed to test-DB pool provisioning. Treat that attribution as unverified — the superficially similar `AssetEndpointTest` errors turned out to be a **leaked JDBC connection pool**, not the provider pool, and are fixed (see [../loom/SERVER.md](../loom/SERVER.md) §shutdown). Check PostgreSQL connection counts before blaming the pool. |
 | 7 | **A new `loom_permission` enum value cannot be USED in the migration that adds it** — Flyway wraps each migration in one transaction. Other DDL alongside is fine; a `role_permission` insert referencing the new value is not. `V2.57` is standalone for exactly this reason. |
-| 8 | **`generate.sh` re-runs every migration from scratch in a `postgres:latest` Testcontainer.** Any migration not runnable on a stock image breaks codegen for everyone. `pg_trgm` ships with the official image; **`pgvector` does not** — see [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). |
+| 8 | **`generate.sh` re-runs every migration from scratch in a `postgres:latest` Testcontainer.** Any migration not runnable on a stock image breaks codegen for everyone. `pg_trgm` ships with the official image; **`pgvector` does not** — see [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md). |
 | 9 | ⚠️ **`pg_trgm` is not a *trusted* extension** — it needs superuser or `rds_superuser`. Every environment here qualifies, but document the managed-Postgres failure mode and the "ask your DBA to pre-create it" remedy in P1-24. |
 | 10 | **Check the highest migration before claiming a version.** Search took `V2.57`–`V2.59`; unrelated work has since reached **`V2.63__library_storage_pool.sql`**. Another branch may take the next one. |
 | 11 | **`SearchParameters` deliberately does not extend `AbstractQueryParameters`** — that base types `mapParameter` against `QueryParameterKey`, and its typed default-value fallback throws `ClassCastException` (Integer default from a String accessor) on the first request that omits a parameter. Likewise the HTTP client encodes the whole path, so query strings must go through `request.addQueryParameter(...)`; a baked-in `?` arrives as `%3F` and the route 404s. |
@@ -180,9 +180,9 @@ learned the hard way while building Phase 1 — none is theoretical.
 
 ## Test Setup
 
-Full setup in [SEARCH.md](SEARCH.md) §10, per-source test list in §10.2, Phase 3 in
-[SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §10. **Key Classes Reference** is not duplicated here —
-[SEARCH.md](SEARCH.md) §11 (lexical) and [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §11 (vector).
+Full setup in [SEARCH.md](../features/search/SEARCH.md) §10, per-source test list in §10.2, Phase 3 in
+[SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §10. **Key Classes Reference** is not duplicated here —
+[SEARCH.md](../features/search/SEARCH.md) §11 (lexical) and [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §11 (vector).
 
 ```bash
 ./setup-pool.sh                              # after every Flyway migration (gotcha 1)
@@ -195,7 +195,7 @@ mvn -o -pl loom/core  test -Dtest=SearchEndpointTest  # 16 tests
 errors in `PipelineRunEngine`, `ProcessorEndpoint`, `WebSocketAuthenticator` and `MCPService` — unrelated
 to search, but it will stop your build.
 
-## Definition of done (per [../../guidelines/CODING.md](../../guidelines/CODING.md))
+## Definition of done (per [../../guidelines/CODING.md](../guidelines/CODING.md))
 
 ✅ **Met:** plural REST paths (`search` is a handler-less namespace, all leaves plural); endpoint test
 (`SearchEndpointTest`, 16, incl. four fine-grained permission cases); DAO coverage (33 tests) including
@@ -218,17 +218,17 @@ into RBAC / PERMISSIONS / RESTAPI / MCP (P1-24). SEARCH.md and this file are cur
 
 | Need | Look here |
 |---|---|
-| Why any of this is shaped the way it is | [SEARCH.md](SEARCH.md) |
-| Class-by-class reference and the SPI shapes | [SEARCH.md](SEARCH.md) §4, §11 |
-| The `search_document` DDL and its role in the schema | `V2.58__add_search_document.sql`; [SEARCH.md](SEARCH.md) §5.2; [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
+| Why any of this is shaped the way it is | [SEARCH.md](../features/search/SEARCH.md) |
+| Class-by-class reference and the SPI shapes | [SEARCH.md](../features/search/SEARCH.md) §4, §11 |
+| The `search_document` DDL and its role in the schema | `V2.58__add_search_document.sql`; [SEARCH.md](../features/search/SEARCH.md) §5.2; [../../loom/DOMAIN.md](../loom/DOMAIN.md) |
 | The triggers and the refresh/rebuild functions | `V2.59__add_search_triggers.sql`; `search_document_rebuild()` |
-| The jsonb text-extraction whitelist | `search_extract_json_text()`; [SEARCH.md](SEARCH.md) §6 |
+| The jsonb text-extraction whitelist | `search_extract_json_text()`; [SEARCH.md](../features/search/SEARCH.md) §6 |
 | The query implementation | `loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/search/PostgresSearchProvider.java` |
 | Route registration and permission gating | `loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/SearchEndpoint.java` |
 | Provider selection / boot-safety fallback | `loom/core/src/main/java/io/metaloom/loom/core/dagger/SearchModule.java` |
-| Vector / hybrid design | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
+| Vector / hybrid design | [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
 | The repurposed Lucene module (fingerprint k-NN, *not* lexical search) | [LUCENE_PLAN.md](LUCENE_PLAN.md) |
-| Definition of done for code / for a spec change | [../../guidelines/CODING.md](../../guidelines/CODING.md) · [../../SPEC_RULES.md](../../SPEC_RULES.md) |
+| Definition of done for code / for a spec change | [../../guidelines/CODING.md](../guidelines/CODING.md) · [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 
 ## Progress Assessment
 
@@ -238,10 +238,9 @@ into RBAC / PERMISSIONS / RESTAPI / MCP (P1-24). SEARCH.md and this file are cur
 - [ ] **Phase 1 follow-ups** — P1-2b (`LoomOptionsValidationTest`), P1-6b (`SearchDocumentCodegenTest`), P1-9b (`searchParams()` accessor)
 - [ ] **Phase 1 consumers** — P1-16…P1-21 (loom-ui + demo data), P1-22 (MCP still returns an unfiltered `loadPage`), P1-23 (GraphQL), P1-24 (website docs + spec sync), P1-26 (DETECTION/SEGMENT documents)
 - [ ] **Phase 2** — not started; `loom/services/elasticsearch` is pom-only. Gated on the P2-1 spike. The outbox it will drain already exists and is maintained
-- [ ] **Phase 3** — not started; `loom/services/qdrant` is pom-only. See [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md)
+- [ ] **Phase 3** — not started; `loom/services/qdrant` is pom-only. See [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md)
 - [x] Open item 4 resolved; items 1, 2, 3, 5 remain and all belong to Phase 2/3
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (verified against code; shipped Phase 0/1 backend collapsed into one table, detail kept only for open work)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

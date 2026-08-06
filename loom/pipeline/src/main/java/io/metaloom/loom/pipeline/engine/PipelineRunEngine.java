@@ -10,6 +10,8 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.common.metrics.LoomMetrics;
+import io.metaloom.loom.common.metrics.NoopLoomMetrics;
 import io.metaloom.loom.pipeline.graph.ExecutionMode;
 import io.metaloom.loom.pipeline.graph.InputBinding;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
@@ -101,6 +103,11 @@ public class PipelineRunEngine {
 	private AssetSink assetSink = AssetSink.NOOP;
 	private RetryScheduler retryScheduler = RetryScheduler.IMMEDIATE;
 	private NodeKindCircuitBreaker circuitBreaker;
+	/**
+	 * Where the run reports what it is doing. Defaults to the no-op so every existing construction
+	 * path - and every test - keeps working without a metrics backend.
+	 */
+	private LoomMetrics metrics = NoopLoomMetrics.INSTANCE;
 	private int maxInFlight = DEFAULT_MAX_IN_FLIGHT;
 	private int inFlightCount;
 	private final List<Runnable> capacityWaiters = new ArrayList<>();
@@ -944,6 +951,7 @@ public class PipelineRunEngine {
 			return;
 		}
 
+		metrics.recordNodeTaskDeadlettered(kindOf(nodeId));
 		record(state, NodeTaskResult.failed(null, nodeId, elementSeq, 0,
 			"Dead-lettered after " + state.attemptsFor(nodeId, elementSeq) + " attempt(s): " + reason, null));
 		advance(state);
@@ -1039,6 +1047,7 @@ public class PipelineRunEngine {
 	private void scheduleRetry(ItemState state, String nodeId, int seq, String reason) {
 		releaseInFlight(state, nodeId, seq);
 		state.markAwaitingRetry(nodeId, seq);
+		metrics.recordNodeTaskRetried(kindOf(nodeId));
 		int attempt = state.attemptsFor(nodeId, seq);
 		long delay = backoffFor(attempt);
 		log.info("Retrying node '{}' element {} on item '{}' (attempt {} of {}) in {}ms after: {}",
@@ -1084,6 +1093,16 @@ public class PipelineRunEngine {
 
 	private static String describe(NodeTaskResult result) {
 		return result.getMessage() == null ? "node failed" : result.getMessage();
+	}
+
+	/**
+	 * @param nodeId a node of this run's graph
+	 * @return its kind, which is what every metric label uses - a node <em>id</em> is chosen by
+	 *         whoever drew the pipeline and would put unbounded cardinality on the registry
+	 */
+	private String kindOf(String nodeId) {
+		PipelineGraphNode node = graph.getNode(nodeId);
+		return node == null ? "unknown" : node.getKind();
 	}
 
 	/**
@@ -1538,9 +1557,14 @@ public class PipelineRunEngine {
 			return null;
 		}
 
+		long dispatchedAt = System.currentTimeMillis();
 		for (String nodeId : segment.getNodeIds()) {
 			state.markInFlight(nodeId, taskUuid);
 			state.recordAttempt(nodeId);
+			// Every member's clock starts at the one dispatch, so a member's latency includes the
+			// time its predecessors in the segment spent running. That is the honest figure: the
+			// member did not become available to anything downstream any earlier.
+			state.markDispatched(nodeId, 0, dispatchedAt);
 			// Per kind rather than per dispatch: a segment genuinely occupies capacity
 			// for every kind it carries, even though it is one outstanding request.
 			acquireKind(graph.getNode(nodeId).getKind());
@@ -1721,6 +1745,8 @@ public class PipelineRunEngine {
 				"No worker available for node kind '" + node.getKind() + "'", null));
 			return true;
 		}
+		// Only now, with the task genuinely on a worker, does the dispatch-to-result clock start.
+		state.markDispatched(node.getId(), seq, System.currentTimeMillis());
 		return false;
 	}
 
@@ -1891,6 +1917,7 @@ public class PipelineRunEngine {
 		if (state.isInFlight(result.getNodeId(), result.getElementSeq())) {
 			inFlightCount = Math.max(0, inFlightCount - 1);
 			releaseKind(result.getNodeId());
+			recordLatency(state, result);
 		}
 		state.record(result);
 		// After the record, never before: holding is a property of a settled execution, and the
@@ -1901,6 +1928,28 @@ public class PipelineRunEngine {
 		if (state.isComplete(graph.size())) {
 			store.itemSettled(itemUuid, state.outcome());
 		}
+	}
+
+	/**
+	 * Report how long a settling execution spent between dispatch and result.
+	 *
+	 * <p>The dispatch counters say work left Loom; only this says whether it came back, and how
+	 * slowly. Silent on an execution that was never placed on a worker - its clock was never
+	 * started - so a fleet with no capacity shows dispatch failures rather than a suspiciously
+	 * fast p99.</p>
+	 */
+	private void recordLatency(ItemState state, NodeTaskResult result) {
+		Long dispatchedAt = state.dispatchedAt(result.getNodeId(), result.getElementSeq());
+		if (dispatchedAt == null) {
+			return;
+		}
+		PipelineGraphNode node = graph.getNode(result.getNodeId());
+		if (node == null) {
+			return;
+		}
+		String stateLabel = result.getState() == null ? "unknown" : result.getState().name().toLowerCase();
+		metrics.recordNodeTaskLatency(node.getKind(), stateLabel,
+			Math.max(0, System.currentTimeMillis() - dispatchedAt));
 	}
 
 	/**
@@ -1980,6 +2029,19 @@ public class PipelineRunEngine {
 	 */
 	public synchronized void setCircuitBreaker(NodeKindCircuitBreaker breaker) {
 		this.circuitBreaker = breaker;
+	}
+
+	/**
+	 * Install the metrics catalog this run reports through.
+	 *
+	 * <p>Set alongside the circuit breaker and the retry scheduler rather than taken as a constructor
+	 * argument, so the several thousand lines of evaluation semantics stay constructible - and
+	 * testable - with nothing but a graph and a dispatcher.</p>
+	 *
+	 * @param metrics the catalog; null restores the no-op
+	 */
+	public synchronized void setMetrics(LoomMetrics metrics) {
+		this.metrics = metrics == null ? NoopLoomMetrics.INSTANCE : metrics;
 	}
 
 	/**
@@ -2238,6 +2300,16 @@ public class PipelineRunEngine {
 	/** @return outstanding dispatched tasks */
 	public synchronized int getInFlightCount() {
 		return inFlightCount;
+	}
+
+	/**
+	 * @return this run's ceiling on outstanding tasks; 0 or less means unlimited.
+	 *         Read against {@link #getInFlightCount()}: outstanding work alone cannot say whether a
+	 *         run is saturated or merely busy, and it is saturation that decides whether adding
+	 *         workers would help.
+	 */
+	public synchronized int getMaxInFlight() {
+		return maxInFlight;
 	}
 
 	/**

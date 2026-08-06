@@ -3,16 +3,16 @@
 > **Audience: AI coding agents.** Covers the Maven module `loom/services/logger`
 > (`io.metaloom.loom.service:loom-service-logger`) and, because that module is a stub, the logging
 > setup that *actually* runs. **Source of truth is the code** — if this file contradicts it, the code
-> wins and this file must be fixed in the same change ([../../SPEC_RULES.md](../../SPEC_RULES.md),
-> [../../guidelines/CODING.md](../../guidelines/CODING.md)).
+> wins and this file must be fixed in the same change ([../../SPEC_RULES.md](../guidelines/SPEC_RULES.md),
+> [../../guidelines/CODING.md](../guidelines/CODING.md)).
 >
 > **Scope note:** this file lives under `pipeline-nodes/` for filing reasons only; the module is not a
-> pipeline node and has nothing to do with [NODES.md](NODES.md).
+> pipeline node and has nothing to do with [NODES.md](../features/nodes/NODES.md).
 >
 > **Scope split:**
 > - *This file* — the `logger` module, the logback backend, log config files, log level control.
-> - Health / readiness / metrics HTTP surfaces — [../ops/MONITORING.md](../ops/MONITORING.md),
->   [../ops/METRICS.md](../ops/METRICS.md). Neither mentions logging; there is no overlap today.
+> - Health / readiness / metrics HTTP surfaces — [../ops/MONITORING.md](../features/ops/MONITORING.md),
+>   [../ops/METRICS.md](../features/ops/METRICS.md). Neither mentions logging; there is no overlap today.
 > - `LOOM_NAME` as a configuration knob — [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md).
 > - Container `CMD` / `-Dlogback.configurationFile` — [../../loom/BUILD.md](../../loom/BUILD.md).
 
@@ -261,9 +261,11 @@ drag a config onto the test classpath. Pool/database test setup is unrelated and
 | Test logging config | `*/src/test/resources/logback-test.xml` and `logback.xml` |
 | `LOOM_NAME` as a config knob | [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md) |
 | Container `CMD` and the `-Dlogback.configurationFile` flag | [../../loom/BUILD.md](../../loom/BUILD.md) |
-| Health / readiness / metrics endpoints | [../ops/MONITORING.md](../ops/MONITORING.md), [../ops/METRICS.md](../ops/METRICS.md) |
-| Definition of done for changing this | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Health / readiness / metrics endpoints | [../ops/MONITORING.md](../features/ops/MONITORING.md), [../ops/METRICS.md](../features/ops/METRICS.md) |
+| Definition of done for changing this | [../../guidelines/CODING.md](../guidelines/CODING.md) |
 
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

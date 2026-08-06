@@ -4,7 +4,17 @@
 > Loom backend: a Lucene HNSW k-NN index over the 256-dim float vectors behind
 > `MultiSectorFingerprint`, exposed as a `SimilarityIndex` SPI and a REST "similar assets" query. It
 > is the prerequisite for the deduplication nodes in
-> [../pipeline-nodes/NODE_DEDUP_PLAN.md](../pipeline-nodes/NODE_DEDUP_PLAN.md).
+> [../pipeline-nodes/NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md).
+
+> ⚠️ **A second Lucene index now lives in the same module.** `LuceneVectorIndex`
+> (`loom/services/lucene/…/vector/lucene/`) serves **embedding** k-NN — face vectors from
+> `FacedetectNode` — behind the `VectorIndex` SPI. Everything below is about the **fingerprint**
+> index and does not describe it. The two are deliberately separate: one 256-dim vector per asset
+> answering "is this the same recording?" versus many vectors per asset answering "is this the same
+> subject?", one keyed by `(asset, algorithm)` and the other by `embedding_uuid` and scoped by
+> `(type, model, dimensions)`. **Separate directories, separate `IndexWriter`s** — pointing
+> `LOOM_VECTOR_INDEX_PATH` at `LOOM_SIMILARITY_INDEX_PATH` puts two incompatible vector populations
+> in one index. See [../features/search/SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md).
 
 ## 🟢 Status: BUILT — verified at `499f71f7`
 
@@ -33,8 +43,8 @@ This is **not** lexical search and **not** embedding search. Three subsystems, d
 
 | Subsystem | Query | Backend | Status | Spec |
 |---|---|---|---|---|
-| **Lexical search** | text `q` → documents | Postgres `tsvector` (`search_document`) | Phase 1 built | [SEARCH.md](SEARCH.md) |
-| **Semantic / embedding search** | text `q` or vector → assets | pgvector (planned) | not built | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
+| **Lexical search** | text `q` → documents | Postgres `tsvector` (`search_document`) | Phase 1 built | [SEARCH.md](../features/search/SEARCH.md) |
+| **Semantic / embedding search** | text `q` or vector → assets | pgvector (planned) | not built | [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
 | **Fingerprint similarity (this doc)** | a video fingerprint → near-duplicate videos | Lucene HNSW over `MultiSectorFingerprint.vector()` | **built** | **LUCENE_PLAN.md** |
 
 ---
@@ -58,8 +68,8 @@ This is **not** lexical search and **not** embedding search. Three subsystems, d
 | `AssetComponentDao.findByAlgorithm(String)` — the rebuild source query | `loom/db/api/.../asset/AssetComponentDao.java:198`; impl `loom/db/jooq/.../AssetComponentDaoImpl.java:804` |
 | Module revived: video4j `fingerprint-indexer` dependency, **no local Lucene pin** | `loom/services/lucene/pom.xml` |
 | Env vars documented | [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md) §4.11 |
-| Routes documented | [../../loom/RESTAPI.md](../../loom/RESTAPI.md) |
-| Multi-instance `write.lock` consequence | [../../CLUSTERING.md](../../CLUSTERING.md) §3.6 / §7 |
+| Routes documented | [../../loom/RESTAPI.md](../loom/RESTAPI.md) |
+| Multi-instance `write.lock` consequence | [../../CLUSTERING.md](CLUSTERING.md) §3.6 / §7 |
 
 **No Flyway migration was needed.** The index is derived from `asset_fingerprint_comp` (`V2.41`), and
 this feature adds **no Postgres extension** — which is the whole point of choosing Lucene here.
@@ -68,8 +78,8 @@ this feature adds **no Postgres extension** — which is the whole point of choo
 
 ## 2. Why Lucene here, against the SEARCH.md rejection
 
-🔴 [SEARCH.md](SEARCH.md) §2 rejects Lucene by name and [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 filed
-its deletion. [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) picked pgvector for embeddings. This subsystem
+🔴 [SEARCH.md](../features/search/SEARCH.md) §2 rejects Lucene by name and [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 filed
+its deletion. [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) picked pgvector for embeddings. This subsystem
 adopts Lucene anyway, **for this workload only**. Understand the reasoning before touching the module:
 
 1. **The SEARCH.md rejection is about lexical search.** Its objection is that an embedded full-text
@@ -77,18 +87,18 @@ adopts Lucene anyway, **for this workload only**. Understand the reasoning befor
    system-of-record. A fingerprint k-NN index is none of those: it is a bounded, derived, rebuildable
    cache of one float vector per asset, reconstructable in full from `asset_fingerprint_comp`. Losing
    it costs a rebuild, never data.
-2. **Lucene sidesteps the hardest constraint in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3.2** —
+2. **Lucene sidesteps the hardest constraint in [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §3.2** —
    pgvector is not in the stock Postgres image, so an unguarded `CREATE EXTENSION vector` breaks the
    build for everyone. Lucene is pure-JVM and needs no database extension.
 3. **The corpus is tiny and well-behaved:** 256 dims, one vector per asset.
 4. **The SPI keeps the door open.** `SimilarityIndex` mirrors the `VectorIndex` SPI sketched in
-   [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §5, so a later pgvector/Qdrant implementation — or a
+   [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §5, so a later pgvector/Qdrant implementation — or a
    unification of the two vector workloads — is a module swap, not a rewrite.
 
-✅ Companion spec edits are done: [SEARCH.md](SEARCH.md) §1.1/§2 scope the rejection to lexical search
+✅ Companion spec edits are done: [SEARCH.md](../features/search/SEARCH.md) §1.1/§2 scope the rejection to lexical search
 and record fingerprint similarity as working; [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 is closed as
 **superseded** (the module is repurposed, not deleted — the real complaint, a stale Lucene 9.0.0 pin,
-is gone); [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) cross-references this file.
+is gone); [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) cross-references this file.
 
 ---
 
@@ -254,7 +264,7 @@ leave it half-wired — a consumer that trusts it silently gets nulls.
 
 | Item | Detail |
 |---|---|
-| **Demo data** | `DemoDatabaseInitializer` seeds pipelines that *mention* fingerprinting but writes no `asset_fingerprint_comp` rows, so `similar-assets` is empty out of the box. Seed two near-identical fingerprints (share the fixture with [../pipeline-nodes/NODE_DEDUP_PLAN.md](../pipeline-nodes/NODE_DEDUP_PLAN.md)). |
+| **Demo data** | `DemoDatabaseInitializer` seeds pipelines that *mention* fingerprinting but writes no `asset_fingerprint_comp` rows, so `similar-assets` is empty out of the box. Seed two near-identical fingerprints (share the fixture with [../pipeline-nodes/NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md)). |
 | **Helm** | `helm/loom` templates **no** `LOOM_SIMILARITY_*` value at all — the feature cannot be enabled from the chart. Add the five values plus a per-replica `indexPath` (§8, "one process per directory"). |
 | **Multi-sector** | Only `sector_index = 0` (whole asset) is indexed, matching what `FingerprintNode` writes. Per-sector indexing would let a clip match a portion of a longer video. |
 | **Shutdown** | The index is never closed on server shutdown; JVM exit releases `write.lock`, but an explicit lifecycle hook would be cleaner and would make tests deterministic. |
@@ -267,9 +277,9 @@ leave it half-wired — a consumer that trusts it silently gets nulls.
 
 | Area | Gotcha |
 |---|---|
-| **Not lexical/embedding search** | 🔴 Keep this subsystem separate from [SEARCH.md](SEARCH.md) and [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). Same word "similarity", different index, different data, different spec. |
+| **Not lexical/embedding search** | 🔴 Keep this subsystem separate from [SEARCH.md](../features/search/SEARCH.md) and [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md). Same word "similarity", different index, different data, different spec. |
 | **Derived index** | 🔴 The Lucene index is a rebuildable cache of `asset_fingerprint_comp`, never a system-of-record. Any drift is fixed by a rebuild. |
-| **One process per index directory** | 🔴 `IndexWriter` holds an exclusive `write.lock`, so **two Loom instances must never share `LOOM_SIMILARITY_INDEX_PATH`** — the second silently gets `NoopSimilarityIndex` and its similarity routes answer 503. Give every replica its own path. This is why `SimilarAssetsEndpointTest` needs a per-test index directory (each test boots its own server). Full picture: [../../CLUSTERING.md](../../CLUSTERING.md) §3.6. |
+| **One process per index directory** | 🔴 `IndexWriter` holds an exclusive `write.lock`, so **two Loom instances must never share `LOOM_SIMILARITY_INDEX_PATH`** — the second silently gets `NoopSimilarityIndex` and its similarity routes answer 503. Give every replica its own path. This is why `SimilarAssetsEndpointTest` needs a per-test index directory (each test boots its own server). Full picture: [../../CLUSTERING.md](CLUSTERING.md) §3.6. |
 | **No silent degradation** | 🔴 A disabled index makes the routes answer **503**, never an empty list — "no duplicates" and "index off" must not look alike to a dedup node. |
 | **`sha512` is null** | 🔴 See §7.1 before consuming that field. |
 | **Rebuild permission** | ⚠️ `UPDATE_ASSET`, not a similarity-specific permission. If you add one, update `RESTAPI.md` and the permission test together. |
@@ -278,7 +288,7 @@ leave it half-wired — a consumer that trusts it silently gets nulls.
 | **`limit + 1`** | ⚠️ The endpoint over-fetches by one because the query asset always matches itself. Change the k-NN limit and you change the self-exclusion arithmetic. |
 | **Best-effort hooks** | ⚠️ `reindex`/`unindex` swallow failures by design. That means a silent drift is possible — the rebuild route is the recovery path, not an optional extra. |
 | **Score semantics** | ⚠️ Lucene k-NN vector similarity, not a probability. `0.10` comes from video4j/xdb-clean; tune per corpus. |
-| **No migration, no extension** | ✅ This feature touches no Flyway migration and adds no Postgres extension, so `./setup-pool.sh` and `loom/db/jooq/generate.sh` are unaffected. That is the deliberate contrast with [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §3.2. |
+| **No migration, no extension** | ✅ This feature touches no Flyway migration and adds no Postgres extension, so `./setup-pool.sh` and `loom/db/jooq/generate.sh` are unaffected. That is the deliberate contrast with [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §3.2. |
 
 ---
 
@@ -299,7 +309,7 @@ Existing coverage — extend these rather than starting new classes:
   🔴 It configures a **per-test index directory** — each test boots its own server and would otherwise
   collide on `write.lock`.
 
-What a change here still needs, per [../../guidelines/CODING.md](../../guidelines/CODING.md):
+What a change here still needs, per [../../guidelines/CODING.md](../guidelines/CODING.md):
 
 - A test asserting `sha512` is populated, once §7.1 is fixed.
 - A demo-data assertion once §7.2 seeds fingerprints.
@@ -318,14 +328,14 @@ What a change here still needs, per [../../guidelines/CODING.md](../../guideline
 | The write/delete hooks | `loom/services/rest/.../service/impl/FingerprintCompEndpointService.java` (`reindex`/`unindex`) |
 | Route registration | `…/endpoint/impl/AssetEndpoint.java:511`; `…/endpoint/impl/SimilarityIndexEndpoint.java` |
 | Env vars in context | [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md) §4.11 |
-| Route inventory in context | [../../loom/RESTAPI.md](../../loom/RESTAPI.md) |
+| Route inventory in context | [../../loom/RESTAPI.md](../loom/RESTAPI.md) |
 | The fingerprint vector format / engine (reused) | video4j `…/fingerprint/v2/MultiSectorFingerprint.java`, `…/fingerprint/index/` |
 | Where fingerprints are stored | `loom/db/flyway/.../V2.41__add_asset_fingerprint_comp.sql`; `loom/db/jooq/.../AssetComponentDaoImpl.java` |
 | How a node writes a fingerprint | `cortex/nodes/fingerprint/core/.../FingerprintNode.java`; `loom-client/common/.../method/FingerprintCompMethods.java` |
-| The consumer of this index | [../pipeline-nodes/NODE_DEDUP_PLAN.md](../pipeline-nodes/NODE_DEDUP_PLAN.md) |
-| Entity model for `asset_fingerprint_comp` | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
-| Multi-instance / `write.lock` consequences | [../../CLUSTERING.md](../../CLUSTERING.md) §3.6, §7 |
-| Decisions this overturns | [SEARCH.md](SEARCH.md) §2, [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 |
+| The consumer of this index | [../pipeline-nodes/NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md) |
+| Entity model for `asset_fingerprint_comp` | [../../loom/DOMAIN.md](../loom/DOMAIN.md) |
+| Multi-instance / `write.lock` consequences | [../../CLUSTERING.md](CLUSTERING.md) §3.6, §7 |
+| Decisions this overturns | [SEARCH.md](../features/search/SEARCH.md) §2, [SEARCH_PLAN.md](SEARCH_PLAN.md) P1-25 |
 
 ---
 
@@ -350,7 +360,7 @@ What a change here still needs, per [../../guidelines/CODING.md](../../guideline
 - [x] `ReentrantLock` for mutations + `SearcherManager` for reads (§4)
 - [x] `algorithm` as a `TermQuery` pre-filter, so several algorithms coexist in one index (§4)
 - [x] 15 tests: `LuceneSimilarityIndexTest` (8), `SimilarAssetsEndpointTest` (7) (§9)
-- [x] Companion spec edits in [SEARCH.md](SEARCH.md), [SEARCH_PLAN.md](SEARCH_PLAN.md), [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md), [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../CLUSTERING.md](../../CLUSTERING.md) (§2)
+- [x] Companion spec edits in [SEARCH.md](../features/search/SEARCH.md), [SEARCH_PLAN.md](SEARCH_PLAN.md), [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md), [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md), [../../loom/RESTAPI.md](../loom/RESTAPI.md), [../../CLUSTERING.md](CLUSTERING.md) (§2)
 
 **Open**
 - [ ] 🔴 `sha512` is `null` on every hit — both call sites pass `null` (§7.1)
@@ -363,6 +373,5 @@ What a change here still needs, per [../../guidelines/CODING.md](../../guideline
 - [x] ⏭️ Boot-time auto rebuild — deliberately skipped (§7.2)
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (verified BUILT against the tree; removed stale "nothing is implemented" claims, corrected the rebuild permission and the disabled-index status code, and recorded the null-`sha512` gap.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

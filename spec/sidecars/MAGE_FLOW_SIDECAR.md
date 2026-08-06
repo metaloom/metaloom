@@ -8,7 +8,7 @@
 > matches only markdown/adoc plus the sidecar's own Python).
 >
 > This file is the **sidecar spec**. The consuming node is specified in
-> [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md)
+> [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md)
 > — do not restate node lifecycle, persistence, ports or options here.
 
 ---
@@ -25,8 +25,8 @@
 - [x] `generate_examples.py` + five checked-in reference PNGs (drives the running HTTP server)
 - [x] `README.md` in the sidecar folder — thorough; this spec is a condensation, not a replacement
 - [x] Referenced from [`sidecars/README.md`](../../sidecars/README.md),
-      [NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md) §3,
-      [NODES.md](../features/pipeline-nodes/NODES.md), [CONTEXT.md](../CONTEXT.md) and
+      [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) §3,
+      [NODES.md](../features/nodes/NODES.md), [CONTEXT.md](../CONTEXT.md) and
       `website/content/english/docs/nodes/imagegen/index.adoc`
 - [ ] **No automated test of any kind.** No pytest, no smoke script beyond `generate_examples.py`
       (which needs a ≥24 GB GPU and a 17.5 GB download). The Java side stubs `ImageGenClient`, so
@@ -242,14 +242,16 @@ monkeypatched to a fake pipeline: it would pin `_side()` snapping, the `400` mat
 | Why the model reloads between calls | `mage_loader._evict` / `_resident` (§2) |
 | flash-attn vs SDPA selection | `mage_loader.resolve_attn_backend` + §6.5 |
 | How to start it | `sidecars/mage-flow-sidecar/run.sh`, or the `Dockerfile` `CMD` |
-| Which node calls it, and how | [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md) §1–§3 |
-| The node's options and persistence | [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) |
+| Which node calls it, and how | [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) §1–§3 |
+| The node's options and persistence | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
 | The other image sidecar (SDXL/Ideogram, :9200) | `sidecars/ideogram-sidecar/README.md` |
 | The port allocation across all sidecars | [`sidecars/README.md`](../../sidecars/README.md) — tts 9100, sentiment 9110, depth 9120, imagegen 9200/**9210**, videogen 9220 |
 | The customer-facing page | `website/content/english/docs/nodes/imagegen/index.adoc` |
-| Repo-wide conventions / spec index | [../CONTEXT.md](../CONTEXT.md), [../SPEC_RULES.md](../SPEC_RULES.md) |
+| Repo-wide conventions / spec index | [../CONTEXT.md](../CONTEXT.md), [../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 | Definition of done for a code change | [../guidelines/CODING.md](../guidelines/CODING.md) |
 
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

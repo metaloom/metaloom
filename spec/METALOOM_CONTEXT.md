@@ -19,7 +19,7 @@ Three files are **rules, not background**.
 |------|----------------------|
 | [guidelines/CODING.md](guidelines/CODING.md) | **Definition of done for a code change** — REST path naming, endpoint + permission tests, DAO and delete-cascade tests, website docs, demo data, spec sync. Summarised in §0.2; the file is the authority. |
 | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) | **Definition of done for a new Cortex node** — module layout, ports, the `@Binds @IntoMap @StringKey` binding, descriptor, tests, docs. Read it *before* creating anything under `cortex/nodes/`. |
-| [SPEC_RULES.md](SPEC_RULES.md) | **Definition of done for a spec change** — progress checkboxes, Key Classes table, cross-references, diagrams, env-var tables, Conventions & Gotchas, "Where do I find…?" cheat sheet, git-HEAD footer. |
+| [SPEC_RULES.md](guidelines/SPEC_RULES.md) | **Definition of done for a spec change** — progress checkboxes, Key Classes table, cross-references, diagrams, env-var tables, Conventions & Gotchas, "Where do I find…?" cheat sheet, git-HEAD footer. |
 
 ### 0.2 `guidelines/CODING.md` in one table
 
@@ -323,16 +323,16 @@ spec/
 | I am working on… | Start with |
 |------------------|------------|
 | Anything at all | [guidelines/CODING.md](guidelines/CODING.md), then this file |
-| **Adding a Cortex node** | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) (rules) + [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) (system) |
+| **Adding a Cortex node** | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) (rules) + [features/pipeline-nodes/NODES.md](features/nodes/NODES.md) (system) |
 | **Auditing existing Java** (duplicates, hallucinations, contradictions) | [guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](guidelines/METALOOM_STATIC_CODE_ANALYSIS.md) |
 | Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md), then [METALOOM.md](METALOOM.md) |
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | "What actually travels between nodes?" — the mental model | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) |
-| Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) (built model); [NODE_DATA_TYPES_PLAN.md](features/pipeline/NODE_DATA_TYPES_PLAN.md) for rationale and divergences |
-| Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA_CONCEPT.md](features/pipeline/NODE_SCHEMA_CONCEPT.md) — descriptors are built; the "node card" prose format is not |
+| Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) (built model); [NODE_DATA_TYPES_PLAN.md](concept/NODE_DATA_TYPES_PLAN.md) for rationale and divergences |
+| Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA_CONCEPT.md](concept/NODE_SCHEMA_CONCEPT.md) — descriptors are built; the "node card" prose format is not |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
 | Binary upload/download, storage layout, S3 vs filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
-| Getting Cortex-produced artefacts (thumbnails, depth maps, TTS) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan**; the endpoints it needs exist |
+| Getting Cortex-produced artefacts (thumbnails, depth maps, TTS) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan**; the endpoints it needs exist |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
 | Chat / AI agent / skills / memory | [loom/ui/CHAT.md](loom/ui/CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [features/chat/CHAT_TASKS.md](features/chat/CHAT_TASKS.md) |
@@ -342,22 +342,22 @@ spec/
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
 | **The face identity workflow** — detect → embed → cluster → confirm a person | [features/facedetection/FACE_WORKFLOW.md](features/facedetection/FACE_WORKFLOW.md) — 🔴 **only stage 1 runs.** No face embedding is ever persisted, so there is nothing to cluster; `cluster` and `person` have no FK. Specifies the `V2.75` migration and the confirm endpoint. ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
-| **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](features/search/SEARCH_PLAN.md) |
+| **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](concept/SEARCH_PLAN.md) |
 | Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — **not built**; the API seams exist and reject with 400 |
-| Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) — **built**, off by default |
-| Deduplication (discover, review, apply) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md) — nodes + REST built, review UI is a mock |
-| S3 as a source or sink | [NODE_S3SOURCE_PLAN.md](features/pipeline-nodes/NODE_S3SOURCE_PLAN.md), [NODE_S3SINK_PLAN.md](features/pipeline-nodes/NODE_S3SINK_PLAN.md) — also the only home of the `cortex/s3-common` design |
-| Google Drive / OneDrive / SharePoint as a source | [NODE_CLOUDSOURCE_PLAN.md](features/pipeline-nodes/NODE_CLOUDSOURCE_PLAN.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3 |
-| Running more than one Loom instance / per-process state | [CLUSTERING.md](CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`) |
+| Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](concept/LUCENE_PLAN.md) — **built**, off by default |
+| Deduplication (discover, review, apply) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md) — nodes + REST built, review UI is a mock |
+| S3 as a source or sink | [NODE_S3SOURCE_PLAN.md](concept/NODE_S3SOURCE_PLAN.md), [NODE_S3SINK_PLAN.md](concept/NODE_S3SINK_PLAN.md) — also the only home of the `cortex/s3-common` design |
+| Google Drive / OneDrive / SharePoint as a source | [NODE_CLOUDSOURCE_PLAN.md](concept/NODE_CLOUDSOURCE_PLAN.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3 |
+| Running more than one Loom instance / per-process state | [CLUSTERING.md](concept/CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`) |
 | Helm deployment | [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
 | The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
 | The commercial edition / hosted service | ➜ **sibling repo** `metaloom-saas` — see §2.2 |
-| Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](TASKS.template.md) |
+| Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](tasks/TASKS.template.md) |
 | **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [features/nodes/metadata/METADATA_OVERVIEW.md](features/nodes/metadata/METADATA_OVERVIEW.md) — 🟢 **built**: the `metadata` node. Also the only place that records the source-precedence rules, the envelope contract, and where a licence should live |
-| **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
+| **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
 | **Tagging assets automatically** — the `tag` node, and the tag write path in general | [concept/NODE_TAG_CONCEPT.md](concept/NODE_TAG_CONCEPT.md) — 🟢 built. The design record; [features/nodes/NODES.md](features/nodes/NODES.md) §3.4 is the current-state reference. 🔴 §2 is why `tagAsset` resolves rather than inserts |
-| Dumping a half-formed idea | [METALOOM_NOTES.md](METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
+| Dumping a half-formed idea | [METALOOM_NOTES.md](tasks/METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
 ### 2.2 The `metaloom-saas` sibling project
 
@@ -387,7 +387,7 @@ today (the Helm env-var mismatches in §6) and get fixed here regardless.
   capability end to end.
 - **`loom/`, `cortex/`** — component-scoped architecture, configuration and build.
 - **`guidelines/`** — rules that apply regardless of component.
-- **`*_TASKS.md`** — actionable work items only; they follow [TASKS.template.md](TASKS.template.md)
+- **`*_TASKS.md`** — actionable work items only; they follow [TASKS.template.md](tasks/TASKS.template.md)
   and record outcomes once done, so a task file doubles as a change log.
 
 ⚠️ The pipeline feature was previously spread over five overlapping files. They were merged and
@@ -572,7 +572,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | Rules for a new Cortex node | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) |
 | Auditing Java for AI-generated defects | [guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](guidelines/METALOOM_STATIC_CODE_ANALYSIS.md) |
 | Generated analysis reports | `spec/reports/` |
-| Rules for writing a spec / task file | [SPEC_RULES.md](SPEC_RULES.md), [TASKS.template.md](TASKS.template.md) |
+| Rules for writing a spec / task file | [SPEC_RULES.md](guidelines/SPEC_RULES.md), [TASKS.template.md](tasks/TASKS.template.md) |
 | REST endpoint implementations | `loom/services/rest/.../endpoint/impl/` |
 | REST request/response DTOs | `loom-shared/rest-model/` |
 | Java REST client | `loom-client/rest/` (`LoomHttpClient`) |
@@ -640,7 +640,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). 🔴 MIME/size/date bucketing is not reimplemented on the strategy seam yet |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
-| **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/pipeline-nodes/NODES.md) §5.1 |
+| **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/nodes/NODES.md) §5.1 |
 | **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Several nodes still report success on their failure paths. Use `ctx.failure(msg).abort()` in new nodes |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation |
 | **Two `NodeState` vocabularies** | They *are* reconciled: `NodeResultMapper.toWireState()` maps SUCCESS→COMPLETED, SKIPPED→SKIPPED, FAILED/null→FAILED. The wire enum's extra `PENDING`/`RUNNING` are never produced by a terminal result |
@@ -693,12 +693,12 @@ and subcomponents for request scope (`RestComponent` per REST request).
 - [ ] Search has **no consumers**: no UI surface, no GraphQL field, and the MCP tools still query
       the DB directly instead of the search provider
 - [ ] Semantic/vector search is unbuilt behind shipped API seams (§6)
-- [ ] Dedup review UI is still a mock ([NODE_DEDUP_PLAN.md](features/pipeline-nodes/NODE_DEDUP_PLAN.md))
+- [ ] Dedup review UI is still a mock ([NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md))
 - [ ] Chat defects F1 (vLLM tool streaming throws) and F2 (turn-granular abort) are open
       ([CHAT_TASKS.md](features/chat/CHAT_TASKS.md)); the session filesystem snapshot and run-time
       context assembly in [CHAT_SESSIONS_CONCEPT.md](features/chat/CHAT_SESSIONS_CONCEPT.md) are vapour
 - [ ] `objectdetect` is faces-only, which limits
-      [NODE_SCENE_LAYOUT_PLAN.md](features/pipeline-nodes/NODE_SCENE_LAYOUT_PLAN.md)
+      [NODE_SCENE_LAYOUT_PLAN.md](concept/NODE_SCENE_LAYOUT_PLAN.md)
 - [ ] Assets and auth are still documented per component rather than extracted into `features/`
 - [ ] `./build.sh` does not invoke `cli/build-native.sh` — the native CLI is not part of a full build
 
@@ -710,7 +710,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
       build record. Referrers to repoint: this file, `METALOOM.md`, `plans/TASKS.md`,
       `METALOOM_ARCHITECTURE_TASK.md`
 - [ ] Delete `plans/imagegen-node.md` — superseded draft;
-      [NODE_IMAGEGEN_PLAN.md](features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md) has absorbed its three
+      [NODE_IMAGEGEN_PLAN.md](concept/NODE_IMAGEGEN_PLAN.md) has absorbed its three
       unique items
 - [ ] Fold `features/rbac/RBAC.md` into `features/permissions/PERMISSIONS.md`, leaving a stub
       redirect — one subsystem, two drifting files
@@ -733,9 +733,5 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 (catalogued `features/facedetection/FACE_WORKFLOW.md` — the face identity
-loop, of which only stage 1 is implemented — in the §2 tree and the §2.1 router, with a pointer
-distinguishing it from `concept/CLUSTERING.md`. Earlier the same day: catalogued
-`guidelines/METALOOM_STATIC_CODE_ANALYSIS.md` and the new `spec/reports/` output directory)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

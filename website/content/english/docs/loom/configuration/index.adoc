@@ -132,6 +132,44 @@ with your assets, so it can be discarded and rebuilt at any time without data lo
 NOTE: If the index directory cannot be written, the server still starts normally — only the
 near-duplicate routes report themselves as unavailable.
 
+=== Face and image similarity
+
+Powers "where else does this face appear?" and the person grouping built on top of it. It is a separate
+index from the near-duplicate lookup above: that one holds one fingerprint per video and answers "is this
+the same recording?", while this one holds one vector per detected face and answers "is this the same
+person?".
+
+Switched off by default, because it is only useful once face detection has run with embeddings enabled.
+
+Your face vectors are stored with your assets in the database. The index is built entirely from them, so it
+can be discarded and rebuilt at any time without losing anything — which is also what makes it safe to
+change the recognition model, or the index technology, later on.
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_VECTOR_INDEX_PROVIDER` | `none` | Which index to use: `none` or `lucene`. An unrecognised name stops the server with a clear message rather than starting with no index
+| `LOOM_VECTOR_INDEX_PATH` | `vector-index` | Directory holding the index. Give each server its own directory, and keep it separate from the near-duplicate index
+| `LOOM_VECTOR_INDEX_TOPK` | `10` | How many matches a query returns by default
+| `LOOM_VECTOR_INDEX_SCORE_THRESHOLD` | `0.35` | How close a match must be to count. Higher is stricter
+| `LOOM_VECTOR_INDEX_SYNC_INTERVAL_MS` | `5000` | How often newly stored vectors are picked up. Set `0` to switch the background pass off
+| `LOOM_VECTOR_INDEX_SYNC_BATCH_SIZE` | `500` | How many vectors are picked up per pass
+|===
+
+NOTE: If the index directory cannot be written, the server still starts normally — face vectors are still
+stored, and only the similarity routes report themselves as unavailable. Switching the index on later and
+running a rebuild picks up everything recorded in the meantime.
+
+.Changing the recognition model
+****
+Face vectors from different models cannot be compared, so each one is recorded with the model that produced
+it and queries never mix them.
+
+To move to a new model, change the model name on the face detection node and re-run it. The new vectors are
+stored *alongside* the old ones rather than replacing them, so both remain searchable and you can compare
+the two before discarding either.
+****
+
 === Authentication
 
 [options="header",cols="2,1,2"]

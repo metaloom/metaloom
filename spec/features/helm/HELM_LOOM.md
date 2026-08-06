@@ -10,7 +10,7 @@ engine, AI agent) plus the bundled UI, and — optionally — a self-contained P
 container contract of [`loom/containers/server/Containerfile`](../../../loom/containers/server/Containerfile);
 the chart invents no new runtime behavior, only parameterizes env vars, volumes and K8s objects.
 Env-var semantics live in [`../../loom/CONFIGURATION.md`](../../loom/CONFIGURATION.md); the
-single-writer rule lives in [`../../CLUSTERING.md`](../../CLUSTERING.md). Neither is duplicated here.
+single-writer rule lives in [`../../CLUSTERING.md`](../../concept/CLUSTERING.md). Neither is duplicated here.
 
 ## 🔴 Known chart bugs (verified at this revision)
 
@@ -99,13 +99,13 @@ Defaults below are the **chart** defaults. ✅ = a reader exists in `loom-shared
 
 Passthrough: `ai.extraEnv` and `sandbox.extraEnv` (name→value maps, rendered only inside their gate)
 and top-level `extraEnv` (raw env list — **the escape hatch for B1/B3**, appended last).
-Not templated at all: `LOOM_SIMILARITY_*` (see [`../../CLUSTERING.md`](../../CLUSTERING.md) §7).
+Not templated at all: `LOOM_SIMILARITY_*` (see [`../../CLUSTERING.md`](../../concept/CLUSTERING.md) §7).
 
 ## Values worth knowing
 
 | Key | Default | Note |
 |-----|---------|------|
-| `replicaCount` | `1` | 🔴 Must stay 1 — [`../../CLUSTERING.md`](../../CLUSTERING.md) enumerates what breaks at N>1 |
+| `replicaCount` | `1` | 🔴 Must stay 1 — [`../../CLUSTERING.md`](../../concept/CLUSTERING.md) enumerates what breaks at N>1 |
 | `image.repository` / `.tag` | `metaloom/loom-server` / `""`→`appVersion` | append `-native` for the GraalVM variant |
 | `persistence.{config,keystore,uploads,plugins}` | on / on / on / off | all `ReadWriteOnce`, 128Mi / 128Mi / 20Gi / 1Gi; each takes `existingClaim`, `storageClass`, `accessModes`, `size` |
 | `database.{host,port,name,user,password,existingSecret}` | `""`,`5432`,`loom`,`loom`,`""`,`""` | external DB — the production path |
@@ -140,7 +140,7 @@ Not templated at all: `LOOM_SIMILARITY_*` (see [`../../CLUSTERING.md`](../../CLU
 | **Postgres = not Bitnami** | The bundled Postgres is a self-contained StatefulSet on the official `postgres` image, deliberately **not** the `bitnami/postgresql` subchart (Broadcom moved the free Bitnami images to a paid tier / unmaintained `bitnamilegacy` in 2025). Keeps the chart offline-capable. Production path is an external DB. |
 | **DB secret key** | Bundled PG secret uses key `password`; external DB secret uses key `db-password`. Resolved by `loom.database.secretKey` — keep both branches consistent when editing `_helpers.tpl`. |
 | **Sandbox is a unit** | `sandbox.enabled` renders the env flag **and** Role/RoleBinding/Quota/LimitRange/NetworkPolicy together. Never template `LOOM_AGENT_SANDBOX_ENABLED` alone. The RoleBinding subject is the release ServiceAccount in `.Release.Namespace`, bound into `sandbox.namespace`. |
-| **Recreate strategy** | Loom owns pipeline run state (single writer); `strategy: Recreate`, not RollingUpdate. All PVCs are `ReadWriteOnce`, which reinforces it. Keep `replicaCount: 1` — [`../../CLUSTERING.md`](../../CLUSTERING.md). |
+| **Recreate strategy** | Loom owns pipeline run state (single writer); `strategy: Recreate`, not RollingUpdate. All PVCs are `ReadWriteOnce`, which reinforces it. Keep `replicaCount: 1` — [`../../CLUSTERING.md`](../../concept/CLUSTERING.md). |
 | **Image user** | uid 1000 / gid 0; `podSecurityContext` defaults match (`fsGroup: 0`). PVCs must be group-writable. |
 | **`ai.*` gating** | Every `LOOM_AI_*` var is inside `if .Values.ai.enabled` — setting `ai.url` alone renders nothing. |
 
@@ -168,7 +168,7 @@ There is **no CI gate** for any of this yet, and no `helm unittest` suite.
 | Config-file lookup order + `baseConfigFolder` | `loom/common/.../LoomOptionsLoader.java`, `loom-shared/api/.../LoomEnv.java` |
 | Bundled Postgres | `helm/loom/templates/postgresql.yaml` |
 | Sandbox guardrails | `helm/loom/templates/sandbox-rbac.yaml` |
-| Why `replicaCount` must stay 1 | [`../../CLUSTERING.md`](../../CLUSTERING.md) |
+| Why `replicaCount` must stay 1 | [`../../CLUSTERING.md`](../../concept/CLUSTERING.md) |
 | Monitoring / metrics endpoints | [`../ops/MONITORING.md`](../ops/MONITORING.md), [`../ops/METRICS.md`](../ops/METRICS.md) |
 | The manifests explained step by step | [`website/.../playbooks/kubernetes/`](../../../website/content/english/docs/playbooks/kubernetes/index.adoc) |
 | Cortex worker chart | [HELM_CORTEX.md](HELM_CORTEX.md) |
@@ -195,6 +195,5 @@ There is **no CI gate** for any of this yet, and no `helm unittest` suite.
 - [ ] Live `helm install` smoke test against a cluster not yet part of the standard verification
 
 ---
-
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (`ai.providerType` removed from the chart)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

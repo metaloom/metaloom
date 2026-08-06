@@ -2,7 +2,7 @@
 
 > Open UI work items for the Collaboration entities (Task, Comment, Reaction), derived from a code
 > audit of `loom-ui/` and `loom/services/rest/.../endpoint/impl/` on 2026-08-01.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [LOOM_UI.md](LOOM_UI.md) (UI spec) · [../RESTAPI.md](../RESTAPI.md) ·
 > [../DOMAIN.md](../DOMAIN.md) group 6
@@ -191,6 +191,5 @@ URL-encoded uuid; if a view is added, a mocked spec that renders returned reacti
 * **`createComment` / `listComments`** in [api/comments.ts](../../../loom-ui/src/api/comments.ts)
   are unused by design — comments are always created through the task or asset sub-route, and
   there is no global comment view. Not a gap; do not file it again.
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (closed annotation reactions, task-comment editing and the asset-task link, retired the obsolete "status/dueDate not in REST" premise, and filed the TasksView status/dueDate gap)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

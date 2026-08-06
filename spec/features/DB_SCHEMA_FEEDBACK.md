@@ -2,7 +2,7 @@
 
 > Audit of the Loom relational schema, focused on **asset management** and on whether the
 > asset-side tables are a suitable persistence target for the Cortex node results described in
-> [pipeline-nodes/NODES.md](pipeline-nodes/NODES.md).
+> [pipeline-nodes/NODES.md](nodes/NODES.md).
 >
 > Originally written against Flyway `V2.37`. **Re-verified against the migration chain up to
 > `V2.63`.** Most of the audit has been executed — see [db/DATABASE_TASKS.md](db/DATABASE_TASKS.md)
@@ -12,7 +12,7 @@
 >
 > **Do not duplicate here:** the entity inventory lives in [../loom/DOMAIN.md](../loom/DOMAIN.md),
 > the executed rework in [db/DATABASE_TASKS.md](db/DATABASE_TASKS.md), and the open DAO/test gaps
-> in [../loom/PERSISTENCE_TASKS.md](../loom/PERSISTENCE_TASKS.md).
+> in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md).
 
 ---
 
@@ -179,7 +179,7 @@ mechanism is deleting whole runs — which is also what `asset_*_comp.run_uuid` 
 `ON DELETE SET NULL` there).
 
 Range-partition `pipeline_node_task` and `pipeline_run_item` by `created`, or add a documented
-retention job. Cited from [../cortex/METALOOM_ARCHITECTURE_TASK.md](../cortex/METALOOM_ARCHITECTURE_TASK.md).
+retention job. Cited from [../cortex/METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md).
 
 ### 3.7 Missing dispatch index — MEDIUM
 
@@ -212,7 +212,7 @@ buffer with no ANN index."*
 Current state: **no ANN index, and no producer** — no Cortex node writes embeddings; the only
 writers are `EmbeddingEndpointService` and the test fixture, so the table is effectively empty in
 practice. `vector_config` (`V2.6`), the external-index half of the plan, has no DAO at all
-(tracked in [../loom/PERSISTENCE_TASKS.md](../loom/PERSISTENCE_TASKS.md)).
+(tracked in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md)).
 
 If search stays in Postgres, `pgvector` with a per-`type` dimension is the answer. If it is
 delegated, `embedding` needs `synced_at` / `index_version` so the exporter knows what is stale.
@@ -226,7 +226,7 @@ a visual-similarity cluster cannot share a name, and two distinct people with th
 both be clusters. Should be `UNIQUE (type, name)` at minimum; for people, name uniqueness is wrong
 regardless. Related: `person`/`person_image` still overlaps `cluster` of `type = 'person'` with no
 relation between them — two competing models of the same concept (see
-[../CLUSTERING.md](../CLUSTERING.md)).
+[../CLUSTERING.md](../concept/CLUSTERING.md)).
 
 ---
 
@@ -401,8 +401,8 @@ which, per row.
 |---|---|---|---|
 | `asset_doc_comp` (+ GIN `text_search`) | `V2.38` | DAO exists; OCR/Tika write `asset_json_comp` instead | Point the two nodes at it, or drop (§3.1) |
 | `embedding.vector real[]` | `V2.43` | No ANN index, no node producer, effectively zero rows | Blocked on the §4.2 decision |
-| `vector_config` | `V2.6` | No DAO, jOOQ-generated code only | Tracked in [../loom/PERSISTENCE_TASKS.md](../loom/PERSISTENCE_TASKS.md) |
-| `asset_remix` | `V2.8` | No DAO, jOOQ-generated code only | Tracked in [../loom/PERSISTENCE_TASKS.md](../loom/PERSISTENCE_TASKS.md) |
+| `vector_config` | `V2.6` | No DAO, jOOQ-generated code only | Tracked in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
+| `asset_remix` | `V2.8` | No DAO, jOOQ-generated code only | Tracked in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | `asset_user_meta`, `tag_user_meta` | `V2.2`, `V2.8` | No DAO, no hand-written Java | Drop, or spec the feature |
 | `annotation_asset` | `V2.16` | Vestigial M:N alongside `annotation.asset_uuid` | Drop (§5.3) |
 | `search_document.dirty`, `.es_synced_at`, `search_document_deleted` | `V2.58` | Outbox for an external index; unused by the Postgres provider — the migration says so itself | Keep as documented dead weight until an external indexer exists ([search/SEARCH.md](search/SEARCH.md)) |
@@ -443,7 +443,7 @@ What is left, in order:
 - **Section numbers are an API.** `§2.3`, `§3.4`, `§4.2`, `§7.1`, `§8.4` and others are cited from
   [db/DATABASE_TASKS.md](db/DATABASE_TASKS.md), [search/SEARCH.md](search/SEARCH.md),
   [search/SEMANTIC_SEARCH.md](search/SEMANTIC_SEARCH.md), [../loom/DOMAIN.md](../loom/DOMAIN.md),
-  [../cortex/METALOOM_ARCHITECTURE_TASK.md](../cortex/METALOOM_ARCHITECTURE_TASK.md) **and from
+  [../cortex/METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md) **and from
   SQL migration comments**. Never renumber; mark resolved in place. §9 stays last-but-one by
   convention even though §10 was appended after it.
 - **The migrations are the source of truth, not the diagram.** `loom/design/DB/dbdiagram.yaml` lags.
@@ -470,9 +470,9 @@ What is left, in order:
 | The schema itself (authoritative) | `loom/db/flyway/src/main/resources/db/migration/*.sql` |
 | Executed component/result rework | [db/DATABASE_TASKS.md](db/DATABASE_TASKS.md) |
 | Entity inventory & domain model | [../loom/DOMAIN.md](../loom/DOMAIN.md) |
-| Open DAO / DAO-test gaps | [../loom/PERSISTENCE_TASKS.md](../loom/PERSISTENCE_TASKS.md) |
+| Open DAO / DAO-test gaps | [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | Persistence layer design | [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) |
-| Node catalogue and outputs | [pipeline-nodes/NODES.md](pipeline-nodes/NODES.md) |
+| Node catalogue and outputs | [pipeline-nodes/NODES.md](nodes/NODES.md) |
 | Permission model incl. components | [permissions/PERMISSIONS.md](permissions/PERMISSIONS.md) |
 | Search schema + the external-index outbox | [search/SEARCH.md](search/SEARCH.md), `V2.58`–`V2.59` |
 | The embedding storage open decision | [search/SEMANTIC_SEARCH.md](search/SEMANTIC_SEARCH.md) §1.3, `V2.43` col. comment |
@@ -544,6 +544,5 @@ mvn -q install -pl loom/db/flyway
 # the tests that exercise the audited constraints
 mvn -q test -pl loom/db/jooq -Dtest='AssetCascadeTest,AssetComponentKeyTest,EmbeddingDaoTest'
 ```
-
-_Git HEAD revision: `97127ed2`_
-_Last updated: 2026-08-05 (`V2.74` closes §2.6 outright — comments and reactions about an asset, and its library membership, now go with it, so the only non-cascading asset FKs left are two intentional SET NULLs. `V2.73` had closed the links a library actually writes — `collection_asset`, `asset_task` and `asset_user_meta` now cascade, so an asset that is filed in a collection or referenced by a task can finally be deleted; the collection, the task and its other assets survive. What is left of §2.6 is `comment`/`reaction`, a content decision, plus the dormant `library_asset`. `V2.72` makes the `tag_asset` links cascade both ways, so deleting a tagged asset — previously a 500 — removes the assignment and keeps the tag; §2.6 narrowed to the three remaining links. Earlier: `V2.71` closes §5.1 with a surrogate PK and a `NULLS NOT DISTINCT` placement key, and adds the provenance now recorded as §5.4; §5.2 restated as still open with the reason V2.71 did not take it)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

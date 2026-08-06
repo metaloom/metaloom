@@ -6,13 +6,13 @@
 >
 > This file is a **status page**: §1 says where everything lives; §2 onwards carry only what is still
 > open or still non-obvious. It does not restate node lifecycle or persistence
-> ([NODES.md](NODES.md) §2), the port/content-type model
-> ([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)), the engine
-> ([../pipeline/PIPELINE.md](../pipeline/PIPELINE.md)) or the new-node checklist
-> ([../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md)).
+> ([NODES.md](../features/nodes/NODES.md) §2), the port/content-type model
+> ([../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md)), the engine
+> ([../pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md)) or the new-node checklist
+> ([../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md)).
 >
 > **The code is the source of truth** — where they disagree, fix this file in the same change
-> ([../../guidelines/CODING.md](../../guidelines/CODING.md)).
+> ([../../guidelines/CODING.md](../guidelines/CODING.md)).
 
 **What it is for.** The node catalogue is a closed set of compiled kinds; anything smaller than a
 Maven module — glue between two nodes, a threshold, chapter marks from a transcript, reshaping an LLM
@@ -21,7 +21,7 @@ and its wired inputs, and emits **many outputs across many data types** from one
 
 **Non-goals, settled and unchanged:** true item fan-out (one media item → *N* downstream pipeline
 items) is a `PipelineRunEngine` / `RunStateStore` change and belongs in
-[../pipeline/PIPELINE.md](../pipeline/PIPELINE.md), not here; a general plugin system (a node needing
+[../pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md), not here; a general plugin system (a node needing
 a model, native library or GPU stays a Java node with a sidecar); and untrusted multi-tenant
 execution (§5).
 
@@ -142,7 +142,7 @@ No dedicated environment variables. Relevant existing ones:
 - [x] Sandbox `trusted=false`: `HostAccess.EXPLICIT`, no host class lookup, no IO, no threads
 - [x] Watchdog (`Context.close(true)`) + `ResourceLimits.statementLimit`, both verified on the Truffle fallback interpreter
 - [x] Node-options path fixed end to end: editor emits `options`, `PipelineGraphParser` accepts `config` as a legacy alias, `PipelineConfigurable` seam invoked from `RegistryNodeRegistrar.adapt()`, `ParameterType.CODE` + `JSON` rendered, per-node connector override, sidebar edits mirrored onto the canvas
-- [x] [NODES.md](NODES.md) updated (§2/§3/§5/§5.1/§10/§12); website page; "Reading Time (Script)" demo pipeline, executed by a test
+- [x] [NODES.md](../features/nodes/NODES.md) updated (§2/§3/§5/§5.1/§10/§12); website page; "Reading Time (Script)" demo pipeline, executed by a test
 
 ### Open
 
@@ -190,7 +190,7 @@ No dedicated environment variables. Relevant existing ones:
 ### Deliberately not built
 
 - [ ] ~~True item fan-out~~ — a `PipelineRunEngine` / `RunStateStore` change; specify it in
-      [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md), never smuggled in behind a node.
+      [../pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md), never smuggled in behind a node.
 - [ ] ~~Loom-stored versioned script entity~~ — inline-in-the-definition was chosen so the script is
       versioned with the pipeline. Revisit if reuse across pipelines becomes real; the
       `skill` / `skill_version` pair is the model to copy.
@@ -217,7 +217,7 @@ graph LR
 Everything is guarded by `asset != null && client() != null`, so offline mode is a clean no-op, and
 everything is best-effort: a persistence failure is logged and recorded in the ledger, never thrown.
 The script-digest producer version gives this node the per-script versioning
-[NODES.md](NODES.md) §10 lists as missing everywhere else.
+[NODES.md](../features/nodes/NODES.md) §10 lists as missing everywhere else.
 
 Three things the schema forced on the design, and they are load-bearing:
 
@@ -244,7 +244,7 @@ Three things the schema forced on the design, and they are load-bearing:
 statement of the model and it appears in the website documentation. Existing mitigations to point at
 rather than reinvent:
 
-- `MANAGE_PIPELINE` gates who may author definitions ([../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md)).
+- `MANAGE_PIPELINE` gates who may author definitions ([../permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md)).
 - `CORTEX_NODE_BLACKLIST=script` disables the kind on a worker outright — **the kill switch**.
 - Loom rejects a run with **503** when no online worker accepts a kind in the graph, so a fleet-wide
   blacklist produces a clear error rather than a stalled run.
@@ -271,10 +271,10 @@ what the statement counter would not; `HostAccess.EXPLICIT` + `allowHostClassLoo
 | **Cache key must include the script** | Every other node keys `LocalResultCache` by `media.absolutePath()`. `ScriptNode` keys `absolutePath + "\|" + scriptHash`; without it, editing a script silently re-emits stale results for the worker's lifetime with no invalidation short of a restart |
 | **`ScriptNode` must never be `@Singleton`** | Per-instance configuration mutates the node. `NodeTaskRunner` creates one per task via `Provider.get()`; `@Singleton` would let two concurrent script nodes overwrite each other's script |
 | **`PipelineNode.timeoutMs()` is enforced by nothing** | It is parsed by `adapt()`, stored on `AbstractPipelineNode`, and never read back — the executor that applied it no longer exists. The node owns its own wall clock |
-| **`ctx.failure(cause).next()` returns SUCCESS** | Only `abort()` yields `FAILED`. Every failure test written against `.next()` passes while asserting the wrong thing. `ScriptNode` uses `.abort()`; eleven other nodes still do not ([NODES.md](NODES.md) §10) |
+| **`ctx.failure(cause).next()` returns SUCCESS** | Only `abort()` yields `FAILED`. Every failure test written against `.next()` passes while asserting the wrong thing. `ScriptNode` uses `.abort()`; eleven other nodes still do not ([NODES.md](../features/nodes/NODES.md) §10) |
 | **Compile once, execute many** | Compile in `configure(...)`, never in `compute(...)` — a per-item compile turns a 2 ms script into a 200 ms one |
 | **Undeclared output = failure** | Deliberate: a silently-dropped typo would make the graph lie about what flows down an edge |
-| **`out.image` bytes stay local** | There is no Loom byte-ingest endpoint for produced media. Downstream consumers get a **path on that worker** — meaningful only to nodes on the same worker (use an `affinity` group) or to `S3SinkNode`. Cross-node gap, tracked in [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| **`out.image` bytes stay local** | There is no Loom byte-ingest endpoint for produced media. Downstream consumers get a **path on that worker** — meaningful only to nodes on the same worker (use an `affinity` group) or to `S3SinkNode`. Cross-node gap, tracked in [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | **Segment outputs are whole-set replace** | Correct for re-runs (a shorter re-run deletes the surplus), but two `TIMEFRAMES` outputs must not share a `segmentType` — the second would wipe the first |
 | **`SecurityManager` is unavailable** | JDK 25. Never propose a policy-file sandbox for any JVM engine |
 | **GraalJS is interpreted here** | No Graal JIT on a stock JDK — Truffle fallback interpreter (warning suppressed). Glue logic only; do not ship per-frame processing as a script |
@@ -348,14 +348,13 @@ script` pipeline in the editor, run it, confirm the outputs land on the asset.
 | Where node options are parsed on the Loom side | `loom/pipeline/.../graph/PipelineGraphParser.java` |
 | The pipeline editor | `loom-ui/src/features/pipeline/PipelineEditor.tsx` (⚠️ `grep -a`) |
 | Port-vs-descriptor conformance (and its `DYNAMIC_KINDS` gap) | `integration-test/.../node/NodePortConformanceTest.java` |
-| The kill switch | [NODES.md](NODES.md) §11, `CORTEX_NODE_BLACKLIST` |
+| The kill switch | [NODES.md](../features/nodes/NODES.md) §11, `CORTEX_NODE_BLACKLIST` |
 | A reference node to copy | `cortex/nodes/sentiment/` (options + JSON comp + `variant`) |
 | A node that writes timeframes / produced bytes | `cortex/nodes/scene-detection/` · `cortex/nodes/tts/`, `cortex/nodes/image-generation/` |
 | The demo pipeline and its script | `loom/core/.../boot/DemoDatabaseInitializer.java` (`DEMO_PIPELINE_SCRIPT`, `scriptDefinition()`) |
 | Customer-facing docs | `website/content/english/docs/nodes/script/index.adoc` (⚠️ stale `upstream` binding — §3) |
-| The produced-bytes ingest gap | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| The produced-bytes ingest gap | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (cut from 870 lines to a status page — implemented work collapsed into one table, the resolved blockers and engine survey compressed to their conclusions, and the dynamic-port model, three-copy type-table drift, dead `DYNAMIC_KINDS` exemption and stale `upstream` binding recorded as the open items)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

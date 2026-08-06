@@ -5,7 +5,7 @@
 > Kind `watermark`, module `cortex/nodes/watermark`, package `io.metaloom.cortex.node.watermark`.
 > Bound in `NodeCollectionModule`, descriptor in `WatermarkDescriptorProvider`, 51 unit tests +
 > 2 integration tests, website docs published. It is the **newest node in the tree** and therefore
-> the worked example in [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md).
+> the worked example in [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md).
 >
 > **This file is now a design record, not a plan.** The code is the source of truth
 > (`cortex/nodes/watermark/`). Only §6 "Still open" describes work that does not exist.
@@ -20,9 +20,9 @@ media : media/*  ──▶  watermark  ──▶  image : artifact/image   (imag
                                  ──▶  flag  : scalar/string    (DONE | FAILED)
 ```
 
-Read alongside [NODES.md](NODES.md) (the node system, the capability matrix, the shared gotchas),
-[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) (the port/content-type model, incl.
-`artifact/video`) and [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) (the template
+Read alongside [NODES.md](../features/nodes/NODES.md) (the node system, the capability matrix, the shared gotchas),
+[../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) (the port/content-type model, incl.
+`artifact/video`) and [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) (the template
 this node defines).
 
 ---
@@ -113,7 +113,7 @@ the file name, so `clip.mp4.part` fails with *"Unable to choose an output format
 `WatermarkImagesTest.testPartFileKeepsTheTargetsExtensionLast`.
 
 🔴 **`ctx.failure(msg).abort()`, never `.next()`.** `NodeContextImpl.next()` ignores a recorded
-failure cause and builds the result as `SUCCESS` ([NODES.md](NODES.md)). Here that would report an
+failure cause and builds the result as `SUCCESS` ([NODES.md](../features/nodes/NODES.md)). Here that would report an
 *un-watermarked* item as done.
 
 🔴 **The descriptor advertises `timeoutMs`, which is inherited from `AbstractNodeOptions`.** The
@@ -196,15 +196,15 @@ All **per pipeline instance**; the node has no worker-level configuration beyond
 
 - [ ] 🔴 **The artifact is durable only via `s3-sink`, which must share a worker with this node.**
       The general raw-byte-ingest gap is owned by
-      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md);
-      the affinity half is [NODES.md](NODES.md). Nothing to solve in this node.
+      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md);
+      the affinity half is [NODES.md](../features/nodes/NODES.md). Nothing to solve in this node.
 - [ ] 🔴 **No UI icon rendering.** The descriptor sets `branding_watermark`, but `loom-ui` contains
       no consumer of `NodeDescriptor.icon` at all — `branding_watermark` appears nowhere under
       `loom-ui/src`. (An earlier revision of this file claimed a `PipelineEditor.tsx` `ICON_MAP`
       entry; there is no such map.) This is a UI-wide gap, not a watermark one.
 - [ ] **No demo data.** `DemoDatabaseInitializer` has no `watermark` node in any demo pipeline
       (verified: zero matches), so the node is invisible in a fresh demo instance. Required by
-      [../../guidelines/CODING.md](../../guidelines/CODING.md).
+      [../../guidelines/CODING.md](../guidelines/CODING.md).
 - [ ] **The watermark cannot come from upstream.** An optional `watermark : artifact/image` input
       port would let `imagegen` or `script` supply the overlay, following `imagegen`'s
       wired-port-beats-configured-option idiom. `WatermarkNode` declares only `IN_MEDIA`.
@@ -263,10 +263,9 @@ All **per pipeline instance**; the node has no worker-level configuration beyond
 | The `artifact/video` content type | `loom-shared/node-model/…/spec/ContentTypeRegistry.java` |
 | Kind binding | `cortex/cli/src/main/java/io/metaloom/cortex/cli/dagger/NodeCollectionModule.java` |
 | Customer-facing docs | `website/content/english/docs/nodes/watermark/index.adoc` |
-| How to build the next node like this one | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
-| Where the bytes should eventually go | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| How to build the next node like this one | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
+| Where the bytes should eventually go | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced to a design record — shipped work collapsed into one table, and the stale "UI icon mapped in PipelineEditor.tsx" claim corrected: loom-ui has no icon consumer at all.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

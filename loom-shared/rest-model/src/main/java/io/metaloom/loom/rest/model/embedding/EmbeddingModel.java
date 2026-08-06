@@ -2,7 +2,6 @@ package io.metaloom.loom.rest.model.embedding;
 
 import java.util.UUID;
 
-import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.rest.model.MetaModel;
 import io.metaloom.loom.rest.model.RestModel;
 import io.metaloom.loom.rest.model.annotation.AreaInfo;
@@ -17,9 +16,9 @@ public interface EmbeddingModel<T extends EmbeddingModel<T>> extends MetaModel<T
 
 	T setVector(Float[] vector);
 
-	EmbeddingType getType();
+	String getType();
 
-	T setType(EmbeddingType type);
+	T setType(String type);
 
 	UUID getAssetUuid();
 

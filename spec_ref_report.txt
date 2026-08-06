@@ -1,0 +1,116 @@
+SPEC REFERENCE VERIFICATION REPORT
+====================================
+
+Processing files for reference issues...
+FILE: spec/concept/ASSET_METADATA_WRITE.md
+FILE: spec/concept/CLUSTERING.md
+FILE: spec/concept/LUCENE_PLAN.md
+FILE: spec/concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md
+FILE: spec/concept/NODE_CLOUDSOURCE_PLAN.md
+FILE: spec/concept/NODE_DATA_TYPES_PLAN.md
+FILE: spec/concept/NODE_DEDUP_PLAN.md
+FILE: spec/concept/NODE_DEPTHMAP_PLAN.md
+FILE: spec/concept/NODE_DOMINANT_COLOR_PLAN.md
+FILE: spec/concept/NODE_IMAGEGEN_PLAN.md
+FILE: spec/concept/NODE_S3SINK_PLAN.md
+FILE: spec/concept/NODE_S3SOURCE_PLAN.md
+FILE: spec/concept/NODE_SAM2_PLAN.md
+FILE: spec/concept/NODE_SCENE_LAYOUT_PLAN.md
+FILE: spec/concept/NODE_SCHEMA_CONCEPT.md
+FILE: spec/concept/NODE_SCRIPT_PLAN.md
+FILE: spec/concept/NODE_SENTIMENT_PLAN.md
+FILE: spec/concept/NODE_TAG_CONCEPT.md
+FILE: spec/concept/NODE_VIDEO_CAPTIONING_PLAN.md
+FILE: spec/concept/NODE_VIDEO_CAPTIONING_REPORT.md
+FILE: spec/concept/NODE_WATERMARK_PLAN.md
+FILE: spec/concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md
+FILE: spec/concept/SEARCH_PLAN.md
+FILE: spec/cortex/BUILD.md
+FILE: spec/cortex/CONFIGURATION.md
+FILE: spec/cortex/CORTEX.md
+FILE: spec/cortex/METALOOM_ARCHITECTURE.md
+FILE: spec/cortex/SERVICE_IMAGE.md
+FILE: spec/cortex/SERVICE_LOGGER.md
+FILE: spec/cortex/SERVICE_PLUGINS.md
+FILE: spec/cortex/SERVICE_VIDEO.md
+FILE: spec/features/chat/CHAT_MEMORY_PLAN.md
+FILE: spec/features/chat/CHAT_SESSIONS_CONCEPT.md
+FILE: spec/features/chat/CHAT_TASKS.md
+FILE: spec/features/cli/CLI_PLAN.md
+FILE: spec/features/db/DATABASE_TASKS.md
+FILE: spec/features/DB_SCHEMA_FEEDBACK.md
+FILE: spec/features/facedetection/FACE_WORKFLOW.md
+FILE: spec/features/helm/HELM_CORTEX.md
+FILE: spec/features/helm/HELM_LOOM.md
+FILE: spec/features/nodes/facedetect/FACEDETECTION_OVERVIEW.md
+FILE: spec/features/nodes/image-manipulation/NODE_IMAGE_MANIPULATION.md
+FILE: spec/features/nodes/metadata/METADATA_OVERVIEW.md
+FILE: spec/features/nodes/NODES.md
+FILE: spec/features/nodes/SERVICE_TIKA.md
+FILE: spec/features/ops/METRICS.md
+FILE: spec/features/ops/MONITORING.md
+FILE: spec/features/permissions/PERMISSIONS.md
+FILE: spec/features/pipeline/NODE_DATA_TYPES.md
+FILE: spec/features/pipeline/PIPELINE_FLOW.md
+FILE: spec/features/pipeline/PIPELINE.md
+FILE: spec/features/pipeline/PIPELINE_REQUIREMENTS.md
+FILE: spec/features/rbac/RBAC.md
+FILE: spec/features/rest/REST_BINARY_HANDLING.md
+FILE: spec/features/search/SEARCH.md
+FILE: spec/features/search/SEMANTIC_SEARCH.md
+FILE: spec/GLOSSAR.md
+FILE: spec/guidelines/CODING.md
+FILE: spec/guidelines/METALOOM_STATIC_CODE_ANALYSIS.md
+FILE: spec/guidelines/NEW_NODE.md
+FILE: spec/guidelines/SPEC_LINK_UPDATE.md
+FILE: spec/loom-app/LOOM_APP.md
+FILE: spec/loom/BUILD.md
+FILE: spec/loom/CONFIGURATION.md
+FILE: spec/loom/DOMAIN.md
+FILE: spec/loom/EVENTBUS.md
+FILE: spec/loom/GRAPHQL.md
+FILE: spec/loom/GRPC.md
+FILE: spec/loom/LOOM.md
+FILE: spec/loom/MCP.md
+FILE: spec/loom/PERSISTENCE.md
+FILE: spec/loom/PYTHON_CLIENT.md
+FILE: spec/loom/RESTAPI.md
+FILE: spec/loom/SERVER.md
+FILE: spec/loom/ui/CHAT.md
+FILE: spec/loom/ui/LOOM_UI.md
+FILE: spec/loom/ui/LOOM_UI_PIPELINE_EDITOR.md
+FILE: spec/loom/ui/LOOM_UI_UPLOAD.md
+FILE: spec/loom/ui/TASK_UI_AI_ML.md
+FILE: spec/loom/ui/TASK_UI_ASSETS_MEDIA.md
+FILE: spec/loom/ui/TASK_UI_CHAT.md
+FILE: spec/loom/ui/TASK_UI_COLLABORATION.md
+FILE: spec/loom/ui/TASK_UI_IDENTITY_ACCESS.md
+FILE: spec/loom/ui/TASK_UI_ORGANIZATION.md
+FILE: spec/loom/ui/TASK_UI_PIPELINE.md
+FILE: spec/loom/ui/TASK_UI_SYSTEM.md
+FILE: spec/loom/WEBSOCKET.md
+FILE: spec/METALOOM_CONTEXT.md
+FILE: spec/METALOOM.md
+FILE: spec/plans/NODE_REGISTRATION_PLAN.md
+FILE: spec/sidecars/DEPTH_SIDECAR.md
+FILE: spec/sidecars/IDEOGRAM_SIDECAR.md
+FILE: spec/sidecars/LLAMACPP_SIDECAR.md
+FILE: spec/sidecars/LTX2_SIDECAR.md
+FILE: spec/sidecars/MAGE_FLOW_SIDECAR.md
+FILE: spec/sidecars/SENTIMENT_SIDECAR.md
+FILE: spec/sidecars/SIDECARS.md
+FILE: spec/sidecars/TTS_SIDECAR.md
+FILE: spec/tasks/IMAGEGEN_NODE.md
+FILE: spec/tasks/METALOOM_ARCHITECTURE_TASK.md
+FILE: spec/tasks/METALOOM_NOTES.md
+FILE: spec/tasks/PERSISTENCE_TASKS.md
+FILE: spec/tasks/PIPELINE_TASKS.md
+FILE: spec/tasks/TASKS.template.md
+FILE: spec/website/WEBSITE.md
+FILE: spec/website/WEBSITE_PIPELINE_EDITOR.md
+
+SUMMARY
+=======
+Total files: 109
+References checked: 0
+Files with issues: 0

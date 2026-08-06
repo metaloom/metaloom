@@ -47,6 +47,17 @@
             <groupId>io.metaloom.loom.shared</groupId>
             <artifactId>loom-node-model</artifactId>
         </dependency>
+        <!--
+          For the LoomMetrics catalog interface only. The engine is where the numbers that
+          describe fleet health are actually known - task latency, in-flight depth, breaker
+          state - so it has to be able to report them. It records through the interface and
+          never sees Micrometer; the implementation stays in loom-service-monitoring.
+        -->
+        <dependency>
+            <groupId>io.metaloom.loom</groupId>
+            <artifactId>loom-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.vertx</groupId>
             <artifactId>vertx-core</artifactId>

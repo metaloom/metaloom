@@ -3,7 +3,7 @@
 > Open UI work items for the Pipeline/Processing entities (Pipeline, Pipeline Version,
 > Pipeline Run, Run Item, Node Task, Cortex Instance) and the node/editor surface,
 > re-verified against `loom-ui/src` and `loom-ui/e2e` on 2026-08-01.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) (editor spec) · [LOOM_UI.md](LOOM_UI.md) ·
 > [../RESTAPI.md](../RESTAPI.md) §3.4 / §4.4 · [../WEBSOCKET.md](../WEBSOCKET.md)
@@ -159,6 +159,5 @@ agents searching for the pipeline canvas.
 | Live run/node state on the canvas | `subscribePipelineEvents` → active-node + last-result painting; `e2e/pipeline-events-mocked.spec.ts` |
 | Cortex instance list, restrictions and forget | [CortexView.tsx](../../../loom-ui/src/features/cortex/CortexView.tsx); `e2e/cortex-mocked.spec.ts` |
 | Pipeline-run KPI + chart from the stats endpoint | `loadPipelineRunStats` + [runMetrics.ts](../../../loom-ui/src/features/monitoring/runMetrics.ts) (`runMetrics.test.ts`) |
-
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (closed Tasks 1 and 2; recorded the NODE_STATS counters and the previously-unemitted run lifecycle frames)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

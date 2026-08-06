@@ -8,7 +8,7 @@ It is a **read-and-report** task. Do not change production code while running it
 user explicitly asks for fixes — the deliverable is the HTML report described in §5.
 
 Related rules: [CODING.md](CODING.md) (definition of done for a change),
-[SPEC_RULES.md](../SPEC_RULES.md) (definition of done for a spec),
+[SPEC_RULES.md](SPEC_RULES.md) (definition of done for a spec),
 [NEW_NODE.md](NEW_NODE.md) (definition of done for a Cortex node).
 Router for everything else: [../METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md).
 
@@ -356,7 +356,7 @@ Finally, print to the console: the report path, the totals by severity, and the 
 |---|---|
 | Definition of done for a change | [CODING.md](CODING.md) |
 | Definition of done for a new node | [NEW_NODE.md](NEW_NODE.md) |
-| Spec-file format rules | [../SPEC_RULES.md](../SPEC_RULES.md) |
+| Spec-file format rules | [../SPEC_RULES.md](SPEC_RULES.md) |
 | Env vars / defaults (Loom, Cortex) | [../loom/CONFIGURATION.md](../loom/CONFIGURATION.md), [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
 | REST routes and DTOs | [../loom/RESTAPI.md](../loom/RESTAPI.md), `loom/services/rest/.../endpoint/impl/`, `loom-shared/rest-model/` |
 | Permissions model | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) |
@@ -369,7 +369,5 @@ Finally, print to the console: the report path, the totals by severity, and the 
 | Generated reports | `spec/reports/` |
 
 ---
-
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 14:41 UTC (initial version; detector examples D2/D4/D5/D6/D7/D9 taken from
-defects actually found in this repository)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

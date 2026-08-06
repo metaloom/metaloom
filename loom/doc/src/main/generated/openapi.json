@@ -122,6 +122,8 @@
   }, {
     "name" : "users",
     "description" : "Users of the RBAC model"
+  }, {
+    "name" : "vector-index"
   } ],
   "paths" : {
     "/api/v1" : {
@@ -5110,6 +5112,131 @@
                     "bboxHeight" : 0.2,
                     "confidence" : 0.97,
                     "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                  } ],
+                  "total" : 2,
+                  "created" : 2,
+                  "failed" : 0
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/embeddings/bulk" : {
+      "description" : "Bulk create embeddings on an asset",
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Bulk create embeddings on an asset",
+        "description" : "Bulk create embeddings on an asset",
+        "operationId" : "postAssetsByUuidEmbeddingsBulk",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "embeddings" : [ {
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "type" : "face",
+                  "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                  "nodeKind" : "facedetect",
+                  "model" : "inspireface-r18",
+                  "frameNumber" : 0,
+                  "subjectIndex" : 0
+                }, {
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "type" : "face",
+                  "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                  "nodeKind" : "facedetect",
+                  "model" : "inspireface-r18",
+                  "frameNumber" : 0,
+                  "subjectIndex" : 0
+                } ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The embedding bulk response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "embeddings" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    }
+                  }, {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    }
                   } ],
                   "total" : 2,
                   "created" : 2,
@@ -14574,7 +14701,12 @@
                 "meta" : {
                   "abc" : "cdef"
                 },
-                "vector" : [ 0.42, 0.24, 0.44, 21.5 ]
+                "type" : "face",
+                "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                "nodeKind" : "facedetect",
+                "model" : "inspireface-r18",
+                "frameNumber" : 0,
+                "subjectIndex" : 0
               }
             }
           }
@@ -18243,7 +18375,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "33f576c0-e758-45b7-9ea1-5adff51035e6",
+                    "versionUuid" : "a4cad3df-f5f8-49e7-b456-d14034362d75",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18270,7 +18402,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "b1f07905-e029-4daa-b0d8-3a4e8fcf1ef9",
+                    "versionUuid" : "0959eb97-9f55-4be4-b7f1-bc52cbd1198e",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18377,7 +18509,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "628c9fff-887c-4a49-94c5-179fce34ebd0",
+                  "versionUuid" : "aa633c9c-6fae-40ed-91c2-e00e76a31e67",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18463,7 +18595,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "e11a6de5-9e38-4d93-9320-8606fc98ab5d",
+                  "versionUuid" : "3e974d8d-2dcd-4a18-b38c-0bdac940551a",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18570,7 +18702,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "36967da9-d9f2-4545-893b-32e07be707e6",
+                  "versionUuid" : "98afd97a-bafb-4980-97cd-2dfae53861ce",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18732,7 +18864,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "8abec370-4702-4bce-bf75-556380d5044b",
+                  "runUuid" : "f9b795d2-77a7-4d3f-9ef6-51dd468d7f8b",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -18858,11 +18990,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "34b3447b-b4a1-4395-88a9-785a396d420a",
-                    "pipelineUuid" : "8d0c5ac3-b893-4eed-b19b-744d5099f15d",
+                    "uuid" : "6bce8427-b4c5-469a-9bcb-9dbcd19bc58f",
+                    "pipelineUuid" : "86baa98a-54ef-4da8-b8e4-9a75a8e96f17",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-06T16:29:35.548245238Z",
-                    "finished" : "2026-08-06T16:29:35.548344668Z",
+                    "started" : "2026-08-06T17:56:22.830475470Z",
+                    "finished" : "2026-08-06T17:56:22.830654050Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18871,11 +19003,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "678caf51-1236-4395-9fff-179f6fc73370",
-                    "pipelineUuid" : "4748910b-e741-4e11-8b83-f8ae4c18ba82",
+                    "uuid" : "c78ffd03-3d34-403e-b69b-0028c8941b32",
+                    "pipelineUuid" : "57acbf9e-8f79-45ca-89fa-04d125f8b4cc",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-06T16:29:35.548373118Z",
-                    "finished" : "2026-08-06T16:29:35.548376338Z",
+                    "started" : "2026-08-06T17:56:22.830693520Z",
+                    "finished" : "2026-08-06T17:56:22.830697390Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18968,11 +19100,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "e25dc397-8fd2-43d8-af73-a9f22a88fa75",
-                  "pipelineUuid" : "1f0cb1a7-b3b1-4127-bd6f-dddc33d63f54",
+                  "uuid" : "bc4802f1-e5f1-44d4-9e92-aa0dc799984c",
+                  "pipelineUuid" : "b8ee0081-6dd4-48f4-9877-b9c27ad830dd",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-06T16:29:35.549077778Z",
-                  "finished" : "2026-08-06T16:29:35.549088418Z",
+                  "started" : "2026-08-06T17:56:22.831573092Z",
+                  "finished" : "2026-08-06T17:56:22.831582202Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -19462,16 +19594,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "66355243-7aab-440c-b69c-71c9a2ca5f8d",
-                    "runUuid" : "b8af1796-35c4-4b43-922a-9dfb3e93fbf7",
+                    "uuid" : "b9617150-e91d-41fe-a374-9ca13e03c5aa",
+                    "runUuid" : "0799fea2-a6e7-4f03-a8dd-46ff9d94a6bd",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "8f1149bb-fc5b-4fc0-b679-b3a37fe537b6",
-                    "runUuid" : "4a1e29e1-dcd7-4292-8865-7ff889e4b4d1",
+                    "uuid" : "4a1f6b12-6b8d-4d7b-af20-67b09f313e59",
+                    "runUuid" : "eaeeb67f-7b30-44e4-a930-4a0f42b1fb14",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -19572,9 +19704,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "c20b3a68-fdb4-4f9b-ab50-9868e60fdc41",
-                    "itemUuid" : "90c038a9-c725-46c1-91a8-f8cb2a903813",
-                    "runUuid" : "66655e9a-47d3-4af5-a146-d038f3cc00af",
+                    "uuid" : "236fd45d-e7fb-43da-82df-af3c18498ded",
+                    "itemUuid" : "4db86ac1-048e-487d-8fee-897e27fd6402",
+                    "runUuid" : "a9de22a6-3e2c-411b-a3ae-da7ae10e790e",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -20240,7 +20372,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "f4b818b2-57ca-4aa9-b215-1b5b73c43fd8",
+                    "versionUuid" : "7541d679-1b7c-4324-ba4d-da290e959d04",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20267,7 +20399,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "e25fecec-7178-4edb-8f81-a09546b91748",
+                    "versionUuid" : "3af0ab63-6c27-40fc-95e9-4b8ba38efb48",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20378,7 +20510,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "04f72686-598c-441f-b0d3-c5fa25ea45f7",
+                  "versionUuid" : "a1e4aa56-924d-4bfd-bfc0-f1a8da9e1f7d",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -20503,7 +20635,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "abf1d31e-7714-4548-a772-9b981e93a8ab",
+                  "versionUuid" : "8262157a-05e6-459c-8ff6-4d6c2e9c0793",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",
@@ -27324,6 +27456,159 @@
           "format" : "uuid"
         }
       } ]
+    },
+    "/api/v1/vector-index/rebuild" : {
+      "description" : "Rebuild the embedding vector index from the stored embeddings",
+      "post" : {
+        "tags" : [ "vector-index" ],
+        "summary" : "Rebuild the embedding vector index from the stored embeddings",
+        "description" : "Rebuild the embedding vector index from the stored embeddings",
+        "operationId" : "postVectorindexRebuild",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vector-index/status" : {
+      "description" : "Report which vector index backend is bound and whether it is usable",
+      "get" : {
+        "tags" : [ "vector-index" ],
+        "summary" : "Report which vector index backend is bound and whether it is usable",
+        "description" : "Report which vector index backend is bound and whether it is usable",
+        "operationId" : "getVectorindexStatus",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vector-index/sync" : {
+      "description" : "Index the embeddings that have not yet been written to the vector index",
+      "post" : {
+        "tags" : [ "vector-index" ],
+        "summary" : "Index the embeddings that have not yet been written to the vector index",
+        "description" : "Index the embeddings that have not yet been written to the vector index",
+        "operationId" : "postVectorindexSync",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components" : {

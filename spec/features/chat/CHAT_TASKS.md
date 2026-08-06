@@ -3,7 +3,7 @@
 > Build record for the backend chat feature. **Tasks B1–B9 are all done** and re-verified against
 > the code on 2026-08-01; they are kept as one-line outcome records because other specs cite the
 > numbers. Remaining work lives in "Open Follow-ups" below, in template form.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [CHAT.md](../../loom/ui/CHAT.md) (design rationale, event protocol, tool inventory) ·
 > [CHAT_SESSIONS_CONCEPT.md](CHAT_SESSIONS_CONCEPT.md) (publishable sessions) ·
@@ -227,6 +227,5 @@ mvn -q test -pl loom/core -Dtest=MCPToolReferencesTest
 | Chat session capture / publishing | [CHAT_SESSIONS_CONCEPT.md](CHAT_SESSIONS_CONCEPT.md) |
 | Agent memory bank | [CHAT_MEMORY_PLAN.md](CHAT_MEMORY_PLAN.md) |
 | UI-side task record | [TASK_UI_CHAT.md](../../loom/ui/TASK_UI_CHAT.md) |
-
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (F1 closed — `OpenAILLMProvider.generateStreamWithTools` implemented; Ollama removed from genai-utils)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

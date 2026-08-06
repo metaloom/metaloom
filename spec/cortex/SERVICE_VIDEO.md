@@ -30,7 +30,7 @@ looking for a service that was never written, and knows which module to actually
 | Actually depended on by anything | **no** — no `<dependency>` on `loom-service-video` exists in any pom | `rg "loom-service-video" --glob "*.xml"` returns only its own pom + the dependencyManagement entry |
 | Java sources | 1 | `loom/services/video/src/main/java/io/metaloom/loom/video/VideoAsset.java` |
 | Java tests | **0** — there is no `src/test` directory | `find loom/services/video -type f` |
-| `README.md` | present, contains only the heading `# Loom - Video Service` | [`README.md`](../../../loom/services/video/README.md) |
+| `README.md` | present, contains only the heading `# Loom - Video Service` | [`README.md`](../reports/README.md) |
 | Last touched | `4c9e9326` "Restructure maven artifacts" (2026-04-03); created in `47e74fa3` "Initialize monorepo" (2026-04-01) — never modified since | `git log -- loom/services/video` |
 
 It is the twin of [`loom/services/image`](../../../loom/services/image), which is the same
@@ -69,16 +69,16 @@ Real video work happens entirely outside this module:
 
 | If you were asked to … | Go to | Spec |
 |---|---|---|
-| Extract video thumbnails | `cortex/nodes/thumbnail/core` (`ThumbnailNode`) | [NODES.md](NODES.md) |
-| Compute video quality metrics (blur, fps, frame count) | `cortex/nodes/quality/core` (`QualityNode`) | [NODES.md](NODES.md) |
-| Detect scenes / shot boundaries | `cortex/nodes/scene-detection/core` | [NODES.md](NODES.md), [NODE_SCENE_LAYOUT_PLAN.md](NODE_SCENE_LAYOUT_PLAN.md) |
-| Perceptual video fingerprints / near-duplicate detection | `cortex/nodes/fingerprint/core` + `loom/services/lucene` | [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md), [NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md) |
-| Caption a video with a VLM | `cortex/nodes/captioning/core` | [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md), [NODE_VIDEO_CAPTIONING_REPORT.md](NODE_VIDEO_CAPTIONING_REPORT.md) |
-| Face detection in video | `cortex/nodes/facedetect/core` | [NODES.md](NODES.md) |
-| Watermark detection | `cortex/nodes/watermark/core` | [NODE_WATERMARK_PLAN.md](NODE_WATERMARK_PLAN.md) |
-| Store/serve video bytes | `loom/services/rest` binary routes | [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) |
-| Persist node output for a video asset | Loom REST comp endpoints | [NODES.md](NODES.md) §persistence, [../../loom/RESTAPI.md](../../loom/RESTAPI.md) |
-| Model a video asset in the DB | `asset*` tables, not a Java `VideoAsset` | [../../loom/DOMAIN.md](../../loom/DOMAIN.md), [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md) |
+| Extract video thumbnails | `cortex/nodes/thumbnail/core` (`ThumbnailNode`) | [NODES.md](../features/nodes/NODES.md) |
+| Compute video quality metrics (blur, fps, frame count) | `cortex/nodes/quality/core` (`QualityNode`) | [NODES.md](../features/nodes/NODES.md) |
+| Detect scenes / shot boundaries | `cortex/nodes/scene-detection/core` | [NODES.md](../features/nodes/NODES.md), [NODE_SCENE_LAYOUT_PLAN.md](../concept/NODE_SCENE_LAYOUT_PLAN.md) |
+| Perceptual video fingerprints / near-duplicate detection | `cortex/nodes/fingerprint/core` + `loom/services/lucene` | [../search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md), [NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
+| Caption a video with a VLM | `cortex/nodes/captioning/core` | [NODE_VIDEO_CAPTIONING_PLAN.md](../concept/NODE_VIDEO_CAPTIONING_PLAN.md), [NODE_VIDEO_CAPTIONING_REPORT.md](../concept/NODE_VIDEO_CAPTIONING_REPORT.md) |
+| Face detection in video | `cortex/nodes/facedetect/core` | [NODES.md](../features/nodes/NODES.md) |
+| Watermark detection | `cortex/nodes/watermark/core` | [NODE_WATERMARK_PLAN.md](../concept/NODE_WATERMARK_PLAN.md) |
+| Store/serve video bytes | `loom/services/rest` binary routes | [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
+| Persist node output for a video asset | Loom REST comp endpoints | [NODES.md](../features/nodes/NODES.md) §persistence, [../../loom/RESTAPI.md](../loom/RESTAPI.md) |
+| Model a video asset in the DB | `asset*` tables, not a Java `VideoAsset` | [../../loom/DOMAIN.md](../loom/DOMAIN.md), [../../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) |
 
 ---
 
@@ -142,9 +142,9 @@ Consequences for an agent:
 - `mvn -pl loom/services/video test` is a no-op — do not use it to validate a video change.
 - The module needs **no** test database. `./setup-pool.sh` (see
   [`.claude/CLAUDE.md`](../../../.claude/CLAUDE.md) and
-  [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md)) is irrelevant here.
+  [../../loom/PERSISTENCE.md](../loom/PERSISTENCE.md)) is irrelevant here.
 - If you ever add real code to this module, the definition of done in
-  [../../guidelines/CODING.md](../../guidelines/CODING.md) applies: endpoint + permission
+  [../../guidelines/CODING.md](../guidelines/CODING.md) applies: endpoint + permission
   tests, DAO and delete-cascade tests, website docs, demo data, and a spec update — plus
   replacing this file's `🔴 EMPTY STUB` banner.
 
@@ -160,12 +160,12 @@ Tests that *do* exercise video today, for reference:
 ## 7. Conventions and Gotchas
 
 - **Do not "extend" this module by reflex.** If a task says "add video support to Loom",
-  the right move is almost always a Cortex node ([NODES.md](NODES.md)) or a REST
-  endpoint ([../../loom/RESTAPI.md](../../loom/RESTAPI.md)) — *not* filling in `VideoAsset`.
+  the right move is almost always a Cortex node ([NODES.md](../features/nodes/NODES.md)) or a REST
+  endpoint ([../../loom/RESTAPI.md](../loom/RESTAPI.md)) — *not* filling in `VideoAsset`.
   Adding a first real dependent to a nine-month-dormant stub is an architecture decision;
   ask before doing it.
 - **`VideoAsset` is not the video domain model.** Video assets are rows in the `asset*`
-  tables, described by [../../loom/DOMAIN.md](../../loom/DOMAIN.md). A Java interface here
+  tables, described by [../../loom/DOMAIN.md](../loom/DOMAIN.md). A Java interface here
   would be a parallel, unsynchronised model.
 - **Never add `video4j` to this module casually.** Pulling OpenCV into a Loom service module
   imports the OpenCV 5.1 native runtime requirement into the Loom container images, which
@@ -195,9 +195,9 @@ Tests that *do* exercise video today, for reference:
 | Real video processing nodes | `cortex/nodes/{thumbnail,quality,scene-detection,fingerprint,captioning,facedetect,watermark}/core/` |
 | video4j version pin | `bom/pom.xml` → `<video4j.version>` |
 | OpenCV native staging & ABI rules | [../../cortex/BUILD.md](../../cortex/BUILD.md) §6 |
-| Node → persistence mapping | [NODES.md](NODES.md) |
-| Video binary storage/serving | [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md) |
-| Fingerprint similarity index | [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) |
+| Node → persistence mapping | [NODES.md](../features/nodes/NODES.md) |
+| Video binary storage/serving | [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
+| Fingerprint similarity index | [../search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
 | Spec tree entry point | [../../CONTEXT.md](../../CONTEXT.md) |
 
 ---
@@ -234,3 +234,5 @@ Open decisions (neither has been made — do not pick one unilaterally):
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

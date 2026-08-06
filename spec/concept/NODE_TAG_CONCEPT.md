@@ -470,7 +470,7 @@ a prompt instead of hand-written regexes.
 |---|---|---|
 | 1 | **A `TAGS` output type on the `script` node** — declare `{"name":"tags","type":"TAGS"}` and let the existing persistence path write them | 🟡 **Cheapest and genuinely competitive**, and it should be built *eventually* on top of the same P0/P1 write path. Rejected as the starting point: it needs JS authoring, has no form in the editor, no vocabulary gating, no reconciliation, and puts a sandboxed engine on the critical path of a trivial operation. Build the node; add `TAGS` to `ScriptValueType` afterwards as a power-user path |
 | 2 | **Extend the `filter` node** — a bucket already classifies; write the bucket name as a tag | ❌ Conflates routing with annotation. `filter` emits exactly one bucket per item, tags are a set; and it would give every filter node a Loom write path nobody asked for |
-| 3 | **Loom-side "smart tags"** — a saved rule evaluated over the catalog, outside any pipeline | 🟡 **Complementary, not competing.** It is the only way to tag *retroactively* (a new rule over existing assets), but it can only see persisted data, and Loom has no scheduler (see [../CLUSTERING.md](../CLUSTERING.md) — single-writer). Right follow-up once the node exists; the reconciliation model in §3.5 is reusable verbatim |
+| 3 | **Loom-side "smart tags"** — a saved rule evaluated over the catalog, outside any pipeline | 🟡 **Complementary, not competing.** It is the only way to tag *retroactively* (a new rule over existing assets), but it can only see persisted data, and Loom has no scheduler (see [../CLUSTERING.md](CLUSTERING.md) — single-writer). Right follow-up once the node exists; the reconciliation model in §3.5 is reusable verbatim |
 | 4 | **One node kind per tagging source** (`tag-color`, `tag-llm`, …) | ❌ Exactly the mistake the eight `filter-*` kinds were. One kind, a `tagBy` seam |
 | 5 | **Free-form LLM tagging in v1** | ❌ An unbounded vocabulary in a global namespace. Only ever behind `allowedTags` + `minConfidence`, and only once the deterministic strategy has proven the write path |
 
@@ -724,10 +724,5 @@ Worker-level node options remain the inherited `enabled` / `processIncomplete` /
 | Seeded demo pipelines | `loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java` |
 
 ---
-
-_Git HEAD revision: `97127ed2`_
-_Last updated: 2026-08-05 (P2 built: `V2.71` gives every placement its own identity and its writer, so one tag
-can sit on an asset several times — two faces, one photo — and machine tags are distinguishable from curated
-ones. Earlier the same day: P1 built and the node moved onto it: `PUT /assets/:uuid/tags` in one
-transaction, withdrawal by uuid rather than by omission and why, the 403 cases P3 wanted, and the
-end-to-end `TagNodeIntegrationTest`)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

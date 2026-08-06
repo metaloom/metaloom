@@ -21,7 +21,6 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
   `detection/*` boxes, and an open item there proposes emitting the subject centroid as a
   `focalPoint` output instead of building a second node. Still open for saliency without detections.
 - Chapter extraction from video?
-- Static code analysis
 - code review markdown file with rules
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
 - Add semantic ingestion node. This allows constructed semantic data to be ingested into loom
@@ -35,13 +34,13 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 * **Let the agentic loop author pipelines via MCP.** The MCP server exposes read-only pipeline tools
   only (`list_pipelines`, `get_pipeline`). Explore having the agent *design and verify* a pipeline —
   needs `create_pipeline` / `validate_pipeline` tools plus a dry-run/validation path.
-  See [loom/MCP.md](loom/MCP.md), [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md).
+  See [loom/MCP.md](../loom/MCP.md), [features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md).
 
 
 
 * **Binary delivery to the frontend.** How do asset bytes and derivatives reach a browser at scale —
   CDN in front of the pool, pre-encoded renditions, signed URLs, range/HLS?
-  [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) stops at
+  [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) stops at
   "stream it through the REST endpoint"; nothing beyond that is specified.
 
 * **Complete the node provenance record.** The `asset_node_result` ledger already carries
@@ -118,6 +117,5 @@ without them still detects faces, but returns empty attributes).
 Module result: 45 tests, 0 failures, 1 skipped.
 
 ---
-
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (notes re-pointed at the OpenAI-compatible provider and the renamed availability guards)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

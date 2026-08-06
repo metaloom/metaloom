@@ -46,6 +46,18 @@ public class NodeExecState {
 
 	private final Map<Integer, NodeTaskResult> elementResults = new LinkedHashMap<>();
 	private final Map<Integer, UUID> inFlight = new LinkedHashMap<>();
+	/**
+	 * When each execution was handed to a worker, for the dispatch-to-result timer.
+	 *
+	 * <p>
+	 * Deliberately separate from {@link #inFlight}: an execution is marked in flight <em>before</em>
+	 * the dispatcher is asked, so that a refusal can be settled against a task that exists. A dispatch
+	 * no worker took therefore has an in-flight marker and no start time, and contributes nothing to
+	 * the latency distribution — which is the point, since it would otherwise report a few
+	 * microseconds at exactly the moment the fleet has no capacity.
+	 * </p>
+	 */
+	private final Map<Integer, Long> dispatchedAt = new LinkedHashMap<>();
 	private final Map<Integer, Integer> attempts = new LinkedHashMap<>();
 	/** How often each execution was handed back unexecuted, capping the attempt refund. */
 	private final Map<Integer, Integer> returns = new LinkedHashMap<>();
@@ -174,6 +186,7 @@ public class NodeExecState {
 	void record(int seq, NodeTaskResult result) {
 		elementResults.put(seq, result);
 		inFlight.remove(seq);
+		dispatchedAt.remove(seq);
 		awaitingRetry.remove(seq);
 	}
 
@@ -181,8 +194,19 @@ public class NodeExecState {
 		inFlight.put(seq, taskUuid);
 	}
 
+	/** Start this execution's dispatch-to-result clock. Called once a worker has accepted it. */
+	void markDispatched(int seq, long atMs) {
+		dispatchedAt.put(seq, atMs);
+	}
+
+	/** @return when this execution was placed on a worker, or null when it never was */
+	Long dispatchedAt(int seq) {
+		return dispatchedAt.get(seq);
+	}
+
 	void clearInFlight(int seq) {
 		inFlight.remove(seq);
+		dispatchedAt.remove(seq);
 	}
 
 	boolean isInFlight(int seq) {
@@ -344,6 +368,7 @@ public class NodeExecState {
 		elementResults.remove(seq);
 		held.remove(seq);
 		inFlight.remove(seq);
+		dispatchedAt.remove(seq);
 		awaitingRetry.remove(seq);
 		attempts.remove(seq);
 		returns.remove(seq);

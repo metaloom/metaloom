@@ -5,7 +5,7 @@
 >
 > **Not here (do not duplicate):** pipeline graph model and validation →
 > [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) · node kinds,
-> ports and descriptors → [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) ·
+> ports and descriptors → [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) ·
 > port/content types → [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) ·
 > Cortex CLI/config → [CONFIGURATION.md](CONFIGURATION.md) · Cortex internals →
 > [CORTEX.md](CORTEX.md) · WebSocket frames → [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) ·
@@ -14,8 +14,8 @@
 > [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) ·
 > binary/asset locations → [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md).
 >
-> **Open work:** [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) ·
-> **build record:** [METALOOM_ARCHITECTURE_V2_PLAN_C.md](METALOOM_ARCHITECTURE_V2_PLAN_C.md)
+> **Open work:** [METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md) ·
+> **build record:** [METALOOM_ARCHITECTURE_V2_PLAN_C.md](../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md)
 
 ---
 
@@ -240,7 +240,7 @@ The palette is dynamic — `GET /api/v1/pipeline/node-descriptors`, served from
 `NodeDescriptorRegistry` (26 `ServiceLoader` providers, 34 kinds). **The descriptor set
 is wider than the executable set:** the 8 `filter-*` kinds, `loom-fetch` and
 `facedescription` have descriptors but no producer; `asset-source` and `sha512-dedup`
-are the reverse. Details in [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md).
+are the reverse. Details in [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md).
 
 ### Rejecting a run that cannot execute
 
@@ -472,7 +472,7 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 | Stale Javadoc | `PipelineEventBroadcaster` (claims a 1024-entry drop-oldest queue), `WebSocketNodeDispatcher` (claims load is ignored and kinds cannot be routed) and `RegistryNodeFactory` ("falling back to stub") all contradict their own code |
 | `nodeId` is load-bearing | Loom keys registration, leases, restrictions and attribution on it. Never generate it per start; the Helm chart derives it from the StatefulSet ordinal |
 | Announce ≠ implement | The whitelist defaults to `NodeFactory.registeredTypes()`. `s3-source` is only registered when S3 is actually configured, so an unconfigured worker never advertises it |
-| Descriptor ≠ registration | A palette descriptor makes a kind *visible*; running it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module — see [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md) |
+| Descriptor ≠ registration | A palette descriptor makes a kind *visible*; running it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module — see [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
 | Node options are flattened | When a task is turned back into a node definition, options land at the top level, because that is where node producers read them |
 | `loom/pipeline` must not depend on Cortex | Enforced by `maven-enforcer` — it is what keeps the orchestrator independent of its workers |
 | Dagger is stale-prone | After changing an injected constructor, run a full `mvn clean install`; incremental builds fail at runtime with `NoSuchMethodError` |
@@ -496,6 +496,5 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 Run DB-backed tests only after `./setup-pool.sh`.
 
 ---
-
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (Cortex lost its CLI: no flags or subcommands, `CortexMain` is the entry point and `cortex.yml` + env are the configuration surface)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

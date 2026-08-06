@@ -21,8 +21,8 @@
 >
 > **This file is now a design record, not a plan.** The code is the source of truth.
 
-Read alongside [NODES.md](NODES.md) (the node system, the capability matrix, kind registration),
-[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) (the port/content-type model),
+Read alongside [NODES.md](../features/nodes/NODES.md) (the node system, the capability matrix, kind registration),
+[../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) (the port/content-type model),
 [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) (all `CORTEX_S3_*` flags) and
 [NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) (the egress half, which reuses `cortex/s3-common`).
 
@@ -45,8 +45,8 @@ Read alongside [NODES.md](NODES.md) (the node system, the capability matrix, kin
 | Env var mapping | `cortex/common/…/option/CortexEnvOptions.java` |
 | Descriptor (7 parameters, icon `cloud`, `SOURCE`, one `media` output) | `loom-shared/node-model/…/spec/SourceDescriptorProvider.java` |
 | Event sources started at boot | `cortex/core/…/impl/boot/CortexBootstrapInitializer.java` |
-| Webhook route `POST /s3-events` on the monitoring router (port 8093) | `cortex/s3-common/…/s3/event/WebhookS3EventSource.java` — see [../ops/MONITORING.md](../ops/MONITORING.md) |
-| Helm secret for `CORTEX_S3_*` | `helm/cortex/templates/s3-secret.yaml` — see [../helm/HELM_CORTEX.md](../helm/HELM_CORTEX.md) |
+| Webhook route `POST /s3-events` on the monitoring router (port 8093) | `cortex/s3-common/…/s3/event/WebhookS3EventSource.java` — see [../ops/MONITORING.md](../features/ops/MONITORING.md) |
+| Helm secret for `CORTEX_S3_*` | `helm/cortex/templates/s3-secret.yaml` — see [../helm/HELM_CORTEX.md](../features/helm/HELM_CORTEX.md) |
 | Dev script | `start-minio.sh` |
 | Integration test (9 tests, real MinIO) | `integration-test/…/integration/node/S3SourceNodeIntegrationTest.java` + `…/container/MinioContainer.java` |
 | Demo pipeline using `s3-source` | `loom/core/…/boot/DemoDatabaseInitializer.java` |
@@ -64,7 +64,7 @@ give the module its own file and cross-reference it.
 
 > ⚠️ `cortex/s3-common` is Cortex-side only. Loom's own S3 backend (`loom/services/s3`,
 > `S3BinaryStorage`, `asset_pool` + `library.pool_uuid`, `BinaryStorageResolver`) is a **separate
-> implementation** owned by [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md).
+> implementation** owned by [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md).
 > The two do not share code, deliberately — a `loom-service-s3 → cortex-s3-common` dependency would
 > tie the server's build to the worker's.
 
@@ -266,7 +266,7 @@ transformer; latent, not exercised.
 | The kind is capability-gated | `RegistryNodeRegistrar` advertises `s3-source` **only** when `s3Support.isActive()` — announcing a kind the worker cannot serve turns a missing capability into a dead run. `NodeRegistrarTest` pins both directions |
 | Source nodes get no `@Binds @IntoSet FilesystemNode` | They are pipeline-level, matching `FilesystemSourceNodeModule` |
 | The index store is `new`-ed, not injected | `FilesystemSourceNode` does the same with `AvroFileIndexStore` |
-| `lastStates` is per-JVM | When the source's own NODE_TASK lands on another worker, `lastState()` reads `UNKNOWN`. Pre-existing in `filesystem-source`; recorded in [NODES.md](NODES.md) |
+| `lastStates` is per-JVM | When the source's own NODE_TASK lands on another worker, `lastState()` reads `UNKNOWN`. Pre-existing in `filesystem-source`; recorded in [NODES.md](../features/nodes/NODES.md) |
 | A crash between scan and persist re-emits | At-least-once, which the rest of the pipeline already assumes (nodes upsert on natural keys) |
 | `setup-pool.sh` before any IT | And again after any Flyway change — see [../../../.claude/CLAUDE.md](../../../.claude/CLAUDE.md) |
 
@@ -289,7 +289,7 @@ transformer; latent, not exercised.
       fast-path + reconcile branch in the scanner
 - [x] `MinioContainer`, `start-minio.sh`, `S3SourceNodeIntegrationTest` (9 tests)
 - [x] Docs & demo — `website/content/english/docs/nodes/s3-source/`, a demo pipeline in
-      `DemoDatabaseInitializer`, [NODES.md](NODES.md), Helm `s3-secret.yaml`
+      `DemoDatabaseInitializer`, [NODES.md](../features/nodes/NODES.md), Helm `s3-secret.yaml`
 
 ### Open
 
@@ -300,7 +300,7 @@ transformer; latent, not exercised.
       the `metaloom/cortex-server` image. Model it on `PipelineContainerExecutionIntegrationTest`.
 - [ ] **`asset_pool.s3_*` stays unused by this node.** Bucket and prefix come from the pipeline
       definition. Linking to a configured pool row is follow-up work, and it interacts with
-      [../rest/REST_BINARY_HANDLING.md](../rest/REST_BINARY_HANDLING.md)'s `library.pool_uuid` model
+      [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md)'s `library.pool_uuid` model
       and with the sink's identical question ([NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md)).
 - [ ] **Watch mode.** Events make a run cheap but do not *start* one. A worker-initiated run trigger
       is a Loom scheduling feature.
@@ -373,6 +373,5 @@ run 2 emits nothing; a fresh `mc cp` makes run 3 process exactly one item;
 | All `CORTEX_S3_*` flags in one table | [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md) |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced to a design record — shipped work collapsed into one table, `process()` corrected to the single typed `media` port, and the never-written container E2E moved from a ticked box to the headline open item.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

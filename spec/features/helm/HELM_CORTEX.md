@@ -14,7 +14,7 @@ overridable `image.repository`: the same chart runs the stock worker
 
 Env/CLI-option semantics live in [`../../cortex/CONFIGURATION.md`](../../cortex/CONFIGURATION.md) and
 are not duplicated here. Unlike Loom, Cortex scales horizontally on purpose — nothing in
-[`../../CLUSTERING.md`](../../CLUSTERING.md) restricts it.
+[`../../CLUSTERING.md`](../../concept/CLUSTERING.md) restricts it.
 
 ## Architecture
 
@@ -179,7 +179,7 @@ No CI gate and no `helm unittest` suite exist for either check.
 | How to build a custom image | `examples/cortex-custom/{Containerfile,build-image.sh}`, `examples/cortex-python/{Containerfile,build-image.sh}` |
 | Health/readiness endpoints | `cortex/core/.../impl/monitoring/HealthEndpoint.java` (`/api/health`, `/api/ready` on 8093) |
 | Monitoring / metrics | [`../ops/MONITORING.md`](../ops/MONITORING.md), [`../ops/METRICS.md`](../ops/METRICS.md) |
-| Why Loom cannot scale the way workers do | [`../../CLUSTERING.md`](../../CLUSTERING.md) |
+| Why Loom cannot scale the way workers do | [`../../CLUSTERING.md`](../../concept/CLUSTERING.md) |
 | Server chart | [HELM_LOOM.md](HELM_LOOM.md) |
 
 ## Progress Assessment
@@ -201,6 +201,5 @@ No CI gate and no `helm unittest` suite exist for either check.
       can usefully request
 
 ---
-
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (env vars now land via `CortexEnvOptions` instead of picocli defaults; the missing-node-id failure is `CortexMain` exiting 2)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

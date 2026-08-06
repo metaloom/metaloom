@@ -35,6 +35,22 @@ public class NoopLoomMetrics implements LoomMetrics {
 	}
 
 	@Override
+	public void recordNodeTaskLatency(String kind, String state, long durationMs) {
+	}
+
+	@Override
+	public void recordNodeTaskRetried(String kind) {
+	}
+
+	@Override
+	public void recordNodeTaskDeadlettered(String kind) {
+	}
+
+	@Override
+	public void recordCircuitBreakerTrip(String kind) {
+	}
+
+	@Override
 	public void recordNodeResultReceived(String kind, String state) {
 	}
 
@@ -84,5 +100,9 @@ public class NoopLoomMetrics implements LoomMetrics {
 
 	@Override
 	public void bindGauge(String name, Supplier<Number> supplier) {
+	}
+
+	@Override
+	public void bindGauge(String name, String tagKey, String tagValue, Supplier<Number> supplier) {
 	}
 }

@@ -7,9 +7,9 @@ attachment subsystem, and what Cortex does (and does not) do with binary artefac
 > **Companion specs**: [../../loom/RESTAPI.md](../../loom/RESTAPI.md) (transport, auth, OpenAPI),
 > [../../loom/DOMAIN.md](../../loom/DOMAIN.md) (entities), [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md)
 > (authorization), [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) (how a run resolves a media path),
-> [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) (where node artefacts land),
-> [../../CLUSTERING.md](../../CLUSTERING.md) (why the per-process storage cache is only safe single-writer),
-> [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
+> [../pipeline-nodes/NODES.md](../nodes/NODES.md) (where node artefacts land),
+> [../../CLUSTERING.md](../../concept/CLUSTERING.md) (why the per-process storage cache is only safe single-writer),
+> [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
 > (the unbuilt Cortex→Loom artefact write-back).
 
 **Delineation.** This file owns *bytes over REST*: multipart upload, raw download, storage layout,
@@ -244,7 +244,7 @@ One credential set serves every S3 pool; multi-account setups are not supported.
 
 | Surface | State |
 |---|---|
-| Cortex artefact write-back (thumbnails, depth maps) | Not built — [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| Cortex artefact write-back (thumbnails, depth maps) | Not built — [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | Presigned URLs | Not built. Every S3 download is proxied through Loom — a hop per thumbnail |
 | Per-pool credentials | Not built (§5.3) |
 | SHA-512 as S3 object metadata | Not built — plan §C2 |
@@ -336,7 +336,7 @@ UI's asset preview is the *original* binary (`GET /assets/:uuid/binary/data`), s
 
 The wall is now on the node side only — the byte-ingest endpoints, attachment storage and the
 multipart client methods all exist. Closing it is
-[REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) Phase B.
+[REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) Phase B.
 The one exception is `s3-sink`, which uploads to a bucket named in the pipeline definition and
 registers the artefact as a new asset — see that plan's §7 B5.
 
@@ -494,7 +494,7 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 - 🔴 **Reclaim after, never before.** `BinaryReclaimer` counts rows to decide whether to unlink; calling
   it while the row still exists always counts ≥ 1 and reclaims nothing.
 - 🔴 **`BinaryStorageResolver` is per-process cached state** — fine only while Loom stays single-writer
-  ([../../CLUSTERING.md](../../CLUSTERING.md)).
+  ([../../CLUSTERING.md](../../concept/CLUSTERING.md)).
 - **The "binary" table is `asset_location`.** Every log line, DAO type name (`"Asset Locations"`) and
   test fixture (`ASSET_LOCATION_UUID`) uses the old name. Expect the mismatch.
 - **`libraryUuid` is conditionally required** on `/binary/data` (§2.1) and always required on
@@ -584,7 +584,7 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 
 ### Open — ordered
 
-- [ ] **G2** Cortex artefact write-back — [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
+- [ ] **G2** Cortex artefact write-back — [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
       Phase B. The endpoints and client methods exist; no node calls them
 - [ ] **G16** Add an `AssetBinaryDaoTest` covering the cardinality contract, `countByPoolAndPath` and the
       asset delete-cascade, per [../../guidelines/CODING.md](../../guidelines/CODING.md)
@@ -601,6 +601,5 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 - [ ] Migrate existing binaries when a library's pool changes
 
 ---
-
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (documented the optional `poolUuid` form field on `POST /assets/upload` and its `READ_ASSET_POOL` guard; added the Java client overload and a cross-reference to loom/ui/LOOM_UI_UPLOAD.md)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

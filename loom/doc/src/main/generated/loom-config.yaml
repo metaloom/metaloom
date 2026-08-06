@@ -96,3 +96,11 @@ similarity:
   algorithm: "metaloom-multisector-v1"
   scoreThreshold: 0.1
   topK: 10
+vectorIndex:
+  provider: "none"
+  indexPath: "vector-index"
+  topK: 10
+  scoreThreshold: 0.35
+  syncIntervalMs: 5000
+  syncBatchSize: 500
+  enabled: false

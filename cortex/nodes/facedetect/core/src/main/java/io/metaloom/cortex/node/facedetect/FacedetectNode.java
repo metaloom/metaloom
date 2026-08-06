@@ -41,7 +41,11 @@ import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.nodes.spec.PortGroupMode;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
 import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionBulkResponse;
 import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionResponse;
+import io.metaloom.loom.rest.model.embedding.EmbeddingBulkCreateRequest;
+import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -224,7 +228,9 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	private NodeResult processImage(NodeContext<LoomMedia> ctx, AssetResponse asset) throws IOException {
 		LoomMedia media = ctx.media();
 		BufferedImage image = ImageIO.read(media.file());
-		List<? extends Face> faces = inspireface.detectFaces(image);
+		// One pass produces the boxes and, when enabled, the vectors. Detecting and then embedding
+		// separately would re-run detection unfiltered, and its ordinals would no longer line up.
+		List<? extends Face> faces = inspireface.detectFaces(image, options().isEmbeddingsEnabled());
 
 		int count = faces != null ? faces.size() : 0;
 
@@ -234,7 +240,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 				FaceBox box = face.box();
 				detections.add(new Detection(
 					new BoundingBox(box.getStartX(), box.getStartY(), box.getWidth(), box.getHeight()),
-					0, 1.0f, "face"));
+					0, 1.0f, "face", face.getEmbedding()));
 			}
 		}
 		emit(ctx, count > 0 ? "SUCCESS" : "NONE",
@@ -251,7 +257,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 		LoomMedia media = ctx.media();
 
 		try (VideoFile video = Videos.open(media.absolutePath())) {
-			VideoFaceScannerReport report = videoScanner.scan(video, WINDOW_COUNT);
+			VideoFaceScannerReport report = videoScanner.scan(video, WINDOW_COUNT, options().isEmbeddingsEnabled());
 			List<VideoFace> faces = report.getFaces();
 
 			List<Detection> detections = new ArrayList<>();
@@ -260,7 +266,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 				int frameIndex = vf.getFrame() != null ? vf.getFrame().intValue() : 0;
 				detections.add(new Detection(
 					new BoundingBox(box.getStartX(), box.getStartY(), box.getWidth(), box.getHeight()),
-					frameIndex, 1.0f, "face"));
+					frameIndex, 1.0f, "face", vf.getEmbedding()));
 			}
 			// The frame size comes off the video's own properties - no decode, no seek. It used to be
 			// omitted here on the belief that VideoFile could not report it, which left every
@@ -511,7 +517,11 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 					.setBboxHeight((float) box.height())
 					.setConfidence(detection.confidence()));
 			}
-			client().bulkCreateAssetDetections(asset.getUuid(), new DetectionBulkCreateRequest().setDetections(items)).sync();
+			DetectionBulkResponse stored = client()
+				.bulkCreateAssetDetections(asset.getUuid(), new DetectionBulkCreateRequest().setDetections(items))
+				.sync()
+				.body();
+			persistEmbeddings(asset, detections, stored);
 			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, resultRef("detection"));
 		} catch (Exception e) {
 			log.warn("Failed to persist detections for asset {}: {}", asset.getUuid(), e.getMessage());
@@ -519,4 +529,62 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 		}
 	}
 
+	/**
+	 * Write the recognition vectors alongside the detections that were just stored.
+	 *
+	 * <p>
+	 * Second of the two writes on purpose: {@code embedding.detection_uuid} points at a detection row, and those uuids only exist once the detection
+	 * bulk call has returned. The response lists the stored detections in request order, which is what pairs each vector with the box it came from.
+	 * </p>
+	 *
+	 * <p>
+	 * Best-effort. A failure here is logged and leaves the detections in place - a face that is found but not yet matchable is a much better outcome
+	 * than losing the detection as well, and re-running the node upserts both sets rather than duplicating them.
+	 * </p>
+	 */
+	private void persistEmbeddings(AssetResponse asset, List<Detection> detections, DetectionBulkResponse stored) {
+		if (!options().isEmbeddingsEnabled() || stored == null) {
+			return;
+		}
+		List<DetectionResponse> rows = stored.getDetections();
+		if (rows == null || rows.size() != detections.size()) {
+			// Without a one-to-one correspondence there is no safe way to tell which vector belongs to which
+			// row, and guessing would attach vectors to the wrong faces - silently, and permanently.
+			if (rows != null && !rows.isEmpty()) {
+				log.warn("Skipping embeddings for asset {}: {} detection(s) sent but {} stored", asset.getUuid(), detections.size(), rows.size());
+			}
+			return;
+		}
+		try {
+			List<EmbeddingCreateRequest> items = new ArrayList<>();
+			for (int i = 0; i < detections.size(); i++) {
+				Detection detection = detections.get(i);
+				if (!detection.hasEmbedding()) {
+					continue;
+				}
+				float[] vector = detection.embedding();
+				Float[] boxed = new Float[vector.length];
+				for (int v = 0; v < vector.length; v++) {
+					boxed[v] = vector[v];
+				}
+				items.add(new EmbeddingCreateRequest()
+					.setType(FacedetectNodeOptions.EMBEDDING_TYPE)
+					.setNodeKind(name())
+					.setModel(options().getEmbeddingModel())
+					.setVector(boxed)
+					.setDimensions(vector.length)
+					.setDetectionUuid(rows.get(i).getUuid())
+					.setFrameNumber(detection.frameIndex())
+					.setSubjectIndex(i)
+					.setConfidence(detection.confidence()));
+			}
+			if (items.isEmpty()) {
+				return;
+			}
+			client().bulkCreateAssetEmbeddings(asset.getUuid(), new EmbeddingBulkCreateRequest().setEmbeddings(items)).sync();
+			log.info("Stored {} face embedding(s) for asset {}", items.size(), asset.getUuid());
+		} catch (Exception e) {
+			log.warn("Failed to persist embeddings for asset {}: {}", asset.getUuid(), e.getMessage());
+		}
+	}
 }

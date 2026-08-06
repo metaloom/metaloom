@@ -241,7 +241,7 @@ public class AssetCreateRequest implements RestRequestModel, AssetModel<AssetCre
 
 	@JsonIgnore
 	public AssetCreateRequest addVideoFingerprint(Float[] vector) {
-		getEmbeddings().add(new EmbeddingCreateRequest().setVector(vector).setType(EmbeddingType.VIDEO4J_FINGERPRINT_V2));
+		getEmbeddings().add(new EmbeddingCreateRequest().setVector(vector).setType(EmbeddingType.VIDEO4J_FINGERPRINT_V2.name()));
 		return this;
 	}
 

@@ -84,6 +84,22 @@ public class ProcessorRegistry {
 		this.broadcaster = broadcaster;
 		this.metrics = metrics;
 		metrics.bindGauge("loom_processors_connected", processors::size);
+		// Attached is not the same as usable. Only ONLINE workers are placeable, so a fleet whose
+		// connection count looks healthy while every worker sits in TERMINATING through a rolling
+		// restart reads as fine on loom_processors_connected alone - and no work is going anywhere.
+		// One series per enum constant, which is what keeps the cardinality bounded and fixed.
+		for (ProcessorState state : ProcessorState.values()) {
+			metrics.bindGauge("loom_processors_by_state", "state", state.name().toLowerCase(),
+				() -> countByState(state));
+		}
+	}
+
+	/**
+	 * @param state the state to count
+	 * @return how many connected workers are currently in it
+	 */
+	private long countByState(ProcessorState state) {
+		return processors.values().stream().filter(p -> p.state == state).count();
 	}
 
 	/**

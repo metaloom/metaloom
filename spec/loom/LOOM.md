@@ -10,7 +10,7 @@ split. Everything else is delegated — do not duplicate it here.
 | `LoomOptions`, YAML loading, env overrides, validation | [CONFIGURATION.md](CONFIGURATION.md) |
 | REST endpoints, auth flows, CRUD patterns, OpenAPI | [RESTAPI.md](RESTAPI.md) |
 | Domain entities derived from the migrations | [DOMAIN.md](DOMAIN.md) |
-| jOOQ DAOs, Flyway migrations, DAO test infrastructure | [PERSISTENCE.md](PERSISTENCE.md) · [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) |
+| jOOQ DAOs, Flyway migrations, DAO test infrastructure | [PERSISTENCE.md](PERSISTENCE.md) · [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | Processor WS + pipeline-events WS protocols | [WEBSOCKET.md](WEBSOCKET.md) |
 | Event bus systems and WS fan-out | [EVENTBUS.md](EVENTBUS.md) |
 | MCP server (JSON-RPC over HTTP+SSE/WS) | [MCP.md](MCP.md) |
@@ -19,7 +19,7 @@ split. Everything else is delegated — do not duplicate it here.
 | Chat agent, memory, coding sandbox | [ui/CHAT.md](ui/CHAT.md) · [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
 | Pipeline execution engine + Loom↔Cortex protocol | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
 | Permissions / RBAC | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) · [../features/rbac/RBAC.md](../features/rbac/RBAC.md) |
-| Search & similarity | [../features/search/SEARCH.md](../features/search/SEARCH.md) · [../features/search/LUCENE_PLAN.md](../features/search/LUCENE_PLAN.md) |
+| Search & similarity | [../features/search/SEARCH.md](../features/search/SEARCH.md) · [../features/search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
 | UI | [ui/LOOM_UI.md](ui/LOOM_UI.md) · [ui/PIPELINE_EDITOR.md](ui/PIPELINE_EDITOR.md) |
 
 ---
@@ -226,7 +226,7 @@ Core server/database variables only:
 | `LOOM_WS_STRICT_AUTH` | Reject untokenised WebSocket upgrades | `false` |
 | `LOOM_MCP_AUTH_ENABLED` / `LOOM_MCP_AUTH_STRICT_MODE` | MCP authentication | see [MCP.md](MCP.md) |
 | `LOOM_SEARCH_ENABLED` / `LOOM_SEARCH_PROVIDER` | Search backend | see [SEARCH.md](../features/search/SEARCH.md) |
-| `LOOM_SIMILARITY_ENABLED` | Fingerprint k-NN index | see [LUCENE_PLAN.md](../features/search/LUCENE_PLAN.md) |
+| `LOOM_SIMILARITY_ENABLED` | Fingerprint k-NN index | see [LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
 | `LOOM_AI_*`, `LOOM_AGENT_SANDBOX_*`, `LOOM_AGENT_MEMORY_*` | Chat agent, sandbox, memory | see [ui/CHAT.md](ui/CHAT.md) |
 | `LOOM_STORAGE_*`, `LOOM_S3_*` | Binary storage | see [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 
@@ -296,7 +296,7 @@ in-worker path, not by a Loom-dispatched run.
 Protocol, run flow, retries, segmentation and the known defects (e.g. the
 `dependencies[]` vs `edges[]` mismatch, stub node kinds) are specified in
 [PIPELINE.md §12](../features/pipeline/PIPELINE.md); node inventory in
-[../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md).
+[../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md).
 
 ---
 
@@ -476,6 +476,5 @@ Pipeline-node test patterns are in
 - [ ] No spec for `services/logger`
 
 ---
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (rewritten against the code: current module layout incl. `loom/pipeline` and `loom/agent`, real bootstrap order, Variant C Loom↔Cortex split, and de-duplicated against the sibling specs.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -190,7 +190,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		d.nodeResult = nodeResult.getUuid();
 
 		// embedding (V2.43)
-		Embedding embedding = embeddingDao().createEmbedding(userUuid, assetUuid, VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1);
+		Embedding embedding = embeddingDao().createEmbedding(userUuid, assetUuid, VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1.name());
 		embedding.setNodeKind("facedetect");
 		embedding.setProducerVersion("dlib-v1");
 		embedding.setSubjectIndex(0);

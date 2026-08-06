@@ -4,7 +4,7 @@
 > follow-ups (§4) and one behavioural gap in the demo/shippable graphs.
 >
 > **This file is no longer the reference for the built system.** That is
-> [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md), which owns the vocabulary, the per-node port table, the
+> [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md), which owns the vocabulary, the per-node port table, the
 > wire shapes, the fan-out semantics, the key-classes table and the current defect audit.
 >
 > **What this file is for, and the only reason to keep it:**
@@ -15,14 +15,14 @@
 > 3. the **remaining open work** (§4) and the **deliberately deferred** items (§5).
 >
 > Everything the design said that the code now simply *does* has been removed from this file — read
-> the code, or [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md).
+> the code, or [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md).
 >
 > **Companion documents**
-> - [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) — the reference for the built model.
-> - [PIPELINE.md](PIPELINE.md) — engine, run state, dispatch protocol, segmentation, affinity.
-> - [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) — node lifecycle, per-node configuration
+> - [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) — the reference for the built model.
+> - [PIPELINE.md](../features/pipeline/PIPELINE.md) — engine, run state, dispatch protocol, segmentation, affinity.
+> - [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) — node lifecycle, per-node configuration
 >   and persistence targets.
-> - [../../guidelines/CODING.md](../../guidelines/CODING.md) — definition of done for a code change.
+> - [../../guidelines/CODING.md](../guidelines/CODING.md) — definition of done for a code change.
 >
 > **Source of truth is the code.** Where this plan and the code disagree, the code wins — fix this
 > file in the same change.
@@ -61,7 +61,7 @@ which upstream `(node, port)` fills it from the wired edges.
 ## 2. Already implemented
 
 One row per delivered item. Paths are the place to read, not a summary of behaviour — for behaviour
-see [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md).
+see [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md).
 
 | Delivered | Lives in |
 |---|---|
@@ -83,7 +83,7 @@ see [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md).
 | Descriptor↔runtime port parity, enforced across the tree | `integration-test/.../NodePortConformanceTest.java` (with `DYNAMIC_KINDS` exemptions for script/llm/vlm) |
 | Editor: handle ids **are** port ids, family colours, live validation (`isAssignable` + duplicate/cardinality/XOR/EXCLUSIVE), persistence of `sourcePort`/`targetPort`/`branch` and per-node `options` | `loom-ui/src/features/pipeline/PipelineEditor.tsx` (`isValidConnection` ~1672, `getGraphJson` ~1816) |
 | TS mirrors of the lattice and the dynamic-port resolvers, with contract tests | `loom-ui/src/features/pipeline/{contentTypes,portResolvers}.ts` (+ `.test.ts`) |
-| Demo pipelines rewired to ports; the website `nodeviz` renderer speaks the vocabulary | `DemoDatabaseInitializer`, [../../website/WEBSITE.md](../../website/WEBSITE.md) |
+| Demo pipelines rewired to ports; the website `nodeviz` renderer speaks the vocabulary | `DemoDatabaseInitializer`, [../../website/WEBSITE.md](../website/WEBSITE.md) |
 
 ```mermaid
 graph LR
@@ -165,7 +165,7 @@ model; each is a follow-up.
 - [ ] **`ValueCoercerTest`** — one case per family; `Long` survives the round trip; a non-encodable
       `struct` fails exactly **one** task rather than clearing the persist batch.
 - [ ] **`PortPayloadRoundTripTest`** — `output → JSON → JSONB → input` preserves the content type
-      **and** the origin tags. This is the round trip [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) flags
+      **and** the origin tags. This is the round trip [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) flags
       as unprotected.
 - [ ] **Java-side fixture export for the TS contract tests** (divergence 16). `contentTypes.test.ts`
       and `portResolvers.test.ts` assert against hand-transcribed data, so a Java-side change to the
@@ -199,7 +199,7 @@ model; each is a follow-up.
 
 - [ ] **Descriptor-kind vs runnable-kind counts disagree across spec files.** A descriptor is not a
       registration: a kind needs `@Binds @IntoMap @StringKey("<kind>")` in Cortex to be runnable, and
-      the two sets differ. Pick one derivation, state it in [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md),
+      the two sets differ. Pick one derivation, state it in [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md),
       and have every other spec cross-reference it instead of repeating a number.
 
 ---
@@ -268,10 +268,10 @@ behave differently. See [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATI
 
 | Need | Path |
 |---|---|
-| **What the model is and how to use it** (vocabulary, per-node ports, wire shapes, defect audit) | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
-| Engine, dispatch, run state, affinity | [PIPELINE.md](PIPELINE.md) |
-| Node lifecycle, per-node config and persistence | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) |
-| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| **What the model is and how to use it** (vocabulary, per-node ports, wire shapes, defect audit) | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Engine, dispatch, run state, affinity | [PIPELINE.md](../features/pipeline/PIPELINE.md) |
+| Node lifecycle, per-node config and persistence | [../pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../guidelines/CODING.md) |
 | Vocabulary and lattice | `loom-shared/node-model/.../nodes/spec/{ContentTypeRegistry,ContentTypeLattice}.java` |
 | Port model and descriptors | `loom-shared/node-model/.../nodes/spec/{PortSpec,PortGroup,PortGroupMode,Cardinality,ResolvedPorts,NodeDescriptor}.java` |
 | Dynamic ports | `…/nodes/spec/{NodePortResolver,ScriptPortResolver,PromptPortResolver}.java` |
@@ -327,10 +327,9 @@ Phase-level state. Item-level detail for anything unchecked is in §4.
       segments, elements by reference (§5).
 
 **When can this file be deleted?** When §4 is empty and §3 has been folded into
-[NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) as a "why it looks like this" section. Until then §3 is the
+[NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) as a "why it looks like this" section. Until then §3 is the
 only record of the twenty-one places where the built system diverges from its design.
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced from a 1148-line phase plan to the divergence record and the open tail, now that all six phases have landed; corrected the claim that inline `dependencies[]` still parses — the parser rejects it.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -11,7 +11,7 @@ Covers the **Loom server** configuration system: `loom.yml`, the `Option` tree i
 | Helm chart values → env wiring | [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) |
 | Binary storage backends, pools, S3 semantics | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §5, §11 |
 | Search behaviour behind `search.*` | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
-| Similarity index behind `similarity.*` | [../features/search/LUCENE_PLAN.md](../features/search/LUCENE_PLAN.md) |
+| Similarity index behind `similarity.*` | [../features/search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
 | Chat agent / memory bank behaviour behind `ai.*`, `memory.*` | [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
 | MCP auth behaviour behind `auth.mcpAuth*` | [MCP.md](MCP.md) |
 
@@ -259,7 +259,26 @@ and `KUBERNETES_SERVICE_PORT` (`443`) directly in `KubernetesBackend` — they a
 | `LOOM_SIMILARITY_SCORE_THRESHOLD` | `0.10` | `SimilarityOptions` | Default k-NN score floor (per-request overridable) |
 | `LOOM_SIMILARITY_TOPK` | `10` | `SimilarityOptions` | Default neighbours per query (per-request overridable) |
 
-### 4.12 Read outside the option tree
+### 4.12 `vectorIndex` — `VectorIndexOptions`
+
+The embedding (face) vector index. **Distinct from `similarity`**: that one holds one perceptual fingerprint
+per asset and answers "same recording?", this one holds one vector per detected face and answers "same
+subject?". Separate directories, separate writers - do not point them at the same path.
+
+| Variable | Default | Options | Purpose |
+|----------|---------|---------|---------|
+| `LOOM_VECTOR_INDEX_PROVIDER` | `none` | `VectorIndexOptions` | `none` \| `lucene`. An unknown value fails `validate()` at boot rather than degrading silently |
+| `LOOM_VECTOR_INDEX_PATH` | `vector-index` | `VectorIndexOptions` | On-disk Lucene index directory |
+| `LOOM_VECTOR_INDEX_TOPK` | `10` | `VectorIndexOptions` | Default neighbours per query |
+| `LOOM_VECTOR_INDEX_SCORE_THRESHOLD` | `0.35` | `VectorIndexOptions` | Default similarity floor |
+| `LOOM_VECTOR_INDEX_SYNC_INTERVAL_MS` | `5000` | `VectorIndexOptions` | Dirty-row drain interval; `0` disables the background drain |
+| `LOOM_VECTOR_INDEX_SYNC_BATCH_SIZE` | `500` | `VectorIndexOptions` | Rows per drain pass |
+
+⚠️ The index is a derived cache of `embedding.vector`. Turning a provider on after rows already exist needs a
+`POST /api/v1/vector-index/rebuild` (or `/sync`) — the rows written while it was off are still `dirty`, so
+nothing is lost, but nothing is indexed until one of the two runs.
+
+### 4.13 Read outside the option tree
 
 | Variable | Default | Read by | Purpose |
 |----------|---------|---------|---------|
@@ -267,7 +286,7 @@ and `KUBERNETES_SERVICE_PORT` (`443`) directly in `KubernetesBackend` — they a
 | `LOOM_NAME` | random "adjective Noun" | `LoomNameProvider` | Instance name used in log patterns. JVM property `loom.name` wins over it |
 | `LOOM_UI_DIR` | `../loom-ui` | `E2ETest` (test only) | Location of the built UI for the e2e suite |
 
-### 4.13 Documented elsewhere but **never read** by Loom
+### 4.14 Documented elsewhere but **never read** by Loom
 
 | Variable | Where it appears | Reality |
 |----------|------------------|---------|
@@ -275,7 +294,7 @@ and `KUBERNETES_SERVICE_PORT` (`443`) directly in `KubernetesBackend` — they a
 | `LOOM_AUTH_KEYSTORE_PATH` | `helm/loom/templates/deployment.yaml` | No option field. The keystore is always `baseConfigFolder/keystore.jceks` |
 | `LOOM_HOST`, `LOOM_PORT`, `LOOM_TOKEN` | Helm chart, `CortexContainer` | Read by **Cortex/CLI**, not by the Loom server — see [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) |
 
-### 4.14 Read in code but undocumented outside this file
+### 4.15 Read in code but undocumented outside this file
 
 `LOOM_WS_STRICT_AUTH`, `LOOM_BINARY_DIR` (as an alias), the whole `LOOM_SEARCH_*` and
 `LOOM_SIMILARITY_*` families, and most of `LOOM_AGENT_SANDBOX_*` / `LOOM_AGENT_MEMORY_*` are not
@@ -557,7 +576,7 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 - [x] Config file lookup order and `baseConfigFolder` semantics
 - [x] Complete `loom.yml` structure — all ten sections
 - [x] Exhaustive env-var table (variable → default → Options class → purpose)
-- [x] Flag documented-but-never-read variables (§4.13) and code-read-but-undocumented ones (§4.12, §4.14)
+- [x] Flag documented-but-never-read variables (§4.14) and code-read-but-undocumented ones (§4.13, §4.15)
 - [x] Both override paths (reflection vs `applyEnv*`) and which class uses which
 - [x] Sensitive-value masking, and which secrets are *not* masked
 - [x] Precedence: env > YAML > default; no CLI layer
@@ -588,12 +607,11 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 - [WEBSOCKET.md](WEBSOCKET.md) — behaviour behind `LOOM_WS_STRICT_AUTH`
 - [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) — chart values → env mapping
 - [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) — `storage.*` and `s3.*` in context
-- [../features/search/SEARCH.md](../features/search/SEARCH.md), [../features/search/LUCENE_PLAN.md](../features/search/LUCENE_PLAN.md) — `search.*`, `similarity.*`
+- [../features/search/SEARCH.md](../features/search/SEARCH.md), [../features/search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) — `search.*`, `similarity.*`
 - [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) — `ai.*`, `memory.*`, `sandbox.*`
 - [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) — the separate Cortex configuration system
 - [../guidelines/CODING.md](../guidelines/CODING.md) — definition of done for a code change
 
 ---
-
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (`LOOM_AI_PROVIDER_TYPE` removed; `LOOM_AI_URL`/`LOOM_AI_MODEL_ID` defaults now name an OpenAI-compatible server)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

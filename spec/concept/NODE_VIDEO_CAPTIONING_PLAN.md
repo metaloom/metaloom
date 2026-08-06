@@ -17,7 +17,7 @@
 > JSON component**, not as `asset_segment_comp` rows. That is the main open item (§3).
 >
 > Measured latency/quality numbers are in the benchmark report, not here.
-> Source of truth is the code under `cortex/`. Node reference: [NODES.md](NODES.md).
+> Source of truth is the code under `cortex/`. Node reference: [NODES.md](../features/nodes/NODES.md).
 
 ---
 
@@ -46,7 +46,7 @@
 | Integration test | [`CaptioningNodeIntegrationTest`](../../../integration-test/src/test/java/io/metaloom/loom/test/integration/node/CaptioningNodeIntegrationTest.java) — image path against a mock SmolVLM server, video path (`WHOLE`) driving the real frame sampler against the genai `MockLLMServer`; both read back via REST |
 | Scene detector fixes | `AbstractSceneDetector` records boundaries with a `minSceneLength` debounce and closes the trailing scene; `OpticalFlowSceneDetector` uses a Canny-enhanced normalized mean frame difference; `SceneBoundaryIT` guards it (details in the benchmark report §6) |
 | Customer docs | `website/content/english/docs/nodes/captioning/index.adoc` — documents all three strategies and the video options |
-| Spec entries | [NODES.md](NODES.md) §2/§3/§5, [spec/CONTEXT.md](../../CONTEXT.md) |
+| Spec entries | [NODES.md](../features/nodes/NODES.md) §2/§3/§5, [spec/CONTEXT.md](../../CONTEXT.md) |
 
 ### Shipped data flow
 
@@ -225,7 +225,7 @@ The node itself reads **no environment variables**; the backends do (see the rep
 - **A Flyway change means `./setup-pool.sh` *and* `loom/db/jooq/generate.sh`** — relevant the moment
   §3.1 is picked up.
 - **The code is the source of truth.** Where this document and `cortex/` disagree, the code wins —
-  fix this file in the same change ([SPEC_RULES.md](../../SPEC_RULES.md)).
+  fix this file in the same change ([SPEC_RULES.md](../guidelines/SPEC_RULES.md)).
 
 ---
 
@@ -235,10 +235,10 @@ The node itself reads **no environment variables**; the backends do (see the rep
 |---|---|
 | Measured latency / quality numbers | [NODE_VIDEO_CAPTIONING_REPORT.md](NODE_VIDEO_CAPTIONING_REPORT.md) |
 | Raw benchmark data | [video-captioning-results/](video-captioning-results/) |
-| Node system reference | [NODES.md](NODES.md) |
-| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
-| New-node checklist | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
-| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Node system reference | [NODES.md](../features/nodes/NODES.md) |
+| Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| New-node checklist | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
+| Definition of done for a code change | [../../guidelines/CODING.md](../guidelines/CODING.md) |
 | Node implementation | `cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/` |
 | Scene detector | `cortex/nodes/scene-detection/core/src/main/java/io/metaloom/cortex/node/scene/` |
 | UI descriptor | `loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/CaptioningDescriptorProvider.java` |
@@ -297,6 +297,5 @@ The node itself reads **no environment variables**; the backends do (see the rep
 - vLLM multimodal serving — <https://docs.vllm.ai/en/stable/examples/online_serving/openai_chat_completion_client_for_multimodal/>
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (verified shipped against code; reduced to a status + open-work document — the node is `captioning`'s `videoStrategy`, and the `CAPTION` segment-type migration was never written)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

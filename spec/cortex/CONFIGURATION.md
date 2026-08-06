@@ -11,7 +11,7 @@
 > - [BUILD.md](BUILD.md) — build, container image, native dependencies
 > - [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md) — system-wide view
 > - [PIPELINE.md](../features/pipeline/PIPELINE.md) — pipeline engine & definition JSON
-> - [NODES.md](../features/pipeline-nodes/NODES.md) — per-node behaviour and full option field tables
+> - [NODES.md](../features/nodes/NODES.md) — per-node behaviour and full option field tables
 > - [HELM_CORTEX.md](../features/helm/HELM_CORTEX.md) — Kubernetes deployment values
 
 ---
@@ -297,7 +297,7 @@ Every node module contributes a `CortexNodeOptionDeserializerInfo(optionsClass, 
 
 ### 5.2 Selected node defaults
 
-Spot-check values; the authoritative per-field tables live in [NODES.md](../features/pipeline-nodes/NODES.md) §5.
+Spot-check values; the authoritative per-field tables live in [NODES.md](../features/nodes/NODES.md) §5.
 
 | Key | Notable fields (defaults) |
 |---|---|
@@ -376,7 +376,7 @@ A run request may override the selection via `pathGlobs` in the `SOURCE_TASK` op
 
 Root (`path`) mode performs a **differential** scan against a persisted per-root index and emits only files whose `FileState` is in `emitStates`; glob mode always re-walks and emits every match.
 
-See [PIPELINE.md](../features/pipeline/PIPELINE.md) and [NODES.md](../features/pipeline-nodes/NODES.md) §4 (`MediaSourceNode`).
+See [PIPELINE.md](../features/pipeline/PIPELINE.md) and [NODES.md](../features/nodes/NODES.md) §4 (`MediaSourceNode`).
 
 ### 6.2 Cloud source selection (`gdrive-source`, `onedrive-source`)
 
@@ -390,7 +390,7 @@ Only the *selection* comes from the definition. Credentials are worker-level (§
 
 `driveId` resolves definition → configured node defaults → `CORTEX_<PROVIDER>_DEFAULT_DRIVE_ID`. Google treats an unresolved drive as My Drive; Microsoft app-only has no `/me` and fails with a message naming the setting.
 
-Both kinds are advertised **only when that provider's credentials are configured**, which is the reason they are two kinds rather than one with a `provider` parameter — see [NODE_CLOUDSOURCE_PLAN.md](../features/pipeline-nodes/NODE_CLOUDSOURCE_PLAN.md).
+Both kinds are advertised **only when that provider's credentials are configured**, which is the reason they are two kinds rather than one with a `provider` parameter — see [NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md).
 
 ---
 
@@ -510,9 +510,8 @@ Entrypoint: `java … -Duser.dir=/cortex -jar cortex-cli.jar` — no arguments. 
 - [ ] **Align the container config path** (§1.2) so a mounted `/config/cortex.yml` is loaded — or teach the loader a `CORTEX_CONF_PATH`
 - [ ] Reconcile the `scene-detector` / `scene-detection` naming mismatch
 - [ ] Expose `dryrun` and `maxConcurrentMedia` as env vars, or drop them
-- [ ] Per-node exhaustive field tables live in [NODES.md](../features/pipeline-nodes/NODES.md) §5 — verify they match §5.2 here
+- [ ] Per-node exhaustive field tables live in [NODES.md](../features/nodes/NODES.md) §5 — verify they match §5.2 here
 
 ---
-
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (the `llm` node options are now `openaiUrl` + `contextWindow`; `providerType` removed)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

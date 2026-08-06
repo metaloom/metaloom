@@ -98,6 +98,17 @@ public class ItemState {
 		exec(nodeId, ExecutionMode.SINGLE).markInFlight(seq, taskUuid);
 	}
 
+	/** Start an execution's dispatch-to-result clock, once a worker has accepted it. */
+	void markDispatched(String nodeId, int seq, long atMs) {
+		exec(nodeId, ExecutionMode.SINGLE).markDispatched(seq, atMs);
+	}
+
+	/** @return when this execution was placed on a worker, or null when it never was */
+	Long dispatchedAt(String nodeId, int seq) {
+		NodeExecState state = execs.get(nodeId);
+		return state == null ? null : state.dispatchedAt(seq);
+	}
+
 	/**
 	 * Give up on the in-flight task for a node without settling it, so it can be
 	 * dispatched again.

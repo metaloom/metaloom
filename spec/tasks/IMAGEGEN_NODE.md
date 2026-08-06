@@ -4,9 +4,9 @@
 > thin status page for the remaining open items.
 >
 > ⚠️ **Superseded**: the authoritative design/spec for this node is
-> [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md)
+> [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md)
 > (architecture, ports, options table, gotchas, key-classes reference). Do not add design
-> detail here — put it there. Node catalog: [../features/pipeline-nodes/NODES.md](../features/pipeline-nodes/NODES.md).
+> detail here — put it there. Node catalog: [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md).
 
 ## Already implemented
 
@@ -66,6 +66,5 @@
   or tests (known `NoSuchMethodError` pitfall).
 
 ---
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (reduced to a status page: node and sidecar are implemented, only live-GPU smoke, byte-ingest and licensing decisions remain open)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -4,13 +4,13 @@
 > plus one integration test, descriptor + website docs + demo data all in the tree.
 > This file is a **status page**: §1 says where everything lives, §2–§6 carry only what is still
 > open or still non-obvious. It deliberately does not restate node lifecycle
-> ([NODES.md](NODES.md)), the port/content-type model
-> ([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)), the engine
-> ([../pipeline/PIPELINE.md](../pipeline/PIPELINE.md)) or the new-node checklist
-> ([../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md)).
+> ([NODES.md](../features/nodes/NODES.md)), the port/content-type model
+> ([../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md)), the engine
+> ([../pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md)) or the new-node checklist
+> ([../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md)).
 >
 > **The code is the source of truth.** Where this file and the code disagree, fix this file in the
-> same change ([../../guidelines/CODING.md](../../guidelines/CODING.md)).
+> same change ([../../guidelines/CODING.md](../guidelines/CODING.md)).
 
 ---
 
@@ -113,7 +113,7 @@ No dedicated environment variables. Relevant existing ones:
 - [ ] **`SceneLayoutNode` still has the two bugs this node avoided** (confirmed still present): its
       `LocalResultCache` is keyed on `media.absolutePath()` alone, and it scales `NORMALIZED` boxes by
       the *payload's* dimensions rather than the decoded image's. Out of scope here; tracked in
-      [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §10 and
+      [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §10 and
       [NODE_SCENE_LAYOUT_PLAN.md](NODE_SCENE_LAYOUT_PLAN.md).
 
 ---
@@ -147,7 +147,7 @@ order. `k` is capped by the distinct-colour count *before* seeding.
 | **`Lab.hue()` returns `null`, not 0, below `HUE_EPSILON`** | `atan2(0,0)` is 0, and a caller taking that at face value reports pure grey as *red*. `HUE_EPSILON` is `1e-4` rather than 0 because the D65 white point is not exactly consistent with the sRGB primary matrix (residual chroma ~`2e-5`) |
 | **Stride sampling, never bilinear downscaling** | Interpolation invents colours that are not in the image (a red/blue striped flag downscales to purple) and bleeds the RGB of fully transparent pixels into their neighbours before the alpha gate can discard them. A deliberate divergence from `DepthImages.downscale` |
 | **Transparent pixels are skipped, never flattened** | `DepthImages.toOpaque` flattens onto white, correct for a depth map; here it would make every logo on a transparent background come back *white*. `testFullyTransparentPixelsAreSkippedRatherThanFlattened` writes blue *behind* zero alpha so any blend is detectable |
-| **A failure path ends in `abort()`, never `failure(...).next()`** | `NodeContextImpl.next()` ignores `failureCause` and returns SUCCESS. Eleven other nodes still have that bug ([NODES.md](NODES.md) §10) |
+| **A failure path ends in `abort()`, never `failure(...).next()`** | `NodeContextImpl.next()` ignores `failureCause` and returns SUCCESS. Eleven other nodes still have that bug ([NODES.md](../features/nodes/NODES.md) §10) |
 | **The cache key covers upstream payloads and options, not just the path** | `cacheKey(ctx)` hashes the path + every wired detection payload + all options. Keying on the path alone (as `SceneLayoutNode` does) returns the first detector's answer when the file is re-run behind a different detector — a stale result that never surfaces as an error. `testChangedUpstreamDetectionsMissTheCache` pins it |
 | **An undecodable image FAILS; an empty result SKIPS** | A fully transparent PNG or a detector that found nothing is a normal outcome; failing it would block downstream nodes and pollute the run summary |
 | **Fixtures are PNG, and their filenames end `.png`** | JPEG chroma subsampling puts colours into the decoded image that were never written; and `FilterHelper.isImage` decides the media type from the extension alone, so a wrongly-named fixture makes every test pass vacuously |
@@ -246,6 +246,5 @@ No database is needed for anything but the integration test.
 | Customer-facing docs | `website/content/english/docs/nodes/dominant-color/index.adoc` |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced to a status page — implemented work collapsed into one table, typed ports and the corrected `struct/color` content type recorded, and only the open items, the reproducibility contract and the gotchas kept in full)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -3,14 +3,14 @@
 > **Audience: AI coding agents.** This is the reference for how a pipeline is
 > **defined, validated, dispatched, executed and recorded**. Source of truth is the
 > code; when it disagrees with this file, the code wins — fix this file in the same
-> change ([SPEC_RULES.md](../../SPEC_RULES.md)).
+> change ([SPEC_RULES.md](../../guidelines/SPEC_RULES.md)).
 
 **Scope split — do not duplicate these here:**
 
 | Topic | Spec |
 |---|---|
 | Port model, content types, cardinality, fan-out/gather, coercion, per-kind port tables | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
-| Individual nodes: lifecycle, options, MetaStorage, per-node reference, node restriction | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) |
+| Individual nodes: lifecycle, options, MetaStorage, per-node reference, node restriction | [../pipeline-nodes/NODES.md](../nodes/NODES.md) |
 | WebSocket framing, auth, reconnect, message-by-message reference | [../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md) |
 | Worker topology, registration, placement, leases, metrics | [../../cortex/METALOOM_ARCHITECTURE.md](../../cortex/METALOOM_ARCHITECTURE.md) |
 | Non-technical requirements / actionable tasks | [PIPELINE_REQUIREMENTS.md](PIPELINE_REQUIREMENTS.md) · [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) |
@@ -129,7 +129,7 @@ graph TB
 | `cortex/pipeline-core` | `AbstractPipelineNode`, `AbstractFilterNode` + 8 filters, `AssetSourceNode`, `LoomFetchNode`, `CortexNodeAdapter`; test-jar `AbstractNodeChainTest` |
 | `cortex/pipeline-common` | `DefaultPipelineEventBus`, `DefaultLoomBulkSyncCollector` |
 | `cortex/api` | `NodeInputs`, `NodeContext`, the typed port API, and the segment-scoped `ArtifactCache` (§7.4) |
-| `cortex/nodes/*` | Concrete nodes — see [NODES.md](../pipeline-nodes/NODES.md) |
+| `cortex/nodes/*` | Concrete nodes — see [NODES.md](../nodes/NODES.md) |
 
 🔴 **Deleted — every one of these is gone; do not reintroduce or reference them:**
 `Pipeline`, `PipelineExecutor`, `ReactivePipelineExecutor`, `DefaultPipeline`,
@@ -672,7 +672,7 @@ specified in [NODE_DATA_TYPES.md §2-§4](NODE_DATA_TYPES.md). Not repeated here
 ⚠️ **A descriptor is not a registration.** Ten descriptor kinds have no runtime
 producer: `facedescription`, `loom-fetch`, and the eight `filter-*` kinds. Two
 runnable kinds have no descriptor: `asset-source` and `sha512-dedup` (`hash-dedup` has
-the descriptor). Enumerated in [NODES.md §12](../pipeline-nodes/NODES.md).
+the descriptor). Enumerated in [NODES.md §12](../nodes/NODES.md).
 
 ⚠️ Every descriptor advertises a `NODE_STATS` event and a `retryFailed` parameter.
 `NODE_STATS` is emitted by `RunStatsAggregator`, not per node; **`retryFailed` is
@@ -778,7 +778,7 @@ model and `PipelineRunRecord` all use free-form `String`.
 A run over 100 000 items across a 10 node graph writes 100 000 `pipeline_run_item`
 rows and ~1 M `pipeline_node_task` rows. Nothing deletes any of it today; the sweep is
 an open item in
-[../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../cortex/METALOOM_ARCHITECTURE_TASK.md) §10.
+[../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../tasks/METALOOM_ARCHITECTURE_TASK.md) §10.
 
 | State | Kept | Why |
 |---|---|---|
@@ -1223,6 +1223,5 @@ See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakd
 [NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
 
 ---
-
-_Git HEAD revision: `1ce29d78`_
-_Last updated: 2026-08-05 (§5 affinity segments now group on a shared producer, not only on an edge between members, with two refusals — different filter branches, and two values needed for one input port id; §7 `SegmentTaskRunner` scopes a member's visible inputs to its declared dependencies, which is what makes that sound. Earlier: §6.4b re-executing a held node with different settings and the `V2.68` generation column.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -33,14 +33,14 @@ pipeline definition using *worker* credentials and registers the artifact as a n
 read it", not for "make this a first-class Loom binary in whichever backend this library uses" (§4
 B5).
 
-> **Read first**: [REST_BINARY_HANDLING.md](REST_BINARY_HANDLING.md) — the byte endpoints, the pool
+> **Read first**: [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) — the byte endpoints, the pool
 > model, the storage layout. **Read alongside**:
-> [../pipeline-nodes/NODE_S3SINK_PLAN.md](../pipeline-nodes/NODE_S3SINK_PLAN.md) (the worker-side
+> [../pipeline-nodes/NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) (the worker-side
 > half; this file supersedes its phases 2 and 3),
-> [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) (the node persistence template),
-> [../../loom/RESTAPI.md](../../loom/RESTAPI.md) (endpoint conventions).
-> **Rules**: [../../guidelines/CODING.md](../../guidelines/CODING.md),
-> [../../SPEC_RULES.md](../../SPEC_RULES.md).
+> [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) (the node persistence template),
+> [../../loom/RESTAPI.md](../loom/RESTAPI.md) (endpoint conventions).
+> **Rules**: [../../guidelines/CODING.md](../guidelines/CODING.md),
+> [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md).
 
 ---
 
@@ -116,7 +116,7 @@ and its impl, map them in the DAO, and expose them plus `assetUuid`, `embeddingU
 `AttachmentCreateRequest`. **This is the bulk of Phase A.**
 
 **A2. Sub-resource routes on the asset**, matching the plural convention in
-[../../loom/RESTAPI.md](../../loom/RESTAPI.md). Only `/embeddings/:uuid/attachments` exists today.
+[../../loom/RESTAPI.md](../loom/RESTAPI.md). Only `/embeddings/:uuid/attachments` exists today.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -134,7 +134,7 @@ re-run must replace its own row. Without this, every pipeline re-run 500s on the
 **A5. Decide byte reclaim.** `AttachmentEndpointService.delete` deliberately does not free bytes —
 `attachment_binary` is shared and content-addressed and no reference count spans it and
 `asset_location`. Either add that count and reclaim on the last reference, or document the leak in
-[REST_BINARY_HANDLING.md](REST_BINARY_HANDLING.md). Do not leave it undecided.
+[REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md). Do not leave it undecided.
 
 ---
 
@@ -243,13 +243,13 @@ mvn test -pl loom/services/fs,loom/services/s3            # storage backends
 ```
 
 - **Phase A** — an `AttachmentEndpointTest` case per new route plus 403 cases
-  ([../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md): grant via group+role, never a
+  ([../permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md): grant via group+role, never a
   direct user grant); a DAO test proving the `V2.44` columns round-trip; an upsert test proving a
   second POST with the same `(asset, type, nodeKind, variant)` replaces rather than fails; a delete
-  cascade test ([../../guidelines/CODING.md](../../guidelines/CODING.md)).
+  cascade test ([../../guidelines/CODING.md](../guidelines/CODING.md)).
 - **Phase B** — per-node tests with a mocked `LoomClient` asserting the upload call and its
   arguments, plus one integration test per node against a live Loom
-  ([../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md)). ⚠️ Rebuild the shaded `cortex/cli`
+  ([../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md)). ⚠️ Rebuild the shaded `cortex/cli`
   jar first — node integration tests run against the packaged artifact.
 - **Phase C** — a MinIO-backed test asserting object metadata is present after `store`.
 
@@ -279,7 +279,7 @@ addressing turns itself on whenever a custom endpoint is set.
 
 ## 10. Environment Variables
 
-No new settings. Full documentation in [REST_BINARY_HANDLING.md](REST_BINARY_HANDLING.md) §11.
+No new settings. Full documentation in [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §11.
 
 | Variable | Default | Role here |
 |---|---|---|
@@ -321,9 +321,9 @@ No new settings. Full documentation in [REST_BINARY_HANDLING.md](REST_BINARY_HAN
 | I need … | Look at |
 |---|---|
 | The metadata write-back that already works | `AbstractMediaNode.recordNodeResult`, `POST /assets/:uuid/node-results`, `WhisperNode` |
-| The node persistence template | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
-| The byte endpoints this plan builds on | [REST_BINARY_HANDLING.md](REST_BINARY_HANDLING.md) §2, [../../loom/RESTAPI.md](../../loom/RESTAPI.md) |
-| The worker-side S3 upload that already works | `cortex/nodes/s3-sink/`, [../pipeline-nodes/NODE_S3SINK_PLAN.md](../pipeline-nodes/NODE_S3SINK_PLAN.md) |
+| The node persistence template | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
+| The byte endpoints this plan builds on | [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §2, [../../loom/RESTAPI.md](../loom/RESTAPI.md) |
+| The worker-side S3 upload that already works | `cortex/nodes/s3-sink/`, [../pipeline-nodes/NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) |
 | Why `attachment` is the sanctioned sink | `loom/db/flyway/…/V2.44__attachment_provenance.sql` header |
 | The ledger table | `loom/db/flyway/…/V2.45__add_asset_node_result.sql` |
 | The typed component tables | `V2.38`–`V2.43` |
@@ -374,10 +374,9 @@ No new settings. Full documentation in [REST_BINARY_HANDLING.md](REST_BINARY_HAN
 - [ ] Decide `DEPTH_MAP` vs. `PROXY` (own migration file — §6)
 - [ ] Migrate `ScriptNode` onto `nodeId()` and decide what to do with its `node_id = ''` rows
 - [ ] UI: render attachments (thumbnails) once Phase A lands — see
-      [../../loom/ui/TASK_UI_ASSETS_MEDIA.md](../../loom/ui/TASK_UI_ASSETS_MEDIA.md)
-- [ ] Customer-facing docs once Phase B lands ([../../website/WEBSITE.md](../../website/WEBSITE.md))
+      [../../loom/ui/TASK_UI_ASSETS_MEDIA.md](../loom/ui/TASK_UI_ASSETS_MEDIA.md)
+- [ ] Customer-facing docs once Phase B lands ([../../website/WEBSITE.md](../website/WEBSITE.md))
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced to the one open gap — raw-byte ingest from a Cortex node — after verifying the metadata write-back path had shipped.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

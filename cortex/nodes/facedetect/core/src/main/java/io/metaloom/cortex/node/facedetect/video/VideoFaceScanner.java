@@ -66,6 +66,19 @@ public class VideoFaceScanner {
 
 	public VideoFaceScannerReport scan(VideoFile video, int maxWindowCount)
 		throws InterruptedException, IOException, URISyntaxException {
+		return scan(video, maxWindowCount, false);
+	}
+
+	/**
+	 * Scan a video for faces, optionally computing a recognition embedding for each face that survives selection.
+	 *
+	 * @param withEmbeddings
+	 *            whether to compute embeddings. They are computed <b>after</b> selection, not during detection: the scan finds faces across every window
+	 *            and then keeps only the sharpest handful, so embedding during detection would pay for a vector per candidate and then throw nearly all
+	 *            of them away
+	 */
+	public VideoFaceScannerReport scan(VideoFile video, int maxWindowCount, boolean withEmbeddings)
+		throws InterruptedException, IOException, URISyntaxException {
 		VideoFaceScannerReport report = new VideoFaceScannerReport();
 
 		// Locate potential windows
@@ -87,8 +100,44 @@ public class VideoFaceScanner {
 			e.printStackTrace();
 		}
 
-		logger.info("Got total of {} faces with embeddings in {} windows", allFaces.size(), windows.size());
+		if (withEmbeddings) {
+			embed(report.getFaces());
+		}
+
+		logger.info("Got total of {} faces in {} windows", allFaces.size(), windows.size());
 		return report;
+	}
+
+	/**
+	 * Compute a recognition embedding for each selected face from the crop already taken during the scan.
+	 *
+	 * <p>
+	 * Re-running detection on the crop is what the InspireFace recognition path needs - the embedding is taken from an aligned, cropped face rather than
+	 * from the full frame. A crop the detector no longer recognises as a face yields no vector; that face keeps its box and is simply not matchable,
+	 * which is the honest outcome and better than attaching some other face's vector to it.
+	 * </p>
+	 */
+	private void embed(List<VideoFace> faces) {
+		if (faces == null || faces.isEmpty()) {
+			return;
+		}
+		int embedded = 0;
+		for (VideoFace face : faces) {
+			BufferedImage crop = face.getImage();
+			if (crop == null) {
+				continue;
+			}
+			try {
+				List<? extends Face> found = inspireface.detectFaces(crop, true);
+				if (found != null && !found.isEmpty() && found.get(0).hasEmbedding()) {
+					face.setEmbedding(found.get(0).getEmbedding());
+					embedded++;
+				}
+			} catch (Exception e) {
+				logger.warn("Could not compute an embedding for a face: {}", e.getMessage());
+			}
+		}
+		logger.info("Computed embeddings for {} of {} selected face(s)", embedded, faces.size());
 	}
 
 	private List<VideoFace> processFaces(List<VideoFace> faces) {

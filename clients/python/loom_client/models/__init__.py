@@ -157,6 +157,8 @@ from .detection import (
     DetectionUpdateRequest,
 )
 from .embedding import (
+    EmbeddingBulkCreateRequest,
+    EmbeddingBulkResponse,
     EmbeddingCreateRequest,
     EmbeddingInfo,
     EmbeddingListResponse,
@@ -167,7 +169,6 @@ from .enums import (
     AnnotationType,
     AssetComponentType,
     BulkItemStatus,
-    EmbeddingType,
     NodeRegistrationRejectionReason,
     NodeRegistryEventType,
     NotificationType,
@@ -380,6 +381,9 @@ from .user import (
     UserResponse,
     UserUpdateRequest,
 )
+from .vector import (
+    VectorIndexStatusResponse,
+)
 
 __all__ = [
     "AnnotationCreateRequest",
@@ -473,11 +477,12 @@ __all__ = [
     "DetectionResponse",
     "DetectionUpdateRequest",
     "DocumentInfo",
+    "EmbeddingBulkCreateRequest",
+    "EmbeddingBulkResponse",
     "EmbeddingCreateRequest",
     "EmbeddingInfo",
     "EmbeddingListResponse",
     "EmbeddingResponse",
-    "EmbeddingType",
     "EmbeddingUpdateRequest",
     "Embeddings",
     "FileInfo",
@@ -646,6 +651,7 @@ __all__ = [
     "UserReference",
     "UserResponse",
     "UserUpdateRequest",
+    "VectorIndexStatusResponse",
     "VideoInfo",
     "format_instant",
     "parse_instant",

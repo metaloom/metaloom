@@ -6,7 +6,7 @@ migrations in `loom/db/flyway/src/main/resources/db/migration/` (current through
 
 * DAO layer, jOOQ codegen, migration workflow and test infrastructure → [PERSISTENCE.md](PERSISTENCE.md)
   (this file deliberately does **not** repeat DAO detail).
-* Open persistence gaps → [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md)
+* Open persistence gaps → [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md)
 * REST surface and permission names → [RESTAPI.md](RESTAPI.md)
 * Column-level design sketch → [dbdiagram.yaml](../../loom/design/DB/dbdiagram.yaml) (design aid; the
   migrations are authoritative)
@@ -25,6 +25,7 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 - [x] Asset, asset location, asset pool (fs XOR S3), library→pool routing — V2.8, V2.10, V2.20, V2.63
 - [x] Typed asset components on the shared component contract — V2.38–V2.42
 - [x] Detection ↔ embedding pairing with a single geometry convention — V2.43
+- [x] Face embeddings produced, persisted and indexed; `model` in the embedding identity — V2.75
 - [x] Per-asset processing ledger (`asset_node_result`) — V2.45
 - [x] Asset identity settled on `asset.uuid` as PK — V2.46
 - [x] Pipeline versioning, runs, run items, node tasks, per-element fan-out — V2.19, V2.29–V2.32, V2.60
@@ -32,8 +33,10 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 - [x] Trigger-maintained search index — V2.57–V2.59
 - [x] Dedup review model — V2.61–V2.62
 - [x] Webhooks removed (`webhook` table + `loom_events` enum dropped) — V2.55
-- [ ] `embedding.vector` has **no ANN index** — pgvector vs. external index is an open decision
-      (see the column comment in V2.43 and `spec/features/DB_SCHEMA_FEEDBACK.md` §4.2)
+- [x] `embedding.vector` ANN — **closed for face similarity (V2.75)**: the column is the system of record
+      and the index lives outside Postgres behind `VectorIndex` (Lucene HNSW today), so no Postgres
+      extension is involved. pgvector remains the plan for text→media hybrid ranking only
+      (`spec/features/search/SEMANTIC_SEARCH.md` §2)
 - [ ] `asset_doc_comp` has no producer — OCR/Tika still write `asset_json_comp`; the table is the
       documented graduation path and is deliberately not read by search (V2.58)
 - [ ] Row-level ACL: `search_document.library_uuids` / `space_uuids` / `collection_uuids` are written
@@ -136,7 +139,7 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
 | **Detection** | `detection` | Object/face instance in a frame: `type`, indexed `label`, `frame_number`, `detection_index`, `time_from`, `bbox_x/y/width/height` **normalized 0–1** (the single geometry convention), `confidence`. UNIQUE `(asset_uuid, node_kind, frame_number, detection_index)`. | → Asset (CASCADE); ← Embedding | V2.27 → rewritten V2.43 |
-| **Embedding** | `embedding`, `embedding_cluster` | Vector extracted from an asset: `type` (e.g. `dlib_facemark`, `inspireface`), `model`, `dimensions`, `vector real[]`, `frame_number`, `subject_index`, `time_from`/`time_to`. Geometry is **not** duplicated here — it lives on the linked detection. UNIQUE `(asset_uuid, node_kind, type, frame_number, subject_index)`. | → Asset, → Detection (both CASCADE); ↔ Cluster | V2.12 → rewritten V2.43; `embedding_cluster` cascade V2.51 |
+| **Embedding** | `embedding`, `embedding_cluster` | Vector extracted from an asset: `type` (free-text, e.g. `face`, `clip`), `model` (NOT NULL, e.g. `inspireface-r18`), `dimensions`, `vector real[]`, `frame_number`, `subject_index`, `time_from`/`time_to`, plus the index-export columns `dirty`/`synced_at`/`index_version`/`normalized`. Geometry is **not** duplicated here — it lives on the linked detection. UNIQUE `(asset_uuid, node_kind, type, **model**, frame_number, subject_index)` — `model` is in the key so a model upgrade **adds** rows beside the old ones instead of overwriting them. CHECK `array_length(vector,1) = dimensions`. This table is the **system of record**; ANN search is a derived, rebuildable index behind the `VectorIndex` SPI. Written by `FacedetectNode`. | → Asset, → Detection (both CASCADE); ↔ Cluster | V2.12 → rewritten V2.43; `embedding_cluster` cascade V2.51; index contract + `model` in key V2.75 |
 | **Cluster** | `cluster`, `embedding_cluster`, `tag_cluster`, `collection_cluster` | Group of embeddings by similarity: `name` (UNIQUE), `type` (e.g. `person`). | ← Embedding; ↔ Tag, Collection | V2.12 |
 | **Person** | `person`, `person_image` | Named identity (`firstname`, `lastname`, `alias`) with an image gallery and a primary image. | → Asset (images) | V2.26 |
 | **Vector Config** | `vector_config` | Named weight definition for building custom vector indices. **No DAO, no code references.** | — | V2.6 |
@@ -490,10 +493,9 @@ ledger row in `asset_node_result`. "The node ran and produced nothing" is expres
 | REST paths & permissions per entity | [RESTAPI.md](RESTAPI.md) |
 | Binary upload / pool routing | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | Node/port model, node results | [../cortex/CORTEX.md](../cortex/CORTEX.md) |
-| Dedup review workflow | [../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../features/pipeline-nodes/NODE_DEDUP_PLAN.md) |
-| Open schema questions | `spec/features/DB_SCHEMA_FEEDBACK.md`, [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) |
+| Dedup review workflow | [../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
+| Open schema questions | `spec/features/DB_SCHEMA_FEEDBACK.md`, [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | Test DB pool setup | `./setup-pool.sh` (`io.metaloom.loom.test.PoolSetupRunner`) |
 | Spec index / routing | [../CONTEXT.md](../CONTEXT.md) |
-
-_Git HEAD revision: `97127ed2`_
-_Last updated: 2026-08-05 (V2.74: comments and reactions about an asset, and its library membership, cascade too - deleting an asset is now possible for every link the system writes. V2.73: collection membership, task references and per-user meta cascade from the asset. V2.72: tag assignments cascade from both sides. V2.71: `tag_asset` rows are placements with their own identity and provenance, so one tag can sit on an asset several times and machine tags are distinguishable from curated ones. Earlier: entity inventory rebuilt from the migrations through V2.63)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

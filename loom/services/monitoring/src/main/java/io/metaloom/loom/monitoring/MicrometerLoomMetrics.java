@@ -1,5 +1,6 @@
 package io.metaloom.loom.monitoring;
 
+import java.time.Duration;
 import java.util.function.Supplier;
 
 import javax.inject.Inject;
@@ -7,6 +8,8 @@ import javax.inject.Singleton;
 
 import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.Tags;
+import io.micrometer.core.instrument.Timer;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 /**
@@ -36,8 +39,8 @@ public class MicrometerLoomMetrics implements LoomMetrics {
 	@Override
 	public void recordRunCompleted(String status, long durationMs) {
 		registry.counter("loom_pipeline_runs_completed", "status", status).increment();
-		io.micrometer.core.instrument.Timer.builder("loom_pipeline_run_duration").tag("status", status).register(registry)
-			.record(java.time.Duration.ofMillis(durationMs));
+		Timer.builder("loom_pipeline_run_duration").tag("status", status).register(registry)
+			.record(Duration.ofMillis(durationMs));
 	}
 
 	@Override
@@ -58,6 +61,27 @@ public class MicrometerLoomMetrics implements LoomMetrics {
 	@Override
 	public void recordNodeTaskDispatchFailed(String reason) {
 		registry.counter("loom_node_tasks_dispatch_failed", "reason", reason).increment();
+	}
+
+	@Override
+	public void recordNodeTaskLatency(String kind, String state, long durationMs) {
+		Timer.builder("loom_node_task_latency").tag("kind", kind).tag("state", state).register(registry)
+			.record(Duration.ofMillis(durationMs));
+	}
+
+	@Override
+	public void recordNodeTaskRetried(String kind) {
+		registry.counter("loom_node_tasks_retried", "kind", kind).increment();
+	}
+
+	@Override
+	public void recordNodeTaskDeadlettered(String kind) {
+		registry.counter("loom_node_tasks_deadlettered", "kind", kind).increment();
+	}
+
+	@Override
+	public void recordCircuitBreakerTrip(String kind) {
+		registry.counter("loom_node_circuit_breaker_trips", "kind", kind).increment();
 	}
 
 	@Override
@@ -123,5 +147,13 @@ public class MicrometerLoomMetrics implements LoomMetrics {
 	@Override
 	public void bindGauge(String name, Supplier<Number> supplier) {
 		Gauge.builder(name, supplier).strongReference(true).register(registry);
+	}
+
+	@Override
+	public void bindGauge(String name, String tagKey, String tagValue, Supplier<Number> supplier) {
+		// Micrometer keys a meter by name *and* tags, so re-binding the same (name, tag) pair returns
+		// the meter that is already there rather than replacing its supplier - which is what makes
+		// this safe to call from a per-kind lookup path that runs on every dispatch.
+		Gauge.builder(name, supplier).tags(Tags.of(tagKey, tagValue)).strongReference(true).register(registry);
 	}
 }

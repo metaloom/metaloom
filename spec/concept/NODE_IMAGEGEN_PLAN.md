@@ -6,9 +6,9 @@
 >
 > This file is the **authoritative spec for the node**. It is a status page: §1 says where everything
 > lives; §2–§8 carry only what is still open or still non-obvious. It does not restate the node
-> lifecycle or persistence model ([NODES.md](NODES.md) §2), the port/content-type model
-> ([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md)) or the new-node checklist
-> ([../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md)).
+> lifecycle or persistence model ([NODES.md](../features/nodes/NODES.md) §2), the port/content-type model
+> ([../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md)) or the new-node checklist
+> ([../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md)).
 >
 > ⚠️ `spec/plans/imagegen-node.md` is a **superseded** earlier draft slated for deletion; everything
 > unique to it has been folded in here. Do not add design detail there.
@@ -35,7 +35,7 @@
 | Sidecar A | `sidecars/ideogram-sidecar/` — FastAPI `/health` `/generate` `/remix`, default **SDXL-Turbo**, Ideogram-4 opt-in, `gen_ideogram.py` |
 | Sidecar B | `sidecars/mage-flow-sidecar/` — same contract, **MIT** weights (§3) |
 | Sink for the bytes | `S3SinkNode` (`cortex/nodes/s3-sink`) — its `IN_ARTIFACTS` (`artifact/*`, MANY) port accepts `OUT_IMAGE` directly |
-| Docs | `website/content/english/docs/nodes/imagegen/index.adoc` (covers both sidecars); [NODES.md](NODES.md) §2/§3/§5/§12 |
+| Docs | `website/content/english/docs/nodes/imagegen/index.adoc` (covers both sidecars); [NODES.md](../features/nodes/NODES.md) §2/§3/§5/§12 |
 
 **Persistence is ledger-only**: `resultRef = null`, `producerVersion = null`, no typed component —
 identical to `ThumbnailNode` / `TtsNode`, because Loom has no raw-byte ingest endpoint (§4).
@@ -133,7 +133,7 @@ itself is still open (§4).
 - [x] 22 unit tests + `ImageGenNodeIntegrationTest`
 - [x] `ideogram-sidecar` built and verified (`/health` `/generate` `/remix`)
 - [x] `mage-flow-sidecar` built — same contract, MIT weights, port 9210
-- [x] [NODES.md](NODES.md) + `website/content/english/docs/nodes/imagegen/` (both sidecars documented)
+- [x] [NODES.md](../features/nodes/NODES.md) + `website/content/english/docs/nodes/imagegen/` (both sidecars documented)
 - [x] `OUT_IMAGE` consumable by `S3SinkNode.IN_ARTIFACTS`
 
 ### Open
@@ -151,7 +151,7 @@ itself is still open (§4).
       `script` and `imagegen`** alike; `S3SinkNode` is the current **workaround, not a fix** (and it
       requires the sink to run on the same worker as the producer). Solve it once at the Loom REST
       layer — design in
-      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
+      [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
       (which already lists `ImageGenNode → metaPath/imagegen_bin → ledger row only`).
 - [ ] **No live GPU smoke test recorded.** Everything below the sidecar boundary is covered by
       stubbed clients; no end-to-end run against real weights exists.
@@ -257,13 +257,12 @@ After any `NodeCollectionModule` / constructor change, **clean-rebuild `loom/cor
 | The integration test | `integration-test/.../node/ImageGenNodeIntegrationTest.java` |
 | Sidecar A (SDXL-Turbo / Ideogram-4) | `sidecars/ideogram-sidecar/` (`server.py`, `README.md`, `gen_ideogram.py`) |
 | Sidecar B (Mage-Flow, MIT) | `sidecars/mage-flow-sidecar/` (`server.py`, `mage_loader.py`, `run.sh`, `README.md`) |
-| The byte-ingest gap and its design | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
+| The byte-ingest gap and its design | [../rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | The sink that ships the bytes off-worker | `cortex/nodes/s3-sink/` + [NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) |
 | Model licensing | `website/content/english/docs/legal/model-licenses/index.adoc` (stale — see §4) |
 | Customer docs | `website/content/english/docs/nodes/imagegen/index.adoc` |
 | A sibling sidecar-backed node | [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md), `cortex/nodes/captioning/` |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (reduced to a status page and made authoritative — folded in the mage-flow-sidecar alternative, the open commercial-safe-model decision and the cross-node byte-ingest gap from the superseded `spec/plans/imagegen-node.md`)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

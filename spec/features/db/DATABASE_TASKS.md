@@ -4,13 +4,13 @@
 > This file is kept as the **historical record** of the component / node-result schema
 > rework and as the reference for the two contracts other specs cite: the three-layer
 > result model (§2) and the shared component contract (§4).
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Do not add new persistence work here.** Open DAO/test gaps live in
-> [../../loom/PERSISTENCE_TASKS.md](../../loom/PERSISTENCE_TASKS.md); the current entity
+> [../../loom/PERSISTENCE_TASKS.md](../../tasks/PERSISTENCE_TASKS.md); the current entity
 > inventory (through `V2.63`) lives in [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
 >
-> **Context:** [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) (what nodes
+> **Context:** [../pipeline-nodes/NODES.md](../nodes/NODES.md) (what nodes
 > produce) · [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) (the audit that
 > motivated this list) · [../pipeline/PIPELINE.md](../pipeline/PIPELINE.md) (run/task
 > ledger) · [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md) (DAO layer, jOOQ
@@ -299,7 +299,7 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
       this file; full detail above)
 - [ ] **DAO/test gaps** — including the `DetectionDaoTest` that §10.2 of the old revision
       wrongly claimed to have run (see the correction below). Tracked in
-      [../../loom/PERSISTENCE_TASKS.md](../../loom/PERSISTENCE_TASKS.md), not here.
+      [../../loom/PERSISTENCE_TASKS.md](../../tasks/PERSISTENCE_TASKS.md), not here.
 - [ ] **ACL primary keys** — `user_permission` / `token_permission` / `role_permission` are
       still `PRIMARY KEY (user_uuid)` etc. (`V2.1`, unchanged) —
       [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §7.1
@@ -328,7 +328,7 @@ The superseded §10.2 listed `DetectionDaoTest` among the DAO suites verified on
 `detection`'s `V2.43` provenance columns and idempotency key are therefore pinned by no DAO
 test; the only test-side use of `detectionDao()` is inside `AssetCascadeTest`. Writing that
 test is an open item in
-[../../loom/PERSISTENCE_TASKS.md](../../loom/PERSISTENCE_TASKS.md).
+[../../loom/PERSISTENCE_TASKS.md](../../tasks/PERSISTENCE_TASKS.md).
 
 The rest of the record stands: at the time of the rework `loom/db/jooq` (211 tests),
 `loom/db/api` (8), `loom/services/rest` (161), `loom/services/graphql` (8) and `loom/core`
@@ -366,11 +366,10 @@ that the migration count quoted there is historical — the schema now runs to *
 | REST models / services | `loom-shared/rest-model/…/model/asset/` · `loom/services/rest/…/service/impl/` |
 | ER diagram | `loom/design/DB/dbdiagram.yaml` (stale — Task 14) |
 | Entity inventory | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
-| Open persistence work | [../../loom/PERSISTENCE_TASKS.md](../../loom/PERSISTENCE_TASKS.md) |
-| Node behaviour | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) |
+| Open persistence work | [../../loom/PERSISTENCE_TASKS.md](../../tasks/PERSISTENCE_TASKS.md) |
+| Node behaviour | [../pipeline-nodes/NODES.md](../nodes/NODES.md) |
 | Schema audit | [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) |
 
 ---
-
-_Git HEAD revision: `97127ed2`_
-_Last updated: 2026-08-05 (`V2.74` closed the asset-delete cascades for good — comments and reactions about an asset and its library membership go with it, so §2.6 is done; `V2.73` cascaded the remaining written asset links — collection membership, task references, per-user meta — leaving only `comment`/`reaction`; `V2.71` closed the `tag_asset` placement item and `V2.72` its half of the asset-delete cascades. Earlier: the skipped-test note no longer names Ollama)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

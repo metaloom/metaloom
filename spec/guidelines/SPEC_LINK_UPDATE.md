@@ -24,7 +24,7 @@ it is gone or ambiguous, leave it and report it. That is the whole job.
   That is not your pass.
 * Do not touch prose, formatting, headings or table rows.
 * Do not delete an unresolvable reference, and do not create files to make one resolve.
-* Do not change link text — unless the text *is* the path (`[LOOM.md](LOOM.md)`), then change both.
+* Do not change link text — unless the text *is* the path (`[LOOM.md](../loom/LOOM.md)`), then change both.
 * Do not check `http(s)://` URLs.
 * Do not run `git stash`, `git reset` or `git checkout --`.
 
@@ -32,7 +32,7 @@ it is gone or ambiguous, leave it and report it. That is the whole job.
 
 | Form | Example | Resolved against |
 |---|---|---|
-| Markdown link | `[PIPELINE.md](../pipeline/PIPELINE.md)`, `[pom.xml](../../pom.xml)` | the target file's directory |
+| Markdown link | `[PIPELINE.md](../features/pipeline/PIPELINE.md)`, `[pom.xml](../../pom.xml)` | the target file's directory |
 | Backticked path | `` `loom/db/jooq/generate.sh` ``, `` `cortex/nodes/` `` | repo root |
 | Elided path | `` `cortex/cli/.../NodeCollectionModule.java` `` | repo root, `...`/`…` = any depth |
 | Java class / package | `` `PipelineGraphParser` ``, `` `io.metaloom.loom.pipeline.graph` ``, `` `…pipeline.graph` `` | whole repo |
@@ -88,3 +88,5 @@ tree navigable while full content re-verification runs only when a feature actua
 "Do not" list is load-bearing: without it the pass drifts into rewriting content.
 
 _Last updated: 2026-08-06 (initial version)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

@@ -2,7 +2,6 @@ package io.metaloom.loom.rest.model.embedding;
 
 import java.util.UUID;
 
-import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.rest.model.annotation.AreaInfo;
 import io.metaloom.loom.rest.model.common.AbstractMetaModel;
 
@@ -12,7 +11,7 @@ public class EmbeddingInfo extends AbstractMetaModel<EmbeddingInfo> implements E
 
 	private String source;
 
-	private EmbeddingType type;
+	private String type;
 
 	private Float[] vector;
 
@@ -41,12 +40,12 @@ public class EmbeddingInfo extends AbstractMetaModel<EmbeddingInfo> implements E
 	}
 
 	@Override
-	public EmbeddingType getType() {
+	public String getType() {
 		return type;
 	}
 
 	@Override
-	public EmbeddingInfo setType(EmbeddingType type) {
+	public EmbeddingInfo setType(String type) {
 		this.type = type;
 		return this;
 	}

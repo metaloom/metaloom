@@ -14,7 +14,7 @@ subcommands and no flags — `CortexMain` starts the worker and configuration co
 |---|---|
 | `CortexOptions`, env vars, `cortex.yml`, per-node options | [CONFIGURATION.md](CONFIGURATION.md) |
 | Maven build, dependency versions, container image, native deps | [BUILD.md](BUILD.md) |
-| Node lifecycle, per-node reference, ports/payloads, filter & source nodes | [NODES.md](../features/pipeline-nodes/NODES.md) |
+| Node lifecycle, per-node reference, ports/payloads, filter & source nodes | [NODES.md](../features/nodes/NODES.md) |
 | Pipeline DAG engine (Loom-side), persistence, events, caching, sync | [PIPELINE.md](../features/pipeline/PIPELINE.md) |
 | Processor WebSocket protocol (Loom perspective) | [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) |
 | Top-level project context | [../METALOOM.md](../METALOOM.md) |
@@ -62,7 +62,7 @@ Maven reactor `cortex/pom.xml`. Build ordering and dependency versions live in
 | `s3-common/` | `cortex-s3-common` | `S3Support`, object store/materializer, `S3ObjectIndexStore`, event sources (`WebhookS3EventSource`, `SqsS3EventSource`), `S3EventBuffer` |
 | `fs/` | `cortex-fs` | **Empty shell** — only `module-info.java.off`. The Linux scanner comes from the external `io.metaloom.fs` artifact (`differential-filesystem-scanner`) |
 | `core-media/` | `cortex-core-media` | Result value types (`WhisperResult`, `SceneDetectionResult`, `Scene`) + the shared AssertJ/node test harness (test-jar) |
-| `nodes/` | 26 submodules | Concrete nodes; see [NODES.md](../features/pipeline-nodes/NODES.md) |
+| `nodes/` | 26 submodules | Concrete nodes; see [NODES.md](../features/nodes/NODES.md) |
 | `processor/` | `cortex-processor` | `MediaProcessor` + `FilesystemProcessor` (offline batch walk; bound in Dagger but **no caller** since the CLI was removed) |
 | `node-runtime/` | `cortex-node-runtime` | `NodeTaskRunner`, `SegmentTaskRunner`, `SourceTaskRunner`, `ResultBatcher`, `NodeResultMapper` — executes what Loom hands down |
 | `core/` | `cortex-core` | `CortexImpl`, Dagger modules, `LoomControlChannel`, `PipelineTaskHandler`, monitoring, node registry |
@@ -356,7 +356,7 @@ AssertJ helpers: `PipelineResultAssert`/`PipelineNodeResultAssert`
 - **Never eagerly inject node sets.** Use `Provider`/`Lazy`. Injecting `Set<CortexNode>` directly constructs every node — face detection loads its model pack merely to print help.
 - **Conditional kinds.** `s3-source` is only registered when `S3Support.isActive()`, and `gdrive-source` / `onedrive-source` only when that cloud's credentials are configured. Registering one unconditionally turns a missing capability into a dead run. This per-provider gate is why the two clouds are two kinds sharing one implementation rather than a single kind with a `provider` parameter.
 - **Package roots.** `io.metaloom.cortex.*` only; `io.metaloom.loom.*` is Loom backend. The `cortex/cli` module and the `io.metaloom.cortex.cli` package keep their names for continuity, but hold no command line.
-- **Two node hierarchies.** `CortexNode`/`FilesystemNode` (Cortex level) vs `PipelineNode` (pipeline level), bridged by `CortexNodeAdapter`. Never mix without the adapter — see [NODES.md](../features/pipeline-nodes/NODES.md).
+- **Two node hierarchies.** `CortexNode`/`FilesystemNode` (Cortex level) vs `PipelineNode` (pipeline level), bridged by `CortexNodeAdapter`. Never mix without the adapter — see [NODES.md](../features/nodes/NODES.md).
 - **Offline safety.** `LoomClient` may be `null`; never dereference it unguarded.
 - **Dagger incrementality.** After changing generic types on nodes/services or adding a multibinding, run a clean `mvn compile` — the annotation processor may not re-trigger and you get a `NoSuchMethodError` at runtime.
 - **`cortex/fs` is empty.** The real scanner is the external `io.metaloom.fs` artifact; do not add code to `cortex/fs` expecting it to be picked up.
@@ -413,6 +413,5 @@ AssertJ helpers: `PipelineResultAssert`/`PipelineNodeResultAssert`
 - [ ] Performance tuning guide (`maxConcurrentMedia`, per-node timeouts, batch sizes)
 
 ---
-
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (removed the picocli layer: `PicoCLIModule`, `CortexCLI`, `EnvDefaultProvider` and the `server`/`process` subcommands are gone; `CortexMain` starts the worker and options come from `cortex.yml` + `CortexEnvOptions`)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

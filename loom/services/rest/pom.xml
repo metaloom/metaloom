@@ -88,6 +88,19 @@
       <artifactId>loom-client-rest</artifactId>
       <scope>test</scope>
     </dependency>
+    <!--
+      Test scope only, and only so the metric catalogue can be verified against a real
+      Prometheus registry. This is the one module that can construct every instrumentation
+      site at once - the run registry, the processor registry, the breaker and the engine -
+      which is what makes "every name METRICS.md documents actually appears in a scrape" a
+      statement about the running system rather than about the test's own bindings.
+    -->
+    <dependency>
+      <groupId>io.metaloom.loom.service</groupId>
+      <artifactId>loom-service-monitoring</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
 
   </dependencies>
 

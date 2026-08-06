@@ -7,10 +7,26 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from .base import CreatorEditorResponse, ListResponse, MetaModel, Model
-from .enums import EmbeddingType
 
 if TYPE_CHECKING:
     from .annotation import AreaInfo
+
+
+@dataclass
+class EmbeddingBulkCreateRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.embedding.EmbeddingBulkCreateRequest``."""
+
+    embeddings: list[EmbeddingCreateRequest] = field(default_factory=list)
+
+
+@dataclass
+class EmbeddingBulkResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.embedding.EmbeddingBulkResponse``."""
+
+    embeddings: list[EmbeddingResponse] = field(default_factory=list)
+    total: int = 0
+    created: int = 0
+    failed: int = 0
 
 
 @dataclass
@@ -19,9 +35,18 @@ class EmbeddingCreateRequest(MetaModel):
 
     source: str | None = None
     area: AreaInfo | None = None
-    type: EmbeddingType | None = None
+    type: str | None = None
     vector: list[float] = field(default_factory=list)
     asset_uuid: str | None = None
+    node_kind: str | None = None
+    model: str | None = None
+    dimensions: int | None = None
+    detection_uuid: str | None = None
+    frame_number: int | None = None
+    subject_index: int | None = None
+    confidence: float | None = None
+    producer_version: str | None = None
+    normalized: bool | None = None
 
 
 @dataclass
@@ -30,7 +55,7 @@ class EmbeddingInfo(MetaModel):
 
     uuid: str | None = None
     source: str | None = None
-    type: EmbeddingType | None = None
+    type: str | None = None
     vector: list[float] = field(default_factory=list)
     area: AreaInfo | None = None
     asset_uuid: str | None = None
@@ -49,10 +74,16 @@ class EmbeddingResponse(CreatorEditorResponse):
     """Mirrors ``io.metaloom.loom.rest.model.embedding.EmbeddingResponse``."""
 
     source: str | None = None
-    type: EmbeddingType | None = None
+    type: str | None = None
     vector: list[float] = field(default_factory=list)
     area: AreaInfo | None = None
     asset_uuid: str | None = None
+    model: str | None = None
+    dimensions: int | None = None
+    detection_uuid: str | None = None
+    frame_number: int | None = None
+    subject_index: int | None = None
+    normalized: bool | None = None
 
 
 @dataclass
@@ -65,6 +96,6 @@ class EmbeddingUpdateRequest(Model):
     meta: dict[str, Any] | None = None
     #: The area information for the embedding (e.g. )
     area: AreaInfo | None = None
-    type: EmbeddingType | None = None
+    type: str | None = None
     vector: list[float] = field(default_factory=list)
     asset_uuid: str | None = None

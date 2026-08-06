@@ -2,7 +2,7 @@
 
 > Open UI work items for the System surfaces (Loom singleton, health, OpenAPI, processors,
 > monitoring), re-verified against `loom-ui/src` on 2026-08-01.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [LOOM_UI.md](LOOM_UI.md) · [../RESTAPI.md](../RESTAPI.md) §4 (Monitoring) ·
 > [../DOMAIN.md](../DOMAIN.md) group 7 · [../EVENTBUS.md](../EVENTBUS.md)
@@ -116,6 +116,5 @@ deleted — WorkflowView is then its last consumer (TASK_UI_AI_ML.md).
 | Surface instance info (version, dbRevision, lastUsed) | [api/info.ts](../../../loom-ui/src/api/info.ts) → MaintenanceView chips; `e2e/maintenance-mocked.spec.ts` |
 | Surface health status honestly (real DB card, gated unavailable cards) | [api/health.ts](../../../loom-ui/src/api/health.ts) → MaintenanceView |
 | Back the pipeline-run KPI + chart with real aggregation instead of mock | `loadPipelineRunStats` + [runMetrics.ts](../../../loom-ui/src/features/monitoring/runMetrics.ts) (`runMetrics.test.ts`), deltas computed from the real series |
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (re-verified against loom-ui; two tasks remain — OpenAPI download and finishing the Monitoring de-mock)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

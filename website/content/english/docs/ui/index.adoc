@@ -123,19 +123,60 @@ image::asset-detail.png[Asset detail view,role=img-fluid]
 The *Uploads* screen is the place to bring media into Loom. Drag a whole selection of files onto the
 drop area, or click it to pick them — there is no one-file-at-a-time limit.
 
+image::uploads.png[Three files uploading at once on the Uploads screen — a per-file progress bar for each and a combined bar above them,role=img-fluid]
+
+==== Choosing where the files land
+
 Every upload has to land in a *library*, which you choose before adding files. The library also decides
-where the bytes are physically stored, and the screen shows that destination so there is never any doubt
-about where a file went. Administrators additionally get a *storage pool* selector to send a particular
-batch somewhere else — an archive bucket, say — without changing the library itself.
+where the bytes are physically stored, and the chip beside the selectors names that destination — *Stores
+to: Primary storage* above — so there is never any doubt about where a file went. Administrators
+additionally get a *storage pool* selector to send a particular batch somewhere else — an archive bucket,
+say — without changing the library itself; the chip then names the pool you picked instead.
 
-Each file gets its own progress bar and can be cancelled on its own; anything that fails can be retried
-without re-picking the file. Uploading the same content twice is not an error: Loom recognises content it
-already holds and links it to the existing asset instead of creating a duplicate, and the screen says so.
+The *Origin* field is a free-text label recorded with each asset, describing where the material came
+from. It defaults to `upload`; change it to something like `client-handoff` or `shoot-2026-08` and the
+whole batch is tagged with it.
 
-Uploads keep running while you work elsewhere in the application. Leave the screen and a progress bar
-appears next to *Uploads* in the navigation, and a notification tells you when the batch finishes or if
-something went wrong. Reloading the browser page is the one thing that cancels an upload in progress, so
-the application warns you before that happens.
+==== Watching a batch run
+
+Loom transfers *three files at a time* and starts the next one as soon as a slot frees up, so a large
+selection queues up rather than competing for the same connection. Files still waiting are listed as
+*Waiting* until their turn comes.
+
+Each file gets its own progress bar and the bytes sent so far, and the bar across the top of the list is
+the progress of the batch as a whole — weighted by file size, so a single large file is not drowned out
+by a handful of small ones. A file can be cancelled on its own with the *✕* beside it, or the whole batch
+with *Cancel all*.
+
+Anything that fails says why in place of its status line and offers a retry, so a failed upload never
+means picking the file again; *Retry failed* puts every failure back in the queue at once. Uploading the
+same content twice is not an error either: Loom recognises content it already holds and links it to the
+existing asset instead of creating a duplicate, and the row says so rather than reporting a problem.
+*Clear finished* tidies away everything that has settled and leaves whatever is still running alone.
+
+[NOTE]
+====
+A bar reaches 100% when the last byte has been *sent*. The server still has to hash and store the file
+after that, so a large upload pauses briefly at full before it turns green. That pause is the server
+finishing its work, not a stalled transfer.
+====
+
+==== Uploads keep running while you work
+
+Uploads are not tied to the screen that started them. Leave it and the *Uploads* entry in the navigation
+carries a count of what is still in flight plus a thin progress bar, which is the ambient signal that
+work is happening somewhere behind the page you are on:
+
+// Width pinned: this one is a 240px-wide crop of the navigation rail, and left to fill the column
+// it renders at twice the size of the full-window screenshots around it.
+image::uploads-sidebar.png[The Uploads navigation entry showing a badge of three active uploads and a progress bar while another screen is open,260,role=img-fluid]
+
+A short message tells you when the batch finishes, how many files were already known, and whether
+anything failed. The upload dialog in the asset browser feeds the same queue, so a batch started there
+behaves identically and shows up in the same place.
+
+Reloading the browser page is the one thing that cancels an upload in progress — the files only exist in
+the page until they have been sent — so the application warns you before that happens.
 
 === Library
 

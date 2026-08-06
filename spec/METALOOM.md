@@ -12,7 +12,7 @@ recipes or feature descriptions.
 |---|---|
 | Which spec covers my task | [CONTEXT.md](CONTEXT.md) §2 |
 | Rules for a code change | [guidelines/CODING.md](guidelines/CODING.md) |
-| Rules for a spec change | [SPEC_RULES.md](SPEC_RULES.md) |
+| Rules for a spec change | [SPEC_RULES.md](guidelines/SPEC_RULES.md) |
 | How Loom and Cortex interact | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md) |
 | Loom internals / lifecycle / DI | [loom/LOOM.md](loom/LOOM.md) |
 | Cortex internals / CLI / startup | [cortex/CORTEX.md](cortex/CORTEX.md) |
@@ -211,7 +211,7 @@ Container images produced: `metaloom/loom-server`, `metaloom/loom-demo`
 - **Adding a node kind is a one-line binding.** `@IntoMap @StringKey("<kind>")` in the node's own
   Dagger module; `RegistryNodeRegistrar` fills the registry at bootstrap. No edit to
   `PipelineNodeFactoryModule`. Unknown kinds fall back to a **stub that reports success** — a green
-  run can mean nothing ran. See [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md).
+  run can mean nothing ran. See [features/pipeline-nodes/NODES.md](features/nodes/NODES.md).
 - **`loom/db/memory` has no pipeline DAOs.** Pipelines require the jOOQ backend.
 - **`integration-test/pom.xml` pins `dagger.version` to 2.45** while everything else is 2.57.2. It
   is a local override, not the project version — don't quote it as such.
@@ -244,6 +244,5 @@ Container images produced: `metaloom/loom-server`, `metaloom/loom-demo`
       file as the framework/version map only.
 
 ---
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (rewritten as a compact module + framework map; removed CONTEXT.md duplication and stale Cortex executor/media-decorator claims)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

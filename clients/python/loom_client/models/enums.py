@@ -39,13 +39,6 @@ class BulkItemStatus(str, Enum):
     FAILED = "FAILED"
 
 
-class EmbeddingType(str, Enum):
-    """Mirrors ``io.metaloom.loom.api.embedding.EmbeddingType``."""
-
-    VIDEO4J_FINGERPRINT_V1 = "VIDEO4J_FINGERPRINT_V1"
-    VIDEO4J_FINGERPRINT_V2 = "VIDEO4J_FINGERPRINT_V2"
-
-
 class NodeRegistrationRejectionReason(str, Enum):
     """Mirrors ``io.metaloom.loom.rest.model.processor.message.NodeRegistrationRejection.Reason``."""
 
@@ -319,7 +312,6 @@ for _enum in (
     AnnotationType,
     AssetComponentType,
     BulkItemStatus,
-    EmbeddingType,
     NodeRegistrationRejectionReason,
     NodeRegistryEventType,
     NotificationType,

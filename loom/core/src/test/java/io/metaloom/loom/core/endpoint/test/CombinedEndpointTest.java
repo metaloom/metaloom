@@ -166,7 +166,7 @@ public class CombinedEndpointTest extends AbstractEndpointTest {
 
 			for (long i = 0; i < 10; i++) {
 				EmbeddingCreateRequest embeddingRequest = new EmbeddingCreateRequest();
-				embeddingRequest.setType(EmbeddingType.DLIB_FACE_RESNET_v1);
+				embeddingRequest.setType(EmbeddingType.DLIB_FACE_RESNET_v1.name());
 				embeddingRequest.setArea(AreaInfo.create(20, 40, 200, 200));
 				embeddingRequest.setVector(VECTOR_DATA);
 				embeddingRequest.setAssetUuid(asset.getUuid());

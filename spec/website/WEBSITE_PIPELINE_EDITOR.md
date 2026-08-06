@@ -26,7 +26,7 @@ login.
 links here; **do not duplicate the detail below into it**.
 
 > **The code wins.** Where this file and the JS disagree, the JS is right — fix this file in the same
-> change (per [../SPEC_RULES.md](../SPEC_RULES.md) and [../guidelines/CODING.md](../guidelines/CODING.md)).
+> change (per [../SPEC_RULES.md](../guidelines/SPEC_RULES.md) and [../guidelines/CODING.md](../guidelines/CODING.md)).
 
 ## TL;DR
 
@@ -890,17 +890,5 @@ and the demo blockers recorded below are now closed.
       gap [NODE_DATA_TYPES.md § 10](../features/pipeline/NODE_DATA_TYPES.md) records for the UI mirror
 
 ---
-
-_Git HEAD revision: `fcf6ea7d`_
-_Last updated: 2026-08-05 (the result-detail card rendered fully transparent — it is mounted outside
-`.pe-page`, where every `var(--pe-*)` was unset and therefore computed to transparent; the palette is
-now declared on `.pe-page, .pe-detail` and the backdrop is scrimmed and blurred. Earlier the same
-day — design pass: result strips became collapsible drawers below the node with
-wrapped text, the panel row and the panel split are resizable, the design-error list collapses and
-starts collapsed on mobile, Save/Download/Open/Clear moved into a File menu, snail/rocket ends on
-the speed slider, themed scrollbars, "Emit" centred, and the node stripe and header no longer clip
-out of the card's rounded corners)_
-_Previously: 2026-08-04 (`docs/pipeline/` and `docs/nodes/` now link the editor, closing the
-last docs gap; earlier the same day: fixed both demo blockers — the non-existent `loom` sink and
-`filter`'s missing output ports — and added the debugging affordances: breakpoint gutter, hold,
-Step/Continue, result strips and the detail overlay)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

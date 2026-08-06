@@ -19,14 +19,10 @@ import java.util.function.Function;
 import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function22;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
-import org.jooq.Records;
-import org.jooq.Row22;
 import org.jooq.Schema;
-import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -106,10 +102,11 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     public final TableField<JooqEmbeddingRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR.nullable(false), this, "Type of the embedding, e.g. dlib_facemark, inspireface");
 
     /**
-     * The column <code>public.embedding.model</code>. Readable mirror of
-     * producer_version
+     * The column <code>public.embedding.model</code>. Readable model
+     * identifier, e.g. inspireface-r18. Part of the identity key: rows from
+     * different models coexist.
      */
-    public final TableField<JooqEmbeddingRecord, String> MODEL = createField(DSL.name("model"), SQLDataType.VARCHAR, this, "Readable mirror of producer_version");
+    public final TableField<JooqEmbeddingRecord, String> MODEL = createField(DSL.name("model"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "Readable model identifier, e.g. inspireface-r18. Part of the identity key: rows from different models coexist.");
 
     /**
      * The column <code>public.embedding.dimensions</code>. Length of the
@@ -119,12 +116,12 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
 
     /**
      * The column <code>public.embedding.vector</code>. Embedding vector as a
-     * plain PostgreSQL array. OPEN DECISION: similarity search is either
-     * pgvector in Postgres or an external index fed via vector_config. Until
-     * that is decided this column is a staging buffer with no ANN index - see
-     * spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.
+     * plain PostgreSQL array, and the system of record for it. Approximate
+     * nearest-neighbour search lives outside Postgres behind the VectorIndex
+     * SPI (Lucene HNSW today); that index is a derived, rebuildable cache of
+     * this column and never authoritative.
      */
-    public final TableField<JooqEmbeddingRecord, Float[]> VECTOR = createField(DSL.name("vector"), SQLDataType.REAL.getArrayDataType(), this, "Embedding vector as a plain PostgreSQL array. OPEN DECISION: similarity search is either pgvector in Postgres or an external index fed via vector_config. Until that is decided this column is a staging buffer with no ANN index - see spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.");
+    public final TableField<JooqEmbeddingRecord, Float[]> VECTOR = createField(DSL.name("vector"), SQLDataType.REAL.getArrayDataType(), this, "Embedding vector as a plain PostgreSQL array, and the system of record for it. Approximate nearest-neighbour search lives outside Postgres behind the VectorIndex SPI (Lucene HNSW today); that index is a derived, rebuildable cache of this column and never authoritative.");
 
     /**
      * The column <code>public.embedding.detection_uuid</code>. The detection
@@ -181,6 +178,34 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
      */
     public final TableField<JooqEmbeddingRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
+    /**
+     * The column <code>public.embedding.synced_at</code>. When this row was
+     * last drained into the vector index. Paired with dirty to make the export
+     * incremental.
+     */
+    public final TableField<JooqEmbeddingRecord, LocalDateTime> SYNCED_AT = createField(DSL.name("synced_at"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "When this row was last drained into the vector index. Paired with dirty to make the export incremental.");
+
+    /**
+     * The column <code>public.embedding.index_version</code>. Bumped when the
+     * index layout changes, so a stale index can be recognised and rebuilt
+     * rather than silently queried.
+     */
+    public final TableField<JooqEmbeddingRecord, Integer> INDEX_VERSION = createField(DSL.name("index_version"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("1", SQLDataType.INTEGER)), this, "Bumped when the index layout changes, so a stale index can be recognised and rebuilt rather than silently queried.");
+
+    /**
+     * The column <code>public.embedding.dirty</code>. True while the row has
+     * not been written to the vector index. New rows start dirty;
+     * EmbeddingSyncService clears it.
+     */
+    public final TableField<JooqEmbeddingRecord, Boolean> DIRTY = createField(DSL.name("dirty"), SQLDataType.BOOLEAN.nullable(false).defaultValue(DSL.field("true", SQLDataType.BOOLEAN)), this, "True while the row has not been written to the vector index. New rows start dirty; EmbeddingSyncService clears it.");
+
+    /**
+     * The column <code>public.embedding.normalized</code>. True when the vector
+     * was unit-normalized at write time. Normalized vectors rank identically
+     * under cosine and inner product.
+     */
+    public final TableField<JooqEmbeddingRecord, Boolean> NORMALIZED = createField(DSL.name("normalized"), SQLDataType.BOOLEAN.nullable(false).defaultValue(DSL.field("false", SQLDataType.BOOLEAN)), this, "True when the vector was unit-normalized at write time. Normalized vectors rank identically under cosine and inner product.");
+
     private JooqEmbedding(Name alias, Table<JooqEmbeddingRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -221,7 +246,7 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.IDX_EMBEDDING_ASSET_UUID, Indexes.IDX_EMBEDDING_DETECTION_UUID);
+        return Arrays.asList(Indexes.IDX_EMBEDDING_ASSET_UUID, Indexes.IDX_EMBEDDING_DETECTION_UUID, Indexes.IDX_EMBEDDING_DIRTY, Indexes.IDX_EMBEDDING_TYPE_MODEL);
     }
 
     @Override
@@ -312,6 +337,7 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     @Override
     public List<Check<JooqEmbeddingRecord>> getChecks() {
         return Arrays.asList(
+            Internal.createCheck(this, DSL.name("embedding_dimensions_check"), "((array_length(vector, 1) = dimensions))", true),
             Internal.createCheck(this, DSL.name("embedding_range_check"), "(((time_to IS NULL) OR (time_from IS NULL) OR (time_to >= time_from)))", true)
         );
     }
@@ -353,29 +379,5 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
     @Override
     public JooqEmbedding rename(Table<?> name) {
         return new JooqEmbedding(name.getQualifiedName(), null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Row22 type methods
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row22<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, Float, String, String, Integer, Float[], java.util.UUID, Integer, Integer, Long, Long, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row22) super.fieldsRow();
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
-     */
-    public <U> SelectField<U> mapping(Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super String, ? super Integer, ? super Float[], ? super java.util.UUID, ? super Integer, ? super Integer, ? super Long, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(Records.mapping(from));
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Class,
-     * Function)}.
-     */
-    public <U> SelectField<U> mapping(Class<U> toType, Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super Float, ? super String, ? super String, ? super Integer, ? super Float[], ? super java.util.UUID, ? super Integer, ? super Integer, ? super Long, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(toType, Records.mapping(from));
     }
 }

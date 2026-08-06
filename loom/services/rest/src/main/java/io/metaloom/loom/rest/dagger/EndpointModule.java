@@ -41,6 +41,7 @@ import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DedupGroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SearchEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SimilarityIndexEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.VectorIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TaskEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TokenEndpoint;
@@ -89,7 +90,8 @@ public class EndpointModule {
 		MeEndpoint meEndpoint,
 		NodeDescriptorEndpoint nodeDescriptorEndpoint,
 		DedupGroupEndpoint dedupGroupEndpoint,
-		SimilarityIndexEndpoint similarityIndexEndpoint) {
+		SimilarityIndexEndpoint similarityIndexEndpoint,
+		VectorIndexEndpoint vectorIndexEndpoint) {
 		return new HashSet<>(Arrays.asList(
 			userEndpoint,
 			roleEndpoint,
@@ -127,6 +129,7 @@ public class EndpointModule {
 			meEndpoint,
 			nodeDescriptorEndpoint,
 			dedupGroupEndpoint,
-			similarityIndexEndpoint));
+			similarityIndexEndpoint,
+			vectorIndexEndpoint));
 	}
 }

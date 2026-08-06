@@ -1,8 +1,8 @@
 package io.metaloom.loom.db.model.embedding;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
-import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.db.CUDElement;
 
 /**
@@ -52,6 +52,13 @@ public interface Embedding extends CUDElement<Embedding> {
 	Embedding setDimensions(Integer dimensions);
 
 	/**
+	 * Return the producer's confidence in this vector, or null when it reports none.
+	 */
+	Float getConfidence();
+
+	Embedding setConfidence(Float confidence);
+
+	/**
 	 * Return the detection this vector was computed from, or null for whole-image and audio-window embeddings.
 	 */
 	UUID getDetectionUuid();
@@ -72,8 +79,41 @@ public interface Embedding extends CUDElement<Embedding> {
 
 	Embedding setSubjectIndex(int subjectIndex);
 
-	EmbeddingType getType();
+	/**
+	 * Return the free-text embedding type, e.g. "face" or "clip". Deliberately not an enum: the embedding model is expected to change, and a new model
+	 * must not require a code change and a redeploy to be storable.
+	 */
+	String getType();
 
-	Embedding setType(EmbeddingType type);
+	Embedding setType(String type);
+
+	/**
+	 * Return whether this row still has to be written to the vector index. New rows start dirty; {@code EmbeddingSyncService} clears it once the row has
+	 * been drained, which is what makes the export incremental and self-healing.
+	 */
+	Boolean getDirty();
+
+	Embedding setDirty(Boolean dirty);
+
+	/**
+	 * Return when this row was last drained into the vector index.
+	 */
+	LocalDateTime getSyncedAt();
+
+	Embedding setSyncedAt(LocalDateTime syncedAt);
+
+	/**
+	 * Return the index layout version this row was written under, so a stale index can be recognised rather than silently queried.
+	 */
+	Integer getIndexVersion();
+
+	Embedding setIndexVersion(Integer indexVersion);
+
+	/**
+	 * Return whether the vector was unit-normalized at write time. With normalized vectors cosine and inner product rank identically.
+	 */
+	Boolean getNormalized();
+
+	Embedding setNormalized(Boolean normalized);
 
 }

@@ -97,7 +97,7 @@ Their 2025-11-24 update splits commercial contacts three ways:
 > InsightFace, specifying their use **solely for academic purposes** and explicitly **prohibiting
 > commercial applications**.
 
-Our own wrapper [inspireface4j/README.md](../../../../../inspireface4j/README.md) already repeats this
+Our own wrapper [inspireface4j/README.md](../../../reports/README.md) already repeats this
 warning — the Java binding code is Apache-2.0, the packs are not redistributable for commercial use
 (and are correctly `.gitignore`d: `/packs`).
 
@@ -613,8 +613,8 @@ Licensing (all fetched and read on 2026-08-02):
 - [HyperInspire/InspireFace — README §License](https://github.com/HyperInspire/InspireFace)
 - [opencv_zoo — YuNet LICENSE (MIT)](https://github.com/opencv/opencv_zoo/blob/main/models/face_detection_yunet/LICENSE)
 - [opencv_zoo — SFace LICENSE (Apache-2.0)](https://github.com/opencv/opencv_zoo/blob/main/models/face_recognition_sface/LICENSE)
-- [opencv_zoo — YuNet README (accuracy, provenance)](https://github.com/opencv/opencv_zoo/blob/main/models/face_detection_yunet/README.md)
-- [opencv_zoo — SFace README](https://github.com/opencv/opencv_zoo/blob/main/models/face_recognition_sface/README.md)
+- [opencv_zoo — YuNet README (accuracy, provenance)](../../../reports/README.md)
+- [opencv_zoo — SFace README](../../../reports/README.md)
 - [serengil/retinaface — LICENSE (MIT) + README acknowledgements](https://github.com/serengil/retinaface)
 - [serengil/deepface — README §Licence (per-model licence table)](https://github.com/serengil/deepface)
 - [davisking/dlib-models — README (per-model licence notes)](https://github.com/davisking/dlib-models)
@@ -640,3 +640,5 @@ read from the local `inspireface4j` checkout; MetaLoom wiring read from
 detect → embed → cluster → confirm loop, and records that only stage 1 is implemented); fixed two
 stale `features/pipeline-nodes/` links to `features/nodes/`; corrected the §7 claim that
 `video4j-facedetect-opencv` does not exist — it does.
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

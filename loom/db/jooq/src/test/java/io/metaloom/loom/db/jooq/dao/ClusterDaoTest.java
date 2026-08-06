@@ -53,11 +53,11 @@ public class ClusterDaoTest extends AbstractJooqTest implements CRUDDaoTestcases
 		Cluster cluster = getDao().createCluster(user, "cascade_cluster", "PERSON");
 		getDao().store(cluster);
 
-		Embedding embedding1 = embeddingDao().createEmbedding(user, asset(), VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1);
+		Embedding embedding1 = embeddingDao().createEmbedding(user, asset(), VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1.name());
 		embedding1.setNodeKind("facedetect");
 		embedding1.setSubjectIndex(1);
 		embeddingDao().store(embedding1);
-		Embedding embedding2 = embeddingDao().createEmbedding(user, asset(), VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1);
+		Embedding embedding2 = embeddingDao().createEmbedding(user, asset(), VECTOR_DATA, EmbeddingType.DLIB_FACE_RESNET_v1.name());
 		embedding2.setNodeKind("facedetect");
 		embedding2.setSubjectIndex(2);
 		embeddingDao().store(embedding2);

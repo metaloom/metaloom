@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.agent.sandbox.SandboxReaper;
+import io.metaloom.loom.rest.vector.EmbeddingIndexDrainer;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.mcp.MCPService;
 import io.metaloom.loom.monitoring.MonitoringService;
@@ -50,13 +51,16 @@ public class BootstrapInitializer {
 
 	private final SandboxReaper sandboxReaper;
 
+	private final EmbeddingIndexDrainer embeddingIndexDrainer;
+
 	private final DataSource dataSource;
 
 	@Inject
 	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService,
 		MonitoringService monitoringService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
-		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper, DataSource dataSource) {
+		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper, EmbeddingIndexDrainer embeddingIndexDrainer,
+		DataSource dataSource) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
@@ -69,6 +73,7 @@ public class BootstrapInitializer {
 		this.httpServer = httpServer;
 		this.assetPipelineTrigger = assetPipelineTrigger;
 		this.sandboxReaper = sandboxReaper;
+		this.embeddingIndexDrainer = embeddingIndexDrainer;
 		this.dataSource = dataSource;
 	}
 
@@ -158,6 +163,12 @@ public class BootstrapInitializer {
 		} catch (Exception e) {
 			log.warn("Error while starting the coding sandbox reaper — continuing startup", e);
 		}
+
+		try {
+			embeddingIndexDrainer.start();
+		} catch (Exception e) {
+			log.warn("Error while starting the vector index drain — continuing startup", e);
+		}
 	}
 
 	public RESTService getRestService() {
@@ -174,6 +185,7 @@ public class BootstrapInitializer {
 
 	public void deinit() {
 		sandboxReaper.stop();
+		embeddingIndexDrainer.stop();
 		monitoringService.stop();
 		mcpService.stop();
 		restService.stop();

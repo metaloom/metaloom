@@ -3,7 +3,7 @@
 > Open UI work items for the chat feature, re-verified against `loom-ui/src` and `loom-ui/e2e`
 > on 2026-08-01. The original U1–U8 backlog is **fully shipped** and collapsed to outcome
 > records below; only the follow-ups remain.
-> Format follows [../../TASKS.template.md](../../TASKS.template.md).
+> Format follows [../../TASKS.template.md](../../tasks/TASKS.template.md).
 >
 > **Context:** [CHAT.md](CHAT.md) (design) · [LOOM_UI.md](LOOM_UI.md) ·
 > [../../features/chat/CHAT_TASKS.md](../../features/chat/CHAT_TASKS.md) (backend counterpart) ·
@@ -161,6 +161,5 @@ correct the AI/ML coverage matrix.
 **Environment note (not a code task):** `react-markdown`, `remark-gfm` and their transitive
 remark/rehype packages had to be installed from the public npm registry because the configured
 Artifactory mirror timed out; they still need whitelisting there for reproducible installs.
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (collapsed the shipped U1–U8 work to outcome records; the open items are the memory RefChip, suggestedFollowUps, skill preview and backend-e2e/spec re-sync)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

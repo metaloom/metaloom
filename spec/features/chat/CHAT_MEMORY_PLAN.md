@@ -14,7 +14,7 @@
 > - [CHAT_TASKS.md](CHAT_TASKS.md) — backend implementation tasks for the chat feature.
 > - [MCP.md](../../loom/MCP.md) — the MCP tool surface and transports this feature extends.
 > - [PERMISSIONS.md](../permissions/PERMISSIONS.md) · [DOMAIN.md](../../loom/DOMAIN.md) ·
->   [PERSISTENCE.md](../../loom/PERSISTENCE.md) · [SPEC_RULES.md](../../SPEC_RULES.md).
+>   [PERSISTENCE.md](../../loom/PERSISTENCE.md) · [SPEC_RULES.md](../../guidelines/SPEC_RULES.md).
 
 ---
 
@@ -394,6 +394,5 @@ to `CHAT_MEMORY.md` and update the referrers in [CONTEXT.md](../../CONTEXT.md),
 | `AgentLoop` *(existing)* | `io.metaloom.loom.agent.chat.loop` | Builds the caller context, injects the index, enforces the write budget |
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (collapsed the shipped phases 0–4 into an implementation map and kept full detail only for the remaining open work)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

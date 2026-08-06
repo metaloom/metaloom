@@ -17,7 +17,7 @@
 | [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) | The actionable breakdown of every 🔴/🟡 below |
 | [PIPELINE_FLOW.md](PIPELINE_FLOW.md) | The mental model: what actually travels between nodes |
 | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) | Ports, content types, cardinality, fan-out/gather |
-| [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) | Per-node reference; descriptor ↔ runnable-kind reconciliation (§5.2) |
+| [../pipeline-nodes/NODES.md](../nodes/NODES.md) | Per-node reference; descriptor ↔ runnable-kind reconciliation (§5.2) |
 
 ---
 
@@ -58,7 +58,7 @@ Legend: ✅ Met · 🟡 Met with a stated deviation · 🔴 Not met
 | **R3** | Pipelines can be constructed in the Loom UI and persisted on the Loom backend | ✅ | `PipelineEditor.tsx` → REST CRUD → `pipeline` + `pipeline_version` (JSONB). The old **authored ≠ executed** defect is closed: there is exactly one parser (`PipelineGraphParser`), Cortex no longer parses definitions at all, and `nodes[].dependencies[]` is now **rejected outright**. |
 | **R4** | Pipelines always have a start node which emits assets | ✅ | `resolveSourceNode` is strict — a declared `source: true` wins, ambiguity is an error, never a guess. The source's output port must literally be `media` (`PipelineRunEngine.SOURCE_MEDIA_PORT`). |
 | **R5** | Additional nodes (facedetect, sha512, …) extract further metadata from assets | ✅ | **33** runnable kinds with S3 configured, **32** without (30 `@IntoMap @StringKey` bindings + `filesystem-source` + `asset-source` + conditional `s3-source`). Coverage gap is scoped to filters — see R7. |
-| **R6** | Pipeline execution results are tracked on the Loom server | ✅ | Three levels, all durable: `pipeline_run` (status, `duration_ms`, four counters, first-terminal-verdict-wins), `pipeline_run_item` per media item, and `pipeline_node_task` per node **per element** (`UNIQUE (item_uuid, node_id, element_seq)`). **Minor deviation:** no REST route exposes the task rows — `GET /:uuid/runs/:runUuid/items` exists, a per-node `/tasks` route does not (owned by [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../cortex/METALOOM_ARCHITECTURE_TASK.md) and [../../loom/ui/TASK_UI_PIPELINE.md](../../loom/ui/TASK_UI_PIPELINE.md)). |
+| **R6** | Pipeline execution results are tracked on the Loom server | ✅ | Three levels, all durable: `pipeline_run` (status, `duration_ms`, four counters, first-terminal-verdict-wins), `pipeline_run_item` per media item, and `pipeline_node_task` per node **per element** (`UNIQUE (item_uuid, node_id, element_seq)`). **Minor deviation:** no REST route exposes the task rows — `GET /:uuid/runs/:runUuid/items` exists, a per-node `/tasks` route does not (owned by [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../tasks/METALOOM_ARCHITECTURE_TASK.md) and [../../loom/ui/TASK_UI_PIPELINE.md](../../loom/ui/TASK_UI_PIPELINE.md)). |
 | **R7** | Special pipeline nodes allow filtering of asset results (DateFilter, …) | 🟡 | **Now runnable.** The eight unrunnable `filter-*` kinds and their nine `cortex/pipeline-core` classes are deleted; one `filter` kind replaces them, with a real `@StringKey` binding, dynamic per-bucket output ports and port-based routing (`PortSpec.selective`) — see [NODE_DATA_TYPES.md §4.5 and §8.6](NODE_DATA_TYPES.md). 🔴 Only `filterBy: LANGUAGE` is implemented; MIME, size and date bucketing regressed with the consolidation and need a `FilterStrategy` each. |
 | **R8** | Pipelines are serialized / deserialized via JSON | ✅ | JSONB definition with a top-level `version` (`CURRENT_DEFINITION_VERSION = 1`; absent ⇒ 1; higher refused **by name**, never half-read). `stampVersion` runs on create/update and in `DemoDatabaseInitializer`. **Deviation:** serde is one-way — `PipelineSerializer`/`PipelineDeserializer` are deleted, so no code writes a definition back out of a graph object, and there is **no checked-in fixture** (the six demo pipelines are the de-facto reference). |
 | **R9** | Pipeline execution is backpressure-aware and reactive | ✅ | Bounded end to end: `maxInFlight` (default 256) + per-kind bulkheads, and `SOURCE_ITEMS_ACK` is **withheld** at capacity, which throttles the source scan itself rather than only node dispatch. Cortex `SourceTaskRunner` waits for each ack. **Deviation of wording:** "reactive" no longer means RxJava — the reactive executor was deleted; backpressure is explicit accounting under one monitor. |
@@ -73,9 +73,9 @@ Legend: ✅ Met · 🟡 Met with a stated deviation · 🔴 Not met
 | R7 | The `filter` kind runs, but only `filterBy: LANGUAGE` is implemented — MIME, size and date bucketing are absent | [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) Task 3 |
 | R11 | No standalone validation endpoint; structural validation triplicated | Task 8 |
 | R2 | Status/results ride the WebSocket, not REST; the REST bulk-sync path is dormant | Task 10 (decide: wire or delete) |
-| R6 | Per-node task rows are durable but not exposed over REST | [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../cortex/METALOOM_ARCHITECTURE_TASK.md) |
+| R6 | Per-node task rows are durable but not exposed over REST | [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../tasks/METALOOM_ARCHITECTURE_TASK.md) |
 | R8 | No checked-in definition fixture; no graph→JSON writer | Task 6 |
-| R10 | No retention sweep for run/item/task rows | [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../cortex/METALOOM_ARCHITECTURE_TASK.md) |
+| R10 | No retention sweep for run/item/task rows | [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../tasks/METALOOM_ARCHITECTURE_TASK.md) |
 
 ---
 
@@ -96,7 +96,7 @@ Each open line names the task that owns it; none is re-argued here.
 | | Durable run / item / node-task state; restart recovery rebuilds live engines | `[x]` |
 | | Recovery re-parses **with** the descriptor registry so ports are checked and fan-out survives a restart | `[ ]` Task 12 |
 | | Typed run status instead of a free-form `String` | `[ ]` Task 9 |
-| | Retention sweep for terminal-run detail | `[ ]` [ARCHITECTURE_TASK](../../cortex/METALOOM_ARCHITECTURE_TASK.md) |
+| | Retention sweep for terminal-run detail | `[ ]` [ARCHITECTURE_TASK](../../tasks/METALOOM_ARCHITECTURE_TASK.md) |
 | | `loom/db/memory` can serve pipelines | `[ ]` Task 11 — jOOQ backend required today |
 | **Execution** | Per-element fan-out + implicit gather (`ExecutionMode.PER_ELEMENT`, `isSettled()`) | `[x]` |
 | | Affinity segmentation — connected, acyclic, source excluded | `[x]` |
@@ -114,7 +114,7 @@ Each open line names the task that owns it; none is re-argued here.
 | **Events & metrics** | Aggregated per-node counters to the UI; failures immediate | `[x]` |
 | | Prometheus `/metrics` on both components | `[x]` |
 | | The run engine is instrumented | `[ ]` Task 13 — `loom/pipeline` has **zero** `LoomMetrics` references; 5 documented meters have no registration ([../ops/METRICS.md §5.2](../ops/METRICS.md)) |
-| | Per-item opt-in event stream for debugging one file | `[ ]` [PLAN_C §3.3](../../cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md) |
+| | Per-item opt-in event stream for debugging one file | `[ ]` [PLAN_C §3.3](../../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md) |
 | **Validation** | Port rules single-sourced in the parser | `[x]` |
 | | Structural rules single-sourced; standalone validate endpoint | `[ ]` Task 8 (**closes R11**) |
 | **API & clients** | Full REST surface: CRUD, run, pause/resume/cancel, run history, run items, cross-pipeline stats, versions + restore | `[x]` |
@@ -139,7 +139,7 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 | **"Intermediate results on Loom" is satisfied by `pipeline_node_task.outputs`** | Not by `asset_node_result`, which is per *asset* catalog state that outlives every run, and not by the segment `ArtifactCache`, which is deliberately never persisted. |
 | **Progress is aggregated on purpose** | R12 does not require per-item events. Adding them is a new opt-in feature, not a fix. |
 | **One requirement, one owner** | If a gap here is tracked in `METALOOM_ARCHITECTURE_TASK.md`, `PLAN_C` or `plans/TASKS.md`, link it — do not open a duplicate task in `PIPELINE_TASKS.md`. |
-| **Deviations are load-bearing text** | This file's value is the explicit deviation column. When you close a gap, edit the row in the same change ([SPEC_RULES.md](../../SPEC_RULES.md)). |
+| **Deviations are load-bearing text** | This file's value is the explicit deviation column. When you close a gap, edit the row in the same change ([SPEC_RULES.md](../../guidelines/SPEC_RULES.md)). |
 
 ---
 
@@ -148,7 +148,7 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 | Need | Path |
 |---|---|
 | Whether a kind is actually runnable | `cortex/cli/…/dagger/RegistryNodeRegistrar.java` + every `<X>NodeModule` `@StringKey` |
-| Descriptor ↔ runnable reconciliation table | [../pipeline-nodes/NODES.md §5.2](../pipeline-nodes/NODES.md) |
+| Descriptor ↔ runnable reconciliation table | [../pipeline-nodes/NODES.md §5.2](../nodes/NODES.md) |
 | The definition format and its version rules | [PIPELINE.md §4](PIPELINE.md) · `loom/pipeline/…/graph/PipelineGraphParser.java` |
 | What "backpressure" concretely means here | `loom/pipeline/…/engine/PipelineRunEngine.java` (`whenCapacityAvailable`) |
 | Where node outputs land | `loom/services/rest/…/service/impl/DaoRunStateStore.java` → `pipeline_node_task.outputs` |
@@ -190,6 +190,5 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 - [ ] Tracked elsewhere: retention sweep, per-node task API, per-item events, artifact cache
 
 ---
-
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (R7 is met at run time — filtering is runnable)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

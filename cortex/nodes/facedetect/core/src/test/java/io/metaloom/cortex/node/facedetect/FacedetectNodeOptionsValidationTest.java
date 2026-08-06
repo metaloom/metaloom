@@ -179,4 +179,23 @@ public class FacedetectNodeOptionsValidationTest {
 		ValidationResult validResult = validOptions.validate();
 		assertThat(validResult).isValid().hasNoErrors();
 	}
+
+	@Test
+	public void testBlankEmbeddingModelInvalidWhenEmbeddingsEnabled() {
+		// An unnamed model makes every vector this node writes indistinguishable from the next model's,
+		// which is exactly what the identifier exists to prevent - so it is a configuration error, not
+		// a default to fill in silently.
+		FacedetectNodeOptions options = new FacedetectNodeOptions();
+		options.setEmbeddingModel("  ");
+		assertThat(options).isInvalid().hasError("embeddingModel must not be empty when embeddingsEnabled is true");
+	}
+
+	@Test
+	public void testBlankEmbeddingModelValidWhenEmbeddingsDisabled() {
+		// Nothing is written, so nothing needs naming.
+		FacedetectNodeOptions options = new FacedetectNodeOptions();
+		options.setEmbeddingsEnabled(false);
+		options.setEmbeddingModel(null);
+		assertThat(options).isValid();
+	}
 }

@@ -15,7 +15,7 @@
 The schema, permissions, DAO, all six REST routes, the DTOs and client, **both Cortex nodes**, the
 descriptors, the kind bindings and the customer docs all exist. Test counts by `@Test`: cortex dedup
 module **11**, `DedupGroupEndpointTest` **11**, `DedupGroupDaoTest` **6**. The prerequisite similarity
-index ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) is built and is what discovery queries.
+index ([../search/LUCENE_PLAN.md](LUCENE_PLAN.md)) is built and is what discovery queries.
 
 🔴 **The human-in-the-loop review step has no working UI.** That is the one substantial piece of this
 feature still missing, and §3.1 is the only part of this file that is still a *plan*.
@@ -35,11 +35,11 @@ are removed. Four further statements were wrong and are corrected here:
 **Module**: `cortex/nodes/dedup` (aggregator + `core`, no `-api` submodule) ·
 **Package**: `io.metaloom.cortex.node.dedup` · **No model, no sidecar.**
 
-General node conventions: [NODES.md](NODES.md). Ports and content types:
-[../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6. Adding a node:
-[../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md). The dedup entities in the domain model:
-[../../loom/DOMAIN.md](../../loom/DOMAIN.md). The similarity query this depends on:
-[../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md). Reference algorithm and its safeguards:
+General node conventions: [NODES.md](../features/nodes/NODES.md). Ports and content types:
+[../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.6. Adding a node:
+[../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md). The dedup entities in the domain model:
+[../../loom/DOMAIN.md](../loom/DOMAIN.md). The similarity query this depends on:
+[../search/LUCENE_PLAN.md](LUCENE_PLAN.md). Reference algorithm and its safeguards:
 `xdb-clean/FPDEDUP_PROCESS.md`. **The code is the source of truth.**
 
 ---
@@ -67,8 +67,8 @@ General node conventions: [NODES.md](NODES.md). Ports and content types:
 | Candidate retrieval (Lucene HNSW k-NN over 256-dim fingerprints) | `loom/services/lucene/.../LuceneSimilarityIndex.java` → `GET /api/v1/assets/:uuid/similar-assets` |
 | Tests: `FingerprintDedupNodeTest` (2), `DedupNodeOptionsValidationTest` (5), `FingerprintDedupDiscoverOptionsValidationTest` (4), `DedupGroupEndpointTest` (11), `DedupGroupDaoTest` (6, incl. both delete-cascades) | `cortex/nodes/dedup/core/src/test/…`; `loom/core/src/test/…/DedupGroupEndpointTest.java`; `loom/db/jooq/src/test/…/DedupGroupDaoTest.java` |
 | Customer docs | `website/content/english/docs/nodes/dedup/index.adoc` (+ links in `nodes/_index.adoc`) |
-| Domain-model rows | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) §Dedup Group / Dedup Group Member (V2.61) |
-| Catalogue rows | [NODES.md](NODES.md) §2/§3/§5; [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6 |
+| Domain-model rows | [../../loom/DOMAIN.md](../loom/DOMAIN.md) §Dedup Group / Dedup Group Member (V2.61) |
+| Catalogue rows | [NODES.md](../features/nodes/NODES.md) §2/§3/§5; [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.6 |
 
 ### 1.1 The review model (as built)
 
@@ -90,7 +90,7 @@ review record, but a membership row without its asset is meaningless. `size` / `
 against the live file regardless.
 
 `creator_uuid` / `editor_uuid` are **nullable** — a Cortex worker is not a user
-([../../loom/DOMAIN.md](../../loom/DOMAIN.md)).
+([../../loom/DOMAIN.md](../loom/DOMAIN.md)).
 
 ### 1.2 REST surface
 
@@ -218,7 +218,7 @@ unit test for the mismatch path.
       fingerprinted → discovery produces a PENDING group → `PATCH` CONFIRMED → apply moves the DUP
       into `dupFolder` and writes a ledger row → re-running apply is a no-op.
 - [ ] **No demo data.** `DemoDatabaseInitializer` seeds no dedup group (shared item with
-      [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)).
+      [../search/LUCENE_PLAN.md](LUCENE_PLAN.md)).
 - [ ] 🔴 **`HashDedupNode` blocks on `System.in.read()`** when the local file's size disagrees with the
       DB record — an interactive halt inside a headless worker. It must log and skip instead.
 - [ ] **Discovery options are unreachable from the pipeline editor.** `DedupDescriptorProvider`
@@ -261,7 +261,7 @@ The only **environment variable** that gates this feature end to end is on the L
 
 | Var | Default | Effect |
 |---|---|---|
-| `LOOM_SIMILARITY_ENABLED` | see [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) | When false, `NoopSimilarityIndex` is bound and the similarity routes answer **503** (deliberately not an empty list) — so `fingerprint-dedup` fails loudly rather than silently finding nothing |
+| `LOOM_SIMILARITY_ENABLED` | see [../search/LUCENE_PLAN.md](LUCENE_PLAN.md) | When false, `NoopSimilarityIndex` is bound and the similarity routes answer **503** (deliberately not an empty list) — so `fingerprint-dedup` fails loudly rather than silently finding nothing |
 
 ---
 
@@ -300,7 +300,7 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 | **Idempotency is server-side** | ⚠️ The upsert lives in `DedupGroupEndpointService.createDedupGroup` (delete + recreate the PENDING group), **not** in the node. Do not add a second client-side key. |
 | **Decided groups still get re-proposed** | 🔴 §3.2 — the queue refills with already-rejected pairs on every discovery run. |
 | **`hash-dedup` vs `sha512-dedup`** | ⚠️ Two `@StringKey`s onto **one** `HashDedupNode`. The descriptor advertises `hash-dedup`; `name()` returns `sha512-dedup`, so ledger rows say `sha512-dedup` whichever id was placed. Do not "fix" this by renaming — it is a deliberate alias. |
-| **`sha512-dedup` has no descriptor** | ⚠️ It is runnable but cannot be placed from the UI palette ([../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §3.3). |
+| **`sha512-dedup` has no descriptor** | ⚠️ It is runnable but cannot be placed from the UI palette ([../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §3.3). |
 | **No in-memory DAO** | ⚠️ `loom/db/memory` does not mirror `DedupGroupDao` — deliberate, following the `AssetNodeResultDao` precedent. The jOOQ impl is exercised against the pooled database. |
 | **First asset-to-asset relation** | 🔴 `dedup_group` / `dedup_group_member` is the schema's first asset-to-asset relation. Respect the cascade split: `SET NULL` on `keep_asset_uuid`, `CASCADE` on members. |
 | **Offline mode** | ⚠️ Both fingerprint nodes are no-ops when `client() == null` or offline — the whole workflow requires Loom **and** an enabled similarity index. |
@@ -326,7 +326,7 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 | `AssetEndpoint` | same | Hosts `GET /assets/:uuid/dedup-groups` |
 | `DedupGroup*Request/Response`, `DedupGroupMemberModel` | `io.metaloom.loom.rest.model.dedup` (`loom-shared/rest-model`) | DTOs; `ROLE_KEEP` / `ROLE_DUP` constants |
 | `DedupGroupMethods` | `io.metaloom.loom.client.common.method` | Client interface (6 methods) |
-| `SimilarityMethods.listSimilarAssets` | same | The candidate query ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md)) |
+| `SimilarityMethods.listSimilarAssets` | same | The candidate query ([../search/LUCENE_PLAN.md](LUCENE_PLAN.md)) |
 | `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` (`loom/services/lucene`) | HNSW k-NN over `MultiSectorFingerprint` vectors |
 | `AbstractMediaNode` | `io.metaloom.cortex.common.node` | Lifecycle + `recordNodeResult` / `resultRef` |
 | `FileUtils` | `io.metaloom.utils.fs` (utils) | `autoRotate` + `moveFile` |
@@ -339,18 +339,18 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 | Need | Look here |
 |---|---|
 | The reference algorithm and its safeguards | `xdb-clean/FPDEDUP_PROCESS.md` |
-| The similarity query this depends on | [../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md) |
-| The dedup entities in the domain model | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
+| The similarity query this depends on | [../search/LUCENE_PLAN.md](LUCENE_PLAN.md) |
+| The dedup entities in the domain model | [../../loom/DOMAIN.md](../loom/DOMAIN.md) |
 | The three node classes | `cortex/nodes/dedup/core/src/main/java/io/metaloom/cortex/node/dedup/` |
 | Kind registration | `DedupNodeModule` (`@StringKey`) + `cortex/cli/.../dagger/NodeCollectionModule.java` |
 | Descriptors / UI palette | `loom-shared/node-model/.../spec/DedupDescriptorProvider.java` + `META-INF/services` |
-| Port ids and content types | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6 |
-| Node write-back / ledger pattern | [NODES.md](NODES.md) §2; `AbstractMediaNode.recordNodeResult` |
-| How to add a node at all | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| Port ids and content types | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.6 |
+| Node write-back / ledger pattern | [NODES.md](../features/nodes/NODES.md) §2; `AbstractMediaNode.recordNodeResult` |
+| How to add a node at all | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | Schema + permissions | `loom/db/flyway/.../V2.61__add_dedup_group.sql`, `V2.62__add_dedup_permission.sql` |
 | Asset completeness fields | `loom/db/flyway/.../V2.46__asset_identity.sql` |
-| Permission model and test grants | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) |
-| REST / DAO conventions, definition of done | [../../guidelines/CODING.md](../../guidelines/CODING.md); [../../loom/RESTAPI.md](../../loom/RESTAPI.md); [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md) |
+| Permission model and test grants | [../permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) |
+| REST / DAO conventions, definition of done | [../../guidelines/CODING.md](../guidelines/CODING.md); [../../loom/RESTAPI.md](../loom/RESTAPI.md); [../../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) |
 | The review screen that must be replaced | `loom-ui/src/features/workflow/WorkflowView.tsx` |
 | Customer docs | `website/content/english/docs/nodes/dedup/index.adoc` |
 
@@ -359,7 +359,7 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 ## 9. Progress Assessment
 
 ### Prerequisite
-- [x] Fingerprint similarity index — built end to end ([../search/LUCENE_PLAN.md](../search/LUCENE_PLAN.md))
+- [x] Fingerprint similarity index — built end to end ([../search/LUCENE_PLAN.md](LUCENE_PLAN.md))
 
 ### Loom backend
 - [x] `V2.61` — `dedup_status`, `dedup_group`, `dedup_group_member`, indexes, role CHECK, UNIQUE
@@ -380,7 +380,7 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 
 ### Docs
 - [x] `website/content/english/docs/nodes/dedup/index.adoc`
-- [x] [NODES.md](NODES.md) §2/§3/§5 rows; [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) §4.6; [../../loom/DOMAIN.md](../../loom/DOMAIN.md)
+- [x] [NODES.md](../features/nodes/NODES.md) §2/§3/§5 rows; [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.6; [../../loom/DOMAIN.md](../loom/DOMAIN.md)
 - [ ] `loom/doc/.../cortex/nodes/index.adoc` still omits `fingerprint-dedup-apply` (§3.4)
 
 ### Open
@@ -393,6 +393,5 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 - [ ] Thumbnail dominant-colour safeguard; multi-partial ranking; delta sync (§3.4)
 
 ---
-
-_Git HEAD revision: `499f71f7`_
-_Last updated: 2026-08-01 (verified BUILT against the tree; removed the stale "nothing is implemented" line and the website-docs gap, corrected two safeguard claims that the code does not honour, and reduced the design narrative to an inventory plus the open review-UI work.)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

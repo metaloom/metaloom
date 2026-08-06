@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.api.asset.AssetId;
-import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
@@ -28,6 +27,7 @@ import io.metaloom.loom.db.model.asset.AssetDocComp;
 import io.metaloom.loom.db.model.asset.AssetGeoComp;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
+import io.metaloom.loom.api.embedding.EmbeddingType;
 import io.metaloom.loom.db.model.embedding.Embedding;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
@@ -52,7 +52,10 @@ import io.metaloom.loom.rest.model.asset.info.VideoInfo;
 import io.metaloom.loom.rest.model.asset.location.AssetS3Meta;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
+import io.metaloom.loom.rest.vector.EmbeddingIndexSyncService;
 import io.metaloom.utils.hash.SHA512;
 
 @Singleton
@@ -60,24 +63,37 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 
 	private static final Logger log = LoggerFactory.getLogger(AssetEndpointService.class);
 
+	private final EmbeddingIndexSyncService vectorSync;
+
 	@Inject
-	public AssetEndpointService(AssetDao assetDao, DaoCollection daos, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
+	public AssetEndpointService(AssetDao assetDao, DaoCollection daos, EmbeddingIndexSyncService vectorSync, LoomModelBuilder modelBuilder,
+		LoomModelValidator validator) {
 		super(assetDao, daos, modelBuilder, validator);
+		this.vectorSync = vectorSync;
 	}
 
 	public void delete(LoomRoutingContext lrc, AssetId assetId) {
 		if (assetId.isUUID()) {
 			delete(lrc, assetId.uuid());
 		} else {
-			delete(lrc, DELETE_ASSET, () -> {
-				return dao().loadBySHA512(assetId.hashsum());
-			});
+			// Resolved to a uuid first so this path cleans the vector index too. Deleting by hash and
+			// deleting by uuid must leave the same state behind; routing one of them around the cleanup
+			// would make an asset's face vectors survive depending only on how it was addressed.
+			Asset asset = dao().loadBySHA512(assetId.hashsum());
+			if (asset == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Element not found.");
+			}
+			delete(lrc, asset.getUuid());
 		}
 	}
 
 	@Override
 	public void delete(LoomRoutingContext lrc, UUID uuid) {
 		delete(lrc, DELETE_ASSET, uuid);
+		// Every embedding of this asset cascaded away in SQL, so a rebuild would not clear them from the
+		// vector index either - the source rows it would read no longer exist. Told explicitly, or the
+		// index keeps returning face matches pointing at an asset that is gone.
+		vectorSync.removeAsset(uuid);
 	}
 
 	public void list(LoomRoutingContext lrc) {
@@ -182,10 +198,7 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 
 		// Create initial embedding for asset
 		for (EmbeddingCreateRequest embeddingRequest : request.getEmbeddings()) {
-			Float[] vectorData = embeddingRequest.getVector();
-			Embedding embedding = daos().embeddingDao().createEmbedding(userUuid, asset.getUuid(), vectorData,
-				EmbeddingType.VIDEO4J_FINGERPRINT_V2);
-			daos().embeddingDao().store(embedding);
+			daos().embeddingDao().store(toEmbedding(userUuid, asset.getUuid(), embeddingRequest));
 		}
 
 		// Create component records
@@ -378,11 +391,11 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 					}
 
 					try {
-						// Create embeddings
+						// Create embeddings. These used to be built and then dropped on the floor - the DAO call
+						// created the element and nothing ever stored it, so a bulk upload silently persisted none
+						// of the embeddings it was handed, unlike the single-asset path directly above.
 						for (EmbeddingCreateRequest embeddingRequest : itemRequest.getEmbeddings()) {
-							Float[] vectorData = embeddingRequest.getVector();
-							daos().embeddingDao().createEmbedding(userUuid, asset.getUuid(), vectorData,
-								EmbeddingType.VIDEO4J_FINGERPRINT_V2);
+							daos().embeddingDao().store(toEmbedding(userUuid, asset.getUuid(), embeddingRequest));
 						}
 
 						// Create component records
@@ -503,4 +516,24 @@ public class AssetEndpointService extends AbstractCRUDEndpointService<AssetDao, 
 		});
 	}
 
+	/**
+	 * Build an embedding from an inline asset-create request.
+	 *
+	 * <p>
+	 * The type used to be hardcoded to {@code VIDEO4J_FINGERPRINT_V2} here, which meant the caller's own {@code type} was read off the wire, validated
+	 * and then thrown away - every embedding attached to an asset was recorded as a video fingerprint whatever it actually was. It is honoured now, and
+	 * the fingerprint type remains only as the default for callers that send none.
+	 * </p>
+	 */
+	private Embedding toEmbedding(UUID userUuid, UUID assetUuid, EmbeddingCreateRequest request) {
+		String type = request.getType() == null ? EmbeddingType.VIDEO4J_FINGERPRINT_V2.name() : request.getType();
+		Embedding embedding = daos().embeddingDao().createEmbedding(userUuid, assetUuid, request.getVector(), type);
+		if (request.getModel() != null) {
+			embedding.setModel(request.getModel());
+		}
+		if (request.getSource() != null) {
+			embedding.setNodeKind(request.getSource());
+		}
+		return embedding;
+	}
 }

@@ -2,7 +2,7 @@
 
 These are **rules, not background**. They apply to *every* code change, on top of whatever the
 feature spec demands. Entry point for the spec tree: [../CONTEXT.md](../CONTEXT.md) (§0.2 summarises
-this file — **this file is the authority**). Rules for editing a spec: [../SPEC_RULES.md](../SPEC_RULES.md).
+this file — **this file is the authority**). Rules for editing a spec: [../SPEC_RULES.md](SPEC_RULES.md).
 Adding a Cortex node has its own definition of done: [NEW_NODE.md](NEW_NODE.md).
 
 **The code is the source of truth.** Where a spec and the code disagree, the code wins — and you fix
@@ -59,8 +59,7 @@ the spec in the same change (§ Spec below).
 ## Spec
 
 * Changing a feature **must** also update the corresponding spec file under `spec/`, so the internal
-  AI coding guides stay in sync. Format rules: [../SPEC_RULES.md](../SPEC_RULES.md); task files
-  follow [../TASKS.template.md](../TASKS.template.md).
-
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (verified all six rules against the code and added the concrete test, cascade, migration and demo-data reference points)_
+  AI coding guides stay in sync. Format rules: [../SPEC_RULES.md](SPEC_RULES.md); task files
+  follow [../TASKS.template.md](../tasks/TASKS.template.md).
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

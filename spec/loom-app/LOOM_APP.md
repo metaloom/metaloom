@@ -299,8 +299,10 @@ traversal containment). UI-level testing stays in `loom-ui/` — see
 | find the REST contract the renderer calls | [../loom/RESTAPI.md](../loom/RESTAPI.md) |
 | see where the app sits in the module map | [../METALOOM.md](../METALOOM.md), [../CONTEXT.md](../CONTEXT.md) §1 |
 | fix the customer-facing claims about the app | [getting-started/index.adoc](../../website/content/english/docs/getting-started/index.adoc), rules in [../website/WEBSITE.md](../website/WEBSITE.md) |
-| know the definition of done for a change here | [../guidelines/CODING.md](../guidelines/CODING.md), [../SPEC_RULES.md](../SPEC_RULES.md) |
+| know the definition of done for a change here | [../guidelines/CODING.md](../guidelines/CODING.md), [../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 
 ---
 
 _Last updated: 2026-08-02 — git HEAD `d930e222`_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (reference sweep — no content changes)_

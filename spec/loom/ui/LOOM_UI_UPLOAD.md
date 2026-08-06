@@ -32,6 +32,8 @@
 - [x] Asset browser upload dialog routed into the same queue (one upload code path)
 - [x] vitest coverage for the queue, the formatters and the request shaping
 - [x] Mocked Playwright coverage for the screen (11 specs)
+- [x] Customer documentation on `website/content/english/docs/ui/` (§ Uploads), with two screenshots
+      of three files in flight taken by `loom-ui/scripts/capture-upload-screenshots.mjs` (§8.4)
 
 ### 1.2 Not built (deliberate)
 
@@ -312,6 +314,24 @@ mvn -o install -pl loom-client/common,loom-client/rest,loom/services/rest -Dskip
 mvn -o test -pl loom/core -Dtest=AssetBinaryDataEndpointTest
 ```
 
+### 8.4 Documentation screenshots
+
+`loom-ui/scripts/capture-upload-screenshots.mjs` photographs this screen for the customer docs. It is
+a *mocked* capture in the same sense as §8.2 — no backend, a Vite dev server, `page.route` over
+every REST call — and it produces `uploads.png` and `uploads-sidebar.png` in the `docs/ui/` page
+bundle.
+
+```bash
+cd loom-ui && node scripts/capture-upload-screenshots.mjs
+```
+
+The one thing worth knowing here rather than in the website spec: **`page.route` cannot park an
+upload part-way.** A route controls the response; the bar is drawn from `upload.onprogress` on the
+request. The script subclasses `XMLHttpRequest` instead, dispatches one real `ProgressEvent` at a
+planned fraction and never answers — so `uploadAssetWithProgress`, the queue and `MAX_CONCURRENT`
+all run for real, and the picture necessarily has three bars in it. Details and the rest of the
+capture rules: [../../website/WEBSITE.md](../../website/WEBSITE.md) § Capturing the upload screen.
+
 ---
 
 ## 9. Conventions and Gotchas
@@ -374,8 +394,12 @@ mvn -o test -pl loom/core -Dtest=AssetBinaryDataEndpointTest
 | Java client overload | `loom-client/common/.../method/AssetBinaryMethods.java` |
 | i18n strings | `loom-ui/src/i18n/locales/{en,de}.json` under `uploads.*` |
 | Customer docs | `website/content/english/docs/ui/index.adoc` (§ Uploads) |
+| Docs screenshots + how they are taken | `website/content/english/docs/ui/uploads{,-sidebar}.png` · `loom-ui/scripts/capture-upload-screenshots.mjs` |
 
 ---
 
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (new file: dedicated upload screen, background upload queue, optional `poolUuid` on `POST /assets/upload`)_
+_Git HEAD revision: `742dae2d`_
+_Last updated: 2026-08-06 (customer documentation for the screen on `docs/ui/` § Uploads, plus §8.4:
+`capture-upload-screenshots.mjs` and why the transport has to be subclassed rather than routed)_
+
+_Previously: `aab85cb3`, 2026-08-02 (new file: dedicated upload screen, background upload queue, optional `poolUuid` on `POST /assets/upload`)_

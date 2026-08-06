@@ -140,6 +140,9 @@ public class PipelineRunRecovery {
 
 		RunStateStore store = new DaoRunStateStore(runDao, itemDao, taskDao, runUuid, run.getCreatorUuid());
 		PipelineRunEngine engine = new PipelineRunEngine(graph, dispatcher, runUuid, store);
+		// A resumed run reports exactly as a fresh one does; a restart must not create a blind spot
+		// in the very numbers an operator is watching while the fleet catches up.
+		engine.setMetrics(metrics);
 		engine.onCompletion(summary -> tracker.complete(runUuid, summary.getDurationMs(),
 			(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
 			(int) summary.getFailureCount(), (int) summary.getSkippedCount()));
