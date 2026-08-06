@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box, Typography, Paper, Chip, IconButton, Dialog, DialogTitle, DialogContent,
   DialogActions, Button, TextField, Tooltip, InputAdornment, MenuItem, Select,
@@ -14,6 +14,9 @@ import { AssetPool, AssetPoolType } from "../../types";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { listPools, createPool, updatePool, deletePool, PoolResponse } from "../../api/pools";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
 
 function formatBytes(bytes: number): string {
@@ -211,7 +214,14 @@ export default function AssetPoolsView() {
   const { showToast } = useToast();
   const { token } = useAuth();
   const { t } = useTranslation();
-  const [pools, setPools] = useState<AssetPool[]>([]);
+  // /pools caps at 25 rows per page — page it rather than passing off page one as the whole set.
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listPools(token, paging).then(r => pageFrom(r, mapResponseToPool)) : null),
+    [token],
+  );
+  const page = usePagedList<AssetPool>(loadPage, p => p.id);
+  const pools = page.items;
+  const setPools = page.setItems;
   const [query, setQuery] = useState("");
 
   // Create dialog
@@ -231,9 +241,8 @@ export default function AssetPoolsView() {
   const [deleteTarget, setDeleteTarget] = useState<AssetPool | null>(null);
 
   useEffect(() => {
-    if (!token) return;
-    listPools(token).then(resp => setPools(resp.data.map(mapResponseToPool))).catch(() => showToast(t("assetPools.toast.loadFailed"), "error"));
-  }, [token]);
+    if (page.error) showToast(t("assetPools.toast.loadFailed"), "error");
+  }, [page.error]);
 
   const resetForm = () => {
     setFormName(""); setFormType("filesystem"); setFormFsPath("");
@@ -392,7 +401,7 @@ export default function AssetPoolsView() {
 
       {/* Pool grid */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-        {pools.length === 0 ? (
+        {pools.length === 0 && !page.loading ? (
           // No pools configured yet — offer to create the first one.
           <EmptyState
             icon={StorageOutlined}
@@ -418,6 +427,19 @@ export default function AssetPoolsView() {
               />
             ))}
           </Box>
+        )}
+
+        {/* The chip counts above are computed from the loaded pools, so paging in the rest is
+            what makes them true. */}
+        {!query.trim() && !page.loading && (
+          <ListPaging
+            loaded={pools.length}
+            total={page.totalCount}
+            hasMore={page.hasMore}
+            loadingMore={page.loadingMore}
+            onLoadMore={page.loadMore}
+            testId="asset-pools-paging"
+          />
         )}
       </Box>
 

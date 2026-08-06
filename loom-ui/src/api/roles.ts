@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API role models ──────────────────────
 
@@ -17,12 +18,7 @@ export interface RoleResponse {
 
 export interface RoleListResponse {
   data: RoleResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface RoleCreateRequest {
@@ -56,8 +52,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listRoles(token: string): Promise<RoleListResponse> {
-  const res = await fetch(`${API_BASE_URL}/roles`, {
+export async function listRoles(token: string, paging?: PagingParams): Promise<RoleListResponse> {
+  const res = await fetch(`${API_BASE_URL}/roles${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

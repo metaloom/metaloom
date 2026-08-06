@@ -36,6 +36,7 @@ import { useAuth } from "../../context/AuthContext";
 import { listAssets, loadAsset as apiLoadAsset, AssetResponse } from "../../api/assets";
 import { listCollections, CollectionResponse } from "../../api/collections";
 import { listTasks, TaskResponse } from "../../api/tasks";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 // ── Reference chip renderer ───────────────────────────────────────────────
 function RefChip({ chatRef: r, onAssetClick }: { chatRef: ChatReference; onAssetClick?: (id: string) => void }) {
@@ -259,9 +260,9 @@ function WorkspacePanel({ mode, selectedAssetId, onClearAsset }: { mode: "assets
 
   useEffect(() => {
     if (!token) return;
-    listAssets(token).then(r => setAssets(r.data ?? [])).catch(() => {});
-    listTasks(token).then(r => setTasks(r.data ?? [])).catch(() => {});
-    listCollections(token).then(r => setCollections(r.data ?? [])).catch(() => {});
+    listAssets(token, { limit: PAGE_SIZE }).then(r => setAssets(r.data ?? [])).catch(() => {});
+    listTasks(token, { limit: PAGE_SIZE }).then(r => setTasks(r.data ?? [])).catch(() => {});
+    listCollections(token, { limit: PAGE_SIZE }).then(r => setCollections(r.data ?? [])).catch(() => {});
   }, [token]);
 
   useEffect(() => {

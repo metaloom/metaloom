@@ -11,12 +11,16 @@ import AssetThumbnail from "../../components/AssetThumbnail";
 import EmptyState from "../../components/EmptyState";
 import { AssetResponse, assetBinaryUrl, listAssets } from "../../api/assets";
 import { createLibrary, deleteLibrary, listLibraries, updateLibrary } from "../../api/libraries";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { assetInLibrary, assetsInLibrary } from "./libraryAssets";
 import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { useTranslation } from "react-i18next";
 import { AssetType } from "../../types";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 /** Media class of an asset, used to pick the placeholder icon when there is no preview. */
 function assetType(asset: AssetResponse): AssetType {
@@ -48,7 +52,14 @@ export default function LibraryView() {
   const navigate = useNavigate();
   const [libraries, setLibraries] = useState<Array<{ id: string; name: string; description: string; meta: Record<string, unknown>; createdAt: string }>>([]);
   const [selectedLib, setSelectedLib] = useState<{ id: string; name: string; description: string; meta: Record<string, unknown>; createdAt: string } | null>(null);
-  const [assets, setAssets] = useState<AssetResponse[]>([]);
+  // /assets caps at 25 rows per page. The per-library counts below are derived from whatever has
+  // been loaded — there is no library-scoped count route — so paging is what makes them true.
+  const loadAssetPage = useMemo(
+    () => (token ? (paging: PagingParams) => listAssets(token, paging).then(r => pageFrom(r, a => a)) : null),
+    [token],
+  );
+  const assetPage = usePagedList<AssetResponse>(loadAssetPage, a => a.uuid);
+  const assets = assetPage.items;
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -62,7 +73,7 @@ export default function LibraryView() {
 
   useEffect(() => {
     if (!token) return;
-    listLibraries(token).then(resp => {
+    listLibraries(token, { limit: PAGE_SIZE }).then(resp => {
       const libs = (resp.data ?? []).map(lib => ({
         id: lib.uuid,
         name: lib.name,
@@ -76,11 +87,6 @@ export default function LibraryView() {
       setLibraries([]);
       setSelectedLib(null);
     });
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) return;
-    listAssets(token).then(resp => setAssets(resp.data ?? [])).catch(() => setAssets([]));
   }, [token]);
 
   const handleCreate = async () => {
@@ -203,7 +209,16 @@ export default function LibraryView() {
               </Box>
               <ListItemText
                 primary={<Typography variant="body2" fontWeight={500} noWrap sx={{ fontSize: "0.82rem" }}>{lib.name}</Typography>}
-                secondary={<Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }}>{countsByLibrary.get(lib.id) ?? 0} {t("library.count.assets")}</Typography>}
+                secondary={
+                  <Typography variant="caption" sx={{ fontSize: "0.68rem", color: tokens.text.tertiary }} data-testid="library-asset-count">
+                    {/* There is no library-scoped count route, so this counts the assets loaded
+                        so far. While the asset list is truncated, say "of the N loaded" rather
+                        than presenting a page count as the library's size. */}
+                    {assetPage.truncated
+                      ? t("library.count.assetsPartial", { count: countsByLibrary.get(lib.id) ?? 0, loaded: assets.length })
+                      : `${countsByLibrary.get(lib.id) ?? 0} ${t("library.count.assets")}`}
+                  </Typography>
+                }
               />
               <Tooltip title={t("library.tooltip.deleteLibrary")}>
                 <IconButton
@@ -319,6 +334,19 @@ export default function LibraryView() {
                     </Paper>
                   ))}
                 </Box>
+              )}
+
+              {/* The library filter runs client-side over the loaded assets, so "load more" is
+                  the only way to widen it. */}
+              {!query.trim() && !assetPage.loading && (
+                <ListPaging
+                  loaded={assets.length}
+                  total={assetPage.totalCount}
+                  hasMore={assetPage.hasMore}
+                  loadingMore={assetPage.loadingMore}
+                  onLoadMore={assetPage.loadMore}
+                  testId="library-assets-paging"
+                />
               )}
             </Box>
           </>

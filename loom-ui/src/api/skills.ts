@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 export interface SkillResponse {
   uuid: string;
@@ -25,12 +26,7 @@ export interface SkillResponse {
 
 export interface SkillListResponse {
   data: SkillResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface SkillCreateRequest {
@@ -67,8 +63,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 /** List the callers own skills. */
-export async function listSkills(token: string): Promise<SkillListResponse> {
-  const res = await fetch(`${API_BASE_URL}/skills`, {
+export async function listSkills(token: string, paging?: PagingParams): Promise<SkillListResponse> {
+  const res = await fetch(`${API_BASE_URL}/skills${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });
@@ -114,8 +110,8 @@ export async function deleteSkill(token: string, uuid: string): Promise<void> {
 }
 
 /** List the published skills of all users (the shared skill library). */
-export async function listSkillLibrary(token: string): Promise<SkillListResponse> {
-  const res = await fetch(`${API_BASE_URL}/skills/library`, {
+export async function listSkillLibrary(token: string, paging?: PagingParams): Promise<SkillListResponse> {
+  const res = await fetch(`${API_BASE_URL}/skills/library${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });
@@ -134,12 +130,7 @@ export async function installSkill(token: string, uuid: string): Promise<SkillRe
 /** Paged list of a skill's versions. Each entry is a SkillResponse carrying that version's body + versionNumber. */
 export interface SkillVersionListResponse {
   data: SkillResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 /** List the versions of a skill. Degrades to an empty list on a non-ok response. */

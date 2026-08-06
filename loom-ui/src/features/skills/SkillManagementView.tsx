@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   IconButton, Switch, Tab, Table, TableBody, TableCell, TableHead, TableRow,
-  Tabs, TextField, Tooltip, Typography,
+  Tabs, TextField, Tooltip, Typography, InputAdornment,
 } from "@mui/material";
 import {
   Add, AutoAwesomeOutlined, DeleteOutline, DownloadOutlined, EditOutlined, HistoryOutlined,
-  RestoreOutlined, UpgradeOutlined,
+  RestoreOutlined, UpgradeOutlined, SearchOutlined,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import Title from "../../components/Title";
@@ -18,6 +18,7 @@ import {
   createSkill, deleteSkill, installSkill, listSkillLibrary, listSkills, listSkillVersions,
   restoreSkillVersion, SkillResponse, updateSkill,
 } from "../../api/skills";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 interface EditorState {
   uuid?: string;
@@ -38,6 +39,9 @@ export default function SkillManagementView() {
   const { token } = useAuth();
   const { showToast } = useToast();
   const [tab, setTab] = useState<"mine" | "library">("mine");
+  // One term per tab — switching tabs must not silently carry a filter across.
+  const [mineQuery, setMineQuery] = useState("");
+  const [libraryQuery, setLibraryQuery] = useState("");
   const [skills, setSkills] = useState<SkillResponse[]>([]);
   const [library, setLibrary] = useState<SkillResponse[]>([]);
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -49,8 +53,8 @@ export default function SkillManagementView() {
 
   const refresh = useCallback(() => {
     if (!token) return;
-    listSkills(token).then(res => setSkills(res.data ?? [])).catch(() => setSkills([]));
-    listSkillLibrary(token).then(res => setLibrary(res.data ?? [])).catch(() => setLibrary([]));
+    listSkills(token, { limit: PAGE_SIZE }).then(res => setSkills(res.data ?? [])).catch(() => setSkills([]));
+    listSkillLibrary(token, { limit: PAGE_SIZE }).then(res => setLibrary(res.data ?? [])).catch(() => setLibrary([]));
   }, [token]);
 
   useEffect(refresh, [refresh]);
@@ -158,6 +162,18 @@ export default function SkillManagementView() {
 
   const ownUuids = new Set(skills.map(s => s.uuid));
 
+  /** Both tabs filter on name + description; each tab keeps its own term. */
+  const matches = (skill: SkillResponse, q: string) =>
+    !q.trim()
+    || skill.name.toLowerCase().includes(q.toLowerCase())
+    || (skill.description ?? "").toLowerCase().includes(q.toLowerCase());
+
+  const activeQuery = tab === "mine" ? mineQuery : libraryQuery;
+  const filteredSkills = skills.filter(s => matches(s, mineQuery));
+  const filteredLibrary = library.filter(s => matches(s, libraryQuery));
+  const visible = tab === "mine" ? filteredSkills : filteredLibrary;
+  const loaded = tab === "mine" ? skills : library;
+
   return (
     <Box data-testid="skills-view" sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2, height: "100%", overflow: "auto" }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -180,6 +196,32 @@ export default function SkillManagementView() {
         <Tab label={t("skills.tabMine")} value="mine" data-testid="skills-mine-tab" />
         <Tab label={t("skills.tabLibrary")} value="library" data-testid="skills-library-tab" />
       </Tabs>
+
+      {loaded.length > 0 && (
+        <TextField
+          value={activeQuery}
+          onChange={e => (tab === "mine" ? setMineQuery(e.target.value) : setLibraryQuery(e.target.value))}
+          placeholder={t("skills.search.placeholder")}
+          size="small"
+          data-testid={tab === "mine" ? "skills-mine-search" : "skills-library-search"}
+          sx={{ maxWidth: 360 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+      )}
+
+      {/* Filtered to nothing keeps the inline hint; EmptyState stays bound to "no skills at
+          all" — LOOM_UI.md §7.5. Note neither tab renders its <Table> when empty. */}
+      {loaded.length > 0 && visible.length === 0 && (
+        <Typography variant="body2" data-testid="skills-no-match" sx={{ color: tokens.text.tertiary, py: 3, textAlign: "center" }}>
+          {t("skills.emptyState.noSearch")}
+        </Typography>
+      )}
 
       {tab === "mine" && skills.length === 0 ? (
         // No skills owned yet — offer to author the first one.
@@ -211,7 +253,7 @@ export default function SkillManagementView() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {skills.map(skill => (
+            {filteredSkills.map(skill => (
               <TableRow key={skill.uuid} hover data-testid={`skill-row-${skill.name}`}>
                 <TableCell>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
@@ -260,7 +302,7 @@ export default function SkillManagementView() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {library.map(skill => (
+            {filteredLibrary.map(skill => (
               <TableRow key={skill.uuid} hover>
                 <TableCell>
                   <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{skill.name}</Typography>

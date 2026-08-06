@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 // ── Types matching the Loom REST API pipeline models ──────────────────
 
@@ -26,12 +27,7 @@ export interface PipelineResponse {
 
 export interface PipelineListResponse {
   data: PipelineResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 /** Payload for creating a new pipeline. */
@@ -186,11 +182,7 @@ export async function runPipeline(token: string, uuid: string, request: Pipeline
  */
 export interface PipelineVersionListResponse {
   data: PipelineResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    perPage?: number;
-    lastUuid?: string;
-  };
+  _metainfo?: PagingInfo;
 }
 
 /** Optional body for a version restore — both fields default to the restored version's values. */

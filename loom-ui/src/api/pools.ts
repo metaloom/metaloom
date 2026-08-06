@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API pool models ──────────────────────
 
@@ -22,12 +23,7 @@ export interface PoolResponse {
 
 export interface PoolListResponse {
   data: PoolResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface PoolCreateRequest {
@@ -65,8 +61,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listPools(token: string): Promise<PoolListResponse> {
-  const res = await fetch(`${API_BASE_URL}/pools`, {
+export async function listPools(token: string, paging?: PagingParams): Promise<PoolListResponse> {
+  const res = await fetch(`${API_BASE_URL}/pools${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

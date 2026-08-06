@@ -1063,6 +1063,7 @@ root first (and again after any Flyway change), or tests fail at
 | Node registration | `RegistryNodeFactoryTest`, `NodeRegistrarTest`, `PipelineConfigurableTest` |
 | Authoring | `PipelineAuthoringServiceTest` (rest), `PipelineAuthoringToolTest` + `NodeDescriptorToolTest` (mcp), `MCPPipelineAuthoringTest` (loom/core, pooled DB) |
 | Loom REST | `PipelineValidationServiceTest`, `PipelineRunStatusResolverTest`, `PipelineRunCapabilityTest`, `PipelineRunEndToEndTest`, `PipelineMatcherTest`, `PipelineEventBroadcasterTest`, `SegmentProtocolSerdeTest`, `ProcessorEndpointTest`, `PipelineEventEndpointTest`, `CombinedEndpointTest` |
+| Versioning + dispatch + delete (REST) | `PipelineVersionEndpointTest` (append/immutability, restore copies forward with 201, 404s, permissions), `PipelineRunDispatchEndpointTest` (400 / 503 / 202 and the `SOURCE_TASK` payload, `DELETE /:uuid` cascade) |
 | DAO | `PipelineDaoTest`, `PipelineVersionDaoTest`, `PipelineRunDaoTest`, `PipelineNodeTaskDaoTest` |
 | Cross-tree ports | `integration-test/…/NodePortConformanceTest` — reflects over every node's `IN_*`/`OUT_*` constants and holds them against its descriptor |
 
@@ -1085,9 +1086,12 @@ produce failure messages that name the port. Legacy-tree asserts live in
   bus and the sync collector are uncovered (all currently unreachable at runtime).
 - No test for `LoomControlChannel` or `CortexNodeAdapter`'s adapter contract directly.
 - `PipelineModelValidator` (the shared-model copy) is untested.
-- No Java test for `POST /:uuid/run` dispatch shape or `DELETE /:uuid` cascade;
-  versioning REST is covered only by mocked Playwright specs (the Java
-  `PipelineMethods` client lacks the version/run methods).
+- ~~No Java test for `POST /:uuid/run` dispatch shape or `DELETE /:uuid` cascade;
+  versioning REST is covered only by mocked Playwright specs~~ — closed by
+  `PipelineRunDispatchEndpointTest` and `PipelineVersionEndpointTest` (§13.1).
+  Still uncovered from Java: the `mediaUuids` branch of `sourceOptions` (asset uuid →
+  stored binary path), and the dispatch path where the worker's socket dies between
+  selection and `send` (`dispatched=false`, 503, run closed out immediately).
 - DAO tests never exercise `loadWithLatestVersion`, `loadByUuids`,
   `loadByPipelineAndVersion`, `loadLatestByPipeline`.
 - Missing per [NODE_DATA_TYPES.md §11](NODE_DATA_TYPES.md): `PortPayload` round trip,
@@ -1237,8 +1241,11 @@ produce failure messages that name the port. Legacy-tree asserts live in
 - [ ] `PipelineRunRecovery` does not restore breakpoints (§6.4a): a run recovered after a
       restart comes back with none armed, silently. Persisting them in `pipeline_run.meta`
       needs no migration — `meta` is already JSONB
-- [ ] Java `PipelineMethods` lacks run/version methods, so those REST surfaces have no
-      Java test
+- [x] ~~Java `PipelineMethods` lacks run/version methods, so those REST surfaces have no
+      Java test~~ — resolved 2026-08-06: the client carries `runPipeline`,
+      `listPipelineVersions`, `loadPipelineVersion`, `restorePipelineVersion` and
+      `deletePipeline`, and `PipelineVersionEndpointTest` / `PipelineRunDispatchEndpointTest`
+      exercise them against a booted server (§13.1)
 
 **Known debt:**
 
@@ -1259,5 +1266,5 @@ See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakd
 [NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
 
 ---
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (PipelineAuthoringService is now the single write path; MCP is a second authoring door)_
+_Git HEAD revision: `ce41aaf1`_
+_Last updated: 2026-08-06 (versioning, run dispatch and delete-cascade now have Java endpoint tests — §13.1). Earlier: (PipelineAuthoringService is now the single write path; MCP is a second authoring door)_

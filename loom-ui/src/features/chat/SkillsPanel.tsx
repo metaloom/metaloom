@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { listSkills, SkillResponse } from "../../api/skills";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 /**
  * Per-chat skill activation: a popover listing the users enabled skills with
@@ -29,7 +30,7 @@ export default function SkillsPanel({
 
   useEffect(() => {
     if (!token) return;
-    listSkills(token)
+    listSkills(token, { limit: PAGE_SIZE })
       .then(res => setSkills((res.data ?? []).filter(s => s.enabled)))
       .catch(() => setSkills([]));
   }, [token, anchor]);

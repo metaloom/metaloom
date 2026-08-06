@@ -579,10 +579,13 @@ RBAC case for `update`**, which is why most `UPDATE_*` constants read `test:none
 
 Non-CRUD tests carrying their own permission assertions: `SearchEndpointTest`,
 `DedupGroupEndpointTest`, `MemoryEndpointTest`, `MemoryDenyRuleEndpointTest`,
-`PipelineRun{Pause,Cancel,Item,Stats}EndpointTest`, `AssetBinaryDataEndpointTest`,
-`SimilarAssetsEndpointTest`, `TagAssetEndpointTest` (403 on `TAG_ASSET` and
-`UNTAG_ASSET`, both of which read `test:none` until then, plus the request-dependent
-case above).
+`PipelineRun{Pause,Cancel,Item,Stats,Dispatch}EndpointTest`, `PipelineVersionEndpointTest`
+(403 on `READ_PIPELINE_VERSION` for both version reads, and on `RESTORE_PIPELINE_VERSION`
+for the restore — asserted against a caller who holds the *read* permission, since reading
+the history and rewriting the pipeline from it are different acts),
+`AssetBinaryDataEndpointTest`, `SimilarAssetsEndpointTest`, `TagAssetEndpointTest` (403 on
+`TAG_ASSET` and `UNTAG_ASSET`, both of which read `test:none` until then, plus the
+request-dependent case above).
 
 Non-CRUD tests with **no** permission assertion at all (open work):
 `TranscriptEndpointTest`, `AssetComponentEndpointTest`,
@@ -777,5 +780,5 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
       (masked by the cache being invalidated only on role-permission writes, §4.4)
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE` added by `V2.76`; MCP now filters its tool listing by permission). Earlier: (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_
+_Git HEAD revision: `ce41aaf1`_
+_Last updated: 2026-08-06 (`READ_PIPELINE_VERSION`, `RESTORE_PIPELINE_VERSION` and `DELETE_PIPELINE` now carry 403 cases — §8.2). Earlier: (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE` added by `V2.76`; MCP now filters its tool listing by permission). Earlier: (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_

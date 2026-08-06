@@ -14,6 +14,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { listAssets, AssetResponse } from "../../api/assets";
 import { listAssetDetections, updateDetection, deleteDetection } from "../../api/detections";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 export default function ObjectDetectionManagement() {
   const [query, setQuery] = useState("");
@@ -26,7 +27,7 @@ export default function ObjectDetectionManagement() {
 
   useEffect(() => {
     if (!token) return;
-    listAssets(token).then(r => {
+    listAssets(token, { limit: PAGE_SIZE }).then(r => {
       const assets = r.data ?? [];
       const map: Record<string, AssetResponse> = {};
       assets.forEach(a => { map[a.uuid] = a; });

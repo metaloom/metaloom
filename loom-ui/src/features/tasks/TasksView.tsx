@@ -4,9 +4,10 @@ import {
   TableHead, TableRow, IconButton, Drawer, Divider, Button,
   Dialog, DialogActions, DialogContent, DialogTitle, TextField, CircularProgress,
   FormControl, InputLabel, Select, MenuItem, Autocomplete, Avatar, AvatarGroup, Tooltip,
+  InputAdornment,
 } from "@mui/material";
 import {
-  TaskAltOutlined,
+  TaskAltOutlined, SearchOutlined,
   CloseOutlined, CalendarTodayOutlined, FlagOutlined, AddOutlined,
   EditOutlined, DeleteOutlined, SendOutlined, ChatBubbleOutlineOutlined,
 } from "@mui/icons-material";
@@ -30,6 +31,7 @@ import { CommentItem } from "../assetDetail/CommentItem";
 import { commentResponseToComment } from "../assetDetail/helpers";
 import { threadComments } from "./commentThread";
 import { useTranslation } from "react-i18next";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 const priorityColor: Record<string, string> = {
   CRITICAL: tokens.accent.red,
@@ -475,6 +477,7 @@ export default function TasksView() {
   const { token } = useAuth();
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<TaskResponse[]>([]);
+  const [query, setQuery] = useState("");
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -495,7 +498,7 @@ export default function TasksView() {
   // task management, so the control simply offers nothing.
   useEffect(() => {
     if (!token) return;
-    void Promise.all([listUsers(token), listGroups(token)])
+    void Promise.all([listUsers(token, { limit: PAGE_SIZE }), listGroups(token, { limit: PAGE_SIZE })])
       .then(([users, groups]) => {
         setAssigneeOptions([
           ...(users.data ?? []).map((u) => ({ uuid: u.uuid, name: u.username, kind: "USER" as const })),
@@ -521,7 +524,7 @@ export default function TasksView() {
       return Promise.resolve();
     }
     setLoading(true);
-    return listTasks(token)
+    return listTasks(token, { limit: PAGE_SIZE })
       .then((res) => setTasks(res.data ?? []))
       .catch(() => setTasks([]))
       .finally(() => setLoading(false));
@@ -640,6 +643,13 @@ export default function TasksView() {
     }
   };
 
+  const filteredTasks = tasks.filter(task => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return (task.title ?? "").toLowerCase().includes(q)
+      || (task.description ?? "").toLowerCase().includes(q);
+  });
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
       <Box sx={{ px: 2.5, py: 1.75, borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
@@ -647,6 +657,21 @@ export default function TasksView() {
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("tasks.title")}</Typography>
           <Typography variant="caption" color="text.secondary">{tasks.length} {t("tasks.count")}</Typography>
         </Box>
+        <TextField
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={t("tasks.search.placeholder")}
+          size="small"
+          data-testid="tasks-search"
+          sx={{ flex: 1, maxWidth: 320 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+              </InputAdornment>
+            ),
+          }}
+        />
         <Button
           size="small"
           variant="contained"
@@ -676,10 +701,18 @@ export default function TasksView() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {tasks.map(t => <TaskRow key={t.uuid} task={t} onSelect={setSelectedTask} />)}
+                {filteredTasks.map(t => <TaskRow key={t.uuid} task={t} onSelect={setSelectedTask} />)}
               </TableBody>
             </Table>
           </TableContainer>
+        )}
+        {/* Filtered to nothing keeps the inline hint; the EmptyState below stays bound to
+            "there are no tasks at all" — LOOM_UI.md §7.5. */}
+        {tasks.length > 0 && filteredTasks.length === 0 && (
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }} data-testid="tasks-no-match">
+            <TaskAltOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
+            <Typography variant="body2" color="text.secondary">{t("tasks.emptyState.noSearch")}</Typography>
+          </Box>
         )}
         {!loading && tasks.length === 0 && (
           <EmptyState

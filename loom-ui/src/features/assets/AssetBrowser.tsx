@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, TextField, InputAdornment, Chip, IconButton,
@@ -18,11 +18,18 @@ import {
 import { tokens } from "../../theme";
 import AssetThumbnail from "../../components/AssetThumbnail";
 import EmptyState from "../../components/EmptyState";
+import ListPaging from "../../components/ListPaging";
 import { Asset, AssetType, AssetStatus } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import {
-  listAssets, AssetResponse, deleteAsset, bulkUpdateAssets, assetBinaryUrl,
+  listAssets, AssetResponse, deleteAsset, bulkUpdateAssets,
 } from "../../api/assets";
+import { hitToCard, mimeFilterFor, toAsset } from "./assetMapping";
+import { SearchApiError, searchAssets } from "../../api/search";
+import type { PagingParams } from "../../api/paging";
+import { useSearch } from "../../context/SearchContext";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 import { listLibraries, LibraryResponse } from "../../api/libraries";
 import { useSpace } from "../../context/SpaceContext";
 import { useToast } from "../../context/ToastContext";
@@ -59,44 +66,6 @@ const statusColor: Record<AssetStatus, string> = {
   failed: tokens.accent.red,
   archived: tokens.text.tertiary,
 };
-
-/** Map a Loom REST AssetResponse to the local Asset type used by the UI. */
-function toAsset(r: AssetResponse): Asset {
-  const mime = r.file?.mimeType ?? "";
-  let type: AssetType = "unknown";
-  if (mime.startsWith("image/")) type = "image";
-  else if (mime.startsWith("video/")) type = "video";
-  else if (mime.startsWith("audio/")) type = "audio";
-  else if (mime.startsWith("application/") || mime.startsWith("text/")) type = "document";
-
-  const video = r.videoComponents?.[0];
-  const image = r.imageComponents?.[0];
-
-  return {
-    id: r.uuid,
-    spaceId: "",
-    libraryId: "",
-    name: r.file?.filename ?? r.uuid,
-    type,
-    status: "ready" as AssetStatus,
-    tags: (r.tags ?? []).map(t => t.name),
-    description: "",
-    duration: video?.duration,
-    width: video?.width ?? image?.width,
-    height: video?.height ?? image?.height,
-    fileSize: r.file?.size ?? 0,
-    mimeType: mime,
-    sha512: r.hashes?.sha512,
-    // Only images can be shown by an <img>; everything else falls back to the type placeholder.
-    thumbnailUrl: type === "image" ? assetBinaryUrl(r.uuid) : "",
-    url: "",
-    ownerId: r.status?.creator?.uuid ?? "",
-    collectionIds: (r.collections ?? []).map(c => c.uuid),
-    createdAt: r.status?.created ?? "",
-    updatedAt: r.status?.edited ?? "",
-    metadata: {},
-  };
-}
 
 // ── Asset Card (grid mode) ────────────────────────────────────────────────
 type CardSize = "small" | "medium" | "large";
@@ -304,15 +273,37 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const { token } = useAuth();
   const { t } = useTranslation();
   const { showToast } = useToast();
-  const [assets, setAssets] = useState<Asset[]>([]);
   const [filtered, setFiltered] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [cardSize, setCardSize] = useState<CardSize>("medium");
-  const [statusFilter, setStatusFilter] = useState<AssetStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<AssetType | "all">("all");
-  const [libraryFilter, setLibraryFilter] = useState<string>("all");
+
+  // ── Browse mode ──
+  // The server caps /assets at 25 rows, so the collection arrives a page at a time.
+  const loadAssetPage = useMemo(
+    () => (token ? (paging: PagingParams) => listAssets(token, paging).then(r => pageFrom(r, toAsset)) : null),
+    [token],
+  );
+  const page = usePagedList<Asset>(loadAssetPage, a => a.id);
+  const assets = page.items;
+
+  // ── Search mode ──
+  // A non-empty query goes to /search/assets so the boolean/phrase syntax and the whole catalog
+  // are reachable — a local filter would only ever see the pages already loaded.
+  const search = useSearch();
+  // Pulled out because the context value is a fresh object on every provider render — depending on
+  // `search` itself would re-fire the query effect. `markUnavailable` is a stable useCallback.
+  const { markUnavailable } = search;
+  const [searchHits, setSearchHits] = useState<Asset[] | null>(null);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searching, setSearching] = useState(false);
+  /** True when the provider answered 403 — a narrowed permission, not an empty index. */
+  const [searchDenied, setSearchDenied] = useState(false);
+
+  const term = query.trim();
+  /** Whether the grid is showing search results rather than the browsed collection. */
+  const searchMode = term.length > 0 && search.available;
 
   // Libraries (for the upload dialog target)
   const [libraries, setLibraries] = useState<LibraryResponse[]>([]);
@@ -336,25 +327,58 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const [bulkTag, setBulkTag] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const reload = useCallback(() => {
-    if (!token) return;
-    setLoading(true);
-    listAssets(token).then((resp) => {
-      const mapped = (resp.data ?? []).map(toAsset);
-      setAssets(mapped);
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
-    });
-  }, [token]);
+  const reload = page.reload;
+
+  // Debounced server-side search. Every keystroke aborts the request in flight, so a fast typist
+  // costs one query rather than one per character.
+  useEffect(() => {
+    if (!token || !searchMode) {
+      setSearchHits(null);
+      setSearching(false);
+      setSearchDenied(false);
+      return;
+    }
+    const controller = new AbortController();
+    setSearching(true);
+    const timer = setTimeout(() => {
+      searchAssets(
+        token,
+        { q: term, limit: PAGE_SIZE, mime: mimeFilterFor(typeFilter) },
+        { signal: controller.signal },
+      )
+        .then(resp => {
+          setSearchHits((resp.data ?? []).map(hitToCard));
+          setSearchTotal(resp._metainfo?.totalHits ?? resp.data?.length ?? 0);
+          setSearchDenied(false);
+        })
+        .catch((e: unknown) => {
+          if (controller.signal.aborted) return;
+          if (e instanceof SearchApiError && e.status === 503) {
+            // Search went down mid-session. Retract the box app-wide rather than answering 503 on
+            // every further keystroke; the grid falls back to filtering the pages already loaded.
+            markUnavailable(e.body);
+            setSearchHits(null);
+          } else if (e instanceof SearchApiError && e.status === 403) {
+            setSearchDenied(true);
+            setSearchHits([]);
+          } else {
+            setSearchHits([]);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearching(false);
+        });
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [token, term, searchMode, typeFilter, markUnavailable]);
 
   useEffect(() => {
-    reload();
-  }, [reload]);
-
-  useEffect(() => {
     if (!token) return;
-    listLibraries(token).then(resp => setLibraries(resp.data ?? [])).catch(() => { /* libraries optional */ });
+    listLibraries(token, { limit: PAGE_SIZE }).then(resp => setLibraries(resp.data ?? [])).catch(() => { /* libraries optional */ });
   }, [token]);
 
   const toggleSelect = useCallback((id: string) => {
@@ -405,7 +429,8 @@ export default function AssetBrowser({ embedded = false }: Props) {
     if (!token || !deleteTarget) return;
     try {
       await deleteAsset(token, deleteTarget.id);
-      setAssets(prev => prev.filter(a => a.id !== deleteTarget.id));
+      page.setItems(prev => prev.filter(a => a.id !== deleteTarget.id));
+      setSearchHits(prev => prev?.filter(a => a.id !== deleteTarget.id) ?? null);
       setDeleteTarget(null);
       showToast(t("assets.toast.deleted"), "success");
     } catch {
@@ -419,7 +444,8 @@ export default function AssetBrowser({ embedded = false }: Props) {
     const ids = Array.from(selected);
     const results = await Promise.allSettled(ids.map(id => deleteAsset(token, id)));
     const okIds = ids.filter((_, i) => results[i].status === "fulfilled");
-    setAssets(prev => prev.filter(a => !okIds.includes(a.id)));
+    page.setItems(prev => prev.filter(a => !okIds.includes(a.id)));
+    setSearchHits(prev => prev?.filter(a => !okIds.includes(a.id)) ?? null);
     const failed = ids.length - okIds.length;
     showToast(
       failed === 0 ? t("assets.toast.bulkDeleted", { count: okIds.length })
@@ -458,20 +484,27 @@ export default function AssetBrowser({ embedded = false }: Props) {
   };
 
   useEffect(() => {
+    // Search mode: the server already applied both the term and `?mime=`, so the hits are the
+    // result — filtering them again locally would only re-narrow a narrowed set.
+    if (searchMode) {
+      setFiltered(searchHits ?? []);
+      return;
+    }
+
     let res = assets;
-    if (statusFilter !== "all") res = res.filter(a => a.status === statusFilter);
     if (typeFilter !== "all") res = res.filter(a => a.type === typeFilter);
-    if (libraryFilter !== "all") res = res.filter(a => a.libraryId === libraryFilter);
-    if (query.trim()) {
-      const q = query.toLowerCase();
+    // Search is unavailable but the user typed anyway: fall back to filtering the pages already
+    // loaded, and say so below rather than pretending this covered the catalog.
+    if (term) {
+      const q = term.toLowerCase();
       res = res.filter(a =>
         a.name.toLowerCase().includes(q) ||
-        a.tags.some(t => t.includes(q)) ||
+        a.tags.some(tag => tag.toLowerCase().includes(q)) ||
         a.description.toLowerCase().includes(q)
       );
     }
     setFiltered(res);
-  }, [assets, query, statusFilter, typeFilter, libraryFilter]);
+  }, [assets, term, typeFilter, searchMode, searchHits]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
@@ -511,21 +544,6 @@ export default function AssetBrowser({ embedded = false }: Props) {
               ),
             }}
           />
-
-          <FormControl size="small" sx={{ minWidth: 90 }}>
-            <Select
-              value={statusFilter}
-              onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value as AssetStatus | "all")}
-              displayEmpty
-              sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
-            >
-              <MenuItem value="all">{t("assets.filter.allStatus")}</MenuItem>
-              <MenuItem value="ready">{t("assets.filter.ready")}</MenuItem>
-              <MenuItem value="processing">{t("assets.filter.processing")}</MenuItem>
-              <MenuItem value="failed">{t("assets.filter.failed")}</MenuItem>
-              <MenuItem value="archived">{t("assets.filter.archived")}</MenuItem>
-            </Select>
-          </FormControl>
 
           <FormControl size="small" sx={{ minWidth: 80 }}>
             <Select
@@ -611,29 +629,45 @@ export default function AssetBrowser({ embedded = false }: Props) {
         )}
 
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }}>
-            {filtered.length} {t("assets.count")}
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }} data-testid="assets-count">
+            {/* In search mode the server's hit total; otherwise the size of the collection, which
+                is not the same as the number of rows fetched so far. */}
+            {searchMode
+              ? t("assets.search.hits", { count: searchTotal })
+              : `${typeFilter === "all" ? page.totalCount : filtered.length} ${t("assets.count")}`}
           </Typography>
-          {(statusFilter !== "all" || typeFilter !== "all" || libraryFilter !== "all" || query) && (
+          {(typeFilter !== "all" || query) && (
             <Chip
               label={t("assets.filter.clear")}
               size="small"
-              onDelete={() => { setStatusFilter("all"); setTypeFilter("all"); setLibraryFilter("all"); setQuery(""); }}
+              onDelete={() => { setTypeFilter("all"); setQuery(""); }}
               sx={{ height: 18, fontSize: "0.65rem" }}
             />
           )}
         </Box>
+
+        {/* Searching without a search backend still filters, but only over what has been fetched.
+            Say so — a quietly partial result is the defect this screen was fixed for. */}
+        {term && !search.available && !search.loading && (
+          <Typography
+            variant="caption"
+            data-testid="assets-search-degraded"
+            sx={{ color: tokens.accent.amber, fontSize: "0.7rem" }}
+          >
+            {t("assets.search.unavailable", { count: assets.length })}
+          </Typography>
+        )}
       </Box>
 
       {/* Content */}
       <Box sx={{ flex: 1, overflow: "auto", p: embedded ? 1.5 : 2.5 }}>
-        {loading ? (
+        {page.loading || (searchMode && searching && searchHits === null) ? (
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2 }}>
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} variant="rounded" height={160} sx={{ borderRadius: tokens.radius.lg, bgcolor: tokens.bg.elevated }} />
             ))}
           </Box>
-        ) : assets.length === 0 ? (
+        ) : assets.length === 0 && !searchMode ? (
           // Nothing at all yet — invite the user to upload their first asset.
           <EmptyState
             icon={PermMediaOutlined}
@@ -646,9 +680,11 @@ export default function AssetBrowser({ embedded = false }: Props) {
             compact={embedded}
           />
         ) : filtered.length === 0 ? (
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }} data-testid="assets-no-match">
             <SearchOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
-            <Typography variant="body2" color="text.secondary">{t("assets.empty.noMatch")}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {searchDenied ? t("assets.search.denied") : t("assets.empty.noMatch")}
+            </Typography>
           </Box>
         ) : viewMode === "grid" ? (
           <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize === "small" ? "120px" : cardSize === "large" ? "260px" : "190px"}, 1fr))`, gap: cardSize === "small" ? 1 : 2 }}>
@@ -679,6 +715,19 @@ export default function AssetBrowser({ embedded = false }: Props) {
               </React.Fragment>
             ))}
           </Paper>
+        )}
+
+        {/* Browse mode pages the collection; in search mode the server already returned the top
+            hits and deep paging is the /search screen's job, not the grid's. */}
+        {!searchMode && !page.loading && (
+          <ListPaging
+            loaded={assets.length}
+            total={page.totalCount}
+            hasMore={page.hasMore}
+            loadingMore={page.loadingMore}
+            onLoadMore={page.loadMore}
+            testId="assets-paging"
+          />
         )}
       </Box>
 

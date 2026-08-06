@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 export interface LibraryResponse {
   uuid: string;
@@ -18,12 +19,7 @@ export interface LibraryResponse {
 
 export interface LibraryListResponse {
   data: LibraryResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface LibraryCreateRequest {
@@ -53,8 +49,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function listLibraries(token: string): Promise<LibraryListResponse> {
-  const res = await fetch(`${API_BASE_URL}/libraries`, {
+export async function listLibraries(token: string, paging?: PagingParams): Promise<LibraryListResponse> {
+  const res = await fetch(`${API_BASE_URL}/libraries${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

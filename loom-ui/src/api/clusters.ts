@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 export interface ClusterResponse {
   uuid: string;
@@ -15,12 +16,7 @@ export interface ClusterResponse {
 
 export interface ClusterListResponse {
   data: ClusterResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface ClusterCreateRequest {
@@ -50,8 +46,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function listClusters(token: string): Promise<ClusterListResponse> {
-  const res = await fetch(`${API_BASE_URL}/clusters`, {
+export async function listClusters(token: string, paging?: PagingParams): Promise<ClusterListResponse> {
+  const res = await fetch(`${API_BASE_URL}/clusters${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

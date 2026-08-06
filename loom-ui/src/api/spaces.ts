@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API space models ─────────────────────
 
@@ -16,12 +17,7 @@ export interface SpaceResponse {
 
 export interface SpaceListResponse {
   data: SpaceResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface SpaceCreateRequest {
@@ -53,8 +49,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listSpaces(token: string): Promise<SpaceListResponse> {
-  const res = await fetch(`${API_BASE_URL}/spaces`, {
+export async function listSpaces(token: string, paging?: PagingParams): Promise<SpaceListResponse> {
+  const res = await fetch(`${API_BASE_URL}/spaces${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

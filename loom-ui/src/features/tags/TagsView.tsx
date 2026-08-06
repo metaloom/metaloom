@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Box, Typography, IconButton, TextField, Tooltip, Chip, Divider, Menu, MenuItem,
   InputAdornment, Button, Paper, Rating,
@@ -17,6 +17,9 @@ import {
   rateTag, loadTagRating, deleteTagRating,
   TagResponse,
 } from "../../api/tags";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
 
 // Backend tags are flat with a "collection" grouper.
@@ -183,10 +186,19 @@ function TagTreeRow({
 export default function TagsView() {
   const { token } = useAuth();
   const { t } = useTranslation();
-  const [allTags, setAllTags] = useState<TagResponse[]>([]);
+  // /tags caps at 25 rows per page, and a tag tree built from one page is missing branches
+  // rather than merely being short — page it.
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listTags(token, paging).then(r => pageFrom(r, tag => tag)) : null),
+    [token],
+  );
+  const page = usePagedList<TagResponse>(loadPage, tag => tag.uuid);
+  const allTags = page.items;
+  const setAllTags = page.setItems;
+  const loading = page.loading;
+
   const [tree, setTree] = useState<TagNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set<string>());
-  const [loading, setLoading] = useState(true);
   const newTagInputRef = useRef<HTMLInputElement>(null);
   const [newTagName, setNewTagName] = useState("");
   const [newTagCollection, setNewTagCollection] = useState("");
@@ -197,25 +209,16 @@ export default function TagsView() {
   const [rating, setRating] = useState<number | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
 
-  // ── Load tags from API ──────────────────────────────────────────────
-  const reload = useCallback(() => {
-    if (!token) return;
-    setLoading(true);
-    listTags(token).then(resp => {
-      const tags = resp.data ?? [];
-      setAllTags(tags);
-      const tree = buildTree(tags);
-      setTree(tree);
-      // Auto-expand all collections on first load
-      setExpanded(prev => prev.size > 0 ? prev : new Set(tree.map(n => n.id)));
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [token]);
+  const reload = page.reload;
 
-  useEffect(() => { reload(); }, [reload]);
-
-  // Rebuild tree whenever allTags changes
-  useEffect(() => { setTree(buildTree(allTags)); }, [allTags]);
+  // Rebuild the tree whenever the loaded tags change — the first page, a "load more", or a local
+  // create/rename/delete all land here.
+  useEffect(() => {
+    const next = buildTree(allTags);
+    setTree(next);
+    // Auto-expand all collections on first load.
+    setExpanded(prev => prev.size > 0 ? prev : new Set(next.map(n => n.id)));
+  }, [allTags]);
 
   // ── Create tag ──────────────────────────────────────────────────────
   const handleCreateTag = async () => {
@@ -313,7 +316,8 @@ export default function TagsView() {
   };
 
   // ── Derived state ──────────────────────────────────────────────────
-  const totalTags = allTags.length;
+  // The server's total, not the number of rows fetched — the tree below may still be partial.
+  const totalTags = page.totalCount;
   const collections = new Set(allTags.map(t => t.collection || "uncategorized"));
 
   // Filter tree: keep nodes (and parents) matching the query
@@ -428,6 +432,18 @@ export default function TagsView() {
                   <Typography variant="body2" color="text.secondary">{t("tags.empty")}</Typography>
                 </Box>
               )
+            )}
+
+            {/* A tree assembled from one page has missing branches, not just missing leaves. */}
+            {!searchQuery.trim() && !loading && (
+              <ListPaging
+                loaded={allTags.length}
+                total={page.totalCount}
+                hasMore={page.hasMore}
+                loadingMore={page.loadingMore}
+                onLoadMore={page.loadMore}
+                testId="tags-paging"
+              />
             )}
           </Box>
         </Box>

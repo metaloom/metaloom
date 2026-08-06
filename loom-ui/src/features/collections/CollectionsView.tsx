@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Box, Typography, Paper, Chip, IconButton, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
@@ -12,6 +12,9 @@ import { useAuth } from "../../context/AuthContext";
 import {
   listCollections, createCollection, updateCollection, deleteCollection, CollectionResponse,
 } from "../../api/collections";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
 
 interface CollectionItem {
@@ -106,8 +109,17 @@ export default function CollectionsView() {
   const { showToast } = useToast();
   const { token } = useAuth();
   const { t } = useTranslation();
-  const [collections, setCollections] = useState<CollectionItem[]>([]);
   const [query, setQuery] = useState("");
+
+  // /collections caps at 25 rows per page — page it rather than showing the first page as if it
+  // were the collection.
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listCollections(token, paging).then(r => pageFrom(r, mapResponseToItem)) : null),
+    [token],
+  );
+  const page = usePagedList<CollectionItem>(loadPage, c => c.id);
+  const collections = page.items;
+  const setCollections = page.setItems;
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -121,11 +133,8 @@ export default function CollectionsView() {
   const [deleteTarget, setDeleteTarget] = useState<CollectionItem | null>(null);
 
   useEffect(() => {
-    if (!token) return;
-    listCollections(token)
-      .then(resp => setCollections(resp.data.map(mapResponseToItem)))
-      .catch(() => showToast(t("collections.toast.loadFailed"), "error"));
-  }, [token]);
+    if (page.error) showToast(t("collections.toast.loadFailed"), "error");
+  }, [page.error]);
 
   const resetForm = () => { setFormName(""); };
 
@@ -193,7 +202,7 @@ export default function CollectionsView() {
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <CollectionsOutlined sx={{ fontSize: 20, color: tokens.primary.main }} />
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("collections.title")}</Typography>
-            <Typography variant="caption" color="text.secondary">{collections.length} {t("collections.count.collections")}</Typography>
+            <Typography variant="caption" color="text.secondary" data-testid="collections-count">{page.totalCount} {t("collections.count.collections")}</Typography>
           </Box>
           <Chip
             icon={<AddOutlined sx={{ fontSize: 14 }} />}
@@ -223,7 +232,7 @@ export default function CollectionsView() {
 
       {/* Grid */}
       <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-        {collections.length === 0 ? (
+        {collections.length === 0 && !page.loading ? (
           // No collections in this space yet — offer to create the first one.
           <EmptyState
             icon={CollectionsOutlined}
@@ -252,6 +261,19 @@ export default function CollectionsView() {
               />
             ))}
           </Box>
+        )}
+
+        {/* Only meaningful while browsing: the search box filters what is loaded, so paging in
+            more rows is exactly how you widen it. */}
+        {!query.trim() && !page.loading && (
+          <ListPaging
+            loaded={collections.length}
+            total={page.totalCount}
+            hasMore={page.hasMore}
+            loadingMore={page.loadingMore}
+            onLoadMore={page.loadMore}
+            testId="collections-paging"
+          />
         )}
       </Box>
 

@@ -20,6 +20,7 @@ import {
   UploadItem, UploadStatus, cancel, cancelAll, clearFinished, enqueue, retry, retryFailed,
 } from "./uploadQueue";
 import { formatBytes, percentOf, progressLabel } from "./uploadFormat";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 /** Statuses that will not change again without user action. */
 function isSettled(status: UploadStatus): boolean {
@@ -131,7 +132,7 @@ export default function UploadView() {
 
   useEffect(() => {
     if (!token) return;
-    listLibraries(token)
+    listLibraries(token, { limit: PAGE_SIZE })
       .then((resp) => {
         const data = resp.data ?? [];
         setLibraries(data);
@@ -144,7 +145,7 @@ export default function UploadView() {
   // choice of overriding the library's. A 403 here is an expected answer, not an error to report.
   useEffect(() => {
     if (!token) return;
-    listPools(token)
+    listPools(token, { limit: PAGE_SIZE })
       .then((resp) => {
         setPools(resp.data ?? []);
         setPoolsReadable(true);

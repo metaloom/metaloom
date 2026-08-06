@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -43,12 +43,15 @@ import {
   listTokens, createToken, deleteToken as deleteTokenApi, updateToken,
   TokenResponse, TokenUpdateRequest,
 } from "../../api/tokens";
+import type { PagingParams } from "../../api/paging";
+import ListPaging from "../../components/ListPaging";
+import { PAGE_SIZE } from "../../hooks/pagedList";
+import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 
 // ── Spaces Table ──────────────────────────────────────────────────────────
 function SpacesAdmin() {
   const { t } = useTranslation();
   const { token } = useAuth();
-  const [spaces, setSpaces] = useState<SpaceResponse[]>([]);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -56,17 +59,13 @@ function SpacesAdmin() {
   const [editName, setEditName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<SpaceResponse | null>(null);
 
-  const reload = useCallback(async () => {
-    if (!token) return;
-    try {
-      const resp = await listSpaces(token);
-      setSpaces(resp.data ?? []);
-    } catch (e) {
-      console.error("Failed to load spaces", e);
-    }
-  }, [token]);
-
-  useEffect(() => { reload(); }, [reload]);
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listSpaces(token, paging).then(r => pageFrom(r, s => s)) : null),
+    [token],
+  );
+  const page = usePagedList<SpaceResponse>(loadPage, s => s.uuid);
+  const spaces = page.items;
+  const reload = page.reload;
 
   const handleCreate = async () => {
     if (!newName.trim() || !token) return;
@@ -115,7 +114,7 @@ function SpacesAdmin() {
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.spaces.title")}</Typography>
             <Tooltip title={t("admin.spaces.tooltip")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
-          <Typography variant="caption" color="text.secondary">{spaces.length} {t("admin.spaces.count")}</Typography>
+          <Typography variant="caption" color="text.secondary" data-testid="admin-spaces-count">{page.totalCount} {t("admin.spaces.count")}</Typography>
         </Box>
         <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>{t("admin.spaces.newSpace")}</Button>
       </Box>
@@ -166,6 +165,16 @@ function SpacesAdmin() {
           </TableBody>
         </Table>
       </TableContainer>
+      {!query.trim() && (
+        <ListPaging
+          loaded={spaces.length}
+          total={page.totalCount}
+          hasMore={page.hasMore}
+          loadingMore={page.loadingMore}
+          onLoadMore={page.loadMore}
+          testId="admin-spaces-paging"
+        />
+      )}
 
       {/* Create Space dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth
@@ -226,7 +235,6 @@ function SpacesAdmin() {
 function UsersAdmin() {
   const { t } = useTranslation();
   const { token } = useAuth();
-  const [users, setUsers] = useState<UserResponse[]>([]);
   const [editUser, setEditUser] = useState<UserResponse | null>(null);
   const [editForm, setEditForm] = useState({ username: "", email: "", firstname: "", lastname: "" });
   const [query, setQuery] = useState("");
@@ -234,17 +242,13 @@ function UsersAdmin() {
   const [createForm, setCreateForm] = useState({ username: "", email: "", firstname: "", lastname: "" });
   const [deleteConfirm, setDeleteConfirm] = useState<UserResponse | null>(null);
 
-  const reload = useCallback(async () => {
-    if (!token) return;
-    try {
-      const resp = await listUsers(token);
-      setUsers(resp.data ?? []);
-    } catch (e) {
-      console.error("Failed to load users", e);
-    }
-  }, [token]);
-
-  useEffect(() => { reload(); }, [reload]);
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listUsers(token, paging).then(r => pageFrom(r, u => u)) : null),
+    [token],
+  );
+  const page = usePagedList<UserResponse>(loadPage, u => u.uuid);
+  const users = page.items;
+  const reload = page.reload;
 
   const openEdit = (user: UserResponse) => {
     setEditUser(user);
@@ -303,7 +307,7 @@ function UsersAdmin() {
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.users.title")}</Typography>
             <Tooltip title={t("admin.users.tooltip")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
-          <Typography variant="caption" color="text.secondary">{users.length} {t("admin.users.count")}</Typography>
+          <Typography variant="caption" color="text.secondary" data-testid="admin-users-count">{page.totalCount} {t("admin.users.count")}</Typography>
         </Box>
         <Button startIcon={<PersonAddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>
           {t("admin.users.createUser")}
@@ -383,6 +387,16 @@ function UsersAdmin() {
           </TableBody>
         </Table>
       </TableContainer>
+      {!query.trim() && (
+        <ListPaging
+          loaded={users.length}
+          total={page.totalCount}
+          hasMore={page.hasMore}
+          loadingMore={page.loadingMore}
+          onLoadMore={page.loadMore}
+          testId="admin-users-paging"
+        />
+      )}
 
       {/* Create User Dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
@@ -458,7 +472,6 @@ function UsersAdmin() {
 function GroupsAdmin() {
   const { t } = useTranslation();
   const { token } = useAuth();
-  const [groups, setGroups] = useState<GroupResponse[]>([]);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -466,17 +479,13 @@ function GroupsAdmin() {
   const [editName, setEditName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<GroupResponse | null>(null);
 
-  const reload = useCallback(async () => {
-    if (!token) return;
-    try {
-      const resp = await listGroups(token);
-      setGroups(resp.data ?? []);
-    } catch (e) {
-      console.error("Failed to load groups", e);
-    }
-  }, [token]);
-
-  useEffect(() => { reload(); }, [reload]);
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listGroups(token, paging).then(r => pageFrom(r, g => g)) : null),
+    [token],
+  );
+  const page = usePagedList<GroupResponse>(loadPage, g => g.uuid);
+  const groups = page.items;
+  const reload = page.reload;
 
   const handleCreateGroup = async () => {
     if (!newName.trim() || !token) return;
@@ -525,7 +534,7 @@ function GroupsAdmin() {
             <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.groups.title")}</Typography>
             <Tooltip title={t("admin.groups.tooltip")} arrow><HelpOutlineOutlined sx={{ fontSize: 14, color: tokens.text.tertiary, cursor: "help" }} /></Tooltip>
           </Box>
-          <Typography variant="caption" color="text.secondary">{groups.length} {t("admin.groups.count")}</Typography>
+          <Typography variant="caption" color="text.secondary" data-testid="admin-groups-count">{page.totalCount} {t("admin.groups.count")}</Typography>
         </Box>
         <Button startIcon={<AddOutlined />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>{t("admin.groups.newGroup")}</Button>
       </Box>
@@ -577,6 +586,16 @@ function GroupsAdmin() {
           </TableBody>
         </Table>
       </TableContainer>
+      {!query.trim() && (
+        <ListPaging
+          loaded={groups.length}
+          total={page.totalCount}
+          hasMore={page.hasMore}
+          loadingMore={page.loadingMore}
+          onLoadMore={page.loadMore}
+          testId="admin-groups-paging"
+        />
+      )}
 
       {/* Create Group dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth
@@ -638,8 +657,8 @@ function GroupsAdmin() {
 function AccessControlAdmin() {
   const { t } = useTranslation();
   const { token } = useAuth();
-  const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [editRole, setEditRole] = useState<RoleResponse | null>(null);
@@ -647,22 +666,25 @@ function AccessControlAdmin() {
   const [deleteConfirm, setDeleteConfirm] = useState<RoleResponse | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const reload = useCallback(async () => {
-    if (!token) return;
-    try {
-      const resp = await listRoles(token);
-      setRoles(resp.data ?? []);
-      if (!selectedRoleId && resp.data?.length) {
-        setSelectedRoleId(resp.data[0].uuid);
-      }
-    } catch (e) {
-      console.error("Failed to load roles", e);
-    }
-  }, [token]);
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listRoles(token, paging).then(r => pageFrom(r, role => role)) : null),
+    [token],
+  );
+  const page = usePagedList<RoleResponse>(loadPage, r => r.uuid);
+  const roles = page.items;
+  const reload = page.reload;
 
-  useEffect(() => { reload(); }, [reload]);
+  // Select the first role once they arrive, but never override a selection the user made.
+  useEffect(() => {
+    if (!selectedRoleId && roles.length) setSelectedRoleId(roles[0].uuid);
+  }, [roles, selectedRoleId]);
 
   const selectedRole = roles.find(r => r.uuid === selectedRoleId) ?? null;
+
+  const filteredRoles = roles.filter(r => {
+    if (!query.trim()) return true;
+    return r.name.toLowerCase().includes(query.toLowerCase());
+  });
 
   const hasPermission = (perm: string) => selectedRole?.permissions?.includes(perm) ?? false;
 
@@ -733,8 +755,8 @@ function AccessControlAdmin() {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.roles.title")}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            {roles.length} {t("admin.roles.count")}
+          <Typography variant="caption" color="text.secondary" data-testid="admin-roles-count">
+            {page.totalCount} {t("admin.roles.count")}
             {saving && " · " + t("admin.roles.saving")}
           </Typography>
         </Box>
@@ -747,7 +769,27 @@ function AccessControlAdmin() {
           <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem", mb: 0.5, px: 0.5 }}>
             {t("admin.roles.sectionTitle")}
           </Typography>
-          {roles.map(role => (
+          <TextField
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={t("admin.roles.search")}
+            size="small"
+            data-testid="admin-roles-search"
+            sx={{ mb: 0.5 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          {filteredRoles.length === 0 && (
+            <Typography variant="caption" data-testid="admin-roles-no-match" sx={{ color: tokens.text.tertiary, px: 0.5, py: 1 }}>
+              {t("admin.roles.noMatch")}
+            </Typography>
+          )}
+          {filteredRoles.map(role => (
             <Box
               key={role.uuid}
               onClick={() => setSelectedRoleId(role.uuid)}
@@ -776,6 +818,16 @@ function AccessControlAdmin() {
               </Typography>
             </Box>
           ))}
+          {!query.trim() && (
+            <ListPaging
+              loaded={roles.length}
+              total={page.totalCount}
+              hasMore={page.hasMore}
+              loadingMore={page.loadingMore}
+              onLoadMore={page.loadMore}
+              testId="admin-roles-paging"
+            />
+          )}
         </Box>
 
         {/* Divider */}
@@ -1151,18 +1203,18 @@ function ApiKeysAdmin() {
 function BlacklistAdmin() {
   const { t } = useTranslation();
   const { token } = useAuth();
-  const [entries, setEntries] = useState<BlacklistResponse[]>([]);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAssetUuid, setNewAssetUuid] = useState("");
 
-  const loadEntries = useCallback(() => {
-    if (!token) return;
-    listBlacklists(token).then(r => setEntries(r.data ?? [])).catch(() => {});
-  }, [token]);
-
-  useEffect(() => { loadEntries(); }, [loadEntries]);
+  const loadPage = useMemo(
+    () => (token ? (paging: PagingParams) => listBlacklists(token, paging).then(r => pageFrom(r, e => e)) : null),
+    [token],
+  );
+  const page = usePagedList<BlacklistResponse>(loadPage, e => e.uuid);
+  const entries = page.items;
+  const loadEntries = page.reload;
 
   const filteredEntries = entries.filter(e => {
     if (!query.trim()) return true;
@@ -1189,7 +1241,7 @@ function BlacklistAdmin() {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
         <Box>
           <Typography variant="h6" fontWeight={700} sx={{ fontSize: "1rem" }}>{t("admin.blacklist.title")}</Typography>
-          <Typography variant="caption" color="text.secondary">{entries.length} {t("admin.blacklist.count")}</Typography>
+          <Typography variant="caption" color="text.secondary" data-testid="admin-blacklist-count">{page.totalCount} {t("admin.blacklist.count")}</Typography>
         </Box>
         <Button startIcon={<BlockOutlined />} variant="contained" size="small" color="error" onClick={() => setCreateOpen(true)}>
           {t("admin.blacklist.addEntry")}
@@ -1236,6 +1288,16 @@ function BlacklistAdmin() {
           </TableBody>
         </Table>
       </TableContainer>
+      {!query.trim() && (
+        <ListPaging
+          loaded={entries.length}
+          total={page.totalCount}
+          hasMore={page.hasMore}
+          loadingMore={page.loadingMore}
+          onLoadMore={page.loadMore}
+          testId="admin-blacklist-paging"
+        />
+      )}
 
       {/* Create blacklist entry dialog */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth

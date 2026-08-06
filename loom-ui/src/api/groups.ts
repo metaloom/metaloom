@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API group models ─────────────────────
 
@@ -16,12 +17,7 @@ export interface GroupResponse {
 
 export interface GroupListResponse {
   data: GroupResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface GroupCreateRequest {
@@ -53,8 +49,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listGroups(token: string): Promise<GroupListResponse> {
-  const res = await fetch(`${API_BASE_URL}/groups`, {
+export async function listGroups(token: string, paging?: PagingParams): Promise<GroupListResponse> {
+  const res = await fetch(`${API_BASE_URL}/groups${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

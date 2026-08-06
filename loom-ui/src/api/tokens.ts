@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API token response ───────────────────
 
@@ -17,12 +18,7 @@ export interface TokenResponse {
 
 export interface TokenListResponse {
   data: TokenResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface TokenCreateRequest {
@@ -54,8 +50,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD ──────────────────────────────────────────────────────────────
 
-export async function listTokens(token: string): Promise<TokenListResponse> {
-  const res = await fetch(`${API_BASE_URL}/tokens`, { headers: authHeaders(token) });
+export async function listTokens(token: string, paging?: PagingParams): Promise<TokenListResponse> {
+  const res = await fetch(`${API_BASE_URL}/tokens${pagingQuery(paging)}`, { headers: authHeaders(token) });
   return handleResponse<TokenListResponse>(res);
 }
 

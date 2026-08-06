@@ -22,7 +22,11 @@
     "denied": "Denied",
     "rejected": "Rejected",
     "never": "Never",
-    "permanent": "Permanent"
+    "permanent": "Permanent",
+    "paging": {
+      "showing": "Showing {{shown}} of {{total}}",
+      "loadMore": "Load more"
+    }
   },
   "sidebar": {
     "brand": "Metaloom",
@@ -91,20 +95,17 @@
   "assets": {
     "title": "Assets",
     "search": {
-      "placeholder": "Search assets, tags…"
+      "placeholder": "Search assets, tags…",
+      "hits": "{{count}} results",
+      "unavailable": "Search is unavailable on this deployment — filtering the {{count}} assets loaded so far.",
+      "denied": "You do not have permission to search assets."
     },
     "filter": {
-      "allStatus": "All Status",
-      "ready": "Ready",
-      "processing": "Processing",
-      "failed": "Failed",
-      "archived": "Archived",
       "allTypes": "All Types",
       "video": "Video",
       "image": "Image",
       "audio": "Audio",
       "document": "Document",
-      "allLibraries": "All Libraries",
       "clear": "Clear filters"
     },
     "tooltip": {
@@ -224,7 +225,8 @@
       "deleteLibrary": "Delete library"
     },
     "count": {
-      "assets": "assets"
+      "assets": "assets",
+      "assetsPartial": "{{count}} of the {{loaded}} assets loaded"
     },
     "search": {
       "placeholder": "Search assets…"
@@ -396,7 +398,8 @@
     "emptyState": {
       "title": "Nothing on your plate yet",
       "description": "Tasks track review, approval and follow-up work on your media, with priority, assignee and due date.",
-      "action": "Create your first task"
+      "action": "Create your first task",
+      "noSearch": "No tasks match your search"
     },
     "assignees": {
       "label": "Assignees",
@@ -405,6 +408,9 @@
         "GROUP": "Groups"
       },
       "none": "Unassigned"
+    },
+    "search": {
+      "placeholder": "Search tasks…"
     }
   },
   "monitoring": {
@@ -833,7 +839,9 @@
       },
       "confirm": {
         "delete": "Are you sure you want to delete role {{name}}?"
-      }
+      },
+      "search": "Search roles…",
+      "noMatch": "No roles match your search"
     },
     "apiKeys": {
       "title": "API Keys",
@@ -1811,7 +1819,11 @@
       "library": {
         "title": "The shared library is empty",
         "description": "Once teammates publish their skills they show up here, ready to install into your own set."
-      }
+      },
+      "noSearch": "No skills match your search"
+    },
+    "search": {
+      "placeholder": "Search skills…"
     }
   },
   "memory": {
@@ -1833,7 +1845,13 @@
     "edit": "Edit note",
     "create": "New note",
     "deleteTitle": "Delete note",
-    "deleteBody": "This permanently removes the note — there is no version history yet."
+    "deleteBody": "This permanently removes the note — there is no version history yet.",
+    "search": {
+      "placeholder": "Search notes…"
+    },
+    "emptyState": {
+      "noSearch": "No notes match your search"
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -1914,6 +1932,14 @@
       "title": "Search is unavailable",
       "body": "This deployment cannot answer search queries right now. Everything else keeps working.",
       "provider": "Backend: {{provider}}"
+    }
+  },
+  "chatSessions": {
+    "search": {
+      "placeholder": "Search sessions…"
+    },
+    "emptyState": {
+      "noSearch": "No sessions match your search"
     }
   }
 }

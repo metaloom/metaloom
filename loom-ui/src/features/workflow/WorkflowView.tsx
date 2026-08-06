@@ -24,6 +24,7 @@ import { useAuth } from "../../context/AuthContext";
 import { listAssets, AssetResponse } from "../../api/assets";
 import { listAssetDetections, DetectionResponse } from "../../api/detections";
 import { persistAssetRating, hydrateAssetRatings } from "./ratingPersistence";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 function apiToWorkflowAsset(r: AssetResponse): Asset {
   const mime = r.file?.mimeType ?? "";
@@ -745,7 +746,7 @@ export default function WorkflowView() {
 
   useEffect(() => {
     if (!token) return;
-    listAssets(token).then(r => {
+    listAssets(token, { limit: PAGE_SIZE }).then(r => {
       const loaded = (r.data ?? []).slice(0, 20).map(apiToWorkflowAsset);
       setAssets(loaded);
       const map: Record<string, string[]> = {};

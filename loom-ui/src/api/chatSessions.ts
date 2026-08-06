@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 export interface ChatSessionSkillPin {
   skillUuid: string;
@@ -35,12 +36,7 @@ export interface ChatSessionResponse {
 
 export interface ChatSessionListResponse {
   data: ChatSessionResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface ChatSessionCreateRequest {

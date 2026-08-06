@@ -142,10 +142,10 @@ public enum Permission {
 	// Pipeline
 	CREATE_PIPELINE,          // doc:yes  ui:yes test:none
 	READ_PIPELINE,            // doc:yes  ui:yes test:PipelineGraphQLTest
-	DELETE_PIPELINE,          // doc:yes  ui:yes test:none
+	DELETE_PIPELINE,          // doc:yes  ui:yes test:PipelineRunDispatchEndpointTest
 	UPDATE_PIPELINE,          // doc:yes  ui:yes test:none
-	READ_PIPELINE_VERSION,    // doc:yes  ui:no  test:PipelineGraphQLTest
-	RESTORE_PIPELINE_VERSION, // doc:yes  ui:no  test:none
+	READ_PIPELINE_VERSION,    // doc:yes  ui:no  test:PipelineGraphQLTest, PipelineVersionEndpointTest
+	RESTORE_PIPELINE_VERSION, // doc:yes  ui:no  test:PipelineVersionEndpointTest
 	CREATE_PIPELINE_RUN,      // doc:yes  ui:no  test:none  [unused: no code checks it]
 	READ_PIPELINE_RUN,        // doc:yes  ui:no  test:PipelineGraphQLTest, PipelineRunItemEndpointTest, +1
 	UPDATE_PIPELINE_RUN,      // doc:yes  ui:no  test:PipelineRunPauseEndpointTest, PipelineRunCancelEndpointTest

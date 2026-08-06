@@ -15,6 +15,7 @@ import { listPersons, createPerson as apiCreatePerson, PersonResponse } from "..
 import { listClusters as apiListClusters, createCluster as apiCreateCluster, ClusterResponse } from "../../api/clusters";
 import ClustersPanel from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
   const [clusters, setClusters] = useState<FaceCluster[]>([]);
@@ -54,8 +55,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
       if (token) {
         try {
           const [clustersResp, personsResp] = await Promise.all([
-            apiListClusters(token),
-            listPersons(token),
+            apiListClusters(token, { limit: PAGE_SIZE }),
+            listPersons(token, { limit: PAGE_SIZE }),
           ]);
           setClusters(clustersResp.data.map(toUiCluster));
           setPersons(personsResp.data.map(toUiPerson));

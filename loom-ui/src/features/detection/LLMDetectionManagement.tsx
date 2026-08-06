@@ -14,6 +14,7 @@ import { tokens } from "../../theme";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { listAssets, AssetResponse } from "../../api/assets";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 interface VisionPrompt {
   id: string;
@@ -62,7 +63,7 @@ export default function LLMDetectionManagement() {
 
   React.useEffect(() => {
     if (!token) return;
-    listAssets(token).then(r => {
+    listAssets(token, { limit: PAGE_SIZE }).then(r => {
       const map: Record<string, AssetResponse> = {};
       (r.data ?? []).forEach(a => { map[a.uuid] = a; });
       setAssetMap(map);

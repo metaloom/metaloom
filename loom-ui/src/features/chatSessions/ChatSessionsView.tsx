@@ -11,6 +11,7 @@ import {
   DialogContentText,
   DialogTitle,
   IconButton,
+  InputAdornment,
   Stack,
   Switch,
   Tab,
@@ -27,6 +28,8 @@ import {
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import AddOutlined from "@mui/icons-material/AddOutlined";
+import SearchOutlined from "@mui/icons-material/SearchOutlined";
+import { useTranslation } from "react-i18next";
 import Title from "../../components/Title";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
@@ -45,11 +48,13 @@ function formatDate(value?: string | null): string {
 
 export default function ChatSessionsView() {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<"mine" | "published">("mine");
   const [sessions, setSessions] = useState<ChatSessionResponse[]>([]);
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ChatSessionResponse | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -118,6 +123,14 @@ export default function ChatSessionsView() {
     }
   };
 
+  const filteredSessions = sessions.filter((s) => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return s.name.toLowerCase().includes(q)
+      || (s.description ?? "").toLowerCase().includes(q)
+      || (s.tags ?? []).some((tag) => tag.toLowerCase().includes(q));
+  });
+
   return (
     <Box sx={{ p: 3 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -141,6 +154,25 @@ export default function ChatSessionsView() {
         <Tab value="published" label="Library (published)" data-testid="chat-sessions-library-tab" />
       </Tabs>
 
+      {/* This view predates the i18n sweep and still hardcodes its English strings; only the new
+          search copy is translated. See LOOM_UI_TASKS.md. */}
+      <TextField
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={t("chatSessions.search.placeholder")}
+        size="small"
+        data-testid="chat-sessions-search"
+        sx={{ mb: 2, maxWidth: 360 }}
+        fullWidth
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+            </InputAdornment>
+          ),
+        }}
+      />
+
       {loading ? (
         <CircularProgress size={20} />
       ) : (
@@ -156,16 +188,22 @@ export default function ChatSessionsView() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {sessions.length === 0 ? (
+            {filteredSessions.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6}>
-                  <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>
-                    No sessions yet. A session is captured automatically the first time a chat is used.
+                  <Typography
+                    variant="caption"
+                    sx={{ color: tokens.text.tertiary }}
+                    data-testid={sessions.length === 0 ? "chat-sessions-empty" : "chat-sessions-no-match"}
+                  >
+                    {sessions.length === 0
+                      ? "No sessions yet. A session is captured automatically the first time a chat is used."
+                      : t("chatSessions.emptyState.noSearch")}
                   </Typography>
                 </TableCell>
               </TableRow>
             ) : (
-              sessions.map((s) => (
+              filteredSessions.map((s) => (
                 <TableRow
                   key={s.uuid}
                   hover

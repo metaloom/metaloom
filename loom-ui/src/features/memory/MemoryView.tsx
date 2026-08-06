@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
-  IconButton, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField, Tooltip, Typography,
+  IconButton, InputAdornment, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, TextField,
+  Tooltip, Typography,
 } from "@mui/material";
-import { Add, DeleteOutline, EditOutlined, LockOutlined } from "@mui/icons-material";
+import { Add, DeleteOutline, EditOutlined, LockOutlined, SearchOutlined } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import Title from "../../components/Title";
 import { tokens } from "../../theme";
@@ -57,11 +58,24 @@ export default function MemoryView() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MemoryEntrySummary | null>(null);
+  const [query, setQuery] = useState("");
 
   const activeScope = useMemo(
     () => scopes.find(s => s.ref === activeRef) ?? scopes[0],
     [scopes, activeRef],
   );
+
+  // A local filter over the loaded scope. `listMemory` does accept a server-side `prefix`, but it
+  // only matches the id — the box below also matches the title and the session, so it stays here.
+  const filteredEntries = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter(e =>
+      e.id.toLowerCase().includes(q)
+      || (e.title ?? "").toLowerCase().includes(q)
+      || (e.sessionName ?? "").toLowerCase().includes(q)
+    );
+  }, [entries, query]);
 
   useEffect(() => {
     if (!token) return;
@@ -169,10 +183,25 @@ export default function MemoryView() {
             ))}
           </Tabs>
 
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, mb: 1 }}>
             <Typography variant="caption" sx={{ color: tokens.text.tertiary }}>
               {activeScope && `${humanSize(activeScope.bytes)} of ${humanSize(activeScope.maxBytes)} used`}
             </Typography>
+            <TextField
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={t("memory.search.placeholder")}
+              size="small"
+              data-testid="memory-search"
+              sx={{ flex: 1, maxWidth: 320 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
+                  </InputAdornment>
+                ),
+              }}
+            />
             <Button startIcon={<Add />} disabled={!writable} onClick={() => openEditor()} data-testid="memory-new">
               {t("memory.new", "New note")}
             </Button>
@@ -191,7 +220,7 @@ export default function MemoryView() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {entries.map(entry => (
+                {filteredEntries.map(entry => (
                   <TableRow key={entry.id} data-testid={`memory-row-${entry.id}`}>
                     <TableCell><code>{entry.id}</code></TableCell>
                     <TableCell>{entry.title}</TableCell>
@@ -213,11 +242,19 @@ export default function MemoryView() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {entries.length === 0 && (
+                {filteredEntries.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6}>
-                      <Typography variant="body2" sx={{ color: tokens.text.tertiary }} data-testid="memory-empty">
-                        {t("memory.empty", "No notes stored in this scope yet.")}
+                      {/* "Nothing here yet" and "nothing matched" are different facts — say
+                          which one it is (LOOM_UI.md §7.5). */}
+                      <Typography
+                        variant="body2"
+                        sx={{ color: tokens.text.tertiary }}
+                        data-testid={entries.length === 0 ? "memory-empty" : "memory-no-match"}
+                      >
+                        {entries.length === 0
+                          ? t("memory.empty", "No notes stored in this scope yet.")
+                          : t("memory.emptyState.noSearch")}
                       </Typography>
                     </TableCell>
                   </TableRow>

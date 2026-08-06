@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import { AnnotationResponseItem, AreaInfo } from "./annotations";
 
 // ── Types matching the Loom REST API response models ──────────────────
@@ -139,12 +140,8 @@ export interface AssetResponse {
   social?: unknown;
 }
 
-export interface PagingInfo {
-  totalCount?: number;
-  currentPage?: number;
-  pageCount?: number;
-  perPage?: number;
-}
+/** @deprecated Re-export kept for existing importers — the definition lives in `./paging`. */
+export type { PagingInfo };
 
 export interface AssetListResponse {
   data: AssetResponse[];
@@ -231,8 +228,8 @@ export function assetBinaryUrl(uuid: string): string {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listAssets(token: string): Promise<AssetListResponse> {
-  const res = await fetch(`${API_BASE_URL}/assets`, {
+export async function listAssets(token: string, paging?: PagingParams): Promise<AssetListResponse> {
+  const res = await fetch(`${API_BASE_URL}/assets${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

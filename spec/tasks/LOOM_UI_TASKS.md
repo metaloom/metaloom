@@ -25,37 +25,6 @@
 
 ## 0. Audit findings — the four questions
 
-### 0.1 Are all listing features covered by a search bar?
-
-**No — and the ones that exist are not what they look like.** Every search box in the app is a
-client-side `Array.filter()` over data already in `useState`. Nothing in `loom-ui/src` calls
-`/api/v1/search/*`; **`src/api/search.ts` does not exist**.
-
-| View | Search bar | Backing |
-|------|-----------|---------|
-| [AssetBrowser.tsx](../../loom-ui/src/features/assets/AssetBrowser.tsx) | yes, + status/type/library filters | client-side over `listAssets(token)` |
-| [LibraryView.tsx](../../loom-ui/src/features/library/LibraryView.tsx) | yes | client-side |
-| [CollectionsView.tsx](../../loom-ui/src/features/collections/CollectionsView.tsx) | yes | client-side |
-| [TagsView.tsx](../../loom-ui/src/features/tags/TagsView.tsx) | yes (recursive tree filter) | client-side |
-| [AssetPoolsView.tsx](../../loom-ui/src/features/assetPools/AssetPoolsView.tsx) | yes | client-side |
-| [CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx) | yes, + status/capability filters | client-side |
-| [ObjectDetectionManagement.tsx](../../loom-ui/src/features/detection/ObjectDetectionManagement.tsx) · [LLMDetectionManagement.tsx](../../loom-ui/src/features/detection/LLMDetectionManagement.tsx) | yes | client-side |
-| Admin: spaces · users · groups · api-keys · blacklist · memory-denylist | yes | client-side |
-| **Admin: permissions / roles** (`AccessControlAdmin`) | **no** | — |
-| **[TasksView.tsx](../../loom-ui/src/features/tasks/TasksView.tsx)** | **no** | — |
-| **[SkillManagementView.tsx](../../loom-ui/src/features/skills/SkillManagementView.tsx)** (both tabs) | **no** | — |
-| **[MemoryView.tsx](../../loom-ui/src/features/memory/MemoryView.tsx)** | **no** | — |
-| **[ChatSessionsView.tsx](../../loom-ui/src/features/chatSessions/ChatSessionsView.tsx)** | **no** | — |
-| **[ClustersPanel.tsx](../../loom-ui/src/features/faceDetection/ClustersPanel.tsx) · [PersonsPanel.tsx](../../loom-ui/src/features/faceDetection/PersonsPanel.tsx)** | **no** | — |
-| **[NotificationPopover.tsx](../../loom-ui/src/features/notifications/NotificationPopover.tsx)** | **no** | — |
-
-**The load-bearing defect.** `QueryParameterKey.LIMIT` defaults to **25**
-([QueryParameterKey.java:12](../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/parameter/QueryParameterKey.java)),
-and *no* UI list call passes `?limit=` or `?from=` — `listAssets`, `listCollections`,
-`listLibraries`, `listTags`, `listPools` all issue a bare `fetch` against the collection path. Typing
-"drone" in the asset search box therefore searches **25 assets**, not the library. On demo data
-this is invisible; on a real catalog the search box is actively misleading. → **Task 2**.
-
 ### 0.2 Can semantic search / boolean / term search be run in the UI?
 
 **No, for three different reasons.**

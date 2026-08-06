@@ -49,6 +49,7 @@ import { ReactionsPanel } from "../reactions/ReactionsPanel";
 import { TaskItem, taskPriorityColor, taskStatusColor } from "./TaskItem";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FaceDetectionPanel } from "./FaceDetectionPanel";
+import { PAGE_SIZE } from "../../hooks/pagedList";
 
 
 // Map a REST comment response onto the local Comment view model.
@@ -237,10 +238,10 @@ export default function AssetDetail() {
           clusterId: (d.meta as Record<string, unknown>)?.clusterId as string | undefined,
         }))
       ) : Promise.resolve([] as DetectedFace[]),
-      token ? listClusters(token).then(r => r.data.map((c: ClusterApiResponse): FaceCluster => ({
+      token ? listClusters(token, { limit: PAGE_SIZE }).then(r => r.data.map((c: ClusterApiResponse): FaceCluster => ({
         id: c.uuid, label: c.name, representativeThumbnailUrl: "", faceIds: [], personId: undefined,
       }))) : Promise.resolve([] as FaceCluster[]),
-      token ? listPersons(token).then(r => r.data.map((p: PersonResponse): Person => ({
+      token ? listPersons(token, { limit: PAGE_SIZE }).then(r => r.data.map((p: PersonResponse): Person => ({
         id: p.uuid, name: [p.firstname, p.lastname].filter(Boolean).join(" ") || p.alias,
         description: p.alias, avatarUrl: "", clusterIds: [], createdAt: p.status?.created ?? "",
       }))) : Promise.resolve([] as Person[]),

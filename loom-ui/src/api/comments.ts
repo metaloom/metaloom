@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 // ── Types matching the Loom REST API comment models ───────────────────
 
@@ -21,12 +22,7 @@ export interface CommentResponse {
 
 export interface CommentListResponse {
   data: CommentResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface CommentCreateRequest {

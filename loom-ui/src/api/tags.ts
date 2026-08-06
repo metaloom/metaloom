@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import type { AreaInfo } from "./annotations";
 
 export type { AreaInfo };
@@ -29,12 +30,7 @@ export interface TagRatingResponse {
 
 export interface TagListResponse {
   data: TagResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface TagCreateRequest {
@@ -70,8 +66,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listTags(token: string): Promise<TagListResponse> {
-  const res = await fetch(`${API_BASE_URL}/tags`, {
+export async function listTags(token: string, paging?: PagingParams): Promise<TagListResponse> {
+  const res = await fetch(`${API_BASE_URL}/tags${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

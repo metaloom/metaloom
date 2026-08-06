@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 export interface TranscriptWordResponse {
   word: string;
@@ -36,12 +37,7 @@ export interface TranscriptResponse {
 
 export interface TranscriptListResponse {
   data: TranscriptResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface TranscriptCreateRequest {

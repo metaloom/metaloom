@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API collection models ────────────────
 
@@ -16,12 +17,7 @@ export interface CollectionResponse {
 
 export interface CollectionListResponse {
   data: CollectionResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface CollectionCreateRequest {
@@ -51,8 +47,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listCollections(token: string): Promise<CollectionListResponse> {
-  const res = await fetch(`${API_BASE_URL}/collections`, {
+export async function listCollections(token: string, paging?: PagingParams): Promise<CollectionListResponse> {
+  const res = await fetch(`${API_BASE_URL}/collections${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

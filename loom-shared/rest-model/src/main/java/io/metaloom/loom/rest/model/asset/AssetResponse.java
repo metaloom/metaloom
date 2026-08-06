@@ -87,24 +87,6 @@ public class AssetResponse extends AbstractCreatorEditorRestResponse<AssetRespon
 	@JsonPropertyDescription("Information about the storage locations of the actual binary media that is represented by the asset.")
 	private List<AssetLocationResponse> locations = new ArrayList<>();
 
-	// public AssetKind getKind() {
-	// return kind;
-	// }
-	//
-	// public AssetResponse setKind(AssetKind kind) {
-	// this.kind = kind;
-	// return this;
-	// }
-	//
-	// public AssetProcessStatus getProcessStatus() {
-	// return processStatus;
-	// }
-	//
-	// public AssetResponse setProcessStatus(AssetProcessStatus processStatus) {
-	// this.processStatus = processStatus;
-	// return this;
-	// }
-
 	public List<AnnotationResponse> getAnnotations() {
 		return annotations;
 	}

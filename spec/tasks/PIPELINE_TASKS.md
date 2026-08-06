@@ -85,57 +85,6 @@ coverage percentage.
 
 ---
 
-## Task 7: Java endpoint tests for versioning, dispatch and delete-cascade
-
-**Argumentation Summary:** `PipelineMethods` reaches every pipeline route, and the endpoint
-suite has since grown to cover run items, run stats, pause, cancel, completion, events,
-breakpoints, node tasks and node re-execution. Three surfaces are still untested from
-Java: **no test touches `/versions`, `/versions/:version`, `/versions/:version/restore`,
-the `POST /:uuid/run` dispatch payload, or `DELETE /:uuid`**. Versioning is verified only
-by mocked Playwright specs, which never reach the server — an entire shipped API surface
-is covered by mocks.
-
-**Improvement Summary:** Add the endpoint tests in the standard harness so they run on
-every build.
-
-```
-Add loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/
-      PipelineVersionEndpointTest.java
-      PipelineRunDispatchEndpointTest.java
-
-⚠️ Do NOT redeclare @RegisterExtension LoomCoreTestExtension in a subclass of
-   AbstractEndpointTest — configure the inherited `loom` field (see the pattern in
-   PipelineRunItemEndpointTest).
-
-PipelineVersionEndpointTest:
- 1. create -> update -> update: assert versionNumber 1, 2, 3 and that v1/v2 still
-    carry their ORIGINAL definitions (versions are immutable, update copies forward).
- 2. restore v1: assert a NEW version is created (copy-forward, HTTP 201) and v1 is
-    unchanged.
- 3. loadPipelineVersion for a nonexistent version -> 404.
- 4. Permission coverage per ../guidelines/CODING.md: READ_PIPELINE_VERSION on the
-    two GETs, RESTORE_PIPELINE_VERSION on the restore. Grant via group+role, not a
-    direct user_permission row.
-
-PipelineRunDispatchEndpointTest:
- 5. POST /run with no processor registered -> 503, and assert NO pipeline_run row
-    exists afterwards.
- 6. POST /run with an invalid graph -> 400, and again assert no row.
- 7. POST /run with a registered processor -> 202, and assert the dispatched
-    SourceTaskMessage payload shape (runUuid, source kind, resolved source options).
-    Reuse the fake-processor plumbing from ProcessorEndpointTest.
- 8. DELETE /:uuid removes the pipeline, its versions and its runs.
-```
-
-**References:** [PIPELINE.md §10, §13](../features/pipeline/PIPELINE.md) ·
-[CLI_PLAN.md](../features/cli/CLI_PLAN.md) ·
-`PipelineMethods.java`, `PipelineEndpointService.java`, `PipelineRunItemEndpointTest.java`
-
-**Test Requirements:** The eight cases above, in the endpoint-test harness
-(`LoomCoreTestExtension`), not as integration tests. Run `./setup-pool.sh` first.
-⚠️ Keep each class under ~20 test methods — a larger class exhausts the test DB pool.
-
----
 
 ## Task 8: Add a validation endpoint and de-triplicate structural validation
 
@@ -189,41 +138,6 @@ asserting **all** errors come back, not just the first. Re-point the existing
 Per [CODING.md](../guidelines/CODING.md) a new endpoint also needs website docs.
 
 ---
-
-## Task 9: Type the pipeline run status
-
-**Argumentation Summary:** `pipeline_run.status` is a free-form `String` in the DB, the DAO
-model and `PipelineRunRecord`. The vocabulary — `PENDING, RUNNING, PAUSED, SUCCESS,
-FAILED, PARTIAL, CANCELLED` — exists **only as a SQL comment** (`V2.29`, extended by
-`V2.56`). Nothing stops a typo being persisted, and the UI has no reliable set to switch
-on. The same applies to `pipeline_node_task.state` (`PENDING, RUNNING, COMPLETED, FAILED,
-SKIPPED, DEAD_LETTER`) and `pipeline_run_item.state`, which are compared as string
-literals in `PipelineRunRecovery` and `LeaseReaper`.
-
-**Improvement Summary:** Introduce enums and parse at the boundary; keep the columns
-`VARCHAR`.
-
-```
-1. Add PipelineRunStatus to loom-shared/rest-model alongside the other pipeline model
-   types, with the seven documented values. Add NodeTaskState and RunItemState in
-   loom/db/api (or reuse the existing NodeState where the vocabularies match — they do
-   NOT: NodeState has no DEAD_LETTER).
-2. Use them in the DAO models, PipelineRunRecord, PipelineRunTracker,
-   PipelineRunStatusResolver, PipelineRunRecovery and LeaseReaper. Keep the DB column
-   VARCHAR — a Postgres enum needs a migration for every new value — and parse/serialise
-   through the Java enum at the boundary.
-3. Reject an unknown value on read with a clear message naming the column and the value,
-   rather than passing a bad string to the UI.
-4. PipelineRunStatusResolver.isTerminal must keep PAUSED non-terminal.
-```
-
-**References:** [PIPELINE.md §9.1, §10.2](../features/pipeline/PIPELINE.md) ·
-`V2.29__add_pipeline_run.sql`, `V2.31__add_pipeline_execution_state.sql`,
-`V2.56__pipeline_run_paused_status.sql`, `PipelineRunRecord.java`, `LeaseReaper.java`
-
-**Test Requirements:** Round-trip test for every enum value through DAO and REST. A test
-that an unrecognised status string is rejected with a message naming the value. Re-run
-`PipelineRunStatusResolverTest` and `PipelineRunEngineRecoveryTest` unchanged.
 
 ---
 

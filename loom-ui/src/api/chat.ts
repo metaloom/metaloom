@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 import { ChatMessage, ChatReference, ChatToolCall, ChatVisual, PipelineGraphPayload } from "../types";
 
 /**
@@ -82,12 +83,7 @@ export interface ChatResponse {
 
 export interface ChatListResponse {
   data: ChatResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface ChatCreateRequest {

@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API user models ──────────────────────
 
@@ -20,12 +21,7 @@ export interface UserResponse {
 
 export interface UserListResponse {
   data: UserResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface UserCreateRequest {
@@ -63,8 +59,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listUsers(token: string): Promise<UserListResponse> {
-  const res = await fetch(`${API_BASE_URL}/users`, {
+export async function listUsers(token: string, paging?: PagingParams): Promise<UserListResponse> {
+  const res = await fetch(`${API_BASE_URL}/users${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

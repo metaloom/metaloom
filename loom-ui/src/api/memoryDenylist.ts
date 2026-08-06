@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 /**
  * The memory denylist: instance-wide regular expressions that must never be written into the agent
@@ -26,12 +27,7 @@ export interface MemoryDenyRuleResponse {
 
 export interface MemoryDenyRuleListResponse {
   data?: MemoryDenyRuleResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface MemoryDenyRuleCreateRequest {

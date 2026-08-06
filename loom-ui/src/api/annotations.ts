@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 // ── Types matching the Loom REST API annotation models ────────────────
 
@@ -29,12 +30,7 @@ export interface AnnotationResponseItem {
 
 export interface AnnotationListResponse {
   data: AnnotationResponseItem[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface AnnotationCreateRequest {

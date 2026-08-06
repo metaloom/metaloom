@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 export interface PersonResponse {
   uuid: string;
@@ -17,12 +18,7 @@ export interface PersonResponse {
 
 export interface PersonListResponse {
   data: PersonResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface PersonCreateRequest {
@@ -56,8 +52,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function listPersons(token: string): Promise<PersonListResponse> {
-  const res = await fetch(`${API_BASE_URL}/persons`, {
+export async function listPersons(token: string, paging?: PagingParams): Promise<PersonListResponse> {
+  const res = await fetch(`${API_BASE_URL}/persons${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

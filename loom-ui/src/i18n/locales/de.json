@@ -22,7 +22,11 @@
     "denied": "Abgelehnt",
     "rejected": "Zurückgewiesen",
     "never": "Nie",
-    "permanent": "Dauerhaft"
+    "permanent": "Dauerhaft",
+    "paging": {
+      "showing": "{{shown}} von {{total}} werden angezeigt",
+      "loadMore": "Mehr laden"
+    }
   },
   "sidebar": {
     "brand": "Metaloom",
@@ -91,20 +95,17 @@
   "assets": {
     "title": "Assets",
     "search": {
-      "placeholder": "Assets, Tags suchen…"
+      "placeholder": "Assets, Tags suchen…",
+      "hits": "{{count}} Ergebnisse",
+      "unavailable": "Die Suche ist auf dieser Installation nicht verfügbar — es werden die {{count}} bereits geladenen Assets gefiltert.",
+      "denied": "Sie haben keine Berechtigung, Assets zu durchsuchen."
     },
     "filter": {
-      "allStatus": "Alle Status",
-      "ready": "Bereit",
-      "processing": "Wird verarbeitet",
-      "failed": "Fehlgeschlagen",
-      "archived": "Archiviert",
       "allTypes": "Alle Typen",
       "video": "Video",
       "image": "Bild",
       "audio": "Audio",
       "document": "Dokument",
-      "allLibraries": "Alle Bibliotheken",
       "clear": "Filter zurücksetzen"
     },
     "tooltip": {
@@ -224,7 +225,8 @@
       "deleteLibrary": "Bibliothek löschen"
     },
     "count": {
-      "assets": "Assets"
+      "assets": "Assets",
+      "assetsPartial": "{{count}} der {{loaded}} geladenen Assets"
     },
     "search": {
       "placeholder": "Assets suchen…"
@@ -387,7 +389,8 @@
     "emptyState": {
       "title": "Noch nichts zu tun",
       "description": "Aufgaben steuern Review, Freigabe und Nacharbeit an deinen Medien — mit Priorität, Zuständigkeit und Fälligkeit.",
-      "action": "Erste Aufgabe anlegen"
+      "action": "Erste Aufgabe anlegen",
+      "noSearch": "Keine Aufgaben entsprechen Ihrer Suche"
     },
     "assignees": {
       "label": "Zugewiesen an",
@@ -396,6 +399,9 @@
         "GROUP": "Gruppen"
       },
       "none": "Nicht zugewiesen"
+    },
+    "search": {
+      "placeholder": "Aufgaben suchen…"
     }
   },
   "monitoring": {
@@ -824,7 +830,9 @@
       },
       "confirm": {
         "delete": "Sind Sie sicher, dass Sie Rolle {{name}} löschen möchten?"
-      }
+      },
+      "search": "Rollen suchen…",
+      "noMatch": "Keine Rollen entsprechen Ihrer Suche"
     },
     "apiKeys": {
       "title": "API-Schlüssel",
@@ -1799,7 +1807,11 @@
       "library": {
         "title": "Die geteilte Bibliothek ist leer",
         "description": "Sobald Kolleginnen und Kollegen Skills veröffentlichen, erscheinen sie hier und können installiert werden."
-      }
+      },
+      "noSearch": "Keine Skills entsprechen Ihrer Suche"
+    },
+    "search": {
+      "placeholder": "Skills suchen…"
     }
   },
   "memory": {
@@ -1821,7 +1833,13 @@
     "edit": "Notiz bearbeiten",
     "create": "Neue Notiz",
     "deleteTitle": "Notiz löschen",
-    "deleteBody": "Die Notiz wird endgültig entfernt — es gibt noch keine Versionshistorie."
+    "deleteBody": "Die Notiz wird endgültig entfernt — es gibt noch keine Versionshistorie.",
+    "search": {
+      "placeholder": "Notizen suchen…"
+    },
+    "emptyState": {
+      "noSearch": "Keine Notizen entsprechen Ihrer Suche"
+    }
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -1902,6 +1920,14 @@
       "title": "Suche nicht verfügbar",
       "body": "Diese Installation kann derzeit keine Suchanfragen beantworten. Alles andere funktioniert weiter.",
       "provider": "Backend: {{provider}}"
+    }
+  },
+  "chatSessions": {
+    "search": {
+      "placeholder": "Sitzungen suchen…"
+    },
+    "emptyState": {
+      "noSearch": "Keine Sitzungen entsprechen Ihrer Suche"
     }
   }
 }

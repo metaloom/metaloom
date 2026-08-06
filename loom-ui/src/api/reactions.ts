@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 // ── Types matching the Loom REST API reaction models ──────────────────
 
@@ -16,12 +17,7 @@ export interface ReactionResponseItem {
 
 export interface ReactionListResponse {
   data: ReactionResponseItem[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 /** Reaction type values, matching the backend `io.metaloom.loom.api.reaction.ReactionType` enum. */

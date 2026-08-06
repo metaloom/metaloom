@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 // ── Types matching the Loom REST API blacklist models ─────────────────
 
@@ -17,12 +18,7 @@ export interface BlacklistResponse {
 
 export interface BlacklistListResponse {
   data: BlacklistResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface BlacklistCreateRequest {
@@ -56,8 +52,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listBlacklists(token: string): Promise<BlacklistListResponse> {
-  const res = await fetch(`${API_BASE_URL}/blacklists`, {
+export async function listBlacklists(token: string, paging?: PagingParams): Promise<BlacklistListResponse> {
+  const res = await fetch(`${API_BASE_URL}/blacklists${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

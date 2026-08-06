@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 import { CommentResponse } from "./comments";
 
 // ── Types matching the Loom REST API task models ──────────────────────
@@ -48,12 +49,7 @@ export interface TaskAssignRequest {
 
 export interface TaskListResponse {
   data: TaskResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface TaskCreateRequest {
@@ -93,8 +89,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 // ── CRUD API ──────────────────────────────────────────────────────────
 
-export async function listTasks(token: string): Promise<TaskListResponse> {
-  const res = await fetch(`${API_BASE_URL}/tasks`, {
+export async function listTasks(token: string, paging?: PagingParams): Promise<TaskListResponse> {
+  const res = await fetch(`${API_BASE_URL}/tasks${pagingQuery(paging)}`, {
     method: "GET",
     headers: authHeaders(token),
   });

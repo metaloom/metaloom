@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { PagingInfo } from "./paging";
 
 export interface DetectionResponse {
   uuid: string;
@@ -21,12 +22,7 @@ export interface DetectionResponse {
 
 export interface DetectionListResponse {
   data: DetectionResponse[];
-  _metainfo?: {
-    totalCount?: number;
-    currentPage?: number;
-    pageCount?: number;
-    perPage?: number;
-  };
+  _metainfo?: PagingInfo;
 }
 
 export interface DetectionCreateRequest {
