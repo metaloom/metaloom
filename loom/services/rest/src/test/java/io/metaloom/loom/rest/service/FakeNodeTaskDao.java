@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.filter.Filter;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
@@ -67,7 +68,7 @@ public class FakeNodeTaskDao implements PipelineNodeTaskDao {
 	}
 
 	@Override
-	public long countByRunAndState(UUID runUuid, String state) {
+	public long countByRunAndState(UUID runUuid, NodeTaskState state) {
 		throw new UnsupportedOperationException("Not used by the reaper");
 	}
 

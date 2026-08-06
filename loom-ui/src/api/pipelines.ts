@@ -244,12 +244,36 @@ export async function restorePipelineVersion(
 
 // ── Pipeline Run History ──────────────────────────────────────────────
 
+/**
+ * The server's `pipeline_run.status` vocabulary. The column is a VARCHAR, but the value is
+ * parsed through an enum on the way out, so these are the only statuses a run can carry —
+ * which is what makes it safe to switch on one.
+ *
+ * `PAUSED` is not terminal: a suspended run still holds a live engine and can be resumed.
+ */
+export type PipelineRunStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "PAUSED"
+  | "SUCCESS"
+  | "FAILED"
+  | "PARTIAL"
+  | "CANCELLED";
+
+/** Statuses a run will not move out of. */
+export const TERMINAL_RUN_STATUSES: readonly PipelineRunStatus[] = [
+  "SUCCESS",
+  "FAILED",
+  "PARTIAL",
+  "CANCELLED",
+];
+
 export interface PipelineRunRecord {
   uuid: string;
   pipelineUuid: string;
   started: string;
   finished?: string;
-  status: string;
+  status: PipelineRunStatus;
   mediaCount: number;
   successCount: number;
   failureCount: number;
@@ -322,6 +346,14 @@ export async function loadPipelineRunStats(token: string): Promise<PipelineRunSt
 
 // ── Pipeline Run Items ────────────────────────────────────────────────
 
+/** The server's `pipeline_run_item.state` vocabulary. */
+export type PipelineRunItemState =
+  | "PENDING"
+  | "RUNNING"
+  | "SUCCESS"
+  | "FAILED"
+  | "SKIPPED";
+
 export interface PipelineRunItemRecord {
   uuid: string;
   runUuid: string;
@@ -329,7 +361,7 @@ export interface PipelineRunItemRecord {
   mediaPath?: string;
   sha512?: string;
   sizeBytes?: number;
-  state: string;
+  state: PipelineRunItemState;
   errorMessage?: string;
 }
 
@@ -370,6 +402,20 @@ export interface PortPayload {
 }
 
 /**
+ * The server's `pipeline_node_task.state` vocabulary.
+ *
+ * `DEAD_LETTER` is the only one the engine itself never produces — it means the task ran out
+ * of attempts, or its run disappeared and the lease reaper gave up on it.
+ */
+export type PipelineNodeTaskState =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "SKIPPED"
+  | "DEAD_LETTER";
+
+/**
  * One node execution within a run item — the finest granularity the engine records.
  *
  * There is one per graph node, and one **per element** for a node downstream of a `MANY`
@@ -391,8 +437,7 @@ export interface PipelineNodeTaskRecord {
    * the highest generation.
    */
   generation: number;
-  /** PENDING | LEASED | DONE | FAILED | DEAD_LETTER */
-  state: string;
+  state: PipelineNodeTaskState;
   attempt: number;
   maxAttempts: number;
   leasedBy?: string;

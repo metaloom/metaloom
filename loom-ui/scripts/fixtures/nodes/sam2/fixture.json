@@ -1,0 +1,134 @@
+{
+  "kind" : "sam2",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:sam2 sidecar (http://127.0.0.1:9130/health)",
+  "state" : "COMPLETED",
+  "durationMs" : 11819,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "mode" : "AUTOMATIC",
+    "maxDim" : 1024,
+    "pointsPerSide" : 32,
+    "minMaskArea" : 256
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "mask_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 3
+      } ]
+    },
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "SUCCESS"
+      } ]
+    },
+    "segments" : {
+      "contentType" : "struct/masks",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"model\":\"facebook/sam2.1-hiera-small\",\"mode\":\"AUTOMATIC\",\"dir\":\"/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15\",\"width\":600,\"height\":750,\"imageWidth\":600,\"imageHeight\":750,\"masks\":[{\"index\":0,\"path\":\"/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/mask-0000.png\",\"area\":217520,\"bbox\":{\"x\":0,\"y\":0,\"w\":600,\"h\":625},\"score\":0.989503},{\"index\":1,\"path\":\"/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/mask-0001.png\",\"area\":107466,\"bbox\":{\"x\":0,\"y\":507,\"w\":600,\"h\":243},\"score\":0.976634},{\"index\":2,\"path\":\"/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/mask-0002.png\",\"area\":35396,\"bbox\":{\"x\":106,\"y\":96,\"w\":292,\"h\":361},\"score\":0.959819}],\"truncated\":{\"masks\":0,\"frames\":0},\"overlay\":\"/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/overlay.png\"}"
+      } ]
+    },
+    "masks" : {
+      "contentType" : "artifact/image",
+      "cardinality" : "MANY",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 3
+        },
+        "value" : "/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/mask-0000.png"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 1,
+          "total" : 3
+        },
+        "value" : "/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/mask-0001.png"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 2,
+          "total" : 3
+        },
+        "value" : "/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/mask-0002.png"
+      } ]
+    },
+    "overlay" : {
+      "contentType" : "artifact/image",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "/tmp/docs-fixture-sam25177246973557243444/sam2_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15-b69088caba15/overlay.png"
+      } ]
+    }
+  },
+  "previews" : {
+    "masks" : {
+      "file" : "masks.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 410,
+      "height" : 512
+    },
+    "overlay" : {
+      "file" : "overlay.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 410,
+      "height" : 512
+    },
+    "masks#0" : {
+      "file" : "masks-0.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 154,
+      "height" : 192
+    },
+    "masks#1" : {
+      "file" : "masks-1.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 154,
+      "height" : 192
+    },
+    "masks#2" : {
+      "file" : "masks-2.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 154,
+      "height" : 192
+    },
+    "segments" : {
+      "markdown" : "| # | label | area | score | box (x, y, w, h) | frame |\n|---|---|---|---|---|---|\n| 0 |  | 217520 | 0.989503 | 0, 0, 600, 625 |  |\n| 1 |  | 107466 | 0.976634 | 0, 507, 600, 243 |  |\n| 2 |  | 35396 | 0.959819 | 106, 96, 292, 361 |  |\n"
+    }
+  }
+}

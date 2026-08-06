@@ -51,7 +51,7 @@ public class RunCommand extends AbstractCliCommand {
 		for (PipelineRunRecord run : runs) {
 			table.row(
 				String.valueOf(run.getUuid()),
-				ansi.status(run.getStatus()),
+				ansi.status(name(run.getStatus())),
 				run.getStarted() == null ? "" : run.getStarted(),
 				String.valueOf(run.getMediaCount()),
 				String.valueOf(run.getSuccessCount()),
@@ -101,7 +101,7 @@ public class RunCommand extends AbstractCliCommand {
 			PipelineResponse target = api().resolvePipeline(pipeline);
 			List<PipelineRunRecord> runs = api().listRuns(target.getUuid());
 			if (status != null && !status.isBlank()) {
-				runs = runs.stream().filter(r -> status.equalsIgnoreCase(r.getStatus())).toList();
+				runs = runs.stream().filter(r -> status.equalsIgnoreCase(name(r.getStatus()))).toList();
 			}
 			printer().printList(runs,
 				items -> runTable(items, printer().ansi()),
@@ -145,7 +145,7 @@ public class RunCommand extends AbstractCliCommand {
 			RunLocator.Located located = locate();
 			List<PipelineRunItemRecord> items = api().listRunItems(located.pipelineUuid(), runUuid);
 			if (state != null && !state.isBlank()) {
-				items = items.stream().filter(i -> state.equalsIgnoreCase(i.getState())).toList();
+				items = items.stream().filter(i -> state.equalsIgnoreCase(name(i.getState()))).toList();
 			}
 			printer().printList(items,
 				list -> {
@@ -153,7 +153,7 @@ public class RunCommand extends AbstractCliCommand {
 					for (PipelineRunItemRecord item : list) {
 						table.row(
 							String.valueOf(item.getItemSeq()),
-							printer().ansi().status(item.getState()),
+							printer().ansi().status(name(item.getState())),
 							item.getMediaPath(),
 							item.getErrorMessage() == null ? "" : item.getErrorMessage());
 					}
@@ -184,7 +184,7 @@ public class RunCommand extends AbstractCliCommand {
 			RunLocator.Located located = locate();
 			if (RunWaiter.isTerminal(located.run().getStatus())) {
 				// The stream has no history, so following a finished run would just hang.
-				printer().warn("Run " + runUuid + " already finished (" + located.run().getStatus()
+				printer().warn("Run " + runUuid + " already finished (" + name(located.run().getStatus())
 					+ "). There is nothing left to stream.");
 				return RunWaiter.exitCodeFor(located.run());
 			}
@@ -282,4 +282,13 @@ public class RunCommand extends AbstractCliCommand {
 			return ExitCode.OK;
 		}
 	}
+	/**
+	 * The token the tables and filters work with. Kept here rather than inlined as
+	 * {@code .name()} because the server may leave a status unset, and a CLI table cell must
+	 * not be the string "null".
+	 */
+	private static String name(Enum<?> value) {
+		return value == null ? "" : value.name();
+	}
+
 }

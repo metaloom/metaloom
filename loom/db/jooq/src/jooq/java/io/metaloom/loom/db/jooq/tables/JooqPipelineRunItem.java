@@ -4,10 +4,12 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
+import io.metaloom.loom.db.jooq.converter.RunItemStateConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqPipelineRunItemRecord;
 import io.vertx.core.json.JsonObject;
 
@@ -95,7 +97,7 @@ public class JooqPipelineRunItem extends TableImpl<JooqPipelineRunItemRecord> {
      * The column <code>public.pipeline_run_item.state</code>. PENDING, RUNNING,
      * SUCCESS, FAILED or SKIPPED
      */
-    public final TableField<JooqPipelineRunItemRecord, String> STATE = createField(DSL.name("state"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "PENDING, RUNNING, SUCCESS, FAILED or SKIPPED");
+    public final TableField<JooqPipelineRunItemRecord, RunItemState> STATE = createField(DSL.name("state"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "PENDING, RUNNING, SUCCESS, FAILED or SKIPPED", new RunItemStateConverter());
 
     /**
      * The column <code>public.pipeline_run_item.error_message</code>. Why the
@@ -266,14 +268,14 @@ public class JooqPipelineRunItem extends TableImpl<JooqPipelineRunItemRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row13<java.util.UUID, java.util.UUID, Long, String, String, Long, String, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row13<java.util.UUID, java.util.UUID, Long, String, String, Long, RunItemState, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
         return (Row13) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function13<? super java.util.UUID, ? super java.util.UUID, ? super Long, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function13<? super java.util.UUID, ? super java.util.UUID, ? super Long, ? super String, ? super String, ? super Long, ? super RunItemState, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -281,7 +283,7 @@ public class JooqPipelineRunItem extends TableImpl<JooqPipelineRunItemRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function13<? super java.util.UUID, ? super java.util.UUID, ? super Long, ? super String, ? super String, ? super Long, ? super String, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function13<? super java.util.UUID, ? super java.util.UUID, ? super Long, ? super String, ? super String, ? super Long, ? super RunItemState, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

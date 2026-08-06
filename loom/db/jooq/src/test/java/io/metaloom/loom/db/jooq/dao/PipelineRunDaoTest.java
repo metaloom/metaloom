@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
@@ -54,7 +55,7 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 		pipelineDao().update(pipeline);
 
 		PipelineRun run = pipelineRunDao().createPipelineRun(user.getUuid(), pipeline.getUuid(), 1);
-		run.setStatus("SUCCESS");
+		run.setStatus(PipelineRunStatus.SUCCESS);
 		run.setMediaCount(100);
 		run.setSuccessCount(95);
 		run.setFailureCount(3);
@@ -67,7 +68,7 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 
 	@Override
 	public void assertCreate(PipelineRun createdElement) {
-		assertEquals("SUCCESS", createdElement.getStatus());
+		assertEquals(PipelineRunStatus.SUCCESS, createdElement.getStatus());
 		assertEquals(100, createdElement.getMediaCount());
 		assertEquals(95, createdElement.getSuccessCount());
 		assertEquals(3, createdElement.getFailureCount());
@@ -91,7 +92,7 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 
 	@Override
 	public void updateElement(PipelineRun element) {
-		element.setStatus("FAILED");
+		element.setStatus(PipelineRunStatus.FAILED);
 		element.setMediaCount(200);
 		element.setSuccessCount(150);
 		element.setFailureCount(50);
@@ -102,7 +103,7 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 
 	@Override
 	public void assertUpdate(PipelineRun updatedElement) {
-		assertEquals("FAILED", updatedElement.getStatus());
+		assertEquals(PipelineRunStatus.FAILED, updatedElement.getStatus());
 		assertEquals(200, updatedElement.getMediaCount());
 		assertEquals(150, updatedElement.getSuccessCount());
 		assertEquals(50, updatedElement.getFailureCount());
@@ -114,7 +115,7 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 	// ── Daily stats aggregation ─────────────────────────────────────────
 
 	/** Persist a run of the given pipeline started at noon (UTC) of the given day. */
-	private PipelineRun createRunOn(User user, UUID pipelineUuid, LocalDate day, String status, int success, int failure, int skipped) {
+	private PipelineRun createRunOn(User user, UUID pipelineUuid, LocalDate day, PipelineRunStatus status, int success, int failure, int skipped) {
 		PipelineRun run = pipelineRunDao().createPipelineRun(user.getUuid(), pipelineUuid, 1);
 		run.setStatus(status);
 		run.setMediaCount(success + failure + skipped);
@@ -149,9 +150,9 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 			pipelineB.set(seedB.getPipelineUuid());
 
 			// Two runs on dayRecent across two pipelines, one run on dayOld. dayRecent-1 stays empty.
-			createRunOn(user, pipelineA.get(), dayRecent, "SUCCESS", 5, 1, 2);
-			createRunOn(user, pipelineB.get(), dayRecent, "PARTIAL", 10, 0, 0);
-			createRunOn(user, pipelineA.get(), dayOld, "FAILED", 0, 3, 1);
+			createRunOn(user, pipelineA.get(), dayRecent, PipelineRunStatus.SUCCESS, 5, 1, 2);
+			createRunOn(user, pipelineB.get(), dayRecent, PipelineRunStatus.PARTIAL, 10, 0, 0);
+			createRunOn(user, pipelineA.get(), dayOld, PipelineRunStatus.FAILED, 0, 3, 1);
 		});
 
 		List<PipelineRunDayStats> stats = pipelineRunDao().loadDailyStats(dayOld.minusDays(1).atStartOfDay());
@@ -185,8 +186,8 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 			User user = dummyUser();
 			PipelineRun seed = createElement(user, 4713);
 			pipelineRunDao().store(seed);
-			createRunOn(user, seed.getPipelineUuid(), dayOutside, "SUCCESS", 1, 0, 0);
-			createRunOn(user, seed.getPipelineUuid(), dayInside, "SUCCESS", 2, 0, 0);
+			createRunOn(user, seed.getPipelineUuid(), dayOutside, PipelineRunStatus.SUCCESS, 1, 0, 0);
+			createRunOn(user, seed.getPipelineUuid(), dayInside, PipelineRunStatus.SUCCESS, 2, 0, 0);
 		});
 
 		List<PipelineRunDayStats> stats = pipelineRunDao().loadDailyStats(dayInside.atStartOfDay());

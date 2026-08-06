@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.metaloom.loom.pipeline.model.MediaRef;
@@ -87,7 +88,7 @@ public class PipelineRunEngineTest {
 		assertEquals(1, summary.get().getMediaCount());
 		assertEquals(1, summary.get().getSuccessCount());
 		assertEquals(0, summary.get().getFailureCount());
-		assertEquals("SUCCESS", summary.get().getStatus());
+		assertEquals(PipelineRunStatus.SUCCESS, summary.get().getStatus());
 	}
 
 	@Test
@@ -144,7 +145,7 @@ public class PipelineRunEngineTest {
 
 		assertTrue(engine.isComplete());
 		assertEquals(1, summary.get().getFailureCount());
-		assertEquals("FAILED", summary.get().getStatus());
+		assertEquals(PipelineRunStatus.FAILED, summary.get().getStatus());
 	}
 
 	@Test
@@ -279,7 +280,7 @@ public class PipelineRunEngineTest {
 
 		assertTrue(engine.isComplete());
 		assertEquals(0, summary.get().getMediaCount());
-		assertEquals("SUCCESS", summary.get().getStatus());
+		assertEquals(PipelineRunStatus.SUCCESS, summary.get().getStatus());
 	}
 
 	@Test
@@ -299,7 +300,7 @@ public class PipelineRunEngineTest {
 				+ "that will never arrive");
 		assertTrue(hash.getMessage().contains("sha512"));
 		assertTrue(engine.isComplete(), "The run must reach a terminal state");
-		assertEquals("FAILED", summary.get().getStatus());
+		assertEquals(PipelineRunStatus.FAILED, summary.get().getStatus());
 	}
 
 	@Test
@@ -321,7 +322,7 @@ public class PipelineRunEngineTest {
 		assertEquals(NodeState.FAILED, engine.getItem(item).getResults().get("hash").getState());
 		assertEquals(NodeState.SKIPPED, engine.getItem(item).getResults().get("thumb").getState(),
 			"'thumb' blocks on a failed dependency, so it is skipped rather than dispatched");
-		assertEquals("FAILED", summary.get().getStatus());
+		assertEquals(PipelineRunStatus.FAILED, summary.get().getStatus());
 	}
 
 	@Test
@@ -355,7 +356,7 @@ public class PipelineRunEngineTest {
 		assertEquals(2, summary.get().getMediaCount());
 		assertEquals(1, summary.get().getSuccessCount());
 		assertEquals(1, summary.get().getFailureCount());
-		assertEquals("PARTIAL", summary.get().getStatus(),
+		assertEquals(PipelineRunStatus.PARTIAL, summary.get().getStatus(),
 			"Some but not all items failing is a partial run");
 	}
 

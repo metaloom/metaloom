@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.rest.model.RestResponseModel;
 import io.vertx.core.json.JsonObject;
 
@@ -40,8 +41,8 @@ public class PipelineNodeTaskRecord implements RestResponseModel<PipelineNodeTas
 	@JsonPropertyDescription("Which attempt at this execution the row records; 0 for the only run of an ordinary task, counting up per operator-requested re-execution with different settings.")
 	private int generation;
 
-	@JsonPropertyDescription("Current state: PENDING, LEASED, DONE, FAILED, DEAD_LETTER.")
-	private String state;
+	@JsonPropertyDescription("Current state: PENDING, RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER.")
+	private NodeTaskState state;
 
 	@JsonPropertyDescription("How many times this execution has been attempted.")
 	private int attempt;
@@ -159,11 +160,11 @@ public class PipelineNodeTaskRecord implements RestResponseModel<PipelineNodeTas
 		return this;
 	}
 
-	public String getState() {
+	public NodeTaskState getState() {
 		return state;
 	}
 
-	public PipelineNodeTaskRecord setState(String state) {
+	public PipelineNodeTaskRecord setState(NodeTaskState state) {
 		this.state = state;
 		return this;
 	}

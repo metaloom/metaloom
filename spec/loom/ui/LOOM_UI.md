@@ -76,10 +76,11 @@ Scripts: `dev`, `build` (`tsc && vite build`), `preview`, `test` / `test:watch` 
 ```
 loom-ui/
 ├── src/
-│   ├── api/          # 31 REST/WS client modules + 13 co-located *.test.ts (§5)
-│   ├── components/   # Shared: Title, EmptyState, MediaPlaceholder, AssetThumbnail
+│   ├── api/          # 37 REST/WS client modules + 19 co-located *.test.ts (§5)
+│   ├── components/   # Shared: Title, EmptyState, ListPaging, MediaPlaceholder, AssetThumbnail
 │   ├── context/      # Auth, Space, NodeRegistry, Search, Theme, Toast, Notification, Layout (§6)
 │   ├── features/     # One directory per UI area (§4.2)
+│   ├── hooks/        # usePagedList + the pure pagedList helpers it is built from (§11.3)
 │   ├── i18n/         # i18n.ts + locales/{en,de}.json
 │   ├── layout/       # AppShell.tsx (routes + shell), Sidebar.tsx (nav)
 │   ├── mock/         # data.ts / services.ts — only two live consumers left (§7.5)
@@ -87,7 +88,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 66 Playwright specs (§8.2)
+├── e2e/              # 78 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -239,6 +240,7 @@ export const API_BASE_URL =
 | Module | Base paths |
 |--------|-----------|
 | `auth.ts` | `/login`, `/me` (+ `decodeJwt`) |
+| `paging.ts` | No route of its own — `PagingParams`/`PagingInfo` and the `?limit=&from=` serializer every collection client uses (§11.3) |
 | `info.ts` · `health.ts` | `/` (version, dbRevision) · `/health` |
 | `assets.ts` | `/assets`, `/assets/:uuid`, `/assets/upload`, `/assets/bulk/{create,update}`, `/assets/:uuid/binary/data` (`assetBinaryUrl`) |
 | `binaries.ts` | `/assets/:uuid/binary`, `/assets/:uuid/binary/data` |
@@ -394,7 +396,25 @@ Filtered-to-nothing keeps the small inline hint (`assets.empty.noMatch`,
 > table headers.
 
 i18n keys: `<feature>.empty.*` (assets, collections) or `<feature>.emptyState.*` (library, tags,
-tasks, skills, assetPools) — the second form where an `empty` key already meant something else.
+tasks, skills, assetPools, memory, chatSessions) — the second form where an `empty` key already
+meant something else. In `tasks`, `skills` and `memory` the `empty` key is a **string**, so a
+nested `empty.noSearch` would collide with it in i18next; those use `emptyState.noSearch`.
+
+### 7.5.1 Search field
+
+**Every list view carries one.** `TextField size="small"` with a `SearchOutlined` `startAdornment`,
+a `useState` term and the testid `<feature>-search` — [CollectionsView.tsx:206](../../../loom-ui/src/features/collections/CollectionsView.tsx)
+is the reference. Live in: `AssetBrowser`, `LibraryView`, `CollectionsView`, `TagsView`,
+`AssetPoolsView`, `CortexView`, both detection screens, `FaceDetectionManagement`, `TasksView`,
+`SkillManagementView` (one term per tab), `MemoryView`, `ChatSessionsView`, and the admin tables
+including `AccessControlAdmin`.
+
+Only `AssetBrowser` is server-backed: a non-empty term goes to `searchAssets()` debounced 250 ms,
+and the type filter travels as `?mime=` rather than being re-applied locally. Everywhere else the
+field filters the rows already loaded — which is why those views also page (§11.3).
+
+A term that matches nothing shows the inline hint, never the `EmptyState` — see the rule above.
+Where a view shows both, the testid distinguishes them (`memory-empty` vs `memory-no-match`).
 
 ### 7.6 Chat workspace split
 
@@ -457,12 +477,17 @@ tasks attached to assets with priority/status/due dates.
 > component is a *mocked* Playwright spec (§8.2). Do not add RTL/jsdom to test a component —
 > extract the logic into a `.ts` module or write a mocked e2e.
 
-21 test files today:
+39 test files today:
 
 | Area | Files |
 |------|-------|
-| `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
-| Feature helpers | `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence` |
+| `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `paging`, `listPaging`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
+| `src/hooks/` | `pagedList` — the pure half of `usePagedList`, since the hook itself needs a renderer this repo does not have |
+| Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence` |
+
+> `listPaging.test.ts` is table-driven over all sixteen paged clients rather than sixteen
+> near-identical files — the contract (`?limit=&from=` on the wire, `_metainfo` passed through) is
+> the same for every one of them.
 
 > `search/highlight.ts` and `search/searchHits.ts` exist as separate modules precisely because of
 > the no-jsdom rule: the highlight parser is a security boundary (§5 of
@@ -476,13 +501,17 @@ tasks attached to assets with priority/status/due dates.
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-66 specs in two flavours, distinguished by filename suffix:
+78 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (33) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (45) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (30) | **Yes** | Real Loom server with demo data |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
+
+> **Gotcha:** the list clients append `?limit=`, so a matcher anchored on the bare path — either
+> `/\/api\/v1\/assets$/` or the glob `"**/api/v1/assets"` — no longer matches and the call falls
+> through to the catch-all. Write collection matchers as `/\/api\/v1\/<name>(\?|$)/`.
 
 Typical mocked-spec shape: `mock…(page)` route handlers → `login(page)` (fill
 `Username`/`Password` placeholders, click *Sign in*, assert the username field is hidden) →
@@ -546,8 +575,12 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `LayoutContext` / `useLayout` | `src/context/LayoutContext.tsx` | Sidebar collapse (not persisted) |
 | `tokens` / `buildTheme` / `setActiveTokens` | `src/theme/index.ts` | Design tokens + MUI theme (no `tokens.ts`) |
 | `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (§7.5) |
+| `ListPaging` | `src/components/ListPaging.tsx` | "Showing X of Y" + load-more button for a paged list (§11.3) |
 | `AssetThumbnail` / `MediaPlaceholder` | `src/components/` | Cookie-authenticated preview `<img>` with fallback (§7.2) |
 | `Title` | `src/components/Title.tsx` | Page heading |
+| `usePagedList` / `pageFrom` | `src/hooks/usePagedList.ts` | Loads a collection page by page; `items`, `totalCount`, `hasMore`, `loadMore`, `setItems` (§11.3) |
+| `pagingQuery` / `PagingParams` / `PagingInfo` | `src/api/paging.ts` | `?limit=&from=` serialization and the `_metainfo` wire shape |
+| `toAsset` / `hitToCard` / `mimeFilterFor` | `src/features/assets/assetMapping.ts` | AssetResponse → card, search hit → card, type filter → `?mime=` |
 | `assetBinaryUrl` | `src/api/assets.ts` | URL of an asset's stored bytes, usable as `<img src>` |
 | `subscribePipelineEvents` / `subscribeProcessorEvents` | `src/api/pipelineEvents.ts` | Shared reconnecting WebSocket (§7.4) |
 | `login` / `getMe` / `decodeJwt` | `src/api/auth.ts` | Auth calls + JWT claim decode |
@@ -601,9 +634,20 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | Area | Concern | Current state |
 |------|---------|---------------|
 | React Flow | Graphs >100 nodes | No virtualization; auto-arrange only |
-| Asset grid | Large libraries | Skeletons + lazy `<img>`; no pagination or list virtualization |
+| Asset grid | Large libraries | Skeletons + lazy `<img>`; keyset paged 100 at a time, no list virtualization |
 | Timeline markers | Many annotations/comments | No viewport filtering |
 | Context fan-out | Every consumer re-renders | Mitigated by splitting contexts per domain |
+
+**Keyset paging.** Every collection route caps at 25 rows by default
+(`QueryParameterKey.LIMIT`), so a bare `fetch` against one returns a page while looking like a
+collection — that was a correctness bug, not a performance one. `src/api/paging.ts` serializes
+`?limit=&from=`; `usePagedList` holds the rows, reports `_metainfo.totalCount` as the collection
+size and seeks the next page from `_metainfo.lastUuid`; `ListPaging` renders "Showing X of Y" and
+a **button** (never scroll-triggered — "there is more" must be stated, not discovered).
+
+`PagingInfo` on the wire is exactly `{ lastUuid, perPage, totalCount }`. `from` is a **seek UUID,
+not an offset**. Lists that are pickers rather than browsable screens simply pass
+`{ limit: PAGE_SIZE }` and do not page.
 
 ---
 
@@ -673,13 +717,14 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [x] Monitoring on real `/pipelines/runs/stats` + live events
 - [ ] Monitoring KPI/chart series still from `mock/data.ts` `METRICS` (no `/metrics` endpoint)
 - [ ] Workflow face-cluster/person seeds and the VLM result still mocked
-- [ ] Pagination / infinite scroll for large lists
+- [x] Keyset paging for large lists — `?limit=`/`?from=`, server totals, "load more" (§11.3)
+- [x] Asset search runs against `/search/assets` rather than filtering the loaded page (§7.5.1)
 
 ### 13.4 Testing
 
-- [x] vitest (node env) for API clients and extracted helpers — 18 files
-- [x] Playwright mocked specs as the component tier — 32 files
-- [x] Playwright backend specs against demo data — 29 files
+- [x] vitest (node env) for API clients and extracted helpers — 39 files
+- [x] Playwright mocked specs as the component tier — 45 files
+- [x] Playwright backend specs against demo data — 30 files
 - [x] `tsc --noEmit` gate via `npm run build`
 - [ ] Visual regression tests
 - [ ] Accessibility tests

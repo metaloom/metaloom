@@ -7,6 +7,9 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 ---
 
 ## Tasks
+
+- sam2: stabilityScoreThresh is a dead option. The transformers "mask-generation" pipeline has no analogue, so the sidecar ignores it while the UI advertises it. Recorded as a follow-up, not fixed — it's a product decision whether to wire the real generator or mark it unsupported.
+
 - Content Classification Model support? BERT?
 - CliIntegerationTest? What is this? Do we need it?
 - Video Manipulation Node: the video half of

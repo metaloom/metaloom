@@ -8,9 +8,10 @@ import {
   pinGenerations,
   tasksForGeneration,
 } from "./generations";
-import type { HeldExecution, PipelineNodeTaskRecord } from "../../api/pipelines";
+import type { HeldExecution, PipelineNodeTaskRecord, PipelineNodeTaskState } from "../../api/pipelines";
 
-function task(nodeId: string, generation: number, elementSeq = 0, state = "DONE"): PipelineNodeTaskRecord {
+function task(nodeId: string, generation: number, elementSeq = 0,
+  state: PipelineNodeTaskState = "COMPLETED"): PipelineNodeTaskRecord {
   return {
     uuid: `${nodeId}-${generation}-${elementSeq}`,
     itemUuid: "item-1",

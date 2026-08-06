@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.pipeline.engine.NodeDispatcher;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
 import io.metaloom.loom.pipeline.engine.RunSummary;
@@ -186,7 +187,7 @@ public class PipelineRunEndToEndTest {
 		assertEquals(2, closed.get().getMediaCount());
 		assertEquals(2, closed.get().getSuccessCount());
 		assertEquals(0, closed.get().getFailureCount());
-		assertEquals("SUCCESS", closed.get().getStatus());
+		assertEquals(PipelineRunStatus.SUCCESS, closed.get().getStatus());
 
 		assertEquals(0, registry.activeRunCount(),
 			"A finished run must be unregistered, or the map grows for the process lifetime");
@@ -215,7 +216,7 @@ public class PipelineRunEndToEndTest {
 			"thumbnail blocks on sha256, so a failure upstream must skip it rather than run it");
 		assertEquals(NodeState.SKIPPED,
 			engine.getItem(items.get(0)).getResults().get("pn3").getState());
-		assertEquals("FAILED", closed.get().getStatus());
+		assertEquals(PipelineRunStatus.FAILED, closed.get().getStatus());
 	}
 
 	@Test
@@ -237,7 +238,7 @@ public class PipelineRunEndToEndTest {
 
 		assertTrue(worker.inbox.isEmpty(), "A dry run must not dispatch any work");
 		assertEquals(1, closed.get().getSkippedCount());
-		assertEquals("SUCCESS", closed.get().getStatus());
+		assertEquals(PipelineRunStatus.SUCCESS, closed.get().getStatus());
 	}
 
 	@Test
@@ -258,7 +259,7 @@ public class PipelineRunEndToEndTest {
 		assertTrue(engine.isComplete(),
 			"A selection that matched nothing must close the run, not leave it RUNNING");
 		assertEquals(0, closed.get().getMediaCount());
-		assertEquals("SUCCESS", closed.get().getStatus());
+		assertEquals(PipelineRunStatus.SUCCESS, closed.get().getStatus());
 	}
 
 	@Test

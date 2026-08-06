@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
@@ -71,7 +72,7 @@ public class PipelineRunBreakpointEndpointTest {
 	}
 
 	/** A pipeline plus a run row in the given status, created directly through the DAOs. */
-	private PipelineRun createRun(String status) {
+	private PipelineRun createRun(PipelineRunStatus status) {
 		UUID adminUuid = loom.internal().daos().userDao().loadAdmin().getUuid();
 		Pipeline pipeline = loom.internal().daos().pipelineDao().createPipeline(adminUuid, "bp-test-" + UUID.randomUUID());
 		loom.internal().daos().pipelineDao().store(pipeline);
@@ -122,7 +123,7 @@ public class PipelineRunBreakpointEndpointTest {
 	}
 
 	private LiveRun startLiveRun() {
-		PipelineRun run = createRun("RUNNING");
+		PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 		RecordingDispatcher dispatcher = new RecordingDispatcher();
 		PipelineRunEngine engine = new PipelineRunEngine(linearGraph(), dispatcher, run.getUuid());
 		loom.internal().pipelineRunRegistry().register(run.getUuid(), engine);
@@ -164,7 +165,7 @@ public class PipelineRunBreakpointEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			JsonObject body = httpSend(vertx, HttpMethod.GET, breakpointsPath(run.getPipelineUuid(), run.getUuid()),
@@ -201,7 +202,7 @@ public class PipelineRunBreakpointEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.GET, breakpointsPath(UUID.randomUUID(), run.getUuid()),
@@ -220,7 +221,7 @@ public class PipelineRunBreakpointEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			// joedoe holds only READ_USER.
 			AuthLoginResponse login = client.login("joedoe", "finger").sync().body();
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.GET, breakpointsPath(run.getPipelineUuid(), run.getUuid()),
@@ -238,7 +239,7 @@ public class PipelineRunBreakpointEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.GET, breakpointsPath(run.getPipelineUuid(), run.getUuid()),
@@ -302,7 +303,7 @@ public class PipelineRunBreakpointEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.PUT, breakpointsPath(run.getPipelineUuid(), run.getUuid()),
@@ -449,7 +450,7 @@ public class PipelineRunBreakpointEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, continuePath(run.getPipelineUuid(), run.getUuid(), "hash"),
@@ -532,7 +533,7 @@ public class PipelineRunBreakpointEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, stepsPath(run.getPipelineUuid(), run.getUuid()),
@@ -641,7 +642,7 @@ public class PipelineRunBreakpointEndpointTest {
 	 * </p>
 	 */
 	private LiveRun startLiveRunRecordingBreakpoints(List<String> announced) {
-		PipelineRun run = createRun("RUNNING");
+		PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 		RecordingDispatcher dispatcher = new RecordingDispatcher();
 		PipelineRunEngine engine = new PipelineRunEngine(linearGraph(), dispatcher, run.getUuid());
 		engine.onBreakpoint((itemId, mediaPath, nodeId, elementSeq, held) -> announced

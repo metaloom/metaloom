@@ -1,7 +1,6 @@
 package io.metaloom.cli.cmd.run;
 
 import java.time.Duration;
-import java.util.Set;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -11,6 +10,7 @@ import io.metaloom.cli.ExitCode;
 import io.metaloom.cli.client.CliException;
 import io.metaloom.cli.client.LoomApi;
 import io.metaloom.cli.output.Printer;
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
 
 /**
@@ -23,17 +23,15 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
 @Singleton
 public class RunWaiter {
 
-	/** Statuses from which a run will not move again. */
-	private static final Set<String> TERMINAL = Set.of("SUCCESS", "FAILED", "PARTIAL", "CANCELLED");
-
 	private static final Duration POLL_INTERVAL = Duration.ofSeconds(1);
 
 	@Inject
 	public RunWaiter() {
 	}
 
-	public static boolean isTerminal(String status) {
-		return status != null && TERMINAL.contains(status.toUpperCase());
+	/** @return true for a status from which a run will not move again */
+	public static boolean isTerminal(PipelineRunStatus status) {
+		return status != null && status.isTerminal();
 	}
 
 	/**
@@ -47,7 +45,7 @@ public class RunWaiter {
 		if (run == null) {
 			return ExitCode.ERROR;
 		}
-		return "SUCCESS".equalsIgnoreCase(run.getStatus()) ? ExitCode.OK : ExitCode.RUN_NOT_SUCCESSFUL;
+		return run.getStatus() == PipelineRunStatus.SUCCESS ? ExitCode.OK : ExitCode.RUN_NOT_SUCCESSFUL;
 	}
 
 	/**
@@ -62,18 +60,18 @@ public class RunWaiter {
 			throw new CliException(ExitCode.SERVER_FAILURE, "The server returned no run id, so it cannot be awaited.");
 		}
 		long deadline = System.nanoTime() + timeout.toNanos();
-		String lastStatus = null;
+		PipelineRunStatus lastStatus = null;
 
 		while (true) {
 			PipelineRunRecord run = api.loadRun(pipelineUuid, runUuid);
-			String status = run.getStatus();
+			PipelineRunStatus status = run.getStatus();
 
-			if (!java.util.Objects.equals(status, lastStatus)) {
-				printer.info("Run " + runUuid + " is " + printer.ansi().status(status) + ".");
+			if (status != lastStatus) {
+				printer.info("Run " + runUuid + " is " + printer.ansi().status(label(status)) + ".");
 				lastStatus = status;
 			}
 			if (isTerminal(status)) {
-				printer.info("Run finished: " + printer.ansi().status(status)
+				printer.info("Run finished: " + printer.ansi().status(label(status))
 					+ " (media=" + run.getMediaCount() + ", success=" + run.getSuccessCount()
 					+ ", failed=" + run.getFailureCount() + ", skipped=" + run.getSkippedCount() + ").");
 				if (run.getErrorMessage() != null && !run.getErrorMessage().isBlank()) {
@@ -83,7 +81,7 @@ public class RunWaiter {
 			}
 			if (System.nanoTime() >= deadline) {
 				throw new CliException(ExitCode.TIMEOUT,
-					"Timed out waiting for run " + runUuid + "; it is still " + status + ".");
+					"Timed out waiting for run " + runUuid + "; it is still " + label(status) + ".");
 			}
 			try {
 				Thread.sleep(POLL_INTERVAL.toMillis());
@@ -93,4 +91,9 @@ public class RunWaiter {
 			}
 		}
 	}
+	/** The token the colouriser and the messages print; null when the server sent no status. */
+	private static String label(PipelineRunStatus status) {
+		return status == null ? "UNKNOWN" : status.name();
+	}
+
 }

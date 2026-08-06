@@ -4,10 +4,12 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
+import io.metaloom.loom.db.jooq.converter.NodeTaskStateConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqPipelineNodeTaskRecord;
 import io.vertx.core.json.JsonObject;
 
@@ -84,7 +86,7 @@ public class JooqPipelineNodeTask extends TableImpl<JooqPipelineNodeTaskRecord> 
      * The column <code>public.pipeline_node_task.state</code>. PENDING,
      * RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER
      */
-    public final TableField<JooqPipelineNodeTaskRecord, String> STATE = createField(DSL.name("state"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "PENDING, RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER");
+    public final TableField<JooqPipelineNodeTaskRecord, NodeTaskState> STATE = createField(DSL.name("state"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "PENDING, RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER", new NodeTaskStateConverter());
 
     /**
      * The column <code>public.pipeline_node_task.attempt</code>. How many times

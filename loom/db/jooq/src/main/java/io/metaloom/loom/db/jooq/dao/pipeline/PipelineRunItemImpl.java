@@ -2,6 +2,7 @@ package io.metaloom.loom.db.jooq.dao.pipeline;
 
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.pipeline.PipelineRunItem;
 import io.vertx.core.json.JsonObject;
@@ -13,7 +14,7 @@ public class PipelineRunItemImpl extends AbstractEditableElement<PipelineRunItem
 	private String mediaPath;
 	private String sha512;
 	private Long sizeBytes;
-	private String state = "PENDING";
+	private RunItemState state = RunItemState.PENDING;
 	private String errorMessage;
 	private JsonObject meta;
 
@@ -73,12 +74,12 @@ public class PipelineRunItemImpl extends AbstractEditableElement<PipelineRunItem
 	}
 
 	@Override
-	public String getState() {
+	public RunItemState getState() {
 		return state;
 	}
 
 	@Override
-	public PipelineRunItem setState(String state) {
+	public PipelineRunItem setState(RunItemState state) {
 		this.state = state;
 		return this;
 	}

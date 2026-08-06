@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.rest.model.RestResponseModel;
 
 /**
@@ -26,8 +27,8 @@ public class PipelineRunRecord implements RestResponseModel<PipelineRunRecord> {
 	@JsonPropertyDescription("When the pipeline run finished (ISO 8601), null if still running.")
 	private String finished;
 
-	@JsonPropertyDescription("Current status: PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED.")
-	private String status;
+	@JsonPropertyDescription("Current status: PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL or CANCELLED.")
+	private PipelineRunStatus status;
 
 	@JsonPropertyDescription("Total number of media items processed.")
 	private int mediaCount;
@@ -101,11 +102,11 @@ public class PipelineRunRecord implements RestResponseModel<PipelineRunRecord> {
 		return this;
 	}
 
-	public String getStatus() {
+	public PipelineRunStatus getStatus() {
 		return status;
 	}
 
-	public PipelineRunRecord setStatus(String status) {
+	public PipelineRunRecord setStatus(PipelineRunStatus status) {
 		this.status = status;
 		return this;
 	}

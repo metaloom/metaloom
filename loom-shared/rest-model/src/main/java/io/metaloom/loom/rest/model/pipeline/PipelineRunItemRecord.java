@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.rest.model.RestResponseModel;
 
 /**
@@ -29,8 +30,8 @@ public class PipelineRunItemRecord implements RestResponseModel<PipelineRunItemR
 	@JsonPropertyDescription("Size of the media in bytes, null if unknown.")
 	private Long sizeBytes;
 
-	@JsonPropertyDescription("Current state: PENDING, RUNNING, SUCCESS, FAILED, SKIPPED.")
-	private String state;
+	@JsonPropertyDescription("Current state: PENDING, RUNNING, SUCCESS, FAILED or SKIPPED.")
+	private RunItemState state;
 
 	@JsonPropertyDescription("Error message if the item failed.")
 	private String errorMessage;
@@ -92,11 +93,11 @@ public class PipelineRunItemRecord implements RestResponseModel<PipelineRunItemR
 		return this;
 	}
 
-	public String getState() {
+	public RunItemState getState() {
 		return state;
 	}
 
-	public PipelineRunItemRecord setState(String state) {
+	public PipelineRunItemRecord setState(RunItemState state) {
 		this.state = state;
 		return this;
 	}

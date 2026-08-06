@@ -14,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.RunItemState;
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
@@ -212,7 +214,7 @@ public class PipelineRunDispatchEndpointTest extends AbstractEndpointTest {
 			List<PipelineRun> runs = daos().pipelineRunDao().loadByPipeline(uuid);
 			assertThat(runs).hasSize(1);
 			assertEquals(runUuid, runs.get(0).getUuid());
-			assertEquals("RUNNING", runs.get(0).getStatus());
+			assertEquals(PipelineRunStatus.RUNNING, runs.get(0).getStatus());
 
 			ws.close();
 		} finally {
@@ -287,14 +289,14 @@ public class PipelineRunDispatchEndpointTest extends AbstractEndpointTest {
 
 	private PipelineRun createRun(UUID pipelineUuid) {
 		PipelineRun run = daos().pipelineRunDao().createPipelineRun(adminUuid(), pipelineUuid, 1);
-		run.setStatus("SUCCESS");
+		run.setStatus(PipelineRunStatus.SUCCESS);
 		daos().pipelineRunDao().store(run);
 		return run;
 	}
 
 	private PipelineRunItem createItem(UUID runUuid) {
 		PipelineRunItem item = daos().pipelineRunItemDao().createRunItem(adminUuid(), runUuid, 0, "/media/a.mp4");
-		item.setState("SUCCESS");
+		item.setState(RunItemState.SUCCESS);
 		daos().pipelineRunItemDao().store(item);
 		return item;
 	}

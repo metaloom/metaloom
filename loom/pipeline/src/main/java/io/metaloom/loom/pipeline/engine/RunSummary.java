@@ -1,5 +1,7 @@
 package io.metaloom.loom.pipeline.engine;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
+
 /**
  * Run-level counters, produced when a run reaches a terminal state.
  *
@@ -47,17 +49,17 @@ public class RunSummary {
 	/**
 	 * @return SUCCESS, PARTIAL or FAILED
 	 */
-	public String getStatus() {
+	public PipelineRunStatus getStatus() {
 		if (mediaCount == 0) {
-			return "SUCCESS";
+			return PipelineRunStatus.SUCCESS;
 		}
 		if (failureCount == 0) {
-			return "SUCCESS";
+			return PipelineRunStatus.SUCCESS;
 		}
 		if (failureCount >= mediaCount) {
-			return "FAILED";
+			return PipelineRunStatus.FAILED;
 		}
-		return "PARTIAL";
+		return PipelineRunStatus.PARTIAL;
 	}
 
 	@Override

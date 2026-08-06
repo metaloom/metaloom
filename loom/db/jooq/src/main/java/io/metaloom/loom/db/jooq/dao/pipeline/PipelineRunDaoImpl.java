@@ -23,7 +23,10 @@ import io.metaloom.filter.Filter;
 import io.metaloom.filter.FilterKey;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.api.filter.LoomFilterKey;
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.CRUDDao;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
@@ -81,7 +84,7 @@ public class PipelineRunDaoImpl extends AbstractJooqDao<PipelineRun> implements 
 	}
 
 	@Override
-	public List<PipelineRun> loadByStatus(String status) {
+	public List<PipelineRun> loadByStatus(PipelineRunStatus status) {
 		return ctx().selectFrom(PIPELINE_RUN)
 			.where(PIPELINE_RUN.STATUS.eq(status))
 			.orderBy(PIPELINE_RUN.STARTED.asc())
@@ -122,12 +125,24 @@ public class PipelineRunDaoImpl extends AbstractJooqDao<PipelineRun> implements 
 	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
 		FilterKey key = filter.filterKey();
 		if (key == LoomFilterKey.STATUS) {
-			return query.and(PIPELINE_RUN.STATUS.eq(filter.valueStr()));
+			return query.and(PIPELINE_RUN.STATUS.eq(parseStatus(filter.valueStr())));
 		}
 		if (key == LoomFilterKey.DRY_RUN) {
 			return query.and(PIPELINE_RUN.DRY_RUN.eq(filter.valueBool()));
 		}
 		return super.applyFilter(query, filter);
+	}
+
+	/**
+	 * A caller filtering on a status that does not exist has made a bad request, not found nothing.
+	 * Returning an empty page instead would hide the typo behind a plausible answer.
+	 */
+	private static PipelineRunStatus parseStatus(String value) {
+		try {
+			return PipelineRunStatus.parse("pipeline_run.status", value);
+		} catch (IllegalArgumentException e) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, e.getMessage());
+		}
 	}
 
 }

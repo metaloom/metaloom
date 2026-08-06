@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.CRUDDao;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.filter.Filter;
@@ -34,7 +35,7 @@ public interface PipelineRunDao extends CRUDDao<PipelineRun> {
 	 * dies never gets to move its runs out of {@code RUNNING}, so on the next start
 	 * that status means "was in progress when we stopped".</p>
 	 */
-	List<PipelineRun> loadByStatus(String status);
+	List<PipelineRun> loadByStatus(PipelineRunStatus status);
 
 	/**
 	 * Aggregate run counters across all pipelines into daily buckets (by run start time).

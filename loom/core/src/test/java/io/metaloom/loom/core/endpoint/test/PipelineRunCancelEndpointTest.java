@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
@@ -54,7 +55,7 @@ public class PipelineRunCancelEndpointTest {
 		Pipeline pipeline = loom.internal().daos().pipelineDao().createPipeline(adminUuid, "cancel-test");
 		loom.internal().daos().pipelineDao().store(pipeline);
 		PipelineRun run = runDao().createPipelineRun(adminUuid, pipeline.getUuid(), 1);
-		run.setStatus("RUNNING");
+		run.setStatus(PipelineRunStatus.RUNNING);
 		runDao().store(run);
 		return run;
 	}
@@ -79,7 +80,8 @@ public class PipelineRunCancelEndpointTest {
 
 			assertEquals(200, status[0], "Cancelling a running run must succeed");
 			PipelineRun reloaded = runDao().load(run.getUuid());
-			assertThat(reloaded.getStatus()).isEqualTo("CANCELLED");
+			assertThat(reloaded.getStatus())
+.isEqualTo(PipelineRunStatus.CANCELLED);
 			assertThat(reloaded.getFinished()).as("finished timestamp must be written").isNotNull();
 		} finally {
 			vertx.close();
@@ -110,7 +112,7 @@ public class PipelineRunCancelEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 			PipelineRun run = createRunningRun();
-			run.setStatus("SUCCESS");
+			run.setStatus(PipelineRunStatus.SUCCESS);
 			runDao().update(run);
 
 			int[] status = new int[1];

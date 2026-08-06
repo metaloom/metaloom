@@ -14,6 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
@@ -78,7 +79,7 @@ public class PipelineNodeReExecuteEndpointTest {
 		Pipeline pipeline = loom.internal().daos().pipelineDao().createPipeline(adminUuid, "rx-test-" + UUID.randomUUID());
 		loom.internal().daos().pipelineDao().store(pipeline);
 		PipelineRun run = runDao().createPipelineRun(adminUuid, pipeline.getUuid(), 1);
-		run.setStatus("RUNNING");
+		run.setStatus(PipelineRunStatus.RUNNING);
 		runDao().store(run);
 		return run;
 	}

@@ -15,7 +15,10 @@ import org.jooq.TableRecord;
 
 import io.metaloom.filter.Filter;
 import io.metaloom.filter.FilterKey;
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.api.filter.LoomFilterKey;
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
@@ -28,7 +31,9 @@ import io.metaloom.loom.db.page.Page;
 public class PipelineRunItemDaoImpl extends AbstractJooqDao<PipelineRunItem> implements PipelineRunItemDao {
 
 	/** States an item can no longer move out of. */
-	private static final List<String> TERMINAL_STATES = List.of("SUCCESS", "FAILED", "SKIPPED");
+	private static final List<RunItemState> TERMINAL_STATES = java.util.Arrays.stream(RunItemState.values())
+		.filter(RunItemState::isTerminal)
+		.toList();
 
 	@Inject
 	public PipelineRunItemDaoImpl(DSLContext ctx) {
@@ -91,7 +96,7 @@ public class PipelineRunItemDaoImpl extends AbstractJooqDao<PipelineRunItem> imp
 	}
 
 	@Override
-	public long countByRunAndState(UUID runUuid, String state) {
+	public long countByRunAndState(UUID runUuid, RunItemState state) {
 		return ctx().fetchCount(PIPELINE_RUN_ITEM,
 			PIPELINE_RUN_ITEM.RUN_UUID.eq(runUuid).and(PIPELINE_RUN_ITEM.STATE.eq(state)));
 	}
@@ -109,9 +114,21 @@ public class PipelineRunItemDaoImpl extends AbstractJooqDao<PipelineRunItem> imp
 	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
 		FilterKey key = filter.filterKey();
 		if (key == LoomFilterKey.STATUS) {
-			return query.and(PIPELINE_RUN_ITEM.STATE.eq(filter.valueStr()));
+			return query.and(PIPELINE_RUN_ITEM.STATE.eq(parseState(filter.valueStr())));
 		}
 		return super.applyFilter(query, filter);
+	}
+
+	/**
+	 * A caller filtering on a state that does not exist has made a bad request, not found nothing.
+	 * Returning an empty page instead would hide the typo behind a plausible answer.
+	 */
+	private static RunItemState parseState(String value) {
+		try {
+			return RunItemState.parse("pipeline_run_item.state", value);
+		} catch (IllegalArgumentException e) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, e.getMessage());
+		}
 	}
 
 }

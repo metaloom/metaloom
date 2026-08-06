@@ -3,6 +3,7 @@ package io.metaloom.loom.db.jooq.dao.pipeline;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.vertx.core.json.JsonObject;
@@ -13,7 +14,7 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	private UUID runUuid;
 	private String nodeId;
 	private String nodeKind;
-	private String state = "PENDING";
+	private NodeTaskState state = NodeTaskState.PENDING;
 	private int elementSeq = 0;
 	private int generation = 0;
 	private int attempt = 0;
@@ -73,12 +74,12 @@ public class PipelineNodeTaskImpl extends AbstractEditableElement<PipelineNodeTa
 	}
 
 	@Override
-	public String getState() {
+	public NodeTaskState getState() {
 		return state;
 	}
 
 	@Override
-	public PipelineNodeTask setState(String state) {
+	public PipelineNodeTask setState(NodeTaskState state) {
 		this.state = state;
 		return this;
 	}

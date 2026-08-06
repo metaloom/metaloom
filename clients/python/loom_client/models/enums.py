@@ -61,6 +61,17 @@ class NodeRegistryEventType(str, Enum):
     NODE_AVAILABILITY_CHANGED = "NODE_AVAILABILITY_CHANGED"
 
 
+class NodeTaskState(str, Enum):
+    """Mirrors ``io.metaloom.loom.api.pipeline.NodeTaskState``."""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+    DEAD_LETTER = "DEAD_LETTER"
+
+
 class NotificationType(str, Enum):
     """Mirrors ``io.metaloom.loom.api.notification.NotificationType``."""
 
@@ -87,6 +98,18 @@ class PipelineEventType(str, Enum):
     NODE_BREAKPOINT_HELD = "NODE_BREAKPOINT_HELD"
     NODE_BREAKPOINT_RELEASED = "NODE_BREAKPOINT_RELEASED"
     NODE_STATS = "NODE_STATS"
+
+
+class PipelineRunStatus(str, Enum):
+    """Mirrors ``io.metaloom.loom.api.pipeline.PipelineRunStatus``."""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    PARTIAL = "PARTIAL"
+    CANCELLED = "CANCELLED"
 
 
 class ProcessorCapability(str, Enum):
@@ -240,6 +263,9 @@ class RolePermission(str, Enum):
     READ_PIPELINE_RUN = "READ_PIPELINE_RUN"
     UPDATE_PIPELINE_RUN = "UPDATE_PIPELINE_RUN"
     DELETE_PIPELINE_RUN = "DELETE_PIPELINE_RUN"
+    CREATE_MCP_PIPELINE = "CREATE_MCP_PIPELINE"
+    UPDATE_MCP_PIPELINE = "UPDATE_MCP_PIPELINE"
+    VALIDATE_MCP_PIPELINE = "VALIDATE_MCP_PIPELINE"
     CREATE_ASSET_POOL = "CREATE_ASSET_POOL"
     READ_ASSET_POOL = "READ_ASSET_POOL"
     DELETE_ASSET_POOL = "DELETE_ASSET_POOL"
@@ -290,6 +316,16 @@ class RolePermission(str, Enum):
     DELETE_NOTIFICATION = "DELETE_NOTIFICATION"
 
 
+class RunItemState(str, Enum):
+    """Mirrors ``io.metaloom.loom.api.pipeline.RunItemState``."""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
+
+
 class TaskPriority(str, Enum):
     """Mirrors ``io.metaloom.loom.api.task.TaskPriority``."""
 
@@ -314,14 +350,17 @@ for _enum in (
     BulkItemStatus,
     NodeRegistrationRejectionReason,
     NodeRegistryEventType,
+    NodeTaskState,
     NotificationType,
     PipelineEventType,
+    PipelineRunStatus,
     ProcessorCapability,
     ProcessorEventType,
     ProcessorMessageType,
     ProcessorState,
     ReactionType,
     RolePermission,
+    RunItemState,
     TaskPriority,
     TaskStatus,
 ):

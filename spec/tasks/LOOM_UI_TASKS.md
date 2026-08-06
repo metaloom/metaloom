@@ -13,9 +13,9 @@
 > holes and shell-level gaps. Per-entity REST↔UI gaps stay in the `TASK_UI_*.md` files under
 > [../loom/ui/](../loom/ui/) and are not restated here.
 >
-> **Ordering / blocking.** Task 1 (search client + view) blocks Tasks 2 and 3 — they all consume
-> `src/api/search.ts`. Task 4 blocks nothing but is the largest single coverage hole. Tasks 5–10
-> are independent E2E work and can run in parallel. Tasks 11–13 are shell refinement.
+> **Ordering / blocking.** Tasks 1, 2 and 3 are **done**. Task 4 blocks nothing but is the largest
+> single coverage hole. Tasks 5–10 are independent E2E work and can run in parallel. Tasks 11–13
+> are shell refinement.
 >
 > **Test conventions.** "component test" = a **mocked Playwright spec** (`loom-ui/e2e/*-mocked.spec.ts`);
 > pure logic = node-env vitest beside the module. There is no RTL/jsdom in this repo
@@ -23,7 +23,40 @@
 
 ---
 
+# Fix e2e tests
+For the backend suite I compared against a worktree at ce41aaf1: 16 pre-existing failures there, the same 16 now, zero regressions, plus 3 new passing tests.
+
+
 ## 0. Audit findings — the four questions
+
+### 0.1 Are all listing features covered by a search bar? — RESOLVED
+
+> **Status: fixed.** Tasks 2 and 3 shipped. The table below is the audit as written, annotated with
+> what is true now. Three of the original claims were already stale when Task 1 landed and are
+> corrected in place rather than repeated.
+
+**The audit found:** every search box in the app was a client-side `Array.filter()` over data
+already in `useState`, and seven listing surfaces had no box at all.
+
+| View | Search bar | Backing |
+|------|-----------|---------|
+| [AssetBrowser.tsx](../../loom-ui/src/features/assets/AssetBrowser.tsx) | yes, + type filter | **server-side** — `searchAssets()`, debounced 250 ms, `?mime=` travels with the query |
+| [LibraryView.tsx](../../loom-ui/src/features/library/LibraryView.tsx) · [CollectionsView.tsx](../../loom-ui/src/features/collections/CollectionsView.tsx) · [TagsView.tsx](../../loom-ui/src/features/tags/TagsView.tsx) · [AssetPoolsView.tsx](../../loom-ui/src/features/assetPools/AssetPoolsView.tsx) · [CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx) · detection · admin | yes | client-side, now over a **paged** list with a "load more" |
+| **Admin: permissions / roles** (`AccessControlAdmin`) | **added** | client-side (`admin-roles-search`) |
+| **[TasksView.tsx](../../loom-ui/src/features/tasks/TasksView.tsx)** | **added** | client-side, title + description |
+| **[SkillManagementView.tsx](../../loom-ui/src/features/skills/SkillManagementView.tsx)** | **added** | client-side, one term per tab |
+| **[MemoryView.tsx](../../loom-ui/src/features/memory/MemoryView.tsx)** | **added** | client-side, id + title + session |
+| **[ChatSessionsView.tsx](../../loom-ui/src/features/chatSessions/ChatSessionsView.tsx)** | **added** | client-side, name + description + tags |
+| [ClustersPanel.tsx](../../loom-ui/src/features/faceDetection/ClustersPanel.tsx) · [PersonsPanel.tsx](../../loom-ui/src/features/faceDetection/PersonsPanel.tsx) | **the audit was wrong** | their parent [FaceDetectionManagement.tsx:70](../../loom-ui/src/features/faceDetection/FaceDetectionManagement.tsx) already owned a query field and passed down filtered props |
+| [NotificationPopover.tsx](../../loom-ui/src/features/notifications/NotificationPopover.tsx) | no | out of scope — a popover, not a listing screen |
+
+**The load-bearing defect — fixed.** `QueryParameterKey.LIMIT` defaults to **25**
+([QueryParameterKey.java:12](../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/parameter/QueryParameterKey.java)),
+and no UI list call passed `?limit=` or `?from=`. The blast radius was wider than the audit stated:
+`listAssets` has **six** call sites — `AssetBrowser`, `LibraryView`, `ChatWorkspace`, `WorkflowView`
+and both detection screens — so the detection views were picking their target from a silent first
+page too. Every collection client now takes `PagingParams`, the counts come from
+`_metainfo.totalCount`, and `_metainfo.lastUuid` drives a "load more". → **Task 2**, **Task 3**.
 
 ### 0.2 Can semantic search / boolean / term search be run in the UI?
 
@@ -169,7 +202,17 @@ provider hides the box instead of rendering a broken one.
 
 ---
 
-## Task 2: Stop searching a 25-row page
+## Task 2: Stop searching a 25-row page — DONE
+
+> **Status: shipped.** `src/api/paging.ts`, `src/hooks/pagedList.ts` + `usePagedList.ts`,
+> `src/components/ListPaging.tsx` and `src/features/assets/assetMapping.ts` all exist; sixteen list
+> clients take `PagingParams`. Tests: 87 vitest cases across `paging`, `listPaging`, `pagedList` and
+> `assetMapping`, plus `paging-mocked.spec.ts` (9) and `asset-search-mocked.spec.ts` (9).
+>
+> ⚠️ **Step 1 named the wrong wire fields.** `PagingInfo` carries **`lastUuid`, `perPage`,
+> `totalCount`** — there is no `totalElements`, `currentPage` or `pageCount` on the wire, and no
+> consumer ever read the invented ones. Corrected in place below; the same correction was applied
+> to the 25 client modules that had copied the wrong shape.
 
 **Argumentation Summary:** `QueryParameterKey.LIMIT` defaults to **25**. Every list client in
 `loom-ui/src/api/` fetches its collection with no paging parameters — `listAssets(token)` issues a
@@ -189,22 +232,36 @@ of a local filter.
 1. Add an optional `paging?: { limit?: number; from?: string }` argument to listAssets,
    listCollections, listLibraries, listTags, listPools, listUsers, listGroups, listRoles,
    listTokens in src/api/. Serialize as ?limit=&from= (from is the seek UUID, not an offset --
-   see PagingParameters.java). Return the full response including `metainfo` (PagingInfo:
-   totalElements, perPage, currentPage, pageCount).
+   see PagingParameters.java). Return the full response including `_metainfo` (PagingInfo:
+   CORRECTED -- lastUuid, perPage, totalCount).
 2. Surface the count. Every list header that today shows `items.length` must show
-   metainfo.totalElements, and a "showing X of Y" line when they differ. Silent truncation is the
+   metainfo.totalCount, and a "showing X of Y" line when they differ. Silent truncation is the
    bug being fixed -- do not replace it with a silent scroll.
 3. AssetBrowser: replace the client-side `query` filter with a call to searchAssets() from Task 1,
-   debounced 250 ms, when the query is non-empty. Keep the client-side status/type/library filters
-   only while the query is empty; once a search is active they must travel as ?mime=/?library=.
+   debounced 250 ms, when the query is non-empty. Keep the client-side type filter only while the
+   query is empty; once a search is active it must travel as ?mime=.
    Bind EmptyState to "collection empty", the inline `assets.empty.noMatch` hint to "search
    returned nothing" -- the LOOM_UI.md §7.5 rule.
+   NOTE: searchAssets returns SearchHitResponse, not AssetResponse. A hit carries no tags,
+   dimensions, duration, library or collections; hitToCard() leaves those empty rather than
+   inventing them and the grid hides those affordances in search mode.
+   The `?library=` half of this step was dropped: `libraryFilter` had no dropdown to drive it and
+   `Asset.libraryId` was always "", so it was dead state. Removed with the Status filter (step 7).
 4. Add an "load more" affordance driven by the returned seek cursor for the asset grid, library
    asset list, tags tree and the admin tables. Infinite scroll is not required; a button is.
-5. LibraryView sidebar counts (libraryAssets.ts) currently count the fetched page. Either fetch
-   counts per library with ?limit=1 and read metainfo.totalElements, or label them explicitly as
-   page counts. Do not leave them ambiguous.
+   The button must also require a cursor: without `lastUuid` the next request repeats page one,
+   so `hasMorePages()` returns false rather than offering a button that cannot do anything.
+5. LibraryView sidebar counts (libraryAssets.ts) currently count the fetched page. CORRECTED:
+   there is no library-scoped list or count route (LibraryEndpoint registers no /:uuid/assets), so
+   the ?limit=1 option does not exist. They are labelled instead -- while the asset list is
+   truncated the sidebar reads "N of the M assets loaded" (`library.count.assetsPartial`).
 6. Update ../loom/ui/LOOM_UI.md §11.3 and §13.3 (the "Pagination / infinite scroll" checkbox).
+7. ADDED: remove the Status dropdown. `toAsset` hardcoded `status: "ready"`, so the control could
+   only ever match everything or nothing -- a filter that cannot filter, sitting next to the search
+   box being fixed. Its i18n keys went with it.
+8. ADDED: the secondary lists that feed pickers and side panels (chat, workflow, detection,
+   uploads, asset detail, admin) pass `{ limit: PAGE_SIZE }`. They are not paged UIs; they simply
+   must not silently stop at 25 -- you cannot pick an asset that is not in the first page.
 ```
 
 **References:** [QueryParameterKey.java:12](../../loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/parameter/QueryParameterKey.java) ·
@@ -214,16 +271,31 @@ of a local filter.
 
 **Test Requirements:**
 - vitest per touched client: `?limit=`/`?from=` serialization, omission when unset, `metainfo`
-  passthrough.
-- `loom-ui/e2e/paging-mocked.spec.ts`: a mocked 25-of-300 response renders "showing 25 of 300";
+  passthrough. Shipped as one table-driven `src/api/listPaging.test.ts` over all sixteen clients
+  rather than sixteen near-identical files.
+- `loom-ui/e2e/paging-mocked.spec.ts`: a mocked 100-of-300 response renders "Showing 100 of 300";
   "load more" issues a second request carrying `from=<last uuid>`; the two pages concatenate without
-  duplicates.
-- `loom-ui/e2e/assets-backend.spec.ts` — extend the existing search test (line 104) to assert the
-  request hit `/search/assets`, not a local filter.
+  duplicates, including when the route re-sends the seek boundary row.
+- `loom-ui/e2e/asset-search-mocked.spec.ts`: the box hits `/search/assets`, debounces to one
+  request, sends `?mime=`, and degrades honestly on 503/403.
+- `loom-ui/e2e/assets-backend.spec.ts` — the existing search test asserts the request hit
+  `/search/assets`, not a local filter.
+
+> **Gotcha for anyone adding a spec.** Appending `?limit=` broke every `$`-anchored and glob mock
+> matcher for a collection route (`/\/api\/v1\/assets$/`, `"**/api/v1/libraries"`) — 22 specs went
+> red at once because the calls fell through to the catch-all. Write collection matchers as
+> `/\/api\/v1\/<name>(\?|$)/`.
 
 ---
 
-## Task 3: Add the missing search/filter bars
+## Task 3: Add the missing search/filter bars — DONE
+
+> **Status: shipped.** Five views gained a field: `tasks-search`, `skills-mine-search` /
+> `skills-library-search`, `memory-search`, `chat-sessions-search`, `admin-roles-search`. Tests:
+> `list-search-mocked.spec.ts` (7 passing) plus a filter case in `roles-backend.spec.ts`.
+>
+> ⚠️ **The audit said seven views; it was five.** `ClustersPanel` / `PersonsPanel` were never
+> searchless — see the correction in §0.1 — so step 2 below does not apply and was not built.
 
 **Argumentation Summary:** Seven listing surfaces ship no way to narrow their contents: Tasks,
 Skills (both tabs), Memory, Chat Sessions, the roles/permissions admin screen (`AccessControlAdmin`,
@@ -242,25 +314,38 @@ entities that carry a `search_document` row (memory is *not* one; clusters and p
    SearchOutlined startAdornment, testid `<feature>-search`):
      - TasksView.tsx        -- filter on title + description; keep the existing status grouping.
      - SkillManagementView.tsx -- one field per tab (installed / library), on name + description.
-     - MemoryView.tsx       -- filter on id + title + body across the loaded scope.
-     - ChatSessionsView.tsx -- filter on title + tags.
+     - MemoryView.tsx       -- filter on id + title across the loaded scope. CORRECTED: the list
+       response (MemoryEntrySummary) carries no body, so `sessionName` stands in for it.
+       `listMemory` does accept a server-side `prefix`, but it only matches the id.
+     - ChatSessionsView.tsx -- filter on name + description + tags.
      - AccessControlAdmin (AdminArea.tsx) -- filter the role list, matching the sibling
        admin.<x>.search placeholders already in en.json/de.json.
-2. Server-backed, via Task 1's searchResults():
-     - ClustersPanel.tsx / PersonsPanel.tsx -- `types=cluster` / `types=person`. Both entity types
-       already have search_document rows (V2.59__add_search_triggers.sql:150).
+2. NOT APPLICABLE -- ClustersPanel/PersonsPanel already inherit a query field from
+   FaceDetectionManagement. Nothing was built here.
 3. Every field needs the inline no-match hint, NOT an EmptyState (LOOM_UI.md §7.5).
-4. i18n: `<feature>.search.placeholder` and `<feature>.empty.noSearch` (or `.noMatch`, matching the
-   sibling key already used in that feature) in BOTH en.json and de.json.
+4. i18n: `<feature>.search.placeholder` and `<feature>.emptyState.noSearch` in BOTH en.json and
+   de.json. CORRECTED: `<feature>.empty` is already a *string* in tasks, skills and memory, so the
+   no-match key cannot nest under it -- use the `emptyState` form §7.5 documents for exactly this
+   collision. `admin.roles` uses `.noMatch`, matching its siblings.
 5. Note in ../loom/ui/LOOM_UI.md §7.5 that the search-field pattern is expected on every list view.
+6. ADDED: `skill-library-row-<name>` and `admin-role-row-<name>` testids. Neither list was
+   addressable — the library skills table had only an install button, and role names collide with
+   the detail heading, so a spec could not assert on either.
 ```
+
+> **ChatSessionsView has no i18n namespace.** It hardcodes `"My sessions"`, `showToast("Session
+> created")` and every column header. Only the new search copy is translated (`chatSessions.search.*`,
+> `chatSessions.emptyState.*`); translating the rest of that view is separate work and is not done.
 
 **References:** [CollectionsView.tsx:210](../../loom-ui/src/features/collections/CollectionsView.tsx) (reference implementation) ·
 [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.5 · depends on Task 1 for step 2
 
-**Test Requirements:** Extend the existing mocked spec per view (`skills-mocked`,
-`chat-sessions-mocked`, `tasks-*`) with a "filters the list, restores on clear" case. New
-`memory-mocked.spec.ts` from Task 4 covers Memory. `roles-backend.spec.ts` gains a filter case.
+**Test Requirements:** Shipped as one `loom-ui/e2e/list-search-mocked.spec.ts` covering all five
+views with a "filters the list, restores on clear" case, rather than scattering a case across five
+existing specs — the contract is identical everywhere and reads better in one place. It also pins
+the two rules that are easy to regress: an unmatched term shows the inline hint and *not* the
+EmptyState, and the two skills tabs keep independent terms. `roles-backend.spec.ts` gains a filter
+case against the demo container.
 
 ---
 

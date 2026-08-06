@@ -3,6 +3,7 @@ package io.metaloom.loom.db.jooq.dao.pipeline;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
 import io.vertx.core.json.JsonObject;
@@ -13,7 +14,7 @@ public class PipelineRunImpl extends AbstractEditableElement<PipelineRun> implem
 	private int pipelineVersion = 1;
 	private Instant started;
 	private Instant finished;
-	private String status = "PENDING";
+	private PipelineRunStatus status = PipelineRunStatus.PENDING;
 	private int mediaCount = 0;
 	private int successCount = 0;
 	private int failureCount = 0;
@@ -68,12 +69,12 @@ public class PipelineRunImpl extends AbstractEditableElement<PipelineRun> implem
 	}
 
 	@Override
-	public String getStatus() {
+	public PipelineRunStatus getStatus() {
 		return status;
 	}
 
 	@Override
-	public PipelineRun setStatus(String status) {
+	public PipelineRun setStatus(PipelineRunStatus status) {
 		this.status = status;
 		return this;
 	}

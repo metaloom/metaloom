@@ -4,6 +4,7 @@
 package io.metaloom.loom.db.jooq.tables.records;
 
 
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRunItem;
 import io.vertx.core.json.JsonObject;
 
@@ -21,7 +22,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * One media item discovered by a run's source node
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineRunItemRecord> implements Record13<UUID, UUID, Long, String, String, Long, String, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineRunItemRecord> implements Record13<UUID, UUID, Long, String, String, Long, RunItemState, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
 
     private static final long serialVersionUID = 1L;
 
@@ -123,7 +124,7 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
      * Setter for <code>public.pipeline_run_item.state</code>. PENDING, RUNNING,
      * SUCCESS, FAILED or SKIPPED
      */
-    public void setState(String value) {
+    public void setState(RunItemState value) {
         set(6, value);
     }
 
@@ -131,8 +132,8 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
      * Getter for <code>public.pipeline_run_item.state</code>. PENDING, RUNNING,
      * SUCCESS, FAILED or SKIPPED
      */
-    public String getState() {
-        return (String) get(6);
+    public RunItemState getState() {
+        return (RunItemState) get(6);
     }
 
     /**
@@ -235,12 +236,12 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
     // -------------------------------------------------------------------------
 
     @Override
-    public Row13<UUID, UUID, Long, String, String, Long, String, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
+    public Row13<UUID, UUID, Long, String, String, Long, RunItemState, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
         return (Row13) super.fieldsRow();
     }
 
     @Override
-    public Row13<UUID, UUID, Long, String, String, Long, String, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
+    public Row13<UUID, UUID, Long, String, String, Long, RunItemState, String, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
         return (Row13) super.valuesRow();
     }
 
@@ -275,7 +276,7 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
     }
 
     @Override
-    public Field<String> field7() {
+    public Field<RunItemState> field7() {
         return JooqPipelineRunItem.PIPELINE_RUN_ITEM.STATE;
     }
 
@@ -340,7 +341,7 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
     }
 
     @Override
-    public String component7() {
+    public RunItemState component7() {
         return getState();
     }
 
@@ -405,7 +406,7 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
     }
 
     @Override
-    public String value7() {
+    public RunItemState value7() {
         return getState();
     }
 
@@ -476,7 +477,7 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
     }
 
     @Override
-    public JooqPipelineRunItemRecord value7(String value) {
+    public JooqPipelineRunItemRecord value7(RunItemState value) {
         setState(value);
         return this;
     }
@@ -518,7 +519,7 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
     }
 
     @Override
-    public JooqPipelineRunItemRecord values(UUID value1, UUID value2, Long value3, String value4, String value5, Long value6, String value7, String value8, JsonObject value9, LocalDateTime value10, UUID value11, LocalDateTime value12, UUID value13) {
+    public JooqPipelineRunItemRecord values(UUID value1, UUID value2, Long value3, String value4, String value5, Long value6, RunItemState value7, String value8, JsonObject value9, LocalDateTime value10, UUID value11, LocalDateTime value12, UUID value13) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -549,7 +550,7 @@ public class JooqPipelineRunItemRecord extends UpdatableRecordImpl<JooqPipelineR
     /**
      * Create a detached, initialised JooqPipelineRunItemRecord
      */
-    public JooqPipelineRunItemRecord(UUID uuid, UUID runUuid, Long itemSeq, String mediaPath, String sha512, Long sizeBytes, String state, String errorMessage, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqPipelineRunItemRecord(UUID uuid, UUID runUuid, Long itemSeq, String mediaPath, String sha512, Long sizeBytes, RunItemState state, String errorMessage, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
         super(JooqPipelineRunItem.PIPELINE_RUN_ITEM);
 
         setUuid(uuid);

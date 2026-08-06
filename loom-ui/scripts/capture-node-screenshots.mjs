@@ -308,11 +308,17 @@ async function capture(browser, entry, fixture) {
 
   // One result opened, when there is something worth opening: an image, or the node's own
   // description of its output. A port carrying a single scalar adds nothing over the strip.
-  const rich = Object.entries(fixture.previews ?? {})
+  //
+  // Every candidate is tried in order, not just the first: `NodeResultStrip` caps the card at
+  // MAX_ROWS ports and collapses the rest into a "+n more" chip that is not clickable, so a node
+  // whose richest port sorts past the cap has nothing to click there. `sam2` is the case — it emits
+  // mask_count, flag and segments before its two image ports — and taking only the first candidate
+  // produced no detail picture at all, silently.
+  const richPorts = Object.entries(fixture.previews ?? {})
     .filter(([key, meta]) => !key.includes("#") && (meta.file || meta.markdown))
-    .map(([key]) => key)[0];
+    .map(([key]) => key);
   let detail = false;
-  if (rich) {
+  for (const rich of richPorts) {
     const port = page.getByTestId(`pipeline-node-${entry.kind}`).getByTestId(`node-result-port-${rich}`);
     if (await port.count()) {
       await port.dispatchEvent("click");
@@ -357,6 +363,7 @@ async function capture(browser, entry, fixture) {
         clip: { x: box.x, y: box.y, width: box.width, height },
       });
       detail = true;
+      break;
     }
   }
 

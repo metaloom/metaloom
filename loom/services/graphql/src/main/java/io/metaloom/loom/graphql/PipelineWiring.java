@@ -8,6 +8,7 @@ import java.util.stream.Stream;
 import graphql.schema.DataFetcher;
 import graphql.schema.idl.RuntimeWiring;
 import graphql.schema.idl.TypeRuntimeWiring;
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
@@ -72,7 +73,9 @@ public class PipelineWiring extends AbstractDomainWiring {
 		DataFetcher<List<? extends PipelineRun>> runsFetcher = env -> {
 			requirePermission(env, Permission.READ_PIPELINE_RUN);
 			UUID pipelineUuid = uuidArg(env, "pipelineUuid");
-			String status = env.getArgument("status");
+			// Parsed rather than compared as text: a caller asking for a status that does not
+			// exist gets told so, instead of an empty list that reads like "no such runs".
+			PipelineRunStatus status = PipelineRunStatus.parse("status", env.getArgument("status"));
 			Stream<? extends PipelineRun> runs;
 			if (pipelineUuid != null) {
 				runs = orEmpty(runDao.loadByPipeline(pipelineUuid)).stream();
@@ -83,7 +86,7 @@ public class PipelineWiring extends AbstractDomainWiring {
 				runs = runDao.findAll();
 			}
 			if (status != null) {
-				runs = runs.filter(run -> status.equals(run.getStatus()));
+				runs = runs.filter(run -> status == run.getStatus());
 			}
 			return runs.collect(Collectors.toList());
 		};

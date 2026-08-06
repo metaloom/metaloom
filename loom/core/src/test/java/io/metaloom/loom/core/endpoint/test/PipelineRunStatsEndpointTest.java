@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
@@ -64,7 +65,7 @@ public class PipelineRunStatsEndpointTest {
 	}
 
 	/** Persist a run of the given pipeline started at noon (UTC) of the given day. */
-	private PipelineRun createRunOn(UUID pipelineUuid, LocalDate day, String status, int success, int failure, int skipped) {
+	private PipelineRun createRunOn(UUID pipelineUuid, LocalDate day, PipelineRunStatus status, int success, int failure, int skipped) {
 		UUID adminUuid = loom.internal().daos().userDao().loadAdmin().getUuid();
 		PipelineRun run = runDao().createPipelineRun(adminUuid, pipelineUuid, 1);
 		run.setStatus(status);
@@ -98,9 +99,9 @@ public class PipelineRunStatsEndpointTest {
 			LocalDate yesterday = today.minusDays(1);
 			LocalDate threeDaysAgo = today.minusDays(3);
 
-			createRunOn(pipelineA, yesterday, "SUCCESS", 5, 1, 2);
-			createRunOn(pipelineB, yesterday, "PARTIAL", 10, 0, 0);
-			createRunOn(pipelineA, threeDaysAgo, "FAILED", 0, 3, 1);
+			createRunOn(pipelineA, yesterday, PipelineRunStatus.SUCCESS, 5, 1, 2);
+			createRunOn(pipelineB, yesterday, PipelineRunStatus.PARTIAL, 10, 0, 0);
+			createRunOn(pipelineA, threeDaysAgo, PipelineRunStatus.FAILED, 0, 3, 1);
 
 			PipelineRunStatsResponse response = client.loadPipelineRunStats().sync().body();
 
@@ -148,8 +149,8 @@ public class PipelineRunStatsEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 			UUID pipeline = createPipeline("stats-days");
-			createRunOn(pipeline, LocalDate.now().minusDays(1), "SUCCESS", 4, 0, 0);
-			createRunOn(pipeline, LocalDate.now().minusDays(10), "SUCCESS", 7, 0, 0);
+			createRunOn(pipeline, LocalDate.now().minusDays(1), PipelineRunStatus.SUCCESS, 4, 0, 0);
+			createRunOn(pipeline, LocalDate.now().minusDays(10), PipelineRunStatus.SUCCESS, 7, 0, 0);
 
 			int[] status = new int[1];
 			JsonObject body = httpSend(vertx, HttpMethod.GET, "/api/v1/pipelines/runs/stats?days=7", client.getToken(), status);

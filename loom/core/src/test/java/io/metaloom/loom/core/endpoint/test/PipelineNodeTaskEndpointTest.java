@@ -11,6 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
@@ -82,7 +84,7 @@ public class PipelineNodeTaskEndpointTest {
 		PipelineRun run = runDao().createPipelineRun(adminUuid(), pipeline.getUuid(), 1);
 		runDao().store(run);
 		PipelineRunItem item = runItemDao().createRunItem(adminUuid(), run.getUuid(), 0, "/media/example.mp4");
-		item.setState("SUCCESS");
+		item.setState(RunItemState.SUCCESS);
 		runItemDao().store(item);
 		return item;
 	}
@@ -93,7 +95,7 @@ public class PipelineNodeTaskEndpointTest {
 
 	/** One settled node execution carrying a single-element payload on the given port. */
 	private PipelineNodeTask addTask(PipelineRunItem item, String nodeId, String nodeKind, int elementSeq,
-		String state, JsonObject outputs) {
+		NodeTaskState state, JsonObject outputs) {
 		PipelineNodeTask task = nodeTaskDao().createNodeTask(adminUuid(), item.getUuid(), item.getRunUuid(), nodeId, nodeKind);
 		task.setElementSeq(elementSeq);
 		task.setState(state);
@@ -131,9 +133,9 @@ public class PipelineNodeTaskEndpointTest {
 			loginAdmin(client);
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			addTask(item, "pn1", "filesystem-source", 0, "DONE",
+			addTask(item, "pn1", "filesystem-source", 0, NodeTaskState.COMPLETED,
 				payload("media", "media/video", "ONE", "/media/example.mp4"));
-			addTask(item, "pn2", "sha512", 0, "DONE",
+			addTask(item, "pn2", "sha512", 0, NodeTaskState.COMPLETED,
 				payload("sha512", "hash/sha512", "ONE", "0f8ef1c9"));
 
 			PipelineNodeTaskListResponse response = client
@@ -146,7 +148,7 @@ public class PipelineNodeTaskEndpointTest {
 			PipelineNodeTaskRecord hash = response.getData().stream()
 				.filter(t -> "pn2".equals(t.getNodeId())).findFirst().orElseThrow();
 			assertThat(hash.getNodeKind()).isEqualTo("sha512");
-			assertThat(hash.getState()).isEqualTo("DONE");
+			assertThat(hash.getState()).isEqualTo(NodeTaskState.COMPLETED);
 			assertThat(hash.getAttempt()).isEqualTo(1);
 			assertThat(hash.getMaxAttempts()).isEqualTo(3);
 			assertThat(hash.getDurationMs()).isEqualTo(42L);
@@ -175,9 +177,9 @@ public class PipelineNodeTaskEndpointTest {
 			loginAdmin(client);
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			addTask(item, "pn3", "facedescription", 0, "DONE", payload("embedding", "struct/embedding", "ONE", "[0.1]"));
-			addTask(item, "pn3", "facedescription", 1, "DONE", payload("embedding", "struct/embedding", "ONE", "[0.2]"));
-			addTask(item, "pn3", "facedescription", 2, "FAILED", null);
+			addTask(item, "pn3", "facedescription", 0, NodeTaskState.COMPLETED, payload("embedding", "struct/embedding", "ONE", "[0.1]"));
+			addTask(item, "pn3", "facedescription", 1, NodeTaskState.COMPLETED, payload("embedding", "struct/embedding", "ONE", "[0.2]"));
+			addTask(item, "pn3", "facedescription", 2, NodeTaskState.FAILED, null);
 
 			PipelineNodeTaskListResponse response = client
 				.listPipelineRunItemTasks(run.getPipelineUuid(), run.getUuid(), item.getUuid()).sync().body();
@@ -186,7 +188,7 @@ public class PipelineNodeTaskEndpointTest {
 			assertThat(response.getData()).extracting(PipelineNodeTaskRecord::getElementSeq)
 				.containsExactlyInAnyOrder(0, 1, 2);
 			PipelineNodeTaskRecord failed = response.getData().stream()
-				.filter(t -> "FAILED".equals(t.getState())).findFirst().orElseThrow();
+				.filter(t -> t.getState() == NodeTaskState.FAILED).findFirst().orElseThrow();
 			assertThat(failed.getElementSeq()).as("the failing element must be identifiable").isEqualTo(2);
 		}
 	}
@@ -235,7 +237,7 @@ public class PipelineNodeTaskEndpointTest {
 			PipelineRunItem item = createItem();
 			PipelineRunItem other = createItem();
 			PipelineRun otherRun = runOf(other);
-			addTask(item, "pn1", "sha512", 0, "DONE", payload("sha512", "hash/sha512", "ONE", "secret"));
+			addTask(item, "pn1", "sha512", 0, NodeTaskState.COMPLETED, payload("sha512", "hash/sha512", "ONE", "secret"));
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.GET, tasksPath(otherRun.getPipelineUuid(), otherRun.getUuid(), item.getUuid()),
@@ -275,7 +277,7 @@ public class PipelineNodeTaskEndpointTest {
 			AuthLoginResponse login = client.login("joedoe", "finger").sync().body();
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			addTask(item, "pn1", "sha512", 0, "DONE", payload("sha512", "hash/sha512", "ONE", "secret"));
+			addTask(item, "pn1", "sha512", 0, NodeTaskState.COMPLETED, payload("sha512", "hash/sha512", "ONE", "secret"));
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.GET, tasksPath(run.getPipelineUuid(), run.getUuid(), item.getUuid()),
@@ -326,7 +328,7 @@ public class PipelineNodeTaskEndpointTest {
 			loginAdmin(client);
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, "DONE",
+			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, NodeTaskState.COMPLETED,
 				payload("thumbnail", "artifact/image", "ONE", "/var/cortex/thumb.jpg"));
 			task.setPreviews(storedPreview("thumbnail", new byte[] { 1, 2, 3, 4 }));
 			nodeTaskDao().update(task);
@@ -360,7 +362,7 @@ public class PipelineNodeTaskEndpointTest {
 			loginAdmin(client);
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			PipelineNodeTask task = addTask(item, "pn3", "facedetect", 0, "DONE",
+			PipelineNodeTask task = addTask(item, "pn3", "facedetect", 0, NodeTaskState.COMPLETED,
 				payload("detections", "detection/face", "MANY", "{\"index\":0}"));
 			JsonObject stored = storedPreview("detections", new byte[] { 9, 9, 9 });
 			stored.getJsonObject("detections")
@@ -389,7 +391,7 @@ public class PipelineNodeTaskEndpointTest {
 			loginAdmin(client);
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			PipelineNodeTask task = addTask(item, "pn4", "thumbnail", 0, "DONE",
+			PipelineNodeTask task = addTask(item, "pn4", "thumbnail", 0, NodeTaskState.COMPLETED,
 				payload("thumbnail", "artifact/image", "ONE", "/var/cortex/thumb.jpg"));
 			task.setPreviews(storedPreview("thumbnail", new byte[] { 1 }));
 			nodeTaskDao().update(task);
@@ -412,7 +414,7 @@ public class PipelineNodeTaskEndpointTest {
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
 			byte[] bytes = new byte[] { 10, 20, 30, 40, 50 };
-			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, "DONE",
+			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, NodeTaskState.COMPLETED,
 				payload("thumbnail", "artifact/image", "ONE", "/var/cortex/thumb.jpg"));
 			task.setPreviews(storedPreview("thumbnail", bytes));
 			nodeTaskDao().update(task);
@@ -448,7 +450,7 @@ public class PipelineNodeTaskEndpointTest {
 			loginAdmin(client);
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, "DONE",
+			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, NodeTaskState.COMPLETED,
 				payload("thumbnail", "artifact/image", "ONE", "/var/cortex/huge.jpg"));
 			task.setPreviews(new JsonObject().put("thumbnail",
 				new JsonObject().put("skippedReason", "Preview exceeds 98304 bytes")));
@@ -477,7 +479,7 @@ public class PipelineNodeTaskEndpointTest {
 			loginAdmin(client);
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			addTask(item, "pn2", "sha512", 0, "DONE", payload("sha512", "hash/sha512", "ONE", "0f8e"));
+			addTask(item, "pn2", "sha512", 0, NodeTaskState.COMPLETED, payload("sha512", "hash/sha512", "ONE", "0f8e"));
 
 			PipelineNodeTaskListResponse response = client
 				.listPipelineRunItemTasks(run.getPipelineUuid(), run.getUuid(), item.getUuid()).sync().body();
@@ -494,7 +496,7 @@ public class PipelineNodeTaskEndpointTest {
 			AuthLoginResponse login = client.login("joedoe", "finger").sync().body();
 			PipelineRunItem item = createItem();
 			PipelineRun run = runOf(item);
-			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, "DONE",
+			PipelineNodeTask task = addTask(item, "pn2", "thumbnail", 0, NodeTaskState.COMPLETED,
 				payload("thumbnail", "artifact/image", "ONE", "/var/cortex/thumb.jpg"));
 			task.setPreviews(storedPreview("thumbnail", new byte[] { 7, 7, 7 }));
 			nodeTaskDao().update(task);

@@ -12,6 +12,8 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
@@ -54,9 +56,6 @@ public class PipelineRunRecovery {
 
 	private static final Logger log = LoggerFactory.getLogger(PipelineRunRecovery.class);
 
-	private static final String STATUS_RUNNING = "RUNNING";
-	private static final String STATUS_PAUSED = "PAUSED";
-
 	private final PipelineRunDao runDao;
 	private final PipelineRunItemDao itemDao;
 	private final PipelineNodeTaskDao taskDao;
@@ -92,8 +91,8 @@ public class PipelineRunRecovery {
 			// PAUSED runs are recovered too. They are non-terminal and still owned by an
 			// operator, so leaving them behind would strand them: nothing would ever advance
 			// them and a later resume would find no engine.
-			running = new java.util.ArrayList<>(runDao.loadByStatus(STATUS_RUNNING));
-			running.addAll(runDao.loadByStatus(STATUS_PAUSED));
+			running = new java.util.ArrayList<>(runDao.loadByStatus(PipelineRunStatus.RUNNING));
+			running.addAll(runDao.loadByStatus(PipelineRunStatus.PAUSED));
 		} catch (Exception e) {
 			log.error("Could not read in-flight runs; recovery skipped", e);
 			return 0;
@@ -151,7 +150,7 @@ public class PipelineRunRecovery {
 		int restored = restoreItems(runUuid, engine);
 		registry.register(runUuid, engine);
 
-		boolean wasPaused = STATUS_PAUSED.equals(run.getStatus());
+		boolean wasPaused = run.getStatus() == PipelineRunStatus.PAUSED;
 		if (wasPaused) {
 			// Re-apply the operator's suspension *before* resume(), which would otherwise
 			// dispatch every ready node the moment the engine is rebuilt - a restart must not
@@ -215,21 +214,18 @@ public class PipelineRunRecovery {
 	 * @param state the persisted state
 	 * @return the engine state, or null when the task had not finished
 	 */
-	private static NodeState terminalStateOf(String state) {
+	private static NodeState terminalStateOf(NodeTaskState state) {
 		if (state == null) {
 			return null;
 		}
-		switch (state) {
-			case "COMPLETED":
-				return NodeState.COMPLETED;
-			case "SKIPPED":
-				return NodeState.SKIPPED;
-			case "FAILED":
-			case "DEAD_LETTER":
-				return NodeState.FAILED;
-			default:
-				return null;
-		}
+		return switch (state) {
+			case COMPLETED -> NodeState.COMPLETED;
+			case SKIPPED -> NodeState.SKIPPED;
+			// A dead-lettered task is out of attempts, so the engine has to see it as a
+			// settled failure rather than as work still to do.
+			case FAILED, DEAD_LETTER -> NodeState.FAILED;
+			case PENDING, RUNNING -> null;
+		};
 	}
 
 	private static Map<String, PortPayload> outputsOf(PipelineNodeTask task) {
@@ -248,7 +244,7 @@ public class PipelineRunRecovery {
 
 	private void failRun(PipelineRun run, String reason) {
 		try {
-			run.setStatus("FAILED");
+			run.setStatus(PipelineRunStatus.FAILED);
 			run.setErrorMessage(reason);
 			runDao.update(run);
 			log.warn("Run {} marked FAILED: {}", run.getUuid(), reason);

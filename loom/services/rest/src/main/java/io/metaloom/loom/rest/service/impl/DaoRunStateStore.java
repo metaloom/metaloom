@@ -10,6 +10,8 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
@@ -130,7 +132,7 @@ public class DaoRunStateStore implements RunStateStore {
 		item.setUuid(itemUuid);
 		item.setSha512(media.getSha512());
 		item.setSizeBytes(media.getSize());
-		item.setState("PENDING");
+		item.setState(RunItemState.PENDING);
 
 		pendingItems.add(item);
 		flushIfFull();
@@ -166,7 +168,7 @@ public class DaoRunStateStore implements RunStateStore {
 		row.setUuid(task.getTaskUuid());
 		// A refused dispatch is recorded as PENDING with no lease: it was never handed
 		// to anyone, so it must not look reclaimable.
-		row.setState(workerId == null ? "PENDING" : "RUNNING");
+		row.setState(workerId == null ? NodeTaskState.PENDING : NodeTaskState.RUNNING);
 		row.setLeasedBy(workerId);
 		row.setAttempt(1);
 		row.setElementSeq(task.getElementSeq());
@@ -243,14 +245,14 @@ public class DaoRunStateStore implements RunStateStore {
 		}
 		for (PipelineRunItem item : pendingItems) {
 			if (itemUuid.equals(item.getUuid())) {
-				item.setState(outcome.name());
+				item.setState(stateOf(outcome));
 				return;
 			}
 		}
 		// Already flushed, so this is an update rather than part of the batch.
 		PipelineRunItem stored = itemDao.load(itemUuid);
 		if (stored != null) {
-			stored.setState(outcome.name());
+			stored.setState(stateOf(outcome));
 			itemDao.update(stored);
 		}
 	}
@@ -271,7 +273,7 @@ public class DaoRunStateStore implements RunStateStore {
 			}
 
 			PipelineNodeTask task = taskDao.loadByItemAndNode(previous.getUuid(), nodeId, 0);
-			if (task == null || !"COMPLETED".equals(task.getState())) {
+			if (task == null || task.getState() != NodeTaskState.COMPLETED) {
 				// Only a success is worth adopting. Reusing a failure would make an
 				// outage permanent, and reusing a skip would carry no outputs anyway.
 				return java.util.Optional.empty();
@@ -387,20 +389,34 @@ public class DaoRunStateStore implements RunStateStore {
 	/**
 	 * Map the engine's node state onto the column vocabulary.
 	 *
-	 * <p>They agree today; this exists so that a new engine state cannot silently
-	 * become an unrecognised string in the database.</p>
+	 * <p>The two enums overlap but are not the same: {@link NodeTaskState} additionally has
+	 * DEAD_LETTER, which the engine cannot report because giving up on a task is a decision
+	 * the reaper makes. Mapped explicitly rather than by name so neither side can be extended
+	 * into a value the other silently mistranslates.</p>
 	 */
-	private static String stateOf(NodeState state) {
-		switch (state) {
-			case COMPLETED:
-				return "COMPLETED";
-			case FAILED:
-				return "FAILED";
-			case SKIPPED:
-				return "SKIPPED";
-			default:
-				return "PENDING";
-		}
+	private static NodeTaskState stateOf(NodeState state) {
+		return switch (state) {
+			case COMPLETED -> NodeTaskState.COMPLETED;
+			case FAILED -> NodeTaskState.FAILED;
+			case SKIPPED -> NodeTaskState.SKIPPED;
+			case PENDING, RUNNING -> NodeTaskState.PENDING;
+		};
+	}
+
+	/**
+	 * Map an item outcome onto the column vocabulary.
+	 *
+	 * <p>The engine spells the failure case FAILURE and the column spells it FAILED. That
+	 * difference used to reach the database verbatim via {@code outcome.name()}, so a failed
+	 * item matched neither the terminal-state set nor any UI filter - it simply looked
+	 * unfinished forever. {@code V2.77} rewrites the rows that were written that way.</p>
+	 */
+	private static RunItemState stateOf(ItemOutcome outcome) {
+		return switch (outcome) {
+			case SUCCESS -> RunItemState.SUCCESS;
+			case FAILURE -> RunItemState.FAILED;
+			case SKIPPED -> RunItemState.SKIPPED;
+		};
 	}
 
 }

@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.agent.memory.MemoryHeader;
 import io.metaloom.loom.api.memory.MemoryScope;
 import io.metaloom.loom.api.options.LoomOptions;
@@ -364,12 +365,12 @@ public class DemoDatabaseInitializer {
 		// History so the run views and the statistics chart have something to show on a
 		// fresh demo. One run per status: a clean success, a partial failure, a live run and
 		// a suspended one.
-		createPipelineRun(admin, simplePipeline, "SUCCESS", 1, 128, 128, 0, 0, 42_000L);
-		createPipelineRun(admin, simplePipeline, "SUCCESS", 4, 96, 94, 0, 2, 31_500L);
-		createPipelineRun(admin, mediumPipeline, "PARTIAL", 2, 64, 58, 6, 0, 187_000L);
-		createPipelineRun(admin, mediumPipeline, "FAILED", 6, 12, 0, 12, 0, 9_800L);
-		createPipelineRun(admin, complexPipeline, "PAUSED", 0, 512, 240, 3, 1, null);
-		createPipelineRun(admin, complexPipeline, "RUNNING", 0, 340, 180, 0, 4, null);
+		createPipelineRun(admin, simplePipeline, PipelineRunStatus.SUCCESS, 1, 128, 128, 0, 0, 42_000L);
+		createPipelineRun(admin, simplePipeline, PipelineRunStatus.SUCCESS, 4, 96, 94, 0, 2, 31_500L);
+		createPipelineRun(admin, mediumPipeline, PipelineRunStatus.PARTIAL, 2, 64, 58, 6, 0, 187_000L);
+		createPipelineRun(admin, mediumPipeline, PipelineRunStatus.FAILED, 6, 12, 0, 12, 0, 9_800L);
+		createPipelineRun(admin, complexPipeline, PipelineRunStatus.PAUSED, 0, 512, 240, 3, 1, null);
+		createPipelineRun(admin, complexPipeline, PipelineRunStatus.RUNNING, 0, 340, 180, 0, 4, null);
 
 		// --- Users ---
 		User editor = createDemoUser(admin, "editor", "editor1234", "editor@example.com", "Emily", "Editor");
@@ -1281,7 +1282,7 @@ public class DemoDatabaseInitializer {
 	 * @param daysAgo how far back the run started; the statistics endpoint reports a
 	 *                two-week window by default, so these stay inside it
 	 */
-	private PipelineRun createPipelineRun(User admin, Pipeline pipeline, String status, int daysAgo,
+	private PipelineRun createPipelineRun(User admin, Pipeline pipeline, PipelineRunStatus status, int daysAgo,
 		int mediaCount, int successCount, int failureCount, int skippedCount, Long durationMs) {
 
 		PipelineRun run = pipelineRunDao.createPipelineRun(admin.getUuid(), pipeline.getUuid(), 1);
@@ -1301,7 +1302,7 @@ public class DemoDatabaseInitializer {
 			run.setDurationMs(durationMs);
 			run.setFinished(started.plusMillis(durationMs));
 		}
-		if ("FAILED".equals(status)) {
+		if (status == PipelineRunStatus.FAILED) {
 			run.setErrorMessage("Node 'facedetect' failed: model file not found");
 		}
 		pipelineRunDao.store(run);

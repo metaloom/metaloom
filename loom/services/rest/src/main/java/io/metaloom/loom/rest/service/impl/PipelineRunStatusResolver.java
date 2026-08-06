@@ -1,27 +1,15 @@
 package io.metaloom.loom.rest.service.impl;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
+
 /**
- * Maps the per-media aggregate counters reported by a Cortex processor onto the
- * {@code pipeline_run.status} vocabulary documented in
- * {@code V2.29__add_pipeline_run.sql}.
+ * Maps the per-media aggregate counters reported by a Cortex processor onto
+ * {@link PipelineRunStatus}.
  *
  * <p>Kept deliberately free of DB and transport concerns so the mapping can be
- * unit-tested in isolation. The status values are plain strings — introducing a
- * typed enum is tracked separately (PIPELINE_TASKS Task 9).</p>
+ * unit-tested in isolation.</p>
  */
 public final class PipelineRunStatusResolver {
-
-	public static final String PENDING = "PENDING";
-	public static final String RUNNING = "RUNNING";
-	/**
-	 * Suspended by an operator. Deliberately <em>not</em> terminal: a paused run is still
-	 * live, still holds an engine, and can be resumed or cancelled.
-	 */
-	public static final String PAUSED = "PAUSED";
-	public static final String SUCCESS = "SUCCESS";
-	public static final String FAILED = "FAILED";
-	public static final String PARTIAL = "PARTIAL";
-	public static final String CANCELLED = "CANCELLED";
 
 	private PipelineRunStatusResolver() {
 	}
@@ -30,10 +18,10 @@ public final class PipelineRunStatusResolver {
 	 * Resolve the terminal status of a completed run.
 	 *
 	 * <ul>
-	 *   <li>no failures → {@link #SUCCESS} (this includes a run that processed
-	 *       nothing at all, and a dry run where every item was skipped)</li>
-	 *   <li>every media item failed → {@link #FAILED}</li>
-	 *   <li>some failed, some did not → {@link #PARTIAL}</li>
+	 *   <li>no failures → {@link PipelineRunStatus#SUCCESS} (this includes a run that
+	 *       processed nothing at all, and a dry run where every item was skipped)</li>
+	 *   <li>every media item failed → {@link PipelineRunStatus#FAILED}</li>
+	 *   <li>some failed, some did not → {@link PipelineRunStatus#PARTIAL}</li>
 	 * </ul>
 	 *
 	 * <p>Counters are clamped at zero so a malformed report cannot produce a
@@ -41,34 +29,32 @@ public final class PipelineRunStatusResolver {
 	 *
 	 * @param mediaCount   total media items the run processed
 	 * @param failureCount media items that failed
-	 * @return one of {@link #SUCCESS}, {@link #PARTIAL}, {@link #FAILED}
+	 * @return SUCCESS, PARTIAL or FAILED
 	 */
-	public static String resolve(int mediaCount, int failureCount) {
+	public static PipelineRunStatus resolve(int mediaCount, int failureCount) {
 		int media = Math.max(0, mediaCount);
 		int failures = Math.max(0, failureCount);
 
 		if (failures == 0) {
-			return SUCCESS;
+			return PipelineRunStatus.SUCCESS;
 		}
 		// More failures than media reported means the counters disagree; treat
 		// the run as fully failed rather than silently reporting PARTIAL.
 		if (failures >= media) {
-			return FAILED;
+			return PipelineRunStatus.FAILED;
 		}
-		return PARTIAL;
+		return PipelineRunStatus.PARTIAL;
 	}
 
 	/**
 	 * Whether the given status is terminal — a run in a terminal state must not
 	 * be overwritten by a late-arriving completion or timeout report.
+	 *
+	 * <p>Null-tolerant, because a run row is read before its status is known to be set;
+	 * {@link PipelineRunStatus#isTerminal()} is the answer for everything else, and
+	 * {@code PAUSED} is deliberately not terminal.</p>
 	 */
-	public static boolean isTerminal(String status) {
-		if (status == null) {
-			return false;
-		}
-		return switch (status) {
-			case SUCCESS, FAILED, PARTIAL, CANCELLED -> true;
-			default -> false;
-		};
+	public static boolean isTerminal(PipelineRunStatus status) {
+		return status != null && status.isTerminal();
 	}
 }

@@ -9,6 +9,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
 import io.metaloom.loom.db.model.pipeline.PipelineRunDao;
@@ -77,7 +78,7 @@ public class PipelineRunTracker {
 	 */
 	public boolean complete(UUID runUuid, Long durationMs, int mediaCount, int successCount,
 			int failureCount, int skippedCount) {
-		String status = PipelineRunStatusResolver.resolve(mediaCount, failureCount);
+		PipelineRunStatus status = PipelineRunStatusResolver.resolve(mediaCount, failureCount);
 		return apply(runUuid, status, durationMs, mediaCount, successCount, failureCount, skippedCount, null);
 	}
 
@@ -91,7 +92,7 @@ public class PipelineRunTracker {
 	 * @return true if the run was updated, false if it was missing or already terminal
 	 */
 	public boolean fail(UUID runUuid, String errorMessage) {
-		return apply(runUuid, PipelineRunStatusResolver.FAILED, null, 0, 0, 0, 0, errorMessage);
+		return apply(runUuid, PipelineRunStatus.FAILED, null, 0, 0, 0, 0, errorMessage);
 	}
 
 	/**
@@ -105,7 +106,7 @@ public class PipelineRunTracker {
 	 * @return true if the run was updated, false if it was missing or already terminal
 	 */
 	public boolean cancel(UUID runUuid) {
-		return apply(runUuid, PipelineRunStatusResolver.CANCELLED, null, 0, 0, 0, 0, null);
+		return apply(runUuid, PipelineRunStatus.CANCELLED, null, 0, 0, 0, 0, null);
 	}
 
 	/**
@@ -115,7 +116,7 @@ public class PipelineRunTracker {
 	 * @return true if the run moved to {@code PAUSED}
 	 */
 	public boolean pause(UUID runUuid) {
-		return transition(runUuid, PipelineRunStatusResolver.RUNNING, PipelineRunStatusResolver.PAUSED);
+		return transition(runUuid, PipelineRunStatus.RUNNING, PipelineRunStatus.PAUSED);
 	}
 
 	/**
@@ -125,7 +126,7 @@ public class PipelineRunTracker {
 	 * @return true if the run moved back to {@code RUNNING}
 	 */
 	public boolean resume(UUID runUuid) {
-		return transition(runUuid, PipelineRunStatusResolver.PAUSED, PipelineRunStatusResolver.RUNNING);
+		return transition(runUuid, PipelineRunStatus.PAUSED, PipelineRunStatus.RUNNING);
 	}
 
 	/**
@@ -141,7 +142,7 @@ public class PipelineRunTracker {
 	 * @param to           the status to move it to
 	 * @return true if the transition was applied
 	 */
-	private boolean transition(UUID runUuid, String expectedFrom, String to) {
+	private boolean transition(UUID runUuid, PipelineRunStatus expectedFrom, PipelineRunStatus to) {
 		if (runUuid == null) {
 			return false;
 		}
@@ -155,7 +156,7 @@ public class PipelineRunTracker {
 				log.debug("Pipeline run {} is already terminal ({}) - refusing {}", runUuid, run.getStatus(), to);
 				return false;
 			}
-			if (!expectedFrom.equals(run.getStatus())) {
+			if (expectedFrom != run.getStatus()) {
 				log.debug("Pipeline run {} is {}, not {} - refusing {}", runUuid, run.getStatus(), expectedFrom, to);
 				return false;
 			}
@@ -172,7 +173,7 @@ public class PipelineRunTracker {
 		}
 	}
 
-	private boolean apply(UUID runUuid, String status, Long durationMs, int mediaCount,
+	private boolean apply(UUID runUuid, PipelineRunStatus status, Long durationMs, int mediaCount,
 			int successCount, int failureCount, int skippedCount, String errorMessage) {
 		if (runUuid == null) {
 			return false;
@@ -205,7 +206,7 @@ public class PipelineRunTracker {
 			// would fail the primary key constraint on an existing row.
 			pipelineRunDao.update(run);
 
-			metrics.recordRunCompleted(status.toLowerCase(), durationMs != null ? durationMs : 0L);
+			metrics.recordRunCompleted(status.name().toLowerCase(), durationMs != null ? durationMs : 0L);
 
 			log.info("Pipeline run {} closed as {} (media={}, success={}, failure={}, skipped={}, duration={}ms)",
 				runUuid, status, mediaCount, successCount, failureCount, skippedCount, durationMs);
@@ -213,7 +214,7 @@ public class PipelineRunTracker {
 			// Deliberately here rather than in fail(): complete() also resolves to FAILED via
 			// PipelineRunStatusResolver when failureCount > 0, so hooking fail() alone would miss
 			// every run that finished normally but with failures - which is the common case.
-			if (notifications != null && PipelineRunStatusResolver.FAILED.equals(status)) {
+			if (notifications != null && status == PipelineRunStatus.FAILED) {
 				notifications.pipelineRunFailed(run.getCreatorUuid(), runUuid, pipelineNameOf(run), errorMessage);
 			}
 			return true;

@@ -3,6 +3,9 @@ package io.metaloom.loom.rest.model.pipeline;
 import java.util.List;
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.rest.model.example.Example;
 import io.metaloom.loom.rest.model.example.ExampleValues;
 import io.metaloom.loom.rest.model.example.impl.ExampleImpl;
@@ -209,7 +212,7 @@ public interface PipelineExamples extends ExampleValues {
 		model.setPipelineVersion(1);
 		model.setStarted(java.time.Instant.now().toString());
 		model.setFinished(java.time.Instant.now().toString());
-		model.setStatus("SUCCESS");
+		model.setStatus(PipelineRunStatus.SUCCESS);
 		model.setMediaCount(100);
 		model.setSuccessCount(95);
 		model.setFailureCount(3);
@@ -254,7 +257,7 @@ public interface PipelineExamples extends ExampleValues {
 		model.setMediaPath("/media/example.mp4");
 		model.setSha512("0f8ef1c9...");
 		model.setSizeBytes(1048576L);
-		model.setState("SUCCESS");
+		model.setState(RunItemState.SUCCESS);
 		return model;
 	}
 
@@ -275,7 +278,7 @@ public interface PipelineExamples extends ExampleValues {
 		model.setNodeId("pn2");
 		model.setNodeKind("sha512");
 		model.setElementSeq(0);
-		model.setState("DONE");
+		model.setState(NodeTaskState.COMPLETED);
 		model.setAttempt(1);
 		model.setMaxAttempts(3);
 		model.setDurationMs(42L);

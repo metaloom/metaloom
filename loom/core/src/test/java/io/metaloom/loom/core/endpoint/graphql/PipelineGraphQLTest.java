@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.db.model.perm.Permission;
@@ -42,7 +43,7 @@ public class PipelineGraphQLTest extends AbstractGraphQLTest {
 		daos().pipelineDao().update(pipeline);
 
 		PipelineRun run = daos().pipelineRunDao().createPipelineRun(adminUuid, pipeline.getUuid(), 1);
-		run.setStatus("SUCCESS");
+		run.setStatus(PipelineRunStatus.SUCCESS);
 		run.setMediaCount(3);
 		run.setSuccessCount(3);
 		daos().pipelineRunDao().store(run);

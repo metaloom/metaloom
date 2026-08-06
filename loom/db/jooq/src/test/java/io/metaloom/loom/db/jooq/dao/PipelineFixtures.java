@@ -1,5 +1,6 @@
 package io.metaloom.loom.db.jooq.dao;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.dagger.DaoProvider;
 import io.metaloom.loom.db.model.pipeline.Pipeline;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
@@ -50,7 +51,7 @@ public final class PipelineFixtures {
 		daos.pipelineDao().update(pipeline);
 
 		PipelineRun run = daos.pipelineRunDao().createPipelineRun(user.getUuid(), pipeline.getUuid(), 1);
-		run.setStatus("RUNNING");
+		run.setStatus(PipelineRunStatus.RUNNING);
 		daos.pipelineRunDao().store(run);
 		return run;
 	}

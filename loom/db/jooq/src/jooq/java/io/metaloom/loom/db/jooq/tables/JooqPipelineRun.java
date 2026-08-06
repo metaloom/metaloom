@@ -4,10 +4,12 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
+import io.metaloom.loom.db.jooq.converter.PipelineRunStatusConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqPipelineRunRecord;
 import io.vertx.core.json.JsonObject;
 
@@ -89,7 +91,7 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
      * The column <code>public.pipeline_run.status</code>. Current status:
      * PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED
      */
-    public final TableField<JooqPipelineRunRecord, String> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "Current status: PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED");
+    public final TableField<JooqPipelineRunRecord, PipelineRunStatus> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::character varying", SQLDataType.VARCHAR)), this, "Current status: PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED", new PipelineRunStatusConverter());
 
     /**
      * The column <code>public.pipeline_run.media_count</code>. Total number of
@@ -292,14 +294,14 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row18<java.util.UUID, java.util.UUID, Integer, LocalDateTime, LocalDateTime, String, Integer, Integer, Integer, Integer, Boolean, String, Long, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row18<java.util.UUID, java.util.UUID, Integer, LocalDateTime, LocalDateTime, PipelineRunStatus, Integer, Integer, Integer, Integer, Boolean, String, Long, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
         return (Row18) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function18<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super String, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function18<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super PipelineRunStatus, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -307,7 +309,7 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function18<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super String, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function18<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super PipelineRunStatus, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

@@ -2,6 +2,7 @@ package io.metaloom.loom.db.model.pipeline;
 
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.db.CUDElement;
 import io.vertx.core.json.JsonObject;
 
@@ -40,10 +41,9 @@ public interface PipelineRunItem extends CUDElement<PipelineRunItem> {
 
 	PipelineRunItem setSizeBytes(Long sizeBytes);
 
-	/** @return PENDING, RUNNING, SUCCESS, FAILED or SKIPPED */
-	String getState();
+	RunItemState getState();
 
-	PipelineRunItem setState(String state);
+	PipelineRunItem setState(RunItemState state);
 
 	String getErrorMessage();
 

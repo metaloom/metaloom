@@ -44,9 +44,9 @@ import {
   updatePipeline, runPipeline, cancelPipelineRun, pausePipelineRun, resumePipelineRun,
   listPipelineRuns, type PipelineUpdateRequest,
   createPipeline, deletePipeline, type PipelineCreateRequest,
-  type PipelineRunRecord,
-  listPipelineRunItems, type PipelineRunItemRecord,
-  listPipelineRunItemTasks, type PipelineNodeTaskRecord, type PortPayload,
+  type PipelineRunRecord, type PipelineRunStatus,
+  listPipelineRunItems, type PipelineRunItemRecord, type PipelineRunItemState,
+  listPipelineRunItemTasks, type PipelineNodeTaskRecord, type PipelineNodeTaskState, type PortPayload,
   listPipelineVersions, restorePipelineVersion,
   loadPipelineRunBreakpoints, setPipelineRunBreakpoints, continuePipelineRunBreakpoint,
   stepPipelineRun, type HeldExecution, reExecutePipelineRunNode,
@@ -902,13 +902,24 @@ function RunHistory({ runs, loading, onCancel, onPause, onResume, onSelect }: {
 
 // ── Run Detail Drawer ─────────────────────────────────────────────────────
 
-/** Map a run-item state to an accent colour. Unknown states fall back to tertiary. */
-function runItemStateColor(state: string): string {
-  switch (state.toUpperCase()) {
-    case "SUCCESS": return tokens.accent.green;
-    case "FAILED": return tokens.accent.red;
+/**
+ * Map a run status, item state or node-task state to an accent colour.
+ *
+ * One function for all three vocabularies, because the drawer paints all three the same way.
+ * Every value of every vocabulary is listed: a state that falls through renders grey, which
+ * reads as "nothing happened" — COMPLETED did exactly that until it was added here.
+ */
+function runItemStateColor(state: PipelineRunStatus | PipelineRunItemState | PipelineNodeTaskState): string {
+  switch (state) {
+    case "SUCCESS":
+    case "COMPLETED": return tokens.accent.green;
+    case "FAILED":
+    case "DEAD_LETTER": return tokens.accent.red;
+    case "PARTIAL":
+    case "PAUSED": return tokens.accent.amber;
     case "RUNNING": return tokens.accent.amber;
     case "PENDING": return tokens.accent.blue;
+    case "CANCELLED":
     case "SKIPPED": return tokens.text.tertiary;
     default: return tokens.text.tertiary;
   }
@@ -1833,7 +1844,7 @@ function NodeDetailSidebar({
                       {inspectedItem.mediaPath}
                     </Typography>
                     {tasks.map(task => {
-                      const stateColor = runItemStateColor(task.state === "DONE" ? "SUCCESS" : task.state);
+                      const stateColor = runItemStateColor(task.state);
                       const ports = Object.entries(task.outputs ?? {});
                       return (
                         <Box

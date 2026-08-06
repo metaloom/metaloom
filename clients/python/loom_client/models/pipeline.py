@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .base import CreatorEditorResponse, ListResponse, Model
+from .enums import NodeTaskState, PipelineRunStatus, RunItemState
 
 
 @dataclass
@@ -120,8 +121,8 @@ class PipelineNodeTaskRecord(Model):
     #: Which attempt at this execution the row records; 0 for the only run of an ordinary task, counting up
     #: per operator-requested re-execution with different settings.
     generation: int = 0
-    #: Current state: PENDING, LEASED, DONE, FAILED, DEAD_LETTER.
-    state: str | None = None
+    #: Current state: PENDING, RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER.
+    state: NodeTaskState | None = None
     #: How many times this execution has been attempted.
     attempt: int = 0
     #: Attempt ceiling before the task is dead-lettered.
@@ -207,8 +208,8 @@ class PipelineRunItemRecord(Model):
     sha512: str | None = None
     #: Size of the media in bytes, null if unknown.
     size_bytes: int | None = None
-    #: Current state: PENDING, RUNNING, SUCCESS, FAILED, SKIPPED.
-    state: str | None = None
+    #: Current state: PENDING, RUNNING, SUCCESS, FAILED or SKIPPED.
+    state: RunItemState | None = None
     #: Error message if the item failed.
     error_message: str | None = None
 
@@ -235,8 +236,8 @@ class PipelineRunRecord(Model):
     started: str | None = None
     #: When the pipeline run finished (ISO 8601), null if still running.
     finished: str | None = None
-    #: Current status: PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED.
-    status: str | None = None
+    #: Current status: PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL or CANCELLED.
+    status: PipelineRunStatus | None = None
     #: Total number of media items processed.
     media_count: int = 0
     #: Number of media items processed successfully.

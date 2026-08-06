@@ -13,6 +13,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
@@ -178,7 +179,7 @@ public class LeaseReaper {
 	 */
 	private void releaseOrphan(PipelineNodeTask task) {
 		try {
-			task.setState("DEAD_LETTER");
+			task.setState(NodeTaskState.DEAD_LETTER);
 			task.setLeaseExpiresAt(null);
 			task.setErrorMessage("Lease expired but run " + task.getRunUuid() + " is no longer active");
 			taskDao.update(task);

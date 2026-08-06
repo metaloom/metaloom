@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
@@ -67,7 +68,7 @@ public class PipelineRunCompletionEndpointTest {
 		loom.internal().daos().pipelineDao().store(pipeline);
 
 		PipelineRun run = runDao().createPipelineRun(adminUuid, pipeline.getUuid(), 1);
-		run.setStatus("RUNNING");
+		run.setStatus(PipelineRunStatus.RUNNING);
 		runDao().store(run);
 		return run;
 	}
@@ -117,7 +118,8 @@ public class PipelineRunCompletionEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 			PipelineRun run = createRunningRun();
-			assertThat(run.getStatus()).isEqualTo("RUNNING");
+			assertThat(run.getStatus())
+.isEqualTo(PipelineRunStatus.RUNNING);
 
 			WebSocket ws = connectAndRegister(vertx);
 			sendCompletion(ws, new JsonObject()
@@ -131,7 +133,8 @@ public class PipelineRunCompletionEndpointTest {
 				.put("message", "Processed 10 media items"));
 
 			PipelineRun reloaded = runDao().load(run.getUuid());
-			assertThat(reloaded.getStatus()).isEqualTo("SUCCESS");
+			assertThat(reloaded.getStatus())
+.isEqualTo(PipelineRunStatus.SUCCESS);
 			assertThat(reloaded.getFinished()).as("finished timestamp must be written").isNotNull();
 			assertThat(reloaded.getDurationMs()).isEqualTo(4321L);
 			assertThat(reloaded.getMediaCount()).isEqualTo(10);
@@ -164,7 +167,8 @@ public class PipelineRunCompletionEndpointTest {
 				.put("skippedCount", 1));
 
 			PipelineRun reloaded = runDao().load(run.getUuid());
-			assertThat(reloaded.getStatus()).isEqualTo("PARTIAL");
+			assertThat(reloaded.getStatus())
+.isEqualTo(PipelineRunStatus.PARTIAL);
 			assertThat(reloaded.getSuccessCount()).isEqualTo(6);
 			assertThat(reloaded.getFailureCount()).isEqualTo(3);
 			assertThat(reloaded.getSkippedCount()).isEqualTo(1);
@@ -192,7 +196,8 @@ public class PipelineRunCompletionEndpointTest {
 				.put("failureCount", 4)
 				.put("skippedCount", 0));
 
-			assertThat(runDao().load(run.getUuid()).getStatus()).isEqualTo("FAILED");
+			assertThat(runDao().load(run.getUuid()).getStatus())
+.isEqualTo(PipelineRunStatus.FAILED);
 			ws.close();
 		} finally {
 			vertx.close();
@@ -206,7 +211,7 @@ public class PipelineRunCompletionEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 			PipelineRun run = createRunningRun();
-			run.setStatus("SUCCESS").setMediaCount(7);
+			run.setStatus(PipelineRunStatus.SUCCESS).setMediaCount(7);
 			runDao().update(run);
 
 			WebSocket ws = connectAndRegister(vertx);
@@ -270,7 +275,8 @@ public class PipelineRunCompletionEndpointTest {
 			assertThat(tracker.fail(run.getUuid(), "Work order timed out")).isFalse();
 
 			PipelineRun reloaded = runDao().load(run.getUuid());
-			assertThat(reloaded.getStatus()).isEqualTo("SUCCESS");
+			assertThat(reloaded.getStatus())
+.isEqualTo(PipelineRunStatus.SUCCESS);
 			assertThat(reloaded.getMediaCount()).isEqualTo(5);
 			assertThat(reloaded.getErrorMessage()).isNull();
 		}

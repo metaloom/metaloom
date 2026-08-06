@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.LoomCoreTestExtension;
@@ -59,7 +60,7 @@ public class PipelineRunPauseEndpointTest {
 	}
 
 	/** A pipeline plus a run row in the given status, created directly through the DAOs. */
-	private PipelineRun createRun(String status) {
+	private PipelineRun createRun(PipelineRunStatus status) {
 		UUID adminUuid = loom.internal().daos().userDao().loadAdmin().getUuid();
 		Pipeline pipeline = loom.internal().daos().pipelineDao().createPipeline(adminUuid, "pause-test-" + UUID.randomUUID());
 		loom.internal().daos().pipelineDao().store(pipeline);
@@ -85,7 +86,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 			run.setMediaCount(7).setSuccessCount(5).setFailureCount(2);
 			runDao().update(run);
 
@@ -95,7 +96,8 @@ public class PipelineRunPauseEndpointTest {
 
 			assertEquals(200, status[0], "Pausing a running run must succeed");
 			PipelineRun reloaded = runDao().load(run.getUuid());
-			assertThat(reloaded.getStatus()).isEqualTo("PAUSED");
+			assertThat(reloaded.getStatus())
+.isEqualTo(PipelineRunStatus.PAUSED);
 			assertThat(reloaded.getFinished()).as("a pause is not a completion").isNull();
 			// The tracker's terminal path zeroes these; a pause must not.
 			assertThat(reloaded.getMediaCount()).as("counters survive a pause").isEqualTo(7);
@@ -112,7 +114,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("PAUSED");
+			PipelineRun run = createRun(PipelineRunStatus.PAUSED);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, pausePath(run.getPipelineUuid(), run.getUuid()),
@@ -130,7 +132,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("SUCCESS");
+			PipelineRun run = createRun(PipelineRunStatus.SUCCESS);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, pausePath(run.getPipelineUuid(), run.getUuid()),
@@ -168,7 +170,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			// Real run, but addressed under a different pipeline.
@@ -176,7 +178,8 @@ public class PipelineRunPauseEndpointTest {
 				client.getToken(), null, status);
 
 			assertEquals(404, status[0], "A run addressed under the wrong pipeline must yield 404");
-			assertThat(runDao().load(run.getUuid()).getStatus()).isEqualTo("RUNNING");
+			assertThat(runDao().load(run.getUuid()).getStatus())
+.isEqualTo(PipelineRunStatus.RUNNING);
 		} finally {
 			vertx.close();
 		}
@@ -189,7 +192,7 @@ public class PipelineRunPauseEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			// joedoe holds only READ_USER - not UPDATE_PIPELINE_RUN.
 			AuthLoginResponse login = client.login("joedoe", "finger").sync().body();
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, pausePath(run.getPipelineUuid(), run.getUuid()),
@@ -215,7 +218,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("PAUSED");
+			PipelineRun run = createRun(PipelineRunStatus.PAUSED);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, resumePath(run.getPipelineUuid(), run.getUuid()),
@@ -236,14 +239,15 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, resumePath(run.getPipelineUuid(), run.getUuid()),
 				client.getToken(), null, status);
 
 			assertEquals(409, status[0], "Resuming a run that is not paused must yield 409");
-			assertThat(runDao().load(run.getUuid()).getStatus()).isEqualTo("RUNNING");
+			assertThat(runDao().load(run.getUuid()).getStatus())
+.isEqualTo(PipelineRunStatus.RUNNING);
 		} finally {
 			vertx.close();
 		}
@@ -255,14 +259,15 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("CANCELLED");
+			PipelineRun run = createRun(PipelineRunStatus.CANCELLED);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, resumePath(run.getPipelineUuid(), run.getUuid()),
 				client.getToken(), null, status);
 
 			assertEquals(409, status[0], "A terminal run cannot be resumed");
-			assertThat(runDao().load(run.getUuid()).getStatus()).isEqualTo("CANCELLED");
+			assertThat(runDao().load(run.getUuid()).getStatus())
+.isEqualTo(PipelineRunStatus.CANCELLED);
 		} finally {
 			vertx.close();
 		}
@@ -291,14 +296,15 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			AuthLoginResponse login = client.login("joedoe", "finger").sync().body();
-			PipelineRun run = createRun("PAUSED");
+			PipelineRun run = createRun(PipelineRunStatus.PAUSED);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST, resumePath(run.getPipelineUuid(), run.getUuid()),
 				login.getToken(), null, status);
 
 			assertEquals(403, status[0], "A caller lacking UPDATE_PIPELINE_RUN must be forbidden");
-			assertThat(runDao().load(run.getUuid()).getStatus()).isEqualTo("PAUSED");
+			assertThat(runDao().load(run.getUuid()).getStatus())
+.isEqualTo(PipelineRunStatus.PAUSED);
 		} finally {
 			vertx.close();
 		}
@@ -314,7 +320,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("PAUSED");
+			PipelineRun run = createRun(PipelineRunStatus.PAUSED);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.POST,
@@ -322,7 +328,8 @@ public class PipelineRunPauseEndpointTest {
 				client.getToken(), null, status);
 
 			assertEquals(200, status[0], "Cancelling a paused run must succeed");
-			assertThat(runDao().load(run.getUuid()).getStatus()).isEqualTo("CANCELLED");
+			assertThat(runDao().load(run.getUuid()).getStatus())
+.isEqualTo(PipelineRunStatus.CANCELLED);
 		} finally {
 			vertx.close();
 		}
@@ -340,7 +347,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			List<JsonObject> frames = new CopyOnWriteArrayList<>();
 			WebSocket ws = connectPipelineEventsWs(vertx);
@@ -372,7 +379,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("SUCCESS");
+			PipelineRun run = createRun(PipelineRunStatus.SUCCESS);
 
 			List<JsonObject> frames = new CopyOnWriteArrayList<>();
 			WebSocket ws = connectPipelineEventsWs(vertx);
@@ -402,7 +409,7 @@ public class PipelineRunPauseEndpointTest {
 		Vertx vertx = Vertx.vertx();
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
-			PipelineRun run = createRun("RUNNING");
+			PipelineRun run = createRun(PipelineRunStatus.RUNNING);
 
 			List<JsonObject> frames = new CopyOnWriteArrayList<>();
 			WebSocket ws = connectPipelineEventsWs(vertx);

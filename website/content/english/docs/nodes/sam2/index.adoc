@@ -81,18 +81,8 @@ colour. It is the quickest way to check a run did what you expected.
 
 == Configuration
 
-// TODO screenshot: restore the two image:: directives on this page once the SAM 2 sidecar has been
-// run on a GPU host. The recipe (SidecarRecipes.sam2, AUTOMATIC) and the capture-plan entry are
-// already committed, so it is:
-//   mvn -o -pl integration-test test -Dtest=DocsFixtureGenerator \
-//       -Dloom.regenerateDocsFixtures=true -Dloom.docsFixtureKinds=sam2
-//   cd loom-ui && node scripts/capture-node-config-screenshots.mjs sam2 \
-//                 && node scripts/capture-node-screenshots.mjs sam2
-// Then add back:
-//   .The node's settings in the pipeline editor
-//   image::config.png[The Segment Anything settings panel: Sidecar Host, Sidecar Port, Mode and more settings,role="ml-panel-shot"]
-// and under "Seeing it run":
-//   image::debug.png[The sam2 node after a run, showing the overlay it produced and the mask descriptions,role=img-fluid]
+.The node's settings in the pipeline editor
+image::config.png[The Segment Anything settings panel: Sidecar Host, Sidecar Port, Mode and the mask, video and overlay settings,role="ml-panel-shot"]
 
 [options="header",cols="1,2"]
 |===
@@ -118,10 +108,20 @@ colour. It is the quickest way to check a run did what you expected.
 Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
 card itself.
 
-The `overlay` port carries an artifact, so the card shows the picture rather than its path. `segments`
-lists what was found with an area and a score each; `mask_count` and `flag` record how the node
-finished. The `masks` port is a sequence, and the card previews its first entry — the overlay is the
-one to look at for the whole result.
+.The node card after segmenting a portrait, with what each port carried
+image::debug.png[The sam2 node card after a run, listing mask_count 3, flag SUCCESS and the segments description,role=img-fluid]
+
+This node fills five ports, and a card shows the first three, so `masks` and `overlay` sit behind the
+`+2 more` line. Click any port to open it full size.
+
+.The `segments` port opened: one row per mask
+image::debug-detail.png[The segments result opened full size, a table of three masks with their area, score and bounding box,role=img-fluid]
+
+`segments` is the one to open on an automatic run: it lists every mask with an area, a score and a
+box, largest first. The `label` and `frame` columns stay empty here because nothing told the model
+what it was looking at and a still has no frame number — both fill in for a prompted run and a
+tracked clip respectively. `mask_count` and `flag` record how the node finished, and the `overlay`
+port opens as the tinted picture of the whole result.
 
 == Requirements and models
 

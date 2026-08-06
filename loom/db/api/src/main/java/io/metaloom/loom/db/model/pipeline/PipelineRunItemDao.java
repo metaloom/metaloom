@@ -6,6 +6,7 @@ import java.util.UUID;
 import io.metaloom.filter.Filter;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.db.CRUDDao;
 import io.metaloom.loom.db.page.Page;
 
@@ -31,11 +32,9 @@ public interface PipelineRunItemDao extends CRUDDao<PipelineRunItem> {
 	List<PipelineRunItem> loadUnfinishedByRun(UUID runUuid);
 
 	/**
-	 * @param runUuid the run
-	 * @param state   one of PENDING, RUNNING, SUCCESS, FAILED, SKIPPED
 	 * @return how many items of the run are in that state
 	 */
-	long countByRunAndState(UUID runUuid, String state);
+	long countByRunAndState(UUID runUuid, RunItemState state);
 
 	/**
 	 * Find the most recently finished item for a path, from any run.

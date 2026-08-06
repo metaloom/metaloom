@@ -3,6 +3,7 @@ package io.metaloom.loom.rest.service;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.vertx.core.json.JsonObject;
 
@@ -19,7 +20,7 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	private int elementSeq;
 	/** Which attempt at this execution the row records; 0 unless the node was re-executed. */
 	private int generation;
-	private String state = "PENDING";
+	private NodeTaskState state = NodeTaskState.PENDING;
 	private int attempt;
 	private int maxAttempts = 1;
 	private String leasedBy;
@@ -104,12 +105,12 @@ public class FakePipelineNodeTask implements PipelineNodeTask {
 	}
 
 	@Override
-	public String getState() {
+	public NodeTaskState getState() {
 		return state;
 	}
 
 	@Override
-	public PipelineNodeTask setState(String state) {
+	public PipelineNodeTask setState(NodeTaskState state) {
 		this.state = state;
 		return this;
 	}

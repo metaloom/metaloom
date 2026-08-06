@@ -7,6 +7,7 @@ import java.util.UUID;
 import io.metaloom.filter.Filter;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.CRUDDao;
 import io.metaloom.loom.db.page.Page;
 
@@ -70,11 +71,7 @@ public interface PipelineNodeTaskDao extends CRUDDao<PipelineNodeTask> {
 	 */
 	List<PipelineNodeTask> loadExpiredLeases(Instant now, int limit);
 
-	/**
-	 * @param runUuid the run
-	 * @param state   one of PENDING, RUNNING, COMPLETED, FAILED, SKIPPED, DEAD_LETTER
-	 */
-	long countByRunAndState(UUID runUuid, String state);
+	long countByRunAndState(UUID runUuid, NodeTaskState state);
 
 	/**
 	 * How many tasks a worker currently holds, across all runs.

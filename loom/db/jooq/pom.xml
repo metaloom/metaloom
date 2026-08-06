@@ -281,6 +281,26 @@
 											     drag a Vert.x type into loom-db-api. -->
 											<includeExpression>node_descriptor\.descriptor</includeExpression>
 										</forcedType>
+										<!-- The three pipeline status/state columns are deliberately VARCHAR -
+										     a Postgres enum would need a migration for every new value - so the
+										     vocabulary is enforced in Java instead. These converters are the only
+										     boundary at which a bad string can be caught, and they reject one
+										     naming the column and the value rather than passing it to the UI. -->
+										<forcedType>
+											<userType>io.metaloom.loom.api.pipeline.PipelineRunStatus</userType>
+											<converter>io.metaloom.loom.db.jooq.converter.PipelineRunStatusConverter</converter>
+											<includeExpression>pipeline_run\.status</includeExpression>
+										</forcedType>
+										<forcedType>
+											<userType>io.metaloom.loom.api.pipeline.NodeTaskState</userType>
+											<converter>io.metaloom.loom.db.jooq.converter.NodeTaskStateConverter</converter>
+											<includeExpression>pipeline_node_task\.state</includeExpression>
+										</forcedType>
+										<forcedType>
+											<userType>io.metaloom.loom.api.pipeline.RunItemState</userType>
+											<converter>io.metaloom.loom.db.jooq.converter.RunItemStateConverter</converter>
+											<includeExpression>pipeline_run_item\.state</includeExpression>
+										</forcedType>
 									</forcedTypes>
 								</database>
 								<target>

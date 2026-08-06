@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
@@ -96,7 +97,7 @@ public class LeaseReaperTest {
 		// Without this the row stays RUNNING with a past expiry and is re-read on every
 		// sweep for the life of the process.
 		assertEquals(1, dao.updated.size());
-		assertEquals("DEAD_LETTER", dao.updated.get(0).getState());
+		assertEquals(NodeTaskState.DEAD_LETTER, dao.updated.get(0).getState());
 		assertEquals(null, dao.updated.get(0).getLeaseExpiresAt(), "A retired task must not remain leased");
 	}
 
@@ -164,7 +165,7 @@ public class LeaseReaperTest {
 		task.setItemUuid(itemUuid);
 		task.setNodeId(nodeId);
 		task.setNodeKind("sha512");
-		task.setState("RUNNING");
+		task.setState(NodeTaskState.RUNNING);
 		task.setLeaseExpiresAt(Instant.now().minusSeconds(600));
 		return task;
 	}

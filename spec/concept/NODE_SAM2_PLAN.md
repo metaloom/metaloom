@@ -2,6 +2,10 @@
 
 🟢 **BUILT** end to end, including `sidecars/sam2` (`:9130`). Kind `sam2`, 43rd advertised node kind.
 
+> This is the **decision record**: why the node looks the way it does and what was rejected. The
+> reference spec for working on it — ports, options, the sidecar protocol, tests, progress — is
+> [../features/nodes/sam2/NODE_SAM2.md](../features/nodes/sam2/NODE_SAM2.md).
+
 ## Why
 
 Metaloom could say **where** a thing is and never **which pixels** are it. Every geometry the schema
@@ -86,7 +90,10 @@ kept because it becomes live the moment that path grows one.
 
 - **Demo data.** Not seeded, following the explicit `imagegen`/`tts`/`depthmap`/`videogen` precedent:
   the demo container has no sidecar, and a demo pipeline that cannot run is worse than an absent one.
-- **Docs screenshots.** The recipe (`SidecarRecipes.sam2()`, `AUTOMATIC`) and the capture-plan entry
-  are committed; generating the two PNGs needs the sidecar running on a GPU host.
+- ~~**Docs screenshots.**~~ Done: `SidecarRecipes.sam2()` ran `AUTOMATIC` against the real sidecar and
+  the page now carries `config.png`, `debug.png` and `debug-detail.png`. It also surfaced a live
+  limitation — `NodeResultStrip` caps the card at three rows, so this node's `masks` and `overlay`
+  ports collapse into a `+n more` chip that cannot be clicked, and the debug card shows no picture of
+  a segmentation. Recorded in [../features/nodes/sam2/NODE_SAM2.md](../features/nodes/sam2/NODE_SAM2.md) §10.
 - **A queryable mask.** Masks are worker-local files. Making them searchable needs either a byte-ingest
   endpoint for produced media or a real geometry column — both are their own change.

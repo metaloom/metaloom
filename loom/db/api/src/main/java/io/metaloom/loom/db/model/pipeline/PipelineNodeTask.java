@@ -3,6 +3,7 @@ package io.metaloom.loom.db.model.pipeline;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.CUDElement;
 import io.vertx.core.json.JsonObject;
 
@@ -33,10 +34,9 @@ public interface PipelineNodeTask extends CUDElement<PipelineNodeTask> {
 
 	PipelineNodeTask setNodeKind(String nodeKind);
 
-	/** @return PENDING, RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER */
-	String getState();
+	NodeTaskState getState();
 
-	PipelineNodeTask setState(String state);
+	PipelineNodeTask setState(NodeTaskState state);
 
 	/**
 	 * Which element of a fanned-out sequence this execution covers.

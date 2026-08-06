@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.metaloom.loom.db.jooq.dao.PipelineFixtures.rootCauseMessage;
 
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
@@ -38,7 +39,7 @@ public class PipelineRunItemDaoTest extends AbstractJooqTest implements CRUDDaoT
 		PipelineRun run = PipelineFixtures.createRun(this, user, i);
 		PipelineRunItem item = pipelineRunItemDao().createRunItem(user.getUuid(), run.getUuid(), i, "/media/file-" + i + ".mp4");
 		item.setSizeBytes(1024L + i);
-		item.setState("PENDING");
+		item.setState(RunItemState.PENDING);
 		return item;
 	}
 
@@ -48,20 +49,20 @@ public class PipelineRunItemDaoTest extends AbstractJooqTest implements CRUDDaoT
 		assertEquals(0, created.getItemSeq());
 		assertEquals("/media/file-0.mp4", created.getMediaPath());
 		assertEquals(1024L, created.getSizeBytes());
-		assertEquals("PENDING", created.getState());
+		assertEquals(RunItemState.PENDING, created.getState());
 		assertNull(created.getSha512(), "The source does not hash - that is a node's job");
 	}
 
 	@Override
 	public void updateElement(PipelineRunItem element) {
-		element.setState("SUCCESS");
+		element.setState(RunItemState.SUCCESS);
 		element.setSha512("abc123");
 		element.setErrorMessage(null);
 	}
 
 	@Override
 	public void assertUpdate(PipelineRunItem updated) {
-		assertEquals("SUCCESS", updated.getState());
+		assertEquals(RunItemState.SUCCESS, updated.getState());
 		assertEquals("abc123", updated.getSha512());
 	}
 
@@ -121,18 +122,18 @@ public class PipelineRunItemDaoTest extends AbstractJooqTest implements CRUDDaoT
 		User user = dummyUser();
 		PipelineRun run = PipelineFixtures.createRun(this, user, 0);
 
-		storeItemInState(user, run.getUuid(), 1, "PENDING");
-		storeItemInState(user, run.getUuid(), 2, "RUNNING");
-		storeItemInState(user, run.getUuid(), 3, "SUCCESS");
-		storeItemInState(user, run.getUuid(), 4, "FAILED");
-		storeItemInState(user, run.getUuid(), 5, "SKIPPED");
+		storeItemInState(user, run.getUuid(), 1, RunItemState.PENDING);
+		storeItemInState(user, run.getUuid(), 2, RunItemState.RUNNING);
+		storeItemInState(user, run.getUuid(), 3, RunItemState.SUCCESS);
+		storeItemInState(user, run.getUuid(), 4, RunItemState.FAILED);
+		storeItemInState(user, run.getUuid(), 5, RunItemState.SKIPPED);
 
 		List<PipelineRunItem> unfinished = pipelineRunItemDao().loadUnfinishedByRun(run.getUuid());
 
 		// Recovery resumes exactly these. Including a terminal item would re-run work
 		// that is already decided; excluding a RUNNING one would strand it forever.
 		assertEquals(2, unfinished.size(), "Only PENDING and RUNNING are resumable");
-		assertTrue(unfinished.stream().allMatch(i -> List.of("PENDING", "RUNNING").contains(i.getState())));
+		assertTrue(unfinished.stream().allMatch(i -> List.of(RunItemState.PENDING, RunItemState.RUNNING).contains(i.getState())));
 	}
 
 	@Test
@@ -140,13 +141,13 @@ public class PipelineRunItemDaoTest extends AbstractJooqTest implements CRUDDaoT
 		User user = dummyUser();
 		PipelineRun run = PipelineFixtures.createRun(this, user, 0);
 
-		storeItemInState(user, run.getUuid(), 1, "SUCCESS");
-		storeItemInState(user, run.getUuid(), 2, "SUCCESS");
-		storeItemInState(user, run.getUuid(), 3, "FAILED");
+		storeItemInState(user, run.getUuid(), 1, RunItemState.SUCCESS);
+		storeItemInState(user, run.getUuid(), 2, RunItemState.SUCCESS);
+		storeItemInState(user, run.getUuid(), 3, RunItemState.FAILED);
 
-		assertEquals(2, pipelineRunItemDao().countByRunAndState(run.getUuid(), "SUCCESS"));
-		assertEquals(1, pipelineRunItemDao().countByRunAndState(run.getUuid(), "FAILED"));
-		assertEquals(0, pipelineRunItemDao().countByRunAndState(run.getUuid(), "PENDING"));
+		assertEquals(2, pipelineRunItemDao().countByRunAndState(run.getUuid(), RunItemState.SUCCESS));
+		assertEquals(1, pipelineRunItemDao().countByRunAndState(run.getUuid(), RunItemState.FAILED));
+		assertEquals(0, pipelineRunItemDao().countByRunAndState(run.getUuid(), RunItemState.PENDING));
 	}
 
 	@Test
@@ -154,7 +155,7 @@ public class PipelineRunItemDaoTest extends AbstractJooqTest implements CRUDDaoT
 		User user = dummyUser();
 		PipelineRun run = PipelineFixtures.createRun(this, user, 0);
 		UUID runUuid = run.getUuid();
-		storeItemInState(user, runUuid, 1, "PENDING");
+		storeItemInState(user, runUuid, 1, RunItemState.PENDING);
 
 		pipelineRunDao().delete(runUuid);
 
@@ -163,7 +164,7 @@ public class PipelineRunItemDaoTest extends AbstractJooqTest implements CRUDDaoT
 		assertEquals(0, pipelineRunItemDao().loadByRun(runUuid).size());
 	}
 
-	private void storeItemInState(User user, UUID runUuid, long seq, String state) {
+	private void storeItemInState(User user, UUID runUuid, long seq, RunItemState state) {
 		PipelineRunItem item = pipelineRunItemDao().createRunItem(user.getUuid(), runUuid, seq, "/media/" + seq + ".mp4");
 		item.setState(state);
 		pipelineRunItemDao().store(item);

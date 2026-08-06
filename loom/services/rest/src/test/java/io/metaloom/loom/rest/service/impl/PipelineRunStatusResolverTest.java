@@ -1,11 +1,12 @@
 package io.metaloom.loom.rest.service.impl;
 
-import static io.metaloom.loom.rest.service.impl.PipelineRunStatusResolver.CANCELLED;
-import static io.metaloom.loom.rest.service.impl.PipelineRunStatusResolver.FAILED;
-import static io.metaloom.loom.rest.service.impl.PipelineRunStatusResolver.PARTIAL;
-import static io.metaloom.loom.rest.service.impl.PipelineRunStatusResolver.PENDING;
-import static io.metaloom.loom.rest.service.impl.PipelineRunStatusResolver.RUNNING;
-import static io.metaloom.loom.rest.service.impl.PipelineRunStatusResolver.SUCCESS;
+import static io.metaloom.loom.api.pipeline.PipelineRunStatus.CANCELLED;
+import static io.metaloom.loom.api.pipeline.PipelineRunStatus.FAILED;
+import static io.metaloom.loom.api.pipeline.PipelineRunStatus.PARTIAL;
+import static io.metaloom.loom.api.pipeline.PipelineRunStatus.PAUSED;
+import static io.metaloom.loom.api.pipeline.PipelineRunStatus.PENDING;
+import static io.metaloom.loom.api.pipeline.PipelineRunStatus.RUNNING;
+import static io.metaloom.loom.api.pipeline.PipelineRunStatus.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
@@ -92,10 +93,18 @@ public class PipelineRunStatusResolverTest {
 	}
 
 	@Test
-	@DisplayName("An unknown or null status is not terminal, so it can still be closed out")
+	@DisplayName("PAUSED is not terminal - a suspended run is still live and can be resumed")
+	void testPausedNotTerminal() {
+		assertThat(PipelineRunStatusResolver.isTerminal(PAUSED)).isFalse();
+	}
+
+	@Test
+	@DisplayName("A null status is not terminal, so it can still be closed out")
 	void testUnknownStatusNotTerminal() {
+		// Since the status is typed there is no longer any such thing as an unrecognised
+		// one reaching this method - PipelineRunStatusTest covers rejecting it at the
+		// boundary instead. Null still has to be tolerated: a row is read before anything
+		// has decided what its status is.
 		assertThat(PipelineRunStatusResolver.isTerminal(null)).isFalse();
-		assertThat(PipelineRunStatusResolver.isTerminal("")).isFalse();
-		assertThat(PipelineRunStatusResolver.isTerminal("WAT")).isFalse();
 	}
 }

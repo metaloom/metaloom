@@ -191,11 +191,15 @@ spec/
 │   │   │   └── NODE_IMAGE_MANIPULATION.md  # 🟢 BUILT: the `image-manipulation` node — EXIF
 │   │   │                              #   autorotate, crop, subject crop, aspect/VVS blur-pad,
 │   │   │                              #   resize. Images only, ordered op chain, detections via port
-│   │   └── metadata/
-│   │       └── METADATA_OVERVIEW.md   # 🟢 The `metadata` node — EXIF/GPS/IPTC/XMP/container
-│   │                                  #   metadata onto Dublin Core, into asset_json_comp +
-│   │                                  #   asset_geo_comp + search. Precedence rules, envelope
-│   │                                  #   contract, privacy policy; §11 tracks phases 2-3
+│   │   ├── metadata/
+│   │   │   └── METADATA_OVERVIEW.md   # 🟢 The `metadata` node — EXIF/GPS/IPTC/XMP/container
+│   │   │                              #   metadata onto Dublin Core, into asset_json_comp +
+│   │   │                              #   asset_geo_comp + search. Precedence rules, envelope
+│   │   │                              #   contract, privacy policy; §11 tracks phases 2-3
+│   │   └── sam2/
+│   │       └── NODE_SAM2.md           # 🟢 BUILT: the `sam2` node — per-pixel segmentation via the
+│   │                                  #   sidecar on :9130. AUTOMATIC/PROMPTED/TRACK, the three
+│   │                                  #   coordinate spaces, ledger-only masks under sam2_bin
 │   ├── ops/
 │   │   ├── METRICS.md                 # 🟢 Prometheus /metrics on both components
 │   │   └── MONITORING.md              # 🟢 Health & readiness endpoints
@@ -342,6 +346,7 @@ spec/
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
 | **The face identity workflow** — detect → embed → cluster → confirm a person | [features/facedetection/FACE_WORKFLOW.md](features/facedetection/FACE_WORKFLOW.md) — 🔴 **only stage 1 runs.** No face embedding is ever persisted, so there is nothing to cluster; `cluster` and `person` have no FK. Specifies the `V2.75` migration and the confirm endpoint. ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
+| **Segmentation** — masks rather than boxes, and video object tracking | [features/nodes/sam2/NODE_SAM2.md](features/nodes/sam2/NODE_SAM2.md) — the `sam2` node + its :9130 sidecar. 🔴 the only per-pixel geometry in the tree, and it is **ledger only**: masks are worker-local files, so there is no way to query them |
 | **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](concept/SEARCH_PLAN.md) |
 | Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — **not built**; the API seams exist and reject with 400 |
 | Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](concept/LUCENE_PLAN.md) — **built**, off by default |

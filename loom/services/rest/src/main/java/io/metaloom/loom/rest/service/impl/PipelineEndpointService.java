@@ -23,6 +23,7 @@ import javax.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
@@ -327,7 +328,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 		// Create a pipeline run record to track this execution
 		PipelineRun runRecord = pipelineRunDao.createPipelineRun(userUuid, pipeline.getUuid(), pipelineVersion);
-		runRecord.setStatus("RUNNING");
+		runRecord.setStatus(PipelineRunStatus.RUNNING);
 		runRecord.setDryRun(dryRun);
 		pipelineRunDao.store(runRecord);
 		metrics.recordRunStarted();
@@ -685,7 +686,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
 					"Pipeline run is already " + run.getStatus() + ".");
 			}
-			if (PipelineRunStatusResolver.PAUSED.equals(run.getStatus())) {
+			if (run.getStatus() == PipelineRunStatus.PAUSED) {
 				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT, "Pipeline run is already paused.");
 			}
 
@@ -721,7 +722,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	public void resumeRun(LoomRoutingContext lrc, UUID pipelineUuid, UUID runUuid) {
 		checkPerm(lrc, UPDATE_PIPELINE_RUN, () -> {
 			PipelineRun run = loadRunOr404(pipelineUuid, runUuid);
-			if (!PipelineRunStatusResolver.PAUSED.equals(run.getStatus())) {
+			if (run.getStatus() != PipelineRunStatus.PAUSED) {
 				throw new LoomRestException(409, LoomRestErrorCode.CONFLICT,
 					"Pipeline run is " + run.getStatus() + " and cannot be resumed.");
 			}

@@ -18,7 +18,10 @@ import org.jooq.TableRecord;
 
 import io.metaloom.filter.Filter;
 import io.metaloom.filter.FilterKey;
+import io.metaloom.loom.api.error.LoomRestErrorCode;
+import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.api.filter.LoomFilterKey;
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
@@ -30,7 +33,7 @@ import io.metaloom.loom.db.page.Page;
 @Singleton
 public class PipelineNodeTaskDaoImpl extends AbstractJooqDao<PipelineNodeTask> implements PipelineNodeTaskDao {
 
-	private static final String STATE_RUNNING = "RUNNING";
+	private static final NodeTaskState STATE_RUNNING = NodeTaskState.RUNNING;
 
 	@Inject
 	public PipelineNodeTaskDaoImpl(DSLContext ctx) {
@@ -117,7 +120,7 @@ public class PipelineNodeTaskDaoImpl extends AbstractJooqDao<PipelineNodeTask> i
 	}
 
 	@Override
-	public long countByRunAndState(UUID runUuid, String state) {
+	public long countByRunAndState(UUID runUuid, NodeTaskState state) {
 		return ctx().fetchCount(PIPELINE_NODE_TASK,
 			PIPELINE_NODE_TASK.RUN_UUID.eq(runUuid).and(PIPELINE_NODE_TASK.STATE.eq(state)));
 	}
@@ -141,9 +144,21 @@ public class PipelineNodeTaskDaoImpl extends AbstractJooqDao<PipelineNodeTask> i
 	protected SelectConditionStep<?> applyFilter(SelectConditionStep<?> query, Filter filter) {
 		FilterKey key = filter.filterKey();
 		if (key == LoomFilterKey.STATUS) {
-			return query.and(PIPELINE_NODE_TASK.STATE.eq(filter.valueStr()));
+			return query.and(PIPELINE_NODE_TASK.STATE.eq(parseState(filter.valueStr())));
 		}
 		return super.applyFilter(query, filter);
+	}
+
+	/**
+	 * A caller filtering on a state that does not exist has made a bad request, not found nothing.
+	 * Returning an empty page instead would hide the typo behind a plausible answer.
+	 */
+	private static NodeTaskState parseState(String value) {
+		try {
+			return NodeTaskState.parse("pipeline_node_task.state", value);
+		} catch (IllegalArgumentException e) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, e.getMessage());
+		}
 	}
 
 	/**

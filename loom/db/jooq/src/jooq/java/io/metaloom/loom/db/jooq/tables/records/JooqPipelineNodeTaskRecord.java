@@ -4,6 +4,7 @@
 package io.metaloom.loom.db.jooq.tables.records;
 
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.vertx.core.json.JsonObject;
 
@@ -104,7 +105,7 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
      * Setter for <code>public.pipeline_node_task.state</code>. PENDING,
      * RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER
      */
-    public void setState(String value) {
+    public void setState(NodeTaskState value) {
         set(5, value);
     }
 
@@ -112,8 +113,8 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
      * Getter for <code>public.pipeline_node_task.state</code>. PENDING,
      * RUNNING, COMPLETED, FAILED, SKIPPED or DEAD_LETTER
      */
-    public String getState() {
-        return (String) get(5);
+    public NodeTaskState getState() {
+        return (NodeTaskState) get(5);
     }
 
     /**
@@ -411,7 +412,7 @@ public class JooqPipelineNodeTaskRecord extends UpdatableRecordImpl<JooqPipeline
     /**
      * Create a detached, initialised JooqPipelineNodeTaskRecord
      */
-    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, String state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq, JsonObject previews, Integer generation) {
+    public JooqPipelineNodeTaskRecord(UUID uuid, UUID itemUuid, UUID runUuid, String nodeId, String nodeKind, NodeTaskState state, Integer attempt, Integer maxAttempts, String leasedBy, LocalDateTime leaseExpiresAt, LocalDateTime started, LocalDateTime finished, Long durationMs, String errorMessage, JsonObject outputs, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, Integer elementSeq, JsonObject previews, Integer generation) {
         super(JooqPipelineNodeTask.PIPELINE_NODE_TASK);
 
         setUuid(uuid);

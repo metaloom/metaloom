@@ -2,6 +2,7 @@ package io.metaloom.loom.db.model.pipeline;
 
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.CUDElement;
 import io.vertx.core.json.JsonObject;
 
@@ -23,9 +24,9 @@ public interface PipelineRun extends CUDElement<PipelineRun> {
 
 	PipelineRun setFinished(java.time.Instant finished);
 
-	String getStatus();
+	PipelineRunStatus getStatus();
 
-	PipelineRun setStatus(String status);
+	PipelineRun setStatus(PipelineRunStatus status);
 
 	int getMediaCount();
 

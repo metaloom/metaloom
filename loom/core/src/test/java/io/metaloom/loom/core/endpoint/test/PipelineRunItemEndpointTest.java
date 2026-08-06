@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+import io.metaloom.loom.api.pipeline.RunItemState;
 import io.metaloom.loom.api.filter.LoomFilterKey;
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
@@ -73,7 +74,7 @@ public class PipelineRunItemEndpointTest {
 	}
 
 	/** Persist one item in a run with the given sequence, state and optional error message. */
-	private PipelineRunItem addItem(UUID runUuid, long seq, String state, String errorMessage) {
+	private PipelineRunItem addItem(UUID runUuid, long seq, RunItemState state, String errorMessage) {
 		UUID adminUuid = loom.internal().daos().userDao().loadAdmin().getUuid();
 		PipelineRunItem item = runItemDao().createRunItem(adminUuid, runUuid, seq, "/media/file-" + seq + ".mp4");
 		item.setState(state);
@@ -94,15 +95,15 @@ public class PipelineRunItemEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 			PipelineRun run = createRun();
-			addItem(run.getUuid(), 0, "SUCCESS", null);
-			addItem(run.getUuid(), 1, "FAILED", "boom");
-			addItem(run.getUuid(), 2, "PENDING", null);
+			addItem(run.getUuid(), 0, RunItemState.SUCCESS, null);
+			addItem(run.getUuid(), 1, RunItemState.FAILED, "boom");
+			addItem(run.getUuid(), 2, RunItemState.PENDING, null);
 
 			PipelineRunItemListResponse response = client.listPipelineRunItems(run.getPipelineUuid(), run.getUuid()).sync().body();
 			assertThat(response.getData()).hasSize(3);
 			assertThat(response.getData()).extracting(PipelineRunItemRecord::getState)
-				.containsExactlyInAnyOrder("SUCCESS", "FAILED", "PENDING");
-			PipelineRunItemRecord failed = response.getData().stream().filter(i -> "FAILED".equals(i.getState())).findFirst().orElseThrow();
+				.containsExactlyInAnyOrder(RunItemState.SUCCESS, RunItemState.FAILED, RunItemState.PENDING);
+			PipelineRunItemRecord failed = response.getData().stream().filter(i -> i.getState() == RunItemState.FAILED).findFirst().orElseThrow();
 			assertThat(failed.getErrorMessage()).isEqualTo("boom");
 			assertThat(failed.getMediaPath()).isEqualTo("/media/file-1.mp4");
 			assertThat(failed.getRunUuid()).isEqualTo(run.getUuid());
@@ -128,7 +129,7 @@ public class PipelineRunItemEndpointTest {
 			loginAdmin(client);
 			PipelineRun run = createRun();
 			for (int i = 0; i < 30; i++) {
-				addItem(run.getUuid(), i, "SUCCESS", null);
+				addItem(run.getUuid(), i, RunItemState.SUCCESS, null);
 			}
 
 			PipelineRunItemListResponse response = client.listPipelineRunItems(run.getPipelineUuid(), run.getUuid()).sync().body();
@@ -144,16 +145,16 @@ public class PipelineRunItemEndpointTest {
 		try (LoomHttpClient client = loom.httpClient()) {
 			loginAdmin(client);
 			PipelineRun run = createRun();
-			addItem(run.getUuid(), 0, "SUCCESS", null);
-			addItem(run.getUuid(), 1, "FAILED", "boom");
-			addItem(run.getUuid(), 2, "FAILED", "kaboom");
-			addItem(run.getUuid(), 3, "PENDING", null);
+			addItem(run.getUuid(), 0, RunItemState.SUCCESS, null);
+			addItem(run.getUuid(), 1, RunItemState.FAILED, "boom");
+			addItem(run.getUuid(), 2, RunItemState.FAILED, "kaboom");
+			addItem(run.getUuid(), 3, RunItemState.PENDING, null);
 
 			PipelineRunItemListResponse response = client.listPipelineRunItems(run.getPipelineUuid(), run.getUuid())
 				.addEquals(LoomFilterKey.STATUS, "FAILED")
 				.sync().body();
 			assertThat(response.getData()).hasSize(2);
-			assertThat(response.getData()).allMatch(i -> "FAILED".equals(i.getState()));
+			assertThat(response.getData()).allMatch(i -> i.getState() == RunItemState.FAILED);
 		}
 	}
 
@@ -200,7 +201,7 @@ public class PipelineRunItemEndpointTest {
 			// joedoe holds only READ_USER - not READ_PIPELINE_RUN.
 			AuthLoginResponse login = client.login("joedoe", "finger").sync().body();
 			PipelineRun run = createRun();
-			addItem(run.getUuid(), 0, "SUCCESS", null);
+			addItem(run.getUuid(), 0, RunItemState.SUCCESS, null);
 
 			int[] status = new int[1];
 			httpSend(vertx, HttpMethod.GET, itemsPath(run.getPipelineUuid(), run.getUuid()), login.getToken(), status);

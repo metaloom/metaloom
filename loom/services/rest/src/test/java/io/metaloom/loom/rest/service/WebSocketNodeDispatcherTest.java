@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTask;
@@ -68,6 +69,6 @@ public class WebSocketNodeDispatcherTest {
 
 		assertTrue(engine.isComplete(), "The run must terminate even though nothing could be dispatched");
 		assertEquals(NodeState.FAILED, engine.getItem(itemId).getResults().get("hash").getState());
-		assertEquals("FAILED", engine.summary().getStatus());
+		assertEquals(PipelineRunStatus.FAILED, engine.summary().getStatus());
 	}
 }

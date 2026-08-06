@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import static io.metaloom.loom.db.jooq.dao.PipelineFixtures.rootCauseMessage;
 
+import io.metaloom.loom.api.pipeline.NodeTaskState;
 import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
@@ -52,7 +53,7 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		assertNotNull(created.getRunUuid());
 		assertEquals("sha512", created.getNodeId());
 		assertEquals("hash-sha512", created.getNodeKind());
-		assertEquals("PENDING", created.getState(), "A fresh task has not been dispatched yet");
+		assertEquals(NodeTaskState.PENDING, created.getState(), "A fresh task has not been dispatched yet");
 		assertEquals(0, created.getAttempt());
 		assertEquals(3, created.getMaxAttempts());
 		assertNull(created.getLeasedBy());
@@ -61,7 +62,7 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 
 	@Override
 	public void updateElement(PipelineNodeTask element) {
-		element.setState("COMPLETED");
+		element.setState(NodeTaskState.COMPLETED);
 		element.setAttempt(1);
 		element.setDurationMs(1234L);
 		element.setOutputs(new JsonObject().put("sha512", "deadbeef"));
@@ -71,7 +72,7 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 
 	@Override
 	public void assertUpdate(PipelineNodeTask updated) {
-		assertEquals("COMPLETED", updated.getState());
+		assertEquals(NodeTaskState.COMPLETED, updated.getState());
 		assertEquals(1, updated.getAttempt());
 		assertEquals(1234L, updated.getDurationMs());
 		assertNotNull(updated.getOutputs(), "Outputs must survive the round trip - downstream nodes read them");
@@ -88,7 +89,7 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
 
-		storeTask(user, item, "sha512", "hash-sha512", "COMPLETED");
+		storeTask(user, item, "sha512", "hash-sha512", NodeTaskState.COMPLETED);
 
 		// This is the idempotency key doing its job. Once retries exist, duplicate
 		// delivery is inevitable, and without this a redelivered task would produce a
@@ -108,8 +109,8 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
 
-		storeTask(user, item, "sha512", "hash-sha512", "COMPLETED");
-		storeTask(user, item, "md5", "hash-md5", "PENDING");
+		storeTask(user, item, "sha512", "hash-sha512", NodeTaskState.COMPLETED);
+		storeTask(user, item, "md5", "hash-md5", NodeTaskState.PENDING);
 
 		assertEquals(2, pipelineNodeTaskDao().loadByItem(item.getUuid()).size());
 	}
@@ -118,11 +119,11 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 	public void testLoadByItemAndNode() {
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
-		storeTask(user, item, "sha512", "hash-sha512", "COMPLETED");
+		storeTask(user, item, "sha512", "hash-sha512", NodeTaskState.COMPLETED);
 
 		PipelineNodeTask found = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "sha512", 0);
 		assertNotNull(found);
-		assertEquals("COMPLETED", found.getState());
+		assertEquals(NodeTaskState.COMPLETED, found.getState());
 
 		assertNull(pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "not-a-node", 0),
 			"An unknown node id must read as absent, not blow up");
@@ -134,12 +135,12 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		PipelineRunItem item = storeItem(user, 0);
 		Instant now = Instant.now();
 
-		PipelineNodeTask expired = storeTask(user, item, "expired", "hash-sha512", "RUNNING");
+		PipelineNodeTask expired = storeTask(user, item, "expired", "hash-sha512", NodeTaskState.RUNNING);
 		expired.setLeasedBy("worker-a");
 		expired.setLeaseExpiresAt(now.minus(Duration.ofMinutes(5)));
 		pipelineNodeTaskDao().update(expired);
 
-		PipelineNodeTask live = storeTask(user, item, "live", "hash-md5", "RUNNING");
+		PipelineNodeTask live = storeTask(user, item, "live", "hash-md5", NodeTaskState.RUNNING);
 		live.setLeasedBy("worker-b");
 		live.setLeaseExpiresAt(now.plus(Duration.ofMinutes(5)));
 		pipelineNodeTaskDao().update(live);
@@ -161,7 +162,7 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 
 		// PENDING with no lease at all. It is already dispatchable; reclaiming it
 		// would be a no-op at best and a double dispatch at worst.
-		storeTask(user, item, "pending", "hash-sha512", "PENDING");
+		storeTask(user, item, "pending", "hash-sha512", NodeTaskState.PENDING);
 
 		assertTrue(pipelineNodeTaskDao().loadExpiredLeases(Instant.now(), 100).isEmpty());
 	}
@@ -173,7 +174,7 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		Instant now = Instant.now();
 
 		for (int i = 0; i < 5; i++) {
-			PipelineNodeTask task = storeTask(user, item, "node-" + i, "hash-sha512", "RUNNING");
+			PipelineNodeTask task = storeTask(user, item, "node-" + i, "hash-sha512", NodeTaskState.RUNNING);
 			task.setLeaseExpiresAt(now.minus(Duration.ofMinutes(i + 1L)));
 			pipelineNodeTaskDao().update(task);
 		}
@@ -187,13 +188,13 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
 
-		PipelineNodeTask running = storeTask(user, item, "running", "hash-sha512", "RUNNING");
+		PipelineNodeTask running = storeTask(user, item, "running", "hash-sha512", NodeTaskState.RUNNING);
 		running.setLeasedBy("worker-a");
 		pipelineNodeTaskDao().update(running);
 
 		// Still stamped with the worker that ran it, but finished. Counting this
 		// against the worker's in-flight cap would strangle it over time.
-		PipelineNodeTask done = storeTask(user, item, "done", "hash-md5", "COMPLETED");
+		PipelineNodeTask done = storeTask(user, item, "done", "hash-md5", NodeTaskState.COMPLETED);
 		done.setLeasedBy("worker-a");
 		pipelineNodeTaskDao().update(done);
 
@@ -206,20 +207,20 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
 
-		storeTask(user, item, "a", "hash-sha512", "COMPLETED");
-		storeTask(user, item, "b", "hash-md5", "COMPLETED");
-		storeTask(user, item, "c", "hash-sha512", "FAILED");
+		storeTask(user, item, "a", "hash-sha512", NodeTaskState.COMPLETED);
+		storeTask(user, item, "b", "hash-md5", NodeTaskState.COMPLETED);
+		storeTask(user, item, "c", "hash-sha512", NodeTaskState.FAILED);
 
 		UUID runUuid = item.getRunUuid();
-		assertEquals(2, pipelineNodeTaskDao().countByRunAndState(runUuid, "COMPLETED"));
-		assertEquals(1, pipelineNodeTaskDao().countByRunAndState(runUuid, "FAILED"));
+		assertEquals(2, pipelineNodeTaskDao().countByRunAndState(runUuid, NodeTaskState.COMPLETED));
+		assertEquals(1, pipelineNodeTaskDao().countByRunAndState(runUuid, NodeTaskState.FAILED));
 	}
 
 	@Test
 	public void testDeletingAnItemCascadesToItsTasks() {
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
-		storeTask(user, item, "sha512", "hash-sha512", "COMPLETED");
+		storeTask(user, item, "sha512", "hash-sha512", NodeTaskState.COMPLETED);
 
 		pipelineRunItemDao().delete(item.getUuid());
 
@@ -233,16 +234,16 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		return item;
 	}
 
-	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, String state) {
+	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, NodeTaskState state) {
 		return storeTask(user, item, nodeId, nodeKind, state, 0);
 	}
 
-	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, String state,
+	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, NodeTaskState state,
 		int elementSeq) {
 		return storeTask(user, item, nodeId, nodeKind, state, elementSeq, 0);
 	}
 
-	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, String state,
+	private PipelineNodeTask storeTask(User user, PipelineRunItem item, String nodeId, String nodeKind, NodeTaskState state,
 		int elementSeq, int generation) {
 		PipelineNodeTask task = pipelineNodeTaskDao().createNodeTask(user.getUuid(), item.getUuid(), item.getRunUuid(),
 			nodeId, nodeKind);
@@ -261,15 +262,15 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
 
-		storeTask(user, item, "describe", "facedescription", "COMPLETED", 0);
-		storeTask(user, item, "describe", "facedescription", "FAILED", 1);
+		storeTask(user, item, "describe", "facedescription", NodeTaskState.COMPLETED, 0);
+		storeTask(user, item, "describe", "facedescription", NodeTaskState.FAILED, 1);
 
 		PipelineNodeTask element0 = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "describe", 0);
 		PipelineNodeTask element1 = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "describe", 1);
 		assertNotNull(element0, "Element 0 must keep its own row");
 		assertNotNull(element1, "Element 1 must keep its own row");
-		assertEquals("COMPLETED", element0.getState());
-		assertEquals("FAILED", element1.getState(),
+		assertEquals(NodeTaskState.COMPLETED, element0.getState());
+		assertEquals(NodeTaskState.FAILED, element1.getState(),
 			"One element failing must not be readable as the whole node failing, or succeeding");
 	}
 
@@ -281,8 +282,8 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
 
-		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 0);
-		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.COMPLETED, 0, 0);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.COMPLETED, 0, 1);
 
 		assertEquals(2, pipelineNodeTaskDao().loadByItem(item.getUuid()).size(),
 			"Both attempts at the same execution must survive");
@@ -298,12 +299,12 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
 
-		storeTask(user, item, "facedetect", "facedetect", "FAILED", 0, 0);
-		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.FAILED, 0, 0);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.COMPLETED, 0, 1);
 
 		PipelineNodeTask latest = pipelineNodeTaskDao().loadByItemAndNode(item.getUuid(), "facedetect", 0);
 		assertEquals(1, latest.getGeneration());
-		assertEquals("COMPLETED", latest.getState());
+		assertEquals(NodeTaskState.COMPLETED, latest.getState());
 	}
 
 	@Test
@@ -313,9 +314,9 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		// sit beside.
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
-		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 0);
-		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
-		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 2);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.COMPLETED, 0, 0);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.COMPLETED, 0, 1);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.COMPLETED, 0, 2);
 
 		pipelineRunItemDao().delete(item.getUuid());
 
@@ -328,10 +329,10 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 		// attempt would make "which result did this attempt produce?" ambiguous.
 		User user = dummyUser();
 		PipelineRunItem item = storeItem(user, 0);
-		storeTask(user, item, "facedetect", "facedetect", "COMPLETED", 0, 1);
+		storeTask(user, item, "facedetect", "facedetect", NodeTaskState.COMPLETED, 0, 1);
 
 		Exception e = assertThrows(Exception.class,
-			() -> storeTask(user, item, "facedetect", "facedetect", "FAILED", 0, 1));
+			() -> storeTask(user, item, "facedetect", "facedetect", NodeTaskState.FAILED, 0, 1));
 		assertTrue(rootCauseMessage(e).contains("pipeline_node_task_unique_node"),
 			"The unique key must still reject a duplicate attempt: " + rootCauseMessage(e));
 	}
