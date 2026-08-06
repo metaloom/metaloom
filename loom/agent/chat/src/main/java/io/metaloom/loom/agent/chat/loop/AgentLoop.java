@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import io.metaloom.loom.agent.chat.event.AgentEventType;
 import io.metaloom.loom.agent.chat.prompt.SystemPromptBuilder;
 import io.metaloom.loom.agent.chat.ref.ReferenceExtractor;
 import io.metaloom.loom.agent.chat.ref.VisualExtractor;
+import io.metaloom.loom.agent.chat.skill.AgentSkill;
 import io.metaloom.loom.agent.chat.skill.SkillPromptBuilder;
 import io.metaloom.loom.agent.memory.MemoryScopeRef;
 import io.metaloom.loom.agent.memory.MemoryService;
@@ -36,6 +38,7 @@ import io.metaloom.loom.agent.sandbox.tool.CodingTool;
 import io.metaloom.loom.agent.sandbox.tool.CodingTools;
 import io.metaloom.loom.api.options.AiOptions;
 import io.metaloom.loom.api.options.SandboxOptions;
+import io.metaloom.loom.common.skill.BuiltinSkills;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSession;
@@ -93,7 +96,17 @@ public class AgentLoop {
 	private final StringBuilder reasoningBuffer = new StringBuilder();
 	private final JsonArray recordedToolCalls = new JsonArray();
 
-	private List<Skill> activeSkills = List.of();
+	/**
+	 * What the prompt discloses and {@code load_skill} can resolve: the built-in skills that ship with Loom, followed by the ones the user activated
+	 * for this chat. Built-ins are always present, so a skill list is never empty.
+	 */
+	private List<AgentSkill> activeSkills = List.of();
+
+	/**
+	 * The stored subset of {@link #activeSkills}, kept separately because only a row can be pinned to a session — a built-in has no uuid and no
+	 * version number to pin.
+	 */
+	private List<Skill> activeUserSkills = List.of();
 
 	/** The caller's memory scopes and the header-only index, both resolved once per run. */
 	private List<MemoryScopeRef> memoryScopes = List.of();
@@ -144,7 +157,11 @@ public class AgentLoop {
 
 		callerContext = buildCallerContext(chat);
 		loadMemory();
-		activeSkills = loadActiveSkills();
+		activeUserSkills = loadActiveSkills();
+		activeSkills = Stream.concat(
+			BuiltinSkills.list().stream().map(AgentSkill::of),
+			activeUserSkills.stream().map(AgentSkill::of))
+			.toList();
 		boolean firstExchange = chat.getMessages() == null || chat.getMessages().isEmpty();
 		List<ChatMessage> history = buildHistory(chat);
 		List<ToolDefinition> tools = buildTools();
@@ -243,8 +260,10 @@ public class AgentLoop {
 			session.setChatUuid(chat.getUuid());
 			chatSessionDao.store(session);
 
-			if (!activeSkills.isEmpty()) {
-				List<ChatSessionSkillPin> pins = activeSkills.stream()
+			// Only stored skills are pinned. A built-in has no uuid and no version to pin, and it is
+			// active on every run anyway, so recording it would say nothing about this session.
+			if (!activeUserSkills.isEmpty()) {
+				List<ChatSessionSkillPin> pins = activeUserSkills.stream()
 					.map(s -> new ChatSessionSkillPin(session.getUuid(), s.getUuid(), s.getActiveVersionNumber()))
 					.toList();
 				chatSessionDao.replaceSkillPins(session.getUuid(), pins);
@@ -327,15 +346,15 @@ public class AgentLoop {
 
 		if (SkillPromptBuilder.LOAD_SKILL_TOOL.equals(name)) {
 			String skillName = args.getString("name");
-			Skill skill = activeSkills.stream()
-				.filter(s -> s.getName().equals(skillName))
+			AgentSkill skill = activeSkills.stream()
+				.filter(s -> s.name().equals(skillName))
 				.findFirst()
 				.orElse(null);
 			if (skill == null) {
 				isError = true;
 				resultText = "ERROR: Unknown or inactive skill: " + skillName;
 			} else {
-				resultText = skill.getContent();
+				resultText = skill.content();
 			}
 		} else if (CodingTools.NAMES.contains(name)) {
 			// Coding tools run inside this chat's isolated Session Runner (provisioned on first use),
@@ -557,7 +576,11 @@ public class AgentLoop {
 
 	private List<ToolDefinition> buildTools() {
 		List<ToolDefinition> tools = new ArrayList<>();
-		for (MCPToolDescriptor descriptor : toolRegistry.listDescriptors()) {
+		// Only what this caller may actually invoke. Advertising a tool the user has no permission
+		// for costs a turn (the model calls it, gets a permission error back as a tool *result*, and
+		// often tries again) and, worse, puts the capability in the prompt: a create_pipeline the
+		// user may not use still reads to the model as an invitation to author one.
+		for (MCPToolDescriptor descriptor : permittedTools()) {
 			tools.add(new ToolDefinition(descriptor.name(), descriptor.description(), descriptor.inputSchema()));
 		}
 		// Coding tools are executed inside a per-chat isolated sandbox (see executeToolCall). Only
@@ -575,6 +598,28 @@ public class AgentLoop {
 					new MCPToolParam("name", "string", "The name of the skill to load", true)))));
 		}
 		return tools;
+	}
+
+	/**
+	 * The MCP tools this run's caller is permitted to invoke.
+	 *
+	 * <p>
+	 * Resolving permissions is a database lookup, so it is awaited once here rather than per tool; the loop already runs on a worker thread. The
+	 * registry itself degrades to the tools that need no permission when the authorization lookup fails; this catch covers the coarser case — the
+	 * lookup timing out or the call throwing — and then advertises nothing. Both fail closed, because an agent that can do less is better than one
+	 * offering a capability it will be refused on. The run continues either way: the model still has its skills and, when enabled, the coding tools.
+	 * </p>
+	 */
+	private List<MCPToolDescriptor> permittedTools() {
+		try {
+			return toolRegistry.listDescriptorsFor(request.user())
+				.toCompletionStage()
+				.toCompletableFuture()
+				.get(options.getToolTimeoutMs(), TimeUnit.MILLISECONDS);
+		} catch (Exception e) {
+			log.warn("Could not resolve the permitted MCP tools for this run", e);
+			return List.of();
+		}
 	}
 
 	private LargeLanguageModel model() {

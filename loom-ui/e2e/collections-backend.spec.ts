@@ -65,13 +65,17 @@ test.describe("Collections - backend e2e", () => {
       await expect(page.locator(".MuiPaper-root").filter({ hasText: colName })).toBeVisible({ timeout: 10_000 });
     }
 
+    // The in-page filter, named exactly: the sidebar's global search field is mounted on every
+    // route and its placeholder also matches /search/i.
+    const filter = page.getByPlaceholder("Search collections…");
+
     // Search for alpha
-    await page.getByPlaceholder(/search/i).fill("alpha");
+    await filter.fill("alpha");
     await expect(page.locator(".MuiPaper-root").filter({ hasText: nameA })).toBeVisible();
     await expect(page.locator(".MuiPaper-root").filter({ hasText: nameB })).toBeHidden();
 
     // Clear search
-    await page.getByPlaceholder(/search/i).fill("");
+    await filter.fill("");
     await expect(page.locator(".MuiPaper-root").filter({ hasText: nameB })).toBeVisible();
 
     // Cleanup

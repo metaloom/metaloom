@@ -57,6 +57,7 @@ import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
+import io.metaloom.loom.rest.service.impl.PipelineAuthoringService.PipelineWithVersion;
 import io.metaloom.loom.rest.service.impl.ProcessorRegistry.ConnectedProcessor;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 import io.metaloom.loom.rest.validation.ValidationException;
@@ -72,6 +73,8 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private final ProcessorRegistry processorRegistry;
 	private final PipelineValidationService pipelineValidationService;
+	/** The single write path for definitions — see {@link PipelineAuthoringService}; the MCP tools use the same one. */
+	private final PipelineAuthoringService pipelineAuthoringService;
 	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
 	private final PipelineRunDao pipelineRunDao;
 	private final PipelineVersionDao pipelineVersionDao;
@@ -100,7 +103,8 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	@Inject
 	public PipelineEndpointService(PipelineDao pipelineDao, DaoCollection daos, LoomModelBuilder modelBuilder,
 		LoomModelValidator validator, ProcessorRegistry processorRegistry,
-		PipelineValidationService pipelineValidationService, PipelineRunDao pipelineRunDao,
+		PipelineValidationService pipelineValidationService, PipelineAuthoringService pipelineAuthoringService,
+		PipelineRunDao pipelineRunDao,
 		PipelineVersionDao pipelineVersionDao, PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
 		WebSocketNodeDispatcher nodeDispatcher, PipelineRunItemDao pipelineRunItemDao,
 		PipelineNodeTaskDao pipelineNodeTaskDao, PipelineEventBroadcaster pipelineEventBroadcaster,
@@ -112,6 +116,7 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		this.circuitBreaker = new io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker(metrics);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
+		this.pipelineAuthoringService = pipelineAuthoringService;
 		this.pipelineRunDao = pipelineRunDao;
 		this.pipelineVersionDao = pipelineVersionDao;
 		this.pipelineRunTracker = pipelineRunTracker;
@@ -174,39 +179,9 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		AtomicReference<PipelineVersion> created = new AtomicReference<>();
 		create(lrc, CREATE_PIPELINE, () -> {
 			PipelineCreateRequest request = lrc.requestBody(PipelineCreateRequest.class);
-			validator.validate(request);
-			pipelineValidationService.validateDefinition(request.getDefinition());
-			// Stamp the format version so what is stored names the format it is in. Done on the
-			// way in rather than on the way out: a definition read back has to be interpretable
-			// by itself, without knowing which Loom happened to serve it.
-			PipelineGraphParser.stampVersion(request.getDefinition());
-
-			UUID userUuid = lrc.userUuid();
-			Pipeline pipeline = dao().createPipeline(userUuid, request.getName());
-			pipeline.setMeta(request.getMeta());
-			dao().store(pipeline);
-
-			// Create v1 in pipeline_version table
-			PipelineVersion version = pipelineVersionDao.createVersion(
-				userUuid,
-				pipeline.getUuid(),
-				1,
-				request.getName(),
-				request.getDescription(),
-				request.getDefinition(),
-				request.isEnabled() != null ? request.isEnabled() : true,
-				request.getPriority() != null ? request.getPriority() : 0,
-				request.isDryRun() != null ? request.isDryRun() : false,
-				request.getMeta()
-			);
-			pipelineVersionDao.store(version);
-			created.set(version);
-
-			// Update pipeline with latest version reference
-			pipeline.setLatestVersionUuid(version.getUuid());
-			dao().update(pipeline);
-
-			return pipeline;
+			PipelineWithVersion result = pipelineAuthoringService.create(lrc.userUuid(), request);
+			created.set(result.version());
+			return result.pipeline();
 		}, pipeline -> modelBuilder.toResponse(pipeline, created.get()));
 	}
 
@@ -215,47 +190,12 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		AtomicReference<PipelineVersion> updated = new AtomicReference<>();
 		update(lrc, UPDATE_PIPELINE, () -> {
 			PipelineUpdateRequest request = lrc.requestBody(PipelineUpdateRequest.class);
-			validator.validate(request);
-			if (request.getDefinition() != null) {
-				pipelineValidationService.validateDefinition(request.getDefinition());
-				PipelineGraphParser.stampVersion(request.getDefinition());
-			}
-
-			UUID userUuid = lrc.userUuid();
-			Pipeline pipeline = dao().loadWithLatestVersion(id);
-			if (pipeline == null) {
+			PipelineWithVersion result = pipelineAuthoringService.update(lrc.userUuid(), id, request);
+			if (result == null) {
 				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Pipeline not found.");
 			}
-
-			// Get the latest version to determine the next version number
-			PipelineVersion latestVersion = pipelineVersionDao.loadLatestByPipeline(pipeline.getUuid());
-			int nextVersion = latestVersion != null ? latestVersion.getVersionNumber() + 1 : 1;
-
-			// Create new version with updated data
-			PipelineVersion version = pipelineVersionDao.createVersion(
-				userUuid,
-				pipeline.getUuid(),
-				nextVersion,
-				request.getName() != null ? request.getName() : latestVersion.getName(),
-				request.getDescription() != null ? request.getDescription() : latestVersion.getDescription(),
-				request.getDefinition() != null ? request.getDefinition() : latestVersion.getDefinition(),
-				request.isEnabled() != null ? request.isEnabled() : latestVersion.isEnabled(),
-				request.getPriority() != null ? request.getPriority() : latestVersion.getPriority(),
-				request.isDryRun() != null ? request.isDryRun() : latestVersion.isDryRun(),
-				request.getMeta() != null ? request.getMeta() : latestVersion.getMeta()
-			);
-			pipelineVersionDao.store(version);
-			updated.set(version);
-
-			// Update pipeline with latest version reference and meta
-			pipeline.setLatestVersionUuid(version.getUuid());
-			if (request.getMeta() != null) {
-				pipeline.setMeta(request.getMeta());
-			}
-			setEditor(pipeline, userUuid);
-			dao().update(pipeline);
-
-			return pipeline;
+			updated.set(result.version());
+			return result.pipeline();
 		}, pipeline -> modelBuilder.toResponse(pipeline, updated.get()));
 	}
 

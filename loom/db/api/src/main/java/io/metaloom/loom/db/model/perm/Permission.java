@@ -151,6 +151,19 @@ public enum Permission {
 	UPDATE_PIPELINE_RUN,      // doc:yes  ui:no  test:PipelineRunPauseEndpointTest, PipelineRunCancelEndpointTest
 	DELETE_PIPELINE_RUN,      // doc:yes  ui:no  test:none  [unused: no code checks it]
 
+	// Pipeline authoring through the MCP server — the chat agent and any external MCP client.
+	// Deliberately separate from the *_PIPELINE quad above: letting an agent write a pipeline is a
+	// different trust decision from letting a person draw one in the editor, and an admin has to be
+	// able to grant one without the other. The authoring tools require BOTH — the base permission
+	// says you may change pipelines at all, these say you may do it through an agent — so granting
+	// one of these alone can never widen what a user can do.
+	// VALIDATE_MCP_PIPELINE gates the dry run, which reads the node registry and the fleet but writes
+	// nothing; it is separate so an operator can let the agent design and check a graph while
+	// withholding the ability to store one.
+	CREATE_MCP_PIPELINE,      // doc:yes  ui:yes test:MCPPipelineAuthoringTest
+	UPDATE_MCP_PIPELINE,      // doc:yes  ui:yes test:MCPPipelineAuthoringTest
+	VALIDATE_MCP_PIPELINE,    // doc:yes  ui:yes test:MCPPipelineAuthoringTest
+
 	// Asset Pool
 	CREATE_ASSET_POOL,        // doc:yes  ui:yes test:AssetPoolEndpointTest (403 cases)
 	READ_ASSET_POOL,          // doc:yes  ui:yes test:AssetPoolEndpointTest (403 cases)

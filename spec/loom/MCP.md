@@ -33,10 +33,13 @@ flowchart TD
   svc["MCPService<br/>(own HTTP server, port 4041)"] --> auth["MCPAuthenticationHandler<br/>WebSocketAuthenticator"]
   svc --> rpc["MCPJsonRpcHandler<br/>(JSON-RPC 2.0, resolves MCPCallerContext)"]
   rpc --> reg["MCPToolRegistry<br/>(permission check + __loom strip)"]
-  reg -->|EventBus mcp.tool.name| plain["Plain tools<br/>7 x loom/services/mcp"]
-  reg -->|in-process execute(args, ctx)| ident["Identity-scoped tools<br/>4 x memory (loom/agent/memory)"]
+  reg -->|EventBus mcp.tool.name| plain["Plain tools<br/>11 x loom/services/mcp"]
+  reg -->|in-process execute(args, ctx)| ident["Identity-scoped tools<br/>2 x pipeline authoring<br/>4 x memory (loom/agent/memory)"]
   plain --> dao[("DaoCollection / DAOs")]
+  plain --> auth2["PipelineAuthoringService<br/>(the one write path)"]
+  ident --> auth2
   ident --> mem["MemoryService"]
+  auth2 --> dao
 ```
 
 **Key design decisions**
@@ -233,9 +236,8 @@ bounded** (producer caps it — `GetPipelineTool.MAX_NODES`/`MAX_EDGES` — and
 
 ## 5. Registered Tools
 
-Eleven tool implementations in total — the seven core tools always, the four memory
-tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`). All are
-**read-oriented** except the memory writes.
+Seventeen tool implementations in total — the thirteen core tools always, the four
+memory tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`).
 
 | Tool                | Class                  | Module   | Permissions       | Identity | References | Visual |
 |---------------------|------------------------|----------|-------------------|----------|------------|--------|
@@ -246,10 +248,19 @@ tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`). All are
 | `asset_statistics`  | `AssetStatisticsTool`  | mcp      | `READ_ASSET`      | no       | —          | —      |
 | `list_pipelines`    | `ListPipelinesTool`    | mcp      | `READ_PIPELINE`   | no       | pipeline   | —      |
 | `get_pipeline`      | `GetPipelineTool`      | mcp      | `READ_PIPELINE`   | no       | pipeline   | `pipeline-graph` |
+| `list_node_descriptors` | `ListNodeDescriptorsTool` | mcp | `READ_PIPELINE`  | no       | —          | —      |
+| `get_node_descriptor`   | `GetNodeDescriptorTool`   | mcp | `READ_PIPELINE`  | no       | —          | —      |
+| `pipeline_authoring_guide` | `PipelineAuthoringGuideTool` | mcp | `READ_PIPELINE` | no  | —          | —      |
+| `validate_pipeline` | `ValidatePipelineTool` | mcp      | `READ_PIPELINE` + `VALIDATE_MCP_PIPELINE` | no | — | —  |
+| `create_pipeline`   | `CreatePipelineTool`   | mcp      | `CREATE_PIPELINE` + `CREATE_MCP_PIPELINE` | **yes** | pipeline | `pipeline-graph` |
+| `update_pipeline`   | `UpdatePipelineTool`   | mcp      | `UPDATE_PIPELINE` + `UPDATE_MCP_PIPELINE` | **yes** | pipeline | `pipeline-graph` |
 | `list_memory`       | `ListMemoryTool`       | memory   | `READ_MEMORY`     | **yes**  | —          | —      |
 | `get_memory`        | `GetMemoryTool`        | memory   | `READ_MEMORY`     | **yes**  | memory     | —      |
 | `put_memory`        | `PutMemoryTool`        | memory   | `UPDATE_MEMORY`   | **yes**  | memory     | —      |
 | `delete_memory`     | `DeleteMemoryTool`     | memory   | `DELETE_MEMORY`   | **yes**  | —          | —      |
+
+The write surface is the two pipeline authoring tools plus the two memory writes;
+everything else is read-oriented.
 
 ### 5.1 Asset & collection tools
 
@@ -297,6 +308,58 @@ the same graph:
   graph out from the edges.
 - Clipped at `MAX_NODES` (40) / `MAX_EDGES` (80); clipping sets `truncated`, which
   is stated in the text and shown on the card.
+
+### 5.2a Pipeline authoring tools
+
+Six tools that let an agent design a pipeline rather than only describe one:
+*discover the node vocabulary → learn the format → check a draft → store it*.
+
+| Tool | Parameters | Notes |
+|------|------------|-------|
+| `list_node_descriptors` | `category` (enum, from `NodeCategory`), `query`, `includePorts` (bool), `limit` (100) | One line per kind. **Projected, never dumped** — `NodeDescriptorEndpoint`'s full response is ~115 KB for 34 nodes. A clipped listing says so |
+| `get_node_descriptor` | `kind` (**required**), `options` | Ports, port groups, `NodeParameter` options, node defaults, and whether an online worker offers the kind (`NodeAvailabilityService`) |
+| `pipeline_authoring_guide` | — | Serves the `pipeline-authoring` built-in skill ([ui/CHAT.md §7](ui/CHAT.md)) |
+| `validate_pipeline` | `definition` (**required**) | Dry run; stores nothing |
+| `create_pipeline` | `name`, `definition` (**required**), `description`, `enabled`, `dryRun`, `priority` | Creates the pipeline + version 1 |
+| `update_pipeline` | `pipelineId` (**required**, uuid *or* name), same optional fields | **Appends** a version; unset fields carry forward |
+
+**`get_node_descriptor` resolves ports, it does not read them off the descriptor.**
+`script`, `llm`, `vlm` and `filter` set `dynamicPorts` and derive their real ports from
+the instance options, so the tool calls
+`NodeDescriptorRegistry.resolvePorts(kind, options)` — the same call `PortGraphAnalyzer`
+makes at save time. This is the **only** place in the system that serves resolved ports;
+`NodeDescriptorEndpoint` serves the static descriptor only
+([../features/pipeline/NODE_DATA_TYPES.md §3.4](../features/pipeline/NODE_DATA_TYPES.md)).
+
+**One write path.** All three go through `PipelineAuthoringService`
+(`loom/services/rest`), which `PipelineEndpointService.create`/`update` also call. The
+seven-step create sequence and the `latest_version_uuid` repoint exist once, so a
+pipeline the agent authored is indistinguishable from one drawn in the editor.
+
+**A rejected definition is a result, not a failure.** `validate_pipeline` answers
+`VALID` (possibly with warnings) or `INVALID: <message>` in a *succeeded* future, and
+`create_pipeline` does the same when the definition is refused — a failed future
+collapses into a `-32603` string the model cannot act on. Validation precedes the first
+`store`, so a rejected create leaves **no row behind**.
+
+**Warnings are never fatal**, and both come from a question save-time validation
+deliberately does not fail on:
+
+- kinds no online worker accepts (`PipelineEndpointService.unsupportedNodeKinds`) — a
+  `503` at run time, a warning here, because the fleet will look different tomorrow;
+- `AffinityValidator` warnings. Its fleet check is **skipped when unsupported kinds were
+  already reported** — with nothing online, "no worker takes `sha512`" and "no worker
+  takes `sha512` and `thumbnail` together" are the same news twice. The structural
+  `GROUP_SPLIT` warnings still come through.
+
+⚠️ `PipelineValidationService.validateDefinition` **skips port checking entirely when the
+definition has no `edges` key** — the call sits inside `if (edges != null)`. A single-node
+pipeline is legal, so this is deliberate, but a graph with edges is the checked path.
+
+`PipelineGraphRenderer` owns uuid-or-name resolution, the graph projection, the text
+rendering and the `MAX_NODES`/`MAX_EDGES` caps; `get_pipeline`, `create_pipeline` and
+`update_pipeline` all use it, so a pipeline the agent just wrote is drawn exactly as one
+it looked up.
 
 ### 5.3 Memory tools
 
@@ -346,6 +409,44 @@ otherwise `*` is sent if the list contains `*`, else no CORS header is set.
 `User` is present**. With auth disabled (or lenient mode and no credentials) `user`
 is `null` and no permission check runs. `tools/list` exposes
 `requiredPermissions` so clients can discover what a tool needs.
+
+**`listDescriptorsFor(User)` — what may you use, not what exists.** `listDescriptors()`
+answers the second question; an agent loop wants the first, and `AgentLoop.buildTools()`
+therefore builds its tool definitions from `listDescriptorsFor(request.user())`.
+Advertising a tool the caller will be refused on costs a turn — the model calls it, gets
+a permission error back as a tool *result* rather than an aborted run, and often retries
+— and, because the tool list is part of the prompt, a `create_pipeline` the user may not
+use still reads as an invitation to author one. A `null` user returns everything, exactly
+matching `dispatch`: a tool is advertised precisely when it would be permitted. If the
+authorization lookup fails, only tools requiring **no** permission are listed (fail
+closed).
+
+⚠️ Not being *told* about a tool is not a control. `listDescriptorsFor` narrows the
+prompt; `dispatch` is the gate. Both are tested, in
+`MCPPipelineAuthoringTest.testUnprivilegedCallerIsNeitherToldNorAllowed`.
+
+### 6.0a MCP-specific pipeline permissions
+
+Three permissions gate pipeline authoring *through an agent*, separately from the
+`*_PIPELINE` quad that gates the editor and the REST API:
+
+| Permission | Gates |
+|---|---|
+| `CREATE_MCP_PIPELINE` | `create_pipeline` |
+| `UPDATE_MCP_PIPELINE` | `update_pipeline` |
+| `VALIDATE_MCP_PIPELINE` | `validate_pipeline` |
+
+Letting an agent write a pipeline is a different trust decision from letting a person
+draw one, and an administrator has to be able to grant one without the other. The two
+write tools declare the **base permission and the MCP one**, and `dispatch` requires
+*all* declared permissions — so granting an MCP permission alone can never widen what a
+user is able to do. `VALIDATE_MCP_PIPELINE` is separate because the dry run writes
+nothing: an operator can hand the agent the design-and-check loop while withholding the
+ability to store the result.
+
+Added by `V2.76__mcp_pipeline_permissions.sql`; UI group **Pipeline (assistant)** in
+`AdminArea.tsx`. See
+[../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md).
 
 ### 6.1 Environment variables
 
@@ -438,7 +539,11 @@ tool definitions → model emits calls → `tools/call` per call → feed result
 | `MCPCallerContext`         | `io.metaloom.loom.mcp.model`           | Server-resolved caller identity |
 | `JsonRpcRequest` / `JsonRpcResponse` | `io.metaloom.loom.mcp.model` | JSON-RPC 2.0 models |
 | `MCPModule` / `MCPToolModule` / `MCPTools` | `io.metaloom.loom.mcp.dagger` | Infrastructure beans, core tool set, qualifier |
-| `SearchAssetsTool`, `GetAssetTool`, `SearchTranscriptTool`, `ListCollectionsTool`, `AssetStatisticsTool`, `ListPipelinesTool`, `GetPipelineTool` | `io.metaloom.loom.mcp.tool.impl` | The 7 core tools |
+| `SearchAssetsTool`, `GetAssetTool`, `SearchTranscriptTool`, `ListCollectionsTool`, `AssetStatisticsTool`, `ListPipelinesTool`, `GetPipelineTool` | `io.metaloom.loom.mcp.tool.impl` | The 7 read tools |
+| `ListNodeDescriptorsTool`, `GetNodeDescriptorTool`, `PipelineAuthoringGuideTool`, `ValidatePipelineTool`, `CreatePipelineTool`, `UpdatePipelineTool` | `io.metaloom.loom.mcp.tool.impl` | The 6 pipeline authoring tools |
+| `PipelineGraphRenderer` | `io.metaloom.loom.mcp.tool.impl` | uuid-or-name resolution, graph projection, text rendering, `pipeline-graph` payload |
+| `PipelineAuthoringService` | `io.metaloom.loom.rest.service.impl` | The single write path for definitions — REST and MCP both call it |
+| `BuiltinSkills` | `io.metaloom.loom.common.skill` | Instruction packages that ship with Loom; source of the authoring guide |
 | `AbstractMemoryTool`, `ListMemoryTool`, `GetMemoryTool`, `PutMemoryTool`, `DeleteMemoryTool` | `io.metaloom.loom.agent.memory.tool` | The 4 identity-scoped memory tools |
 | `MemoryToolModule`         | `io.metaloom.loom.agent.memory.dagger` | Feature-gated contribution to `@MCPTools` |
 | `MCPAuthenticationHandler` | `io.metaloom.loom.auth`                | MCP HTTP auth (JWT + API key) and CORS |
@@ -470,7 +575,21 @@ tool definitions → model emits calls → `tools/call` per call → feed result
   Javadoc, tool calls do not cross cluster nodes today ([../CLUSTERING.md](../concept/CLUSTERING.md)).
 - **Tool descriptions are prompts.** They are handed verbatim to the model; word
   them as instructions to a model (`put_memory`'s "this is the ONLY way…" exists for
-  that reason), and keep destructive semantics explicit.
+  that reason), and keep destructive semantics explicit. `update_pipeline`'s "the
+  definition REPLACES the whole graph" is there because an agent that meant to add one
+  node would otherwise delete the rest without noticing.
+- **A rejected input is a result, not a tool failure.** A failed future becomes a
+  `-32603` string; a model can act on `INVALID: node 'pn3' has no input port 'media'`
+  and cannot act on that. Reserve failed futures for the tool being unable to answer.
+- **Never dump a whole registry into a result.** `list_node_descriptors` projects to one
+  line per kind for the same reason `list_pipelines` omits graphs — the full descriptor
+  response is ~115 KB. When a listing is clipped, **say so**: a truncated list that reads
+  as complete is how a model concludes a kind does not exist.
+- **Advertise only what the caller may use.** Build tool lists from
+  `listDescriptorsFor(user)`, never `listDescriptors()` (§6).
+- **A write tool needs `requiresIdentity`.** Anything that stamps a creator must have
+  one; the identity-free `execute` overload then fails loudly rather than writing a row
+  with a null owner.
 - **Text must stand alone.** `references`/`visuals` are optional decorations; a
   client that ignores them must still be able to answer from `content`.
 - **Feature-gated tools return `Set.of()`** rather than registering a disabled stub —
@@ -489,7 +608,9 @@ tool definitions → model emits calls → `tools/call` per call → feed result
 | Descriptor / schema / `enum` params         | `…/mcp/model/MCPToolDescriptor.java` |
 | Caller identity record                      | `…/mcp/model/MCPCallerContext.java` |
 | Result envelopes (`references`, `visuals`)  | `…/mcp/tool/MCPToolResults.java` |
-| The 7 core tool implementations             | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/impl/` |
+| The 13 core tool implementations            | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/impl/` |
+| The shared pipeline write path              | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineAuthoringService.java` |
+| The pipeline authoring guide (markdown)     | `loom/common/src/main/resources/skills/pipeline-authoring.md` |
 | The 4 memory tools                          | `loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/tool/` |
 | Tool set wiring                             | `…/mcp/dagger/MCPToolModule.java`, `…/agent/memory/dagger/MemoryToolModule.java`, `loom/core/…/dagger/LoomCoreComponent.java` |
 | Auth handler (JWT, API key, CORS)           | `loom/services/auth/auth-common/src/main/java/io/metaloom/loom/auth/MCPAuthenticationHandler.java` |
@@ -508,6 +629,9 @@ Unit tests (module `loom-service-mcp`, no database):
 |------|--------|
 | `MCPToolIdentityTest` | Identity tools get no EventBus address; plain tools do; context reaches the tool; anonymous callers refused; `__loom` stripped on both paths; unknown tool fails |
 | `PipelineToolTest` | `get_pipeline` by uuid / name / partial name, graph + visual, unknown kind → `ANALYSIS`, truncation, descriptors, `list_pipelines` |
+| `PipelineAuthoringToolTest` | `validate`/`create`/`update` against a **real** validator and descriptor registry: port errors name the port, a rejected create stores nothing, an update appends, `requiresIdentity` + the two-permission declaration, the identity-free `execute` fails loudly |
+| `NodeDescriptorToolTest` | Listing projection, `category`/`query` filters, clipping reported not silent, resolved ports, availability, unknown kind |
+| `MCPToolPermissionTest` | `listDescriptorsFor`: null user sees everything, a caller sees only what they hold, **all** declared permissions are required |
 
 Integration tests (module `loom/core`, real PostgreSQL from the pooled test DB —
 run `./setup-pool.sh` first):
@@ -518,6 +642,7 @@ run `./setup-pool.sh` first):
 | `MCPAuthLenientTest` | Valid JWT, unprivileged JWT denied with structured error, missing credentials tolerated, API key path, `tools/list` exposes `requiredPermissions`, SSE `?token=`, CORS echo under wildcard |
 | `MCPAuthStrictTest` | Message/SSE rejection without credentials, invalid token rejected, WS 4401 vs. valid-token round trip, CORS allow/deny |
 | `MCPToolReferencesTest` | `references` on search/get asset, collections, pipelines; none for `asset_statistics`; `get_pipeline` visual present/absent |
+| `MCPPipelineAuthoringTest` | Authoring end to end: descriptors + guide, validate against the real registry, create persists pipeline + version 1 + `latest_version_uuid`, a broken definition leaves no row, update appends, and an unprivileged caller is neither listed nor allowed |
 | `MCPDirectToolCallTest` | Registry dispatch without HTTP, driven by an LLM tool-call loop |
 | `MCPServerToolCallTest` | Full HTTP JSON-RPC flow: `initialize` + `tools/list` (no LLM needed), then a full LLM tool-call loop |
 
@@ -561,6 +686,7 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 - [x] Permission declaration + check, surfaced in `tools/list`
 - [x] `references` and `visuals` envelopes
 - [x] `enum`-constrained tool parameters
+- [x] Permission-filtered tool listing (`listDescriptorsFor`), fail-closed on lookup error
 - [ ] Permission check skipped when no `User` is present (auth disabled ⇒ no authorization)
 - [ ] Runtime (re)registration is possible but unused — no admin surface for it
 
@@ -568,13 +694,16 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 
 - [x] `search_assets`, `get_asset`, `search_transcript` (stub), `list_collections`, `asset_statistics`
 - [x] `list_pipelines`, `get_pipeline` (+ `pipeline-graph` visual)
+- [x] `list_node_descriptors`, `get_node_descriptor` (resolved ports), `pipeline_authoring_guide`
+- [x] `validate_pipeline` (dry run, warnings), `create_pipeline`, `update_pipeline`
 - [x] `list_memory`, `get_memory`, `put_memory`, `delete_memory` (feature-gated)
 - [ ] `search_assets` ignores `query` and `mimeType`
 - [ ] `get_asset` returns none of the media/geo/component data its description promises
 - [ ] `search_transcript` is a stub — needs the search backend
 - [ ] `asset_statistics` ignores `collection` and aggregates 10 000 rows in memory
 - [ ] `list_pipelines` filters `query` in memory over the loaded page
-- [ ] No pipeline *operations* (run, cancel, status, events)
+- [ ] No pipeline *operations* (run, cancel, status, events) — authoring only
+- [ ] No `delete_pipeline`, and no restore of an earlier version
 - [ ] No write tools for assets, tags, tasks, comments or annotations
 - [ ] No tools for users/roles/groups, embeddings, GraphQL, processor status
 - [ ] No visual types beyond `pipeline-graph` (asset previews, run timelines, charts)
@@ -594,6 +723,8 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 - [x] Reference/visual envelope tests against a real database
 - [x] HTTP `initialize` + `tools/list` without an LLM
 - [x] Optional LLM tool-call loops (registry-direct and over HTTP)
+- [x] Pipeline authoring against a real database, incl. permission denial (`MCPPipelineAuthoringTest`)
+- [x] Permission-filtered listing (`MCPToolPermissionTest`)
 - [ ] No tests for the memory tools at the MCP layer (covered only via `MemoryServiceTest` / `AgentLoopTest`)
 - [ ] No tests for malformed JSON / unknown method / invalid tool arguments over the wire
 - [ ] No concurrency or runtime register/unregister tests
@@ -628,12 +759,12 @@ Same DAOs, otherwise independent services — see [RESTAPI.md](RESTAPI.md).
 | Data access    | `*EndpointService` → DAO         | Tool → `DaoCollection` / `MemoryService` |
 | Body limit     | Unlimited (`-1`)                 | 1 MB |
 | CORS           | All origins, all methods         | `LOOM_MCP_AUTH_ALLOWED_ORIGINS` |
-| Write surface  | Full CRUD                        | Read-only, except the memory bank (`put_memory` / `delete_memory`) |
+| Write surface  | Full CRUD                        | Pipeline create/update and the memory bank; everything else read-only |
 | WebSocket      | Processor + pipeline events ([WEBSOCKET.md](WEBSOCKET.md)) | MCP JSON-RPC frames |
 
 Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 `WebSocketAuthenticator`, `TokenDao`.
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_

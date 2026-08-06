@@ -86,6 +86,7 @@ Non-CRUD and partial-quad constants:
 | `READ_SKILL_VERSION`, `RESTORE_SKILL_VERSION` | Same shape |
 | `MANAGE_CORTEX_INSTANCE`, `READ_CORTEX_INSTANCE` | Processor registration |
 | `READ_SEARCH` | Wholesale gate on `/api/v1/search/*`; the endpoint then narrows per-entity via the `READ_*` predicate (§5.2) |
+| `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` | Pipeline authoring **through an agent** (the MCP tools `create_pipeline`, `update_pipeline`, `validate_pipeline`). Separate from the `*_PIPELINE` quad because letting an agent write a pipeline is a different trust decision from letting a person draw one, and an admin must be able to grant one without the other. The two write tools declare the base permission **and** the MCP one, and MCP requires all declared permissions — so an MCP permission alone can never widen what a user may do. `VALIDATE_` is its own value because the dry run stores nothing (`V2.76`, [../../loom/MCP.md §6.0a](../../loom/MCP.md)) |
 | `READ/UPDATE/DELETE_NOTIFICATION` | The per-user inbox. **No `CREATE`** — notifications are raised by `NotificationDispatcher`, never posted, so the constant would be dead the day it was added. These gate the *feature*, not the row: holding `READ_NOTIFICATION` reads **your** inbox, and `NotificationEndpointService.loadOwn` answers **404 (not 403)** for a foreign entry, so a permitted caller still cannot enumerate somebody else's |
 
 **No `LIST` permission exists** — list routes reuse the entity's `READ_*`.
@@ -405,6 +406,12 @@ never exercised with more than one.
 - Required permissions are free-form `String`s from `MCPToolDescriptor.requiredPermissions()`,
   not the `Permission` enum, so a typo silently becomes an unsatisfiable permission
   with no compile-time error.
+- **All** declared permissions must match — the check is an AND, which is what lets the
+  pipeline authoring tools require `CREATE_PIPELINE` *and* `CREATE_MCP_PIPELINE`.
+- `listDescriptorsFor(User)` applies the same predicate to the **tool listing**, so an
+  agent loop advertises only what the caller may invoke. That is a prompt-hygiene measure,
+  not a control: `dispatch` remains the gate, and a caller can still name a hidden tool by
+  hand. Both halves are covered by `MCPPipelineAuthoringTest`.
 
 ### 5.5 Caching
 
@@ -711,6 +718,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 - [x] `permissions()` predicate for cross-entity narrowing (search)
 - [x] Field-level GraphQL enforcement via `GraphQLPermissionChecker`
 - [x] Pipeline run permissions wired end to end (`READ_/UPDATE_PIPELINE_RUN`)
+- [x] MCP pipeline authoring permissions (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE`, `V2.76`), enforced on dispatch and on the tool listing
 - [x] 403 `MISSING_PERM` denial response
 - [x] Bootstrap admin user/group/role with full grants
 - [x] Demo editor/viewer roles
@@ -769,5 +777,5 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
       (masked by the cache being invalidated only on role-permission writes, §4.4)
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
-_Git HEAD revision: `97127ed2`_
-_Last updated: 2026-08-05 (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE` added by `V2.76`; MCP now filters its tool listing by permission). Earlier: (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_

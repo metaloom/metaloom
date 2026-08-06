@@ -929,6 +929,9 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   Token: ["CREATE_TOKEN", "READ_TOKEN", "DELETE_TOKEN", "UPDATE_TOKEN"],
   Library: ["CREATE_LIBRARY", "READ_LIBRARY", "DELETE_LIBRARY", "UPDATE_LIBRARY"],
   Pipeline: ["CREATE_PIPELINE", "READ_PIPELINE", "DELETE_PIPELINE", "UPDATE_PIPELINE"],
+  // Authoring a pipeline through the assistant is granted separately from authoring one in the
+  // editor. Both are needed to write: these never widen what the Pipeline group above allows.
+  "Pipeline (assistant)": ["CREATE_MCP_PIPELINE", "UPDATE_MCP_PIPELINE", "VALIDATE_MCP_PIPELINE"],
   "Asset Pool": ["CREATE_ASSET_POOL", "READ_ASSET_POOL", "DELETE_ASSET_POOL", "UPDATE_ASSET_POOL"],
 };
 

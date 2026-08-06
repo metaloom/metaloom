@@ -1067,8 +1067,10 @@ demos were affected — `medium`, `complex` and `transcription` — not two; the
 short-circuited on `medium`, so `transcription`'s identical break was never reached and looked fine.
 
 Two deeper facts surfaced while fixing it. First, the demos labelled these filters "MIME Filter" and
-even passed a `mimeTypes` option, but **no MIME strategy exists** — `FilterBy` has only `LANGUAGE`, and
-`FilterNode.configure()` never reads `mimeTypes`, so that option was silently dropped. Second, a
+even passed a `mimeTypes` option, but **no MIME strategy existed** — `FilterBy` had only `LANGUAGE`,
+and `FilterNode.configure()` never read `mimeTypes`, so that option was silently dropped. (A `MIME`
+strategy exists now, configured through `buckets` rather than `mimeTypes`; the demos still route via
+`other`, because the second fact below still holds.) Second, a
 configured `buckets` array cannot be the fix in this test: the definitions are built programmatically,
 and a programmatic Vert.x `JsonArray` reaches `FilterPortResolver` as a `JsonArray` (not a
 `java.util.List`), so `asList` drops it and no bucket port is produced — the bucket path only resolves

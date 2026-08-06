@@ -780,6 +780,9 @@
         "READ_PIPELINE_RUN": "View pipeline runs — executions of a pipeline.",
         "UPDATE_PIPELINE_RUN": "Edit existing pipeline runs — executions of a pipeline.",
         "DELETE_PIPELINE_RUN": "Delete pipeline runs — executions of a pipeline.",
+        "CREATE_MCP_PIPELINE": "Let the assistant create pipelines. Granted in addition to \"Create new pipelines\" — both are needed.",
+        "UPDATE_MCP_PIPELINE": "Let the assistant change existing pipelines. Granted in addition to \"Edit existing pipelines\" — both are needed.",
+        "VALIDATE_MCP_PIPELINE": "Let the assistant check a draft pipeline. Nothing is stored, so this can be granted on its own.",
         "CREATE_ASSET_POOL": "Create new asset pools — storage locations that assets are scanned from.",
         "READ_ASSET_POOL": "View asset pools — storage locations that assets are scanned from.",
         "DELETE_ASSET_POOL": "Delete asset pools — storage locations that assets are scanned from.",
@@ -1840,6 +1843,77 @@
     "emptyState": {
       "title": "You're all caught up",
       "description": "Assignments, comments and run failures will show up here."
+    }
+  },
+  "search": {
+    "title": "Search",
+    "field": {
+      "placeholder": "Search everything…"
+    },
+    "global": {
+      "placeholder": "Search everything…",
+      "tooltip": "Search"
+    },
+    "syntax": {
+      "hint": "\"quoted phrase\" · or · -exclude",
+      "long": "Put a phrase in quotes to match it exactly, write or between alternatives, and prefix a word with - to exclude it."
+    },
+    "empty": {
+      "title": "What are you looking for?",
+      "description": "Search across assets, transcripts, tags, annotations, people, collections and libraries at once."
+    },
+    "noResults": "Nothing matched \"{{query}}\".",
+    "summary": {
+      "exact": "{{count}} results in {{ms}} ms",
+      "approx": "About {{count}} results in {{ms}} ms",
+      "provider": "served by {{provider}}"
+    },
+    "types": {
+      "asset": "Assets",
+      "transcript": "Transcripts",
+      "tag": "Tags",
+      "annotation": "Annotations",
+      "person": "People",
+      "collection": "Collections",
+      "library": "Libraries",
+      "cluster": "Clusters",
+      "detection": "Detections",
+      "segment": "Segments"
+    },
+    "sort": {
+      "RELEVANCE": "Most relevant",
+      "NEWEST": "Newest first",
+      "OLDEST": "Oldest first",
+      "NAME": "By name",
+      "SIZE": "By size"
+    },
+    "facets": {
+      "mime_type": "File type",
+      "entity_type": "Kind",
+      "lang": "Language"
+    },
+    "filters": {
+      "active": "Filters:",
+      "clear": "Clear all"
+    },
+    "pager": {
+      "prev": "Previous",
+      "next": "Next",
+      "range": "{{from}}–{{to}} of {{total}}",
+      "depthLimit": "Results past {{max}} cannot be paged. Narrow the search instead."
+    },
+    "warnings": {
+      "title": "Some results were left out"
+    },
+    "error": {
+      "title": "The search could not be completed.",
+      "unavailable": "Search is currently unavailable.",
+      "forbidden": "You do not have permission to search these items."
+    },
+    "unavailable": {
+      "title": "Search is unavailable",
+      "body": "This deployment cannot answer search queries right now. Everything else keeps working.",
+      "provider": "Backend: {{provider}}"
     }
   }
 }

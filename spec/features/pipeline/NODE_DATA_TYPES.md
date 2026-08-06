@@ -336,14 +336,29 @@ Reserved bucket ids: `other`, `passed`, `bucket`, `media`, `text`.
 finds it by its `control/` family, not by name. `bucket` is deliberately **not** selective: a node
 wired to it runs whichever branch the item took, which is the escape hatch from routing.
 
-`filterBy` selects a `FilterStrategy`. Today: `LANGUAGE`, decided by an LLM through the shared
-`LLMProvider`. Adding a way of filtering is a strategy class plus a `@FilterByKey` binding plus a
-value in the descriptor's enum — never an edit to `FilterNode`.
+`filterBy` selects a `FilterStrategy` from the `@FilterByKey` map multibinding. Four values:
 
-> 🔴 **MIME/size/date bucketing is not available yet.** The eight deleted kinds included them, and
-> the strategy seam exists, but only `LANGUAGE` is implemented. Graphs and docs that routed by MIME
-> now wire straight into a typed port instead (`media/*` into `whisper.video` is settled per item),
-> which covers the common case but not all of them.
+| `filterBy` | Reads | Bucket `match` hints | Cost |
+|---|---|---|---|
+| `LANGUAGE` | the wired `text` port | other names for the language (`german, deutsch`) | one LLM round trip via the shared `LLMProvider` |
+| `MIME` | the file name, through `MediaContentTypes` (`cortex-common`) | `image/*`, `video/mp4`, bare `image` = `image/*`, `*` = everything; **no hint falls back to the bucket id** | none |
+| `SIZE` | `LoomMedia.size()` | `<10MB`, `>=1GB`, `1MB..100MB` (lower inclusive, upper exclusive), bare `10MB` = `<=10MB`. `KB`/`MB`/`GB`/`TB` are 1024-based | none |
+| `DATE` | `Files.getLastModifiedTime` | `>=2024-01-01`, `2024-01-01..2024-12-31` (**both ends cover the whole day**), bare `2024-03-17` = that day, `age<30d` / `age>1y` (`h`/`d`/`w`/`m`/`y`) | none |
+
+Buckets are tried in declaration order and the first match wins, so a narrow bucket above a broad one
+behaves as written. The three metadata strategies take **no `LLMProvider`**, which is the point: a
+graph that only splits images from video runs on a worker with no model backend reachable.
+
+Adding a way of filtering is a strategy class plus a `@FilterByKey` binding plus a value in the
+descriptor's enum — never an edit to `FilterNode`. Two seam methods carry the per-strategy parts:
+
+- `FilterStrategy.version()` is mixed into the cache key and `producerVersion`, so a strategy that
+  changes its meaning invalidates its own old verdicts (`LanguageFilterStrategy` returns its
+  `PROMPT_VERSION`).
+- `FilterStrategy.validateBuckets(...)` is called from `configure(...)`. `SIZE` and `DATE` use it to
+  refuse `<10 megabytes` or `last month` up front. Without it a typo'd hint would start a run in
+  which **every** item lands in `other` — indistinguishable from data that genuinely did not match.
+  `LANGUAGE` and `MIME` keep the permissive default; neither has a hint it could reject.
 
 **Routing semantics** — see §8.6.
 
@@ -1041,5 +1056,6 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [ ] Elements by reference for large gathers (a gather task ships all N elements inline)
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (§4.5: the `filter` node's four `filterBy` strategies and the two
+seam methods — `version()` and `validateBuckets(...)`)_

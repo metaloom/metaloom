@@ -637,7 +637,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Pipeline validation** | *Structural* rules (ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a third copy |
 | **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **39 advertised kinds** — the literal asserted by `NodeDescriptorServiceLoaderTest`. Since the `d9bbc2dc` refactor the descriptors are one generated resource served by two providers (`GeneratedNodeDescriptorProvider` + `OrphanNodeDescriptorProvider`), not one hand-written provider per node. ⚠️ The runnable-kind arithmetic that used to follow here (*"35 runnable with S3 and both clouds, 32 with none, 31 `@StringKey` bindings"*) is stale — there are 34 node `@StringKey` bindings today and the derived totals were never re-checked; recount before quoting them. Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
-| **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). 🔴 MIME/size/date bucketing is not reimplemented on the strategy seam yet |
+| **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). All four `filterBy` values are implemented: `LANGUAGE` (one LLM round trip) plus `MIME`, `SIZE` and `DATE`, which read the item's metadata and take no `LLMProvider` |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
 | **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/nodes/NODES.md) §5.1 |
@@ -683,8 +683,11 @@ and subcomponents for request scope (`RestComponent` per REST request).
 
 - [x] 🔴 No `filter-*` kind is runnable — **resolved**: consolidated into one runnable `filter` kind
       with dynamic per-bucket output ports and port-based routing
-- [ ] MIME / size / date bucketing regressed with that consolidation — the `FilterStrategy` seam is
-      there, only `LANGUAGE` is implemented
+- [ ] The three demo pipelines still wire their "Media Filter" to the catch-all `other` port with no
+      buckets. `MIME` bucketing now exists, but restoring it needs `FilterPortResolver.asList` to
+      accept a Vert.x `JsonArray` — a programmatically-built definition reaches it as a `JsonArray`,
+      not a `java.util.List`, so no bucket port resolves
+      ([PIPELINE_TASKS.md](tasks/PIPELINE_TASKS.md) Task 14)
 - [ ] 🔴 Helm: the unread `LOOM_AUTH_KEYSTORE_PATH` (the `LOOM_DB_USER` mismatch was fixed 2026-08-02)
 - [ ] 🔴 Loom has no JVM shutdown hook — SIGTERM skips `deinit()`
 - [ ] `cortex/CONFIGURATION.md` documents a YAML precedence chain that does not work
@@ -733,5 +736,6 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (the filter node's `MIME`/`SIZE`/`DATE` strategies landed, closing R7;
+the open item is now the demo pipelines, blocked on `FilterPortResolver.asList`)_

@@ -26,13 +26,14 @@ feature of any kind". That was true before `V2.57`–`V2.59` landed and is false
 | Dagger binding, boot-safe fallback | ✅ built | `SearchModule` in `LoomCoreComponent` |
 | `LOOM_SEARCH_*` options (10 vars) | ✅ built | `SearchOptions` |
 | Client methods + endpoint tests | ✅ built | `SearchMethods`, `LoomHttpClientImpl`, 49 tests |
-| **loom-ui** | 🔴 nothing — no `src/api/search.ts`, no search view, no search bar | — |
+| **loom-ui** | ✅ built — client, `/search` view, global sidebar field, capability gating | `src/api/search.ts`, `features/search/`, `SearchContext` |
 | **MCP `search_assets` / `search_transcript`** | 🔴 still stubs, still bypass the SPI | `loom/services/mcp` |
 | **GraphQL `search` field** | 🔴 absent | `loom.graphqls` |
 | **Elasticsearch provider** | 🔴 `loom/services/elasticsearch` has **no `src/`** — `pom.xml` + README only | — |
 | **Qdrant** | 🔴 `loom/services/qdrant` has **no `src/`** | — |
 | **Semantic / vector** | 🔴 nothing | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
-| Demo data, website docs | 🔴 absent | — |
+| Website docs | ✅ built | `website/content/english/docs/ui/index.adoc` — "Search" section |
+| Purpose-built demo fixtures | 🔴 absent — but the demo corpus **is** indexed | triggers cannot be bypassed (§4) |
 
 ⚠️ **`loom/services/lucene` is NOT a stub and must not be deleted.** It holds
 `LuceneSimilarityIndex` + `NoopSimilarityIndex` + a test, and serves the perceptual **fingerprint**
@@ -66,7 +67,7 @@ graph TB
 
     DOC --> PG
     DOC -.->|"dirty / es_synced_at outbox<br/>🔴 nothing drains it yet"| ES["ElasticsearchSearchProvider ⬜"]
-    UI["loom-ui ⬜"] -.-> EP
+    UI["loom-ui ✅<br/>api/search.ts · SearchContext · /search"] --> EP
     MCP["MCP tools ⬜ (still stubs)"] -.-> SPI
 ```
 
@@ -288,6 +289,32 @@ index — so `enrich()` runs it **per returned hit only**, in a second pass, nev
 query. It also derives `matchedIn` (`title`/`subtitle`/`body`/`keywords`/`fuzzy`). Failures are logged
 and swallowed: losing a snippet must not lose the results.
 
+⚠️ **`highlights[]` is not sanitised HTML and must never be injected as markup.** `ts_headline`
+wraps matches in the default `<b>`/`</b>` and returns the source document **otherwise verbatim** —
+Postgres does no HTML escaping. `search_document.body` is trigger-populated from filenames, tag
+names, annotation bodies and transcripts, all user-supplied, so an asset named
+`<img src=x onerror=…>.jpg` would execute for every user with `READ_SEARCH`. `loom-ui` parses the
+fragments into text segments (`features/search/highlight.ts`) and renders matches as `<mark>`; any
+other client must do the same.
+
+### 5.1 Client-side contract notes
+
+Learned while wiring `loom-ui`; each one is a 400 or a crash if ignored.
+
+| Rule | Why |
+|---|---|
+| Never send a repeated scalar key | `SearchParameters.raw()` answers 400 "Parameter x was found multiple times". Use one comma-separated value for `types`/`tag`/`facets` |
+| Never send a blank `q` | 400 "A search term (q) is required." — so "no query yet" must be a client-side resting state, not a request |
+| Branch on HTTP status, not on a code | `ServerFailureHandler` **discards** `LoomRestErrorCode`; the body is only `{"message": …}` |
+| `_metainfo.perPage` echoes the *requested* limit | It is not the effective page size. Page by the local step and read `data.length` |
+| Treat `suggestions.data` as optional | `AbstractListResponse.data` is created lazily, so zero suggestions means the key is **absent**, not `[]` |
+| Clamp `offset` to `LOOM_SEARCH_MAX_OFFSET` before sending | Past the cap is a 400, not an empty page |
+| Gate the UI on `available`, not on `provider != "none"` | `PostgresSearchProvider.info()` can report `available:false` while still naming itself |
+| `/search/status` can 403 | It is gated on `READ_SEARCH`. Treat a failure as "no search box", never as an app error |
+| `detection` and `segment` are accepted but never hit | No documents are built for them; offering them as filters offers a guaranteed-empty result |
+| Facets are computed against the **filtered** query | Selecting an `entity_type` facet collapses that facet, so a client needs a visible way to undo it |
+| `Instant` fields serialize as **numeric epoch seconds** | `sortDate`, `lastSyncedAt` — not ISO strings |
+
 ---
 
 ## 6. Permissions
@@ -460,7 +487,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [x] `SEARCH_UNAVAILABLE` / `SEARCH_UNSUPPORTED` added to **both** copies of `LoomRestErrorCode`
 - [ ] Orphaned `loom-ui/src/{Dashboard,User,Content}` trees still present (unreachable from `AppShell`); untouched because no UI work landed
 
-**Phase 1 — Postgres lexical search** — backend ✅ complete, consumers ⬜
+**Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, other consumers ⬜
 - [x] `io.metaloom.loom.api.search` SPI + value types
 - [x] `SearchOptions` (10 env vars) + `LoomOptions` wiring + validation
 - [x] `V2.57` `READ_SEARCH` · `V2.58` `pg_trgm` + tables + 12 functions · `V2.59` 17 triggers + backfill
@@ -475,11 +502,13 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [ ] `/search/suggestions` ranks by trigram similarity only — no dedicated prefix index
 - [ ] `/search/assets` returns `SearchResultResponse`, not `AssetResponse` — a UI grid cannot render it unchanged
 - [ ] `DETECTION` and `SEGMENT` documents are not emitted; the labels/titles live in the owning asset's `keywords`
-- [ ] Demo data (`DemoDatabaseInitializer`) not seeded with search fixtures
-- [ ] Customer-facing docs under `website/content/english/docs/` not written
+- [ ] Demo data (`DemoDatabaseInitializer`) not seeded with *purpose-built* search fixtures — the existing corpus is nonetheless indexed, because triggers cannot be bypassed, and `search-backend.spec.ts` asserts against it
+- [x] Customer-facing docs — the "Search" section of `website/content/english/docs/ui/index.adoc`
 - [ ] MCP `SearchAssetsTool` (ignores `query`/`mimeType`, calls `loadPage(null, limit, null, null, null)`) and `SearchTranscriptTool` (hardcoded string) still stubs
 - [ ] GraphQL `search` field not added
-- [ ] loom-ui: no `api/search.ts`, no search bar, no search view
+- [x] loom-ui: `api/search.ts` (typed `SearchApiError`), `SearchContext` (fail-closed capability gate), global sidebar field with trigram typeahead, `/search` view with type filters, facet chips, highlights, pager and honest degradation
+- [x] loom-ui tests: 25 client + 32 helper vitest cases, `search-mocked.spec.ts` (27), `search-backend.spec.ts` (14)
+- [ ] A transcript hit deep-links to its asset but not to its timecode — `AssetDetail` has no seek parameter; the offset is shown as a badge only
 - [ ] `asset_doc_comp` remains deliberately unread (§4.3)
 
 **Phase 2 — Elasticsearch / OpenSearch** — not started
@@ -505,5 +534,5 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so a tagged asset cannot be deleted — shapes the delete-cascade test
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (loom-ui wired to the search API: client, SearchContext, global field, /search view; added the client-side contract notes in section 5.1)_

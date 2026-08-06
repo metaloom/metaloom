@@ -421,3 +421,81 @@ export interface AssetPool {
   createdAt: string;
   updatedAt: string;
 }
+
+// Search
+//
+// Shared vocabulary only. The wire response interfaces (SearchHitResponse, SearchMetaInfo, …)
+// live in `api/search.ts` beside their module, like every other client's response types.
+
+/**
+ * Kind of thing a search hit points at.
+ *
+ * The wire form is lowercase — it is the value stored in `search_document.entity_type` and the
+ * server filters on the raw string. Do not uppercase it.
+ */
+export type SearchEntityType =
+  | "asset"
+  | "transcript"
+  | "tag"
+  | "annotation"
+  | "person"
+  | "collection"
+  | "library"
+  | "detection"
+  | "segment"
+  | "cluster";
+
+/** Every type the API accepts as `types=` input. */
+export const SEARCH_ENTITY_TYPES: readonly SearchEntityType[] = [
+  "asset", "transcript", "tag", "annotation", "person",
+  "collection", "library", "detection", "segment", "cluster",
+];
+
+/**
+ * Types the indexer never writes a `search_document` row for.
+ *
+ * They are valid input and are permission-narrowed like the rest, but they can never produce a
+ * hit: detection labels and segment titles are folded into the owning asset's keywords instead.
+ * Offering them as a filter would offer a guaranteed-empty result.
+ */
+export const UNINDEXED_SEARCH_ENTITY_TYPES: readonly SearchEntityType[] = ["detection", "segment"];
+
+/** The types a filter row may offer — everything that can actually be returned as a hit. */
+export const SEARCHABLE_ENTITY_TYPES: readonly SearchEntityType[] =
+  SEARCH_ENTITY_TYPES.filter((type) => !UNINDEXED_SEARCH_ENTITY_TYPES.includes(type));
+
+export type SearchMode = "LEXICAL" | "SEMANTIC" | "HYBRID";
+
+export type SearchSortMode = "RELEVANCE" | "NEWEST" | "OLDEST" | "NAME" | "SIZE";
+
+/**
+ * What the bound provider can do, as advertised by `GET /search/status`.
+ *
+ * The UI hides controls the provider does not support rather than issuing requests that will be
+ * rejected — the server answers 400 for an unsupported mode instead of silently degrading, and
+ * that rejection must never reach the user.
+ */
+export type SearchCapability =
+  | "LEXICAL"
+  | "PHRASE"
+  | "FUZZY"
+  | "HIGHLIGHT"
+  | "FACETS"
+  | "EXACT_TOTAL"
+  | "DEEP_PAGING"
+  | "SEMANTIC"
+  | "HYBRID"
+  | "SUGGEST";
+
+/** The only facet names the provider computes; anything else is silently dropped. */
+export type SearchFacetName = "mime_type" | "entity_type" | "lang";
+
+export const SEARCH_FACET_NAMES: readonly SearchFacetName[] = ["mime_type", "entity_type", "lang"];
+
+// Server-side caps, mirrored here so the UI can refuse before the server answers 400.
+/** `SearchRequest.MAX_QUERY_LENGTH` — a longer term is a 400. */
+export const SEARCH_MAX_QUERY_LENGTH = 512;
+/** `LOOM_SEARCH_MAX_OFFSET` — paging past this is a 400, not an empty page. */
+export const SEARCH_MAX_OFFSET = 1000;
+/** `SearchQueryParameterKey.LIMIT` default. Also the pager's step. */
+export const SEARCH_PAGE_SIZE = 25;

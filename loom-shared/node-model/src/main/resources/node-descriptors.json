@@ -556,6 +556,18 @@
     "min" : 0.0,
     "max" : 180.0,
     "step" : 5
+  }, {
+    "key" : "embeddingsEnabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Compute Embeddings",
+    "description" : "Compute a recognition embedding per face so faces can be matched and clustered"
+  }, {
+    "key" : "embeddingModel",
+    "type" : "STRING",
+    "defaultValue" : "inspireface-r18",
+    "label" : "Embedding Model",
+    "description" : "Model identifier recorded on each embedding; change it whenever the model pack changes"
   } ],
   "defaultConcurrency" : 2,
   "defaultMode" : "PARALLEL",
@@ -683,6 +695,18 @@
     "defaultValue" : "packs/Pikachu",
     "label" : "Model Pack Path"
   }, {
+    "key" : "embeddingsEnabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Compute Embeddings",
+    "description" : "Compute a recognition embedding per face so faces can be matched and clustered"
+  }, {
+    "key" : "embeddingModel",
+    "type" : "STRING",
+    "defaultValue" : "inspireface-r18",
+    "label" : "Embedding Model",
+    "description" : "Model identifier recorded on each embedding; change it whenever the model pack changes"
+  }, {
     "key" : "capabilities",
     "type" : "ENUM_SET",
     "defaultValue" : [ "INSPIREFACE" ],
@@ -783,39 +807,39 @@
     "type" : "ENUM",
     "defaultValue" : "LANGUAGE",
     "label" : "Filter By",
-    "description" : "What the buckets are matched against",
-    "values" : [ "LANGUAGE" ]
+    "description" : "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata",
+    "values" : [ "LANGUAGE", "MIME", "SIZE", "DATE" ]
   }, {
     "key" : "buckets",
     "type" : "PORT_LIST",
     "defaultValue" : [ ],
     "label" : "Buckets",
-    "description" : "One output port per bucket. An 'other' port for everything else is always present"
+    "description" : "One output port per bucket, tried in order with the first match winning. Each row's match column holds hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB' or dates like '2024-01-01..2024-12-31'. An 'other' port for everything else is always present"
   }, {
     "key" : "model",
     "type" : "STRING",
     "defaultValue" : "meta-llama/Llama-3.2-3B-Instruct",
     "label" : "Model",
-    "description" : "The model asked to classify each item"
+    "description" : "The model asked to classify each item. Used by filterBy=LANGUAGE only"
   }, {
     "key" : "openaiUrl",
     "type" : "STRING",
     "defaultValue" : "http://127.0.0.1:8080/v1",
     "label" : "OpenAI URL",
-    "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
+    "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...). Used by filterBy=LANGUAGE only"
   }, {
     "key" : "maxTextChars",
     "type" : "INTEGER",
     "defaultValue" : 2000,
     "label" : "Max Text Characters",
-    "description" : "How much of the text to send to the model",
+    "description" : "How much of the text to send to the model. Used by filterBy=LANGUAGE only",
     "min" : 1
   }, {
     "key" : "minConfidence",
     "type" : "NUMBER",
     "defaultValue" : 0.0,
     "label" : "Minimum Confidence",
-    "description" : "Classifications below this confidence are routed to 'other'",
+    "description" : "Classifications below this confidence are routed to 'other'. Used by filterBy=LANGUAGE only",
     "min" : 0.0,
     "max" : 1.0
   } ],

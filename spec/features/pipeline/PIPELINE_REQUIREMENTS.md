@@ -59,7 +59,7 @@ Legend: ✅ Met · 🟡 Met with a stated deviation · 🔴 Not met
 | **R4** | Pipelines always have a start node which emits assets | ✅ | `resolveSourceNode` is strict — a declared `source: true` wins, ambiguity is an error, never a guess. The source's output port must literally be `media` (`PipelineRunEngine.SOURCE_MEDIA_PORT`). |
 | **R5** | Additional nodes (facedetect, sha512, …) extract further metadata from assets | ✅ | **33** runnable kinds with S3 configured, **32** without (30 `@IntoMap @StringKey` bindings + `filesystem-source` + `asset-source` + conditional `s3-source`). Coverage gap is scoped to filters — see R7. |
 | **R6** | Pipeline execution results are tracked on the Loom server | ✅ | Three levels, all durable: `pipeline_run` (status, `duration_ms`, four counters, first-terminal-verdict-wins), `pipeline_run_item` per media item, and `pipeline_node_task` per node **per element** (`UNIQUE (item_uuid, node_id, element_seq)`). **Minor deviation:** no REST route exposes the task rows — `GET /:uuid/runs/:runUuid/items` exists, a per-node `/tasks` route does not (owned by [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../tasks/METALOOM_ARCHITECTURE_TASK.md) and [../../loom/ui/TASK_UI_PIPELINE.md](../../loom/ui/TASK_UI_PIPELINE.md)). |
-| **R7** | Special pipeline nodes allow filtering of asset results (DateFilter, …) | 🟡 | **Now runnable.** The eight unrunnable `filter-*` kinds and their nine `cortex/pipeline-core` classes are deleted; one `filter` kind replaces them, with a real `@StringKey` binding, dynamic per-bucket output ports and port-based routing (`PortSpec.selective`) — see [NODE_DATA_TYPES.md §4.5 and §8.6](NODE_DATA_TYPES.md). 🔴 Only `filterBy: LANGUAGE` is implemented; MIME, size and date bucketing regressed with the consolidation and need a `FilterStrategy` each. |
+| **R7** | Special pipeline nodes allow filtering of asset results (DateFilter, …) | ✅ | The eight unrunnable `filter-*` kinds and their nine `cortex/pipeline-core` classes are deleted; one `filter` kind replaces them, with a real `@StringKey` binding, dynamic per-bucket output ports and port-based routing (`PortSpec.selective`) — see [NODE_DATA_TYPES.md §4.5 and §8.6](NODE_DATA_TYPES.md). All four `filterBy` values are implemented: `LANGUAGE` (one LLM round trip), plus `MIME`, `SIZE` and `DATE`, which read the item's own metadata and hold no `LLMProvider`, so a filter-only pipeline needs no model backend. |
 | **R8** | Pipelines are serialized / deserialized via JSON | ✅ | JSONB definition with a top-level `version` (`CURRENT_DEFINITION_VERSION = 1`; absent ⇒ 1; higher refused **by name**, never half-read). `stampVersion` runs on create/update and in `DemoDatabaseInitializer`. **Deviation:** serde is one-way — `PipelineSerializer`/`PipelineDeserializer` are deleted, so no code writes a definition back out of a graph object, and there is **no checked-in fixture** (the six demo pipelines are the de-facto reference). |
 | **R9** | Pipeline execution is backpressure-aware and reactive | ✅ | Bounded end to end: `maxInFlight` (default 256) + per-kind bulkheads, and `SOURCE_ITEMS_ACK` is **withheld** at capacity, which throttles the source scan itself rather than only node dispatch. Cortex `SourceTaskRunner` waits for each ack. **Deviation of wording:** "reactive" no longer means RxJava — the reactive executor was deleted; backpressure is explicit accounting under one monitor. |
 | **R10** | Intermediate pipeline node results are stored on the Loom backend service | ✅ | Every node result is persisted to `pipeline_node_task.outputs` (JSONB, keyed by output **port id**, `PortPayloads` codec) — this is the dedicated intermediate-result store the requirement asks for. Nodes flagged `syncToLoom` additionally write onto the asset via `DaoAssetSink`, with the `asset_node_result` ledger (`V2.45`). **Deviation:** nothing prunes it — retention is decided but not enforced ([PIPELINE.md §9.2](PIPELINE.md)). |
@@ -70,7 +70,6 @@ Legend: ✅ Met · 🟡 Met with a stated deviation · 🔴 Not met
 
 | # | Deviation | Where it is tracked |
 |---|---|---|
-| R7 | The `filter` kind runs, but only `filterBy: LANGUAGE` is implemented — MIME, size and date bucketing are absent | [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) Task 3 |
 | R11 | No standalone validation endpoint; structural validation triplicated | Task 8 |
 | R2 | Status/results ride the WebSocket, not REST; the REST bulk-sync path is dormant | Task 10 (decide: wire or delete) |
 | R6 | Per-node task rows are durable but not exposed over REST | [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../tasks/METALOOM_ARCHITECTURE_TASK.md) |
@@ -109,7 +108,7 @@ Each open line names the task that owns it; none is re-argued here.
 | **Node coverage** | Descriptors drive the UI palette and are enforced by `PortGraphAnalyzer` at save **and** run start | `[x]` |
 | | `NodePortConformanceTest` holds every node's port constants against its descriptor | `[x]` |
 | | Unknown kind fails loudly rather than reporting a fake success | `[x]` — `createNode` returns `null`, the task fails |
-| | Every advertised descriptor kind has a runtime producer | `[ ]` Task 3 — 10 kinds do not |
+| | Every advertised descriptor kind has a runtime producer | `[x]` — structural: `NodeSpecCatalog.harvestRunnable(runnableNodeIds())` derives the announced contracts from `NodeFactory.registeredTypes()`, so an unrunnable kind cannot be announced |
 | | Node versioning so a changed algorithm invalidates cached results | `[ ]` — accepted gap, no caching is live |
 | **Events & metrics** | Aggregated per-node counters to the UI; failures immediate | `[x]` |
 | | Prometheus `/metrics` on both components | `[x]` |
@@ -170,7 +169,7 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 - [x] R4 Exactly one start node emitting assets
 - [x] R5 Metadata-extracting nodes (33 runnable kinds)
 - [x] R6 Execution results tracked at run / item / node-element level
-- [ ] **R7 Filter nodes — no `filter-*` kind is runnable** (**blocking**, Task 3)
+- [x] R7 Filter routing — one runnable `filter` kind, four `filterBy` strategies
 - [x] R8 JSON serialization with a versioned format
 - [x] R9 Bounded, backpressure-aware execution
 - [x] R10 Intermediate node results stored on Loom
@@ -179,7 +178,6 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 
 **Additional requirements — open, in severity order:**
 
-- [ ] Register the 10 descriptor-only kinds (Task 3)
 - [ ] Recovery must re-parse with the descriptor registry (Task 12)
 - [ ] Validation endpoint + de-triplicated structural rules (Task 8)
 - [ ] Instrument `loom/pipeline` (Task 13)
@@ -190,5 +188,6 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 - [ ] Tracked elsewhere: retention sweep, per-node task API, per-item events, artifact cache
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (R7 closed — `MIME`/`SIZE`/`DATE` `FilterStrategy` implementations landed;
+stale descriptor-only-kind items removed, they were fixed by the filter consolidation)_

@@ -40,6 +40,8 @@
 - [x] Turn-granular streaming (`BlockingTurnStreamer`) **and** true token/reasoning streaming (`StreamingTurnStreamer`, `LOOM_AI_STREAMING=true`)
 - [x] MCP tool inventory dispatched in-process, permission-checked, with server-resolved `MCPCallerContext`
 - [x] Skills: table + versions, owner-scoped REST, progressive disclosure, `load_skill` tool, per-chat activation
+- [x] Built-in skills shipped on the classpath, always active (`BuiltinSkills`, `AgentSkill`)
+- [x] Tool advertisement filtered by the caller's permissions (`listDescriptorsFor`)
 - [x] References (chips) and `visuals` (inline pipeline graph) envelopes
 - [x] Auto title generation + auto session capture after the first exchange
 - [x] Agent memory bank wired into the system prompt and the tool set (see [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md))
@@ -163,9 +165,16 @@ The model is offered, in this order (`AgentLoop.buildTools()`):
 | Group | Tools | Source |
 |---|---|---|
 | Domain (MCP) | `search_assets`, `get_asset`, `search_transcript`, `list_collections`, `asset_statistics`, `list_pipelines`, `get_pipeline` | `loom/services/mcp/.../tool/impl` via `MCPToolModule` |
+| Pipeline authoring (MCP) | `list_node_descriptors`, `get_node_descriptor`, `pipeline_authoring_guide`, `validate_pipeline`, `create_pipeline`, `update_pipeline` | same module — see [../MCP.md §5.2a](../MCP.md). The two write tools need `CREATE/UPDATE_MCP_PIPELINE` on top of the base pipeline permission |
 | Memory (MCP) | `get_memory`, `put_memory`, `list_memory`, `delete_memory` | `loom/agent/memory/.../tool` via `MemoryToolModule` — details in [CHAT_MEMORY_PLAN.md](../../features/chat/CHAT_MEMORY_PLAN.md) |
 | Coding | `run_shell`, `read_file`, `write_file`, `list_files` | `CodingTools` — advertised **only** when `LOOM_AGENT_SANDBOX_ENABLED=true`; executed in a per-chat Session Runner via `SandboxOrchestrator.dispatchCodingTool(chatUuid, …)`, *not* through the MCP registry |
-| Agent-local | `load_skill` | added only when the run has active skills |
+| Agent-local | `load_skill` | added whenever anything is disclosed — the built-in skills (§7) mean that is every run |
+
+🔴 **The MCP groups are filtered by the caller's permissions.** `buildTools()` reads
+`MCPToolRegistry.listDescriptorsFor(request.user())`, not `listDescriptors()`. A tool the
+user may not invoke is not merely refused on call — it never reaches the prompt, because
+the tool list *is* prompt text and an advertised `create_pipeline` reads as an invitation
+to author one. See [../MCP.md §6](../MCP.md).
 
 **Caller identity is server-resolved.** `AgentLoop.buildCallerContext()` builds an
 `MCPCallerContext(userUuid, userName, groupUuids, spaceUuid, chatUuid)` from the request
@@ -315,6 +324,40 @@ Adding a second visual type = produce the envelope in a tool, add the payload ty
 
 ## 7. Skills
 
+Skills come from two places, and the model cannot tell them apart. Both arrive as
+`AgentSkill(name, description, content, injectFull)`, which is the view
+`SkillPromptBuilder` and the `load_skill` handler work against — which of the two a skill
+came from changes nothing about how it is disclosed.
+
+### 7.0 Built-in skills
+
+`io.metaloom.loom.common.skill.BuiltinSkills` loads markdown resources from
+`loom/common/src/main/resources/skills/`. They are **always active**, have no uuid, no
+owner and no version history, and never appear in the skill CRUD surface.
+
+Today there is one: **`pipeline-authoring`** — the shape of a pipeline definition, how
+nodes are wired port to port, the rules the validator enforces, and the order to call the
+pipeline tools in.
+
+- **Why not a row.** A user skill is the right model for a house convention somebody
+  wrote. It is the wrong model for the knowledge needed to use a Loom feature at all:
+  nobody should have to author, and then remember to tick, the document that explains the
+  definition format. `AgentLoop.loadActiveSkills()` prepends the built-ins, so a skill list
+  is never empty.
+- **Built-ins win a name collision.** `load_skill` resolves first-match over the merged
+  list; a stored skill borrowing a built-in's name cannot replace what Loom ships.
+- **Never pinned.** `ChatSessionSkillPin` records a uuid and a version number; a built-in
+  has neither, and is active on every run anyway, so pinning it would say nothing about
+  the session. `AgentLoop.activeUserSkills` is the stored subset kept for that purpose.
+- **Never inlined.** `injectFull` is always false for a built-in: it is active on every
+  run of every chat, so inlining would spend the whole body every time.
+- **One source, two audiences.** The `pipeline_authoring_guide` MCP tool serves the same
+  resource, because an external MCP client has no notion of a skill
+  ([../MCP.md §5.2a](../MCP.md)). A missing resource throws at load time rather than
+  degrading silently — an absent guide looks exactly like a model that chose not to use it.
+
+### 7.1 User skills
+
 A **skill** is a user-owned, SKILL.md-style markdown instruction package stored in the
 database: `name` (unique per owner), `description` (≤1024 chars — what the model sees up
 front), `content`, `enabled`, `published`, `origin_skill_uuid`, `meta`, plus a version
@@ -460,6 +503,8 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | Chat session routes | `.../agent/chat/rest/ChatSessionEndpoint.java` (+ `…Service`) |
 | Session filesystem routes | `.../agent/chat/rest/SessionFsEndpoint.java` (+ `…Service`) |
 | System prompt assembly | `.../agent/chat/prompt/SystemPromptBuilder.java`, `.../skill/SkillPromptBuilder.java` |
+| Built-in skills | `loom/common/src/main/java/io/metaloom/loom/common/skill/BuiltinSkills.java`, resources under `loom/common/src/main/resources/skills/` |
+| The skill view the loop works against | `.../agent/chat/skill/AgentSkill.java` |
 | Chips / visuals extraction | `.../agent/chat/ref/ReferenceExtractor.java`, `VisualExtractor.java` |
 | Dagger wiring of the endpoints | `.../agent/chat/dagger/ChatEndpointModule.java` |
 | MCP tools + registry | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/` |
@@ -489,5 +534,5 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | R9 | `AiOptions.validate()` demands provider/url/model even when `ai.enabled=false` (§9). | Short-circuit `validate()` on `!enabled`, so a Loom deployment without an LLM needs no dummy provider config. |
 | R10 | This file lives under `spec/loom/ui/` but is ~80% server-side (loop, REST, config, DB). | Move to `spec/features/chat/CHAT.md` next to its sibling chat specs and fix the relative links; `TASK_UI_CHAT.md` stays the UI-side document. |
 
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (the agent now uses `OpenAILLMProvider` only; `LOOM_AI_PROVIDER_TYPE` removed and the vLLM true-streaming gap closed (CHAT_TASKS F1))_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (built-in skills, pipeline authoring tools, permission-filtered tool advertisement)_

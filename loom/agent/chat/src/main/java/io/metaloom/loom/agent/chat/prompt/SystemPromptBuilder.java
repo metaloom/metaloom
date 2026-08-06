@@ -2,12 +2,12 @@ package io.metaloom.loom.agent.chat.prompt;
 
 import java.util.List;
 
+import io.metaloom.loom.agent.chat.skill.AgentSkill;
 import io.metaloom.loom.agent.chat.skill.SkillPromptBuilder;
 import io.metaloom.loom.agent.memory.MemoryScopeRef;
 import io.metaloom.loom.agent.memory.MemoryService;
 import io.metaloom.loom.agent.memory.prompt.MemoryPromptBuilder;
 import io.metaloom.loom.db.model.memory.MemoryEntry;
-import io.metaloom.loom.db.model.skill.Skill;
 
 /**
  * Assembles the full system prompt of the chat agent from its parts.
@@ -30,7 +30,7 @@ public final class SystemPromptBuilder {
 	 * @param sandboxEnabled
 	 *            Whether a session container exists — only then is the read-only memory folder mentioned
 	 */
-	public static String build(List<Skill> activeSkills, MemoryService memory, List<MemoryScopeRef> scopes, List<MemoryEntry> index,
+	public static String build(List<AgentSkill> activeSkills, MemoryService memory, List<MemoryScopeRef> scopes, List<MemoryEntry> index,
 		boolean sandboxEnabled) {
 		String prompt = SkillPromptBuilder.build(activeSkills);
 		if (memory == null || !memory.isEnabled()) {

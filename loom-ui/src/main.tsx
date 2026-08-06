@@ -8,6 +8,9 @@ import { SpaceProvider } from "./context/SpaceContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import { NodeRegistryProvider } from "./context/NodeRegistryContext";
+// The React context reporting whether the server can serve searches — not to be confused with
+// the backend's SearchProvider SPI, which is the thing it reports on.
+import { SearchProvider } from "./context/SearchContext";
 import { ThemeModeProvider, useThemeMode } from "./context/ThemeContext";
 import { UploadProvider } from "./features/uploads/UploadContext";
 import { NotificationProvider } from "./context/NotificationContext";
@@ -26,13 +29,15 @@ function AuthGate() {
   // logout (which unmounts this branch) tears it down.
   return (
     <NodeRegistryProvider>
-      <SpaceProvider>
-        <NotificationProvider>
-        <UploadProvider>
-          <AppShell />
-        </UploadProvider>
-        </NotificationProvider>
-      </SpaceProvider>
+      <SearchProvider>
+        <SpaceProvider>
+          <NotificationProvider>
+            <UploadProvider>
+              <AppShell />
+            </UploadProvider>
+          </NotificationProvider>
+        </SpaceProvider>
+      </SearchProvider>
     </NodeRegistryProvider>
   );
 }

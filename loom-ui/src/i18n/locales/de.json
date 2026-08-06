@@ -771,6 +771,9 @@
         "READ_PIPELINE_RUN": "Pipeline-Läufe ansehen — Ausführungen einer Pipeline.",
         "UPDATE_PIPELINE_RUN": "Bestehende Pipeline-Läufe bearbeiten — Ausführungen einer Pipeline.",
         "DELETE_PIPELINE_RUN": "Pipeline-Läufe löschen — Ausführungen einer Pipeline.",
+        "CREATE_MCP_PIPELINE": "Dem Assistenten erlauben, Pipelines anzulegen. Wird zusätzlich zu „Neue Pipelines anlegen“ vergeben — beides ist nötig.",
+        "UPDATE_MCP_PIPELINE": "Dem Assistenten erlauben, bestehende Pipelines zu ändern. Wird zusätzlich zu „Bestehende Pipelines bearbeiten“ vergeben — beides ist nötig.",
+        "VALIDATE_MCP_PIPELINE": "Dem Assistenten erlauben, einen Pipeline-Entwurf zu prüfen. Dabei wird nichts gespeichert, kann also allein vergeben werden.",
         "CREATE_ASSET_POOL": "Neue Asset-Pools anlegen — Speicherorte, aus denen Assets eingelesen werden.",
         "READ_ASSET_POOL": "Asset-Pools ansehen — Speicherorte, aus denen Assets eingelesen werden.",
         "DELETE_ASSET_POOL": "Asset-Pools löschen — Speicherorte, aus denen Assets eingelesen werden.",
@@ -1828,6 +1831,77 @@
     "emptyState": {
       "title": "Alles erledigt",
       "description": "Zuweisungen, Kommentare und fehlgeschlagene Läufe erscheinen hier."
+    }
+  },
+  "search": {
+    "title": "Suche",
+    "field": {
+      "placeholder": "Alles durchsuchen…"
+    },
+    "global": {
+      "placeholder": "Alles durchsuchen…",
+      "tooltip": "Suchen"
+    },
+    "syntax": {
+      "hint": "\"Wortgruppe\" · or · -ausschließen",
+      "long": "Setze eine Wortgruppe in Anführungszeichen für eine exakte Übereinstimmung, schreibe or zwischen Alternativen und stelle einem Wort ein - voran, um es auszuschließen."
+    },
+    "empty": {
+      "title": "Wonach suchst du?",
+      "description": "Durchsuche Assets, Transkripte, Tags, Annotationen, Personen, Kollektionen und Bibliotheken auf einmal."
+    },
+    "noResults": "Nichts gefunden für \"{{query}}\".",
+    "summary": {
+      "exact": "{{count}} Treffer in {{ms}} ms",
+      "approx": "Etwa {{count}} Treffer in {{ms}} ms",
+      "provider": "geliefert von {{provider}}"
+    },
+    "types": {
+      "asset": "Assets",
+      "transcript": "Transkripte",
+      "tag": "Tags",
+      "annotation": "Annotationen",
+      "person": "Personen",
+      "collection": "Kollektionen",
+      "library": "Bibliotheken",
+      "cluster": "Cluster",
+      "detection": "Erkennungen",
+      "segment": "Segmente"
+    },
+    "sort": {
+      "RELEVANCE": "Relevanteste zuerst",
+      "NEWEST": "Neueste zuerst",
+      "OLDEST": "Älteste zuerst",
+      "NAME": "Nach Name",
+      "SIZE": "Nach Größe"
+    },
+    "facets": {
+      "mime_type": "Dateityp",
+      "entity_type": "Art",
+      "lang": "Sprache"
+    },
+    "filters": {
+      "active": "Filter:",
+      "clear": "Alle entfernen"
+    },
+    "pager": {
+      "prev": "Zurück",
+      "next": "Weiter",
+      "range": "{{from}}–{{to}} von {{total}}",
+      "depthLimit": "Treffer jenseits von {{max}} lassen sich nicht durchblättern. Grenze die Suche weiter ein."
+    },
+    "warnings": {
+      "title": "Einige Treffer wurden ausgelassen"
+    },
+    "error": {
+      "title": "Die Suche konnte nicht ausgeführt werden.",
+      "unavailable": "Die Suche ist derzeit nicht verfügbar.",
+      "forbidden": "Dir fehlt die Berechtigung, diese Elemente zu durchsuchen."
+    },
+    "unavailable": {
+      "title": "Suche nicht verfügbar",
+      "body": "Diese Installation kann derzeit keine Suchanfragen beantworten. Alles andere funktioniert weiter.",
+      "provider": "Backend: {{provider}}"
     }
   }
 }

@@ -18,6 +18,7 @@ import {
   HistoryOutlined, CloudUploadOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../theme";
+import GlobalSearchField from "./GlobalSearchField";
 import NotificationPopover from "../features/notifications/NotificationPopover";
 import { useAuth } from "../context/AuthContext";
 import { useUploads } from "../features/uploads/UploadContext";
@@ -313,6 +314,11 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
       </Box>
 
       <Divider />
+
+      {/* Global search — its own row: the header strip above has no width left, and the nav box
+          below scrolls, which would carry the field out of view. Renders nothing when the
+          deployment cannot serve searches. */}
+      <GlobalSearchField collapsed={collapsed} />
 
       {/* Navigation */}
       <Box sx={{ flex: 1, overflow: "auto", px: collapsed ? 0.5 : 1, py: 1 }}>

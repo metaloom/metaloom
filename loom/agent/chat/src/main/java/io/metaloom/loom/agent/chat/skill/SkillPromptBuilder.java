@@ -2,14 +2,15 @@ package io.metaloom.loom.agent.chat.skill;
 
 import java.util.List;
 
-import io.metaloom.loom.db.model.skill.Skill;
-
 /**
  * Assembles the system prompt of the chat agent.
  *
  * <p>Skills follow the pi-style progressive disclosure model: only name + description of the active skills are injected up front; the model fetches the full
  * instructions on demand via the {@code load_skill} tool. Skills flagged with {@code meta.injectFull=true} get their content inlined directly instead — an
  * escape hatch for small models which ignore progressive disclosure.</p>
+ *
+ * <p>The list mixes the skills that ship with Loom with the ones the user activated for this chat; both arrive as {@link AgentSkill}, because which of
+ * the two a skill came from changes nothing about how it is disclosed.</p>
  */
 public final class SkillPromptBuilder {
 
@@ -26,7 +27,7 @@ public final class SkillPromptBuilder {
 	/**
 	 * Build the system prompt for the given active skills.
 	 */
-	public static String build(List<Skill> activeSkills) {
+	public static String build(List<AgentSkill> activeSkills) {
 		StringBuilder prompt = new StringBuilder(BASE_PROMPT);
 		if (activeSkills == null || activeSkills.isEmpty()) {
 			return prompt.toString();
@@ -34,13 +35,13 @@ public final class SkillPromptBuilder {
 
 		StringBuilder disclosed = new StringBuilder();
 		StringBuilder inlined = new StringBuilder();
-		for (Skill skill : activeSkills) {
-			if (isInjectFull(skill)) {
-				inlined.append("\n<skill name=\"").append(skill.getName()).append("\">\n")
-					.append(skill.getContent())
+		for (AgentSkill skill : activeSkills) {
+			if (skill.injectFull()) {
+				inlined.append("\n<skill name=\"").append(skill.name()).append("\">\n")
+					.append(skill.content())
 					.append("\n</skill>\n");
 			} else {
-				disclosed.append("- ").append(skill.getName()).append(": ").append(skill.getDescription()).append("\n");
+				disclosed.append("- ").append(skill.name()).append(": ").append(skill.description()).append("\n");
 			}
 		}
 
@@ -55,10 +56,6 @@ public final class SkillPromptBuilder {
 			prompt.append("\n\nThe following skill instructions apply to this conversation:\n").append(inlined);
 		}
 		return prompt.toString();
-	}
-
-	private static boolean isInjectFull(Skill skill) {
-		return skill.getMeta() != null && Boolean.TRUE.equals(skill.getMeta().getBoolean("injectFull"));
 	}
 
 }

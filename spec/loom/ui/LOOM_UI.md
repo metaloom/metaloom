@@ -76,9 +76,9 @@ Scripts: `dev`, `build` (`tsc && vite build`), `preview`, `test` / `test:watch` 
 ```
 loom-ui/
 ├── src/
-│   ├── api/          # 30 REST/WS client modules + 12 co-located *.test.ts (§5)
+│   ├── api/          # 31 REST/WS client modules + 13 co-located *.test.ts (§5)
 │   ├── components/   # Shared: Title, EmptyState, MediaPlaceholder, AssetThumbnail
-│   ├── context/      # Auth, Space, NodeRegistry, Theme, Toast, Layout (§6)
+│   ├── context/      # Auth, Space, NodeRegistry, Search, Theme, Toast, Notification, Layout (§6)
 │   ├── features/     # One directory per UI area (§4.2)
 │   ├── i18n/         # i18n.ts + locales/{en,de}.json
 │   ├── layout/       # AppShell.tsx (routes + shell), Sidebar.tsx (nav)
@@ -87,7 +87,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 64 Playwright specs (§8.2)
+├── e2e/              # 66 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -118,8 +118,10 @@ graph TD
     ToastProvider --> AuthGate
     AuthGate -->|not authenticated| LoginPage
     AuthGate -->|authenticated| NodeRegistryProvider
-    NodeRegistryProvider --> SpaceProvider
-    SpaceProvider --> UploadProvider
+    NodeRegistryProvider --> SearchProvider
+    SearchProvider --> SpaceProvider
+    SpaceProvider --> NotificationProvider
+    NotificationProvider --> UploadProvider
     UploadProvider --> AppShell
     AppShell --> LayoutContext[LayoutContext.Provider]
     LayoutContext --> Sidebar
@@ -138,6 +140,7 @@ graph TD
 | `/chat/sessions/:id` | `ChatSessionDetail` | `features/chatSessions/ChatSessionDetail.tsx` |
 | `/skills` | `SkillManagementView` | `features/skills/SkillManagementView.tsx` |
 | `/memory` | `MemoryView` | `features/memory/MemoryView.tsx` |
+| `/search` | `SearchView` | `features/search/SearchView.tsx` |
 | `/library` | `LibraryView` | `features/library/LibraryView.tsx` |
 | `/assets` | `AssetBrowser` | `features/assets/AssetBrowser.tsx` |
 | `/assets/:id` | `AssetDetail` | `features/assetDetail/AssetDetail.tsx` |
@@ -193,6 +196,27 @@ MANAGEMENT  Asset Pools · Pipelines · Cortex · Monitoring · Spaces (/admin/s
 > `groups-backend`, `roles-backend`, `tokens-backend` and `scripts/capture-ui-screenshots.mjs`
 > all do this.
 
+#### Global search field
+
+`src/layout/GlobalSearchField.tsx`, mounted between the header `<Divider/>` and the navigation
+box — its **own row**, not part of the header strip. The header is a 220px flex row already
+carrying brand, notifications and the avatar, and the nav box below it scrolls, which would
+carry the field out of view.
+
+| Aspect | Rule |
+|--------|------|
+| Availability | Renders `null` when `SearchContext.available` is false. The sidebar itself has no gate |
+| Collapsed rail (56px) | No input — a `SearchOutlined` icon button that navigates to `/search` |
+| Debounce | 250 ms, inline `useRef` timer (there is still no debounce hook in the codebase); minimum 2 characters, since a 1-char trigram prefix matches the whole index |
+| Out-of-order responses | A `requestSeq` ref discards a reply superseded by a newer prefix |
+| Dropdown | MUI `Popper` + `ClickAwayListener` — the sidebar root is `overflow: hidden`, so an inline dropdown is clipped at 220px |
+| Selecting a suggestion | Searches for its `text`, not its entity, so Enter and click mean the same thing |
+| Test ids | `global-search-input` (on the `<input>` via `inputProps`, not the `TextField` root), `global-search-suggestions`, `global-search-suggestion-<i>`, `global-search-button` |
+
+> **Gotcha:** this field is mounted on **every** route, so its placeholder must stay distinct from
+> the in-page filter boxes. Several specs locate those with `getByPlaceholder(/search/i)`, which
+> would otherwise become strict-mode ambiguous. Prefer `getByTestId` in new specs.
+
 ---
 
 ## 5. API client layer (`src/api/`)
@@ -219,6 +243,7 @@ export const API_BASE_URL =
 | `assets.ts` | `/assets`, `/assets/:uuid`, `/assets/upload`, `/assets/bulk/{create,update}`, `/assets/:uuid/binary/data` (`assetBinaryUrl`) |
 | `binaries.ts` | `/assets/:uuid/binary`, `/assets/:uuid/binary/data` |
 | `libraries.ts` · `collections.ts` · `spaces.ts` | `/libraries` · `/collections` · `/spaces` |
+| `search.ts` | `/search/{results,assets,suggestions,status}` — the only client with a typed error (`SearchApiError`, carries `status`) |
 | `tags.ts` | `/tags`, `/tags/:uuid/rating`, `/assets/:uuid/tags[/:tagUuid]` |
 | `tasks.ts` | `/tasks`, `/assets/:uuid/tasks[/:taskUuid]`, `/tasks/:uuid/assignees[/users/:uuid\|/groups/:uuid]` |
 | `notifications.ts` | `/notifications[?unread=true]`, `/notifications/:uuid`, `/notifications/read-all` |
@@ -248,6 +273,7 @@ export const API_BASE_URL =
 | `AuthContext` | `context/AuthContext.tsx` | `isAuthenticated`, `username`, `userUuid`, `token`, `login`, `logout` | **No** — in-memory only |
 | `SpaceContext` | `context/SpaceContext.tsx` | `spaces[]`, `activeSpace`, `setActiveSpace` | No |
 | `NodeRegistryContext` | `context/NodeRegistryContext.tsx` | `descriptors[]`, `contentTypes[]`, `loading`, `error`, lookup helpers | No |
+| `SearchContext` | `context/SearchContext.tsx` | `available`, `provider`, `capabilities`, `reason`, `loading`, `has(cap)`, `markUnavailable`, `refresh` — one `/search/status` call per login. **Fails closed**: any failure (403, network) means `available:false` | No |
 | `ThemeContext` | `context/ThemeContext.tsx` | `mode` (`dark`\|`light`), `toggleMode`, `setMode` | `localStorage` key `loom-ui-theme` |
 | `ToastContext` | `context/ToastContext.tsx` | transient toasts (in-memory, no history) | No |
 | `NotificationContext` | `context/NotificationContext.tsx` | `items`, `unreadCount`, `loading`, `refresh`, `markRead`, `markAllRead`, `dismiss`, `clear` — the durable inbox, seeded from `/notifications` and appended from the `NOTIFICATION` socket channel | **No** — server-backed |
@@ -431,12 +457,17 @@ tasks attached to assets with priority/status/due dates.
 > component is a *mocked* Playwright spec (§8.2). Do not add RTL/jsdom to test a component —
 > extract the logic into a `.ts` module or write a mocked e2e.
 
-18 test files today:
+21 test files today:
 
 | Area | Files |
 |------|-------|
-| `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `pipelineEvents`, `reactions`, `skills`, `tags`, `tasks`, `transcripts` |
-| Feature helpers | `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `workflow/ratingPersistence` |
+| `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
+| Feature helpers | `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence` |
+
+> `search/highlight.ts` and `search/searchHits.ts` exist as separate modules precisely because of
+> the no-jsdom rule: the highlight parser is a security boundary (§5 of
+> [../../features/search/SEARCH.md](../../features/search/SEARCH.md)) and had to be unit-testable
+> without rendering `SearchHitRow`.
 
 ### 8.2 E2E tests — Playwright
 
@@ -445,12 +476,12 @@ tasks attached to assets with priority/status/due dates.
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-64 specs in two flavours, distinguished by filename suffix:
+66 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (32) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
-| `*-backend.spec.ts` (29) | **Yes** | Real Loom server with demo data |
+| `*-mocked.spec.ts` (33) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-backend.spec.ts` (30) | **Yes** | Real Loom server with demo data |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
 Typical mocked-spec shape: `mock…(page)` route handlers → `login(page)` (fill
@@ -656,5 +687,5 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `aab85cb3`_
-_Last updated: 2026-08-02 (added the `/uploads` route, `UploadProvider` in the provider tree, `UploadContext` in §6 and the LOOM_UI_UPLOAD.md cross-reference; noted the XHR exception in §5)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (added the /search route, api/search.ts, SearchContext and the global sidebar search field; refreshed the provider tree and test counts)_

@@ -297,9 +297,16 @@ of its dynamic bucket ports — the port *is* the branch, see
 [NODE_DATA_TYPES.md §4.5 and §8.6](../pipeline/NODE_DATA_TYPES.md).
 
 `filterBy` picks a `FilterStrategy` from a `Map<FilterBy, Provider<FilterStrategy>>` multibinding.
-Today only `LANGUAGE`, which classifies the wired `text` through the shared `LLMProvider`
-(`cortex/llm-common`). Adding a way of filtering is a strategy class plus a `@FilterByKey` binding
-plus an enum value in the descriptor — never an edit to `FilterNode`.
+Four values: `LANGUAGE` classifies the wired `text` through the shared `LLMProvider`
+(`cortex/llm-common`); `MIME`, `SIZE` and `DATE` read the item's own metadata and take **no
+`LLMProvider` at all**, so a filter-only graph runs with no model backend reachable. The hint
+grammars are tabulated in [NODE_DATA_TYPES.md §4.5](../pipeline/NODE_DATA_TYPES.md).
+
+Adding a way of filtering is a strategy class plus a `@FilterByKey` binding plus an enum value in the
+descriptor — never an edit to `FilterNode`. Two default methods on the seam carry what is
+per-strategy: `version()` (mixed into the cache key and `producerVersion`) and `validateBuckets(...)`
+(called from `configure(...)`, so `SIZE`/`DATE` refuse an unparseable hint up front instead of
+routing every item to `other` for a whole run).
 
 This **replaced eight `filter-*` kinds and nine classes** in `cortex/pipeline-core/.../node/filter/`
 (`AbstractFilterNode` and its subclasses). They extended `AbstractPipelineNode` rather than
@@ -307,8 +314,6 @@ This **replaced eight `filter-*` kinds and nine classes** in `cortex/pipeline-co
 using one saved, validated, dispatched, and then failed at the worker with
 `RegistryNodeFactory.createNode() == null`. All nine classes and their ten tests are deleted.
 
-🔴 **MIME, size and date bucketing regressed with them.** The strategy seam exists and each is ~30
-lines, but only `LANGUAGE` is implemented today.
 
 ### 3.4 The tag node (`cortex/nodes/tag`)
 
@@ -756,7 +761,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
       and replaced by the one runnable `filter` kind (§3.3).
 - [ ] **`asset-source` has no descriptor** — selectable from pipeline JSON, invisible to the palette.
 - [x] **Filter code ↔ descriptor mismatch** — resolved by the consolidation; both sides are now one
-      kind. 🔴 But MIME/size/date bucketing is not implemented on the new strategy seam yet.
+      kind, and all four `filterBy` values (`LANGUAGE`, `MIME`, `SIZE`, `DATE`) are implemented.
 - [ ] **`QualityNode` has no test that runs the node** — only `QualityNodeOptionsValidationTest` and
       the assertj helpers.
 - [ ] **`HashDedupNodeTest` is a 5-line empty stub**, and `FingerprintDedupApplyNode` has no unit
@@ -849,10 +854,11 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 (added the routing row for `features/facedetection/FACE_WORKFLOW.md`, which
-owns the face identity loop — and records that the `faceClusterEPS` / `faceClusterMinimum` options
-listed in §5 here are read by no code). Previously 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
+all four `filterBy` values are implemented. Earlier the same day: added the routing row for
+`features/facedetection/FACE_WORKFLOW.md`, which owns the face identity loop — and recorded that the
+`faceClusterEPS` / `faceClusterMinimum` options listed in §5 here are read by no code). Previously 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
 one request per item, one transaction, and a rejected withdrawal fails the item; added
 `TagNodeIntegrationTest` to the per-node ITs. Also finished removing `NodePortConformanceTest` from the
 test tables and the file map, where three references survived the 2026-08-04 correction)_

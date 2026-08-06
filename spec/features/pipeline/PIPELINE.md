@@ -318,6 +318,35 @@ every node stays `SINGLE`. Convenient in tests, dangerous in production —
 **Structural** rules are duplicated three ways and will drift. **Port** rules are
 not — do not add a second copy of those.
 
+⚠️ `validateDefinition` **skips port checking entirely when the definition has no
+`edges` key** — the `validatePorts` call sits inside `if (edges != null)`. A single-node
+pipeline is legal, so this is deliberate; a graph *with* edges is the checked path.
+
+### 5.2 One write path — `PipelineAuthoringService`
+
+`io.metaloom.loom.rest.service.impl.PipelineAuthoringService` owns create, update and a
+non-persisting `validate`. It takes a caller uuid and a request model and returns rows —
+no `LoomRoutingContext` — because there are now two doors onto the same operation:
+`PipelineEndpointService.create`/`update` (REST) and the `create_pipeline` /
+`update_pipeline` MCP tools ([../../loom/MCP.md §5.2a](../../loom/MCP.md)).
+
+The order is load-bearing and unchanged: `validator.validate(request)` →
+`pipelineValidationService.validateDefinition` → `PipelineGraphParser.stampVersion` →
+write pipeline → write version → repoint `latest_version_uuid`. Nothing is stored until
+the definition is known to be sound, which is what lets a rejected definition leave no
+row behind — the property an agent iterating on a draft depends on.
+
+`validate(definition)` runs the same checks and then adds two things save-time validation
+deliberately does not fail on, both **warnings**: kinds no online worker accepts
+(`unsupportedNodeKinds` — a `503` at run time) and `AffinityValidator` warnings. The
+affinity *fleet* check is skipped when unsupported kinds were already reported, since with
+nothing online the two say the same thing; `GROUP_SPLIT` still comes through. This is the
+first production caller of `AffinityValidator`.
+
+⚠️ `DemoDatabaseInitializer.createPipeline` is still a **fourth** hand-rolled writer of
+`latest_version_uuid`, and deliberately skips validation so demo seeding cannot be broken
+by a stricter check. Any *new* writer belongs in `PipelineAuthoringService`.
+
 ---
 
 ## 6. The run engine (`loom/pipeline/engine`)
@@ -702,6 +731,7 @@ never read by anything**.
 | `V2.60__pipeline_node_task_element_seq.sql` | `element_seq INTEGER NOT NULL DEFAULT 0`; idempotency key becomes `UNIQUE (item_uuid, node_id, element_seq)` |
 | `V2.67__pipeline_node_task_previews.sql` | `previews JSONB` — opt-in debugging renderings of a node's outputs, keyed by output port id |
 | `V2.68__pipeline_node_task_generation.sql` | `generation INTEGER NOT NULL DEFAULT 0`; idempotency key becomes `UNIQUE (item_uuid, node_id, element_seq, generation)` |
+| `V2.76__mcp_pipeline_permissions.sql` | `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` — authoring through an agent, granted separately from authoring in the editor |
 
 **`V2.68` is the re-execution migration** ([§6.4b](#64b-re-executing-a-held-node-with-different-settings)).
 A node held at a breakpoint can be run again with different settings, and each attempt keeps
@@ -848,6 +878,10 @@ post-refactor, but the parameter is dead weight on the interface.
 | POST | `/:uuid/versions/:version/restore` | `PipelineResponse` (201) | `RESTORE_PIPELINE_VERSION` |
 
 - Loom uses **POST for both create and update** (not PUT/PATCH).
+- REST is no longer the only authoring door: the MCP server exposes
+  `create_pipeline` / `update_pipeline` / `validate_pipeline` over the same
+  `PipelineAuthoringService` (§5.2), gated on the base permission **plus**
+  `CREATE/UPDATE/VALIDATE_MCP_PIPELINE`.
 - `/runs/stats` is a **literal prefix registered before the `:uuid` wildcard** — order
   matters; adding a literal route after it will be shadowed.
 - `POST /run` is gated on `READ_PIPELINE`, deliberately — running is not editing.
@@ -985,7 +1019,7 @@ frames to move a percentage bar.
 | Retry backoff base | `setRetryBaseDelayMs(long)` | `1000`, capped at `MAX_RETRY_DELAY_MS = 60000` |
 | Stats flush interval | `PipelineEndpointService.STATS_INTERVAL_MS` | `1000` ms |
 | `resultBatchSize`, `reuseResults` | pipeline definition JSON | `1`, `false` |
-| Permissions | `*_PIPELINE`, `*_PIPELINE_RUN`, `*_PIPELINE_VERSION` | — |
+| Permissions | `*_PIPELINE`, `*_PIPELINE_RUN`, `*_PIPELINE_VERSION`, `*_MCP_PIPELINE` | — |
 
 ⚠️ None of the engine tunables is env-configurable — they are code defaults with
 setters, wired in `PipelineEndpointService`.
@@ -1027,6 +1061,7 @@ root first (and again after any Flyway change), or tests fail at
 | Engine | `PipelineRunEngineTest` + `…FanOutTest`, `…RecoveryTest`, `…PauseTest`, `…CancelTest`, `…RetryTest`, `…ReturnTest`, `…ReuseTest`, `…SegmentTest`, `…CircuitTest`, `…BulkheadTest`, `…BackpressureTest`, `…FlowControlTest`, `…PersistenceTest` |
 | Cortex runtime | `NodeTaskRunnerTest`, `SegmentTaskRunnerTest`, `SourceTaskRunnerTest`, `ResultBatcherTest`, `PipelineTaskHandlerDrainTest` |
 | Node registration | `RegistryNodeFactoryTest`, `NodeRegistrarTest`, `PipelineConfigurableTest` |
+| Authoring | `PipelineAuthoringServiceTest` (rest), `PipelineAuthoringToolTest` + `NodeDescriptorToolTest` (mcp), `MCPPipelineAuthoringTest` (loom/core, pooled DB) |
 | Loom REST | `PipelineValidationServiceTest`, `PipelineRunStatusResolverTest`, `PipelineRunCapabilityTest`, `PipelineRunEndToEndTest`, `PipelineMatcherTest`, `PipelineEventBroadcasterTest`, `SegmentProtocolSerdeTest`, `ProcessorEndpointTest`, `PipelineEventEndpointTest`, `CombinedEndpointTest` |
 | DAO | `PipelineDaoTest`, `PipelineVersionDaoTest`, `PipelineRunDaoTest`, `PipelineNodeTaskDaoTest` |
 | Cross-tree ports | `integration-test/…/NodePortConformanceTest` — reflects over every node's `IN_*`/`OUT_*` constants and holds them against its descriptor |
@@ -1075,7 +1110,8 @@ produce failure messages that name the port. Legacy-tree asserts live in
 | `NodeKindCircuitBreaker` / `RetryScheduler` | `…pipeline.engine` | Cross-run breaker; injected backoff timer |
 | `RunStateStore` / `AssetSink` / `NodeDispatcher` | `…pipeline.engine` | The three injected seams that keep `loom/pipeline` free of Loom internals |
 | `PortPayloads` | `…pipeline.engine` | `PortPayload` ⇄ JSONB codec for `pipeline_node_task.outputs` |
-| `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | CRUD, versioning, `dispatchRun`, run queries, pause/resume/cancel |
+| `PipelineAuthoringService` | `io.metaloom.loom.rest.service.impl` | **The single write path**: create, update (append-a-version), and the non-persisting `validate` behind `validate_pipeline` |
+| `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | CRUD routing, versioning, `dispatchRun`, run queries, pause/resume/cancel |
 | `PipelineRunTracker` | `…rest.service.impl` | Closes runs; first-terminal-verdict-wins; pause/resume transition |
 | `PipelineRunRegistry` | `…rest.service.impl` | In-memory map of live engines; self-cleaning on completion |
 | `PipelineRunRecovery` | `…rest.service.impl` | Rebuilds engines for `RUNNING`/`PAUSED` runs after a restart |
@@ -1223,5 +1259,5 @@ See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakd
 [NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (PipelineAuthoringService is now the single write path; MCP is a second authoring door)_

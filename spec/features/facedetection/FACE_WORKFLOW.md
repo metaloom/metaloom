@@ -86,26 +86,29 @@ recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, resultRef("detecti
 Upsert key `(asset_uuid, node_kind, frame_number, detection_index)` (`V2.43`), so a re-run replaces
 rather than appends.
 
-### 1.2 Why there are no embeddings
+### 1.2 Embeddings — built (2026-08-06)
 
-Three independent facts, each verified in this checkout:
+✅ **Face embeddings are computed and persisted.** This section previously listed three reasons there
+were none; all three are resolved, and the diagnosis was one step too generous — the vectors were not
+"discarded", they were never computed. The node called only `detectFaces(image)`, which sets no
+embedding.
 
-1. **`FaceStorage.java` is commented out in its entirety** — the Avro sidecar that once carried
-   embeddings is dead code, every line prefixed `//`.
-2. **`VideoFaceScanner.processFaces` records the history in a comment** (the embedding call above it
-   is commented out):
-   > *"This used to also require `face.hasEmbedding()`, which no face could satisfy: embeddings were
-   > attached by `processFace()` via a remote InsightFace HTTP service, and that call is commented out
-   > just above. Nothing replaced it, so the filter silently discarded every face and the video path
-   > always reported zero."*
-3. **`DetectionModel` has no vector field** — geometry, confidence and `meta` only. Embeddings have no
-   route from Cortex to Loom on the detection path.
+| Was | Now |
+|---|---|
+| `FaceStorage.java` — an Avro sidecar, every line commented out | **Deleted.** Superseded by the `embedding` table; a per-asset file store was never the destination |
+| `VideoFaceScanner.processFaces` gated on `hasEmbedding()`, which nothing could satisfy | Gate removed earlier; `scan(video, n, withEmbeddings)` now embeds the selected faces from the crops the scan already took |
+| `DetectionModel` has no vector field | Still true, and correct — vectors travel on their own resource, `POST /assets/:uuid/embeddings/bulk`, keyed to the detection by `detection_uuid` |
+| `detectEmbeddings`/`extractEmbeddings` exist with zero metaloom callers | `InspireFacedetector.detectFaces(img, withEmbeddings)` (new in video4j) produces boxes and vectors in **one filtered pass** |
 
-**The embedder itself is not missing.** All four `video4j` backends implement
-`detectEmbeddings(VideoFrame)` and `extractEmbeddings(FaceVideoFrame)`
-(`inspireface`, `dlib`, `insightface-http`, `opencv`), and `video4j`'s `Face` already carries
-`setEmbedding(float[])` / `getEmbedding()` / `hasEmbedding()`. A repo-wide search finds
-**zero callers in metaloom**. The wiring is what is absent, not the capability.
+🔴 **Do not pair `detectFaces(img)` with `detectEmbeddings(VideoFrame)` to get both.**
+`detectEmbeddings` runs detection *unfiltered*, so its ordinals do not line up with the ones
+`detectFaces` returns after the size and confidence gates. Zipping the two lists attaches each vector
+to the wrong face — silently, and with entirely plausible output.
+
+Persistence, storage and the pluggable index are specified in
+[../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md); `embedding` is the system of record and
+the ANN index is a rebuildable cache behind the `VectorIndex` SPI, keyed by
+`(type, model, dimensions)` so the recognition model can change without invalidating what is stored.
 
 ### 1.3 Why there is no clustering
 
@@ -372,7 +375,7 @@ Recorded, **not fixed** in this pass. Each was read in this checkout.
 
 **Research / documentation (this file)**
 - [x] Trace the real end-to-end path and locate where it breaks (link 1, not confirmation)
-- [x] Verify no embedding is persisted (`FaceStorage` commented out, `DetectionModel` has no vector)
+- [x] ~~Verify no embedding is persisted~~ — **resolved (2026-08-06)**: embeddings are computed and persisted (§1.2)
 - [x] Verify no clustering code exists and both cluster options are dead
 - [x] Verify `cluster` cannot be machine-written (`creator_uuid NOT NULL`)
 - [x] Verify `cluster` and `person` have no relation at any layer
@@ -469,11 +472,10 @@ pipeline node options. Server-side env vars are in [../../loom/CONFIGURATION.md]
 | `FacedetectNode` | `io.metaloom.cortex.node.facedetect` | The only stage that runs; `persist()` writes detections |
 | `FacedetectNodeOptions` | same | `KEY="facedetection"`; holds the two dead cluster knobs |
 | `FacedetectNodeCapabilities` | same | `{INSPIREFACE, DLIB}` — the backend seam |
-| `VideoFaceScanner` | `...facedetect.video` | Frame sampling; carries the comment explaining the lost embeddings |
-| `FaceStorage` | same | 🔴 **entirely commented out** — the dead embedding sidecar |
+| `VideoFaceScanner` | `...facedetect.video` | Frame sampling; `scan(video, n, withEmbeddings)` embeds the selected faces |
 | `FacedescriptionNode` | `io.metaloom.cortex.node.facedescription` | VLM text descriptions → `asset_json_comp`. **Not part of the identity loop** and not runnable (§6.7) |
 | `AbstractMediaNode` | `io.metaloom.cortex.common.node` | `recordNodeResult` / `resultRef` (§6.6) |
-| `InspireFacedetectorImpl` | `video4j-facedetect-inspireface` | `detectEmbeddings` / `extractEmbeddings` — **exists, uncalled** |
+| `InspireFacedetectorImpl` | `video4j-facedetect-inspireface` | `detectFaces(img, withEmbeddings)` — the call the node uses. `detectEmbeddings`/`extractEmbeddings` remain, unfiltered; see §1.2 |
 | `Face` | `video4j-facedetect-common` | `setEmbedding` / `getEmbedding` / `hasEmbedding` |
 | `ClusterDao` / `ClusterDaoImpl` | `loom/db/api`, `loom/db/jooq` | `link`/`unlink` over `embedding_cluster`; no caller outside tests |
 | `ClusterEndpoint` / `ClusterEndpointService` | `loom/services/rest` | CRUD only; `DEFAULT_CLUSTER_TYPE = "generic"` |
@@ -512,7 +514,7 @@ pipeline node options. Server-side env vars are in [../../loom/CONFIGURATION.md]
 |---|---|
 | The node implementation | [cortex/nodes/facedetect/core/](../../../cortex/nodes/facedetect/core/) |
 | Where detections are persisted | `FacedetectNode.persist` → `POST /assets/:uuid/detections/bulk` |
-| Why there are no embeddings | `FaceStorage.java` (commented out) and `VideoFaceScanner.processFaces`'s comment |
+| How embeddings are produced and stored | §1.2; `FacedetectNode.persist`/`persistEmbeddings`, [../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md) |
 | The embedder that is never called | `InspireFacedetectorImpl.detectEmbeddings` (video4j) |
 | Current cluster/person DDL | `V2.12__add_embedding.sql`, `V2.26__add_person.sql`, `V2.51__…_delete_cascade.sql` |
 | The review-model precedent to copy | `V2.61__add_dedup_group.sql` + [../../concept/NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) |

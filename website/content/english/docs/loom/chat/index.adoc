@@ -50,6 +50,51 @@ link:../configuration/[Loom Configuration].
 A chat may have only one active run at a time; a concurrent request returns `409 AGENT_BUSY`.
 
 [#pipeline-diagrams]
+== Building a Pipeline by Asking
+
+The assistant can do more than describe a pipeline — it can build one. Ask for what you want
+processed (*"set up a pipeline that transcribes every new video and tags the language"*) and it
+works the way a person would: it looks up which processing nodes this Loom actually offers, checks
+what each one accepts and produces, drafts the pipeline, **validates the draft without saving it**,
+fixes whatever the validator objects to, and only then stores it.
+
+The result is an ordinary pipeline. It appears in the pipeline list, opens in the editor, and can be
+reviewed and changed by hand before you run it. Nothing is started automatically — starting a run
+stays your decision.
+
+Changes work the same way. Asking for a node to be added or a setting changed stores a **new
+version** of the pipeline; earlier versions are kept and can be restored, so a change you did not
+want is never destructive.
+
+TIP: Ask the assistant to *show* you the pipeline before you run it. It draws the node graph as a
+diagram in the conversation (see below), which is the quickest way to check that it understood you.
+
+=== Permissions
+
+Letting the assistant write pipelines is granted separately from letting a person edit them in the
+pipeline editor, so you can allow one without the other. Three permissions cover it, all in the
+**Pipeline (assistant)** group of the role editor:
+
+[cols="1,3"]
+|===
+| Permission | What it allows
+
+| Create pipelines (assistant)
+| The assistant may store a new pipeline. Granted *in addition to* the ordinary create permission —
+  both are needed.
+
+| Edit pipelines (assistant)
+| The assistant may store a new version of an existing pipeline. Again in addition to the ordinary
+  edit permission.
+
+| Validate pipelines (assistant)
+| The assistant may check a draft. Nothing is stored, so this one is safe to grant on its own — the
+  assistant can design and check a pipeline for you to save yourself.
+|===
+
+Without these, the assistant is not told the pipeline-writing tools exist and will not offer to
+build one.
+
 == Pipeline Diagrams in Chat
 
 Ask the agent about a processing pipeline — *"show me the current pipeline for media
@@ -136,8 +181,12 @@ working context, not just a chat log.
 [#skills]
 == Skills
 
-A **skill** is a user-owned, `SKILL.md`-style markdown instruction package (name, description and a
-full markdown body) that steers the agent for a particular task.
+A **skill** is a `SKILL.md`-style markdown instruction package (name, description and a full
+markdown body) that steers the agent for a particular task.
+
+A few skills **ship with Loom** and are always available — you do not create them, activate them or
+see them in your skill list. Today that is the pipeline authoring skill described below. Everything
+else is yours:
 
 * Skills are **per user**; each user owns their own set (`/api/v1/skills` CRUD).
 * Skills are **activated per chat** — toggled in the chat's Skills panel and sent with every message.

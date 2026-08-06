@@ -69,6 +69,11 @@ public class LanguageFilterStrategy implements FilterStrategy {
 	}
 
 	@Override
+	public String version() {
+		return PROMPT_VERSION;
+	}
+
+	@Override
 	public Classification classify(NodeContext<LoomMedia> ctx, FilterNodeOptions options, List<FilterBucket> buckets, String text) {
 		if (text == null || text.isBlank()) {
 			// Not a failure: an item with no text wired in genuinely belongs in 'other'. Skipping

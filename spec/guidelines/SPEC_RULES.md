@@ -13,5 +13,6 @@
 * Include a "Where do I find ...?" cheat sheet table mapping concepts to file paths
 * When multiple subsystems exist, clearly delineate which subsystem is covered by which spec file to avoid duplication
 * Include the GIT HEAD REVISION of the checkout and Current Date/Time in the footer of the documentation file.
+* Don't use emojis
 _Git HEAD revision: `742dae2d`_
 _Last updated: 2026-08-06 (reference sweep — no content changes)_

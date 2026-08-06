@@ -21,6 +21,44 @@ public interface FilterStrategy {
 	FilterBy filterBy();
 
 	/**
+	 * Bumped whenever a change here would give a different answer for the same input.
+	 *
+	 * <p>
+	 * Mixed into the node's cache key and its {@code producerVersion}, so an old verdict is neither
+	 * re-emitted from the worker's heap nor mistaken for a current one in Loom. It sits on the
+	 * interface rather than in {@link FilterNode} because only the strategy knows when its own
+	 * meaning moved.
+	 * </p>
+	 */
+	default String version() {
+		return filterBy().name().toLowerCase(java.util.Locale.ROOT) + "/1";
+	}
+
+	/**
+	 * Check the bucket hints this strategy is about to be handed, before any item is routed.
+	 *
+	 * <p>
+	 * {@code FilterNodeOptions.validate()} can only check what every strategy shares — that an id is
+	 * a usable port id. It cannot know that {@code "<10 megabytes"} is not a size threshold, and a
+	 * hint nothing can parse is the worst kind of misconfiguration: the node starts, every item lands
+	 * in {@code other}, and the run looks like the data simply did not match. Reporting it from
+	 * {@code configure(...)} turns that into an immediate task failure naming the node and the hint.
+	 * </p>
+	 *
+	 * <p>
+	 * The default accepts everything, which is right for {@link FilterBy#LANGUAGE} and
+	 * {@link FilterBy#MIME}: there is no hint either of them could reject.
+	 * </p>
+	 *
+	 * @param buckets
+	 *            the configured buckets, malformed rows already dropped
+	 * @return the problems found, one message per problem; empty when the configuration is usable
+	 */
+	default List<String> validateBuckets(List<FilterBucket> buckets) {
+		return List.of();
+	}
+
+	/**
 	 * Classify one item.
 	 *
 	 * @param ctx

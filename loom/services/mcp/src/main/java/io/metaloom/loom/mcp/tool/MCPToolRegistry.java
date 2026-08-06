@@ -229,6 +229,65 @@ public class MCPToolRegistry {
 	}
 
 	/**
+	 * The descriptors this caller is actually allowed to invoke.
+	 *
+	 * <p>
+	 * {@link #listDescriptors()} answers "what exists"; this answers "what may you use", and an agent loop wants the second. Advertising a tool the
+	 * caller will be refused on is not merely untidy: the model spends a turn calling it, gets a permission error back, and — because a failed tool
+	 * becomes an error <em>result</em> rather than ending the run — is quite likely to try again. Worse, the tool list is part of the prompt, so a
+	 * {@code create_pipeline} the user may not use still reads as an invitation to author one.
+	 * </p>
+	 *
+	 * <p>
+	 * A {@code null} user means no authenticated caller, and the filter then matches {@link #dispatch}: no user, no check. That keeps the two in step
+	 * — a tool is advertised exactly when it would be permitted.
+	 * </p>
+	 *
+	 * @param user
+	 *            the authenticated caller, or {@code null} when authentication is disabled
+	 * @return the permitted descriptors, in registration order
+	 */
+	public Future<List<MCPToolDescriptor>> listDescriptorsFor(User user) {
+		List<MCPToolDescriptor> descriptors = List.copyOf(listDescriptors());
+		if (user == null) {
+			return Future.succeededFuture(descriptors);
+		}
+		// Resolve the caller's authorizations once; PermissionBasedAuthorization.match then reads
+		// what getAuthorizations put on the user, so a per-tool resolve would repeat the same lookup.
+		return authorizationProvider.getAuthorizations(user)
+			.map(v -> descriptors.stream().filter(descriptor -> permitted(user, descriptor)).toList())
+			.recover(err -> {
+				// Fail closed: a caller whose permissions cannot be resolved is told about the tools
+				// that need none, never about the ones that do.
+				log.error("Could not resolve authorizations while listing MCP tools — advertising only unrestricted tools", err);
+				return Future.succeededFuture(descriptors.stream()
+					.filter(descriptor -> descriptor.requiredPermissions() == null || descriptor.requiredPermissions().isEmpty())
+					.toList());
+			});
+	}
+
+	/**
+	 * Whether the user holds every permission the descriptor declares. Assumes the authorizations have already been resolved onto the user.
+	 *
+	 * <p>
+	 * Deliberately not shared with {@link #checkPermissions}: that one logs each missing permission, which is the right thing on a refused call and
+	 * the wrong thing here, where a caller who holds few permissions would produce a line per tool on every single run.
+	 * </p>
+	 */
+	private static boolean permitted(User user, MCPToolDescriptor descriptor) {
+		List<String> required = descriptor.requiredPermissions();
+		if (required == null || required.isEmpty()) {
+			return true;
+		}
+		for (String perm : required) {
+			if (!io.vertx.ext.auth.authorization.PermissionBasedAuthorization.create(perm).match(user)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * Return all registered tool names.
 	 */
 	public Collection<String> listToolNames() {

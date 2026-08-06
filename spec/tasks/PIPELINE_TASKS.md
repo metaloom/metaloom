@@ -9,7 +9,7 @@
 >
 > **This file tracks OPEN work only.** A task that is done is deleted, not archived — the
 > code and the spec are the record of what landed. Task numbers are never reused:
-> **1, 2, 4 and 5 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
+> **1, 2, 3, 4 and 5 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
 >
 > **Blocking:** **Task 12** is the one silent-correctness bug — neither dispatch nor restart
 > recovery parses graphs with a descriptor registry, so port checking and fan-out
@@ -21,7 +21,6 @@
 
 | # | Task | State |
 |---|---|---|
-| 3 | Implement MIME / size / date filter bucketing | 🔴 **OPEN** — only `filterBy: LANGUAGE` exists |
 | 6 | Close the residual test blind spots | 🟡 **Partly done** — adapter test landed; fixture, control channel, DAO cases open |
 | 7 | Java endpoint tests for versioning, dispatch and delete-cascade | 🔴 **OPEN** — client is complete, tests never written |
 | 8 | Validation endpoint + de-triplicate structural validation | 🔴 **OPEN** — closes R11 |
@@ -30,46 +29,9 @@
 | 11 | Fill the remaining persistence and API gaps | 🔴 **OPEN** — eight independent items |
 | 12 | Give the production parser its descriptor registry | 🔴 **OPEN — silent correctness bug** |
 | 13 | Instrument the run engine | 🔴 **OPEN** — `loom/pipeline` has no metrics at all |
+| 14 | Let a programmatic definition resolve bucket ports, and give the demos a real MIME filter | 🔴 **OPEN** — the three demo filters still route via `other` |
 
 ---
-
-## Task 3: Implement MIME / size / date filter bucketing
-
-**Argumentation Summary:** The filter consolidation landed — one runnable `filter` kind
-(`cortex/nodes/filter/core`) with a `PipelineConfigurable` options type and dynamic
-per-bucket output ports plus a permanent `other`. What did **not** survive the deletion of
-the eight `filter-*` classes is their bucketing logic: `FilterBy` declares exactly one
-value, `LANGUAGE`, and `LanguageFilterStrategy` is the only implementation. A pipeline
-therefore cannot route by file type, size or date, and every such route costs an LLM round
-trip today or is simply impossible. The `FilterStrategy` seam is in place and each strategy
-is roughly thirty lines plus tests.
-
-**Improvement Summary:** Add the three missing strategies behind the existing seam.
-
-```
-1. Add MIME, SIZE and DATE to FilterBy, and one FilterStrategy implementation each in
-   cortex/nodes/filter/core, bound through the existing @FilterByKey map multibinding
-   in FilterNodeModule. Bucket hints come from FilterBucket's free-form hint list —
-   MIME takes patterns ("image/*"), SIZE takes byte thresholds, DATE takes ranges.
-   No new node kind, no descriptor change beyond the filterBy parameter's value set.
-
-2. Unlike LANGUAGE these need no LLM and no round trip: they read LoomMedia metadata.
-   Keep them free of the LLMProvider dependency so a filter-only pipeline needs no
-   sidecar.
-
-3. Reject an unknown filterBy at parse time with a message naming the value and the
-   supported set — FilterNodeTest already asserts this for "MOOD"; keep it passing.
-```
-
-**References:** [PIPELINE_REQUIREMENTS.md](../features/pipeline/PIPELINE_REQUIREMENTS.md) R7 ·
-[NODE_DATA_TYPES.md §4.5, §8.6](../features/pipeline/NODE_DATA_TYPES.md) ·
-[NODES.md §3.3](../features/nodes/NODES.md) ·
-`cortex/nodes/filter/core/…/filter/{FilterBy,FilterStrategy,LanguageFilterStrategy}.java`
-
-**Test Requirements:** One `FilterNodeTest`-style case per strategy asserting the bucket
-port an item lands on **and** that an unmatched item lands on `other`. An engine test in
-`loom/pipeline` that a MIME-bucketed graph routes two different files down two different
-branches. Run `mvn -pl cortex/nodes/filter/core,loom/pipeline test`.
 
 ---
 
@@ -482,6 +444,44 @@ unchanged.
 
 ---
 
+## Task 14: Let a programmatic definition resolve bucket ports, and give the demos a real MIME filter
+
+**Argumentation Summary:** `filterBy: MIME` now exists, so the three demo pipelines that label a
+node "Media Filter" could finally route by file type instead of funnelling every item through the
+catch-all `other` port. They cannot yet. `FilterPortResolver.asList` accepts a
+`java.util.List` and each entry as a `java.util.Map`; `DemoDatabaseInitializer` builds its
+definitions programmatically, so `buckets` arrives as a Vert.x `JsonArray` of `JsonObject` and is
+dropped. No bucket port resolves, and an edge drawn to one would fail validation at boot. Only a
+definition **parsed from a JSON string** — the production path — resolves buckets today, which is
+why the demos were rewired to `other` rather than fixed.
+
+**Improvement Summary:**
+
+```
+1. Normalise at the boundary rather than teaching the resolver about Vert.x: loom-shared/node-model
+   has no vertx dependency and should not gain one for this. PipelineGraphParser.readOptions is the
+   one place a live JsonObject becomes the Map the resolver reads.
+
+2. Then rewire the 'medium', 'complex' and 'transcription' demos: buckets for images and video,
+   edges off those ports, and the fingerprint branch off the video bucket rather than off 'other'.
+   That is what makes the demo container show routing at all.
+
+3. Guard it with a parser test that a programmatically-built definition resolves its bucket ports —
+   the shape that silently produced none is the whole point.
+```
+
+**References:** `loom-shared/node-model/…/spec/FilterPortResolver.java` (`asList`) ·
+`loom/pipeline/…/graph/PipelineGraphParser.java` (`readOptions`) ·
+`loom/core/…/boot/DemoDatabaseInitializer.java` ·
+[NODE_REGISTRATION_PLAN.md](../plans/NODE_REGISTRATION_PLAN.md) (where the trap was first found)
+
+**Test Requirements:** A `PipelineGraphParserTest` case that a definition built from live
+`JsonObject`/`JsonArray` instances resolves the same bucket ports as the string-parsed equivalent,
+and the existing demo-definition validation still passing. Run
+`mvn -pl loom/pipeline,loom/core test`.
+
+---
+
 ## B. Tracked elsewhere — do not duplicate here
 
 These are real open items that touch the pipeline but are **owned by another spec file**.
@@ -504,8 +504,6 @@ Link them; do not open a parallel task.
 - [ ] **Task 12** first — small, self-contained, and it is currently changing run
       semantics between save and dispatch, and again across a restart, without anyone
       noticing.
-- [ ] **Task 3** next — the only remaining functional gap in a shipped node: a filter
-      cannot route by anything but language.
 - [ ] **Task 7** and **Task 8** together: both touch the REST surface, and Task 7's
       harness is what Task 8's endpoint tests will reuse.
 - [ ] **Task 9** after Task 8, so the typed status is introduced once, not twice.
@@ -523,7 +521,7 @@ Task-file discipline for this area. Code-level conventions live in
 | Area | Convention / Gotcha |
 |---|---|
 | **Done ⇒ deleted** | A completed task is removed from this file entirely. The code, its tests and the spec are the record of what landed; a task file that keeps its history is how this one reached 700 lines. |
-| **Numbers are never reused** | Other files cite tasks by number. **1, 2, 4 and 5 are retired.** Never renumber an open task, and never hand a retired number to new work. |
+| **Numbers are never reused** | Other files cite tasks by number. **1, 2, 3, 4 and 5 are retired.** Never renumber an open task, and never hand a retired number to new work. |
 | **One owner per gap** | If §B lists it, link it. A gap argued in two task files gets fixed in neither. |
 | **The spec is part of the change** | Closing a task means editing [PIPELINE.md](../features/pipeline/PIPELINE.md), [PIPELINE_REQUIREMENTS.md](../features/pipeline/PIPELINE_REQUIREMENTS.md) and this file in the same commit ([SPEC_RULES.md](../guidelines/SPEC_RULES.md), [CODING.md](../guidelines/CODING.md)). |
 | **A descriptor is not a registration** | Structurally closed on the worker: `NodeSpecCatalog.harvestRunnable(runnableNodeIds())` derives the announced contracts from `NodeFactory.registeredTypes()`, so an unrunnable kind cannot be announced, and `NodeAvailabilityService` greys out a kind no online worker offers. When adding a kind, still update the counts in [NODES.md §5.2](../features/nodes/NODES.md) and `NodeDescriptorServiceLoaderTest` (currently **42**). |
@@ -539,7 +537,7 @@ Task-file discipline for this area. Code-level conventions live in
 
 | Need | Path |
 |---|---|
-| The one runnable filter kind + its strategy seam (Task 3) | `cortex/nodes/filter/core/…/node/filter/` |
+| The one runnable filter kind + its four `FilterStrategy` implementations | `cortex/nodes/filter/core/…/node/filter/` |
 | Where a kind becomes runnable | `cortex/cli/…/dagger/RegistryNodeRegistrar.java` (impl of `cortex/core/…/pipeline/loader/NodeRegistrar.java`) |
 | Descriptor harvesting from the runnable set | `cortex/api/…/api/node/spec/NodeSpecCatalog.harvestRunnable` · `NodeSpecHarvester.java` |
 | Descriptor ↔ presence split for the palette | `loom/services/rest/…/service/impl/NodeAvailabilityService.java` |
@@ -557,9 +555,8 @@ Task-file discipline for this area. Code-level conventions live in
 
 ---
 
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 (re-audited; Tasks 1/2/4/5 deleted as done, Task 5's cache
-work and Task 3's filter consolidation removed as landed, Task 6 item 2 closed by
-`CortexNodeAdapterTest`, Task 3 items 3–5 closed by `NodeAvailabilityService` and
-runnable-derived descriptor announcement, Task 12 widened to cover `PipelineEndpointService`,
-stale relative links repaired after the move to `spec/tasks/`)_
+_Git HEAD revision: `a63b034b`_
+_Last updated: 2026-08-06 (Task 3 deleted as done — `MIME`/`SIZE`/`DATE` `FilterStrategy`
+implementations landed behind the existing seam, closing R7; earlier: Tasks 1/2/4/5 deleted,
+Task 6 item 2 closed by `CortexNodeAdapterTest`, Task 12 widened to cover
+`PipelineEndpointService`)_

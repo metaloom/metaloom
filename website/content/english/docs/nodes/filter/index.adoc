@@ -10,7 +10,7 @@ You configure a list of **buckets**, and the node grows **one output port per bu
 `other` port that is always present. Wire the ports you care about; that is the whole configuration.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"filter","applies":"Routing node","badge":"Needs a language model","persist":"the routing decision, as a JSON component on the asset","configs":[{"name":"language routing","note":"buckets: de, en","inputs":[{"t":"media","l":"media","d":"the item being routed"},{"t":"text","l":"text","d":"the text to classify — a transcript, extracted document text or a caption (optional)"}],"outputs":[{"t":"media","l":"de","d":"items classified as German — carries only those items"},{"t":"media","l":"en","d":"items classified as English — carries only those items"},{"t":"media","l":"other","d":"everything else; always present"},{"t":"branch","l":"passed","d":"true when a bucket other than other matched"},{"t":"text","l":"bucket","d":"the id of the bucket this item landed in — carries a value for every item"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"filter","applies":"Routing node","badge":"Language routing needs a model","persist":"the routing decision, as a JSON component on the asset","configs":[{"name":"language routing","note":"buckets: de, en","inputs":[{"t":"media","l":"media","d":"the item being routed"},{"t":"text","l":"text","d":"the text to classify — a transcript, extracted document text or a caption (optional)"}],"outputs":[{"t":"media","l":"de","d":"items classified as German — carries only those items"},{"t":"media","l":"en","d":"items classified as English — carries only those items"},{"t":"media","l":"other","d":"everything else; always present"},{"t":"branch","l":"passed","d":"true when a bucket other than other matched"},{"t":"text","l":"bucket","d":"the id of the bucket this item landed in — carries a value for every item"}]}]}'></div>
 ++++
 
 [cols="1,3"]
@@ -19,7 +19,7 @@ You configure a list of **buckets**, and the node grows **one output port per bu
 | Applies to | — (routing; sits between other nodes)
 | Input ports | `media` — the item being routed. `text` — the text to classify; optional, and without it every item lands in `other`
 | Output ports | One per configured bucket, plus `other`, `passed` and `bucket`
-| Requirements | A reachable OpenAI-compatible language model endpoint
+| Requirements | Only `Language` needs a reachable OpenAI-compatible endpoint. `MIME type`, `Size` and `Date` read the file itself and need nothing
 | Persists to | The routing decision, as a JSON component on the asset
 |===
 
@@ -53,7 +53,7 @@ Each bucket has:
 | Field | Meaning
 | Id | Becomes the output port. Lowercase letters, digits and underscore; typing "Brazilian Portuguese" turns into `brazilian_portuguese` for you
 | Label | The name shown on the node. Defaults to the id
-| Aliases | Other names that mean the same bucket, comma separated — e.g. `german, deutsch`
+| Match | The hints this bucket matches on, comma separated. What they mean depends on *Filter by* — other names for a language (`german, deutsch`), MIME patterns (`image/*`), size thresholds (`<10MB`) or dates (`2024-01-01..2024-12-31`)
 |===
 
 Use the **Add bucket** button to grow a branch, and the delete icon to remove one. The node's ports
@@ -64,13 +64,23 @@ follow immediately, and removing a bucket also removes any connections that were
 
 == Filtering by
 
-The **Filter by** setting chooses what the buckets are matched against.
+The **Filter by** setting chooses what the buckets are matched against. Buckets are tried top to
+bottom and the first one that matches wins, so a narrow bucket above a broad one behaves as written.
 
-[options="header",cols="1,3"]
+[options="header",cols="1,2,2"]
 |===
-| Filter by | Each item goes to the bucket whose…
-| Language | …language matches the text wired into the node
+| Filter by | Each item goes to the bucket whose… | Match hints look like
+| Language | …language matches the text wired into the node | `german, deutsch`
+| MIME type | …pattern matches the item's file type | `image/*`, `video/mp4`, or a bare `image`
+| Size | …threshold the item's size falls into | `<10MB`, `1MB..100MB`, `>1GB`, or a bare `10MB` meaning "up to"
+| Date | …window the item's modification date falls into | `>=2024-01-01`, `2024-01-01..2024-12-31`, `2024-03-17`, `age<30d`
 |===
+
+Only **Language** costs anything. The other three read the item's own metadata, so a pipeline that
+only splits images from video, or last month's files from last year's, runs with no model backend at
+all — and adds no time per item.
+
+=== Language
 
 Language is decided by a language model, which means it needs a reachable OpenAI-compatible endpoint but no
 extra model download and no separate service. Wire the `text` port from whatever produced the text:
@@ -82,6 +92,49 @@ that could not be classified is not the same as one that did not match. An answe
 that names no configured bucket does land in `other`, which is what that branch is for.
 
 Set a **Minimum confidence** to send uncertain classifications to `other` instead of trusting them.
+It applies to Language only; the other three are not guesses.
+
+=== MIME type
+
+The type comes from the file's name — `holiday.png` is `image/png`. A pattern is an exact type
+(`image/png`), a family (`image/*`), or a bare word read as a family (`image` means `image/*`). A
+bucket with no hints at all falls back to its own id, so three buckets called `image`, `video` and
+`audio` route correctly with nothing typed in.
+
+An extension nothing recognises is `application/octet-stream`, which a bucket can ask for like any
+other type.
+
+=== Size
+
+Sizes are the numbers a file manager shows: `KB`, `MB`, `GB` and `TB` are 1024-based, and `KiB`,
+`MiB`, `GiB`, `TiB` are accepted as the same thing. A bare number with no unit is bytes.
+
+`<`, `<=`, `>` and `>=` compare; `1MB..100MB` is a range whose lower end is included and whose
+upper end is not, so neighbouring ranges tile without overlapping; and a bare `10MB` means "up to
+10MB". That last one is what makes the common ladder read as written:
+
+[options="header",cols="1,2"]
+|===
+| Bucket | Match
+| `small` | `1MB`
+| `medium` | `100MB`
+| `large` | `>100MB`
+|===
+
+=== Date
+
+The date is the file's last-modified time. Absolute conditions use ISO dates and always cover the
+whole day: `<=2024-12-31` includes every moment of 31 December, and `2024-01-01..2024-12-31` is the
+whole year. A bare `2024-03-17` is that one day.
+
+Relative conditions are ages, and the `age` prefix is required: `age<30d` is "changed in the last 30
+days" and `age>1y` is "untouched for over a year". Writing `<30d` on its own is refused, because it
+reads as *before* while meaning *newer than* — and getting that backwards would route a whole run the
+wrong way. Ages take `h`, `d`, `w`, `m` (months) and `y`.
+
+A hint that cannot be read as a threshold or a date — `<10 megabytes`, `last month` — stops the
+pipeline with a message naming the bucket, rather than starting a run in which every item quietly
+lands in `other`.
 
 == Configuration
 
@@ -101,8 +154,13 @@ The strip on the card lists what each output port carried — `de`, `passed`, `b
 
 * **Language routing** — send German transcripts to one summarisation prompt and English ones to
   another, and everything else to a review branch.
-* **Per-language publishing** — tag, translate or caption each language differently without building
-  a separate pipeline for each.
+* **Type routing** — send images to link:../captioning/[Captioning] and video to
+  link:../scene-detection/[Scene Detection] from one source, with no model round trip to decide
+  which is which.
+* **Cost control by size** — run the expensive analysis only on files above a threshold, and a
+  cheap thumbnail path on everything else.
+* **Backfill by date** — process last month's arrivals on one branch and the historical archive on
+  another, so a re-run does not redo years of work.
 * **Catching the unexpected** — wire `other` to a review step and see what your library actually
   contains.
 * **Recording the decision** — wire `bucket` into link:../script/[Script] to count or store which

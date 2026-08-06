@@ -195,8 +195,17 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 			throw new IllegalStateException("Filter node '" + nodeId + "' is misconfigured: " + String.join("; ", validation.getErrors()));
 		}
 
+		// The generic validation above cannot know that '<10 megabytes' is not a size threshold - only
+		// the strategy does. Asking the one strategy we resolved keeps this ignorant of which exist, and
+		// makes a typo'd hint an immediate failure rather than a run in which everything lands in 'other'.
+		FilterStrategy strategy = strategy();
+		List<String> bucketErrors = strategy.validateBuckets(options.buckets());
+		if (!bucketErrors.isEmpty()) {
+			throw new IllegalStateException("Filter node '" + nodeId + "' is misconfigured: " + String.join("; ", bucketErrors));
+		}
+
 		configHash = hash(options.getFilterBy() + " " + options.getBuckets().encode() + " " + options.getModel()
-			+ " " + LanguageFilterStrategy.PROMPT_VERSION);
+			+ " " + strategy.version());
 		configured = true;
 	}
 

@@ -88,7 +88,7 @@ public class PipelineToolTest {
 	}
 
 	private JsonObject callGetPipeline(String pipelineId) {
-		return new GetPipelineTool(daos, registry)
+		return new GetPipelineTool(daos, new PipelineGraphRenderer(daos, registry))
 			.execute(new JsonObject().put("pipelineId", pipelineId))
 			.result();
 	}
@@ -187,17 +187,17 @@ public class PipelineToolTest {
 
 	@Test
 	public void testGetPipelineRequiresPipelineId() {
-		JsonObject result = new GetPipelineTool(daos, registry).execute(new JsonObject()).result();
+		JsonObject result = new GetPipelineTool(daos, new PipelineGraphRenderer(daos, registry)).execute(new JsonObject()).result();
 		assertNotNull(result.getJsonArray("content"));
 		assertTrue(text(result).startsWith("ERROR:"));
 	}
 
 	@Test
 	public void testDescriptors() {
-		assertEquals(List.of("READ_PIPELINE"), new GetPipelineTool(daos, registry).descriptor().requiredPermissions());
+		assertEquals(List.of("READ_PIPELINE"), new GetPipelineTool(daos, new PipelineGraphRenderer(daos, registry)).descriptor().requiredPermissions());
 		assertEquals(List.of("READ_PIPELINE"), new ListPipelinesTool(daos).descriptor().requiredPermissions());
 
-		JsonObject schema = new GetPipelineTool(daos, registry).descriptor().inputSchema();
+		JsonObject schema = new GetPipelineTool(daos, new PipelineGraphRenderer(daos, registry)).descriptor().inputSchema();
 		assertTrue(schema.getJsonArray("required").contains("pipelineId"));
 	}
 

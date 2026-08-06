@@ -35,6 +35,7 @@ operating the installation.
 
 *Content*
 
+* *Search* — one search box above the navigation that looks across every kind of content at once
 * *Library* — browse assets grouped into libraries
 * *Assets* — grid/list browser with search, status and type filters, plus a rich per-asset detail view
 * *Uploads* — multi-file drag-and-drop ingest with per-file progress that keeps running in the background
@@ -106,6 +107,68 @@ The memory view lets an administrator browse and edit those notes; the agent see
 image::memory.png[Agent memory view,role=img-fluid]
 
 [#assets]
+== Search
+
+The search box sits at the top of the left navigation and is available from every screen. Unlike the
+filter boxes inside individual screens — which narrow the list you are already looking at — this one
+queries the whole installation: asset filenames and metadata, transcript text, tag and collection
+names, annotations, people and libraries, all in a single pass.
+
+Start typing and suggestions appear after the second character. Press *Enter* to open the full results
+page, where each hit shows what kind of thing it is and a short excerpt with your search terms
+highlighted. Transcript hits carry the timecode where the phrase was spoken. Selecting a result takes
+you to the asset or the screen that holds it.
+
+=== Refining a Search
+
+The results page offers three ways to narrow what you get back:
+
+* *Kind* — chips for assets, transcripts, tags, annotations, people, collections, libraries and
+  clusters. Pick one or several; picking none searches everything you are allowed to see.
+* *Suggested filters* — file type, kind and language chips generated from the results themselves,
+  each showing how many matches it accounts for.
+* *Sort* — by relevance (the default), newest, oldest, name or size.
+
+Active filters are listed together above the results so you can always see what is being excluded and
+remove it in one click.
+
+=== Search Syntax
+
+The search box understands three operators, which can be combined freely:
+
+[cols="1,3"]
+|===
+| Syntax | Meaning
+
+| `"quarterly update"`
+| Text in double quotes matches only where those words appear together, in that order.
+
+| `dividends or championship`
+| `or` between two terms matches documents containing either one. Without it, terms are combined —
+  a document has to contain all of them.
+
+| `quarterly -podcast`
+| A leading hyphen excludes matches. This example finds documents about the quarterly update but
+  leaves out anything mentioning the podcast.
+|===
+
+Punctuation that is not one of these operators is simply treated as text, so a stray quote or bracket
+never turns into an error.
+
+[NOTE]
+====
+Search results respect your permissions. If your account cannot read a particular kind of content,
+those results are left out and a note above the results says so — rather than silently returning less
+than you asked for.
+====
+
+=== When Search Is Turned Off
+
+Search is optional, and an administrator can disable it or point Loom at a search backend that is not
+running. When that happens the search box does not appear at all, and the search page explains which
+backend is configured and why it cannot answer. Every other part of Loom keeps working normally — a
+search outage never takes the rest of the application with it.
+
 == Assets
 
 The asset browser shows every asset with search, status and type filters and switchable grid/list and

@@ -8,10 +8,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 - Content Classification Model support? BERT?
-
-- 
 - CliIntegerationTest? What is this? Do we need it?
-
 - Video Manipulation Node: the video half of
   [concept/NODE_IMAGE_MANIPULATION_PLAN.md](../concept/NODE_IMAGE_MANIPULATION_PLAN.md) — autorotate
   by container rotation side-data, crop, aspect ratio fix, VVS (blurred pad for vertical video).
@@ -21,21 +18,12 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
   `detection/*` boxes, and an open item there proposes emitting the subject centroid as a
   `focalPoint` output instead of building a second node. Still open for saliency without detections.
 - Chapter extraction from video?
-- code review markdown file with rules
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
 - Add semantic ingestion node. This allows constructed semantic data to be ingested into loom
 - Would a merge node be useful to combine assets in a reactive pipeline? (e.g. zip them)
 
 
 ## Open ideas / questions
-
-
-
-* **Let the agentic loop author pipelines via MCP.** The MCP server exposes read-only pipeline tools
-  only (`list_pipelines`, `get_pipeline`). Explore having the agent *design and verify* a pipeline —
-  needs `create_pipeline` / `validate_pipeline` tools plus a dry-run/validation path.
-  See [loom/MCP.md](../loom/MCP.md), [features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md).
-
 
 
 * **Binary delivery to the frontend.** How do asset bytes and derivatives reach a browser at scale —

@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar";
 import { tokens } from "../theme";
 import ChatWorkspace from "../features/chat/ChatWorkspace";
 import AssetBrowser from "../features/assets/AssetBrowser";
+import SearchView from "../features/search/SearchView";
 import AssetDetail from "../features/assetDetail/AssetDetail";
 import PipelineEditor from "../features/pipeline/PipelineEditor";
 import AdminArea from "../features/admin/AdminArea";
@@ -46,6 +47,7 @@ export default function AppShell() {
       >
         <Routes>
           <Route path="/" element={<ChatWorkspace />} />
+          <Route path="/search" element={<SearchView />} />
           <Route path="/library" element={<LibraryView />} />
           <Route path="/assets" element={<AssetBrowser />} />
           <Route path="/assets/:id" element={<AssetDetail />} />

@@ -40,6 +40,7 @@ import io.metaloom.loom.api.memory.MemoryScope;
 import io.metaloom.loom.api.options.AiOptions;
 import io.metaloom.loom.api.options.MemoryOptions;
 import io.metaloom.loom.api.options.SandboxOptions;
+import io.metaloom.loom.common.skill.BuiltinSkills;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
@@ -84,6 +85,9 @@ public class AgentLoopTest {
 		skillDao = mock(SkillDao.class);
 		toolRegistry = mock(MCPToolRegistry.class);
 		when(toolRegistry.listDescriptors()).thenReturn(List.of(searchAssetsDescriptor()));
+		// The loop advertises what the caller may invoke, not what exists — these tests run with a
+		// null user, which is the "authentication disabled" case the registry answers in full.
+		when(toolRegistry.listDescriptorsFor(any())).thenReturn(Future.succeededFuture(List.of(searchAssetsDescriptor())));
 		when(skillDao.loadByUuids(anyList())).thenReturn(List.of());
 
 		chat = mock(Chat.class);
@@ -394,9 +398,11 @@ public class AgentLoopTest {
 		Skill foreign = mock(Skill.class);
 		when(foreign.getCreatorUuid()).thenReturn(UUID.randomUUID());
 		when(foreign.isEnabled()).thenReturn(true);
+		when(foreign.getName()).thenReturn("someone-elses-skill");
 		Skill disabled = mock(Skill.class);
 		when(disabled.getCreatorUuid()).thenReturn(USER_UUID);
 		when(disabled.isEnabled()).thenReturn(false);
+		when(disabled.getName()).thenReturn("switched-off-skill");
 		when(skillDao.loadByUuids(anyList())).thenReturn(List.of(foreign, disabled));
 
 		AtomicReference<LLMContext> firstCtx = new AtomicReference<>();
@@ -408,9 +414,55 @@ public class AgentLoopTest {
 		loop(new AiOptions(), streamer, List.of(UUID.randomUUID(), UUID.randomUUID())).run();
 
 		String systemPrompt = firstCtx.get().chatHistory().get(0).getText();
-		assertFalse(systemPrompt.contains("<available_skills>"), "Foreign and disabled skills must not reach the prompt");
-		assertTrue(firstCtx.get().tools().stream().noneMatch(t -> t.name().equals(SkillPromptBuilder.LOAD_SKILL_TOOL)),
-			"Without active skills the load_skill tool must not be offered");
+		assertFalse(systemPrompt.contains("someone-elses-skill"), "A skill owned by another user must not reach the prompt");
+		assertFalse(systemPrompt.contains("switched-off-skill"), "A disabled skill must not reach the prompt");
+	}
+
+	/**
+	 * The model is told about the tools the caller may invoke, not about every tool that exists. A tool advertised but refused on call is a wasted turn
+	 * and, because the tool list is part of the prompt, an invitation to attempt something the user is not allowed to do.
+	 */
+	@Test
+	public void testOnlyPermittedToolsAreAdvertised() {
+		MCPToolDescriptor createPipeline = new MCPToolDescriptor("create_pipeline", "Store a pipeline",
+			MCPToolDescriptor.buildInputSchema(List.of()), List.of("CREATE_PIPELINE", "CREATE_MCP_PIPELINE"), true);
+		// The registry has both; this caller is only permitted the first.
+		when(toolRegistry.listDescriptors()).thenReturn(List.of(searchAssetsDescriptor(), createPipeline));
+		when(toolRegistry.listDescriptorsFor(any())).thenReturn(Future.succeededFuture(List.of(searchAssetsDescriptor())));
+
+		AtomicReference<LLMContext> firstCtx = new AtomicReference<>();
+		TurnStreamer streamer = (ctx, listener) -> {
+			firstCtx.compareAndSet(null, ctx);
+			return new TurnResult("done", null, List.of());
+		};
+
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		assertTrue(firstCtx.get().tools().stream().anyMatch(t -> t.name().equals("search_assets")));
+		assertTrue(firstCtx.get().tools().stream().noneMatch(t -> t.name().equals("create_pipeline")),
+			"A tool the caller has no permission for must not be advertised");
+	}
+
+	/**
+	 * The skills that ship with Loom are active on every run, with nothing to toggle: the guidance for using a Loom feature cannot be something a user
+	 * has to remember to switch on.
+	 */
+	@Test
+	public void testBuiltinSkillsAreAlwaysActive() {
+		AtomicReference<LLMContext> firstCtx = new AtomicReference<>();
+		TurnStreamer streamer = (ctx, listener) -> {
+			firstCtx.compareAndSet(null, ctx);
+			return new TurnResult("done", null, List.of());
+		};
+
+		// No skillUuids at all — the request activates nothing.
+		loop(new AiOptions(), streamer, List.of()).run();
+
+		String systemPrompt = firstCtx.get().chatHistory().get(0).getText();
+		assertTrue(systemPrompt.contains("<available_skills>"));
+		assertTrue(systemPrompt.contains("- " + BuiltinSkills.PIPELINE_AUTHORING + ":"));
+		assertTrue(firstCtx.get().tools().stream().anyMatch(t -> t.name().equals(SkillPromptBuilder.LOAD_SKILL_TOOL)),
+			"load_skill must be offered whenever anything is disclosed");
 	}
 
 	@Test

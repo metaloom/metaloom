@@ -46,6 +46,26 @@ public abstract class FilterNodeModule extends AbstractNodeModule {
 	@FilterByKey(FilterBy.LANGUAGE)
 	abstract FilterStrategy bindLanguageStrategy(LanguageFilterStrategy strategy);
 
+	/**
+	 * The three metadata strategies. They take no {@code LLMProvider}, which is the point: a graph
+	 * that only splits images from video, or last month's files from last year's, runs on a worker
+	 * with no model backend reachable at all.
+	 */
+	@Binds
+	@IntoMap
+	@FilterByKey(FilterBy.MIME)
+	abstract FilterStrategy bindMimeStrategy(MimeFilterStrategy strategy);
+
+	@Binds
+	@IntoMap
+	@FilterByKey(FilterBy.SIZE)
+	abstract FilterStrategy bindSizeStrategy(SizeFilterStrategy strategy);
+
+	@Binds
+	@IntoMap
+	@FilterByKey(FilterBy.DATE)
+	abstract FilterStrategy bindDateStrategy(DateFilterStrategy strategy);
+
 	@IntoSet
 	@Provides
 	public static CortexNodeOptionDeserializerInfo optionInfo() {

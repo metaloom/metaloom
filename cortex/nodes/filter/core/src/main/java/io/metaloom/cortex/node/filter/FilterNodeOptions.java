@@ -25,30 +25,32 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 
 	public static final String KEY = "filter";
 
-	@ParamDoc(label = "Filter By", description = "What the buckets are matched against")
+	@ParamDoc(label = "Filter By", description = "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata")
 	private FilterBy filterBy = FilterBy.LANGUAGE;
 
 	/** The bucket rows, exactly as the editor's {@code PORT_LIST} widget writes them. */
 	@ParamDoc(label = "Buckets", type = ParameterType.PORT_LIST,
-		description = "One output port per bucket. An 'other' port for everything else is always present")
+		description = "One output port per bucket, tried in order with the first match winning. Each row's match column holds "
+			+ "hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB' or "
+			+ "dates like '2024-01-01..2024-12-31'. An 'other' port for everything else is always present")
 	private JsonArray buckets = new JsonArray();
 
-	@ParamDoc(label = "Model", description = "The model asked to classify each item")
+	@ParamDoc(label = "Model", description = "The model asked to classify each item. Used by filterBy=LANGUAGE only")
 	private String model = "meta-llama/Llama-3.2-3B-Instruct";
 
 	/** Base URL of an OpenAI-compatible backend (llama.cpp, vLLM, Ollama's /v1 endpoint, ...). */
-	@ParamDoc(label = "OpenAI URL", description = "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)")
+	@ParamDoc(label = "OpenAI URL", description = "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...). Used by filterBy=LANGUAGE only")
 	private String openaiUrl = "http://127.0.0.1:8080/v1";
 
 	/**
 	 * How much of the wired text to send. Language is decided by the first paragraph; sending a
 	 * whole transcript would cost tokens per item for no better answer.
 	 */
-	@ParamDoc(label = "Max Text Characters", description = "How much of the text to send to the model", min = "1")
+	@ParamDoc(label = "Max Text Characters", description = "How much of the text to send to the model. Used by filterBy=LANGUAGE only", min = "1")
 	private int maxTextChars = 2000;
 
 	/** Classifications below this land in {@code other} instead. */
-	@ParamDoc(label = "Minimum Confidence", description = "Classifications below this confidence are routed to 'other'",
+	@ParamDoc(label = "Minimum Confidence", description = "Classifications below this confidence are routed to 'other'. Used by filterBy=LANGUAGE only",
 		min = "0.0", max = "1.0")
 	private double minConfidence = 0;
 
