@@ -124,7 +124,7 @@ shadows the base method — do not copy it.
 | `objectdetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=objectdetection`, `label` = the class) | `bulkCreateAssetDetections` |
 | `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) | `createAssetTranscript` |
 | `scene-detection` | `assets/:uuid/segments` → `asset_segment_comp` (whole-set **replace**) | `createAssetSegmentComps` |
-| `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
+| `ocr`, `tika`, `quality`, `llm`, `vlm`, `captioning`, `facedescription`, `sentiment`, `translate`, `guard`, `scene-layout`, `dominant-color` | `assets/:uuid/json-comps` → `asset_json_comp`, distinct `schemaType` | `createAssetJsonComp` |
 | `metadata` | `assets/:uuid/json-comps` → `asset_json_comp` (`schemaType=metadata`) **+** `assets/:uuid/components` → `asset_geo_comp`, one row per reading (`method` = `exif`/`xmp`/`sidecar`) | `createAssetJsonComp`, `createAssetComponent` |
 | `script` | `asset_json_comp` (`variant` = node id) **+** `asset_segment_comp` for `TIMEFRAMES` outputs | `createAssetJsonComp`, `createAssetSegmentComps` |
 | `tag` | `PUT assets/:uuid/tags` → `tag` + `tag_asset` (resolve-or-create on `(name, collection)`, whole set in one transaction, each placement stamped with `node_kind`/`node_id`/`producer_version`/`confidence`) **+** `asset_json_comp` (`schemaType=tags`, `variant` = node id) recording what it applied | `bulkTagAsset`, `createAssetJsonComp` |
@@ -197,6 +197,7 @@ Port ids only; content types and cardinality are in
 | `captioning` | `CaptioningNode` · captioning | image, video | `image` \| `video` → `caption` | `asset_json_comp` | SmolVLM / Qwen2.5-VL |
 | `sentiment` | `SentimentNode` · sentiment | any with `text` wired | `text` → `label`, `score`, `result` | `asset_json_comp` | sidecar `9110` |
 | `translate` | `TranslateNode` · translate | any with `text` wired | `text` → `translation`, `language`, `result` | `asset_json_comp` (`variant` = target language) | OpenAI-compatible |
+| `guard` | `GuardNode` · guard | any with `text` wired; image assets on a multimodal family | `text`, `media` → `safe`, `label`, `score`, `categories` (MANY), `result` | `asset_json_comp` (`schemaType=guard`) | OpenAI-compatible |
 | `tts` | `TtsNode` · tts | any with `text` wired | `text` → `audio`, `flag` | ledger only | sidecar `9100` |
 | `depthmap` | `DepthmapNode` · depthmap | image | `media` → `map`, `meta`, `flag` | ledger only | sidecar `9120` |
 | `scene-layout` | `SceneLayoutNode` · scene-layout | image | `depth`, `detections` (MANY) → `result`, `object_count`, `relation_count` | `asset_json_comp` | **none** (geometry) |
@@ -224,13 +225,29 @@ Notes worth knowing:
 - **`captioning`'s `videoStrategy`**: `WHOLE` (N frames → one prompt), `SCENE` (optical-flow
   segmentation → per-scene timeline, `schemaType=video-caption`), `NATIVE` (`video_url`, vLLM only).
 - **`sentiment` / `tts` / `translate` ignore media type entirely** — `isProcessable` is "is the
-  `text` port non-blank". They are the three nodes that can attach to any asset.
+  `text` port non-blank". They are the three nodes that can attach to any asset. `guard` is the
+  fourth, with one addition: it also runs on an image asset with nothing wired, because it can
+  classify the pixels.
 - **`translate` is one language per instance.** The target language is the `asset_json_comp`
   `variant`, so two translate nodes in one graph write two rows on the same asset rather than
   overwriting each other. It shares its LLM plumbing with `llm` via `cortex/llm-common`, but not its
   shape: `llm` reads `media` and prompts from the filename, so no transcript can reach it.
   `translate` chunks input larger than `maxChunkChars` on paragraph then sentence boundaries and
   rejoins the answers — one model call per chunk.
+- **`guard` puts three model families behind one kind.** `family` selects a `GuardDialect`, which
+  owns the prompt format, the native harm taxonomy and — the part that shows up on the invoice — how
+  many backend calls one verdict costs: Llama Guard classifies against its whole taxonomy in **one**
+  call, while ShieldGemma and Granite Guardian answer one yes/no question **per selected category**.
+  Every family is normalised to the same verdict: `score` is always P(unsafe), and categories carry
+  both the canonical `GuardCategory` and the model's own code. The score is the log-probability of
+  the decision token, not the generated word, which is why the node has its own `GuardClient`
+  instead of using `LlmInvoker`; a backend that will not return `logprobs` degrades the verdict to a
+  1/0 argmax and says so with `"scoreExact": false` rather than inventing a number.
+  `safe` is a `control/filter` port, so a guard gates a branch with no filter node in between.
+  **Images need vLLM.** Only Llama Guard 4 and ShieldGemma 2 read pixels, and llama.cpp can serve
+  neither — no `mmproj` projector is published for Llama Guard 4 and `shieldgemma-2-4b` has no GGUF
+  conversion. An image asset reaching a text-only family with nothing on `text` **fails**; a guard
+  that waves through what it cannot read is worse than one that stops.
 - **`metadata` is the only `PipelineConfigurable` analysis node.** Its options *are* the work — a
   public-library pipeline rounds coordinates while the internal archive keeps them — so it reads them
   off the node definition, is not `@Singleton`, and overrides `nodeId()`. It also reads images with
@@ -363,6 +380,7 @@ Two independent layers — confusing them is a classic mistake.
 | `script` | `absolutePath \| scriptHash` |
 | `tag` | `absolutePath \| configHash(tagBy, rules, collection, allowedTags, normalize, maxTags)` — two tag nodes over one asset are the normal case and must not share a verdict |
 | `translate` | `absolutePath \| hash(input text, target/source language, model, prompt template, chunk size)` |
+| `guard` | `absolutePath \| hash(input text, image path, family, model, effective categories, threshold, prompt template, maxImageDim)` — the text arrives from an edge, so a path-keyed cache would answer a different question than the one asked |
 | `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
 | `objectdetect` | `absolutePath \| modelPath, minConfidence, videoChopRate, videoScaleSize, maxDetections, classFilter` — a permissive pass and a `person`-only pass over the same file are two different answers |
 | everything else | `absolutePath` **only** |
@@ -393,16 +411,16 @@ flowchart TD
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>generated node-descriptors.json → 41 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>generated node-descriptors.json → 42 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **36** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **37** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
   `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `objectdetect`, `tika`, `metadata`,
   `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
-  `whisper`, `tts`, `sentiment`, `translate`, `script`, `depthmap`, `scene-layout`,
+  `whisper`, `tts`, `sentiment`, `translate`, `guard`, `script`, `depthmap`, `scene-layout`,
   `dominant-color`, `watermark`, `image-manipulation`, `filter`, `tag`, `s3-sink`.
   All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java`.
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
@@ -421,7 +439,7 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **41 advertised kinds.** Since the
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **42 advertised kinds.** Since the
 `d9bbc2dc` refactor the contracts are one generated `node-descriptors.json` served by
 `GeneratedNodeDescriptorProvider` (+ `OrphanNodeDescriptorProvider`), harvested at build time from
 the annotated node classes and regenerated with
@@ -504,7 +522,7 @@ Everything else matches its kind, except the four hash kinds which share `KEY = 
 fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `facedetection`, `quality`,
 `scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `tts`, `objectdetect`,
 `depthmap`, `scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`,
-`script`, `tag`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
+`guard`, `script`, `tag`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
 
 ### 6.3 Per-node option defaults
 
@@ -522,6 +540,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `vlm` | `endpointUrl`, `apiKey`, `prompts` (`Map<String, VlmNodePrompt>`: `model`, `prompt`, `responseFormat`, `maxImageDim`, `maxTokens`, `temperature`, `retryOnRotation`) |
 | `sentiment` | `sentimentHost` (`localhost`), `sentimentPort` (9110), `language` (`auto`), `modelDe`/`modelEn` (null), `maxChars` (200000) |
 | `translate` | `targetLanguage` (`en`), `sourceLanguage` (`auto`), `model` (`google/gemma-2-27b-it`), `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `promptTemplate` (must contain `${text}`), `maxChunkChars` (8000), `maxChars` (200000) |
+| `guard` | `family` (`LLAMA_GUARD_3`), `model` (`meta-llama/Llama-Guard-3-8B`), `categories` (`[]` = all), `threshold` (0.5), `maxChars` (8000), `maxImageDim` (1024), `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `apiKey` (null), `promptTemplate` (null = the family's built-in) |
 | `tts` | `ttsHost` (`localhost`), `ttsPort` (9100), `language` (`de`), `voice` (`Jakob`) |
 | `depthmap` | `depthHost` (`localhost`), `depthPort` (9120), `mode` (`RELATIVE`\|`METRIC`), `model` (null), `maxDim` (1024), `timeoutMs` (120000) |
 | `metadata` | `includeRaw` (false), `rawMaxKeys` (500), `rawMaxValueBytes` (4096), `readXmpSidecar` (true), `writeGeoComponent` (true), `gpsTrackMaxSamples` (1000), `gpsPolicy` (`KEEP`\|`ROUND`\|`DROP`), `gpsRoundDecimals` (2), `emitText` (true), `licenseDetection` (true), `dateFallback` (`NONE`\|`FILESYSTEM`), `excludeKeys` (`[]`). ⚠️ Read from the **node definition**, not the worker YAML — see §6.5 |
@@ -623,7 +642,7 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
 | `NodeSpecGoldenTest` | `integration-test/.../node/` | every `@NodeSpec` class is in the committed `node-descriptors.json`, and the resource is regenerated from it |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 41 advertised kinds, no duplicates |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 42 advertised kinds, no duplicates |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,
@@ -706,7 +725,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
       to `next()` so it honours a recorded failure cause — the latter is smaller but silently changes
       what `next()` means for every caller, so it needs its own review.
 - [ ] 🔴 **Path-only cache keys** — every node except `dominant-color`, `watermark`, `script`,
-      `translate` and `metadata` keys its `LocalResultCache` on `media.absolutePath()` alone, so a
+      `translate`, `guard` and `metadata` keys its `LocalResultCache` on `media.absolutePath()` alone, so a
       changed option or a different wired upstream payload serves a stale result (§4).
 - [ ] 🔴 **A sink must share a worker with its producer, and nothing enforces it** — `s3-sink` reads
       files its upstream wrote to local disk, exactly as `scene-layout` reads the depth PNG. There is
@@ -803,6 +822,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | A node's implementation | `cortex/nodes/<module>/core/src/main/java/io/metaloom/cortex/node/<pkg>/` |
 | The `metadata` node's design — precedence, envelope, privacy | [metadata/METADATA_OVERVIEW.md](metadata/METADATA_OVERVIEW.md) |
 | Shared LLM plumbing (`llm`, `translate`) | `cortex/llm-common/.../cortex/llm/` — `LLMProviderModule` (the one `LLMProvider` binding), `AbstractLlmNodeOptions`, `LlmInvoker`, `TextChunker` |
+| Guard dialects + the canonical harm taxonomy | `cortex/nodes/guard/core/.../node/guard/` — `GuardDialect` (+ three impls), `GuardTaxonomy`, `GuardScoring`, `GuardClient`. It reuses `AbstractLlmNodeOptions` but **not** `LlmInvoker`: the score is a token log-probability, which `LLMProvider` cannot return |
 | The lifecycle + ledger helper | `cortex/common/.../node/AbstractMediaNode.java` |
 | `next()`/`abort()`/`skipped()` semantics | `cortex/api/.../node/context/impl/NodeContextImpl.java` |
 | The kind multibinding for a node | `cortex/nodes/<module>/core/.../<X>NodeModule.java` |

@@ -28,6 +28,7 @@ import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.metadata.MetadataNodeModule;
 import io.metaloom.cortex.node.tag.TagNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
+import io.metaloom.cortex.node.guard.GuardNodeModule;
 import io.metaloom.cortex.node.translate.TranslateNodeModule;
 import io.metaloom.cortex.node.tts.TtsNodeModule;
 import io.metaloom.cortex.node.vlm.VlmNodeModule;
@@ -68,6 +69,7 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	WatermarkNodeModule.class,
 	FilterNodeModule.class,
 	TranslateNodeModule.class,
+	GuardNodeModule.class,
 	TagNodeModule.class })
 public interface NodeCollectionModule {
 

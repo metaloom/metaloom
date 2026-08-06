@@ -22,6 +22,9 @@ sampling frames at a configurable rate and running detection on each sample.
 
 == Configuration
 
+.The node's settings in the pipeline editor
+image::config.png[The Object Detection settings panel: Model Path, Labels Path, Use GPU, Min Confidence and 4 more settings,role="ml-panel-shot"]
+
 [options="header",cols="1,2"]
 |===
 | Option | Meaning
@@ -34,6 +37,25 @@ sampling frames at a configurable rate and running detection on each sample.
 | `maxDetections` | Upper bound on the detections kept for one file
 | `classFilter` | Keep only these class names. Left empty, every class the model knows is kept
 |===
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of `YOLOv11n_voc.onnx` over `pexels-jack-sparrow-5977265.mp4` at the
+shipped `videoChopRate: 25` — every 25th frame of a 326-frame clip.
+
+image::debug.png[The objectdetect node after a run, reporting 33 detections across the sampled frames,role=img-fluid]
+
+Four ports. `detections` carries one element per box, `labels` the distinct class names it saw
+(`person`, `bottle`), `object_count` the total, and `flag` how the node finished. Opening
+`detections` shows every box with the frame it was measured on:
+
+image::debug-detail.png[The detections opened from the card - a table of label, confidence, box and frame,role=img-fluid]
+
+The `frame` column is what makes those boxes usable. Detection ran on 13 of the clip's 326 frames, so
+the boxes belong to thirteen different moments and only the ones sharing a frame number describe the
+same picture — the same sampling the
+link:../../pipeline/#detections-over-time[detection player] on the pipeline page animates.
 
 == What the model can find
 

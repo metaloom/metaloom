@@ -1,0 +1,545 @@
+{
+  "kind" : "objectdetect",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "file:/home/defaultuser/workspaces/metaloom/yolo4j/YOLOs-CPP-1.0.0/models/YOLOv11n_voc.onnx",
+  "state" : "COMPLETED",
+  "durationMs" : 2732,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "modelPath" : "YOLOv11n_voc.onnx",
+    "videoChopRate" : 25,
+    "minConfidence" : 0.5,
+    "useGpu" : false
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "video"
+  } ],
+  "outputs" : {
+    "object_count" : {
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 33
+      } ]
+    },
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "SUCCESS"
+      } ]
+    },
+    "detections" : {
+      "contentType" : "detection/object",
+      "cardinality" : "MANY",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 33
+        },
+        "value" : "{\"index\":0,\"type\":\"object\",\"label\":\"person\",\"frame\":25,\"bbox\":{\"x\":1778,\"y\":349,\"w\":971,\"h\":1238},\"confidence\":0.8783218,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 1,
+          "total" : 33
+        },
+        "value" : "{\"index\":1,\"type\":\"object\",\"label\":\"person\",\"frame\":25,\"bbox\":{\"x\":758,\"y\":383,\"w\":1500,\"h\":1751},\"confidence\":0.81055945,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 2,
+          "total" : 33
+        },
+        "value" : "{\"index\":2,\"type\":\"object\",\"label\":\"person\",\"frame\":50,\"bbox\":{\"x\":769,\"y\":360,\"w\":1403,\"h\":1789},\"confidence\":0.8060619,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 3,
+          "total" : 33
+        },
+        "value" : "{\"index\":3,\"type\":\"object\",\"label\":\"person\",\"frame\":50,\"bbox\":{\"x\":1838,\"y\":349,\"w\":900,\"h\":1751},\"confidence\":0.75118446,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 4,
+          "total" : 33
+        },
+        "value" : "{\"index\":4,\"type\":\"object\",\"label\":\"person\",\"frame\":75,\"bbox\":{\"x\":780,\"y\":323,\"w\":1129,\"h\":1763},\"confidence\":0.7543708,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 5,
+          "total" : 33
+        },
+        "value" : "{\"index\":5,\"type\":\"object\",\"label\":\"person\",\"frame\":75,\"bbox\":{\"x\":1871,\"y\":338,\"w\":949,\"h\":1800},\"confidence\":0.6106403,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 6,
+          "total" : 33
+        },
+        "value" : "{\"index\":6,\"type\":\"object\",\"label\":\"person\",\"frame\":100,\"bbox\":{\"x\":1860,\"y\":338,\"w\":911,\"h\":1643},\"confidence\":0.7461621,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 7,
+          "total" : 33
+        },
+        "value" : "{\"index\":7,\"type\":\"object\",\"label\":\"person\",\"frame\":100,\"bbox\":{\"x\":791,\"y\":338,\"w\":1103,\"h\":1691},\"confidence\":0.5657552,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 8,
+          "total" : 33
+        },
+        "value" : "{\"index\":8,\"type\":\"object\",\"label\":\"person\",\"frame\":125,\"bbox\":{\"x\":791,\"y\":360,\"w\":1418,\"h\":1778},\"confidence\":0.9254071,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 9,
+          "total" : 33
+        },
+        "value" : "{\"index\":9,\"type\":\"object\",\"label\":\"person\",\"frame\":125,\"bbox\":{\"x\":1860,\"y\":311,\"w\":1043,\"h\":1823},\"confidence\":0.8030906,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 10,
+          "total" : 33
+        },
+        "value" : "{\"index\":10,\"type\":\"object\",\"label\":\"person\",\"frame\":150,\"bbox\":{\"x\":769,\"y\":323,\"w\":1478,\"h\":1811},\"confidence\":0.9264578,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 11,
+          "total" : 33
+        },
+        "value" : "{\"index\":11,\"type\":\"object\",\"label\":\"person\",\"frame\":150,\"bbox\":{\"x\":1871,\"y\":360,\"w\":983,\"h\":1718},\"confidence\":0.6238741,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 12,
+          "total" : 33
+        },
+        "value" : "{\"index\":12,\"type\":\"object\",\"label\":\"person\",\"frame\":175,\"bbox\":{\"x\":780,\"y\":360,\"w\":1403,\"h\":1763},\"confidence\":0.8837487,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 13,
+          "total" : 33
+        },
+        "value" : "{\"index\":13,\"type\":\"object\",\"label\":\"person\",\"frame\":175,\"bbox\":{\"x\":1909,\"y\":349,\"w\":949,\"h\":1811},\"confidence\":0.59444964,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 14,
+          "total" : 33
+        },
+        "value" : "{\"index\":14,\"type\":\"object\",\"label\":\"person\",\"frame\":200,\"bbox\":{\"x\":758,\"y\":360,\"w\":1440,\"h\":1778},\"confidence\":0.8469179,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 15,
+          "total" : 33
+        },
+        "value" : "{\"index\":15,\"type\":\"object\",\"label\":\"person\",\"frame\":200,\"bbox\":{\"x\":1838,\"y\":323,\"w\":1031,\"h\":1718},\"confidence\":0.6313515,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 16,
+          "total" : 33
+        },
+        "value" : "{\"index\":16,\"type\":\"object\",\"label\":\"person\",\"frame\":225,\"bbox\":{\"x\":720,\"y\":338,\"w\":1440,\"h\":1811},\"confidence\":0.87993705,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 17,
+          "total" : 33
+        },
+        "value" : "{\"index\":17,\"type\":\"object\",\"label\":\"person\",\"frame\":225,\"bbox\":{\"x\":1800,\"y\":360,\"w\":1009,\"h\":1729},\"confidence\":0.7466973,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 18,
+          "total" : 33
+        },
+        "value" : "{\"index\":18,\"type\":\"object\",\"label\":\"bottle\",\"frame\":250,\"bbox\":{\"x\":2618,\"y\":1140,\"w\":169,\"h\":491},\"confidence\":0.97455883,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":4}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 19,
+          "total" : 33
+        },
+        "value" : "{\"index\":19,\"type\":\"object\",\"label\":\"person\",\"frame\":250,\"bbox\":{\"x\":698,\"y\":338,\"w\":1163,\"h\":1811},\"confidence\":0.9143264,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 20,
+          "total" : 33
+        },
+        "value" : "{\"index\":20,\"type\":\"object\",\"label\":\"person\",\"frame\":250,\"bbox\":{\"x\":1811,\"y\":300,\"w\":949,\"h\":1571},\"confidence\":0.69403034,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 21,
+          "total" : 33
+        },
+        "value" : "{\"index\":21,\"type\":\"object\",\"label\":\"person\",\"frame\":275,\"bbox\":{\"x\":623,\"y\":311,\"w\":1643,\"h\":1823},\"confidence\":0.9457202,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 22,
+          "total" : 33
+        },
+        "value" : "{\"index\":22,\"type\":\"object\",\"label\":\"person\",\"frame\":275,\"bbox\":{\"x\":1729,\"y\":278,\"w\":1080,\"h\":1331},\"confidence\":0.77657545,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 23,
+          "total" : 33
+        },
+        "value" : "{\"index\":23,\"type\":\"object\",\"label\":\"person\",\"frame\":300,\"bbox\":{\"x\":1643,\"y\":300,\"w\":1129,\"h\":1358},\"confidence\":0.69909614,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 24,
+          "total" : 33
+        },
+        "value" : "{\"index\":24,\"type\":\"object\",\"label\":\"person\",\"frame\":300,\"bbox\":{\"x\":529,\"y\":323,\"w\":1283,\"h\":1800},\"confidence\":0.6206063,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 25,
+          "total" : 33
+        },
+        "value" : "{\"index\":25,\"type\":\"object\",\"label\":\"person\",\"frame\":325,\"bbox\":{\"x\":563,\"y\":300,\"w\":1538,\"h\":1838},\"confidence\":0.8259593,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 26,
+          "total" : 33
+        },
+        "value" : "{\"index\":26,\"type\":\"object\",\"label\":\"person\",\"frame\":325,\"bbox\":{\"x\":1643,\"y\":289,\"w\":1118,\"h\":1391},\"confidence\":0.6780062,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 27,
+          "total" : 33
+        },
+        "value" : "{\"index\":27,\"type\":\"object\",\"label\":\"person\",\"frame\":350,\"bbox\":{\"x\":551,\"y\":289,\"w\":1380,\"h\":1849},\"confidence\":0.8800721,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 28,
+          "total" : 33
+        },
+        "value" : "{\"index\":28,\"type\":\"object\",\"label\":\"person\",\"frame\":350,\"bbox\":{\"x\":1680,\"y\":278,\"w\":1009,\"h\":1451},\"confidence\":0.7927104,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 29,
+          "total" : 33
+        },
+        "value" : "{\"index\":29,\"type\":\"object\",\"label\":\"person\",\"frame\":375,\"bbox\":{\"x\":1631,\"y\":289,\"w\":1020,\"h\":1380},\"confidence\":0.85248715,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 30,
+          "total" : 33
+        },
+        "value" : "{\"index\":30,\"type\":\"object\",\"label\":\"person\",\"frame\":375,\"bbox\":{\"x\":529,\"y\":263,\"w\":1369,\"h\":1871},\"confidence\":0.78532815,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 31,
+          "total" : 33
+        },
+        "value" : "{\"index\":31,\"type\":\"object\",\"label\":\"person\",\"frame\":397,\"bbox\":{\"x\":491,\"y\":263,\"w\":1391,\"h\":1883},\"confidence\":0.87330496,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 32,
+          "total" : 33
+        },
+        "value" : "{\"index\":32,\"type\":\"object\",\"label\":\"person\",\"frame\":397,\"bbox\":{\"x\":1631,\"y\":263,\"w\":1031,\"h\":1418},\"confidence\":0.8256412,\"coordinates\":\"ABSOLUTE_PIXELS\",\"imageWidth\":3840,\"imageHeight\":2160,\"classId\":14}"
+      } ]
+    },
+    "labels" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "MANY",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 2
+        },
+        "value" : "person"
+      }, {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 1,
+          "total" : 2
+        },
+        "value" : "bottle"
+      } ]
+    }
+  },
+  "previews" : {
+    "detections" : {
+      "file" : "detections.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 512,
+      "height" : 288,
+      "markdown" : "| # | label | confidence | box (x, y, w, h) | frame |\n|---|---|---|---|---|\n| 0 | person | 0.8783218 | 1778, 349, 971, 1238 | 25 |\n| 1 | person | 0.81055945 | 758, 383, 1500, 1751 | 25 |\n| 2 | person | 0.8060619 | 769, 360, 1403, 1789 | 50 |\n| 3 | person | 0.75118446 | 1838, 349, 900, 1751 | 50 |\n| 4 | person | 0.7543708 | 780, 323, 1129, 1763 | 75 |\n| 5 | person | 0.6106403 | 1871, 338, 949, 1800 | 75 |\n| 6 | person | 0.7461621 | 1860, 338, 911, 1643 | 100 |\n| 7 | person | 0.5657552 | 791, 338, 1103, 1691 | 100 |\n| 8 | person | 0.9254071 | 791, 360, 1418, 1778 | 125 |\n| 9 | person | 0.8030906 | 1860, 311, 1043, 1823 | 125 |\n| 10 | person | 0.9264578 | 769, 323, 1478, 1811 | 150 |\n| 11 | person | 0.6238741 | 1871, 360, 983, 1718 | 150 |\n| 12 | person | 0.8837487 | 780, 360, 1403, 1763 | 175 |\n| 13 | person | 0.59444964 | 1909, 349, 949, 1811 | 175 |\n| 14 | person | 0.8469179 | 758, 360, 1440, 1778 | 200 |\n| 15 | person | 0.6313515 | 1838, 323, 1031, 1718 | 200 |\n| 16 | person | 0.87993705 | 720, 338, 1440, 1811 | 225 |\n| 17 | person | 0.7466973 | 1800, 360, 1009, 1729 | 225 |\n| 18 | bottle | 0.97455883 | 2618, 1140, 169, 491 | 250 |\n| 19 | person | 0.9143264 | 698, 338, 1163, 1811 | 250 |\n| 20 | person | 0.69403034 | 1811, 300, 949, 1571 | 250 |\n| 21 | person | 0.9457202 | 623, 311, 1643, 1823 | 275 |\n| 22 | person | 0.77657545 | 1729, 278, 1080, 1331 | 275 |\n| 23 | person | 0.69909614 | 1643, 300, 1129, 1358 | 300 |\n| 24 | person | 0.6206063 | 529, 323, 1283, 1800 | 300 |\n| 25 | person | 0.8259593 | 563, 300, 1538, 1838 | 325 |\n| 26 | person | 0.6780062 | 1643, 289, 1118, 1391 | 325 |\n| 27 | person | 0.8800721 | 551, 289, 1380, 1849 | 350 |\n| 28 | person | 0.7927104 | 1680, 278, 1009, 1451 | 350 |\n| 29 | person | 0.85248715 | 1631, 289, 1020, 1380 | 375 |\n| 30 | person | 0.78532815 | 529, 263, 1369, 1871 | 375 |\n| 31 | person | 0.87330496 | 491, 263, 1391, 1883 | 397 |\n| 32 | person | 0.8256412 | 1631, 263, 1031, 1418 | 397 |\n",
+      "frame" : 25
+    },
+    "detections#0" : {
+      "file" : "detections-0.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 151,
+      "height" : 192,
+      "frame" : 25
+    },
+    "detections#1" : {
+      "file" : "detections-1.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 184,
+      "height" : 192,
+      "frame" : 25
+    },
+    "detections#2" : {
+      "file" : "detections-2.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 169,
+      "height" : 192,
+      "frame" : 50
+    },
+    "detections#3" : {
+      "file" : "detections-3.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 108,
+      "height" : 192,
+      "frame" : 50
+    },
+    "detections#4" : {
+      "file" : "detections-4.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 134,
+      "height" : 192,
+      "frame" : 75
+    },
+    "detections#5" : {
+      "file" : "detections-5.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 113,
+      "height" : 192,
+      "frame" : 75
+    },
+    "detections#6" : {
+      "file" : "detections-6.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 110,
+      "height" : 192,
+      "frame" : 100
+    },
+    "detections#7" : {
+      "file" : "detections-7.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 133,
+      "height" : 192,
+      "frame" : 100
+    },
+    "detections#8" : {
+      "file" : "detections-8.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 171,
+      "height" : 192,
+      "frame" : 125
+    },
+    "detections#9" : {
+      "file" : "detections-9.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 123,
+      "height" : 192,
+      "frame" : 125
+    },
+    "detections#10" : {
+      "file" : "detections-10.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 175,
+      "height" : 192,
+      "frame" : 150
+    },
+    "detections#11" : {
+      "file" : "detections-11.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 119,
+      "height" : 192,
+      "frame" : 150
+    },
+    "detections#12" : {
+      "file" : "detections-12.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 170,
+      "height" : 192,
+      "frame" : 175
+    },
+    "detections#13" : {
+      "file" : "detections-13.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 114,
+      "height" : 192,
+      "frame" : 175
+    },
+    "detections#14" : {
+      "file" : "detections-14.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 174,
+      "height" : 192,
+      "frame" : 200
+    },
+    "detections#15" : {
+      "file" : "detections-15.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 123,
+      "height" : 192,
+      "frame" : 200
+    },
+    "detections#16" : {
+      "file" : "detections-16.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 172,
+      "height" : 192,
+      "frame" : 225
+    },
+    "detections#17" : {
+      "file" : "detections-17.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 122,
+      "height" : 192,
+      "frame" : 225
+    },
+    "detections#18" : {
+      "file" : "detections-18.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 66,
+      "height" : 192,
+      "frame" : 250
+    },
+    "detections#19" : {
+      "file" : "detections-19.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 139,
+      "height" : 192,
+      "frame" : 250
+    },
+    "detections#20" : {
+      "file" : "detections-20.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 116,
+      "height" : 192,
+      "frame" : 250
+    },
+    "detections#21" : {
+      "file" : "detections-21.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 192,
+      "height" : 191,
+      "frame" : 275
+    },
+    "detections#22" : {
+      "file" : "detections-22.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 156,
+      "height" : 192,
+      "frame" : 275
+    },
+    "detections#23" : {
+      "file" : "detections-23.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 159,
+      "height" : 192,
+      "frame" : 300
+    },
+    "detections#24" : {
+      "file" : "detections-24.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 152,
+      "height" : 192,
+      "frame" : 300
+    },
+    "detections#25" : {
+      "file" : "detections-25.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 180,
+      "height" : 192,
+      "frame" : 325
+    },
+    "detections#26" : {
+      "file" : "detections-26.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 154,
+      "height" : 192,
+      "frame" : 325
+    },
+    "detections#27" : {
+      "file" : "detections-27.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 160,
+      "height" : 192,
+      "frame" : 350
+    },
+    "detections#28" : {
+      "file" : "detections-28.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 133,
+      "height" : 192,
+      "frame" : 350
+    },
+    "detections#29" : {
+      "file" : "detections-29.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 142,
+      "height" : 192,
+      "frame" : 375
+    },
+    "detections#30" : {
+      "file" : "detections-30.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 158,
+      "height" : 192,
+      "frame" : 375
+    },
+    "detections#31" : {
+      "file" : "detections-31.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 161,
+      "height" : 192,
+      "frame" : 397
+    },
+    "detections#32" : {
+      "file" : "detections-32.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 140,
+      "height" : 192,
+      "frame" : 397
+    }
+  }
+}

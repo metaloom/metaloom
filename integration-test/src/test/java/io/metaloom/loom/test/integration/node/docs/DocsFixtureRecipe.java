@@ -42,6 +42,27 @@ public interface DocsFixtureRecipe {
 	}
 
 	/**
+	 * Whether this node legitimately emits nothing on any port.
+	 *
+	 * <p>
+	 * The writer treats an all-empty result as a failure, because that is what a failure usually
+	 * looks like from outside — {@code NodeContextImpl.next()} discards {@code failureCause}, so a
+	 * node that caught an exception is indistinguishable from one that had nothing to say. For
+	 * exactly one family that is wrong: the dedup nodes declare <strong>no output ports at all</strong>.
+	 * Their effect is a filesystem move and a ledger row, and reporting nothing is the correct
+	 * outcome rather than a symptom.
+	 * </p>
+	 *
+	 * <p>
+	 * Opting in here is a claim about the node's port declaration, not a way past a failing run —
+	 * the state check and the {@code flag} check still apply.
+	 * </p>
+	 */
+	default boolean emitsNoPorts() {
+		return false;
+	}
+
+	/**
 	 * The node(s) whose output feeds this one, for the graph the screenshot is taken of.
 	 *
 	 * <p>

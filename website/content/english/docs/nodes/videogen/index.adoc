@@ -47,6 +47,26 @@ image::config.png[The Video Generation settings panel: Mode, Prompt, Negative Pr
 | `seed` | Optional RNG seed for reproducible output
 |===
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run in `ANIMATE` mode over `pexels-photo-2379005.jpeg`, prompted for
+_"the man turns his head slowly towards the camera and smiles"_ — 49 frames at 768×512, the shipped
+defaults, at 20 steps.
+
+image::debug.png[The videogen node after a run, showing the MP4 it wrote and the flag recording how it finished,role=img-fluid]
+
+Two ports: `video` carries the path of the MP4 in the worker's local cache and `flag` records how the
+node finished. Unlike link:../imagegen/[Imagegen], the card shows the path rather than the result —
+the debugging view previews images, and a video artifact has no still to show.
+
+NOTE: The clip has **sound**. LTX-2 returns synchronised audio from the same forward pass and the
+sidecar muxes both into the MP4, so what lands on the `video` port is a 49-frame H.264 stream with an
+AAC track beside it — not a silent animation.
+
+`ANIMATE` is the mode worth photographing: `GENERATE`, the shipped default, never reads the incoming
+media and answers from the prompt alone.
+
 == Running the sidecar
 
 The sidecar is a small FastAPI service:

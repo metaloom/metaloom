@@ -144,6 +144,53 @@ public class FixtureEnv implements VideoData, ImageData, AudioData, DocData, Oth
 	}
 
 	/**
+	 * The corpus speech recording, as a WAV whisper can actually read.
+	 *
+	 * <p>
+	 * Every video in the corpus is <strong>silent</strong> — stock footage, video stream only — and
+	 * the one recording with speech in it, {@code jfk.webm}, is Opus in WebM with no duration in the
+	 * container. {@code AudioExtractor.decodeAudioToPCM} hands whisper zero samples for it
+	 * ("offset 0ms is past the end of the audio"), and whisper then reports success with an empty
+	 * transcript — a green node that transcribed nothing, which is precisely the picture this
+	 * harness must not publish.
+	 * </p>
+	 *
+	 * <p>
+	 * So the same audio is remuxed once, with ffmpeg, into the 16 kHz mono PCM whisper wants. The
+	 * words are the real recording's; only the container changed.
+	 * </p>
+	 *
+	 * @throws IllegalStateException when the remux fails — the caller's requirement should have
+	 *         checked for ffmpeg first
+	 */
+	public Path speechWav() throws IOException, InterruptedException {
+		Path wav = libraryRoot().resolve("jfk-16k-mono.wav");
+		if (Files.exists(wav)) {
+			return wav;
+		}
+		Path source = inLibrary(root().resolve("folderA/folderB/jfk.webm"));
+		Path temp = Files.createTempFile("docs-speech", ".wav");
+		Process ffmpeg = new ProcessBuilder("ffmpeg", "-y", "-v", "error", "-i", source.toString(),
+			"-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", temp.toString())
+			.redirectErrorStream(true).start();
+		String output = new String(ffmpeg.getInputStream().readAllBytes());
+		if (ffmpeg.waitFor() != 0) {
+			throw new IllegalStateException("Could not remux " + source + " to WAV: " + output);
+		}
+		Files.move(temp, wav, StandardCopyOption.REPLACE_EXISTING);
+		return wav;
+	}
+
+	/** Is ffmpeg on the path? {@link #speechWav()} needs it. */
+	public static boolean hasFfmpeg() {
+		try {
+			return new ProcessBuilder("ffmpeg", "-version").redirectErrorStream(true).start().waitFor() == 0;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+
+	/**
 	 * Cortex options with a fresh meta path.
 	 *
 	 * <p>

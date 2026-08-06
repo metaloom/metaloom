@@ -59,6 +59,7 @@ The built-in nodes fall into four categories.
 | link:tts/[Text-to-Speech] (`tts`) | Any (text connected to its `text` port) | Synthesize narration audio (Orpheus/Kartoffel DE, Kokoro EN)
 | link:sentiment/[Sentiment Analysis] (`sentiment`) | Any (text connected to its `text` port) | Score the tone of extracted text (German and English)
 | link:translate/[Translate] (`translate`) | Any (text connected to its `text` port) | Translate extracted text into a target language with a language model
+| link:guard/[Content Guard] (`guard`) | Any (text connected to its `text` port); Image on a multimodal model | Screen content against a harm taxonomy with a guardrail model, and gate a branch on the verdict
 | link:llm/[LLM Enrichment] (`llm`) | Any | Enrich metadata with a language model — one output port per prompt
 | link:captioning/[Captioning] (`captioning`) | Image, Video | Natural-language captions for images and videos
 | link:imagegen/[Image Generation] (`imagegen`) | Image | Generate images from a prompt (or remix the asset) with a diffusion model
@@ -123,7 +124,8 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | The `ffmpeg` / `ffprobe` binaries on `PATH` | `watermark` (video only — the image path needs nothing)
 | S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`
 | Google Drive, OneDrive or SharePoint credentials | `gdrive-source`, `onedrive-source`
-| A reachable OpenAI-compatible language model endpoint | `llm`, `translate`, `filter`
+| A reachable OpenAI-compatible language model endpoint | `llm`, `translate`, `filter`, `guard`
+| A reachable OpenAI-compatible endpoint serving a guardrail model (Llama Guard, ShieldGemma or Granite Guardian) | `guard`
 | CPU only | `md5`/`sha256`/`sha512`/`chunk-hash`, `consistency`, `tika`, `metadata`, `filesystem-source`, `script`, `tag`, `scene-layout`, `dominant-color`, `watermark` (images), `image-manipulation`, dedup
 |===
 
@@ -230,6 +232,17 @@ transcript, document text or an OCR result to its `text` port and the translatio
 languages means several nodes; each translation is stored under its own language and stays separately
 retrievable. Documents longer than the model's context window are split at paragraph and sentence
 boundaries, never mid-sentence, and rejoined.
+
+Content screening::
+link:guard/[`guard`] checks content against a harm taxonomy — connect a transcript, document text, an
+OCR result or a caption to its `text` port, or point it at image assets — and answers `safe` or
+`unsafe` with a confidence score and the categories that fired. Its `safe` output is a branch, so a
+publishing or upload step connected behind it runs only for the items that came back clean, while
+flagged assets are still fully processed and their verdicts stored for review. Three families of open
+guardrail model are supported behind the one node — Meta's Llama Guard, Google's ShieldGemma and IBM's
+Granite Guardian — and all of them are normalised onto one shared vocabulary of harm categories and
+one comparable score, so changing the model does not mean rewiring the pipeline. Llama Guard 4 and
+ShieldGemma 2 read pictures directly; the rest screen text.
 
 Depth and spatial layout::
 link:depthmap/[`depthmap`] works out how far each part of a photo is from the camera, from the photo

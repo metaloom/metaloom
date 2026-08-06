@@ -39,12 +39,14 @@ image::config.png[The Whisper (Speech-to-Text) settings panel: Model Path, Tempe
 == Seeing it run
 
 Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
-card itself — for this node, the transcript and the segments it was cut into.
+card itself — for this node, the transcript and the segments it was cut into. Below is a real run of
+`ggml-large-v3-turbo` over a recording of a speech.
 
-NOTE: There is no screenshot of that here yet. MetaLoom ships no model weights, and
-no Whisper model is present on the machine that builds these pictures, so this is the one
-node page whose debug view is taken from a real run of nothing. Every other picture on these pages
-comes from an actual run, and we would rather leave a gap than draw one.
+image::debug.png[The whisper node after a run, with the start of the transcript it produced,role=img-fluid]
+
+One port, one document. `transcript` carries the segments as JSON — each with its text and its time
+span — so a downstream link:../script/[Script] node can cut chapters out of it and
+link:../translate/[Translate] can take the prose.
 
 == Use Cases
 

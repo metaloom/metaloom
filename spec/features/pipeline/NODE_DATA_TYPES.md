@@ -276,11 +276,19 @@ All three emit the family wildcard: the concrete kind is unknown until the file 
 | `whisper` | **XOR `media_alt`**: `audio : media/audio` \| `video : media/video` | `transcript : text/transcript` |
 | `sentiment` | `text : text/*` | `label : scalar/string`, `score : scalar/number`, `result : struct/json` |
 | `translate` | `text : text/*` | `translation : text/plain`, `language : scalar/string`, `result : struct/json` |
+| `guard` | `text : text/*` *(opt)*, `media : media/image` *(opt)* | `safe : control/filter`, `label : scalar/string`, `score : scalar/number`, `categories : scalar/string` **MANY**, `result : struct/json` |
 | `llm` | `media : media/*` | **dynamic** — `result_<promptId> : text/plain` per prompt |
 | `vlm` | `media : media/image` | **dynamic** — same shape |
 
 `facedetect.detections` is the reference fan-out: **one element per detected face**, so
 `facedescription` runs once per face rather than once per file.
+
+`guard.safe` is `control/filter`, the same content type `filter.passed` carries — `NodeTaskResult`
+finds the branch decision by content type, not by port name — so a guard gates a downstream node
+directly and `filter` is only needed when the routing has more than two ways to go. `guard.media` is
+an image input declared the way every image-consuming node declares one: a `media/*` port names the
+**item**, which the node reads through `ctx.media()` rather than `ctx.input(...)` (a wired
+`media/image` edge would arrive as a path string, not a `LoomMedia`).
 
 `metadata.geo` is declared `ONE` even though it is written only for a file that carried a coordinate:
 `OutputPort` has no optional cardinality, and an unwritten port simply delivers nothing downstream —

@@ -84,6 +84,7 @@ public final class NodeSpecCatalog {
 		"io.metaloom.cortex.node.sink.s3.S3SinkNode",
 		"io.metaloom.cortex.node.filter.FilterNode",
 		"io.metaloom.cortex.node.translate.TranslateNode",
+		"io.metaloom.cortex.node.guard.GuardNode",
 		"io.metaloom.cortex.node.tag.TagNode",
 		// There is no DedupNode class - the name this list carried until now resolved to nothing, so
 		// neither dedup node was ever discoverable. The dedup module binds HashDedupNode (under both

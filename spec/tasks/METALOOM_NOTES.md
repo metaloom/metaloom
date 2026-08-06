@@ -7,6 +7,9 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 ---
 
 ## Tasks
+- Content Classification Model support? BERT?
+
+- guard node - https://huggingface.co/meta-llama/Llama-Guard-3-8B or IBM Granite Guardian or  https://huggingface.co/collections/google/shieldgemma
 
 - Segment Anything / SAM node
 - CliIntegerationTest? What is this? Do we need it?

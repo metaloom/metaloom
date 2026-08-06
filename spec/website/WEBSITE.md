@@ -187,7 +187,7 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 |---|---|
 | **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (15 screenshots) · `cli/` · `deployment/` (`_index` + `helm/`) |
 | **`playbooks/`** | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
-| **`nodes/`** | `_index` + **34 node pages** (35 with `objectdetect`): `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filter · fingerprint · gdrive-source · hash · image-manipulation · imagegen · llm · metadata · ocr · onedrive-source · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · tag · thumbnail · tika · translate · tts · videogen · vlm · watermark · whisper`. **The count drifts** — `check-node-screenshots.mjs` is what notices, by mapping every kind in the descriptor snapshot to exactly one page |
+| **`nodes/`** | `_index` + **36 node pages** (35 with a staged descriptor, plus `guard`): `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filter · fingerprint · gdrive-source · guard · hash · image-manipulation · imagegen · llm · metadata · objectdetect · ocr · onedrive-source · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · tag · thumbnail · tika · translate · tts · videogen · vlm · watermark · whisper`. **The count drifts** — `check-node-screenshots.mjs` is what notices, by mapping every kind in the descriptor snapshot to exactly one page |
 | **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
 | **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
 | **`legal/`** | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
@@ -381,18 +381,67 @@ mvn -o -pl integration-test test -Dtest=DocsFixtureGenerator -Dloom.regenerateDo
 * An unsatisfied requirement **aborts naming the command that would satisfy it** and leaves the
   committed fixture byte-identical (atomic temp-file move). `-Dloom.docsFixturesStrict=true` turns
   that into a failure, which is what a release build wants.
-* **A node that did not succeed is never written.** The writer throws on anything but `SUCCESS`,
-  because a recipe that is wrong about the node it describes fails loudly rather than publishing the
-  error — the `script` recipe's first run emitted `ReferenceError: text is not defined`, having
-  invented binding names instead of using the node's (`data.text`, `out.*`, `params`, `log`).
+* **A node that did not succeed is never written**, and "succeeded" is checked four ways, because
+  each of the first three let a real failure through:
+  1. the result state is anything but `SUCCESS` — the `script` recipe's first run emitted
+     `ReferenceError: text is not defined`, having invented binding names instead of using the
+     node's (`data.text`, `out.*`, `params`, `log`);
+  2. **no port carried anything.** `NodeContextImpl.next()` reads `skipReason` but *not*
+     `failureCause`, so the nineteen nodes that end a catch block with `ctx.failure(msg).next()`
+     return `SUCCESS` with the message dropped. The sentiment recipe reported `COMPLETED` for a
+     request the sidecar had answered with a 500;
+  3. **`flag=FAILED`.** The nodes with a `flag` port set it to `FAILED` and *then* return success, so
+     a failed run arrives with outputs and a green state. The flag is the node's own verdict and it
+     outranks the result state — this is what caught the TTS sidecar running out of VRAM;
+  4. **every port empty.** Whisper answered `{"segments":[]}` for a video with no audio stream at
+     all: green, one port, a well-formed payload, and nothing in it. Nothing above catches that.
+* **One family legitimately emits nothing**, and says so. The dedup nodes declare no output ports
+  at all — their effect is a filesystem move and a ledger row — so their recipe sets
+  `emitsNoPorts()` and the two empty-output checks stand down for it. That is a claim about the
+  node's port declaration, not a way past a failing run: the state check and the `flag` check still
+  apply, and the recipe additionally **verifies the move happened**, because every early exit in
+  that node also returns SUCCESS with nothing.
+* **`dedup` needs a database, so it has its own generator.** `DocsLoomFixtureGenerator` extends
+  `AbstractNodeIntegrationTest` and boots a real Loom; `HashDedupNode.compute` opens with
+  `if (isOfflineMode()) return ctx.skipped("offline mode")`, because the question it answers is a
+  query. Keeping it separate is what lets the other thirty recipes stay runnable with no database.
+* **Not every corpus file has what a node needs.** Every video in the test corpus is silent — video
+  stream only — and the one recording with speech, `jfk.webm`, is Opus in WebM with no container
+  duration, which `AudioExtractor` turned into zero samples. `FixtureEnv.speechWav()` remuxes that
+  same audio to 16 kHz mono PCM with ffmpeg. Where the corpus has no suitable picture either — no
+  group photograph — `FixtureEnv.frameStill()` pulls one real frame out of the demo clip, and
+  `scene-layout` and `facedescription` both run on that one file so their depth map, boxes and
+  descriptions all describe one scene.
 * **Media runs from a neutral library, not the build tree.** Several nodes emit
   `media.absolutePath()` on an output port, and it is drawn verbatim on the card — straight out of
   the corpus that reads `/home/<someone>/workspaces/…/target/test-env-…`, which then ships to a
   public site. `FixtureEnv` hard-links the corpus into `/tmp/loom-docs-library` first, so the path on
   the card is a real path to the real file and nothing about this machine.
-* Services these recipes drive for real today: an OpenAI-compatible model on 8080
-  (`loom-test-env/llamacpp/start.sh`) for `llm`/`translate`/`filter`, and MinIO (`./start-minio.sh`)
-  for both S3 nodes.
+* Services these recipes drive for real today:
+
+  | What | How | For |
+  |---|---|---|
+  | OpenAI-compatible text model, :8080 | `loom-test-env/llamacpp/start.sh` | `llm`, `translate`, `filter` |
+  | Multimodal model, :8000 | same script with a VL GGUF | `vlm`, `captioning` |
+  | Multimodal model, **:8080** | same, on that port | `facedescription` |
+  | MinIO | `./start-minio.sh` | `s3-source`, `s3-sink` |
+  | Depth sidecar, :9120 | `sidecars/depth/{setup,run}.sh` | `depthmap`, `scene-layout` |
+  | Sentiment sidecar, :9110 | `sidecars/sentiment/{setup,run}.sh` | `sentiment` |
+  | TTS sidecar, :9100 | `sidecars/tts/{setup,run}.sh` | `tts` |
+  | Diffusers sidecar, :9200 | `sidecars/ideogram-sidecar` (SDXL-Turbo by default) | `imagegen` |
+  | A ggml Whisper model on disk | `whisper.cpp/models/download-ggml-model.sh` | `whisper` |
+  | LTX-2 sidecar, :9220 | `sidecars/ltx2-sidecar/{setup,run}.sh` | `videogen` |
+  | A YOLO ONNX model + class names | yolo4j ships `YOLOv11n_voc.onnx` / `voc.names` | `objectdetect` |
+  | A Loom server on the pooled test DB | `./setup-pool.sh`, then `DocsLoomFixtureGenerator` | `dedup` |
+
+* **The vision requirement checks for multimodality, not for a server.** A text-only model on the
+  right port answers every request these three nodes make — it just answers them without having seen
+  the picture, which is the most misleading thing this harness could publish. `Probe.bodyContains`
+  reads `/v1/models` and requires `multimodal`; a text model there counts as *not available*.
+* **`facedescription` reads its backend from a `public static final String`**, not from its options,
+  so it can only be photographed with vision on 8080 — where the text model for `llm`/`translate`/
+  `filter` also lives. The two cannot be up at once. That is a constraint of the node, not of this
+  harness.
 
 ### The gate
 
@@ -402,11 +451,17 @@ to catch — a node that shipped with no page — is invisible in the built site
 `loom-ui/scripts/fixtures/nodes/status.json`:
 
 * `"status": "blocked"` additionally requires the page itself to carry the entry's `reason` verbatim,
-  so a node nobody can photograph is a reviewed statement a reader sees, not a silent hole. `whisper`
-  is the only one: MetaLoom ships no weights and no Whisper model is on the build machine.
+  so a node nobody can photograph is a reviewed statement a reader sees, not a silent hole. There is
+  no blocked entry today — `whisper` was the last one and now has real weights and a real transcript.
 * `"status": "pending"` is allowed quietly but printed as a countdown on every build.
 * `"pictures"` names which of the two a page is excused from, defaulting to `["debug"]` — a missing
   config panel is nearly always an oversight, since it needs nothing.
+
+The debug picture is normally the **node card**. `node-capture-plan.mjs` can set
+`view: "run-detail"` instead, which shoots the node detail sidebar's Results tab. Exactly one page
+uses it — `dedup`, whose kinds declare no output ports, so `NodeResultStrip` renders nothing and the
+card is a title over an empty body. The Results tab states the task's state, its duration and an
+explicit "no outputs were recorded", which is what the product genuinely shows for that node.
 
 ## The detection player (`detectionplayer`)
 
@@ -833,10 +888,16 @@ review**.
 - [x] Cortex docs: configuration, monitoring, metrics, artifacts, containers, examples
       (Java node, Java daemon, Python worker)
 - [x] **34 node pages** under `docs/nodes/`, each with a generated `nodeviz` diagram + the type legend
-- [x] A settings-panel screenshot on **every** node page, and a real debug view on **23 of 35** —
+- [x] A settings-panel screenshot and a real debug view on **all 35** node pages that have a staged
+      descriptor (the 36th, `guard`, landed after and is recorded as pending) —
       everything that runs offline, both S3 nodes against MinIO, both cloud sources against the Drive
-      stub, and `llm`/`translate`/`filter` against a real language model; plus the fixture harness,
-      both capture scripts and the build gate that keeps the remainder visible
+      stub, `llm`/`translate`/`filter` against a real language model, `vlm`/`captioning`/
+      `facedescription` against a real vision model, `sentiment`/`depthmap`/`tts`/`imagegen` against
+      their real sidecars, `whisper` against real weights, and `scene-layout` against a real depth map
+      and real boxes measured on the same frame, `objectdetect` against a real YOLO ONNX model,
+      `dedup` against a real Loom with a real duplicate, and `videogen` against a real LTX-2 (49
+      frames with a synchronised audio track); plus the fixture harness, both capture scripts and the
+      build gate that keeps any newcomer visible
 - [x] Playbooks: docker, kubernetes, transcription, scene-analysis, translation, python-node
       (incl. a paste-ready coding-agent prompt hardened against four real generation failures)
 - [x] Legal section: Apache-2.0 hub, model licenses, AI disclosure, Austrian Impressum
@@ -869,17 +930,13 @@ review**.
       [../loom/GRPC.md](../loom/GRPC.md).
 - [ ] **No `docs/nodes/loom/` page** for the Loom sink node (`cortex/nodes/loom/`), and no page for
       the `loom-fetch` source. The sink is the node every "write results back" pipeline ends on.
-- [ ] **12 of the 35 node pages still have no `debug.png`.** `check-node-screenshots.mjs` prints the
-      count on every build and `loom-ui/scripts/fixtures/nodes/status.json` carries the reason and the
-      command for each. They fall into four groups, none of which is about the harness:
-      **no Python environment** for the five FastAPI sidecars (`sentiment`, `tts`, `depthmap`,
-      `imagegen`, `videogen`) — `python3 -m venv` fails here because `python3-venv` is not installed,
-      and the stack needs torch; **no vision model downloaded** (`vlm`, `captioning`,
-      `facedescription` — the last one hardcodes port 8080, so it needs vision *there*);
-      **`scene-layout`**, which needs a real depth map and so follows `depthmap`; **`whisper`**
-      (`blocked`, not pending — no ggml model on disk); **`dedup`**, which declares no output ports at
-      all and therefore needs the run-detail view rather than the node card; and **`objectdetect`**,
-      which landed mid-flight.
+- [ ] **The `guard` node page has neither picture.** It landed while these were being taken and its
+      descriptor is not staged into `website/static/pipeline-editor/node-descriptors.json` yet — the
+      config panel is rendered from that file, so neither picture can be taken until it is; the debug
+      view then needs a real guardrail model. Recorded as `pending` in
+      `loom-ui/scripts/fixtures/nodes/status.json`, and `check-node-screenshots.mjs` prints the count
+      on every build. **This is the gate doing its job**: a node page that shipped without pictures
+      was caught by the build rather than by a reader.
 - [ ] **No docs page links to `/pipeline-editor/`.** `docs/pipeline/` and `docs/nodes/_index.adoc`
       are the natural places to send a reader who wants to *try* the model.
 - [ ] Several node pages still name Java option classes (`FacedetectNodeOptions`,
@@ -913,7 +970,8 @@ review**.
 ---
 
 _Git HEAD revision: `fcf6ea7d`_
-_Last updated: 2026-08-05 (docs sidebar reduced to one themed scroller; nodeviz port text measured
+_Last updated: 2026-08-06 (docs sidebar reduced to one themed scroller; nodeviz port text measured
 and wrapped; a detection player on the pipeline and facedetect pages built from a real facedetect
-run; settings-panel screenshots on all node pages and debug views on the ones that run offline, with
-the `DocsFixtureGenerator` harness, two capture scripts and the `check-node-screenshots.mjs` gate)_
+run; settings-panel screenshots and real debug views on every node page with a staged descriptor,
+with the `DocsFixtureGenerator` harness, two capture scripts and the `check-node-screenshots.mjs`
+gate)_

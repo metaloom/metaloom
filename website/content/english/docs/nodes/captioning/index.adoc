@@ -58,6 +58,18 @@ image::config.png[The Image Captioning settings panel, which offers only the com
 | `videoPrompt` | The instruction sent to the video model
 |===
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run over `pexels-jack-sparrow-5977265.mp4` through the **video** branch:
+the node sampled eight frames from the clip and asked one question about all of them at once.
+
+image::debug.png[The captioning node after a run, with the sentence it produced for the clip,role=img-fluid]
+
+One port, one sentence — which is the point of this node. The two input branches are different
+backends, not two ways into the same one: `image` goes to a SmolVLM server with a caption endpoint of
+its own, and `video` goes to an OpenAI-compatible endpoint as a batch of frames.
+
 == Use Cases
 
 * **Alt text / accessibility** — auto-generate descriptions for images and clips.

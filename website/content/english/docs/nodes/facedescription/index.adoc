@@ -30,6 +30,19 @@ image::config.png[The Face Description settings panel: Max Face Angle (deg),role
 Uses the model-service connection shared with the LLM/captioning family. There is nothing to
 configure about where the faces come from — connect the `detections` port and the node follows it.
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run over a frame with two people in it, fed the boxes
+link:../facedetect/[Facedetect] found in that same frame.
+
+image::debug.png[The facedescription node after a run, with one description per incoming face,role=img-fluid]
+
+Two boxes in, two descriptions out, aligned by element index — that alignment is why a face that
+cannot be described still emits an empty document rather than being skipped. Each description is the
+JSON the prompt asks for: eye state, mouth state, an age estimate, whether the face is frontal or in
+profile.
+
 == Use Cases
 
 * **Searchable people descriptions** — "man with glasses, outdoors" style text for retrieval.

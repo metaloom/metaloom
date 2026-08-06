@@ -1,0 +1,36 @@
+{
+  "kind" : "whisper",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "ffmpeg on the path",
+  "state" : "COMPLETED",
+  "durationMs" : 560991,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/jfk-16k-mono.wav"
+  },
+  "nodeData" : {
+    "modelPath" : "ggml-large-v3-turbo.bin",
+    "useGpu" : true
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "audio"
+  } ],
+  "outputs" : {
+    "transcript" : {
+      "contentType" : "text/transcript",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"segments\":[{\"text\":\" There is no strife.\",\"from\":0,\"to\":134},{\"text\":\" No prejudice?\",\"from\":0,\"to\":64},{\"text\":\" No national conflict in outer space as yet.\",\"from\":0,\"to\":268},{\"text\":\" Its hazards are hostile to us all.\",\"from\":0,\"to\":198},{\"text\":\" Its conquest deserves the best\",\"from\":0,\"to\":186},{\"text\":\" of all mankind.\",\"from\":0,\"to\":102},{\"text\":\" and its opportunity\",\"from\":0,\"to\":102},{\"text\":\" for peaceful cooperation may never come again.\",\"from\":0,\"to\":256},{\"text\":\" But why, some say, the moon?\",\"from\":0,\"to\":154},{\"text\":\" Why choose this as our goal?\",\"from\":0,\"to\":172},{\"text\":\" And they may well ask\",\"from\":0,\"to\":102},{\"text\":\" Why climb the highest mountain?\",\"from\":0,\"to\":134},{\"text\":\" Live.\",\"from\":0,\"to\":26},{\"text\":\" 35 years ago.\",\"from\":0,\"to\":108},{\"text\":\" fly the Atlantic.\",\"from\":0,\"to\":76},{\"text\":\" Why does Rice play Texas?\",\"from\":0,\"to\":140},{\"text\":\" We choose to go to the moon.\",\"from\":0,\"to\":186},{\"text\":\" We choose to go to the moon in this decade and do the other thing.\",\"from\":0,\"to\":1236},{\"text\":\" not because they are easy,\",\"from\":0,\"to\":166},{\"text\":\" but because they are hard.\",\"from\":0,\"to\":134},{\"text\":\" Because that goal\",\"from\":0,\"to\":116},{\"text\":\" will serve to organize and measure the best\",\"from\":0,\"to\":262},{\"text\":\" of our energies and skills.\",\"from\":0,\"to\":134},{\"text\":\" because that challenge is one that we're willing to accept\",\"from\":0,\"to\":320},{\"text\":\" One we are unwilling to postpone.\",\"from\":0,\"to\":198},{\"text\":\" and one we intend to win.\",\"from\":0,\"to\":148},{\"text\":\" and the others too.\",\"from\":0,\"to\":108},{\"text\":\" Thank you.\",\"from\":0,\"to\":512}]}"
+      } ]
+    }
+  },
+  "previews" : { }
+}

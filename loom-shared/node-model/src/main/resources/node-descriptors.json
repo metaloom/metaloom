@@ -1065,6 +1065,158 @@
   "defaultBlocking" : true,
   "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
 }, {
+  "nodeId" : "guard",
+  "kind" : "guard",
+  "name" : "Content Guard",
+  "description" : "Classify text or images against a harm taxonomy with a guardrail model (Llama Guard, ShieldGemma, Granite Guardian) and gate the branch on the verdict.",
+  "icon" : "shield",
+  "category" : "ANALYSIS",
+  "inputPorts" : [ {
+    "id" : "text",
+    "label" : "Text",
+    "contentType" : "text/*",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "The prose to classify - a transcript, document body, OCR result or caption. Leave unwired to classify the item's pixels instead"
+  }, {
+    "id" : "media",
+    "label" : "Image",
+    "contentType" : "media/image",
+    "cardinality" : "ONE",
+    "required" : false,
+    "description" : "The item's pixels, classified when the asset is an image. Needs a multimodal guard model (Llama Guard 4 or ShieldGemma 2) served by vLLM"
+  } ],
+  "outputPorts" : [ {
+    "id" : "safe",
+    "label" : "Safe",
+    "contentType" : "control/filter",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "True when the item is below the threshold. Wire a node behind this port to run it only on safe items"
+  }, {
+    "id" : "label",
+    "label" : "Label",
+    "contentType" : "scalar/string",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "'safe' or 'unsafe'"
+  }, {
+    "id" : "score",
+    "label" : "Score",
+    "contentType" : "scalar/number",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "P(unsafe) in [0,1], comparable across the three model families"
+  }, {
+    "id" : "categories",
+    "label" : "Categories",
+    "contentType" : "scalar/string",
+    "cardinality" : "MANY",
+    "required" : true,
+    "description" : "The canonical harm categories that were flagged, one element each"
+  }, {
+    "id" : "result",
+    "label" : "Result",
+    "contentType" : "struct/json",
+    "cardinality" : "ONE",
+    "required" : true,
+    "description" : "The stored verdict: score, threshold, per-category scores and the model's raw answer"
+  } ],
+  "inputGroups" : [ ],
+  "outputGroups" : [ ],
+  "dynamicPorts" : false,
+  "parameters" : [ {
+    "key" : "enabled",
+    "type" : "BOOLEAN",
+    "defaultValue" : true,
+    "label" : "Enabled",
+    "description" : "Whether this node is active in the pipeline"
+  }, {
+    "key" : "processIncomplete",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Process Incomplete",
+    "description" : "Process media files that are still being written"
+  }, {
+    "key" : "retryFailed",
+    "type" : "BOOLEAN",
+    "defaultValue" : false,
+    "label" : "Retry Failed",
+    "description" : "Retry processing media that previously failed"
+  }, {
+    "key" : "family",
+    "type" : "ENUM",
+    "defaultValue" : "LLAMA_GUARD_3",
+    "label" : "Model Family",
+    "description" : "Which guard model is being served. Selects the prompt format, the harm taxonomy and how many calls one verdict takes",
+    "values" : [ "LLAMA_GUARD_3", "LLAMA_GUARD_4", "SHIELDGEMMA", "SHIELDGEMMA_2", "GRANITE_GUARDIAN" ]
+  }, {
+    "key" : "model",
+    "type" : "STRING",
+    "defaultValue" : "meta-llama/Llama-Guard-3-8B",
+    "label" : "Model",
+    "description" : "Model id to select on the endpoint; also recorded as part of the producer version"
+  }, {
+    "key" : "categories",
+    "type" : "ENUM_SET",
+    "defaultValue" : [ ],
+    "label" : "Categories",
+    "description" : "Harm categories to check, using the selected family's own codes. Empty checks all of them",
+    "values" : [ "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "dangerous_content", "harassment", "hate_speech", "sexually_explicit", "violence_gore", "harm", "social_bias", "jailbreak", "violence", "profanity", "sexual_content", "unethical_behavior", "harm_engagement", "evasiveness" ]
+  }, {
+    "key" : "threshold",
+    "type" : "NUMBER",
+    "defaultValue" : 0.5,
+    "label" : "Threshold",
+    "description" : "P(unsafe) at or above which the item is flagged",
+    "min" : 0.0,
+    "max" : 1.0,
+    "step" : 0.01
+  }, {
+    "key" : "maxChars",
+    "type" : "INTEGER",
+    "defaultValue" : 8000,
+    "label" : "Max Characters",
+    "description" : "Upper bound on the text sent to the model; longer input is truncated",
+    "min" : 1
+  }, {
+    "key" : "maxImageDim",
+    "type" : "INTEGER",
+    "defaultValue" : 1024,
+    "label" : "Max Image Dimension",
+    "description" : "Longest side an image is downscaled to before it is sent",
+    "min" : 64
+  }, {
+    "key" : "openaiUrl",
+    "type" : "STRING",
+    "defaultValue" : "http://127.0.0.1:8080/v1",
+    "label" : "OpenAI URL",
+    "description" : "Base URL of the OpenAI-compatible backend (llama.cpp, vLLM, Ollama /v1, ...)"
+  }, {
+    "key" : "contextWindow",
+    "type" : "INTEGER",
+    "defaultValue" : 2048,
+    "label" : "Context Window",
+    "description" : "Tokens the model is told it may use for one call",
+    "min" : 1
+  }, {
+    "key" : "apiKey",
+    "type" : "STRING",
+    "label" : "API Key",
+    "description" : "Bearer token for the endpoint. Leave empty for a local llama.cpp or vLLM"
+  }, {
+    "key" : "promptTemplate",
+    "type" : "CODE",
+    "label" : "Prompt Template",
+    "description" : "Override the family's built-in prompt. Empty uses the prompt the model was tuned against",
+    "language" : "text",
+    "rows" : 12
+  } ],
+  "defaultConcurrency" : 1,
+  "defaultMode" : "PARALLEL",
+  "defaultBlocking" : true,
+  "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+}, {
   "nodeId" : "hash-dedup",
   "kind" : "hash-dedup",
   "name" : "Hash Deduplication",

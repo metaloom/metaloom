@@ -8,6 +8,7 @@ import javax.inject.Provider;
 import io.metaloom.ai.genai.llm.openai.OpenAILLMProvider;
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.NodeInputs;
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.llm.AbstractLlmNodeOptions;
 import io.metaloom.cortex.node.filter.FilterBy;
@@ -15,6 +16,10 @@ import io.metaloom.cortex.node.filter.FilterNode;
 import io.metaloom.cortex.node.filter.FilterNodeOptions;
 import io.metaloom.cortex.node.filter.FilterStrategy;
 import io.metaloom.cortex.node.filter.LanguageFilterStrategy;
+import io.metaloom.cortex.node.guard.GuardClient;
+import io.metaloom.cortex.node.guard.GuardFamily;
+import io.metaloom.cortex.node.guard.GuardNode;
+import io.metaloom.cortex.node.guard.GuardNodeOptions;
 import io.metaloom.cortex.node.llm.LLMNode;
 import io.metaloom.cortex.node.llm.LLMNodeOptions;
 import io.metaloom.cortex.node.llm.LLMNodePrompt;
@@ -53,6 +58,15 @@ public final class LlmRecipes {
 
 	private static final String HINT =
 		"start an OpenAI-compatible server on 8080 — `cd loom-test-env/llamacpp && PORT=8080 ./start.sh`";
+
+	/**
+	 * The guard node needs a <em>guardrail</em> model rather than a chat model, and 1B is plenty: it
+	 * is a classifier, and the small one separates this sample as cleanly as the 8B does.
+	 */
+	private static final String GUARD_MODEL = System.getProperty("loom.docsGuardModel", "QuantFactory/Llama-Guard-3-1B-GGUF:Q8_0");
+
+	private static final String GUARD_HINT =
+		"`cd loom-test-env/llamacpp && MODEL=" + GUARD_MODEL + " PORT=8080 ./start.sh`";
 
 	private LlmRecipes() {
 	}
@@ -116,6 +130,59 @@ public final class LlmRecipes {
 				NodeInputs.builder().input(TranslateNode.IN_TEXT, TRANSCRIPT).build());
 			return new Outcome(node.process(ctx), env.displayPath(media),
 				new JsonObject().put("sourceLanguage", "de").put("targetLanguage", "en").put("model", MODEL));
+		});
+	}
+
+	/**
+	 * The same complaint, escalated into a threat.
+	 *
+	 * <p>
+	 * The benign {@link #TRANSCRIPT} would come back safe with an empty category list, which is a
+	 * picture of a guard node finding nothing — the one thing the page cannot use, because the whole
+	 * subject is what a flagged verdict looks like. Continuing the shared story instead of inventing
+	 * an unrelated sample keeps the catalogue readable: a reader following it sees one delivery
+	 * complaint translated, routed, scored, and now screened.
+	 * </p>
+	 */
+	static final String THREAT =
+		"Guten Tag. Wir haben die Lieferung heute erhalten, aber zwei Kartons waren beschädigt. "
+			+ "Wenn Sie sich nicht sofort melden, komme ich in Ihr Büro und schlage Ihren Mitarbeiter zusammen.";
+
+	/**
+	 * Screening, against a real guard model.
+	 *
+	 * <p>
+	 * The requirement is the same reachability check as the other three, and it is deliberately not
+	 * enough on its own: a chat model on 8080 answers this prompt fluently and wrongly, which is
+	 * exactly the "picture of a decision nothing made" this package exists to prevent. So the recipe
+	 * also checks the answer <em>is</em> a verdict before letting it become a fixture. Start the
+	 * right model with
+	 * {@code MODEL=QuantFactory/Llama-Guard-3-1B-GGUF:Q8_0 PORT=8080 loom-test-env/llamacpp/start.sh}.
+	 * </p>
+	 */
+	public static DocsFixtureRecipe guard() {
+		return recipe("guard", List.of(new Upstream("whisper", "transcript", "text")), env -> {
+			// Stock defaults except the model id, which has to name what the local server serves.
+			GuardNodeOptions options = new GuardNodeOptions()
+				.setFamily(GuardFamily.LLAMA_GUARD_3)
+				.setModel(GUARD_MODEL);
+			GuardNode node = new GuardNode(null, env.cortexOptions("guard"), options,
+				new GuardClient(options.openaiUrl(), options.getApiKey()));
+			node.initialize();
+			var media = env.video1();
+			NodeContext<LoomMedia> ctx = NodeContext.create(env.media(media),
+				NodeInputs.builder().input(GuardNode.IN_TEXT, THREAT).build());
+
+			NodeResult result = node.process(ctx);
+			String raw = new JsonObject(result.get(GuardNode.OUT_RESULT)).getString("raw", "");
+			if (!raw.startsWith("safe") && !raw.startsWith("unsafe")) {
+				throw new IllegalStateException("guard: the model on " + options.openaiUrl() + " answered "
+					+ "\"" + raw + "\", which is not a Llama Guard verdict. A chat model will answer this "
+					+ "prompt fluently and wrongly — start a guard model instead: " + GUARD_HINT);
+			}
+			return new Outcome(result, env.displayPath(media),
+				new JsonObject().put("family", options.getFamily().name()).put("model", GUARD_MODEL)
+					.put("threshold", options.getThreshold()));
 		});
 	}
 

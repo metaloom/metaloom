@@ -23,7 +23,7 @@ production.
 | [`ideogram-sidecar/`](./ideogram-sidecar) | `imagegen` (`io.metaloom.cortex.node.imagegen`) | Image generation — SDXL-Turbo by default, Ideogram 4 if you accept its gate, `POST /generate` + `/remix` | `9200` |
 | [`mage-flow-sidecar/`](./mage-flow-sidecar) | `imagegen` (same node, `port` option) | Image generation + instruction editing — Mage-Flow 4B, **MIT weights**, `POST /generate` + `/remix` | `9210` |
 | [`ltx2-sidecar/`](./ltx2-sidecar) | `videogen` (`io.metaloom.cortex.node.videogen`) | Text/image-to-video — LTX-2 19B, `POST /generate` + `/animate` → `video/mp4` | `9220` |
-| [`llamacpp/`](./llamacpp) | `llm` (`io.metaloom.cortex.node.llm`), `translate` | LLM — llama.cpp's official server image, OpenAI chat-completions at `/v1` | `8080` |
+| [`llamacpp/`](./llamacpp) | `llm` (`io.metaloom.cortex.node.llm`), `translate`, `guard` | LLM — llama.cpp's official server image, OpenAI chat-completions at `/v1` | `8080` |
 
 `llamacpp` breaks the pattern the other six share: it is **not** a Python server of ours but three
 shell scripts around `ghcr.io/ggml-org/llama.cpp:server-cuda`, it runs under **docker or podman**,
@@ -49,6 +49,7 @@ Not every model-backed node ships a sidecar here — several reuse an external s
 |------|----------------------|
 | `whisper` (ASR) | whisper.cpp, **in-process** in the worker — no sidecar |
 | `captioning` / `vlm` | An external **OpenAI-compatible** vision endpoint (default `:8000`) |
+| `guard` | This same sidecar, with a **guardrail** model loaded instead of a chat model — every text guard family (Llama Guard 3/4, ShieldGemma, Granite Guardian) has published GGUF quantizations. It calls `POST /v1/completions` with `logprobs`, not `/v1/chat/completions`, because a guard model's answer is the probability of its decision token. ⚠️ **Image screening cannot use this sidecar**: llama.cpp serves neither multimodal guard model — no `mmproj` projector is published for Llama Guard 4 and `shieldgemma-2-4b` has no GGUF conversion — so `guard` on pictures needs vLLM |
 | `facedescription` | An external **OpenAI-compatible** vision endpoint. ⚠️ Its URL is **hardcoded** to `http://127.0.0.1:8080/v1` — the same port `llamacpp/` uses. A text-only model there answers without ever seeing the image |
 
 When one of these grows an in-repo model server (e.g. a future `asr` or `vlm` sidecar), add it

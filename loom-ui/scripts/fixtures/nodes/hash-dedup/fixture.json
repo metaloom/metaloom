@@ -1,0 +1,23 @@
+{
+  "kind" : "hash-dedup",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsLoomFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "loom server (pooled test database)",
+  "state" : "COMPLETED",
+  "durationMs" : 24,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/duplicates-in/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "dupFolder" : "duplicates",
+    "dryRun" : false
+  },
+  "upstream" : [ {
+    "kind" : "sha512",
+    "sourcePort" : "sha512",
+    "targetPort" : "hash"
+  } ],
+  "outputs" : { },
+  "previews" : { }
+}

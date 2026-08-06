@@ -57,6 +57,17 @@ Each entry under `prompts` configures one task:
 Configured with no prompts the node falls back to the olmOCR preset, so pointing `endpointUrl` at a
 running olmOCR server is enough to get document transcription.
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run over a scanned page, with one prompt configured — `transcription` —
+asking the model to transcribe what it can see.
+
+image::debug.png[The VLM node after a run, with the page transcription it emitted,role=img-fluid]
+
+The port is named after the prompt: configure two prompts and you get two ports. This run went to a
+locally served Qwen2.5-VL; the page it read is German, and nothing in the prompt said so.
+
 == Running olmOCR
 
 The preset targets `allenai/olmOCR-2-7B-1025-FP8`. Serve it with vLLM:

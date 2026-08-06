@@ -81,10 +81,20 @@ The node takes both from options (`modelPath`, `labelsPath`), so the model side 
 | Model | License | What the condition means
 
 | `google/gemma-2-27b-it` (link:../../nodes/llm/[LLM node] default) +
-`google/gemma-3-27b-it` (link:../../nodes/facedescription/[Face Description] default)
+`google/gemma-3-27b-it` (link:../../nodes/facedescription/[Face Description] default) +
+`google/shieldgemma-*` and `google/shieldgemma-2-4b-it` (link:../../nodes/guard/[Content Guard], `SHIELDGEMMA` families)
 | Gemma Terms of Use
 | Not an OSI license. Commercial use is permitted, but you accept a Prohibited Use Policy and must
   pass the same terms (and the use restrictions) on to anyone you distribute the model or a derivative to.
+
+| `meta-llama/Llama-Guard-3-8B` (link:../../nodes/guard/[Content Guard] default) +
+`meta-llama/Llama-Guard-4-12B`
+| Llama 3.3 / Llama 4 Community License — repositories are **gated** on Hugging Face
+| Commercial use is permitted below a large-scale-user threshold (700 M monthly active users), above
+  which you must request a separate license from Meta. An Acceptable Use Policy applies, derivatives
+  must carry the "Llama" name, and you must accept the gate to download the weights. +
+  *Permissively licensed alternative:* `ibm-granite/granite-guardian-3.*` is Apache-2.0 and the node
+  supports it with `family: GRANITE_GUARDIAN`.
 
 | `SebastianBodza/Kartoffel_Orpheus-3B_german_natural-v0.1` (German link:../../nodes/tts/[TTS] voice)
 | Llama 3.2 Community License (Llama-3.2 backbone) — repository is **gated** on Hugging Face
@@ -183,6 +193,21 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | Gemma Terms of Use — see link:#conditional[conditions]
 | ⚠️ Conditional
 
+| link:../../nodes/guard/[Content Guard] — default
+| `meta-llama/Llama-Guard-3-8B` (`model`) via an OpenAI-compatible provider
+| Llama 3.3 Community License, gated — see link:#conditional[conditions]
+| ⚠️ Conditional
+
+| link:../../nodes/guard/[Content Guard] — ShieldGemma
+| `google/shieldgemma-2b`/`-9b`/`-27b`, `google/shieldgemma-2-4b-it` (`family: SHIELDGEMMA`, `SHIELDGEMMA_2`)
+| Gemma Terms of Use — see link:#conditional[conditions]
+| ⚠️ Conditional
+
+| link:../../nodes/guard/[Content Guard] — Granite Guardian
+| `ibm-granite/granite-guardian-3.*` (`family: GRANITE_GUARDIAN`)
+| Apache-2.0
+| ✅ Yes
+
 | link:../../nodes/facedetect/[Face Detection]
 | InspireFace runtime + model pack, default `packs/Pikachu` (`inspirefacePackPath`)
 | Code Apache-2.0; **model packs follow InsightFace — academic use only**
@@ -258,6 +283,10 @@ configuration stays inside permissive licenses:
   link:../../nodes/tts/[Text-to-Speech] (Apache-2.0, ungated) instead of the Kartoffel checkpoint.
 * **Replace the Gemma defaults** in the link:../../nodes/llm/[LLM] node with an Apache-2.0 or
   MIT-licensed instruct model, unless the Gemma Terms of Use are acceptable to you.
+* **Set the link:../../nodes/guard/[Content Guard] node to `family: GRANITE_GUARDIAN`** with an
+  `ibm-granite/granite-guardian-3.*` model. It is the only Apache-2.0 option of the three families,
+  so it needs neither the Llama community license nor the Gemma terms. It is text-only; screening
+  pictures means accepting one of the other two.
 * **Verify the FFmpeg build** in your container base if you redistribute images.
 
 [#verify]

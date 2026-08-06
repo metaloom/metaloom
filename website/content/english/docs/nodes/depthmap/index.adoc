@@ -76,6 +76,20 @@ image::config.png[The Depth Map settings panel: Sidecar Host, Sidecar Port, Dept
 | `timeoutMs` | How long to wait for the sidecar, default 120000
 |===
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node over `pexels-photo-2379005.jpeg`, a portrait taken
+against a wall — a subject with an obvious near thing and an obvious far thing behind it.
+
+image::debug.png[The depthmap node after a run, showing the depth map it produced and the metadata describing it,role=img-fluid]
+
+The `map` port carries an artifact, so the card shows it rather than its path: the head is bright
+because bright means *near*. `meta` carries the model, the map's dimensions and the quantiles a
+consumer needs to read those greys; `flag` records how the node finished.
+
+image::debug-detail.png[The depth map opened from the card - a 16-bit grayscale estimate of the portrait,role=ml-panel-shot]
+
 == Requirements and models
 
 The default model is **Depth Anything V2 Small**, published under Apache 2.0 and usable

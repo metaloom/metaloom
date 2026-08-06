@@ -1,6 +1,6 @@
 # llama.cpp Sidecar (`sidecars/llamacpp`) — Technical Specification
 
-> **Audience: AI coding agents.** The LLM backend the `llm` (and `translate`) node calls: llama.cpp's
+> **Audience: AI coding agents.** The LLM backend the `llm` (and `translate`, `guard`) node calls: llama.cpp's
 > `llama-server` in its official container on **:8080**, speaking the OpenAI chat-completions
 > protocol. This file covers the **sidecar only** (scripts, image, HTTP surface, env, deployment).
 > The Java nodes, their prompts, ports and persistence live in
@@ -177,6 +177,7 @@ long input — short prompts work fine at any combination, which is what makes i
 |---|---|---|---|
 | `llm` | `openaiUrl` (`AbstractLlmNodeOptions`) | `http://127.0.0.1:8080/v1` | ✅ out of the box — the default *is* this sidecar's port |
 | `translate` | `openaiUrl` (same base class) | `http://127.0.0.1:8080/v1` | ✅ same |
+| `guard` | `openaiUrl` (same base class) | `http://127.0.0.1:8080/v1` | ✅ same, **but the model has to be a guard model** — start with `MODEL=QuantFactory/granite-guardian-3.0-2b-GGUF:Q4_K_M` or a Llama Guard / ShieldGemma GGUF. It calls `/v1/completions` with `logprobs`, not `/v1/chat/completions`, and cannot screen images here (no multimodal guard GGUF exists) |
 | `vlm` | `endpointUrl` (`VlmNodeOptions`) | `http://127.0.0.1:8000` | ❌ different port **and** needs a vision model |
 | `captioning` | `videoEndpointUrl` + `smolVLMHost`/port | `http://localhost:8000` | ❌ vision, as above |
 | `facedescription` | 🔴 **hardcoded** `FacedescriptionNode.URL` | `http://127.0.0.1:8080/v1` | ⚠️ **same port, wrong modality** — see below |

@@ -1,0 +1,58 @@
+{
+  "kind" : "imagegen",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:imagegen sidecar (http://127.0.0.1:9200/health)",
+  "state" : "COMPLETED",
+  "durationMs" : 1845,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "mode" : "REMIX",
+    "prompt" : "the same portrait as an oil painting, warm light, visible brush strokes",
+    "strength" : 0.55,
+    "steps" : 6,
+    "seed" : 7
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "DONE"
+      } ]
+    },
+    "image" : {
+      "contentType" : "artifact/image",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "/tmp/docs-fixture-imagegen2974202842103318127/imagegen_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15.png"
+      } ]
+    }
+  },
+  "previews" : {
+    "image" : {
+      "file" : "image.jpg",
+      "mimeType" : "image/jpeg",
+      "width" : 413,
+      "height" : 512
+    }
+  }
+}

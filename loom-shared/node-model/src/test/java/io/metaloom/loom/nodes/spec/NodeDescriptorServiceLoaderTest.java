@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(41, registry.size(),
-			"Expected 41 advertised node kinds but found " + registry.size()
+		assertEquals(42, registry.size(),
+			"Expected 42 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -94,7 +94,8 @@ public class NodeDescriptorServiceLoaderTest {
 			"imagegen",           // text-to-image / image-to-image sidecar
 			"watermark",          // composite a configured overlay onto image or video
 			"image-manipulation", // autorotate, crop, reframe and resize an image in one pass
-			"tag"                 // rule-driven tagging; the terminal that makes a computed value searchable
+			"tag",                // rule-driven tagging; the terminal that makes a computed value searchable
+			"guard"               // content safety classification behind one kind for three model families
 		};
 
 		for (String kind : expected) {

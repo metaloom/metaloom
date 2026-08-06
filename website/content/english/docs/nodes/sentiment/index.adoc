@@ -75,6 +75,19 @@ pipeline wires link:../ocr/[OCR]'s `text`, and a photo pipeline wires
 link:../captioning/[captioning]'s `caption`. Wanting all three in one pipeline means one sentiment
 node per source, each with its own row.
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run over a German complaint — _"Wir haben die Lieferung heute erhalten,
+aber zwei Kartons waren beschädigt"_ — at the shipped `language: auto`.
+
+image::debug.png[The sentiment node after a run, with the label, score and full result it emitted,role=img-fluid]
+
+The strip lists what each output port carried — `label`, `score`, `result`. The interesting part is
+in `result`: the sidecar detected `de` and routed to the German checkpoint on its own, which is what
+`auto` buys you. The same text scored by an English model would be a different number about a
+sentence it did not understand.
+
 == Use Cases
 
 * **Review and feedback triage** — surface the most negative documents in an ingest first.

@@ -55,8 +55,16 @@ public final class DocsFixtureWriter {
 
 	private final Path root;
 
+	/** Which generator wrote the fixture — the dedup one is a different class, see {@code generatedBy}. */
+	private final String generatedBy;
+
 	public DocsFixtureWriter(Path root) {
+		this(root, DocsFixtureGenerator.class.getName());
+	}
+
+	public DocsFixtureWriter(Path root, String generatedBy) {
 		this.root = root;
+		this.generatedBy = generatedBy;
 	}
 
 	/**
@@ -92,7 +100,7 @@ public final class DocsFixtureWriter {
 		// that is fixed in the product, "SUCCESS with no outputs at all" is the only signal this
 		// generator has, and it has to be treated as the failure it usually is. A node that
 		// genuinely emits nothing has nothing for a debugging view to show either way.
-		if (result.getOutputs().isEmpty()) {
+		if (result.getOutputs().isEmpty() && !recipe.emitsNoPorts()) {
 			throw new IllegalStateException(recipe.kind() + ": the node reported success but emitted "
 				+ "nothing on any port. That is also how a caught exception surfaces — see "
 				+ "NodeContextImpl.next() — so check the service's own log before trusting the state");
@@ -105,6 +113,15 @@ public final class DocsFixtureWriter {
 		if ("FAILED".equals(flag)) {
 			throw new IllegalStateException(recipe.kind() + ": the node emitted flag=FAILED. The "
 				+ "result state says otherwise, and the flag is the one the node actually set");
+		}
+
+		// And the quietest failure of all: every port populated, nothing in any of them. Whisper
+		// answered `{"segments":[]}` for a video with no audio stream — a green node, one port, a
+		// well-formed payload, and no transcript. Nothing above catches that, and it would have
+		// shipped as a picture of a working transcriber.
+		if (allEmpty(result) && !recipe.emitsNoPorts()) {
+			throw new IllegalStateException(recipe.kind() + ": every output port is empty. The node "
+				+ "ran and produced nothing — check the input it was given before blaming the node");
 		}
 
 		Path dir = root.resolve(recipe.kind());
@@ -152,7 +169,7 @@ public final class DocsFixtureWriter {
 
 		JsonObject fixture = new JsonObject()
 			.put("kind", recipe.kind())
-			.put("generatedBy", DocsFixtureGenerator.class.getName())
+			.put("generatedBy", generatedBy)
 			// "real" means the node ran against the thing it talks to in production. The capture
 			// refuses anything else outside a reviewed allowlist, because a stubbed backend produces
 			// a screenshot of a decision nothing made.
@@ -207,6 +224,32 @@ public final class DocsFixtureWriter {
 		}
 		Object value = output.values().get(0);
 		return value == null ? null : String.valueOf(value);
+	}
+
+	/**
+	 * Did every port come back with nothing in it?
+	 *
+	 * <p>
+	 * "Nothing" is deliberately generous: no elements, a null, a blank string, an empty JSON array
+	 * or an empty JSON object. Those are all the shapes a node's zero-result looks like, and none of
+	 * them is worth a screenshot. One port carrying anything at all is enough to pass — a node that
+	 * legitimately reports "no faces here" alongside a count is still saying something.
+	 * </p>
+	 */
+	private static boolean allEmpty(NodeResult result) {
+		for (var output : result.getOutputs().values()) {
+			for (Object value : output.values()) {
+				if (value == null) {
+					continue;
+				}
+				String text = String.valueOf(value).strip();
+				if (!text.isEmpty() && !"[]".equals(text) && !"{}".equals(text)
+					&& !text.replaceAll("\\s+", "").matches("\\{\"\\w+\":\\[\\]\\}")) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	private static JsonArray upstreamOf(DocsFixtureRecipe recipe) {

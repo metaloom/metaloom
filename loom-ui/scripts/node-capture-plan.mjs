@@ -15,11 +15,19 @@
 // Ordered as the docs sidebar orders them (alphabetically by directory), so a capture run reads in
 // the same order a reader browses.
 
-/** @type {{page: string, kind: string, alsoKinds?: string[], nodeData?: object}[]} */
+/**
+ * `view: "run-detail"` shoots the node detail sidebar's Results tab instead of the node card. Only
+ * `dedup` needs it, and for a structural reason: its kinds declare no output ports at all, so
+ * `NodeResultStrip` renders nothing and the card is a title with an empty body. The Results tab at
+ * least states that the node ran, how long it took and that it produced nothing — which is the node's
+ * actual shape, not a gap in the picture.
+ *
+ * @type {{page: string, kind: string, alsoKinds?: string[], nodeData?: object, view?: "card" | "run-detail"}[]}
+ */
 export const PAGES = [
   { page: "captioning", kind: "captioning" },
   { page: "consistency", kind: "consistency" },
-  { page: "dedup", kind: "hash-dedup", alsoKinds: ["fingerprint-dedup", "fingerprint-dedup-apply"] },
+  { page: "dedup", kind: "hash-dedup", alsoKinds: ["fingerprint-dedup", "fingerprint-dedup-apply"], view: "run-detail" },
   { page: "depthmap", kind: "depthmap" },
   { page: "dominant-color", kind: "dominant-color" },
   { page: "facedescription", kind: "facedescription" },
@@ -40,6 +48,7 @@ export const PAGES = [
   },
   { page: "fingerprint", kind: "fingerprint" },
   { page: "gdrive-source", kind: "gdrive-source" },
+  { page: "guard", kind: "guard" },
   { page: "hash", kind: "sha512", alsoKinds: ["md5", "sha256", "chunk-hash"] },
   { page: "image-manipulation", kind: "image-manipulation" },
   { page: "imagegen", kind: "imagegen" },

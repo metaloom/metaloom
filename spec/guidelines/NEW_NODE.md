@@ -19,7 +19,8 @@ change.
 > | Analytical, writes a **typed component** through the generic component endpoint | `cortex/nodes/metadata` | the only node using `POST /assets/:uuid/components`; also the reference for a raw → canonical mapping whose design lives in its own unit test |
 > | Wraps a **native library** with a global, single-instance lifecycle | `cortex/nodes/objectdetect` | the `ObjectDetector` seam keeps every test off the natives, and the `@Singleton` holder is where one-model-per-JVM is absorbed rather than leaked into the node |
 > | Writes into the **catalog** (tags, and later anything else Loom curates) | `cortex/nodes/tag` | resolve-or-create through the REST client, a self-written provenance component, and provenance-guarded deletion |
-> | A minimal out-of-tree example | `examples/cortex-custom-node` | the smallest thing that compiles and registers |
+> | Talks to an **OpenAI-compatible backend but needs more than text back** | `cortex/nodes/guard` | its own `java.net.http` client rather than `LlmInvoker`, because the answer is a token log-probability; also the reference for putting several incompatible model families behind one kind via a dialect seam |
+| A minimal out-of-tree example | `examples/cortex-custom-node` | the smallest thing that compiles and registers |
 > | A **source** that reaches a remote system | `cortex/nodes/cloud-source` · `cortex/s3-common` | `AbstractPipelineNode implements MediaSourceNode`, a cold `stream()`, lazy media handles, and the provider seam + materializer in a sibling `*-common` module so every worker can resolve the references |
 
 ---
@@ -48,6 +49,13 @@ copy it; flat modules exist only for `filesystem-source`, `s3-source` and `cloud
   public static final InputPort<LoomMedia> IN_MEDIA  = InputPort.one("media", ContentTypeRegistry.MEDIA_ANY, LoomMedia.class);
   public static final OutputPort<String>   OUT_IMAGE = OutputPort.one("image", ContentTypeRegistry.ARTIFACT_IMAGE, String.class);
   ```
+- 🔴 **A `media/*` port names the item, not an edge.** `ValueCoercer` coerces every `media`,
+  `text`, `hash` and `artifact` value to a **String**, so an `InputPort<LoomMedia>` typed
+  `media/image` can never be satisfied by `ctx.input(PORT)` — it throws
+  `ValueCoercionException: expected a string, got StubLoomMedia`. Every image-consuming node in the
+  tree (`ocr`, `facedetect`, `objectdetect`, `vlm`, `depthmap`, `dominant-color`, `captioning`,
+  `guard`) declares such a port for the descriptor and then reads `ctx.media()`. Declare
+  `InputPort<String>` only for a genuine upstream artifact path (`artifact/image`).
 - **Read inputs by port, never by node id.** `ctx.input(PORT)` (ONE) · `ctx.optionalInput(PORT)`
   (ONE, may be absent) · `ctx.inputs(PORT)` → `List<Element<T>>` (MANY, seq-ordered and origin-tagged).
   `ctx.isWired(PORT)` tells which alternative of an XOR group fed the node; `ctx.isDemanded(PORT)` is
@@ -194,7 +202,7 @@ mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNode
 That rewrites `loom-shared/node-model/src/main/resources/node-descriptors.json`, **which is
 committed**. `NodeSpecGoldenTest` otherwise only compares, so a stale resource is a build failure
 rather than a silently outdated palette. `NodeDescriptorServiceLoaderTest` then needs its kind count
-bumped (currently **41**) and the new kind added to its `testKindsFromEachFormerModule` list; update
+bumped (currently **42**) and the new kind added to its `testKindsFromEachFormerModule` list; update
 the same number in [NODES.md §5.2](../features/nodes/NODES.md).
 
 ⚠️ **The golden test compares against the class path, not the source tree**, so after regenerating you
@@ -248,7 +256,20 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
   at a Glance" row, and a "Processing Capabilities" paragraph. Keep it customer-facing: no spec
   references, no internal class names, SVG/diagrams not ASCII art (per [CODING.md](CODING.md)). Reuse
   the `ml-nodeviz` port-diagram block from a sibling page — it renders the ports from the same ids the
-  descriptor declares. If the node pulls a new model, add its licence to
+  descriptor declares.
+  Also add a screenshot of the debug process (With real data) and a screenshot of the configuration panel.
+  Both are generated, not taken by hand: add a recipe to `integration-test/.../node/docs/` and an
+  entry to `loom-ui/scripts/node-capture-plan.mjs`, then
+  `mvn -o -pl integration-test test -Dtest=DocsFixtureGenerator -Dloom.regenerateDocsFixtures=true -Dloom.docsFixtureKinds=<kind>`
+  followed by `node scripts/capture-node-config-screenshots.mjs <page>` and
+  `node scripts/capture-node-screenshots.mjs <page>` from `loom-ui/`.
+  🔴 **The config panel is a review tool, not a formality.** Photographing `guard` caught three
+  defects nothing else did: `icon` naming a glyph absent from `ICON_MAP` in
+  `loom-ui/.../PipelineEditor.tsx` (silent fallback to the category icon), a `CODE` parameter with no
+  `language` advertising itself as `// javascript`, and a page claiming a multi-select the editor
+  does not have — **`ENUM_SET` renders as a comma-separated text field**, for every node that uses
+  it. Look at the picture before you commit it.
+  If the node pulls a new model, add its licence to
   `website/content/english/docs/legal/model-licenses/`.
 - **Spec** — add the node to [NODES.md](../features/nodes/NODES.md): the node-list table
   (§3), the persistence table (§2), the cache-key table (§4) when the key is more than the media
@@ -306,9 +327,15 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
 | Test scaffolding (`StubLoomMedia`, `AbstractNodeChainTest`, `CapturingNode`) | `cortex/pipeline-core` test-jar (`io.metaloom.cortex.pipeline.test`) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
-| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) · `cortex/nodes/objectdetect` (native-backed, and §1.4 applied) |
+| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) · `cortex/nodes/objectdetect` (native-backed, and §1.4 applied) · `cortex/nodes/guard` (one kind over three incompatible model families) |
 
 _Git HEAD revision: `fcf6ea7d`_
-_Last updated: 2026-08-05 (kind count 41 after the `objectdetect` node. Added §1.4: a node whose
+_Last updated: 2026-08-06 (kind count 42 after the `guard` node. Added the `media/*`-port trap to
+§1.1: such a port names the **item** and is read with `ctx.media()` — `ValueCoercer` turns every
+media value into a String, so `ctx.input()` on an `InputPort<LoomMedia>` always throws. Also noted
+`guard` as the template for an OpenAI-compatible node that needs log-probabilities rather than text,
+and therefore its own client instead of `LlmInvoker`.)_
+
+_Previously: 2026-08-05 (kind count 41 after the `objectdetect` node. Added §1.4: a node whose
 output has to be readable needs the read path checked, not just the write path — `objectdetect` found
 `detection.label` write-only after eight migrations of it existing)_

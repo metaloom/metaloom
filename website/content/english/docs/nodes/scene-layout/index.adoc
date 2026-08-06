@@ -108,6 +108,20 @@ image::config.png[The Scene Layout settings panel: Loom Fallback, Core Inset, De
 | `emitPhrases` | Whether to include the plain-English sentences. On by default
 |===
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run over a single frame of a café conversation, with a real depth map
+from link:../depthmap/[Depthmap] on one port and real boxes from link:../facedetect/[Facedetect] on
+the other — both measured against that same frame.
+
+image::debug.png[The scene-layout node after a run, reporting two objects and four relations,role=img-fluid]
+
+Two faces in, four relations out. The `result` port carries them in full: the man is nearer the
+camera than the woman, so the solver reports `IN_FRONT_OF` and `BEHIND` from the depth difference and
+`LEFT_OF` / `RIGHT_OF` from the boxes. `object_count` and `relation_count` are the same answer as
+numbers, for a downstream node that only needs to know whether there was anything to relate.
+
 == Use Cases
 
 * **Captions that get prepositions right** — "a woman standing in front of a red car" instead of a

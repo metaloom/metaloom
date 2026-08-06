@@ -42,6 +42,18 @@ image::config.png[The Text to Speech settings panel: Sidecar Host, Sidecar Port,
 Nothing configures where the words come from — connect a port to `text` and the node speaks whatever
 arrives on it.
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run at the shipped `language: de` / `voice: Jakob`, speaking the German
+transcript that link:../translate/[Translate] and link:../sentiment/[Sentiment] also work on.
+
+image::debug.png[The TTS node after a run, showing the WAV it wrote and the flag recording how it finished,role=img-fluid]
+
+`audio` carries the path of the WAV in the worker's local cache and `flag` records how the node
+finished. The audio itself is not uploaded anywhere yet — the bytes live beside the worker, exactly
+as link:../thumbnail/[Thumbnail] leaves its contact sheet.
+
 == Use Cases
 
 * **Audio descriptions** — speak an link:../llm/[LLM]-generated description or

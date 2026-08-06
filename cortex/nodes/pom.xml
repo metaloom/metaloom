@@ -44,6 +44,7 @@
         <module>watermark</module>
         <module>filter</module>
         <module>translate</module>
+        <module>guard</module>
         <module>tag</module>
     </modules>
 

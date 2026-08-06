@@ -267,6 +267,13 @@ async function capture(browser, entry, fixture) {
   const dir = path.join(OUT, entry.page);
   fs.mkdirSync(dir, { recursive: true });
 
+  if (entry.view === "run-detail") {
+    await captureRunDetail(page, entry, dir);
+    console.log(`  ✓ ${entry.page}/debug.png (run detail)`);
+    await context.close();
+    return;
+  }
+
   // React Flow's own chrome is hidden rather than cropped around. The minimap floats over the
   // bottom-right of the canvas and the zoom controls over the bottom-left, and with a single node
   // fitted to the middle of the canvas either can land on top of the card. The existing debug
@@ -311,6 +318,31 @@ async function capture(browser, entry, fixture) {
       await port.dispatchEvent("click");
       await page.getByTestId("pipeline-result-detail").waitFor({ timeout: 8_000 });
       await sleep(1100);
+      // Narrow the window before measuring, so the dialog sizes itself to the payload instead of to
+      // a 1400 px canvas. The dialog is responsive and takes what the viewport gives it, so a table
+      // — objectdetect's 33 detections are the worst case — otherwise photographs with a field of
+      // empty background twice as wide as the table itself. Resizing the window is honest in a way
+      // that clipping the picture is not: the header, the chip and the close button stay whole,
+      // because this is what the dialog genuinely looks like in a narrower window.
+      const wanted = await page.evaluate(() => {
+        const view = document.querySelector('[data-testid^="result-view-"]');
+        const child = view?.firstElementChild ?? view;
+        if (!child) return null;
+        // The container is a block and spans whatever it is given, so its width says nothing — and
+        // neither does a Markdown table's, because it stretches to 100% while its columns stay
+        // content-sized. What has a real width is the far edge of the last cell, or the image.
+        const box = child.getBoundingClientRect();
+        const cells = [...child.querySelectorAll("th, td")].map(n => n.getBoundingClientRect().right);
+        const others = [...child.querySelectorAll("img, pre")]
+          .map(n => n.getBoundingClientRect().width).filter(w => w > 0);
+        if (cells.length) return Math.ceil(Math.max(...cells) - box.left);
+        return Math.ceil(others.length ? Math.max(...others) : box.width);
+      });
+      if (wanted) {
+        await page.setViewportSize({ width: Math.max(720, Math.min(1400, wanted + 190)), height: 900 });
+        await sleep(500);
+      }
+
       const box = await page.locator(".MuiDialog-paper").boundingBox();
       // Crop to the content rather than to the fixed 80vh frame, so a short payload is not
       // photographed with half a dialog of empty space under it.
@@ -330,6 +362,39 @@ async function capture(browser, entry, fixture) {
 
   console.log(`  ✓ ${entry.page}/debug.png${detail ? " + debug-detail.png" : ""}`);
   await context.close();
+}
+
+/**
+ * The debug view for a node that has no output ports.
+ *
+ * `NodeResultStrip` returns null when a task carries no outputs, so the dedup card in debug mode is
+ * a title over an empty body — a truthful picture of nothing. What the product actually shows for
+ * these nodes is the detail sidebar's Results tab: the task's state, how long it took, and the
+ * explicit "no outputs" line. That is the node's real shape, so it is what this photographs.
+ */
+async function captureRunDetail(page, entry, dir) {
+  // Dispatched rather than clicked, for the same reason the config capture does it: React Flow's
+  // minimap and zoom controls float over the canvas and swallow a pointer event aimed underneath.
+  const node = page.getByTestId(`pipeline-node-${entry.kind}`);
+  await node.dispatchEvent("click");
+  const panel = page.getByTestId("pipeline-node-detail");
+  await panel.waitFor({ timeout: 8_000 });
+  await page.getByRole("tab", { name: "Results", exact: true }).click();
+  // The tab renders from the inspected item, which the run-detail drawer selected above; without
+  // that selection this shows the "pick an item" placeholder rather than the task.
+  await page.getByTestId("node-results").waitFor({ timeout: 8_000 });
+  await sleep(500);
+
+  const box = await panel.boundingBox();
+  const content = await page.evaluate(() => {
+    const results = document.querySelector('[data-testid="node-results"]');
+    return results ? results.getBoundingClientRect().bottom : null;
+  });
+  const height = content ? Math.min(box.height, content - box.y + 20) : box.height;
+  await page.screenshot({
+    path: path.join(dir, "debug.png"),
+    clip: { x: box.x, y: box.y, width: box.width, height },
+  });
 }
 
 main().catch(e => {

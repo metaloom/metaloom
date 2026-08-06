@@ -32,6 +32,11 @@ import io.metaloom.cortex.node.hash.HashNodeOptions;
 import io.metaloom.cortex.node.hash.SHA512Node;
 import io.metaloom.cortex.node.imagemanip.ImageManipulationNode;
 import io.metaloom.cortex.node.imagemanip.ImageManipulationNodeOptions;
+import io.metaloom.cortex.node.objectdetect.ObjectDetectNode;
+import io.metaloom.cortex.node.objectdetect.ObjectDetectNodeOptions;
+import io.metaloom.cortex.node.objectdetect.ObjectDetector;
+import io.metaloom.cortex.node.objectdetect.YoloObjectDetector;
+import io.metaloom.cortex.node.objectdetect.video.VideoObjectScanner;
 import io.metaloom.cortex.node.ocr.OCRNode;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeOptions;
@@ -110,6 +115,37 @@ public class DocsFixtureGenerator {
 
 	private static final Path OUT = Path.of("..", "loom-ui", "scripts", "fixtures", "nodes");
 	private static final Path PACK = Path.of("..", "cortex", "nodes", "facedetect", "core", "packs", "Pikachu");
+
+	/**
+	 * Where the Whisper weights are, overridable because they are not in the repository.
+	 *
+	 * <p>
+	 * 1.6 GB of model, downloaded by {@code whisper.cpp/models/download-ggml-model.sh}. The default
+	 * is where that script puts it on a checkout beside this one; a machine that keeps it elsewhere
+	 * passes {@code -Dloom.docsWhisperModel=/path/to/ggml-....bin}.
+	 * </p>
+	 */
+	private static final Path WHISPER_MODEL = Path.of(System.getProperty("loom.docsWhisperModel",
+		System.getProperty("user.home") + "/workspaces/metaloom/whisper.cpp/models/ggml-large-v3-turbo.bin"));
+
+	/**
+	 * The YOLO weights and class names, likewise outside the repository.
+	 *
+	 * <p>
+	 * The node's own default ({@code models/yolo/YOLOv11n_voc.onnx}) is relative to the worker's
+	 * working directory and resolves to nothing from a test. The default here is where yolo4j keeps
+	 * the same file — that sibling checkout is also where the native library comes from, so a machine
+	 * that can run this node at all has it.
+	 * </p>
+	 */
+	private static final Path YOLO_DIR = Path.of(System.getProperty("user.home"),
+		"workspaces/metaloom/yolo4j/YOLOs-CPP-1.0.0/models");
+
+	private static final Path YOLO_MODEL = Path.of(System.getProperty("loom.docsYoloModel",
+		YOLO_DIR.resolve("YOLOv11n_voc.onnx").toString()));
+
+	private static final Path YOLO_LABELS = Path.of(System.getProperty("loom.docsYoloLabels",
+		YOLO_DIR.resolve("voc.names").toString()));
 
 	@TestFactory
 	public Stream<DynamicTest> generateDocsFixtures() throws Exception {
@@ -250,6 +286,49 @@ public class DocsFixtureGenerator {
 			}
 		});
 
+		recipes.add(new DocsFixtureRecipe() {
+			@Override
+			public String kind() {
+				return "objectdetect";
+			}
+
+			@Override
+			public Requirement requirement() {
+				return Requirement.file(YOLO_MODEL,
+					"point -Dloom.docsYoloModel / -Dloom.docsYoloLabels at a YOLO ONNX model and its "
+						+ "class names — yolo4j ships YOLOv11n_voc.onnx and voc.names under YOLOs-CPP-*/models");
+			}
+
+			@Override
+			public List<Upstream> upstream() {
+				// The video branch of the exclusive input group, because that is what ran.
+				return List.of(new Upstream("filesystem-source", "media", "video"));
+			}
+
+			@Override
+			public Outcome run(FixtureEnv env) throws Exception {
+				var media = env.video1();
+				ObjectDetectNodeOptions options = new ObjectDetectNodeOptions();
+				options.setModelPath(YOLO_MODEL.toString());
+				options.setLabelsPath(YOLO_LABELS.toString());
+				// CPU. The ONNX Runtime bundled with yolo4j is built against a different CUDA major
+				// than the driver here, and asking for the GPU turns a clean answer into a provider
+				// warning followed by the same answer, slower. Nothing about the detections differs.
+				options.setUseGpu(false);
+				ObjectDetector detector = new YoloObjectDetector(options.getModelPath(), options.getLabelsPath(),
+					options.isUseGpu(), options.getOnnxRuntimeLibPath());
+				ObjectDetectNode node = new ObjectDetectNode(null, env.cortexOptions("objectdetect"), options,
+					detector, new VideoObjectScanner(detector));
+				node.initialize();
+				return new Outcome(node.process(context(env.media(media), true)), env.displayPath(media),
+					new JsonObject()
+						.put("modelPath", YOLO_MODEL.getFileName().toString())
+						.put("videoChopRate", options.getVideoChopRate())
+						.put("minConfidence", options.getMinConfidence())
+						.put("useGpu", options.isUseGpu()));
+			}
+		});
+
 		recipes.add(simple("dominant-color", Requirement.offline(), env -> {
 			// No detections wired: the `detections` port is optional and the node then reads the
 			// whole picture, which is the simpler of its two modes and the one worth showing first.
@@ -354,10 +433,14 @@ public class DocsFixtureGenerator {
 		recipes.add(S3Recipes.s3Sink());
 		recipes.add(LlmRecipes.llm());
 		recipes.add(LlmRecipes.translate());
+		recipes.add(LlmRecipes.guard());
 		recipes.add(LlmRecipes.filter());
 		recipes.add(SidecarRecipes.depthmap());
 		recipes.add(SidecarRecipes.sentiment());
 		recipes.add(SidecarRecipes.tts());
+		recipes.add(SidecarRecipes.imagegen());
+		recipes.add(SidecarRecipes.videogen());
+		recipes.add(SidecarRecipes.whisper(WHISPER_MODEL));
 		recipes.add(SidecarRecipes.sceneLayout(PACK));
 		recipes.add(VisionRecipes.vlm());
 		recipes.add(VisionRecipes.captioning());

@@ -16,6 +16,10 @@ import io.metaloom.cortex.node.facedetect.FacedetectNode;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeModule;
 import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
+import io.metaloom.cortex.node.imagegen.ImageGenClient;
+import io.metaloom.cortex.node.imagegen.ImageGenMode;
+import io.metaloom.cortex.node.imagegen.ImageGenNode;
+import io.metaloom.cortex.node.imagegen.ImageGenNodeOptions;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNode;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNodeOptions;
 import io.metaloom.cortex.node.sentiment.SentimentClient;
@@ -24,6 +28,13 @@ import io.metaloom.cortex.node.sentiment.SentimentNodeOptions;
 import io.metaloom.cortex.node.tts.TtsClient;
 import io.metaloom.cortex.node.tts.TtsNode;
 import io.metaloom.cortex.node.tts.TtsNodeOptions;
+import io.metaloom.cortex.node.videogen.VideoGenClient;
+import io.metaloom.cortex.node.videogen.VideoGenMode;
+import io.metaloom.cortex.node.videogen.VideoGenNode;
+import io.metaloom.cortex.node.videogen.VideoGenNodeOptions;
+import io.metaloom.cortex.node.whisper.WhisperMediaProcessor;
+import io.metaloom.cortex.node.whisper.WhisperNode;
+import io.metaloom.cortex.node.whisper.WhisperOptions;
 import io.metaloom.loom.test.integration.node.docs.DocsFixtureRecipe.Outcome;
 import io.metaloom.loom.test.integration.node.docs.DocsFixtureRecipe.Requirement;
 import io.metaloom.loom.test.integration.node.docs.DocsFixtureRecipe.Upstream;
@@ -182,6 +193,177 @@ public final class SidecarRecipes {
 	}
 
 	// ------------------------------------------------------------------------
+	// imagegen
+	// ------------------------------------------------------------------------
+
+	/**
+	 * Remix, not generate — the mode the node exists for.
+	 *
+	 * <p>
+	 * {@code GENERATE} is the shipped default and it ignores the media entirely: it sends the
+	 * {@code prompt} option to {@code /generate} and returns whatever comes back, so the picture
+	 * would show a node with an input port it did not read. {@code REMIX} is the one the sidecar's
+	 * own README calls "the endpoint the node calls" — it loads the asset, sends it with a prompt
+	 * and gets a variation of that image back, which is a node doing something to the media in front
+	 * of it. The mode is recorded in {@code nodeData} so the page shows the setting it was taken at.
+	 * </p>
+	 *
+	 * <p>
+	 * The model is whatever the sidecar has loaded. It defaults to SDXL-Turbo, which is ungated;
+	 * the Ideogram weights it is named after need an access token and a licence acceptance, and
+	 * the node cannot tell the difference because it only ever receives a PNG.
+	 * </p>
+	 */
+	public static DocsFixtureRecipe imagegen() {
+		return new DocsFixtureRecipe() {
+			@Override
+			public String kind() {
+				return "imagegen";
+			}
+
+			@Override
+			public Requirement requirement() {
+				return sidecar("imagegen", new ImageGenNodeOptions().getPort(), "ideogram-sidecar");
+			}
+
+			@Override
+			public Outcome run(FixtureEnv env) throws Exception {
+				ImageGenNodeOptions options = new ImageGenNodeOptions()
+					.setMode(ImageGenMode.REMIX)
+					.setPrompt("the same portrait as an oil painting, warm light, visible brush strokes")
+					.setStrength(0.55)
+					.setSteps(6)
+					// Fixed, so a regeneration of this page produces the same picture rather than a
+					// different one that is equally true and reads as an unexplained change.
+					.setSeed(7);
+				ImageGenNode node = new ImageGenNode(null, env.cortexOptions("imagegen"), options,
+					new ImageGenClient(options.getHost(), options.getPort(),
+						options.getGenerateEndpoint(), options.getRemixEndpoint(), (int) options.getTimeoutMs()));
+				node.initialize();
+				var media = env.image1();
+				return new Outcome(node.process(context(env.media(media))), env.displayPath(media),
+					new JsonObject()
+						.put("mode", options.getMode().name())
+						.put("prompt", options.getPrompt())
+						.put("strength", options.getStrength())
+						.put("steps", options.getSteps())
+						.put("seed", options.getSeed()));
+			}
+		};
+	}
+
+	// ------------------------------------------------------------------------
+	// videogen
+	// ------------------------------------------------------------------------
+
+	/**
+	 * Animate, not generate — for the same reason as {@link #imagegen()}.
+	 *
+	 * <p>
+	 * {@code GENERATE} is the shipped default and never looks at the media, so the card would show a
+	 * node ignoring its own input port. {@code ANIMATE} takes the asset as the first frame and moves
+	 * it, which is what wiring this node into a pipeline is for.
+	 * </p>
+	 *
+	 * <p>
+	 * Everything is left at the shipped resolution and frame count. The only deviation is
+	 * {@code steps}, lowered from 40 because this is a 46B model quantized onto one card and the
+	 * documentation does not need the extra minutes — the setting is recorded in {@code nodeData} so
+	 * the page shows what it was taken at.
+	 * </p>
+	 */
+	public static DocsFixtureRecipe videogen() {
+		return new DocsFixtureRecipe() {
+			@Override
+			public String kind() {
+				return "videogen";
+			}
+
+			@Override
+			public Requirement requirement() {
+				return sidecar("videogen", new VideoGenNodeOptions().getPort(), "ltx2-sidecar");
+			}
+
+			@Override
+			public Outcome run(FixtureEnv env) throws Exception {
+				VideoGenNodeOptions options = new VideoGenNodeOptions()
+					.setMode(VideoGenMode.ANIMATE)
+					.setPrompt("the man turns his head slowly towards the camera and smiles")
+					.setSteps(20)
+					.setSeed(7);
+				VideoGenNode node = new VideoGenNode(null, env.cortexOptions("videogen"), options,
+					new VideoGenClient(options.getHost(), options.getPort(),
+						options.getGenerateEndpoint(), options.getAnimateEndpoint(), (int) options.getTimeoutMs()));
+				node.initialize();
+				var media = env.image1();
+				return new Outcome(node.process(context(env.media(media))), env.displayPath(media),
+					new JsonObject()
+						.put("mode", options.getMode().name())
+						.put("prompt", options.getPrompt())
+						.put("width", options.getWidth())
+						.put("height", options.getHeight())
+						.put("numFrames", options.getNumFrames())
+						.put("fps", options.getFps())
+						.put("steps", options.getSteps())
+						.put("seed", options.getSeed()));
+			}
+		};
+	}
+
+	// ------------------------------------------------------------------------
+	// whisper
+	// ------------------------------------------------------------------------
+
+	/**
+	 * Real speech through the real whisper.cpp binding.
+	 *
+	 * <p>
+	 * The model is a file rather than a service, and it is not in the repository — 1.6 GB of
+	 * weights. The requirement points at wherever {@code WhisperOptions.modelPath} says, so a
+	 * machine that has run {@code whisper.cpp/models/download-ggml-model.sh} satisfies it and one
+	 * that has not aborts with that command instead of failing inside JNI.
+	 * </p>
+	 */
+	public static DocsFixtureRecipe whisper(Path modelPath) {
+		return new DocsFixtureRecipe() {
+			@Override
+			public String kind() {
+				return "whisper";
+			}
+
+			@Override
+			public Requirement requirement() {
+				return both(
+					Requirement.file(modelPath,
+						"download a ggml Whisper model, e.g. whisper.cpp/models/download-ggml-model.sh large-v3-turbo, "
+							+ "and point -Dloom.docsWhisperModel at it"),
+					Requirement.of(FixtureEnv.hasFfmpeg(), "ffmpeg on the path",
+						"install ffmpeg — the corpus speech recording has to be remuxed, see FixtureEnv.speechWav()"));
+			}
+
+			@Override
+			public List<Upstream> upstream() {
+				// The audio branch of the exclusive input group, because that is what ran. Every
+				// video in the corpus is silent, so the video branch has nothing to transcribe.
+				return List.of(new Upstream("filesystem-source", "media", "audio"));
+			}
+
+			@Override
+			public Outcome run(FixtureEnv env) throws Exception {
+				Path speech = env.speechWav();
+				WhisperOptions options = new WhisperOptions();
+				options.setModelPath(modelPath.toString());
+				WhisperNode node = new WhisperNode(null, env.cortexOptions("whisper"), options,
+					new WhisperMediaProcessor(options));
+				node.initialize();
+				return new Outcome(node.process(NodeContext.create(env.media(speech))), speech.toString(),
+					new JsonObject().put("modelPath", modelPath.getFileName().toString())
+						.put("useGpu", options.isUseGpu()));
+			}
+		};
+	}
+
+	// ------------------------------------------------------------------------
 	// scene-layout
 	// ------------------------------------------------------------------------
 
@@ -270,6 +452,19 @@ public final class SidecarRecipes {
 	// ------------------------------------------------------------------------
 	// Helpers
 	// ------------------------------------------------------------------------
+
+	/**
+	 * A context with previews switched on.
+	 *
+	 * <p>
+	 * Only matters for the nodes whose output is a picture: the runtime builds the preview from an
+	 * {@code artifact/image} port, but only when the run asked for previews. Without this the
+	 * imagegen card would name a PNG it produced and show nothing of it.
+	 * </p>
+	 */
+	private static NodeContext<LoomMedia> context(LoomMedia media) {
+		return NodeContext.create(media, new NodeInputs(java.util.Map.of(), java.util.Set.of(), null, null, true));
+	}
 
 	private static Requirement both(Requirement first, Requirement second) {
 		return new Requirement() {

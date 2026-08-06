@@ -81,6 +81,26 @@ Near-duplicate search (`fingerprint-dedup`):
 | `allowPartial` | Allow a group even when no candidate is known to be a complete file. Off by default.
 |===
 
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced. This one
+is the exception in the catalogue: it declares **no output ports at all**. What it does is move a
+file and record the fact, so there is nothing to draw on the node card — and the card correctly draws
+nothing.
+
+The place its work shows up is the node's own Results tab, which the run detail opens:
+
+image::debug.png[The dedup node's Results tab after a real run: COMPLETED in 23ms, with no outputs recorded,role="ml-panel-shot"]
+
+That is a real run against a real Loom: an asset already existed for one copy of the file, a second
+copy of the same bytes was fed in, and the node matched them by hash and moved the second one into
+the duplicates folder. `No outputs were recorded` is the honest answer — the result lives on the
+filesystem and in the asset's history, not on a port.
+
+TIP: If you want a downstream node to react to a duplicate, do not wire it to this one. Put
+link:../hash/[Hash] upstream of both and branch on what you need, or read the asset's history back
+through the API.
+
 == Use Cases
 
 * **Ingest cleanup** — collapse byte-identical files as they are scanned from a folder or NAS.

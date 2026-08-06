@@ -1,0 +1,54 @@
+{
+  "kind" : "videogen",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:videogen sidecar (http://127.0.0.1:9220/health)",
+  "state" : "COMPLETED",
+  "durationMs" : 47046,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "mode" : "ANIMATE",
+    "prompt" : "the man turns his head slowly towards the camera and smiles",
+    "width" : 768,
+    "height" : 512,
+    "numFrames" : 49,
+    "fps" : 24,
+    "steps" : 20,
+    "seed" : 7
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "flag" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "DONE"
+      } ]
+    },
+    "video" : {
+      "contentType" : "artifact/video",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "/tmp/docs-fixture-videogen13289401824063063264/videogen_bin/0bf7/0bf777d2955248b4e339f9cd6378f9c39ffdb5f62a305a03f1c3a4a9ee972e31fe9c3939ce43efd089f4d5c66027c3dc1311494d24b3a4328f53e7f2a6589d15.mp4"
+      } ]
+    }
+  },
+  "previews" : { }
+}

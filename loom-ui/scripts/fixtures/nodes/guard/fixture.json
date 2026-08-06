@@ -1,0 +1,89 @@
+{
+  "kind" : "guard",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "service:language model (http://127.0.0.1:8080/v1/models)",
+  "state" : "COMPLETED",
+  "durationMs" : 155,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-jack-sparrow-5977265.mp4"
+  },
+  "nodeData" : {
+    "family" : "LLAMA_GUARD_3",
+    "model" : "QuantFactory/Llama-Guard-3-1B-GGUF:Q8_0",
+    "threshold" : 0.5
+  },
+  "upstream" : [ {
+    "kind" : "whisper",
+    "sourcePort" : "transcript",
+    "targetPort" : "text"
+  } ],
+  "outputs" : {
+    "safe" : {
+      "contentType" : "control/filter",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : false
+      } ]
+    },
+    "label" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "unsafe"
+      } ]
+    },
+    "score" : {
+      "contentType" : "scalar/number",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : 0.6466
+      } ]
+    },
+    "result" : {
+      "contentType" : "struct/json",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "{\"safe\":false,\"score\":0.6466,\"threshold\":0.5,\"family\":\"LLAMA_GUARD_3\",\"model\":\"QuantFactory/Llama-Guard-3-1B-GGUF:Q8_0\",\"subject\":\"text\",\"categories\":[{\"canonical\":\"VIOLENT_CRIME\",\"native\":\"S1\",\"label\":\"Violent Crimes\",\"score\":0.6466}],\"raw\":\"unsafe\\nS1\",\"probes\":1,\"scoreExact\":true,\"textChars\":183}"
+      } ]
+    },
+    "categories" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "MANY",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "VIOLENT_CRIME"
+      } ]
+    }
+  },
+  "previews" : {
+    "result" : {
+      "markdown" : "**unsafe** — score 0.6466 (threshold 0.5, 1 probe(s))\n\n| Category | Native | Score |\n|---|---|---|\n| Violent Crimes | S1 | 0.6466 |\n"
+    }
+  }
+}
