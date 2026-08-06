@@ -49,7 +49,7 @@ async function installMocks(page: Page) {
     json(route, { uuid: ME_UUID, username: "admin", enabled: true })
   );
 
-  await page.route(/\/api\/v1\/assets$/, route =>
+  await page.route(/\/api\/v1\/assets(\?|$)/, route =>
     json(route, { data: [asset(ASSET_A, "workflow-a.jpg"), asset(ASSET_B, "workflow-b.jpg")], _metainfo: { totalCount: 2 } })
   );
 

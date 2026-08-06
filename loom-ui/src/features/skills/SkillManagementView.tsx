@@ -303,7 +303,7 @@ export default function SkillManagementView() {
           </TableHead>
           <TableBody>
             {filteredLibrary.map(skill => (
-              <TableRow key={skill.uuid} hover>
+              <TableRow key={skill.uuid} hover data-testid={`skill-library-row-${skill.name}`}>
                 <TableCell>
                   <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{skill.name}</Typography>
                 </TableCell>

@@ -76,7 +76,7 @@ async function installMocks(page: Page, seed: StoredTask[]) {
   await page.route(/\/api\/v1\/assets\/[^/]+$/, route => json(route, asset()));
 
   // Task create (global route)
-  await page.route(/\/api\/v1\/tasks$/, route => {
+  await page.route(/\/api\/v1\/tasks(\?|$)/, route => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
       const created: StoredTask = {

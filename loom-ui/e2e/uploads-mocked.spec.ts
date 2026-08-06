@@ -51,7 +51,7 @@ async function mockRest(
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "fake-jwt" }) })
   );
 
-  await page.route("**/api/v1/libraries", route =>
+  await page.route(/\/api\/v1\/libraries(\?|$)/, route =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -64,7 +64,7 @@ async function mockRest(
     })
   );
 
-  await page.route("**/api/v1/pools", route => {
+  await page.route(/\/api\/v1\/pools(\?|$)/, route => {
     if (opts.pools === false) {
       // What a caller without READ_ASSET_POOL sees. The pool selector must simply not appear.
       return route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ message: "Invalid permissions" }) });

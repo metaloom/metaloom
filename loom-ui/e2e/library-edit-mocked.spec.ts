@@ -32,7 +32,7 @@ async function mockRest(page: Page) {
   );
 
   // Library list with an existing description plus an unrelated meta key.
-  await page.route("**/api/v1/libraries", route =>
+  await page.route(/\/api\/v1\/libraries(\?|$)/, route =>
     route.fulfill({
       status: 200,
       contentType: "application/json",

@@ -29,11 +29,13 @@ export function mergePage<T>(existing: T[], incoming: T[], keyOf: (item: T) => s
 }
 
 /**
- * Is there another page to fetch?
+ * Is there another page we can actually fetch?
  *
- * `totalCount` is authoritative when the server sends it. Without it, fall back to "the last page
- * came back full" — a short page means the end, an exactly-full one is ambiguous and we offer the
- * button rather than silently truncating.
+ * Two conditions, and both matter. There must be more rows — `totalCount` is authoritative when
+ * the server sends it, otherwise fall back to "the last page came back full", since a short page
+ * means the end and an exactly-full one is ambiguous. And there must be a **cursor** to seek
+ * from: without `lastUuid` the next request would repeat page one, so offering a "load more"
+ * button would be offering a button that cannot do anything.
  */
 export function hasMorePages(
   loadedCount: number,
@@ -41,7 +43,8 @@ export function hasMorePages(
   lastPageLength: number,
   pageSize: number = PAGE_SIZE,
 ): boolean {
-  if (metainfo?.totalCount !== undefined) return loadedCount < metainfo.totalCount;
+  if (!metainfo?.lastUuid) return false;
+  if (metainfo.totalCount !== undefined) return loadedCount < metainfo.totalCount;
   return lastPageLength >= pageSize;
 }
 

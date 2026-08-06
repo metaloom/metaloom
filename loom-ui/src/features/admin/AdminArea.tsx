@@ -792,6 +792,7 @@ function AccessControlAdmin() {
           {filteredRoles.map(role => (
             <Box
               key={role.uuid}
+              data-testid={`admin-role-row-${role.name}`}
               onClick={() => setSelectedRoleId(role.uuid)}
               sx={{
                 px: 1.5, py: 1, borderRadius: tokens.radius.md, cursor: "pointer",

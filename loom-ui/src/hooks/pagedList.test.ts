@@ -31,17 +31,22 @@ describe("mergePage", () => {
 
 describe("hasMorePages", () => {
   it("uses totalCount when the server sends it", () => {
-    expect(hasMorePages(25, { totalCount: 300 }, 25)).toBe(true);
-    expect(hasMorePages(300, { totalCount: 300 }, 25)).toBe(false);
+    expect(hasMorePages(25, { lastUuid: "u25", totalCount: 300 }, 25)).toBe(true);
+    expect(hasMorePages(300, { lastUuid: "u300", totalCount: 300 }, 25)).toBe(false);
   });
 
   it("is false once every row is loaded, even on an exactly-full page", () => {
-    expect(hasMorePages(100, { totalCount: 100 }, 100, 100)).toBe(false);
+    expect(hasMorePages(100, { lastUuid: "u100", totalCount: 100 }, 100, 100)).toBe(false);
   });
 
   it("falls back to a full last page when totalCount is absent", () => {
-    expect(hasMorePages(100, undefined, 100, 100)).toBe(true);
-    expect(hasMorePages(40, undefined, 40, 100)).toBe(false);
+    expect(hasMorePages(100, { lastUuid: "u100" }, 100, 100)).toBe(true);
+    expect(hasMorePages(40, { lastUuid: "u40" }, 40, 100)).toBe(false);
+  });
+
+  it("is false without a cursor — a 'load more' that cannot seek is a button that does nothing", () => {
+    expect(hasMorePages(100, { totalCount: 300 }, 100, 100)).toBe(false);
+    expect(hasMorePages(100, undefined, 100, 100)).toBe(false);
     expect(hasMorePages(0, {}, 0, 100)).toBe(false);
   });
 });

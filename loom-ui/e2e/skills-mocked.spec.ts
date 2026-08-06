@@ -45,7 +45,7 @@ async function installMocks(page: Page) {
   await page.route(/\/api\/v1\/login$/, route => json(route, { token: "fake-jwt" }));
   await page.route(/\/api\/v1\/me$/, route => json(route, { uuid: ME_UUID, username: "admin", enabled: true }));
 
-  await page.route(/\/api\/v1\/skills$/, route => {
+  await page.route(/\/api\/v1\/skills(\?|$)/, route => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
       const created: StoredSkill = {
@@ -81,7 +81,7 @@ async function installMocks(page: Page) {
 
   // Registered AFTER the generic /skills matchers — Playwright routes are LIFO,
   // so these more specific paths must come later to take precedence.
-  await page.route(/\/api\/v1\/skills\/library$/, route =>
+  await page.route(/\/api\/v1\/skills\/library(\?|$)/, route =>
     json(route, { data: [foreignSkill(), ...mySkills.filter(s => s.published)] }));
 
   await page.route(/\/api\/v1\/skills\/[^/]+\/install$/, route => {

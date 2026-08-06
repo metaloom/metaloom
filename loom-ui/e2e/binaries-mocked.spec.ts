@@ -53,7 +53,7 @@ async function mockRest(page: Page): Promise<Captured> {
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "fake-jwt" }) })
   );
 
-  await page.route("**/api/v1/libraries", route =>
+  await page.route(/\/api\/v1\/libraries(\?|$)/, route =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: [{ uuid: "lib-1", name: "Main Library" }] }) })
   );
 

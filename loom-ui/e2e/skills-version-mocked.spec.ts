@@ -69,7 +69,7 @@ async function installMocks(page: Page) {
   await page.route(/\/api\/v1\/login$/, route => json(route, { token: "fake-jwt" }));
   await page.route(/\/api\/v1\/me$/, route => json(route, { uuid: ME_UUID, username: "admin", enabled: true }));
 
-  await page.route(/\/api\/v1\/skills$/, route => {
+  await page.route(/\/api\/v1\/skills(\?|$)/, route => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
       const skill: StoredSkill = {
