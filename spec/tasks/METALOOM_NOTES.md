@@ -9,9 +9,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 ## Tasks
 - Content Classification Model support? BERT?
 
-- guard node - https://huggingface.co/meta-llama/Llama-Guard-3-8B or IBM Granite Guardian or  https://huggingface.co/collections/google/shieldgemma
-
-- Segment Anything / SAM node
+- 
 - CliIntegerationTest? What is this? Do we need it?
 
 - Video Manipulation Node: the video half of
@@ -32,13 +30,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Open ideas / questions
 
-* **Rework the face workflow.** `FacedetectNode` + `FacedescriptionNode`, the `cluster` /
-  `embedding_cluster` tables and the `loom-ui` `ClustersPanel` / `PersonsPanel` all exist, but the
-  end-to-end loop *detect → cluster → confirm a cluster is a person* is not specified anywhere and
-  has no confirmation endpoint. Review it, rework it, then write it down — today the pieces are
-  scattered across [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md),
-  [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) and the migrations. Candidate: a new
-  `spec/features/facedetection/` file.
+
 
 * **Let the agentic loop author pipelines via MCP.** The MCP server exposes read-only pipeline tools
   only (`list_pipelines`, `get_pipeline`). Explore having the agent *design and verify* a pipeline —

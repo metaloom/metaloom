@@ -2,7 +2,7 @@
 
 How Loom talks to PostgreSQL: the DAO contracts, the jOOQ implementation, the Flyway migration
 chain and the test setup. **What** the entities mean is in [DOMAIN.md](DOMAIN.md); **open gaps and
-their work items** are in [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) and
+their work items** are in [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) and
 [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md). This file does not repeat
 either.
 
@@ -281,7 +281,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 |---|---|---|---|---|
 | User | `UserDao` | `user` (soft-delete `deleted`) | `UserDaoTest` CRUD +1 | `AclCascadeTest` |
 | Group | `GroupDao` | `group`, `user_group`, `role_group` | `GroupDaoTest` CRUD | `AclCascadeTest` |
-| Role | `RoleDao` | `role`, `role_permission` | ⚠️ `RoleDaoTest` is an **empty class** | `AclCascadeTest` |
+| Role | `RoleDao` | `role`, `role_permission` | `RoleDaoTest` CRUD +9 (`loadByName` hit/miss, `role_permission` replace semantics) | `AclCascadeTest` |
 | Permission | `PermissionDao` | `user/role/token_permission` | `PermissionDaoTest` (5 tests, grant + group inheritance + isolation) | `AclCascadeTest` |
 | Token | `TokenDao` | `token` | `TokenDaoTest` CRUD | — |
 | Asset | `AssetDao` | `asset` | `AssetDaoTest` CRUD +5 (meta) | `AssetCascadeTest` |
@@ -289,7 +289,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | AssetBinary | `AssetBinaryDao` | **`asset_location`** (REST "binary" view; `getTypeName()` = "Asset Locations") | — | — |
 | AssetComponent | `AssetComponentDao` | 9 `asset_*_comp` tables | `AssetComponentKeyTest` (8), `AssetTranscriptCompDaoTest` (5), `AssetFingerprintSegmentCompDaoTest` (8), `AssetJsonCompDaoTest` (13) | `AssetCascadeTest` |
 | AssetNodeResult | `AssetNodeResultDao` | `asset_node_result` | `AssetNodeResultDaoTest` (8) | `AssetCascadeTest` |
-| AssetPool | `AssetPoolDao` | `asset_pool` | — | — |
+| AssetPool | `AssetPoolDao` | `asset_pool` | `AssetPoolDaoTest` CRUD +2 (fs/S3 shapes, `library.pool_uuid` RESTRICT) | own |
 | Attachment | `AttachmentDao` | `attachment`, `attachment_binary` | `AttachmentDaoTest` CRUD | `AssetCascadeTest` |
 | Library | `LibraryDao` | `library`(+joins, `pool_uuid`) | `LibraryDaoTest` CRUD | — |
 | Collection | `CollectionDao` | `collection`(+joins) | `CollectionDaoTest` CRUD +1 | own |
@@ -444,7 +444,7 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 ## Progress Assessment
 
 Schema current through **`V2.74`**. Work items live in
-[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) / [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md).
+[PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) / [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md).
 
 - [x] jOOQ DAO layer, generated tables committed, Dagger registry (39 DAOs)
 - [x] Flyway chain `V1`–`V2.74`, migration naming validated
@@ -458,18 +458,21 @@ Schema current through **`V2.74`**. Work items live in
 - [x] `LoomDao` singleton + `LoomDaoTest`
 - [x] `PermissionDaoTest` grown from a non-nullity smoke test to grant/inheritance/isolation coverage
 - [x] Asset and ACL delete-cascade suites (`AssetCascadeTest`, `AclCascadeTest`)
-- [ ] `RoleDaoTest` — **empty class, zero tests**
+- [x] `RoleDaoTest` — `role_permission` binding plus CRUD and both `loadByName` branches
 - [ ] `SpaceDaoTest` — **empty class, zero tests**
-- [ ] `AssetPoolDaoTest` — no coverage (incl. `library.pool_uuid` RESTRICT from V2.63)
+- [x] `AssetPoolDaoTest` — CRUD over both pool shapes plus the `library.pool_uuid` RESTRICT from V2.63
 - [ ] `DetectionDaoTest` — no DAO-level coverage
-- [ ] `ChatDaoTest` — no coverage (`messages` JSONB round-trip untested)
+- [x] `ChatDaoTest` — CRUD plus a deep-equality `messages` round-trip and the V2.52 `chat_session.chat_uuid` SET NULL detach
 - [ ] `AssetBinaryDaoTest` — no coverage
 - [ ] `AnnotationDaoTest` does not implement `CRUDDaoTestcases`
-- [ ] Delete-cascade tests missing for Library, Space, Token, Blacklist, Attachment, AssetPool, Detection, Chat, MemoryEntry, MemoryDenyRule
+- [ ] Delete-cascade tests missing for Library, Space, Token, Blacklist, Attachment, Detection, MemoryEntry, MemoryDenyRule; for AssetPool only the `library.pool_uuid` RESTRICT is covered — `asset_location.pool_uuid` and `attachment_binary.pool_uuid` are not
 - [ ] `vector_config` (V2.6) has a generated table but no DAO
 - [ ] `asset_remix` (V2.8) has a generated table but no DAO operations
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `97127ed2`_
-_Last updated: 2026-08-05 (fixed the fixture's reaction types - they stored a mime type in a column the REST layer reads with ReactionType.valueOf, so every read of a fixture reaction was a 500; ReactionEndpointTest now guards it. V2.74 finished the asset-delete cascades - comments, reactions and library membership - leaving only two intentional SET NULLs; V2.73 cascaded `collection_asset`, `asset_task` and `asset_user_meta` from the asset, so an asset that is filed or referenced can be deleted at last; V2.72 made the `tag_asset` links cascade both ways; V2.71 gave `tag_asset` a surrogate PK, a `NULLS NOT DISTINCT` placement key and provenance columns — one tag may now sit on an asset several times and every placement names its writer. Also added the transaction gotcha — inside `ctx().transaction(...)` only `cfg.dsl()` is in the transaction — and `TagDao.bulkTagAsset` as its reference. Earlier: migrations to V2.63, pooled test DBs, DAO/test matrix rebuilt from the actual classes.)_
+_Git HEAD revision: `1e12f39e`_
+_Last updated: 2026-08-06 (added `ChatDaoTest`: CRUD over `ChatDao` plus a deep-equality round-trip of the
+`chat.messages` transcript through `JsonArrayConverter`, the empty-transcript default, and the V2.52
+`chat_session.chat_uuid` ON DELETE SET NULL detach with an untouched second chat/session pair as the
+cascade control. Earlier: fixed the fixture's reaction types - they stored a mime type in a column the REST layer reads with ReactionType.valueOf, so every read of a fixture reaction was a 500; ReactionEndpointTest now guards it. V2.74 finished the asset-delete cascades - comments, reactions and library membership - leaving only two intentional SET NULLs; V2.73 cascaded `collection_asset`, `asset_task` and `asset_user_meta` from the asset, so an asset that is filed or referenced can be deleted at last; V2.72 made the `tag_asset` links cascade both ways; V2.71 gave `tag_asset` a surrogate PK, a `NULLS NOT DISTINCT` placement key and provenance columns — one tag may now sit on an asset several times and every placement names its writer. Also added the transaction gotcha — inside `ctx().transaction(...)` only `cfg.dsl()` is in the transaction — and `TagDao.bulkTagAsset` as its reference. Earlier: migrations to V2.63, pooled test DBs, DAO/test matrix rebuilt from the actual classes.)_

@@ -243,7 +243,7 @@ advice.
   `modelPath` in the pipeline JSON — it is ignored."*
 - Keep each card under ~120 lines. A card an agent must summarise before using has failed.
 - ⚠️ Descriptor `defaultValue` and the options class can disagree; **the options class is what runs.**
-  Record that, and file the mismatch in [PIPELINE_TASKS.md](PIPELINE_TASKS.md).
+  Record that, and file the mismatch in [PIPELINE_TASKS.md](../tasks/PIPELINE_TASKS.md).
 - Pilot on `whisper` (XOR group, worker-scoped params, a real persistence target, a documented
   multi-track caveat). `md5` is too simple to shake out the template.
 

@@ -2404,6 +2404,220 @@
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {
+    "nodeId" : "sam2",
+    "kind" : "sam2",
+    "name" : "Segment Anything 2",
+    "description" : "Segment objects in images and video with SAM 2 - everything automatically, the boxes an upstream detector found, or a mask tracked through a clip. Masks are written to a local cache as binary PNGs.",
+    "icon" : "layers",
+    "category" : "ANALYSIS",
+    "inputPorts" : [ {
+      "id" : "image",
+      "label" : "Image",
+      "contentType" : "media/image",
+      "cardinality" : "ONE",
+      "required" : true,
+      "group" : "media_alt",
+      "description" : "A still image to segment"
+    }, {
+      "id" : "video",
+      "label" : "Video",
+      "contentType" : "media/video",
+      "cardinality" : "ONE",
+      "required" : true,
+      "group" : "media_alt",
+      "description" : "A video whose sampled frames are segmented or tracked"
+    }, {
+      "id" : "detections",
+      "label" : "Detections",
+      "contentType" : "detection/*",
+      "cardinality" : "MANY",
+      "required" : false,
+      "description" : "Boxes to segment, from any detector. Leave unwired to segment everything"
+    } ],
+    "outputPorts" : [ {
+      "id" : "masks",
+      "label" : "Masks",
+      "contentType" : "artifact/image",
+      "cardinality" : "MANY",
+      "required" : true,
+      "description" : "One element per mask: the worker-local binary PNG a downstream node can open"
+    }, {
+      "id" : "segments",
+      "label" : "Segmentation",
+      "contentType" : "struct/masks",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Model, both dimension pairs, and one record per mask: area, score, box, label, frame and path"
+    }, {
+      "id" : "overlay",
+      "label" : "Overlay",
+      "contentType" : "artifact/image",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The source frame with every mask tinted over it - the picture of what was segmented"
+    }, {
+      "id" : "mask_count",
+      "label" : "Mask Count",
+      "contentType" : "scalar/integer",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "How many masks were produced"
+    }, {
+      "id" : "flag",
+      "label" : "Flag",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Processing marker recording how this node finished for the item"
+    } ],
+    "inputGroups" : [ {
+      "id" : "media_alt",
+      "mode" : "XOR",
+      "required" : true,
+      "label" : "Media"
+    } ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "processIncomplete",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Process Incomplete",
+      "description" : "Process media files that are still being written"
+    }, {
+      "key" : "retryFailed",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Retry Failed",
+      "description" : "Retry processing media that previously failed"
+    }, {
+      "key" : "sam2Host",
+      "type" : "STRING",
+      "defaultValue" : "localhost",
+      "label" : "Sidecar Host",
+      "description" : "Host of the SAM 2 sidecar"
+    }, {
+      "key" : "sam2Port",
+      "type" : "INTEGER",
+      "defaultValue" : 9130,
+      "label" : "Sidecar Port",
+      "description" : "Port of the SAM 2 sidecar",
+      "min" : 1
+    }, {
+      "key" : "mode",
+      "type" : "ENUM",
+      "defaultValue" : "AUTOMATIC",
+      "label" : "Mode",
+      "description" : "AUTOMATIC segments everything; PROMPTED cuts out the boxes an upstream detector found; TRACK follows them through a video",
+      "values" : [ "AUTOMATIC", "PROMPTED", "TRACK" ]
+    }, {
+      "key" : "model",
+      "type" : "STRING",
+      "label" : "Model Override",
+      "description" : "Checkpoint to use instead of the sidecar's default"
+    }, {
+      "key" : "maxDim",
+      "type" : "INTEGER",
+      "defaultValue" : 1024,
+      "label" : "Max Dimension",
+      "description" : "Longest side sent to the sidecar; also the size of every produced mask",
+      "min" : 64,
+      "max" : 4096,
+      "step" : 64
+    }, {
+      "key" : "pointsPerSide",
+      "type" : "INTEGER",
+      "defaultValue" : 32,
+      "label" : "Points Per Side",
+      "description" : "AUTOMATIC only: the sampling grid. 32 means 1024 forward passes per image",
+      "min" : 4,
+      "max" : 64,
+      "step" : 4
+    }, {
+      "key" : "predIouThresh",
+      "type" : "NUMBER",
+      "defaultValue" : 0.8,
+      "label" : "Predicted IoU Threshold",
+      "description" : "AUTOMATIC only: drop masks the model rates below this",
+      "min" : 0.0,
+      "max" : 1.0,
+      "step" : 0.05
+    }, {
+      "key" : "stabilityScoreThresh",
+      "type" : "NUMBER",
+      "defaultValue" : 0.95,
+      "label" : "Stability Threshold",
+      "description" : "AUTOMATIC only: drop masks whose boundary moves under a threshold shift",
+      "min" : 0.0,
+      "max" : 1.0,
+      "step" : 0.01
+    }, {
+      "key" : "minMaskArea",
+      "type" : "INTEGER",
+      "defaultValue" : 256,
+      "label" : "Min Mask Area (px)",
+      "description" : "Discard masks smaller than this, measured on the downscaled image",
+      "min" : 0
+    }, {
+      "key" : "maxMasks",
+      "type" : "INTEGER",
+      "defaultValue" : 64,
+      "label" : "Max Masks",
+      "description" : "Stop after this many masks for one item; hitting it reports CAPPED on the flag port",
+      "min" : 1
+    }, {
+      "key" : "multimask",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Multiple Masks Per Box",
+      "description" : "PROMPTED only: return SAM 2's three candidate masks per box instead of the best one. Counts against Max Masks three times over"
+    }, {
+      "key" : "videoChopRate",
+      "type" : "INTEGER",
+      "defaultValue" : 25,
+      "label" : "Video Chop Rate",
+      "description" : "Sample every Nth video frame - roughly one per second of typical footage",
+      "min" : 1
+    }, {
+      "key" : "maxFrames",
+      "type" : "INTEGER",
+      "defaultValue" : 64,
+      "label" : "Max Frames",
+      "description" : "Never send more than this many frames to the sidecar; hitting it reports CAPPED",
+      "min" : 1,
+      "max" : 512
+    }, {
+      "key" : "trackFrame",
+      "type" : "INTEGER",
+      "defaultValue" : 0,
+      "label" : "Annotation Frame",
+      "description" : "TRACK and AUTOMATIC-on-video: which sampled frame the prompts are placed on",
+      "min" : 0
+    }, {
+      "key" : "emitOverlay",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Write Overlay",
+      "description" : "Also write the source frame with every mask tinted over it - the picture of what was segmented"
+    }, {
+      "key" : "timeoutMs",
+      "type" : "INTEGER",
+      "defaultValue" : 300000,
+      "label" : "Timeout (ms)",
+      "description" : "HTTP request timeout",
+      "min" : 1
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "PARALLEL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
     "nodeId" : "scene-detection",
     "kind" : "scene-detection",
     "name" : "Scene Detection",
@@ -4135,6 +4349,12 @@
     "label" : "Depth Map",
     "family" : "struct",
     "description" : "Depth-map metadata",
+    "wildcard" : false
+  }, {
+    "id" : "struct/masks",
+    "label" : "Segmentation Masks",
+    "family" : "struct",
+    "description" : "Per-object segmentation masks: area, score, box and the worker-local mask file for each",
     "wildcard" : false
   }, {
     "id" : "struct/color",

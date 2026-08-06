@@ -4,7 +4,8 @@
 
 ## Start here: the spec tree
 
-[spec/CONTEXT.md](../spec/CONTEXT.md) is the **entry point** for coding tasks in this repository.
+[spec/METALOOM_CONTEXT.md](../spec/METALOOM_CONTEXT.md) is the **entry point** for coding tasks in
+this repository.
 It catalogues every specification file under `spec/`, routes you to the right one for your task,
 and carries the project-wide cheat sheets, conventions and gotchas. Read it before starting work.
 

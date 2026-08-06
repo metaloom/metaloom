@@ -34,6 +34,7 @@
         <module>sentiment</module>
         <module>script</module>
         <module>depthmap</module>
+        <module>sam2</module>
         <module>scene-layout</module>
         <module>dominant-color</module>
         <module>quality</module>

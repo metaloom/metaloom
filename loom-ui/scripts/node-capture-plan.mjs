@@ -58,6 +58,7 @@ export const PAGES = [
   { page: "ocr", kind: "ocr" },
   { page: "onedrive-source", kind: "onedrive-source" },
   { page: "quality", kind: "quality" },
+  { page: "sam2", kind: "sam2" },
   { page: "s3-sink", kind: "s3-sink" },
   { page: "s3-source", kind: "s3-source" },
   { page: "scene-detection", kind: "scene-detection" },

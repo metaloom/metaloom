@@ -2,6 +2,7 @@ package io.metaloom.loom.db.jooq.dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,25 +13,98 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.role.Role;
+import io.metaloom.loom.db.model.role.RoleDao;
+import io.metaloom.loom.db.model.user.User;
+import io.vertx.core.json.JsonObject;
 
 /**
- * Coverage for the permission binding of {@link io.metaloom.loom.db.model.role.RoleDao} - the rows in {@code role_permission} which back the ACL
- * matrix in the admin area.
+ * Coverage for {@link RoleDao}: the inherited CRUD contract, the {@code loadByName} lookup and the permission binding - the rows in
+ * {@code role_permission} which back the ACL matrix in the admin area.
  *
  * <p>
  * {@code setPermissions} has <b>replace</b> semantics, not append semantics: after the call the role grants exactly the given set. That is what makes
  * the admin matrix work - unticking a box has to revoke, and a client which only ever sends the full state must not accumulate grants.
  * </p>
+ *
+ * <p>
+ * Deletion cascades of a role ({@code role_group}, {@code user_permission}) are pinned by {@code AclCascadeTest} and are not repeated here.
+ * </p>
  */
-public class RoleDaoTest extends AbstractJooqTest {
+public class RoleDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<RoleDao, Role> {
+
+	@Override
+	public RoleDao getDao() {
+		return roleDao();
+	}
+
+	/**
+	 * Build - but do not store - a role. The CRUD harness stores what this returns.
+	 *
+	 * <p>
+	 * {@code role.name} carries a unique index ({@code V2.1__add_acl.sql}), and the harness generates 1024 rows, so the name has to vary with the
+	 * index. The {@code role_} prefix also keeps these names clear of the {@code perm_*} names used by the permission tests below and of the
+	 * {@code test-role} row from the fixture.
+	 * </p>
+	 */
+	@Override
+	public Role createElement(User user, int i) {
+		Role role = roleDao().createRole(user.getUuid(), "role_" + i);
+		role.setMeta(new JsonObject().put("key", "value"));
+		return role;
+	}
+
+	@Override
+	public void assertCreate(Role createdElement) {
+		assertEquals("role_0", createdElement.getName());
+		assertNotNull(createdElement.getMeta());
+		assertEquals("value", createdElement.getMeta().getString("key"));
+	}
+
+	@Override
+	public void updateElement(Role element) {
+		element.setName("updated_role");
+		element.setMeta(new JsonObject().put("key", "updated").put("extra", true));
+	}
+
+	@Override
+	public void assertUpdate(Role updatedElement) {
+		assertEquals("updated_role", updatedElement.getName());
+		assertNotNull(updatedElement.getMeta());
+		assertEquals("updated", updatedElement.getMeta().getString("key"));
+		assertEquals(true, updatedElement.getMeta().getBoolean("extra"));
+	}
 
 	private Role storeRole(String name) {
 		Role role = roleDao().createRole(adminUser().getUuid(), name);
 		roleDao().store(role);
 		return role;
+	}
+
+	/**
+	 * The name lookup backs role resolution by name (e.g. seeding and the admin area), so it has to find the stored row.
+	 */
+	@Test
+	public void testLoadByName() {
+		Role role = storeRole("lookup_role");
+
+		Role loaded = roleDao().loadByName("lookup_role");
+		assertNotNull(loaded, "The stored role must be found by its name");
+		assertEquals(role.getUuid(), loaded.getUuid());
+		assertEquals("lookup_role", loaded.getName());
+	}
+
+	/**
+	 * A name which no role carries returns null rather than throwing - callers use it to test for existence.
+	 */
+	@Test
+	public void testLoadByNameNotFound() {
+		storeRole("lookup_miss_role");
+
+		assertNull(roleDao().loadByName("no_such_role"), "An unknown name must resolve to null");
 	}
 
 	@Test

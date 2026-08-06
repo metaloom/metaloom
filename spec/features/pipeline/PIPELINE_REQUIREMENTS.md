@@ -5,7 +5,7 @@
 > deviation stated explicitly. Readable without the code.
 >
 > **What it is not.** Not the design (that is [PIPELINE.md](PIPELINE.md)) and not the
-> work queue (that is [PIPELINE_TASKS.md](PIPELINE_TASKS.md)). A gap noted here must
+> work queue (that is [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md)). A gap noted here must
 > have a task there or be marked *accepted*; it must not be re-argued in both files.
 >
 > **Status source:** every row was re-verified against the code at HEAD `499f71f7`.
@@ -14,7 +14,7 @@
 | Related | Purpose |
 |---|---|
 | [PIPELINE.md](PIPELINE.md) | Technical spec — parser, engine, protocol, persistence, REST |
-| [PIPELINE_TASKS.md](PIPELINE_TASKS.md) | The actionable breakdown of every 🔴/🟡 below |
+| [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) | The actionable breakdown of every 🔴/🟡 below |
 | [PIPELINE_FLOW.md](PIPELINE_FLOW.md) | The mental model: what actually travels between nodes |
 | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) | Ports, content types, cardinality, fan-out/gather |
 | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) | Per-node reference; descriptor ↔ runnable-kind reconciliation (§5.2) |
@@ -70,7 +70,7 @@ Legend: ✅ Met · 🟡 Met with a stated deviation · 🔴 Not met
 
 | # | Deviation | Where it is tracked |
 |---|---|---|
-| R7 | No filter kind is runnable — a filter in a graph fails at execution time | [PIPELINE_TASKS.md](PIPELINE_TASKS.md) Task 3 (**blocking**) |
+| R7 | The `filter` kind runs, but only `filterBy: LANGUAGE` is implemented — MIME, size and date bucketing are absent | [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) Task 3 |
 | R11 | No standalone validation endpoint; structural validation triplicated | Task 8 |
 | R2 | Status/results ride the WebSocket, not REST; the REST bulk-sync path is dormant | Task 10 (decide: wire or delete) |
 | R6 | Per-node task rows are durable but not exposed over REST | [../../cortex/METALOOM_ARCHITECTURE_TASK.md](../../cortex/METALOOM_ARCHITECTURE_TASK.md) |

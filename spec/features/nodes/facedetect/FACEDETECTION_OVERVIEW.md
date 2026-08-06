@@ -5,9 +5,15 @@
 > **InspireFace model packs** are actually built, and what the **de-facto standard** pipeline is.
 > **Audience**: AI coding agents and humans working on [cortex/nodes/facedetect/](../../../../cortex/nodes/facedetect/).
 
-Related specs: [features/pipeline-nodes/NODES.md](../../pipeline-nodes/NODES.md) (node reference,
+Related specs: [features/nodes/NODES.md](../NODES.md) (node reference,
 `facedetect` row) · [guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) ·
 [features/pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) (typed ports).
+
+> **The end-to-end identity workflow lives elsewhere.** This file is about *which model runs and under
+> what licence*. How a detected face becomes a confirmed person — detect → embed → cluster → confirm —
+> is [features/facedetection/FACE_WORKFLOW.md](../../facedetection/FACE_WORKFLOW.md).
+> 🔴 Only the first of those four stages is implemented: **no face embedding is ever persisted**, so
+> the DBSCAN pipeline described in §5 below is the *standard*, not what MetaLoom does.
 
 > ⚠️ **This is engineering research, not legal advice.** Every licence claim below is sourced and
 > dated; verify against the upstream `LICENSE` file before shipping. Licences change.
@@ -473,8 +479,10 @@ Research/documentation items:
 Engineering items (**none started**):
 
 - [ ] Decide between option A / B / C (§6.3) — **product decision, blocks commercial release**
-- [ ] Add `FacedetectNodeCapabilities.OPENCV` (YuNet + SFace) backend
-- [ ] Add a `video4j-facedetect-opencv` module (or extend an existing video4j backend)
+- [ ] Add `FacedetectNodeCapabilities.OPENCV` (YuNet + SFace) backend — the enum is still `{INSPIREFACE, DLIB}`
+- [x] ~~Add a `video4j-facedetect-opencv` module~~ — **it exists**: `video4j/facedetect/opencv/`
+      (`CVFacedetectorImpl`, with `detectEmbeddings`/`extractEmbeddings` implemented). Only the
+      metaloom-side capability value and wiring are missing. Verified 2026-08-06.
 - [ ] Version stored embeddings by (model, pack, dim) so a backend switch is detectable
 - [ ] Add a re-extraction path for embeddings after a model change
 - [ ] Make the default capability set licence-safe (currently `INSPIREFACE`)
@@ -587,7 +595,8 @@ OpenCV 5.1, which has produced SIGSEGVs in facedetect. Check before blaming the 
 | The pack files themselves | `../../../../../inspireface4j/packs/` (gitignored, downloaded) |
 | What's inside a pack | `tar -tvf packs/Pikachu` then read `__inspire__` |
 | The insightface HTTP sidecar | `../../../../../face-recognition-server/` |
-| The node's row in the node table | [features/pipeline-nodes/NODES.md](../../pipeline-nodes/NODES.md) §3 |
+| The node's row in the node table | [features/nodes/NODES.md](../NODES.md) §3 |
+| How a face becomes a confirmed person | [features/facedetection/FACE_WORKFLOW.md](../../facedetection/FACE_WORKFLOW.md) |
 | Where detections are persisted | `POST /assets/:uuid/detections/bulk` → `detection` table |
 | Rules for adding a new backend as a node kind | [guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 | Customer-facing face docs | [website/content/english/docs/nodes/facedetect/](../../../../website/content/english/docs/nodes/facedetect/) |
@@ -621,8 +630,13 @@ their `__inspire__` manifests. Not taken from documentation — upstream does no
 
 ---
 
-**GIT HEAD**: `d930e2227efec8f09c6d5ccb65ac368e2f49bdac` (master, 2026-08-02)
-**Verified**: 2026-08-02
+**GIT HEAD**: `1e12f39eaf2d27d461338c89c1d8dc3fee6bebee` (master, 2026-08-06)
+**Verified**: 2026-08-02 (licensing research) · 2026-08-06 (cross-links + the OpenCV correction in §7)
 **Method**: upstream `LICENSE`/README files fetched directly; InspireFace pack internals extracted and
 read from the local `inspireface4j` checkout; MetaLoom wiring read from
 `cortex/nodes/facedetect/core`.
+**2026-08-06 changes**: added the pointer to the new
+[features/facedetection/FACE_WORKFLOW.md](../../facedetection/FACE_WORKFLOW.md) (which owns the
+detect → embed → cluster → confirm loop, and records that only stage 1 is implemented); fixed two
+stale `features/pipeline-nodes/` links to `features/nodes/`; corrected the §7 claim that
+`video4j-facedetect-opencv` does not exist — it does.

@@ -69,6 +69,8 @@ public final class ContentTypeRegistry {
 	public static final String STRUCT_SCENE_LAYOUT = "struct/scene-layout";
 	public static final String STRUCT_QUALITY = "struct/quality";
 	public static final String STRUCT_DEPTHMAP = "struct/depthmap";
+	/** Spatial per-object segmentation masks. Deliberately not {@link #STRUCT_SEGMENTS}, which is time-coded. */
+	public static final String STRUCT_MASKS = "struct/masks";
 	public static final String STRUCT_COLOR = "struct/color";
 	public static final String STRUCT_JSON = "struct/json";
 
@@ -126,6 +128,8 @@ public final class ContentTypeRegistry {
 			new ContentType(STRUCT_SCENE_LAYOUT, "Scene Layout", "Spatial relations between detected objects"),
 			new ContentType(STRUCT_QUALITY, "Quality Metrics", "Resolution, blurriness and bitrate metrics"),
 			new ContentType(STRUCT_DEPTHMAP, "Depth Map", "Depth-map metadata"),
+			new ContentType(STRUCT_MASKS, "Segmentation Masks",
+				"Per-object segmentation masks: area, score, box and the worker-local mask file for each"),
 			new ContentType(STRUCT_COLOR, "Dominant Colour", "Dominant-colour palette and names"),
 			new ContentType(STRUCT_JSON, "JSON", "A structured payload with no more specific type"),
 

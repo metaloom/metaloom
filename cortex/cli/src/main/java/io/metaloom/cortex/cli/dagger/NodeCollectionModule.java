@@ -15,6 +15,7 @@ import io.metaloom.cortex.node.videogen.VideoGenNodeModule;
 import io.metaloom.cortex.node.llm.LLMNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
 import io.metaloom.cortex.node.quality.QualityNodeModule;
+import io.metaloom.cortex.node.sam2.Sam2NodeModule;
 import io.metaloom.cortex.node.scene.SceneDetectionNodeModule;
 import io.metaloom.cortex.node.color.DominantColorNodeModule;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNodeModule;
@@ -64,6 +65,7 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	SentimentNodeModule.class,
 	ScriptNodeModule.class,
 	DepthmapNodeModule.class,
+	Sam2NodeModule.class,
 	SceneLayoutNodeModule.class,
 	DominantColorNodeModule.class,
 	WatermarkNodeModule.class,

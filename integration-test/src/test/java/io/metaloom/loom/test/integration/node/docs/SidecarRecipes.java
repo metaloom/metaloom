@@ -20,6 +20,10 @@ import io.metaloom.cortex.node.imagegen.ImageGenClient;
 import io.metaloom.cortex.node.imagegen.ImageGenMode;
 import io.metaloom.cortex.node.imagegen.ImageGenNode;
 import io.metaloom.cortex.node.imagegen.ImageGenNodeOptions;
+import io.metaloom.cortex.node.sam2.Sam2Client;
+import io.metaloom.cortex.node.sam2.Sam2Node;
+import io.metaloom.cortex.node.sam2.Sam2NodeOptions;
+import io.metaloom.cortex.node.sam2.video.Sam2FrameSampler;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNode;
 import io.metaloom.cortex.node.scenelayout.SceneLayoutNodeOptions;
 import io.metaloom.cortex.node.sentiment.SentimentClient;
@@ -94,6 +98,58 @@ public final class SidecarRecipes {
 				node.initialize();
 				return new Outcome(node.process(NodeContext.create(env.media(media))), env.displayPath(media),
 					new JsonObject().put("mode", options.getMode().name()).put("maxDim", options.getMaxDim()));
+			}
+		};
+	}
+
+	// ------------------------------------------------------------------------
+	// sam2
+	// ------------------------------------------------------------------------
+
+	/**
+	 * Segment-everything on a still, and deliberately not the prompted mode.
+	 *
+	 * <p>
+	 * PROMPTED is the more interesting wiring, but photographing it would need the YOLO natives and
+	 * an ONNX model <em>on top of</em> the sidecar — two requirements for one picture, and an
+	 * aborted fixture teaches nobody anything. AUTOMATIC needs only the sidecar and produces the
+	 * output that actually shows what this node does.
+	 * </p>
+	 *
+	 * <p>
+	 * Previews are switched on, because the honest picture here is the {@code overlay} port. The
+	 * {@code masks} port is {@code MANY} and the runtime previews only its first element, so without
+	 * the overlay a segment-everything run would illustrate itself with one cut-out.
+	 * </p>
+	 */
+	public static DocsFixtureRecipe sam2() {
+		return new DocsFixtureRecipe() {
+			@Override
+			public String kind() {
+				return "sam2";
+			}
+
+			@Override
+			public Requirement requirement() {
+				return sidecar("sam2", new Sam2NodeOptions().getSam2Port(), "sam2");
+			}
+
+			@Override
+			public Outcome run(FixtureEnv env) throws Exception {
+				// The same portrait the depthmap page uses, so a reader following the catalogue sees
+				// one photograph answered three different ways.
+				var media = env.image1();
+				Sam2NodeOptions options = new Sam2NodeOptions();
+				Sam2Node node = new Sam2Node(null, env.cortexOptions("sam2"), options,
+					new Sam2Client(options.getSam2Host(), options.getSam2Port(), (int) options.getTimeoutMs()),
+					new Sam2FrameSampler());
+				node.initialize();
+				return new Outcome(node.process(context(env.media(media))), env.displayPath(media),
+					new JsonObject()
+						.put("mode", options.getMode().name())
+						.put("maxDim", options.getMaxDim())
+						.put("pointsPerSide", options.getPointsPerSide())
+						.put("minMaskArea", options.getMinMaskArea()));
 			}
 		};
 	}

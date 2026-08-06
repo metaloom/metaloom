@@ -86,7 +86,7 @@ A content type id is **always** `family/subtype`; `family/*` is the family root.
 | **hash** | `hash/*` · `hash/md5` · `hash/sha256` · `hash/sha512` · `hash/chunk` · `hash/fingerprint` |
 | **scalar** | `scalar/*` · `scalar/string` · `scalar/integer` · `scalar/number` · `scalar/boolean` |
 | **artifact** | `artifact/*` · `artifact/image` · `artifact/video` · `artifact/audio` · `artifact/file` |
-| **struct** | `struct/*` · `struct/embedding` · `struct/segments` · `struct/scene-layout` · `struct/quality` · `struct/depthmap` · `struct/color` · `struct/json` |
+| **struct** | `struct/*` · `struct/embedding` · `struct/segments` · `struct/scene-layout` · `struct/quality` · `struct/depthmap` · `struct/masks` · `struct/color` · `struct/json` |
 | **control** | `control/*` · `control/filter` |
 
 Two distinctions the families exist to enforce:
@@ -270,6 +270,7 @@ All three emit the family wildcard: the concrete kind is unknown until the file 
 | `facedescription` | `detections : detection/face` **MANY** | `descriptions : text/plain` **MANY** |
 | `objectdetect` | **XOR `media_alt`**: `image : media/image` \| `video : media/video` | `detections : detection/object` **MANY**, `labels : scalar/string` **MANY**, `object_count : scalar/integer`, `flag : scalar/string` |
 | `depthmap` | `media : media/image` | `meta : struct/depthmap`, `map : artifact/image`, `flag : scalar/string` |
+| `sam2` | **XOR `media_alt`**: `image : media/image` \| `video : media/video`; `detections : detection/*` **MANY** *(opt)* | `masks : artifact/image` **MANY**, `segments : struct/masks`, `overlay : artifact/image`, `mask_count : scalar/integer`, `flag : scalar/string` |
 | `scene-detection` | `media : media/video` | `scenes : struct/segments` |
 | `scene-layout` | `depth : struct/depthmap`, `detections : detection/*` **MANY** | `result : struct/scene-layout`, `object_count : scalar/integer`, `relation_count : scalar/integer` |
 | `dominant-color` | `media : media/image`, `detections : detection/*` **MANY** *(opt)* | `result : struct/color`, `hex : scalar/string`, `term : scalar/string`, `name_en : scalar/string`, `name_de : scalar/string`, `region_count : scalar/integer` |

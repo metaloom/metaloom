@@ -48,8 +48,8 @@ public class NodeDescriptorServiceLoaderTest {
 	void testRegistryIsFullyPopulated() {
 		NodeDescriptorRegistry registry = buildRegistry();
 
-		assertEquals(42, registry.size(),
-			"Expected 42 advertised node kinds but found " + registry.size()
+		assertEquals(43, registry.size(),
+			"Expected 43 advertised node kinds but found " + registry.size()
 				+ ". Discovered kinds: " + kinds(registry));
 	}
 
@@ -87,6 +87,7 @@ public class NodeDescriptorServiceLoaderTest {
 			"hash-dedup",         // former cortex-dedup-api
 			"sentiment",          // sentiment analysis node
 			"depthmap",           // monocular depth estimation
+			"sam2",               // SAM 2 segmentation; the first producer of struct/masks
 			"scene-layout",       // depth + boxes -> spatial relations
 			"dominant-color",     // CIELAB colour clustering + bilingual naming
 			"tts",                // text to speech via the /v1/tts sidecar

@@ -1,0 +1,23 @@
+# Cortex SAM 2 sidecar. Python 3.11+ recommended (SAM 2's own floor is 3.10).
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.7
+
+# SAM 2 comes from transformers, NOT from the PyPI `sam2` distribution:
+#   * `pip install sam2` is a THIRD-PARTY upload, not Meta's.
+#   * Meta's own instruction is `git clone github.com/facebookresearch/sam2 &&
+#     pip install -e .`, which builds a CUDA extension and pins hydra.
+# transformers ships Sam2Model / Sam2VideoModel / Sam2Processor / Sam2VideoProcessor
+# and the "mask-generation" pipeline natively, needs no build step, and is the stack
+# sidecars/depth already runs. setup.sh asserts the imports resolve rather than
+# guessing which minor first shipped the video classes.
+transformers>=4.56
+torch>=2.5.1
+torchvision>=0.20.1
+
+pillow>=10.0
+numpy>=1.26
+
+# Binary mask PNG encoding. cv2.imencode round-trips uint8 reliably and produces a
+# file Java's ImageIO reads as TYPE_BYTE_GRAY, which is what the node asserts.
+opencv-python-headless>=4.9

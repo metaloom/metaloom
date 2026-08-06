@@ -250,7 +250,7 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
   `Pool not found {loom-dev}`. Compile `loom/fixture` first.
 - **`store()` is INSERT-only** and throws on the second write. Every idempotent write path
   must use `insertInto(...).onConflict(...).doUpdate()`. This bit `PipelineRunTracker`
-  already — [../pipeline/PIPELINE_TASKS.md](../pipeline/PIPELINE_TASKS.md) Task 2.
+  already (fixed 2026-07-18 — see `PipelineRunTracker.complete(...)`).
 - **`ALTER TYPE … ADD VALUE` cannot be *used* in the transaction that added it**, and
   Flyway wraps each migration in one. Add the value in its own migration and seed grants in
   a later one (`V2.57`, `V2.62` are the pattern), or use

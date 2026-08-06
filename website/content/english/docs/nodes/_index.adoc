@@ -67,6 +67,7 @@ The built-in nodes fall into four categories.
 | link:facedetect/[Face Detection] (`facedetect`) | Image, Video | Detect faces + embeddings — its `detections` port carries **one element per face**
 | link:objectdetect/[Object Detection] (`objectdetect`) | Image, Video | Detect objects with YOLO — its `detections` port carries **one element per object**, and `labels` feeds the tag node directly
 | link:facedescription/[Face Description] (`facedescription`) | Image | Describe detected faces with a vision model, one description per face
+| link:sam2/[Segment Anything] (`sam2`) | Image, Video | Turn boxes into exact outlines with SAM 2 — segment everything, cut out what a detector found, or track a mask through a clip
 | link:depthmap/[Depth Map] (`depthmap`) | Image | Estimate how far each part of a photo is from the camera
 | link:scene-layout/[Scene Layout] (`scene-layout`) | Image (a depth map and detections connected) | Work out what is in front of, behind or next to what
 |===
@@ -117,6 +118,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | An LLM provider service | `llm`, `facedescription`
 | A vision-language model service | `captioning`, `vlm`
 | A TTS sidecar (Orpheus/Kartoffel + Kokoro) | `tts`
+| A SAM 2 sidecar (GPU strongly recommended) | `sam2`
 | An image-generation sidecar (SDXL-Turbo / diffusion model; GPU recommended) | `imagegen`
 | A video-generation sidecar (LTX-2; a 24 GB GPU is required) | `videogen`
 | A sentiment sidecar (german-sentiment-bert + twitter-roberta; CPU is enough) | `sentiment`
@@ -158,6 +160,14 @@ and video frames with a YOLO model, reporting each as a labelled box with a conf
 classes it can report come from the model's own vocabulary, so choosing the model is choosing what
 the library can be searched for. Its `labels` port lists the distinct classes found and connects
 straight to link:tag/[`tag`], which turns every asset into something searchable by what is in it.
+
+Segmentation::
+link:sam2/[`sam2`] answers the question detection cannot: not where a thing is, but which pixels are
+it. Given the boxes link:objectdetect/[`objectdetect`] already found, it returns each one as an exact
+outline; given nothing at all, it finds every distinct region in the picture by itself; given a video,
+it follows an outline from frame to frame as the subject moves. That boundary is what separates a
+product from its backdrop, crops to a person rather than to a rectangle around one, and turns "how
+much of this shot is sky" from an impression into a number.
 
 Thumbnail generation::
 link:thumbnail/[`thumbnail`] renders contact-sheet previews from video frames and source images and

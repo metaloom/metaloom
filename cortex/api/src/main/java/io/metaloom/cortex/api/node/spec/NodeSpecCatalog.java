@@ -73,6 +73,7 @@ public final class NodeSpecCatalog {
 		"io.metaloom.cortex.node.whisper.WhisperNode",
 		"io.metaloom.cortex.node.sentiment.SentimentNode",
 		"io.metaloom.cortex.node.depthmap.DepthmapNode",
+		"io.metaloom.cortex.node.sam2.Sam2Node",
 		"io.metaloom.cortex.node.scenelayout.SceneLayoutNode",
 		"io.metaloom.cortex.node.color.DominantColorNode",
 		"io.metaloom.cortex.node.scene.SceneDetectionNode",

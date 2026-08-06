@@ -49,6 +49,7 @@
 		timeframe: { c: "#4fd0e0", n: "timeframe", ct: "struct/segments" },
 		segments: { c: "#4fd0e0", n: "segments", ct: "struct/segments" },
 		depth: { c: "#a48be0", n: "depth map", ct: "struct/depthmap" },
+		masks: { c: "#a48be0", n: "segmentation masks", ct: "struct/masks" },
 		quality: { c: "#7fb4ff", n: "quality metrics", ct: "struct/quality" },
 		color: { c: "#e2a24e", n: "dominant colour", ct: "struct/color" },
 		layout: { c: "#a48be0", n: "scene layout", ct: "struct/scene-layout" },

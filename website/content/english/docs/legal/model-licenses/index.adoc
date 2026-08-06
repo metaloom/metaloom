@@ -158,6 +158,11 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | **AGPL-3.0** (both the shim and the reference weights)
 | ⚠️ Only under AGPL terms — see link:#conditional[above]
 
+| link:../../nodes/sam2/[Segment Anything]
+| `facebook/sam2.1-hiera-small` behind the SAM 2 sidecar (`model`, `sam2Host`/`sam2Port`); the `tiny`, `base-plus` and `large` variants are equally selectable
+| Apache-2.0 — code and every 2.1 checkpoint in the family
+| ✅ Yes
+
 | link:../../nodes/vlm/[VLM]
 | `allenai/olmOCR-2-7B-1025-FP8` served over an OpenAI-compatible endpoint (`model`, `endpointUrl`)
 | Apache-2.0 per the model card; fine-tuned from Qwen2.5-VL-7B-Instruct (Apache-2.0)

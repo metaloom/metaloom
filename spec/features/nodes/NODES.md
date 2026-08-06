@@ -21,6 +21,7 @@
 > | `image-manipulation` — EXIF autorotate, crop, subject crop, aspect/VVS, resize | [image-manipulation/NODE_IMAGE_MANIPULATION.md](image-manipulation/NODE_IMAGE_MANIPULATION.md) |
 > | `tika` — document body text | [SERVICE_TIKA.md](SERVICE_TIKA.md) |
 > | `facedetect` / `facedescription` — the face model and licensing landscape | [facedetect/FACEDETECTION_OVERVIEW.md](facedetect/FACEDETECTION_OVERVIEW.md) |
+> | `facedetect` — the identity **workflow**: detect → embed → cluster → confirm a person | [../facedetection/FACE_WORKFLOW.md](../facedetection/FACE_WORKFLOW.md) — 🔴 only stage 1 runs; the `faceClusterEPS` / `faceClusterMinimum` options in §5 are read by nothing |
 >
 > **Source of truth is the code under `cortex/`.** Where this file and the code disagree, the code
 > wins — fix this file in the same change.
@@ -111,7 +112,7 @@ Every persisting node does two things inside `compute()`, guarded by `asset != n
    → `POST /api/v1/assets/:uuid/node-results` → `asset_node_result`, **UNIQUE (asset_uuid, node_kind, node_id)**.
    Best-effort: a ledger failure never fails the node.
 
-All 31 node classes call `recordNodeResult`. ⚠️ `WhisperNode` declares a **private overload** that
+All 32 node classes call `recordNodeResult`. ⚠️ `WhisperNode` declares a **private overload** that
 shadows the base method — do not copy it.
 
 | Node(s) | Typed payload → table | Client method |
@@ -130,7 +131,7 @@ shadows the base method — do not copy it.
 | `tag` | `PUT assets/:uuid/tags` → `tag` + `tag_asset` (resolve-or-create on `(name, collection)`, whole set in one transaction, each placement stamped with `node_kind`/`node_id`/`producer_version`/`confidence`) **+** `asset_json_comp` (`schemaType=tags`, `variant` = node id) recording what it applied | `bulkTagAsset`, `createAssetJsonComp` |
 | `s3-sink` | one `asset` **per uploaded artifact** (`origin` = the `s3://` URI) + `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) on the source asset | `createAsset`, `createAssetJsonComp` |
 | `fingerprint-dedup` | `dedup-groups` → `dedup_group` + `dedup_group_member` | `createDedupGroup` |
-| `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
+| `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `sam2`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
 `quality`, `tika`, `metadata`, `sentiment`, `translation`, `scene-layout`, `dominant-color`, `script`,
@@ -151,7 +152,7 @@ shared `nodeId` / `producerVersion` / `confidence` / `meta`.
 
 Nodes that produce **new bytes** write them to `metaPath/<name>_bin/<segment>/<sha512>.<ext>`
 (`HashUtils.segmentPath`) and record the ledger with **no `result_ref`**. Live artifact directories:
-`thumbnail_bin`, `tts_bin`, `imagegen_bin`, `videogen_bin`, `depthmap_bin`, `watermark_bin`,
+`thumbnail_bin`, `tts_bin`, `imagegen_bin`, `videogen_bin`, `depthmap_bin`, `sam2_bin`, `watermark_bin`,
 `imagemanip_bin`, `script_bin` (plus `s3_bin`, `gdrive_bin` and `onedrive_bin` — the remote
 materializers' download caches, which hold fetched inputs rather than produced outputs).
 
@@ -163,7 +164,7 @@ worker** as the producer and nothing enforces that (§10).
 
 ## 3. Node Reference
 
-**32 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
+**35 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
 leftover directory with no `pom.xml` and is not a module — do not list or resurrect it.
 
 Layout is `cortex/nodes/<name>/core/` except `filesystem-source`, `s3-source` and `cloud-source`,
@@ -200,6 +201,7 @@ Port ids only; content types and cardinality are in
 | `guard` | `GuardNode` · guard | any with `text` wired; image assets on a multimodal family | `text`, `media` → `safe`, `label`, `score`, `categories` (MANY), `result` | `asset_json_comp` (`schemaType=guard`) | OpenAI-compatible |
 | `tts` | `TtsNode` · tts | any with `text` wired | `text` → `audio`, `flag` | ledger only | sidecar `9100` |
 | `depthmap` | `DepthmapNode` · depthmap | image | `media` → `map`, `meta`, `flag` | ledger only | sidecar `9120` |
+| `sam2` | `Sam2Node` · sam2 | image, video | `image` \| `video`, `detections` (MANY, opt) → `masks` (MANY), `segments`, `overlay`, `mask_count`, `flag` | ledger only | sidecar `9130` |
 | `scene-layout` | `SceneLayoutNode` · scene-layout | image | `depth`, `detections` (MANY) → `result`, `object_count`, `relation_count` | `asset_json_comp` | **none** (geometry) |
 | `dominant-color` | `DominantColorNode` · dominant-color | image | `media`, `detections` (MANY, opt) → `result`, `hex`, `term`, `name_en`, `name_de`, `region_count` | `asset_json_comp` | **none** (arithmetic) |
 | `imagegen` | `ImageGenNode` · image-generation | image | `prompt`, `media` → `image`, `flag` | ledger only | sidecar `9200`/`9210` |
@@ -221,7 +223,8 @@ Notes worth knowing:
   (`LlmPortResolver`, `VlmPortResolver`, `ScriptOutputSpec`), so their descriptor ports are the
   declared minimum rather than the whole set.
 - **`scene-layout` and `depthmap` must share an affinity group** — the depth PNG is worker-local.
-  Same for `s3-sink` and whatever produced its artifacts.
+  Same for `s3-sink` and whatever produced its artifacts, and for anything consuming `sam2`'s masks —
+  which are a worker-local *directory* of N files rather than one.
 - **`captioning`'s `videoStrategy`**: `WHOLE` (N frames → one prompt), `SCENE` (optical-flow
   segmentation → per-scene timeline, `schemaType=video-caption`), `NATIVE` (`video_url`, vLLM only).
 - **`sentiment` / `tts` / `translate` ignore media type entirely** — `isProcessable` is "is the
@@ -383,12 +386,15 @@ Two independent layers — confusing them is a classic mistake.
 | `guard` | `absolutePath \| hash(input text, image path, family, model, effective categories, threshold, prompt template, maxImageDim)` — the text arrives from an edge, so a path-keyed cache would answer a different question than the one asked |
 | `metadata` | `absolutePath \| digest(every option that changes the envelope: `includeRaw`, `gpsPolicy`, `gpsRoundDecimals`, `dateFallback`, `emitText`, `licenseDetection`, `readXmpSidecar`, `excludeKeys`, the raw caps)` — required, because two differently configured instances legitimately coexist in one graph |
 | `objectdetect` | `absolutePath \| modelPath, minConfidence, videoChopRate, videoScaleSize, maxDetections, classFilter` — a permissive pass and a `person`-only pass over the same file are two different answers |
+| `sam2` | `absolutePath \| digest(model, mode, maxDim, pointsPerSide, predIouThresh, stabilityScoreThresh, minMaskArea, maxMasks, multimask, videoChopRate, maxFrames, trackFrame, emitOverlay, **and the prompt boxes**)` — the digest is in the artifact directory name too, so an automatic pass and a prompted one neither serve nor overwrite each other. The boxes are in it for `image-manipulation`'s reason: a re-run against better detections must not be handed the first run's masks |
 | everything else | `absolutePath` **only** |
 
 The consequence is concrete: `sentiment` re-uses the first score for a file even when a different
 upstream text is wired; `depthmap` ignores `mode`/`model`/`maxDim`; `tts` ignores `voice`/`language`;
-`scene-layout` ignores the wired depth map and detections. `depthmap` and `watermark` at least
-re-check the artifact still exists on disk.
+`scene-layout` ignores the wired depth map and detections. `depthmap`, `watermark` and `sam2` at
+least re-check the artifact still exists on disk — `sam2` by stat-ing the `manifest.json` it writes
+last, which is one call regardless of how many masks the directory holds and is absent from a
+directory a killed worker left half-written.
 
 `s3-source`, `gdrive-source`, `onedrive-source`, `filesystem-source` and `s3-sink` hold no
 `LocalResultCache`; the sources keep durable
@@ -402,7 +408,7 @@ Avro indexes instead and `s3-sink` dedups remotely via `OverwritePolicy`.
 flowchart TD
   M["cortex/nodes/&lt;name&gt;/core<br/>XNodeModule"]
   M -->|"@Binds @IntoSet FilesystemNode"| S["Set&lt;FilesystemNode&gt;<br/>(legacy CLI)"]
-  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>36 entries"]
+  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>37 entries"]
   NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = node modules)"] --> M
   K --> R["RegistryNodeRegistrar.registerAll()"]
   SRC["filesystem-source · asset-source<br/>+ s3-source when s3Support.isActive()<br/>+ gdrive-source / onedrive-source per configured provider"] --> R
@@ -411,16 +417,16 @@ flowchart TD
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>generated node-descriptors.json → 42 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>generated node-descriptors.json → 43 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **37** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **38** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
   `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `objectdetect`, `tika`, `metadata`,
   `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
-  `whisper`, `tts`, `sentiment`, `translate`, `guard`, `script`, `depthmap`, `scene-layout`,
+  `whisper`, `tts`, `sentiment`, `translate`, `guard`, `script`, `depthmap`, `sam2`, `scene-layout`,
   `dominant-color`, `watermark`, `image-manipulation`, `filter`, `tag`, `s3-sink`.
   All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java`.
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
@@ -428,7 +434,7 @@ flowchart TD
   and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
   configured. The gate is per provider rather than per module, which is the reason the two clouds
   are two kinds sharing one implementation rather than one kind with a `provider` parameter.
-- **Total runnable: 39 with S3 configured, 38 without.**
+- **Total runnable: 40 with S3 configured, 39 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -439,7 +445,7 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **42 advertised kinds.** Since the
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **43 advertised kinds.** Since the
 `d9bbc2dc` refactor the contracts are one generated `node-descriptors.json` served by
 `GeneratedNodeDescriptorProvider` (+ `OrphanNodeDescriptorProvider`), harvested at build time from
 the annotated node classes and regenerated with
@@ -521,7 +527,7 @@ Everything else matches its kind, except the four hash kinds which share `KEY = 
 `dedup` classes which share `DedupNodeOptions`. Full set: `hash`, `thumbnail`, `fingerprint` (no
 fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `facedetection`, `quality`,
 `scene-detector` (no fields), `metadata`, `captioning`, `llm`, `vlm`, `sentiment`, `tts`, `objectdetect`,
-`depthmap`, `scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`,
+`depthmap`, `sam2`, `scene-layout`, `dominant-color`, `imagegen`, `videogen`, `watermark`, `translate`,
 `guard`, `script`, `tag`, `s3-sink`, `s3-source`, `filesystem-source`, `gdrive-source`, `onedrive-source`.
 
 ### 6.3 Per-node option defaults
@@ -543,6 +549,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `guard` | `family` (`LLAMA_GUARD_3`), `model` (`meta-llama/Llama-Guard-3-8B`), `categories` (`[]` = all), `threshold` (0.5), `maxChars` (8000), `maxImageDim` (1024), `openaiUrl` (`http://127.0.0.1:8080/v1`), `contextWindow` (2048), `apiKey` (null), `promptTemplate` (null = the family's built-in) |
 | `tts` | `ttsHost` (`localhost`), `ttsPort` (9100), `language` (`de`), `voice` (`Jakob`) |
 | `depthmap` | `depthHost` (`localhost`), `depthPort` (9120), `mode` (`RELATIVE`\|`METRIC`), `model` (null), `maxDim` (1024), `timeoutMs` (120000) |
+| `sam2` | `sam2Host` (`localhost`), `sam2Port` (9130), `mode` (`AUTOMATIC`\|`PROMPTED`\|`TRACK`), `model` (null), `maxDim` (1024), `pointsPerSide` (32), `predIouThresh` (0.8), `stabilityScoreThresh` (0.95), `minMaskArea` (256), `maxMasks` (64), `multimask` (false), `videoChopRate` (25), `maxFrames` (64), `trackFrame` (0), `emitOverlay` (true), `timeoutMs` (300000) |
 | `metadata` | `includeRaw` (false), `rawMaxKeys` (500), `rawMaxValueBytes` (4096), `readXmpSidecar` (true), `writeGeoComponent` (true), `gpsTrackMaxSamples` (1000), `gpsPolicy` (`KEEP`\|`ROUND`\|`DROP`), `gpsRoundDecimals` (2), `emitText` (true), `licenseDetection` (true), `dateFallback` (`NONE`\|`FILESYSTEM`), `excludeKeys` (`[]`). ⚠️ Read from the **node definition**, not the worker YAML — see §6.5 |
 | `scene-layout` | `allowLoomFallback` (true), `coreInset` (0.25), `minCorePixels` (16), `depthZThreshold` (1.0), `occlusionMinOverlap` (0.05), `containmentRatio` (0.85), `nextToMaxGap` (0.5), `foregroundQuantile` (0.66), `backgroundQuantile` (0.33), `maxObjects` (40), `maxRelations` (200), `emitPhrases` (true) |
 | `dominant-color` | `clusterCount` (5), `maxSamples` (40000), `maxIterations` (30), `convergenceEpsilon` (0.5), `seed` (42), `alphaThreshold` (128), `minRegionPixels` (64), `maxRegions` (32), `includeWholeImage` (true), `useDetections` (true), `regionX/Y/W/H` (0.0), `regionCoordinates` (`NORMALIZED`), `achromaticChroma` (12.0), `blackLightness` (20.0), `whiteLightness` (85.0), `emitPalette` (true) |
@@ -642,7 +649,7 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
 | `NodeSpecGoldenTest` | `integration-test/.../node/` | every `@NodeSpec` class is in the committed `node-descriptors.json`, and the resource is regenerated from it |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 42 advertised kinds, no duplicates |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 43 advertised kinds, no duplicates |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,
@@ -835,15 +842,17 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | The tag write path a `tag` node depends on | `loom/db/jooq/.../dao/tag/TagDaoImpl.java` (`resolveOrCreateAssetTag`, `tagAsset`, `bulkTagAsset`) |
 | Per-node end-to-end ITs | `integration-test/src/test/java/io/metaloom/loom/test/integration/node/` |
 | Test scaffolding | `cortex/pipeline-core/src/test/java/io/metaloom/cortex/pipeline/test/` |
-| Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `imagegen` 9200/9210, `videogen` 9220) |
+| Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `sam2` 9130, `imagegen` 9200/9210, `videogen` 9220) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Customer-facing node docs | `website/content/english/docs/nodes/<kind>/index.adoc` |
 | Per-node design plans | `spec/features/pipeline-nodes/NODE_*_PLAN.md` |
 
 ---
 
-_Git HEAD revision: `97127ed2`_
-_Last updated: 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
+_Git HEAD revision: `1e12f39e`_
+_Last updated: 2026-08-06 (added the routing row for `features/facedetection/FACE_WORKFLOW.md`, which
+owns the face identity loop — and records that the `faceClusterEPS` / `faceClusterMinimum` options
+listed in §5 here are read by no code). Previously 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
 one request per item, one transaction, and a rejected withdrawal fails the item; added
 `TagNodeIntegrationTest` to the per-node ITs. Also finished removing `NodePortConformanceTest` from the
 test tables and the file map, where three references survived the 2026-08-04 correction)_

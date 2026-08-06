@@ -1,0 +1,76 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>cortex-sam2-node</artifactId>
+	<packaging>jar</packaging>
+
+	<parent>
+		<groupId>io.metaloom.cortex</groupId>
+		<artifactId>cortex-nodes</artifactId>
+		<relativePath>../../pom.xml</relativePath>
+		<version>1.0.0-SNAPSHOT</version>
+	</parent>
+
+	<name>MetaLoom // Cortex :: Nodes :: SAM 2</name>
+
+	<!--
+	  The sam2 node is an HTTP client for the FastAPI /v1/segment + /v1/track sidecar
+	  (see sidecars/sam2). Still-image handling is plain ImageIO/Graphics2D (Sam2Images),
+	  the way depthmap does it.
+
+	  Unlike depthmap it also samples video frames, which needs video4j and therefore
+	  drags in the OpenCV native runtime. That is a real cost - depthmap avoided it on
+	  purpose - but TRACK is not expressible without a frame sequence, and reimplementing
+	  sampling would put a second copy of the chop-rate policy next to VideoObjectScanner's.
+	  Only the video path touches the natives; every image-mode test runs without them.
+	-->
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.metaloom</groupId>
+				<artifactId>bom</artifactId>
+				<version>${project.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+	<dependencies>
+		<!-- Logging -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+		</dependency>
+
+		<!-- Video frame sampling for TRACK. Brings opencv-ffm transitively. -->
+		<dependency>
+			<groupId>io.metaloom.video</groupId>
+			<artifactId>video4j</artifactId>
+		</dependency>
+
+		<!-- Test -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.metaloom.cortex</groupId>
+			<artifactId>cortex-api</artifactId>
+			<version>1.0.0-SNAPSHOT</version>
+		</dependency>
+	</dependencies>
+</project>

@@ -202,8 +202,13 @@ mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNode
 That rewrites `loom-shared/node-model/src/main/resources/node-descriptors.json`, **which is
 committed**. `NodeSpecGoldenTest` otherwise only compares, so a stale resource is a build failure
 rather than a silently outdated palette. `NodeDescriptorServiceLoaderTest` then needs its kind count
-bumped (currently **42**) and the new kind added to its `testKindsFromEachFormerModule` list; update
+bumped (currently **43**) and the new kind added to its `testKindsFromEachFormerModule` list; update
 the same number in [NODES.md §5.2](../features/nodes/NODES.md).
+
+⚠️ **Install `cortex/processor` too.** Touch-point 2 edits its pom, and `cortex/cli` resolves that
+pom from the local repository rather than the reactor — so a `-pl cortex/cli` build without it fails
+Dagger annotation processing with `<error>` in place of your module, which reads like a broken
+`@Module` rather than a missing dependency.
 
 ⚠️ **The golden test compares against the class path, not the source tree**, so after regenerating you
 must reinstall `loom-shared/node-model` — and `mvn clean install` the shaded artifacts that bundle the
@@ -327,10 +332,17 @@ in, and run `NodeSpecGoldenTest` + `NodeDescriptorServiceLoaderTest`.
 | Test scaffolding (`StubLoomMedia`, `AbstractNodeChainTest`, `CapturingNode`) | `cortex/pipeline-core` test-jar (`io.metaloom.cortex.pipeline.test`) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Shared LLM plumbing (provider binding, endpoint options, invoker, chunker) | `cortex/llm-common/.../cortex/llm/`. A node talking to a language model must `include` `LLMProviderModule` instead of declaring its own `@Provides LLMProvider` — a second unqualified binding is a Dagger compile error |
-| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) · `cortex/nodes/objectdetect` (native-backed, and §1.4 applied) · `cortex/nodes/guard` (one kind over three incompatible model families) |
+| Worked examples (this guide, applied) | `cortex/nodes/watermark` · `cortex/nodes/dominant-color` · `cortex/nodes/translate` (text-in, LLM-backed) · `cortex/nodes/objectdetect` (native-backed, and §1.4 applied) · `cortex/nodes/guard` (one kind over three incompatible model families) · `cortex/nodes/sam2` (three modes behind one kind, N artifacts per item, and a new content type) |
 
-_Git HEAD revision: `fcf6ea7d`_
-_Last updated: 2026-08-06 (kind count 42 after the `guard` node. Added the `media/*`-port trap to
+_Git HEAD revision: `1e12f39e`_
+_Last updated: 2026-08-06 (kind count 43 after the `sam2` node — the first to write **N artifacts per
+item** and the first to add a content type since `depthmap`. Two things it learned: `NodePreviews`
+downsamples only the **first** element of a `MANY` port, so a node emitting a sequence of images needs
+a `ONE` summary port or its debug card understates the result; and touch-point 2 means
+`cortex/processor` must be **installed**, not merely edited, or the `cortex/cli` Dagger build fails
+with `<error>` in place of the new module.)_
+
+_Previously: 2026-08-06 (kind count 42 after the `guard` node. Added the `media/*`-port trap to
 §1.1: such a port names the **item** and is read with `ctx.media()` — `ValueCoercer` turns every
 media value into a String, so `ctx.input()` on an `InputPort<LoomMedia>` always throws. Also noted
 `guard` as the template for an OpenAI-compatible node that needs log-probabilities rather than text,

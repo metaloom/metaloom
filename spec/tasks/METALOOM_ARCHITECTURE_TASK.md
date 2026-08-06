@@ -13,8 +13,7 @@ For what exists and why see [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md)
 for the phase-by-phase record
 [METALOOM_ARCHITECTURE_V2_PLAN_C.md](METALOOM_ARCHITECTURE_V2_PLAN_C.md).
 Pipeline internals, definition schema and node registration live in
-[../features/pipeline/PIPELINE_TASKS.md](../features/pipeline/PIPELINE_TASKS.md);
-deferred design work in [../tasks/TASKS.md](../tasks/TASKS.md).
+[PIPELINE_TASKS.md](PIPELINE_TASKS.md).
 
 ---
 
@@ -22,48 +21,19 @@ deferred design work in [../tasks/TASKS.md](../tasks/TASKS.md).
 
 - [ ] 1. [Correct the Cortex README](#task-correct-the-cortex-readme)
 - [ ] 2. [Reclaim work from a vanished worker](#task-reclaim-work-from-a-vanished-worker)
-- [ ] 3. [Node-task inspection API](#task-node-task-inspection-api)
+- [ ] 3. [Per-item pipeline event stream](#task-per-item-pipeline-event-stream)
 - [ ] 4. [Settle the shared-storage model](#task-settle-the-shared-storage-model)
 - [ ] 5. [Finish or delete the bulk-sync path, and batch the per-node writes](#task-finish-or-delete-the-bulk-sync-path-and-batch-the-per-node-writes)
 - [ ] 6. [Harden the control channel](#task-harden-the-control-channel)
 - [ ] 7. [Enforce the task-state retention policy](#task-enforce-the-task-state-retention-policy)
 - [ ] 8. [Close the metrics gaps](#task-close-the-metrics-gaps)
 - [ ] 9. [Stable worker identity without operator help](#task-stable-worker-identity-without-operator-help)
-- [ ] 10. [DAO test pool collisions](#task-dao-test-pool-collisions)
 
 Completed work is recorded in [Landed](#landed) as one-line outcomes.
 
 ---
 
-## Task: Correct the Cortex README
 
-**Argumentation Summary:** Decision Q1 removed standalone pipeline execution —
-Cortex answers `NODE_TASK`, `SEGMENT_TASK` and `SOURCE_TASK` and holds no
-pipelines. The website and root README were corrected; `cortex/README.md` was not
-and still sells the opposite product.
-**Improvement Summary:** One file. Reframe Cortex as a long-running worker and
-state plainly what offline use remains.
-
-```
-Fix /home/defaultuser/workspaces/metaloom/metaloom/cortex/README.md. Four stale claims:
-  - line 5: functions "can be performed in offline and online mode"
-  - line 13: "process media in offline mode ... bulk media processing at a very large scale"
-  - line 23 "Online Mode": frames Loom as an optional metadata sink rather than the owner
-    of the graph
-  - lines 31-32 "Deployment": "can be run via Cron or via a Kubernetes (K8S) Job workload"
-Match the framing already used in
-website/content/english/docs/cortex/_index.adoc ("long-running worker daemon, not a
-one-shot CLI batch tool"; "the pipeline graph lives on Loom, not on Cortex") and
-website/content/english/docs/cortex/containers/index.adoc ("deploy it as a Deployment").
-There is no offline path left at all: the picocli layer, including
-`cortex process run --actions`, has since been removed and Cortex only runs as a worker.
-```
-
-**References:** [METALOOM_ARCHITECTURE.md](METALOOM_ARCHITECTURE.md),
-[CORTEX.md](CORTEX.md)
-**Test Requirements:** Docs only — no tests. Flagged as blocking the Phase 1 ship.
-
----
 
 ## Task: Reclaim work from a vanished worker
 
@@ -103,41 +73,35 @@ asserting the run still reaches a terminal state.
 
 ---
 
-## Task: Node-task inspection API
+## Task: Per-item pipeline event stream
 
-**Argumentation Summary:** Run *items* are now exposed, but the per-node task
-detail — attempt history, `leased_by`, failure messages — is still recorded and
-unreachable. `PipelineNodeTaskDao#loadPageByRun` is paged and filterable and was
-plainly built for an endpoint that nobody wrote.
-**Improvement Summary:** Add the tasks route and the per-item stream; the items
-route already exists.
+**Argumentation Summary:** Both inspection routes have landed — run items and the
+per-node task detail under them. What is left of the original task is the *live*
+half: a client watching one item still has to take the whole run's traffic and
+filter client-side, and the read routes were never mirrored in GraphQL.
+**Improvement Summary:** Add the item filter to the event socket; mirror the run
+item / node task routes in `PipelineWiring`.
 
 ```
-Existing: GET /api/v1/pipelines/:uuid/runs/:runUuid/items
-  — PipelineEndpoint#listRunItems, PipelineEndpointService#listRunItems, guarded by
-    READ_PIPELINE_RUN, models PipelineRunItemListResponse / PipelineRunItemRecord,
-    covered by PipelineRunItemEndpointTest. Note the route is nested under the pipeline
-    uuid, not the flat /pipelines/runs/:uuid/items this file used to propose.
+Existing: PipelineEventMessage now carries itemUuid and elementSeq, so the payload half of
+this is done, and the socket already narrows by pipeline and run.
 
 Missing:
-  - GET /api/v1/pipelines/:uuid/runs/:runUuid/tasks — per-node detail including leased_by
-    and attempt history. Back it with PipelineNodeTaskDao#loadPageByRun
-    (loom/db/api/.../pipeline/PipelineNodeTaskDao.java:28); guard with READ_PIPELINE_RUN.
-    There is no PipelineNodeTask* class in loom-shared/rest-model yet — add the record and
-    list response alongside the PipelineRunItem* pair, and mirror the route in GraphQL
-    (PipelineWiring) as the run routes are.
-  - Per-item opt-in event stream. PipelineEventEndpoint (/api/v1/pipelines/events/ws)
-    filters only by ?pipeline= and ?run=. PipelineEventMessage carries mediaPath but no
-    item uuid, and PipelineEventType has no ITEM_* members, so a per-item subscription
-    needs both a filter and a payload change.
+  - Per-item opt-in subscription. PipelineEventEndpoint (/api/v1/pipelines/events/ws)
+    extracts only ?pipeline= and ?run= (handleWebSocket, ~line 88) and
+    PipelineEventBroadcaster#addSubscriber takes no item argument. Add ?item=<uuid> to
+    both, matching against the itemUuid the message already carries.
+  - GraphQL mirror. PipelineWiring registers pipeline / version / run fetchers only —
+    there is no runItems or nodeTasks fetcher, so the two REST read routes have no
+    GraphQL equivalent the way the run routes do.
 ```
 
 **References:** [../loom/RESTAPI.md](../loom/RESTAPI.md),
 [../features/pipeline/PIPELINE.md §10.1](../features/pipeline/PIPELINE.md),
 [../loom/WEBSOCKET.md §4.3](../loom/WEBSOCKET.md)
-**Test Requirements:** Endpoint + permission tests on the pattern of
-`PipelineRunItemEndpointTest` (list, paged, filtered, unknown run 404,
-cross-pipeline 404, forbidden without `READ_PIPELINE_RUN`).
+**Test Requirements:** Broadcaster tests on the pattern of the existing run-filter
+case in `PipelineEventBroadcasterTest` (item subscriber receives only its item;
+no filter still receives everything); GraphQL query tests for the two new fetchers.
 
 ---
 
@@ -281,32 +245,30 @@ asserting `pipeline_run` survives while its detail rows go.
 ## Task: Close the metrics gaps
 
 **Argumentation Summary:** Prometheus is wired on both sides and several meters
-exist, but the four signals that actually describe fleet health are among the
-missing ones — and `METRICS.md` claims meters that have no call site, which is
-worse than documenting nothing.
-**Improvement Summary:** Add the missing meters; correct the spec's over-claims.
+exist, but the four signals that actually describe fleet health are still absent.
+The documentation half is settled — `METRICS.md` now self-describes as PARTIALLY
+IMPLEMENTED and segregates the unrecorded names into its §5 — so what remains is
+implementation, and §5 is the work list.
+**Improvement Summary:** Add the missing meters and move each one out of §5.
 
 ```
 Existing: MonitoringService exposes GET /metrics on LOOM_SERVER_MON_PORT (8989); cortex
 MetricsEndpoint on 8093. Catalogue LoomMetrics / MicrometerLoomMetrics, CortexMetrics /
 MicrometerCortexMetrics. Already emitted: loom_node_results_received{kind,state} (per-kind
-failure rate is derivable), loom_leases_reclaimed_total, loom_orphans_deadlettered_total,
+failure rate is derivable), loom_leases_reclaimed, loom_orphans_deadlettered,
 loom_tasks_returned{node}, loom_processors_connected, loom_pipeline_event_subscribers,
 loom_pipeline_run_duration.
 
-Missing:
+Missing (METRICS.md §5 lists them all; the four that matter most):
   - Dispatch latency. Dispatch is counter-only (recordNodeTaskDispatched /
     recordNodeTaskDispatchFailed in WebSocketNodeDispatcher). Add a timer dispatch->result.
-  - Queue depth / in-flight vs ceiling per run. METRICS.md documents
-    loom_node_tasks_inflight but no bindGauge exists.
+  - Queue depth / in-flight vs ceiling per run — loom_node_tasks_inflight has no bindGauge.
   - Circuit breaker state per kind. NodeKindCircuitBreaker
     (loom/pipeline/.../engine/NodeKindCircuitBreaker.java) contains zero metrics
-    references; METRICS.md documents loom_node_circuit_breaker_trips_total with no call
-    site.
-  - Also documented-but-absent: loom_node_tasks_retried_total,
-    loom_node_tasks_deadlettered_total, loom_processors_by_state, loom_processor_cpu_load,
-    loom_processor_memory_used_bytes, loom_result_store_flush_batch_size. Either implement
-    or remove; METRICS.md currently self-describes as "IMPLEMENTED".
+    references.
+  - Per-state processor gauges: only loom_processors_connected exists.
+The root cause named in §5 is structural: loom/pipeline has no metrics instrumentation at
+all — PipelineRunEngine never sees LoomMetrics. Thread it in first.
 ```
 
 **References:** [../features/ops/METRICS.md](../features/ops/METRICS.md),
@@ -326,8 +288,9 @@ code does.
 contract.
 
 ```
-Existing: CORTEX_NODE_ID (CortexEnvOptions) is mandatory at startup — CortexMain exits with
-code 2 when it is missing, with a second guard in LoomControlChannel that throws on a blank id. The id keys cortex_instance, and
+Existing: CORTEX_NODE_ID (CortexEnvOptions) is mandatory at startup — CortexMain (cortex/cli)
+returns EXIT_INVALID_CONFIGURATION when it is missing, with a second guard in
+LoomControlChannel (~line 129) that throws on a blank id. The id keys cortex_instance, and
 ProcessorRegistry#reconcilePersistedRestriction restores admin-set whitelist/blacklist on
 re-register, so leases and attribution survive a restart when the same id is supplied.
 
@@ -348,32 +311,6 @@ reclaims rather than duplicating.
 
 ---
 
-## Task: DAO test pool collisions
-
-**Argumentation Summary:** Tests in `loom/db/jooq` were failing with
-`duplicate key … _pkey` because fixtures seeded by `PoolSetupRunner` collided with
-UUIDs the tests insert. Not re-verified in this pass (no test run), and the module
-has been reworked since — `PipelineFixtures` now centralises the
-pipeline → version → run scaffolding.
-**Improvement Summary:** Re-verify, then give fixtures and tests disjoint UUIDs.
-
-```
-Re-run first — several of these may already be green:
-  mvn test -pl loom/db/jooq
-Previously affected: PipelineDaoTest, BlacklistDaoTest, AssetLocationDaoTest, TokenDaoTest,
-PipelineVersionDaoTest (all under loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/),
-plus PoolingTest and RxDaoTest (under .../jooq/user/).
-Fix by giving fixtures and test elements disjoint UUIDs, or by not assuming empty tables.
-
-The companion documentation item is DONE: .claude/CLAUDE.md now states, prominently, that
-./setup-pool.sh must be re-run after every Flyway migration change.
-```
-
-**References:** [../features/db/DATABASE.md](../features/db/DATABASE.md)
-**Test Requirements:** `mvn test -pl loom/db/jooq` green from a freshly seeded pool.
-
----
-
 ## Landed
 
 One-line outcome records. Detail lives in the code and in the linked specs.
@@ -382,11 +319,15 @@ One-line outcome records. Detail lives in the code and in the linked specs.
 |---|---|
 | Graceful shutdown with drain (announce, finish/return in-flight, immediate reclaim) | `LoomControlChannel#drain` from `CortexBootstrapInitializer#deinit` via a JVM shutdown hook; `PipelineTaskHandler` refuses late dispatches and sends `TASK_RETURNED`; `PipelineRunEngine#onNodeTaskReturned` re-places and refunds the attempt, capped at three per execution — [../loom/WEBSOCKET.md §3.8.1](../loom/WEBSOCKET.md), [CORTEX.md §7.4](CORTEX.md) |
 | Run *item* inspection endpoint | `GET /api/v1/pipelines/:uuid/runs/:runUuid/items` — `PipelineEndpoint#listRunItems`, `READ_PIPELINE_RUN`, `PipelineRunItemListResponse`, `PipelineRunItemEndpointTest`; also in `LoomHttpClientImpl`, the CLI `run items` command and `loom-ui/src/api/pipelines.ts` |
+| Node-*task* inspection endpoint | `GET /api/v1/pipelines/:uuid/runs/:runUuid/items/:itemUuid/tasks` (plus `.../tasks/:taskUuid/previews/:portId`) — nested under the item rather than flat under the run; `PipelineNodeTaskRecord` / `PipelineNodeTaskListResponse`, `PipelineModelBuilder#toPipelineNodeTaskRecord`, `PipelineNodeTaskEndpointTest`, client `listPipelineRunItemTasks`. GraphQL mirror still missing — see task 3 |
+| Item identity on the event stream | `PipelineEventMessage` carries `itemUuid` and `elementSeq`; the `?item=` subscription filter is the remainder of task 3 |
+| `METRICS.md` over-claims corrected | Self-describes as PARTIALLY IMPLEMENTED; the 12 declared-but-never-recorded meters moved into §5, so §3/§4 are live meters only. Implementing them is task 8 |
+| DAO test pool collisions | Gone. `mvn test -pl loom/db/jooq` runs green (389 tests, 0 failures) against a freshly seeded pool; `PipelineFixtures` centralises the pipeline → version → run scaffolding. `.claude/CLAUDE.md` documents the `./setup-pool.sh` re-run obligation after every Flyway change |
 | `syncToLoom` finally means something | `PipelineRunEngine#syncToLoom` gates `assetSink.persist`; `DaoAssetSink` selects hashes by *content type* (`hash/sha512|sha256|md5`), not port name, and is installed by `PipelineEndpointService` |
 | Per-node result persistence replaced `LoomNode` | Each result-producing node writes its typed payload plus an `asset_node_result` ledger row from inside `compute()`; `LoomNode` deleted — [../features/pipeline-nodes/NODES.md §2](../features/pipeline-nodes/NODES.md) |
 | Processor WebSocket authentication | `WebSocketAuthenticator` validates `?token=<jwt>`, closes 4401; strictness via `LOOM_WS_STRICT_AUTH` (still lenient by default — see task 6) |
 | Prometheus scrape endpoints | Loom `GET /metrics` on `LOOM_SERVER_MON_PORT` (8989) via `MonitoringService`; Cortex `MetricsEndpoint` on 8093; `LoomMetrics` / `CortexMetrics` catalogues |
-| Worker id made mandatory | `--node-id` / `CORTEX_NODE_ID` required by `AbstractLoomWorkerCommand#requireNodeId`; keys `cortex_instance`, restrictions reconciled on re-register |
+| Worker id made mandatory | `CORTEX_NODE_ID` checked by `CortexMain#hasNodeId` (exits `EXIT_INVALID_CONFIGURATION`), guarded again in `LoomControlChannel`; keys `cortex_instance`, restrictions reconciled on re-register |
 | Cortex `PIPELINE_EVENT` passthrough filtered | Cortex no longer subscribes its tracking bus to the control channel; `ProcessorEndpoint` drops worker-sent `PIPELINE_EVENT` and logs once per processor — [../loom/WEBSOCKET.md §4.6b](../loom/WEBSOCKET.md) |
 | `FilesystemMediaScanner` made lazy | `stream(...)` overloads walk on demand and de-duplicate as they go; `FilesystemSourceNode` consumes via `Flowable.fromStream` so backpressure reaches the filesystem. The differential (root) path stays eager by design |
 | Pipeline definition format versioned | Top-level `version` integer, `PipelineGraphParser.CURRENT_DEFINITION_VERSION`; absent means 1, newer refused by name, malformed refused; `stampVersion` on REST create/update and in `DemoDatabaseInitializer` — [../features/pipeline/PIPELINE.md §9.2](../features/pipeline/PIPELINE.md) |
@@ -413,5 +354,8 @@ Recorded so nobody re-derives them and wonders why they vanished.
 
 ---
 
-_Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (verified every item against the code; collapsed what has landed into outcome records and rewrote the ten still-open tasks in TASKS.template format)_
+_Git HEAD revision: `1e12f39e`_
+_Last updated: 2026-08-06 (re-verified all ten tasks against the code: the node-task
+inspection endpoint and the `METRICS.md` correction landed, the DAO pool collisions are
+gone — `mvn test -pl loom/db/jooq` green — and those became outcome records; nine tasks
+remain)_

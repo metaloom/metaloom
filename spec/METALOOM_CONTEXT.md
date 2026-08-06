@@ -119,7 +119,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-96 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+99 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -131,7 +131,11 @@ spec/
 ├── TASKS.template.md                  # Required format for every *_TASKS.md file
 ├── guidelines/
 │   ├── CODING.md                      # RULES for code changes (REST/DAO/Docs/Demo/Spec)
-│   └── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
+│   ├── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
+│   └── METALOOM_STATIC_CODE_ANALYSIS.md
+│                                      # PROMPT: audit Java for AI-generated defects (duplicate
+│                                      #   methods, hallucinations, duplicate enum values,
+│                                      #   self-contradicting values) → HTML report in spec/reports/
 ├── concept/
 │   ├── ASSET_METADATA_WRITE.md        # 🔵 CONCEPT: a `metadata-write` node emitting sidecars /
 │   │                                  #   embedded derivatives, incl. marking AI-written values
@@ -166,6 +170,11 @@ spec/
 │   │   └── CLI_PLAN.md                # 🟢 The top-level cli/ module (native image)
 │   ├── db/
 │   │   └── DATABASE_TASKS.md          # Schema work for node-result persistence (V2.38–V2.50)
+│   ├── facedetection/
+│   │   └── FACE_WORKFLOW.md           # 🔴 The identity loop detect → embed → cluster → confirm a
+│   │                                  #   person. Only stage 1 runs: no embedding is ever persisted,
+│   │                                  #   no clustering code exists, cluster↔person has no FK.
+│   │                                  #   Specifies V2.75 + the confirm endpoint. 12 defects listed
 │   ├── helm/
 │   │   ├── HELM_LOOM.md               # Loom chart (helm/loom) — 🔴 two live env-var bugs, see §6
 │   │   └── HELM_CORTEX.md             # Cortex chart (helm/cortex) — custom-image override, StatefulSet id
@@ -221,6 +230,8 @@ spec/
 │   │   ├── NODE_CLOUDSOURCE_PLAN.md   # 🟢 BUILT — kinds gdrive-source + onedrive-source and the
 │   │   │                              #   shared cortex/cloud-common module (Drive v3 + MS Graph)
 │   │   ├── NODE_S3SOURCE_PLAN.md      # 🟢 BUILT — kind s3-source + the shared cortex/s3-common module
+│   │   ├── NODE_SAM2_PLAN.md          # 🟢 BUILT end to end incl. sidecars/sam2 (:9130) — kind sam2,
+│   │   │                              #   3 modes, ledger-only, first producer of struct/masks
 │   │   ├── NODE_SCENE_LAYOUT_PLAN.md  # 🟡 BUILT (12 spatial-relation predicates); objectdetect is
 │   │   │                              #   still faces-only
 │   │   ├── NODE_SCRIPT_PLAN.md        # 🟢 BUILT (GraalJS, declared multi-valued outputs)
@@ -313,6 +324,7 @@ spec/
 |------------------|------------|
 | Anything at all | [guidelines/CODING.md](guidelines/CODING.md), then this file |
 | **Adding a Cortex node** | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) (rules) + [features/pipeline-nodes/NODES.md](features/pipeline-nodes/NODES.md) (system) |
+| **Auditing existing Java** (duplicates, hallucinations, contradictions) | [guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](guidelines/METALOOM_STATIC_CODE_ANALYSIS.md) |
 | Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md), then [METALOOM.md](METALOOM.md) |
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | "What actually travels between nodes?" — the mental model | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) |
@@ -329,6 +341,7 @@ spec/
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
+| **The face identity workflow** — detect → embed → cluster → confirm a person | [features/facedetection/FACE_WORKFLOW.md](features/facedetection/FACE_WORKFLOW.md) — 🔴 **only stage 1 runs.** No face embedding is ever persisted, so there is nothing to cluster; `cluster` and `person` have no FK. Specifies the `V2.75` migration and the confirm endpoint. ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
 | **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](features/search/SEARCH_PLAN.md) |
 | Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — **not built**; the API seams exist and reject with 400 |
 | Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](features/search/LUCENE_PLAN.md) — **built**, off by default |
@@ -557,6 +570,8 @@ and subcomponents for request scope (`RestComponent` per REST request).
 |------|-----------|
 | Coding rules for any change | [guidelines/CODING.md](guidelines/CODING.md) |
 | Rules for a new Cortex node | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) |
+| Auditing Java for AI-generated defects | [guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](guidelines/METALOOM_STATIC_CODE_ANALYSIS.md) |
+| Generated analysis reports | `spec/reports/` |
 | Rules for writing a spec / task file | [SPEC_RULES.md](SPEC_RULES.md), [TASKS.template.md](TASKS.template.md) |
 | REST endpoint implementations | `loom/services/rest/.../endpoint/impl/` |
 | REST request/response DTOs | `loom-shared/rest-model/` |
@@ -719,5 +734,8 @@ wins** — and fix the spec in the same change.
 
 ---
 
-_Git HEAD revision: `4dc0390a`_
-_Last updated: 2026-08-03 (Ollama dropped from the technology list — LLM access is OpenAI-compatible only)_
+_Git HEAD revision: `1e12f39e`_
+_Last updated: 2026-08-06 (catalogued `features/facedetection/FACE_WORKFLOW.md` — the face identity
+loop, of which only stage 1 is implemented — in the §2 tree and the §2.1 router, with a pointer
+distinguishing it from `concept/CLUSTERING.md`. Earlier the same day: catalogued
+`guidelines/METALOOM_STATIC_CODE_ANALYSIS.md` and the new `spec/reports/` output directory)_

@@ -436,6 +436,7 @@ public class DocsFixtureGenerator {
 		recipes.add(LlmRecipes.guard());
 		recipes.add(LlmRecipes.filter());
 		recipes.add(SidecarRecipes.depthmap());
+		recipes.add(SidecarRecipes.sam2());
 		recipes.add(SidecarRecipes.sentiment());
 		recipes.add(SidecarRecipes.tts());
 		recipes.add(SidecarRecipes.imagegen());

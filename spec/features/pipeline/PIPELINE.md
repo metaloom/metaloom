@@ -13,7 +13,7 @@
 | Individual nodes: lifecycle, options, MetaStorage, per-node reference, node restriction | [../pipeline-nodes/NODES.md](../pipeline-nodes/NODES.md) |
 | WebSocket framing, auth, reconnect, message-by-message reference | [../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md) |
 | Worker topology, registration, placement, leases, metrics | [../../cortex/METALOOM_ARCHITECTURE.md](../../cortex/METALOOM_ARCHITECTURE.md) |
-| Non-technical requirements / actionable tasks | [PIPELINE_REQUIREMENTS.md](PIPELINE_REQUIREMENTS.md) · [PIPELINE_TASKS.md](PIPELINE_TASKS.md) |
+| Non-technical requirements / actionable tasks | [PIPELINE_REQUIREMENTS.md](PIPELINE_REQUIREMENTS.md) · [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) |
 
 ---
 
@@ -1219,7 +1219,7 @@ produce failure messages that name the port. Legacy-tree asserts live in
 - [ ] No pipeline DAOs in `loom/db/memory`; no pipeline gRPC surface
 - [ ] `Subscriber.queueCapacity` / `DEFAULT_QUEUE_CAPACITY` are dead
 
-See [PIPELINE_TASKS.md](PIPELINE_TASKS.md) for the actionable breakdown and
+See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakdown and
 [NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
 
 ---

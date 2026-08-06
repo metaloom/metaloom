@@ -233,7 +233,7 @@ client builder, or remove the option.
 
 | Missing | Notes |
 | --- | --- |
-| `pipeline versions` / `restore` | `PipelineMethods.listPipelineVersions` / `loadPipelineVersion` / `restorePipelineVersion` **already exist** on the client; only the `LoomApi` port and the commands are absent. Cheapest remaining win. Endpoint tests tracked in [../pipeline/PIPELINE_TASKS.md](../pipeline/PIPELINE_TASKS.md) Task 7 |
+| `pipeline versions` / `restore` | `PipelineMethods.listPipelineVersions` / `loadPipelineVersion` / `restorePipelineVersion` **already exist** on the client; only the `LoomApi` port and the commands are absent. Cheapest remaining win. Endpoint tests tracked in [../pipeline/PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) Task 7 |
 | `pipeline create -f` / `update -f` | Blocked on an authoring-format decision: raw definition JSON, or a wrapper carrying name/priority/enabled |
 | `pipeline export` / `import` | Pipeline definitions belong in git; this is the only path to that |
 | `run stats --days N` | `StatsCommand` renders the whole `PipelineRunStatsResponse.getDaily()` with no window option |
