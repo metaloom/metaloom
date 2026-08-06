@@ -152,16 +152,18 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     }
 
     /**
-     * Setter for <code>public.embedding.model</code>. Readable mirror of
-     * producer_version
+     * Setter for <code>public.embedding.model</code>. Readable model
+     * identifier, e.g. inspireface-r18. Part of the identity key: rows from
+     * different models coexist.
      */
     public void setModel(String value) {
         set(9, value);
     }
 
     /**
-     * Getter for <code>public.embedding.model</code>. Readable mirror of
-     * producer_version
+     * Getter for <code>public.embedding.model</code>. Readable model
+     * identifier, e.g. inspireface-r18. Part of the identity key: rows from
+     * different models coexist.
      */
     public String getModel() {
         return (String) get(9);
@@ -185,10 +187,11 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
 
     /**
      * Setter for <code>public.embedding.vector</code>. Embedding vector as a
-     * plain PostgreSQL array. OPEN DECISION: similarity search is either
-     * pgvector in Postgres or an external index fed via vector_config. Until
-     * that is decided this column is a staging buffer with no ANN index - see
-     * spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.
+     * plain PostgreSQL array, and the system of record for it. Approximate
+     * nearest-neighbour search lives outside Postgres behind the VectorIndex
+     * SPI (Lucene HNSW today); that index is a derived, rebuildable cache of
+     * this column and never authoritative. Superseded the V2.43 open decision -
+     * see spec/features/search/SEMANTIC_SEARCH.md.
      */
     public void setVector(Float[] value) {
         set(11, value);
@@ -196,10 +199,11 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
 
     /**
      * Getter for <code>public.embedding.vector</code>. Embedding vector as a
-     * plain PostgreSQL array. OPEN DECISION: similarity search is either
-     * pgvector in Postgres or an external index fed via vector_config. Until
-     * that is decided this column is a staging buffer with no ANN index - see
-     * spec/features/DB_SCHEMA_FEEDBACK.md section 4.2.
+     * plain PostgreSQL array, and the system of record for it. Approximate
+     * nearest-neighbour search lives outside Postgres behind the VectorIndex
+     * SPI (Lucene HNSW today); that index is a derived, rebuildable cache of
+     * this column and never authoritative. Superseded the V2.43 open decision -
+     * see spec/features/search/SEMANTIC_SEARCH.md.
      */
     public Float[] getVector() {
         return (Float[]) get(11);
@@ -435,7 +439,6 @@ public class JooqEmbeddingRecord extends UpdatableRecordImpl<JooqEmbeddingRecord
     public Record1<UUID> key() {
         return (Record1) super.key();
     }
-
 
     // -------------------------------------------------------------------------
     // Constructors

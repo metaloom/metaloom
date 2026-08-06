@@ -14,7 +14,6 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import org.jooq.Check;
 import org.jooq.Field;
@@ -119,9 +118,10 @@ public class JooqEmbedding extends TableImpl<JooqEmbeddingRecord> {
      * plain PostgreSQL array, and the system of record for it. Approximate
      * nearest-neighbour search lives outside Postgres behind the VectorIndex
      * SPI (Lucene HNSW today); that index is a derived, rebuildable cache of
-     * this column and never authoritative.
+     * this column and never authoritative. Superseded the V2.43 open decision -
+     * see spec/features/search/SEMANTIC_SEARCH.md.
      */
-    public final TableField<JooqEmbeddingRecord, Float[]> VECTOR = createField(DSL.name("vector"), SQLDataType.REAL.getArrayDataType(), this, "Embedding vector as a plain PostgreSQL array, and the system of record for it. Approximate nearest-neighbour search lives outside Postgres behind the VectorIndex SPI (Lucene HNSW today); that index is a derived, rebuildable cache of this column and never authoritative.");
+    public final TableField<JooqEmbeddingRecord, Float[]> VECTOR = createField(DSL.name("vector"), SQLDataType.REAL.getArrayDataType(), this, "Embedding vector as a plain PostgreSQL array, and the system of record for it. Approximate nearest-neighbour search lives outside Postgres behind the VectorIndex SPI (Lucene HNSW today); that index is a derived, rebuildable cache of this column and never authoritative. Superseded the V2.43 open decision - see spec/features/search/SEMANTIC_SEARCH.md.");
 
     /**
      * The column <code>public.embedding.detection_uuid</code>. The detection

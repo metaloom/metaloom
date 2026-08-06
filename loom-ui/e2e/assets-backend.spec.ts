@@ -95,17 +95,44 @@ test.describe("Assets – full backend e2e", () => {
     await expect(backButton).toBeVisible({ timeout: 5_000 });
   });
 
-  test("asset list search filters assets", async ({ page }) => {
+  test("asset list search asks the server, not a local array", async ({ page }) => {
     await loginAndGoToAssets(page);
 
     // Wait for assets to load first
     await expect(page.getByText(/[1-9]\d* assets/)).toBeVisible({ timeout: 10_000 });
 
+    // The box used to filter whatever the first page happened to hold. Assert the request goes
+    // out — a passing "drone-coastal.mp4 is visible" alone cannot tell the two apart.
+    const searchRequest = page.waitForRequest(
+      req => req.url().includes("/search/assets") && req.url().includes("q=drone"),
+      { timeout: 10_000 },
+    );
+
     const searchInput = page.getByPlaceholder("Search assets, tags…");
     await searchInput.fill("drone");
 
-    // "drone-coastal.mp4" should be visible, others should be filtered
-    await expect(page.getByText("drone-coastal.mp4")).toBeVisible({ timeout: 5_000 });
+    await searchRequest;
+    await expect(page.getByText("drone-coastal.mp4")).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("the asset list requests a page rather than taking the server default of 25", async ({ page }) => {
+    const listRequest = page.waitForRequest(
+      req => /\/api\/v1\/assets\?/.test(req.url()) && req.url().includes("limit="),
+      { timeout: 15_000 },
+    );
+
+    await loginAndGoToAssets(page);
+
+    const request = await listRequest;
+    expect(new URL(request.url()).searchParams.get("limit")).toBe("100");
+  });
+
+  test("the header count comes from the server total", async ({ page }) => {
+    await loginAndGoToAssets(page);
+
+    // `_metainfo.totalCount` is the collection size; the grid may hold fewer rows than that.
+    const count = page.getByTestId("assets-count");
+    await expect(count).toHaveText(/^[1-9]\d* assets$/, { timeout: 10_000 });
   });
 
   test("asset create → edit → delete via API", async ({ page }) => {

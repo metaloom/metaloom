@@ -62,6 +62,23 @@ test.describe("Roles – full backend e2e", () => {
     await expect(page.getByText("permissions granted")).toBeVisible({ timeout: 5_000 });
   });
 
+  test("the role search narrows the list and restores on clear", async ({ page }) => {
+    await loginAndGoToPermissions(page);
+    await expect(page.getByTestId("admin-role-row-Editor")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("admin-role-row-Viewer")).toBeVisible();
+
+    const search = page.getByTestId("admin-roles-search").locator("input");
+    await search.fill("Edit");
+    await expect(page.getByTestId("admin-role-row-Editor")).toBeVisible();
+    await expect(page.getByTestId("admin-role-row-Viewer")).toBeHidden();
+
+    await search.fill("nothingmatchesthis");
+    await expect(page.getByTestId("admin-roles-no-match")).toBeVisible();
+
+    await search.fill("");
+    await expect(page.getByTestId("admin-role-row-Viewer")).toBeVisible();
+  });
+
   test("delete a role", async ({ page }) => {
     await loginAndGoToPermissions(page);
     await expect(page.getByText("pw-test-role").first()).toBeVisible({ timeout: 10_000 });

@@ -16,6 +16,9 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<db.username>postgres</db.username>
 		<db.password>finger</db.password>
+		<!-- Overridable so a codegen run can be pointed at a scratch directory
+		     instead of overwriting the checked-in sources. -->
+		<jooq.output.dir>src/jooq/java</jooq.output.dir>
 	</properties>
 
 	<dependencyManagement>
@@ -282,7 +285,7 @@
 								</database>
 								<target>
 									<packageName>io.metaloom.loom.db.jooq</packageName>
-									<directory>src/jooq/java</directory>
+									<directory>${jooq.output.dir}</directory>
 								</target>
 							</generator>
 						</configuration>
