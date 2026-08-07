@@ -170,11 +170,8 @@ spec/
 │   │   └── CLI_PLAN.md                # 🟢 The top-level cli/ module (native image)
 │   ├── db/
 │   │   └── DATABASE_TASKS.md          # Schema work for node-result persistence (V2.38–V2.50)
-│   ├── facedetection/
-│   │   └── FACE_WORKFLOW.md           # 🔴 The identity loop detect → embed → cluster → confirm a
-│   │                                  #   person. Only stage 1 runs: no embedding is ever persisted,
-│   │                                  #   no clustering code exists, cluster↔person has no FK.
-│   │                                  #   Specifies V2.75 + the confirm endpoint. 12 defects listed
+│   │                                  #   (⚠️ facedetection/FACE_WORKFLOW.md moved 2026-08-07 to
+│   │                                  #    workflows/WORKFLOW_FACE.md — see the workflows/ block)
 │   ├── helm/
 │   │   ├── HELM_LOOM.md               # Loom chart (helm/loom) — 🔴 two live env-var bugs, see §6
 │   │   └── HELM_CORTEX.md             # Cortex chart (helm/cortex) — custom-image override, StatefulSet id
@@ -317,9 +314,42 @@ spec/
 │   ├── MAGE_FLOW_SIDECAR.md           # :9210 — Mage-Flow 4B, MIT weights; imagegen's other backend
 │   ├── SENTIMENT_SIDECAR.md           # :9110 — DE/EN/multilingual 3-class sentiment
 │   └── TTS_SIDECAR.md                 # :9100 — Orpheus (DE) / Kokoro (EN) text-to-speech
-└── website/
-    ├── WEBSITE.md                     # Hugo site: content, build, publish (incl. /tour/, /studio/)
-    └── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — backend-free in-browser editor + simulator
+├── website/
+│   ├── WEBSITE.md                     # Hugo site: content, build, publish (incl. /tour/, /studio/)
+│   └── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — backend-free in-browser editor + simulator
+└── workflows/                         # NEW 2026-08-07 — the human-in-the-loop review family.
+    │                                  #   A workflow = a queue of machine proposals + a durable human
+    │                                  #   decision + something that acts on it. All six shipped modes
+    │                                  #   are ONE screen: loom-ui/.../workflow/WorkflowView.tsx
+    ├── WORKFLOWS.md                   # ← START HERE. Index + family definition, the 7-piece anatomy
+    │                                  #   a new workflow must implement (§3), and 10 cross-cutting
+    │                                  #   defects X1–X10 (§4) that are NOT repeated per file.
+    │                                  #   🔴 Of six shipped modes, exactly one writes to the server
+    ├── WORKFLOW_MANUAL_SORT.md        # 🟡 Rate + tag. Rating persists (as a reaction); 🔴 tagging
+    │                                  #   writes nothing, and no filter/trigger can read either
+    ├── WORKFLOW_DEDUP.md              # 🟡 The review half of dedup. Backend complete; 🔴 the screen
+    │                                  #   is a mock. Node detail stays in concept/NODE_DEDUP_PLAN.md
+    ├── WORKFLOW_TRASH.md              # 🔵 Marker (tag) → filter → a NEW `move` node. 🔴 cross-device
+    │                                  #   moves silently copy; asset_location.filekey_stdev already
+    │                                  #   records the device id
+    ├── WORKFLOW_FACE.md               # 🟡 detect → embed → cluster → confirm a person. Stages 1–2
+    │                                  #   run (embeddings built 2026-08-06); 🔴 no clustering code
+    │                                  #   and `cluster.creator_uuid` NOT NULL blocks a worker
+    ├── WORKFLOW_OBJECT_DETECT.md      # 🔴 Blocked at the schema: `detection` has no review status.
+    │                                  #   Also: objectdetect is NOT faces-only, and the UI's
+    │                                  #   DetectionResponse omits `label`
+    ├── WORKFLOW_UPLOAD.md             # 🟢 BUILT: asset.created → PipelineMatcher (mime patterns in
+    │                                  #   pipeline_version.meta.trigger) → runForAsset. 🔴 a 503 is
+    │                                  #   only logged, and there is no backfill
+    ├── WORKFLOW_AI_REVIEW.md          # 🔵 simple — approve/edit/reject machine-written text
+    ├── WORKFLOW_COLLECTION_CURATION.md# 🔵 simple — build a collection at keyboard speed (no schema)
+    ├── WORKFLOW_METADATA_REPAIR.md    # 🔵 medium — flag and bulk-fix implausible dates/GPS/rights
+    ├── WORKFLOW_SAFETY_TRIAGE.md      # 🔵 medium — uphold/overturn a `guard` verdict; restricted
+    │                                  #   by default is the hard part
+    ├── WORKFLOW_INGEST_MIGRATION.md   # 🔵 complex — onboard an existing corpus; reconciliation is
+    │                                  #   the missing phase and the failure mode is silent data loss
+    └── WORKFLOW_RIGHTS_RELEASE.md     # 🔵 very complex — the gate before an asset leaves: consent,
+                                       #   safety, licence, AI provenance, redaction
 ```
 
 ### 2.1 Which file do I open?

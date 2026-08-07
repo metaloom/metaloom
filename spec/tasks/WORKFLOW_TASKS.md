@@ -1,0 +1,639 @@
+# Workflows — Task List
+
+> Work items for the twelve workflows under `spec/workflows/`, derived from a code audit on
+> 2026-08-07 at `21e8a8cd`.
+> Format follows [TASKS.template.md](TASKS.template.md).
+>
+> **Context:** [../workflows/WORKFLOWS.md](../workflows/WORKFLOWS.md) is the family index and carries
+> the shared anatomy (§3) and the cross-cutting defect table (§4) these tasks reference as `X1`-`X10`.
+>
+> **Ordering.** **W1 is the keystone** — it unblocks W4 and every "act on a human decision"
+> requirement in the family. W2, W3, W6 and W7 are independent and can run in parallel. W5 gates the
+> object-detection workflow. W8 is small and improves five modes at once. W9-W14 are proposals whose
+> own spec files carry their build order; the tasks here are the entry points, not the full plans.
+
+---
+
+## Task 1: Add `TAG` and `RATING` strategies to `FilterBy`
+
+**Argumentation Summary:** Nothing in a pipeline can read a human decision. `FilterBy` offers
+`LANGUAGE`, `MIME`, `SIZE` and `DATE` — all derived from the item itself. A reviewer can rate an
+asset 1 and tag it `trash`, and no node, no filter and no trigger will ever act on it. That is why
+[../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md) feels pointless today and
+why [../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) has no input. `FilterBy`'s own
+javadoc names this as its extension contract: "a strategy class plus a Dagger binding plus a value in
+the descriptor's `filterBy` parameter, and never an edit to `FilterNode`."
+
+**Improvement Summary:** Two new `FilterStrategy` implementations that route a pipeline on a tag name
+or a rating threshold, making every manual decision actionable.
+
+```
+1. cortex/nodes/filter/core/src/main/java/io/metaloom/cortex/node/filter/:
+   - Add TAG and RATING to FilterBy.java with javadoc matching the existing constants'
+     tone (say what the bucket hints look like and what the strategy costs).
+   - TagFilterStrategy.java: bucket hints are tag names or globs ("hero", "person/*",
+     "!reviewed" for negation). Reads the asset's tags from the AssetResponse the node
+     already loads. No LLMProvider dependency - copy MimeFilterStrategy's shape, not
+     LanguageFilterStrategy's.
+   - RatingFilterStrategy.java: bucket hints are thresholds and ranges (">=8", "<=2",
+     "4..7", "unrated"). Parse with the same grammar SizeFilterStrategy uses so the two
+     stay consistent. Needs the asset's reactions - one Loom round trip per item; cache
+     per run, and document the cost in the javadoc.
+   - FilterNodeModule.java: bind both into the Map<FilterBy, Provider<FilterStrategy>>.
+2. loom-shared/node-model/.../spec/: add "TAG" and "RATING" to the filter descriptor's
+   filterBy parameter enum, so both are selectable in the pipeline editor.
+3. Regenerate node-descriptors.json - install the node module FIRST or the harvest reads
+   a stale jar.
+4. website/content/english/docs/nodes/filter/: document both, with examples.
+```
+
+**References:** [../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md) §5 ·
+[../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) §1 ·
+[../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §8.6 ·
+`FilterBy.java`, `MimeFilterStrategy.java`, `SizeFilterStrategy.java`
+**Test Requirements:** `TagFilterStrategyTest` and `RatingFilterStrategyTest` mirroring
+`MimeFilterStrategyTest`: hint parsing incl. malformed hints, bucket selection, the catch-all `other`
+port, and an item matching no bucket. Plus `NodePortConformanceTest` still green.
+`mvn -pl cortex/nodes/filter/core -am test`
+
+---
+
+## Task 2: Persist tagging in the workflow view
+
+**Argumentation Summary:** `TaggingMode` looks like it works and writes nothing.
+`handleAddTag` / `handleRemoveTag` (`WorkflowView.tsx:847-852`) mutate React state; the client
+functions `tagAsset` (`loom-ui/src/api/tags.ts:150`) and `untagAsset` (`:164`) already exist, are
+typed and documented, and have zero callers in `features/workflow/`. A reviewer can spend an hour
+tagging and lose all of it on reload. Separately, the vocabulary offered is `ALL_TAGS`, 24 hardcoded
+strings at `WorkflowView.tsx:79-84`.
+
+**Improvement Summary:** Wire the existing client into the existing handlers, load the real tag
+vocabulary, and make the write optimistic with rollback.
+
+```
+1. loom-ui/src/features/workflow/tagPersistence.ts (new) - mirror ratingPersistence.ts:
+   addTag(token, assetUuid, name), removeTag(token, assetUuid, tagUuid), and a hydrate
+   helper. Keep it a pure module so it can be unit-tested in node-env vitest.
+2. WorkflowView.tsx: handleAddTag / handleRemoveTag call it. Apply optimistically, then
+   revert the chip if the request fails - a silently dropped write is worse than none.
+3. Replace ALL_TAGS with listTags(token), scoped to the collection the queue came from.
+   Keep freeSolo so a reviewer can coin a tag; a coined tag resolves-or-creates through
+   the same endpoint.
+4. Show tag_asset provenance: a machine tag (node_kind != 'manual', with confidence)
+   renders differently from a curated one, and removing one is an explicit act.
+```
+
+**References:** [../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md) §6 ·
+[../concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md) §2 (why `tagAsset` resolves rather
+than inserts) · migration `V2.71__tag_asset_placements.sql`
+**Test Requirements:** `tagPersistence.test.ts` (node-env vitest): add-then-remove, resolve an
+existing tag rather than creating a duplicate, rollback on a failed request.
+`workflow-tagging-mocked.spec.ts`: type a tag, press Enter, assert the POST body and the chip; assert
+a failed POST removes the chip. `cd loom-ui && ./node_modules/.bin/vitest run` and
+`./node_modules/.bin/playwright test` — ⚠️ `npx` stalls in this sandbox.
+
+---
+
+## Task 3: Replace the dedup review mock with the built API
+
+**Argumentation Summary:** The dedup backend is complete — schema, four permissions, DAO, six REST
+routes, both Cortex nodes, 17 backend tests, customer docs. The review screen is a mock:
+`buildDuplicateGroups(assets)` (`WorkflowView.tsx:86-92`) pairs adjacent assets and never calls
+`GET /api/v1/dedup-groups`, and decisions live in `dedupDecisions` React state and are never PATCHed.
+A reviewer confirms twenty groups, nothing is written, and `fingerprint-dedup-apply` moves nothing.
+
+**Improvement Summary:** A `dedup.ts` API module and a wired `DeduplicationMode`, plus the ability to
+reassign the KEEP — the decision the current UI cannot express at all.
+
+```
+BLOCKING PREREQUISITE: fix NODE_DEDUP_PLAN.md section 3.2 first. Discovery re-proposes
+groups a human already rejected, so wiring the UI without it means the reviewer's first
+experience is a queue that refills with decisions they already made.
+
+1. loom-ui/src/api/dedup.ts: listDedupGroups(status), loadDedupGroup(uuid),
+   updateDedupGroup(uuid, {status, keepAssetUuid}), deleteDedupGroup(uuid). Follow any
+   sibling module in loom-ui/src/api/.
+2. WorkflowView.tsx: delete buildDuplicateGroups; query status=PENDING. Keep the
+   maxIdx special case at :816 (groups, not assets).
+3. handleConfirmDedup / handleRejectDedup (:853-854) PATCH and reflect the server
+   response. Revert the chip on failure.
+4. DeduplicationMode: show each member's size and zeroChunkCount (already on
+   DedupGroupMemberModel), and add a per-member "make this the KEEP" action that
+   PATCHes keepAssetUuid.
+5. Decide the thumbnail question explicitly: the thumbnail node's artifacts are
+   worker-local. Either serve GET /assets/:uuid/binary/data or show filename + size.
+   Do not leave a broken <img>.
+6. Flip the four DEDUP ui:no annotations in Permission.java, add them to
+   PERMISSION_GROUPS in AdminArea.tsx, and grant READ_DEDUP/UPDATE_DEDUP in
+   DemoDatabaseInitializer.
+7. Add pagination to GET /dedup-groups - without a status param it concatenates three
+   lists with no ordering and no paging.
+```
+
+**References:** [../workflows/WORKFLOW_DEDUP.md](../workflows/WORKFLOW_DEDUP.md) §4-§5 ·
+[../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §3.1-§3.2 · `V2.61`, `V2.62`
+**Test Requirements:** `dedup.test.ts` (query shaping, PATCH body, error propagation).
+`workflow-dedup-mocked.spec.ts`: route-mock the PENDING list, `Y` PATCHes CONFIRMED, `N` PATCHes
+REJECTED, a failed PATCH reverts the chip, reassigning the KEEP sends `keepAssetUuid`. Existing
+`DedupGroupEndpointTest` (11) and `DedupGroupDaoTest` (6) stay green. `mvn -pl loom/core test
+-Dtest=DedupGroupEndpointTest` after `./setup-pool.sh`.
+
+---
+
+## Task 4: Build the `move` node
+
+**Argumentation Summary:** Nothing in MetaLoom can relocate an asset's bytes as a pipeline step. Two
+nodes move files today (`HashDedupNode`, `FingerprintDedupApplyNode`), both hard-wired to a
+`dupFolder` and both usable only for duplicates. Trash disposal, safety quarantine and cold-tier
+staging all need the same primitive. The helper they use, `io.metaloom.utils.fs.FileUtils.moveFile`,
+delegates to commons-io, which falls back to **copy + delete** across a mount point — for a 40 GB
+video that is a silent, unbounded, non-atomic operation.
+
+**Improvement Summary:** A `move` node kind that relocates a file, is filesystem-border aware before
+it starts, updates `asset_location` and writes a ledger row — never deleting anything.
+
+```
+Depends on Task 1 (nothing can route into it otherwise).
+
+1. cortex/nodes/move (aggregator + core), package io.metaloom.cortex.node.move.
+   Read spec/guidelines/NEW_NODE.md before creating anything.
+2. MoveNode: ports media (in, media/*, ONE), moved (out, scalar/boolean, ONE),
+   path (out, scalar/string, ONE).
+3. MoveNodeOptions: targetFolder (default "trash"), layout (FLAT|MIRROR|DATE),
+   crossDevice (COPY|SKIP|FAIL, default SKIP), onConflict (SUFFIX|SKIP|FAIL, never
+   OVERWRITE), dryRun, updateLocation.
+4. Border check BEFORE moving: Files.getFileStore(src) vs Files.getFileStore(dstParent).
+   Equal -> Files.move(ATOMIC_MOVE). Different -> honour crossDevice, and log both
+   FileStores and the byte count at WARN on the COPY path. Preserve extended attributes
+   on the copy path - reuse FileUtils.moveFile's UserDefinedFileAttributeView logic
+   rather than reimplementing it.
+5. A file already inside targetFolder is an idempotent SKIP.
+6. On success: POST the updated asset_location.path, then recordNodeResult(SUCCESS,
+   "moved to <path>", producerVersion(), resultRef("asset_location", uuid)).
+   Use ctx.failure(msg).abort() on every failure path - NEVER .next(), which returns
+   SUCCESS and drops the cause.
+7. MoveDescriptorProvider + META-INF/services + @Binds @IntoMap @StringKey("move").
+   Both, or the kind is visible but not runnable.
+8. Demo pipeline: source -> filter(TAG:trash) -> move.
+9. website/content/english/docs/nodes/move/.
+```
+
+**References:** [../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) §3 ·
+[../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) · `FingerprintDedupApplyNode.java` ·
+`V2.10__add_asset_location.sql` (`filekey_stdev` already records the device id)
+**Test Requirements:** `MoveNodeTest` (same-device move preserves xattrs, location updated, ledger
+row written, already-in-target is SKIPPED), `MoveNodeCrossDeviceTest` (all three policies; assert
+**FAILED**, not SUCCESS, on the FAIL path), `MoveNodeConflictTest` (SUFFIX numbering, never
+overwrites), `MoveNodeOptionsValidationTest`, `NodeRegistrarTest` asserts the kind,
+`NodePortConformanceTest`, and a `MoveNodeIT` in `integration-test/`.
+`mvn -pl cortex/nodes/move/core -am test` then `./it.sh` — ⚠️ rebuild the shaded `cortex/cli` JAR and
+container first.
+
+---
+
+## Task 5: Add review state to `detection`
+
+**Argumentation Summary:** A human can confirm or reject an object detection in the UI and the answer
+has nowhere to go: `detection` (`V2.27`, reworked `V2.43`) has no status column, no confirm endpoint
+and no permission for one. `handleConfirmObject` / `handleRejectObject`
+(`WorkflowView.tsx:858-861`) write React state. The same gap blocks per-detection review in the face
+workflow and the "which faces are unconsented?" question in the release gate.
+
+**Improvement Summary:** A shared `review_status` enum plus four columns on `detection`, a review
+endpoint with a bulk variant, and an explicit rule preventing a node re-run from clearing a human
+decision.
+
+```
+1. Migration (take the NEXT FREE version - V2.77 is the highest at 21e8a8cd, do not
+   hard-code a number in a spec):
+     CREATE TYPE review_status AS ENUM ('PENDING','CONFIRMED','REJECTED');
+     ALTER TABLE detection ADD COLUMN status review_status NOT NULL DEFAULT 'PENDING';
+     ALTER TABLE detection ADD COLUMN reviewed_at timestamp;
+     ALTER TABLE detection ADD COLUMN reviewer_uuid uuid REFERENCES "user"(uuid);
+     ALTER TABLE detection ADD COLUMN corrected_label varchar;
+     CREATE INDEX idx_detection_review ON detection (asset_uuid, type, status);
+   Name it review_status, NOT detection_status: WORKFLOW_FACE and
+   WORKFLOW_SAFETY_TRIAGE need the same three values. reviewer_uuid is separate from
+   editor_uuid on purpose - editor_uuid is touched by the node's own upsert.
+2. mvn install -pl loom/db/flyway; loom/db/jooq/generate.sh (DESTRUCTIVE - it rm -rf's
+   src/jooq/java first); ./setup-pool.sh.
+3. DAO: DetectionDao gains listByStatus + a review setter. Impls in BOTH loom/db/jooq
+   and loom/db/memory; contract tests in loom/db/api-test; a delete-cascade test.
+4. REST: POST /assets/:uuid/detections/:detectionUuid/review {status, correctedLabel?}
+   and POST /assets/:uuid/detections/review-bulk, both UPDATE_DETECTION. Plus
+   GET /detections?status=PENDING&type= for a cross-asset queue. Mirror the bulk-create
+   route's {total, created, failed} response - keyboard review outruns per-item calls.
+5. DECIDE AND DOCUMENT the re-run rule in the migration comment: a node upsert must not
+   clear a non-PENDING status. Either preserve the review when the incoming geometry is
+   within an IoU threshold, or version the row on a producer_version change. Leaving
+   this implicit reintroduces exactly the bug V2.43's upsert key was added to fix.
+```
+
+**References:** [../workflows/WORKFLOW_OBJECT_DETECT.md](../workflows/WORKFLOW_OBJECT_DETECT.md) §2 ·
+`V2.43__rework_detection_embedding.sql` · `V2.47__machine_written_audit_columns.sql` ·
+`V2.61__add_dedup_group.sql` (the pattern) · [../guidelines/CODING.md](../guidelines/CODING.md)
+**Test Requirements:** `DetectionDaoTest` extended (status round-trip, `listByStatus`, cascade),
+`DetectionEndpointTest` extended (review 200, 403 without `UPDATE_DETECTION`, bulk partial failure,
+invalid status 400, unknown uuid 404), and a new `DetectionUpsertReviewTest` asserting a node re-run
+does **not** clear a CONFIRMED status. `./setup-pool.sh` first, and again after the migration.
+
+---
+
+## Task 6: Fix the two detection wiring defects (X1, X2)
+
+**Argumentation Summary:** Two small mismatches make two review modes useless, independently of any
+schema work. (X2) The UI's `DetectionResponse` interface (`loom-ui/src/api/detections.ts:4-20`) has
+no `label` field, although the Java DTO and the `detection.label` column both do — so
+`ObjectDetectionMode` reads `(d.meta)?.label`, always `undefined`, and captions every box with the
+literal string `objectdetection`. (X1) `FacedetectNode.persist` writes `setType("face")` while the UI
+filters `d.type === "facedetection"` and the `V2.27` column comment names `facedetection` — so the
+face panel is always empty.
+
+**Improvement Summary:** Add the missing field to the TypeScript DTOs and settle the detection type
+string, in one change so the two do not drift again.
+
+```
+1. loom-ui/src/api/detections.ts: add label (and, after Task 5, status and
+   correctedLabel) to DetectionResponse, DetectionCreateRequest, DetectionUpdateRequest.
+2. WorkflowView.tsx:794: read d.label instead of (d.meta)?.label.
+3. Settle the type string. facedetect writes "face"; the schema comment, the UI and
+   scene-layout's tests all say "facedetection". Pick "facedetection" (three consumers
+   against one producer), change FacedetectNode.java:510, and write a data migration
+   for existing rows - an upsert keyed on (asset, node_kind, frame, index) will NOT
+   fix them, because node_kind is unchanged and type is not in the key.
+4. While there: WORKFLOW_FACE.md gotcha 4 records that facedetect (kind),
+   facedetection (options KEY) and "face" (detection.type) are three strings for one
+   feature. Leave a comment naming which is which so the next reader does not re-derive
+   it.
+```
+
+**References:** [../workflows/WORKFLOWS.md](../workflows/WORKFLOWS.md) §4 (X1, X2) ·
+[../workflows/WORKFLOW_OBJECT_DETECT.md](../workflows/WORKFLOW_OBJECT_DETECT.md) §1.3 ·
+[../workflows/WORKFLOW_FACE.md](../workflows/WORKFLOW_FACE.md) §6.1
+**Test Requirements:** `workflow-objects-mocked.spec.ts` asserting a mocked detection with
+`label: "dog"` renders as `dog`, not `objectdetection`. A `FacedetectNodeTest` case asserting the
+persisted type. `SceneLayoutNodePersistenceTest` still green (it constructs `DetectionResponse` with
+`setType("face")` and must be updated in the same change).
+
+---
+
+## Task 7: Report the upload trigger outcome, and add a backfill path
+
+**Argumentation Summary:** The upload workflow works and is invisible when it does not. `AssetPipelineTrigger`
+matches a pipeline by mime type and dispatches; when nothing matches, or when the graph contains a
+kind no online worker will run (a **503** naming the kinds), it logs `dispatched=false` and returns.
+The uploader sees a successful upload and no processing, with no way to tell the two apart.
+Separately, the trigger fires on `asset.created` only, so a pipeline added later never processes
+assets already in the system — there is no backfill at all.
+
+**Improvement Summary:** Surface the trigger outcome to the uploader, and add a way to run a pipeline
+over an existing set.
+
+```
+1. AssetPipelineTrigger.handle already computes the outcome. Carry it out: either make
+   the match synchronous in AssetUploadEndpointService (one batched DAO read plus
+   in-memory filtering) and extend the upload response with
+   {triggered, runUuid?, reason?}, or push it over the pipeline-events WebSocket the UI
+   is already connected to. The EventBus publish is fire-and-forget, so the response
+   cannot simply wait for it - pick one of the two and say which in the spec.
+2. Surface the reason in the upload queue row: "no matching pipeline" and
+   "unsupported kinds: [whisper]" are different problems and must not look alike.
+3. Backfill: POST /api/v1/pipelines/:uuid/run-over {libraryUuid | collectionUuid |
+   assetUuids[]}, reusing PipelineEndpointService.dispatchRun. Guard it - this can
+   dispatch tens of thousands of items.
+4. Optional follow-up: promote meta.trigger to a validated PipelineTrigger model in
+   loom-shared/pipeline-model with a PipelineModelValidator rule rejecting unknown keys,
+   so a typo like "mimetypes" fails loudly instead of matching nothing. Add the rule in
+   ONE place and delegate - structural validation is already duplicated between
+   PipelineModelValidator and PipelineValidationService; do not create a third copy.
+```
+
+**References:** [../workflows/WORKFLOW_UPLOAD.md](../workflows/WORKFLOW_UPLOAD.md) §2 ·
+`AssetPipelineTrigger.java`, `PipelineMatcher.java`, `PipelineEndpointService.java:246`
+**Test Requirements:** `AssetPipelineTriggerTest` (event → match → `runForAsset` with the asset's
+creator; **no** publish for a duplicate upload; a 503 from dispatch does not throw and is reported).
+`AssetUploadEndpointTest` extended for the outcome field. A backfill endpoint test with a permission
+case and a dry-run.
+
+---
+
+## Task 8: Persist key profiles and give every mode a real queue
+
+**Argumentation Summary:** Two shared defects degrade all six workflow modes at once. (X5) Key
+profiles live in `useState(DEFAULT_PROFILES)` (`WorkflowView.tsx:742`) — the rebinding UI works and
+every rebind is lost on reload. (X6) Every mode reviews `listAssets(token, {limit: PAGE_SIZE})`
+sliced to 20 (`:749`) rather than the items that need a decision, and (X7) nothing records that an
+item was reviewed, so a session cannot be resumed and two reviewers cannot split a queue.
+
+**Improvement Summary:** Persist profiles, replace "first 20 assets" with a per-workflow queue query,
+and record per-session progress.
+
+```
+1. Profiles: start with localStorage keyed by profile id - the smallest fix that makes
+   rebinding real. A server-side key_profile table is the follow-up if profiles need to
+   travel between devices; decide explicitly rather than defaulting to a migration.
+2. Queue: each mode declares its own queue query.
+     rating/tagging  -> GET /assets?unrated=true / ?untagged=true  (NEW filters)
+     dedup           -> GET /dedup-groups?status=PENDING           (exists)
+     objects/faces   -> GET /detections?status=PENDING             (Task 5)
+     llm             -> GET /node-results?status=PENDING           (WORKFLOW_AI_REVIEW)
+   The two NEW asset filters are the only backend work here.
+3. Progress: show "n of m decided" from the server's count, not from local state, so a
+   resumed session and a second reviewer both see the truth.
+4. Paging: page forward from a cursor. Deep offsets are capped
+   (LOOM_SEARCH_MAX_OFFSET -> 400).
+```
+
+**References:** [../workflows/WORKFLOWS.md](../workflows/WORKFLOWS.md) §4 (X5, X6, X7) and §2.2
+**Test Requirements:** A vitest unit test for profile persistence (save, load, corrupt-value
+tolerance). A mocked Playwright spec asserting a rebind survives a reload. Endpoint tests for the two
+new asset filters incl. paging and a permission case.
+
+---
+
+## Task 9: AI output review — the review record and the real screen
+
+**Argumentation Summary:** Seven node kinds write free text that no human has read, and no consumer
+distinguishes checked from unchecked: search ranks a hallucinated caption like a curated one, exports
+carry both, the agent cites both. `LLMMode` (`WorkflowView.tsx:572`) is fully mocked — a hardcoded
+string keyed on three demo asset ids, with a `gpt-4o` chip that names no real model and an `r`
+"re-run prompt" binding whose `case` body is empty.
+
+**Improvement Summary:** A review record hung off the `asset_node_result` ledger — one mechanism
+serving this workflow, metadata repair and safety triage — plus a screen showing real text.
+
+```
+PREREQUISITE: complete the ledger. asset_node_result.result_ref is null for several
+producers and origin is hard-coded COMPUTED, so a review keyed to a ledger row has
+nothing to point at. See spec/tasks/METALOOM_NOTES.md "Complete the node provenance
+record".
+
+1. node_result_review table (see WORKFLOW_AI_REVIEW.md section 2.1) on the shared
+   review_status enum from Task 5: result_uuid FK CASCADE, status, corrected_text, note,
+   reviewed_at, reviewer_uuid NOT NULL, UNIQUE (result_uuid, reviewer_uuid).
+   Hanging it off the ledger means a review is automatically scoped to the
+   producer_version that was reviewed - a re-run under a new version is correctly
+   unreviewed again.
+2. DAO + jOOQ impl + contract tests + cascade tests.
+3. POST /assets/:uuid/node-results/:uuid/review, a bulk variant, and a cross-asset
+   PENDING queue route. Decide whether this needs its own permission or reuses
+   UPDATE_ASSET - say which and why.
+4. LLMMode: fetch real text via GET /assets/:uuid/node-results; show the real node_kind
+   and producer_version in the chip; add an EDIT action (the third and most valuable
+   answer); batch writes with rollback. Implement or REMOVE the dead rerun_llm binding -
+   a bound key that does nothing is worse than an unbound one.
+5. Consumers (separate, larger): exclude REJECTED text from search_document, from
+   export, and from the agent's context. This touches the V2.57-V2.59 trigger set.
+```
+
+**References:** [../workflows/WORKFLOW_AI_REVIEW.md](../workflows/WORKFLOW_AI_REVIEW.md) ·
+`V2.45__add_asset_node_result.sql` · [METALOOM_NOTES.md](METALOOM_NOTES.md)
+**Test Requirements:** `NodeResultReviewDaoTest`, `NodeResultReviewEndpointTest` (incl. a re-run
+under a new `producer_version` leaving the old review in place and the new value PENDING),
+`SearchDocumentReviewTest`, `workflow-llm-mocked.spec.ts`.
+
+---
+
+## Task 10: Collection curation mode
+
+**Argumentation Summary:** Every backend piece exists — collection schema with cascades, full CRUD,
+permissions, a UI API module, search and similarity as queue sources — and curating still means
+clicking through the assets grid one at a time. This is the cheapest workflow in the family: no
+migration, no node, no new permission.
+
+**Improvement Summary:** A `"curation"` mode with in/out/skip keys and a live filmstrip of the target
+collection.
+
+```
+1. WorkflowMode gains "curation"; a curation-default KeyProfile:
+   y/-> add, n/Space skip, x remove, <- back (with undo), Enter switch collection.
+2. Two panes: the asset large, the target collection's contents as a filmstrip - the
+   thing a checkbox grid cannot give you.
+3. Queue sources: search result, library listing, another collection, similar-assets.
+   LOOM_SEARCH_ENABLED defaults to OFF and the routes answer 503 - degrade to the
+   library listing with a visible message, never a blank screen. Search is a capability,
+   not a dependency, everywhere else in this codebase.
+4. Batched membership writes with rollback; re-adding is an idempotent no-op (a curator
+   will double-tap y); undo on <- must hit the server, not just move the cursor.
+```
+
+**References:**
+[../workflows/WORKFLOW_COLLECTION_CURATION.md](../workflows/WORKFLOW_COLLECTION_CURATION.md) ·
+[../loom/ui/TASK_UI_ORGANIZATION.md](../loom/ui/TASK_UI_ORGANIZATION.md)
+**Test Requirements:** `curation.test.ts` (request shaping, batching, rollback) and
+`workflow-curation-mocked.spec.ts` (`y` grows the filmstrip, `n` sends nothing, back-then-`x` undoes,
+a 503 from search falls back with a message). ⚠️ Playwright `role`+`name` is a substring match — a new
+"Curation" toggle can shadow an existing spec; use `exact: true`.
+
+---
+
+## Task 11: Metadata repair — rules, candidates, corrections
+
+**Argumentation Summary:** The `metadata` node extracts EXIF/GPS/IPTC/XMP and resolves conflicts by
+precedence; nothing detects that a resolved value is wrong, and the losing candidates — often the
+correct ones — are discarded silently. A real archive arrives full of missing capture dates,
+`1970-01-01`, Null Island coordinates and absent rights, and there is no way to find them, let alone
+fix them in bulk.
+
+**Improvement Summary:** A rule set that flags implausible metadata, candidate preservation in the
+envelope, and a bulk-correction layer that never overwrites what the file said.
+
+```
+1. Rule set behind a strategy seam (copy FilterStrategy's shape): NO_CAPTURE_DATE,
+   IMPLAUSIBLE_DATE, NO_TIMEZONE, NULL_ISLAND, SOURCE_CONFLICT, NO_RIGHTS. Adding a
+   rule must not require editing the endpoint. Every input is already in Postgres, so
+   this is SQL behind a route, not a node.
+2. GET /api/v1/assets/metadata-issues?rule=&severity= with paging.
+3. Preserve losing candidates in the asset_json_comp envelope, and UPDATE
+   spec/features/nodes/metadata/METADATA_OVERVIEW.md in the same change - it is the only
+   place the envelope contract and the precedence rules are written down.
+4. Correction store: reuse node_result_review from Task 9 if it has landed, otherwise a
+   small asset_metadata_correction table. DECIDE BEFORE BUILDING EITHER - two
+   "a human overruled a machine value" mechanisms is the outcome to avoid.
+5. Correction endpoint: single AND bulk-over-a-query, with a preview and an undo. Bulk
+   is the point ("this whole folder is off by seven hours"); a bulk correction applied
+   to a mis-scoped query is the most damaging action in this spec family.
+6. Consumers honour the correction layer: search, API responses, export.
+```
+
+**References:**
+[../workflows/WORKFLOW_METADATA_REPAIR.md](../workflows/WORKFLOW_METADATA_REPAIR.md) ·
+[../features/nodes/metadata/METADATA_OVERVIEW.md](../features/nodes/metadata/METADATA_OVERVIEW.md) ·
+[../concept/ASSET_METADATA_WRITE.md](../concept/ASSET_METADATA_WRITE.md) (the deferred file half)
+**Test Requirements:** `MetadataRuleTest` per rule with boundary fixtures, `MetadataIssueEndpointTest`,
+`MetadataCorrectionEndpointTest` (correction wins over the machine value; undo restores),
+`MetadataEnvelopeCandidatesTest` (candidates preserved, winner still matches documented precedence).
+⚠️ **Generate fixture bytes in test code** — `/opt/metaloom/loom-testdata` is unversioned and its
+images carry no EXIF.
+
+---
+
+## Task 12: Safety triage — decision, consequence, and restricted-by-default
+
+**Argumentation Summary:** The `guard` node produces a normalised verdict across three model families
+(`score` is always P(unsafe)) and it lands in a JSON component and stops. No queue, no decision, no
+consequence. Guardrail models are known to over-flag medical images, art, historical photographs and
+news footage, so a threshold alone cannot resolve this — which is precisely what a review queue is
+for.
+
+**Improvement Summary:** A review record with category correction, a quarantine path reusing the
+`move` node, and — the hard part — restricted-by-default visibility for flagged assets.
+
+```
+Depends on Task 4 (the mover) and Task 1 (the router).
+
+1. Review record on the shared review_status enum, against the ledger row, plus a
+   category correction ("this is violence, not sexual content"). Retain OVERTURNED
+   verdicts - the false-positive rate is the only honest basis for changing a threshold.
+2. PENDING means RESTRICTED. Fail closed: an unreviewed flag must never be treated as
+   safe because nobody got to it.
+3. DECIDE the enforcement point and write it into
+   spec/features/permissions/PERMISSIONS.md. Three options, in
+   WORKFLOW_SAFETY_TRIAGE.md section 3.3; the recommendation is moving flagged assets to
+   a separate library with its own ACL, because it composes with the permission model
+   that exists instead of adding row-level authorization the codebase does not have.
+   A half-enforced restriction is worse than none - it reads as protection.
+4. Quarantine path: 'quarantine' tag -> filter(TAG) -> move(quarantineFolder). Moves,
+   never deletes: retention obligations frequently point the opposite way from a
+   deletion instinct.
+5. Triage mode: blur by default, deliberate reveal, an explicit permission, no flagged
+   thumbnails anywhere else in the UI. This is the only review screen that is itself a
+   hazard to the reviewer.
+```
+
+**References:**
+[../workflows/WORKFLOW_SAFETY_TRIAGE.md](../workflows/WORKFLOW_SAFETY_TRIAGE.md) ·
+[../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) ·
+`cortex/nodes/guard/`
+**Test Requirements:** `SafetyReviewEndpointTest`, and above all `RestrictedVisibilityTest` — a
+PENDING asset must not appear in asset lists, search results, thumbnails or the agent's context for a
+user without the triage permission. ⚠️ **Never ship offensive fixtures**: synthesise a verdict row
+against an ordinary test asset.
+
+---
+
+## Task 13: Ingest reconciliation
+
+**Argumentation Summary:** Four source kinds, differential scanning, hashing, consistency checking,
+fingerprinting, dedup and an S3 sink all exist, and nothing composes them into a migration — in
+particular nothing answers *"did everything arrive?"*. The differential index the scanners maintain is
+worker-local, so replacing a worker loses it, and there is no report an operator can sign off on
+before switching off the old system. This is the one workflow whose failure mode is silent data loss.
+
+**Improvement Summary:** A survey phase and a reconciliation phase that account for every source
+object with a named disposition.
+
+```
+1. Survey mode: scan and report (count, bytes, types, depth) without ingesting.
+2. Push the source inventory - or a summary of it - into Loom, so reconciliation
+   survives a worker replacement.
+3. Reconcile: for every source object emit MATCHED | MISSING | SIZE_MISMATCH |
+   UNREADABLE | SKIPPED_BY_FILTER | DUPLICATE_OF. "Filtered by a MIME bucket" and "the
+   read failed" must not look alike, and CORTEX_S3_MAX_OBJECT_SIZE exclusions must
+   report as SKIPPED_BY_FILTER, not as missing.
+4. Content-identity fallback where key identity is unreliable: a rename is detectable on
+   a cloud drive (stable file id) but NOT on S3, where it is a delete plus a create.
+5. Resumable per-item progress surfaced in the UI, on pipeline_run_item (V2.77
+   normalised its state).
+6. BEFORE trusting any real migration: audit every node on the ingest path for
+   ctx.failure(...).next(), which returns SUCCESS and drops the cause. On an ingest path
+   that is silent data loss. Also fix HashDedupNode's System.in.read() halt, which will
+   block a headless worker indefinitely on a size mismatch.
+```
+
+**References:**
+[../workflows/WORKFLOW_INGEST_MIGRATION.md](../workflows/WORKFLOW_INGEST_MIGRATION.md) ·
+[../concept/NODE_S3SOURCE_PLAN.md](../concept/NODE_S3SOURCE_PLAN.md) ·
+[../concept/NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md) ·
+[../concept/CLUSTERING.md](../concept/CLUSTERING.md) (🔴 scale Cortex, never Loom)
+**Test Requirements:** `ReconciliationTest` covering every disposition incl. the S3-rename case
+resolved by content identity; `ResumeTest` (kill mid-run, the second run completes the remainder and
+does not reprocess); `MigrationIT` in `integration-test/` over a few hundred synthetic objects
+asserting zero unexplained gaps. Plus a documented dry run at 1% of the real corpus — not a test, but
+the thing that actually de-risks it.
+
+---
+
+## Task 14: Rights and release — licence model and the export gate
+
+**Argumentation Summary:** There is no concept of "cleared for use" anywhere in the tree, and two of
+the five questions a release gate must answer are literally unrepresentable: `person` has no consent
+field, and the only licence storage is a free-text `asset_location.license` column that `V2.10` marks
+`/* unclear */`. Meanwhile the evidence for the other three questions — ownership, safety, AI
+provenance — is already produced and simply never read as clearance.
+
+**Improvement Summary:** Start with the two independently valuable pieces (a licence model, an
+AI-provenance read path), then the clearance record and the export gate. Consent waits for the face
+workflow.
+
+```
+Strictly sequential. Steps 1-4 are worth building alone; 5-7 must not start early.
+
+1. Licence model: an SPDX-style identifier plus optional custom terms, on the ASSET
+   (a licence follows content, not paths), replacing asset_location.license. Small
+   change, large blast radius (API responses, search, export) - its own migration and
+   its own tests.
+2. AI-provenance read path: "is any of this machine-made?" as a query over
+   asset_node_result. DISTINGUISH generated PIXELS (imagegen, videogen) from generated
+   DESCRIPTION (captioning, llm, translate). A VLM caption does not make an image
+   algorithmic media, and mislabelling an archive is worse than not labelling it.
+3. release_clearance (see WORKFLOW_RIGHTS_RELEASE.md section 2.1): UNIQUE
+   (asset_uuid, purpose), status on the shared review_status enum, expires_at,
+   decider_uuid NOT NULL, and an EVIDENCE SNAPSHOT frozen at decision time. A clearance
+   that silently re-derives itself is not a record of anything.
+4. The export gate on EVERY byte-carrying exit: GET /assets/:uuid/binary/data, the
+   s3-sink node, collection download. One ungated route makes the gate decorative.
+   Reuse whatever enforcement point Task 12 picks - two half-enforced gates are worse
+   than one enforced gate.
+5. person_consent - only AFTER WORKFLOW_FACE reaches stage 4. Fail closed on unknowns:
+   an unrecognised face is not an absent person.
+6. Metadata write-back on export (licence, credit, IPTC DigitalSourceType, C2PA) -
+   after spec/concept/ASSET_METADATA_WRITE.md is built.
+7. Auto-clear policies - LAST, per purpose, opt-in, OFF by default, and recorded as the
+   operator who enabled the policy rather than a null or a service account.
+```
+
+**References:**
+[../workflows/WORKFLOW_RIGHTS_RELEASE.md](../workflows/WORKFLOW_RIGHTS_RELEASE.md) ·
+[../concept/ASSET_METADATA_WRITE.md](../concept/ASSET_METADATA_WRITE.md) ·
+[../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) ·
+[../workflows/WORKFLOW_FACE.md](../workflows/WORKFLOW_FACE.md)
+**Test Requirements:** `ReleaseClearanceDaoTest` (one row per (asset, purpose); evidence snapshot
+immutable; expiry; cascade), `ProvenanceClassificationTest` (a VLM caption does not mark the image
+algorithmic), `ClearanceExpiryTest`, and above all `ExportGateTest` — every byte-carrying route
+refuses an uncleared asset, so that a new exit added without a gate check fails the suite.
+
+---
+
+## Task 15: Workflow documentation and demo data
+
+**Argumentation Summary:** `find website/content -ipath "*workflow*"` returns nothing. The workflow
+screen is a shipped, sidebar-visible feature with six modes and no customer-facing page, which
+[../guidelines/CODING.md](../guidelines/CODING.md) requires. `DemoDatabaseInitializer` seeds no dedup
+group, no PENDING detection and no rated or curated asset, so every mode opens empty on a demo stack
+and looks broken rather than unused.
+
+**Improvement Summary:** One customer docs page per shipped workflow, and demo data that makes each
+mode show something on first open.
+
+```
+1. website/content/english/docs/workflows/: an index plus a page per SHIPPED workflow.
+   Customer tone - no spec references, no class names. Document the keyboard bindings;
+   they are the feature.
+2. DemoDatabaseInitializer: a rated asset, a curated tag, a PENDING dedup group, an
+   asset with PENDING detections carrying real labels. Enough that each mode shows
+   something.
+3. Do NOT document a workflow whose write path is a mock. Ship the docs with the wiring
+   (Tasks 2, 3, 5) - a docs page describing a feature that silently discards the user's
+   work is worse than no page.
+```
+
+**References:** [../guidelines/CODING.md](../guidelines/CODING.md) ·
+[../website/WEBSITE.md](../website/WEBSITE.md) · `loom/core/.../boot/DemoDatabaseInitializer.java`
+**Test Requirements:** The demo stack (`./start-demo.sh`) opens `/workflow` with non-empty content in
+every mode. ⚠️ The website build: back up `yarn.lock` and escape bare `localhost` URLs in prose.
+
+---
+
+_Git HEAD revision: `21e8a8cd`_
+_Last updated: 2026-08-07 (new file — 15 tasks derived from the workflow specs written the same day)_

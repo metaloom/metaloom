@@ -1,28 +1,34 @@
-# Face Workflow — Detect → Embed → Cluster → Confirm a Person
+# Workflow: Face Clusters — Detect → Embed → Cluster → Confirm a Person
 
-> **Status**: 🔴 **Not built.** Only the first of four stages runs. Detection works and writes
-> `detection` rows; **embedding, clustering and confirmation do not exist**. Everything downstream —
-> the `cluster` / `embedding_cluster` tables, the `faceClusterEPS` / `faceClusterMinimum` node
-> options, `ClustersPanel` / `PersonsPanel` — is present but **connected to nothing**.
+> **Status**: 🟡 **Two of four stages run.** Detection writes `detection` rows and, since 2026-08-06,
+> face **embeddings are computed and persisted** (§1.2). **Clustering and confirmation still do not
+> exist**: the `cluster` / `embedding_cluster` tables, the `faceClusterEPS` / `faceClusterMinimum`
+> node options and `ClustersPanel` / `PersonsPanel` are present but connected to nothing, and
+> `cluster` cannot be written by a worker at all.
 > **Scope**: the end-to-end identity loop across Cortex, Loom, the database and the UI: from a face
 > in a frame to a human-confirmed `person`.
 > **Audience**: AI coding agents and humans working on
-> [cortex/nodes/facedetect/](../../../cortex/nodes/facedetect/), `loom/services/rest` and
+> [cortex/nodes/facedetect/](../../cortex/nodes/facedetect/), `loom/services/rest` and
 > `loom-ui/src/features/faceDetection/`.
+
+Family index and shared anatomy: [WORKFLOWS.md](WORKFLOWS.md). This is workflow 4 of 12, and the most
+complex of the built-or-nearly-built ones.
 
 **Out of scope, and where it lives instead:**
 
 | Not here | There |
 |---|---|
-| Which face models exist, their licences, the InspireFace pack format, model accuracy | [../nodes/facedetect/FACEDETECTION_OVERVIEW.md](../nodes/facedetect/FACEDETECTION_OVERVIEW.md) |
-| The node system, lifecycle, ports, registration, caching | [../nodes/NODES.md](../nodes/NODES.md) |
-| Typed ports and cardinality | [../pipeline/NODE_DATA_TYPES.md](../pipeline/NODE_DATA_TYPES.md) |
-| Open UI work items for AI/ML entities (Embedding, Cluster, Detection, Person) | [../../loom/ui/TASK_UI_AI_ML.md](../../loom/ui/TASK_UI_AI_ML.md) |
-| Vector / ANN search strategy and the pgvector decision | [../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md) |
-| The human-confirms-a-machine-proposal precedent this file copies | [../../concept/NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) |
-| Rules for adding a node at all | [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) |
+| Which face models exist, their licences, the InspireFace pack format, model accuracy | [FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) |
+| The node system, lifecycle, ports, registration, caching | [NODES.md](../features/nodes/NODES.md) |
+| Typed ports and cardinality | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
+| Open UI work items for AI/ML entities (Embedding, Cluster, Detection, Person) | [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) |
+| Vector / ANN search strategy and the pgvector decision | [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
+| The human-confirms-a-machine-proposal precedent this file copies | [NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md), and its workflow half [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) |
+| Reviewing the **detections** rather than the clusters | [WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) — same table, and the `review_status` enum proposed there is the one to reuse |
+| Consent: whether a confirmed person agreed to publication | [WORKFLOW_RIGHTS_RELEASE.md](WORKFLOW_RIGHTS_RELEASE.md) §2.2 |
+| Rules for adding a node at all | [NEW_NODE.md](../guidelines/NEW_NODE.md) |
 
-> ⚠️ **Name collision.** [../../concept/CLUSTERING.md](../../concept/CLUSTERING.md) is about
+> ⚠️ **Name collision.** [CLUSTERING.md](../concept/CLUSTERING.md) is about
 > **multi-instance Loom deployment**, not face clustering. It has nothing to do with this file. If you
 > opened it looking for face clusters, you want this one.
 
@@ -34,8 +40,8 @@ Status legend: 🟢 built · 🟡 partly built · 🔵 plan/concept · 🔴 defe
 
 | Question | Short answer |
 |---|---|
-| **Does the detect → cluster → confirm loop work?** | **No.** Stage 1 of 4 runs. |
-| **Where exactly does it break?** | 🔴 **At link 1, not at confirmation.** No face embedding has ever been persisted, so there is nothing to cluster. |
+| **Does the detect → cluster → confirm loop work?** | **No.** Stages 1-2 of 4 run. |
+| **Where exactly does it break?** | 🔴 **At link 3.** Detection and embedding both persist (§1.2, built 2026-08-06). There is no clustering algorithm and `cluster` cannot be machine-written, so the vectors sit there unused. |
 | **Is there clustering code?** | **None.** `faceClusterEPS` / `faceClusterMinimum` are validated, shown in the UI, and read by no algorithm. The only "DBSCAN" in the repo is that option's label text. |
 | **Can a Cortex worker even create a cluster?** | 🔴 **No.** `cluster.creator_uuid` is `NOT NULL` referencing `user`. `V2.47` relaxed this for `detection`/`embedding`/comp tables and skipped `cluster`. |
 | **Is `cluster` linked to `person`?** | **No FK, no join table, no code path.** They are two unrelated islands. |
@@ -52,7 +58,7 @@ flowchart LR
     FD -->|"POST /assets/:uuid/detections/bulk"| DET[("<b>detection</b> 🟢<br/>type='face'")]
     FD -.->|"recordNodeResult"| LEDGER[("asset_node_result 🟡<br/>result_ref always null")]
 
-    FD --x EMB[("<b>embedding</b> 🔴<br/>never written")]
+    FD -->|"POST /assets/:uuid/embeddings/bulk"| EMB[("<b>embedding</b> 🟢<br/>written since 2026-08-06<br/>V2.75 index contract")]
     EMB --x EC[("<b>embedding_cluster</b> 🔴<br/>no producer")]
     EC --x CL[("<b>cluster</b> 🔴<br/>demo data only")]
     CL --x PER[("<b>person</b> 🔴<br/>no FK to cluster")]
@@ -60,7 +66,7 @@ flowchart LR
     CL -.-> UI["ClustersPanel / PersonsPanel 🟡<br/>CRUD over nothing"]
     PER -.-> UI
 
-    style EMB fill:#ffd0d0,color:#000
+    
     style EC fill:#ffd0d0,color:#000
     style CL fill:#ffd0d0,color:#000
     style PER fill:#ffd0d0,color:#000
@@ -69,8 +75,8 @@ flowchart LR
 ### 1.1 What actually runs
 
 `FacedetectNode.persist(...)`
-([FacedetectNode.java](../../../cortex/nodes/facedetect/core/src/main/java/io/metaloom/cortex/node/facedetect/FacedetectNode.java))
-writes **detection rows and nothing else**:
+([FacedetectNode.java](../../cortex/nodes/facedetect/core/src/main/java/io/metaloom/cortex/node/facedetect/FacedetectNode.java))
+writes detection rows (and, since 2026-08-06, embeddings — §1.2):
 
 ```java
 items.add(new DetectionCreateRequest()
@@ -106,7 +112,7 @@ embedding.
 to the wrong face — silently, and with entirely plausible output.
 
 Persistence, storage and the pluggable index are specified in
-[../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md); `embedding` is the system of record and
+[SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md); `embedding` is the system of record and
 the ANN index is a rebuildable cache behind the `VectorIndex` SPI, keyed by
 `(type, model, dimensions)` so the recognition model can change without invalidating what is stored.
 
@@ -130,7 +136,7 @@ the ANN index is a rebuildable cache behind the `VectorIndex` SPI, keyed by
 key, no join table and no code path** between them. Two competing models of "a person" coexist:
 `cluster(type='person')` + `embedding_cluster`, and the standalone `person` / `person_image` island.
 `person_image` has **no writer at all** — it is referenced only by DAO cascade tests. This duplication
-is already recorded in [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.3.
+is already recorded in [DB_SCHEMA_FEEDBACK.md](../features/DB_SCHEMA_FEEDBACK.md) §4.3.
 
 ---
 
@@ -182,7 +188,7 @@ Clustering runs **inside `FacedetectNode`, scoped to one asset**. This is a deli
 in a second video produces a second, unrelated `PENDING` cluster with no memory of the first.
 
 Cross-asset identity is **phase 2** and needs a library-wide pass plus a vector index
-([../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md)). The schema in §3 is designed so that
+([SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md)). The schema in §3 is designed so that
 pass reuses the same tables: `cluster.asset_uuid` is **nullable** precisely so a library-wide cluster
 can exist alongside per-asset ones, distinguished by `node_kind`, without a second destructive
 migration.
@@ -190,7 +196,7 @@ migration.
 ### 2.3 Distance metric
 
 Cosine distance over L2-normalised embeddings, per the industry-standard pipeline documented in
-[../nodes/facedetect/FACEDETECTION_OVERVIEW.md](../nodes/facedetect/FACEDETECTION_OVERVIEW.md) §5.
+[FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) §5.
 
 > ⚠️ **There is no `cosineSimilarity()` helper to reuse.** An earlier draft of this file claimed
 > `Face.cosineSimilarity` exists in `facedetect4j`; it does not — the string appears only inside
@@ -205,11 +211,14 @@ and record what it was calibrated against.
 
 ---
 
-## 3. Schema — migration `V2.75` (design; not yet written)
+## 3. Schema — the cluster migration (design; not yet written)
 
-> ⚠️ **Check the highest migration before claiming the version.** `V2.74__asset_social_cascade.sql` is
-> the highest at this revision, but another branch may take `V2.75` first — this is an explicit gotcha
-> in [../../concept/SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md).
+> 🔴 **The version this section used to claim is gone.** It specified `V2.75`; `V2.75` was taken on
+> 2026-08-06 by `V2.75__embedding_index_contract.sql` (the exporter contract, dimensions CHECK,
+> `model` in the identity key, and `normalized` — see §1.2), and the tree is at
+> `V2.77__normalize_pipeline_run_item_state.sql` as of `21e8a8cd`. **Take the next free version at the
+> time you write it and do not hard-code one in this spec again.** This is the explicit gotcha in
+> [SEARCH_PLAN.md](../concept/SEARCH_PLAN.md), demonstrated.
 
 ### 3.1 `cluster` — today it cannot be machine-written
 
@@ -233,7 +242,7 @@ Required changes:
 | # | Change | Why |
 |---|---|---|
 | 1 | `creator_uuid` / `editor_uuid` → **NULLABLE** | 🔴 A Cortex worker is not a user. `V2.47` did exactly this for `detection`, `embedding` and the comp tables and **skipped `cluster`**. Without it the node physically cannot insert a row. |
-| 2 | Drop `UNIQUE (name)`; `name` → **NULLABLE**; add partial `UNIQUE (type, name) WHERE name IS NOT NULL` | 🔴 A global unique name forbids two people called "Anna Meyer" and collides across unrelated cluster types. Machine-proposed clusters have no meaningful name until a human confirms one. Recommended in [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md). |
+| 2 | Drop `UNIQUE (name)`; `name` → **NULLABLE**; add partial `UNIQUE (type, name) WHERE name IS NOT NULL` | 🔴 A global unique name forbids two people called "Anna Meyer" and collides across unrelated cluster types. Machine-proposed clusters have no meaningful name until a human confirms one. Recommended in [DB_SCHEMA_FEEDBACK.md](../features/DB_SCHEMA_FEEDBACK.md). |
 | 3 | Add `node_kind`, `node_id`, `producer_version`, `run_uuid`, `task_uuid` | The component-contract provenance every other producer table carries (`V2.38`). Enables the standard invalidation sweep `WHERE node_kind = ? AND producer_version <> ?` — which is how a pack change (§2.3) retires stale clusters. |
 | 4 | Add nullable `asset_uuid` → `asset(uuid) ON DELETE CASCADE` | Per-asset clusters now; **nullable** so a phase-2 library-wide cluster fits the same table. |
 | 5 | Add `cluster_index` int + `UNIQUE (asset_uuid, node_kind, cluster_index)` | Idempotent re-runs. Without an upsert key, re-running the node appends a second full set — exactly the bug `V2.43` fixed for detections. |
@@ -265,15 +274,15 @@ reason — §6.9.)
 ### 3.4 What deliberately does **not** change
 
 `embedding.vector` stays `real[]` with **no ANN index**. pgvector is an open decision owned by
-[../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md), and
-[../../concept/SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) gotcha 8 warns that
+[SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md), and
+[SEARCH_PLAN.md](../concept/SEARCH_PLAN.md) gotcha 8 warns that
 `loom/db/jooq/generate.sh` re-runs every migration in a stock `postgres:latest` Testcontainer —
 **`pgvector` is not in that image**, so an unguarded `CREATE EXTENSION vector` breaks jOOQ codegen for
 everyone. Per-asset clustering (§2.2) needs no index at all, which is part of why it is phase 1.
 
 ### 3.5 Obligations a migration triggers
 
-Per [../../guidelines/CODING.md](../../guidelines/CODING.md):
+Per [CODING.md](../guidelines/CODING.md):
 
 ```bash
 mvn install -pl loom/db/flyway     # or the pool skips the new migration silently
@@ -313,7 +322,7 @@ which avoids the Flyway single-transaction trap (`SEARCH_PLAN.md` gotcha 7).
    from. This must be added before the loop can work.
 2. **`EmbeddingType` has no InspireFace value** — the enum is
    `{DLIB_FACE_RESNET_v1, VIDEO4J_FINGERPRINT_V1, VIDEO4J_FINGERPRINT_V2}`. Add a pack-versioned
-   value. Per [../nodes/facedetect/FACEDETECTION_OVERVIEW.md](../nodes/facedetect/FACEDETECTION_OVERVIEW.md)
+   value. Per [FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md)
    §6.3, **switching the pack invalidates every stored embedding and every cluster**, so the stored
    `(type, model, dimensions, producer_version)` tuple is what makes that detectable.
 
@@ -323,7 +332,7 @@ Dedup decides with `PATCH /dedup-groups/:uuid`; `ClusterEndpoint` updates with
 `POST /clusters/:uuid`. Both are in the codebase today. `/confirm` and `/reject` are proposed as
 RPC-style sub-resources because the operation is not a field write — it creates a person and mutates
 two tables atomically. Collection paths stay plural per
-[../../guidelines/CODING.md](../../guidelines/CODING.md); that rule explicitly reserves singular for
+[CODING.md](../guidelines/CODING.md); that rule explicitly reserves singular for
 RPC-style resources.
 
 ---
@@ -338,7 +347,7 @@ RPC-style resources.
 | Emit honest counts | `OUT_FACE_COUNT` becomes the cluster count, matching its own `@PortDoc`. |
 | Ledger | Pass the real uuids to `resultRef(...)` — see §6.6. |
 
-**Do not add a new node kind.** [../../guidelines/NEW_NODE.md](../../guidelines/NEW_NODE.md) applies to
+**Do not add a new node kind.** [NEW_NODE.md](../guidelines/NEW_NODE.md) applies to
 new kinds; this is a change to an existing one. Note that `facedetect` (kind) and `facedetection`
 (options `KEY`) genuinely differ — see `NODES.md`.
 
@@ -358,7 +367,7 @@ Recorded, **not fixed** in this pass. Each was read in this checkout.
 | 6.6 | ⚠️ | **`resultRef("detection")` is called with zero uuids**, and `resultRef` returns `null` when `uuids.length == 0`. The ledger's `result_ref` is therefore always empty for facedetect; the bulk-create response uuids are discarded. | `AbstractMediaNode.java:169-179` |
 | 6.7 | ⚠️ | **`facedescription` has a descriptor but no `@IntoMap` binding** — advertised in the pipeline editor, not instantiable. Pinned deliberately: `assertThat(kinds).doesNotContain("facedescription")`. | `FacedetectNodeModule`, `NodeRegistrarTest:100` |
 | 6.8 | ⚠️ | **`maxFaceAngle` gates the video path only.** The check sits in `detectFaces(VideoFrame)` with no counterpart in `detectFaces(BufferedImage)` — the same frame yields faces as an image and none as a video. | `InspireFacedetectorImpl` (video4j) |
-| 6.9 | ⚠️ | **`PersonEndpointService.update` silently drops `primaryImageUuid`.** The DTO carries it, the validator passes it, `update()` never applies it — person avatars can never be set. | `PersonEndpointService.java:65-79`; already [TASK_UI_AI_ML.md](../../loom/ui/TASK_UI_AI_ML.md) Task 3 |
+| 6.9 | ⚠️ | **`PersonEndpointService.update` silently drops `primaryImageUuid`.** The DTO carries it, the validator passes it, `update()` never applies it — person avatars can never be set. | `PersonEndpointService.java:65-79`; already [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) Task 3 |
 | 6.10 | ⚠️ | **Dead node options.** `videoChopRate` and `videoScaleSize` are validated but unused — `VideoFaceScanner` uses its own `WINDOW_STEPS = 15` and `DETECTION_SCALE_SIZE = 640`. Same class of defect as the cluster options. | `FacedetectNodeOptions` |
 | 6.11 | ⚠️ | **Face crops are fetched from `https://i.pravatar.cc`**, a third-party avatar service, for data that is by definition PII-adjacent. There is no face-crop endpoint. | `ClustersPanel.tsx:103` |
 | 6.12 | ⚪ | `person_image` has **no writer** — only cascade tests touch it. `AssetCascadeTest` pins it so *"the table cannot grow a writer and an orphan problem at the same time."* | `V2.26` |
@@ -385,7 +394,7 @@ Recorded, **not fixed** in this pass. Each was read in this checkout.
 - [x] Correct the false `Face.cosineSimilarity` claim (§2.3) before it propagated
 
 **Implementation — none started**
-- [ ] `V2.75` migration: cluster provenance, nullable audit columns, `status`, `person_uuid`, upsert key (§3.1)
+- [ ] Cluster migration (next free version): cluster provenance, nullable audit columns, `status`, `person_uuid`, upsert key (§3.1)
 - [ ] `embedding_cluster` gains `confidence` / `origin` / `created` (§3.2)
 - [ ] jOOQ regen + `./setup-pool.sh` after the migration (§3.5)
 - [ ] `EmbeddingCreateRequest.detectionUuid` — 🔴 blocks the whole loop (§4.1)
@@ -397,7 +406,7 @@ Recorded, **not fixed** in this pass. Each was read in this checkout.
 - [ ] `POST /clusters/:uuid/confirm` + `/reject` (§4)
 - [ ] `GET /persons/:uuid/clusters`
 - [ ] `ClusterEndpointTest` / `PersonEndpointTest` extended incl. 403 cases; `ClusterDaoTest` cascade coverage (§8)
-- [ ] UI: review queue, real member thumbnails, working confirm — coordinate with [TASK_UI_AI_ML.md](../../loom/ui/TASK_UI_AI_ML.md)
+- [ ] UI: review queue, real member thumbnails, working confirm — coordinate with [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md)
 - [ ] Face-crop endpoint, retiring the `i.pravatar.cc` placeholder (§6.11)
 - [ ] Customer-facing docs under `website/content/english/docs/` (required by CODING.md)
 - [ ] Demo data: at least one PENDING face cluster in `DemoDatabaseInitializer`
@@ -420,7 +429,7 @@ Recorded, **not fixed** in this pass. Each was read in this checkout.
 ## 8. Test Setup
 
 Nothing here is built, so this is the coverage a future implementation **owes**, per
-[../../guidelines/CODING.md](../../guidelines/CODING.md).
+[CODING.md](../guidelines/CODING.md).
 
 ```bash
 mvn install -pl loom/db/flyway    # before setup-pool, or a new migration is silently skipped
@@ -439,7 +448,7 @@ mvn install -pl loom/db/flyway    # before setup-pool, or a new migration is sil
 ⚠️ **Existing hazards that will bite here**: InspireFace tests need a pack on disk
 (`inspireface4j/packs/Pikachu`, gitignored); there is a known OpenCV ABI split between `inspireface4j`
 and `video4j` that has produced SIGSEGVs — check that before blaming new code
-([FACEDETECTION_OVERVIEW.md](../nodes/facedetect/FACEDETECTION_OVERVIEW.md) §11). The test corpus at
+([FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) §11). The test corpus at
 `/opt/metaloom/loom-testdata` is unversioned.
 
 ---
@@ -461,7 +470,7 @@ Node options live under `FacedetectNodeOptions`, `KEY = "facedetection"` (**not*
 | `videoScaleSize` | `384` | 🔴 dead (§6.10) | remove or wire |
 
 **No environment variables are specific to this feature.** The node is configured entirely through
-pipeline node options. Server-side env vars are in [../../loom/CONFIGURATION.md](../../loom/CONFIGURATION.md).
+pipeline node options. Server-side env vars are in [CONFIGURATION.md](../loom/CONFIGURATION.md).
 
 ---
 
@@ -497,13 +506,13 @@ pipeline node options. Server-side env vars are in [../../loom/CONFIGURATION.md]
 | 3 | 🔴 **An option that is validated is not an option that is used.** `faceClusterEPS`, `faceClusterMinimum`, `videoChopRate`, `videoScaleSize` all validate, all appear in the editor, none are read. Grep for the *getter*, not the field. |
 | 4 | **`facedetect` (kind) ≠ `facedetection` (options `KEY`) ≠ `"face"` (`detection.type`).** Three different strings for one feature, and §6.1 is the bug that produces. Check which one a comparison means. |
 | 5 | ⚠️ **Switching the InspireFace pack invalidates every embedding and every cluster.** Pikachu and Megatron have different embedders and different similarity thresholds (0.48 vs 0.32). Never mix; version stored embeddings by (model, pack, dim). |
-| 6 | ⚠️ **`cluster.name` is globally unique across all types** until `V2.75` lands. Two people with the same name cannot coexist. |
+| 6 | ⚠️ **`cluster.name` is globally unique across all types** until the cluster migration lands. Two people with the same name cannot coexist. |
 | 7 | ⚠️ **`embedding.vector` has no ANN index and pgvector is not in the codegen image.** An unguarded `CREATE EXTENSION vector` breaks `generate.sh` for everyone. |
 | 8 | ⚠️ **`generate.sh` is destructive** — it `rm -rf`s `src/jooq/java` before regenerating; a failed codegen leaves the build broken. |
 | 9 | ⚠️ **Install `loom/db/flyway` before `./setup-pool.sh`**, or the pool reports success while silently skipping the new migration. |
 | 10 | ⚠️ **Grant test permissions via group + role**, never a direct user grant — `user_permission` allows only one direct permission per user. |
-| 11 | ⚠️ **Don't confuse this file with [../../concept/CLUSTERING.md](../../concept/CLUSTERING.md)**, which is about multi-instance deployment. |
-| 12 | ⚠️ **Face data is PII.** Embeddings are biometric identifiers; §6.11's third-party crop fetch is a privacy defect, not only a cosmetic one. Compare the deliberate PII section in [../nodes/metadata/METADATA_OVERVIEW.md](../nodes/metadata/METADATA_OVERVIEW.md). |
+| 11 | ⚠️ **Don't confuse this file with [CLUSTERING.md](../concept/CLUSTERING.md)**, which is about multi-instance deployment. |
+| 12 | ⚠️ **Face data is PII.** Embeddings are biometric identifiers; §6.11's third-party crop fetch is a privacy defect, not only a cosmetic one. Compare the deliberate PII section in [METADATA_OVERVIEW.md](../features/nodes/metadata/METADATA_OVERVIEW.md). |
 | 13 | ⚠️ **The default face stack is non-commercially licensed.** Not a code defect, but a shipping blocker — see the overview. |
 
 ---
@@ -512,26 +521,31 @@ pipeline node options. Server-side env vars are in [../../loom/CONFIGURATION.md]
 
 | I need … | Look at |
 |---|---|
-| The node implementation | [cortex/nodes/facedetect/core/](../../../cortex/nodes/facedetect/core/) |
+| The node implementation | [cortex/nodes/facedetect/core/](../../cortex/nodes/facedetect/core/) |
 | Where detections are persisted | `FacedetectNode.persist` → `POST /assets/:uuid/detections/bulk` |
-| How embeddings are produced and stored | §1.2; `FacedetectNode.persist`/`persistEmbeddings`, [../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md) |
+| How embeddings are produced and stored | §1.2; `FacedetectNode.persist`/`persistEmbeddings`, [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
 | The embedder that is never called | `InspireFacedetectorImpl.detectEmbeddings` (video4j) |
 | Current cluster/person DDL | `V2.12__add_embedding.sql`, `V2.26__add_person.sql`, `V2.51__…_delete_cascade.sql` |
-| The review-model precedent to copy | `V2.61__add_dedup_group.sql` + [../../concept/NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) |
+| The review-model precedent to copy | `V2.61__add_dedup_group.sql` + [NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
 | The component/provenance contract | `V2.38__rework_asset_components.sql` |
 | Machine-written audit columns precedent | `V2.47__machine_written_audit_columns.sql` |
-| Model licensing and pack internals | [../nodes/facedetect/FACEDETECTION_OVERVIEW.md](../nodes/facedetect/FACEDETECTION_OVERVIEW.md) |
-| The node catalogue rows | [../nodes/NODES.md](../nodes/NODES.md) §3 |
-| Open UI tasks for these entities | [../../loom/ui/TASK_UI_AI_ML.md](../../loom/ui/TASK_UI_AI_ML.md) |
-| Vector search / pgvector decision | [../search/SEMANTIC_SEARCH.md](../search/SEMANTIC_SEARCH.md) |
-| Schema criticism of the cluster/person split | [../DB_SCHEMA_FEEDBACK.md](../DB_SCHEMA_FEEDBACK.md) §4.3 |
-| Definition of done for a code change | [../../guidelines/CODING.md](../../guidelines/CODING.md) |
+| Model licensing and pack internals | [FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) |
+| The node catalogue rows | [NODES.md](../features/nodes/NODES.md) §3 |
+| Open UI tasks for these entities | [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) |
+| Vector search / pgvector decision | [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
+| Schema criticism of the cluster/person split | [DB_SCHEMA_FEEDBACK.md](../features/DB_SCHEMA_FEEDBACK.md) §4.3 |
+| Definition of done for a code change | [CODING.md](../guidelines/CODING.md) |
 | Customer-facing face docs | `website/content/english/docs/nodes/facedetect/` |
 
 ---
 
-**GIT HEAD**: `1e12f39eaf2d27d461338c89c1d8dc3fee6bebee` (master)
-**Last updated**: 2026-08-06 — written to close the "Rework the face workflow" item in
-`spec/tasks/METALOOM_NOTES.md`. Every "today" claim was read from this checkout; §6 was enumerated by
-reading each cited file rather than by inference. The `Face.cosineSimilarity` claim in an earlier
-draft was checked and **removed as false** (§2.3) — it exists only in javadoc prose.
+Written 2026-08-06 to close the "Rework the face workflow" item in
+`spec/tasks/METALOOM_NOTES.md`. Every "today" claim was read from the checkout at that time; §6 was
+enumerated by reading each cited file rather than by inference. The `Face.cosineSimilarity` claim in
+an earlier draft was checked and **removed as false** (§2.3) — it exists only in javadoc prose.
+
+_Git HEAD revision: `21e8a8cd`_
+_Last updated: 2026-08-07 (moved into `spec/workflows/`: every relative link repointed; §0 and the §1
+diagram corrected — embeddings are built, so the chain breaks at link 3 not link 1; the hard-coded
+`V2.75` claim removed because `V2.75` was taken by `embedding_index_contract` and the tree is at
+`V2.77`)_

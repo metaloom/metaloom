@@ -8,6 +8,12 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
+> **Workflows have graduated out of this file.** The twelve workflow specs live in
+> [../workflows/](../workflows/) (start at [WORKFLOWS.md](../workflows/WORKFLOWS.md)) and their
+> actionable work items in [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md). Do not add workflow items here.
+> The keystone is **W1** — `FilterBy.TAG` / `FilterBy.RATING`; without it no pipeline can act on a
+> human decision, which is why manual sorting, trash and safety quarantine are all stuck.
+
 - tests: Run full testsuite and check peak memory and test duration. We want to know which tests are slow and if you could improve concurrency for tests.
 - sam2: stabilityScoreThresh is a dead option. The transformers "mask-generation" pipeline has no analogue, so the sidecar ignores it while the UI advertises it. Recorded as a follow-up, not fixed — it's a product decision whether to wire the real generator or mark it unsupported.
 
@@ -25,6 +31,9 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 - How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
 - Add semantic ingestion node. This allows constructed semantic data to be ingested into loom
 - Would a merge node be useful to combine assets in a reactive pipeline? (e.g. zip them)
+- Promoted 2026-08-07 into [../workflows/](../workflows/) + [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md):
+  the `move` node (trash/quarantine, filesystem-border aware), `FilterBy.TAG`/`RATING`, review state
+  on `detection`, and a review record hung off the `asset_node_result` ledger.
 
 
 ## Open ideas / questions
