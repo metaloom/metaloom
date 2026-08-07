@@ -9,7 +9,7 @@
 >
 > **This file tracks OPEN work only.** A task that is done is deleted, not archived — the
 > code and the spec are the record of what landed. Task numbers are never reused:
-> **1, 2, 3, 4 and 5 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
+> **1, 2, 3, 4, 5, 7 and 9 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
 >
 > **Blocking:** **Task 12** is the one silent-correctness bug — neither dispatch nor restart
 > recovery parses graphs with a descriptor registry, so port checking and fan-out
@@ -22,9 +22,7 @@
 | # | Task | State |
 |---|---|---|
 | 6 | Close the residual test blind spots | 🟡 **Partly done** — adapter test landed; fixture, control channel, DAO cases open |
-| 7 | Java endpoint tests for versioning, dispatch and delete-cascade | 🔴 **OPEN** — client is complete, tests never written |
 | 8 | Validation endpoint + de-triplicate structural validation | 🔴 **OPEN** — closes R11 |
-| 9 | Type the pipeline run status | 🔴 **OPEN** — `status` is still a free-form `String` |
 | 10 | Retire the remaining dead surfaces | 🔴 **OPEN** — eight independent items |
 | 11 | Fill the remaining persistence and API gaps | 🔴 **OPEN** — eight independent items |
 | 12 | Give the production parser its descriptor registry | 🔴 **OPEN — silent correctness bug** |
@@ -418,9 +416,9 @@ Link them; do not open a parallel task.
 - [ ] **Task 12** first — small, self-contained, and it is currently changing run
       semantics between save and dispatch, and again across a restart, without anyone
       noticing.
-- [ ] **Task 7** and **Task 8** together: both touch the REST surface, and Task 7's
-      harness is what Task 8's endpoint tests will reuse.
-- [ ] **Task 9** after Task 8, so the typed status is introduced once, not twice.
+- [ ] **Task 8** touches the REST surface; the endpoint-test harness Task 7 left behind
+      (`PipelineVersionEndpointTest`, `PipelineRunDispatchEndpointTest`) is what its own
+      endpoint tests should reuse.
 - [ ] **Tasks 6, 10, 11, 13** are independent and parallelisable. Task 6's
       reference-fixture item is worth pulling forward regardless — the definition format
       has never had a checked-in regression fixture.
@@ -435,7 +433,7 @@ Task-file discipline for this area. Code-level conventions live in
 | Area | Convention / Gotcha |
 |---|---|
 | **Done ⇒ deleted** | A completed task is removed from this file entirely. The code, its tests and the spec are the record of what landed; a task file that keeps its history is how this one reached 700 lines. |
-| **Numbers are never reused** | Other files cite tasks by number. **1, 2, 3, 4 and 5 are retired.** Never renumber an open task, and never hand a retired number to new work. |
+| **Numbers are never reused** | Other files cite tasks by number. **1, 2, 3, 4, 5, 7 and 9 are retired.** Never renumber an open task, and never hand a retired number to new work. |
 | **One owner per gap** | If §B lists it, link it. A gap argued in two task files gets fixed in neither. |
 | **The spec is part of the change** | Closing a task means editing [PIPELINE.md](../features/pipeline/PIPELINE.md), [PIPELINE_REQUIREMENTS.md](../features/pipeline/PIPELINE_REQUIREMENTS.md) and this file in the same commit ([SPEC_RULES.md](../guidelines/SPEC_RULES.md), [CODING.md](../guidelines/CODING.md)). |
 | **A descriptor is not a registration** | Structurally closed on the worker: `NodeSpecCatalog.harvestRunnable(runnableNodeIds())` derives the announced contracts from `NodeFactory.registeredTypes()`, so an unrunnable kind cannot be announced, and `NodeAvailabilityService` greys out a kind no online worker offers. When adding a kind, still update the counts in [NODES.md §5.2](../features/nodes/NODES.md) and `NodeDescriptorServiceLoaderTest` (currently **42**). |
@@ -457,10 +455,10 @@ Task-file discipline for this area. Code-level conventions live in
 | Descriptor ↔ presence split for the palette | `loom/services/rest/…/service/impl/NodeAvailabilityService.java` |
 | The result cache — a node's finished result, across items | `cortex/common/…/common/cache/LocalResultCache.java` |
 | The artifact scope — an intermediate, one segment | `cortex/api/…/api/node/artifact/`, `cortex/common/…/common/artifact/MediaArtifacts.java` |
-| Endpoint-test harness + pattern to copy (Task 7) | `loom/core/src/test/…/endpoint/test/PipelineRunItemEndpointTest.java` |
-| Java client methods (Task 7) | `loom-client/common/…/method/PipelineMethods.java` |
+| Endpoint-test harness + pattern to copy | `loom/core/src/test/…/endpoint/test/PipelineRunItemEndpointTest.java` |
+| Java client methods | `loom-client/common/…/method/PipelineMethods.java` |
 | The three validators (Task 8) | `loom/services/rest/…/validation/PipelineValidationService.java` · `loom-shared/rest-model/…/validation/PipelineModelValidator.java` · `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
-| Status vocabularies (Task 9) | `V2.29`, `V2.31`, `V2.56` migration comments · `PipelineRunStatusResolver.java` |
+| The three status/state vocabularies | `loom-shared/api/…/api/pipeline/{PipelineRunStatus,NodeTaskState,RunItemState}.java` · the jOOQ converters in `loom/db/jooq/…/converter/` and their `forcedTypes` entries in `loom/db/jooq/pom.xml` |
 | The registry-less production parsers (Task 12) | `PipelineEndpointService.java:122` · `PipelineRunRecovery.java:68` |
 | Metric catalog + the gap list (Task 13) | `loom/common/…/metrics/LoomMetrics.java` · [METRICS.md](../features/ops/METRICS.md) |
 | Engine test harnesses | `loom/pipeline/src/test/…/engine/{FakeNodeDispatcher,RecordingRunStateStore,Payloads}.java` · `loom/pipeline/src/test/…/TestDescriptors.java` |
@@ -469,8 +467,9 @@ Task-file discipline for this area. Code-level conventions live in
 
 ---
 
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (Task 3 deleted as done — `MIME`/`SIZE`/`DATE` `FilterStrategy`
-implementations landed behind the existing seam, closing R7; earlier: Tasks 1/2/4/5 deleted,
-Task 6 item 2 closed by `CortexNodeAdapterTest`, Task 12 widened to cover
-`PipelineEndpointService`)_
+_Git HEAD revision: `716953c0`_
+_Last updated: 2026-08-07 (Task 9 deleted as done — the three status/state vocabularies are
+typed enums parsed at the jOOQ boundary, and `V2.77` normalises the `FAILURE`/`FAILED`
+mismatch it exposed; Task 7's stale row removed, its endpoint tests are in the tree. Earlier:
+Task 3 deleted as done, Tasks 1/2/4/5 deleted, Task 6 item 2 closed by `CortexNodeAdapterTest`,
+Task 12 widened to cover `PipelineEndpointService`)_

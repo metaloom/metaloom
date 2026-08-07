@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.cortex.api.media.LoomMedia;
@@ -114,7 +115,16 @@ public class WhisperNodeTest extends AbstractBasicNodeTest<WhisperNode> {
 		assertProcessed(jfk, media, result, nodeMock);
 	}
 
+	/**
+	 * Guards the CPU-only fallback for hosts without a usable CUDA device.
+	 *
+	 * <p>
+	 * Tagged {@code slow} and excluded from the default build: it forces the large model through the CPU
+	 * backend, which takes minutes, where every other test in this class runs on the GPU in seconds. Run it
+	 * explicitly with {@code mvn test -pl cortex/nodes/whisper/core -Dsurefire.excludedGroups=}.
+	 */
 	@Test
+	@Tag("slow")
 	public void testProcessVideoCPU() throws IOException {
 		TestMedia jfk = jfkVideo();
 		LoomMedia media = media(jfk);

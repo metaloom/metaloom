@@ -445,6 +445,36 @@ DATE        RUNS  OK  FAILED  SKIPPED
 2026-07-26  1     1   0       0
 ----
 
+=== What the statuses mean
+
+A run carries one of seven statuses:
+
+[cols="1,4"]
+|===
+| Status | Meaning
+
+| `PENDING` | Created, not yet handed to a worker.
+| `RUNNING` | In progress.
+| `PAUSED` | Suspended by an operator. Still live — it can be resumed or cancelled.
+| `SUCCESS` | Finished with nothing failing. A run that found no media to process also lands here.
+| `PARTIAL` | Finished; some media succeeded and some failed.
+| `FAILED` | Finished with everything failing, or it never got started.
+| `CANCELLED` | Stopped by an operator before it finished.
+|===
+
+`SUCCESS`, `PARTIAL`, `FAILED` and `CANCELLED` are final — a run in one of them will not change
+again. `metaloom run wait` returns as soon as one is reached, and exits non-zero for anything
+but `SUCCESS`.
+
+Each media item in a run has its own state — `PENDING`, `RUNNING`, `SUCCESS`, `FAILED` or
+`SKIPPED` — and each individual node execution has one of `PENDING`, `RUNNING`, `COMPLETED`,
+`FAILED`, `SKIPPED` or `DEAD_LETTER`. `DEAD_LETTER` means the work was retried as often as it
+was allowed to be and has been given up on.
+
+NOTE: `--status` and `--state` only accept the values above. A value outside the list is
+reported as an error rather than answered with an empty list, so a typo cannot be mistaken for
+"nothing matched".
+
 == Browsing content and access
 
 [source,bash]

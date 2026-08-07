@@ -8,6 +8,7 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
+- tests: Run full testsuite and check peak memory and test duration. We want to know which tests are slow and if you could improve concurrency for tests.
 - sam2: stabilityScoreThresh is a dead option. The transformers "mask-generation" pipeline has no analogue, so the sidecar ignores it while the UI advertises it. Recorded as a follow-up, not fixed — it's a product decision whether to wire the real generator or mark it unsupported.
 
 - Content Classification Model support? BERT?

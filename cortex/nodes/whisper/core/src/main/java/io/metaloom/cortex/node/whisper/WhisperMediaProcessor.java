@@ -14,6 +14,7 @@ import io.github.ggerganov.whispercpp.params.WhisperContextParams;
 import io.github.ggerganov.whispercpp.params.WhisperFullParams;
 import io.github.ggerganov.whispercpp.params.WhisperSamplingStrategy;
 import io.metaloom.asr.whisper.AudioExtractor;
+import io.metaloom.asr.whisper.WhisperNativeLoader;
 import io.metaloom.cortex.media.whisper.TranscriptionSegment;
 import io.metaloom.cortex.media.whisper.WhisperResult;
 
@@ -38,6 +39,10 @@ public class WhisperMediaProcessor {
 	 */
 	public WhisperResult process(String mediaPath) throws Exception {
 		WhisperResult result = new WhisperResult();
+
+		// Must happen before the JNA binding pulls in libwhisper: libggml-cuda's RUNPATH can resolve to a
+		// stale libcuda, which makes CUDA init fail and silently drops whisper to CPU. See WhisperNativeLoader.
+		WhisperNativeLoader.preloadCudaDriver();
 
 		WhisperCpp whisper = new WhisperCpp();
 		try {

@@ -519,7 +519,7 @@ a restart does not silently un-pause a run by dispatching everything that was re
 1. Engine drains → `onCompletion(RunSummary)` → `PipelineRunTracker.complete(...)`.
 2. Independently, a worker may send `PIPELINE_RUN_COMPLETED`; `ProcessorEndpoint`
    routes that to the same tracker.
-3. `PipelineRunStatusResolver` derives status: no failures → `SUCCESS`;
+3. `PipelineRunStatusResolver` derives a `PipelineRunStatus`: no failures → `SUCCESS`;
    `failures >= media` → `FAILED`; otherwise `PARTIAL`. Counters are clamped and
    inconsistent reports fail closed to `FAILED`.
 
@@ -732,6 +732,7 @@ never read by anything**.
 | `V2.67__pipeline_node_task_previews.sql` | `previews JSONB` — opt-in debugging renderings of a node's outputs, keyed by output port id |
 | `V2.68__pipeline_node_task_generation.sql` | `generation INTEGER NOT NULL DEFAULT 0`; idempotency key becomes `UNIQUE (item_uuid, node_id, element_seq, generation)` |
 | `V2.76__mcp_pipeline_permissions.sql` | `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` — authoring through an agent, granted separately from authoring in the editor |
+| `V2.77__normalize_pipeline_run_item_state.sql` | Rewrites `pipeline_run_item.state = 'FAILURE'` to `'FAILED'` and documents the vocabulary on the column. Data only — no schema change |
 
 **`V2.68` is the re-execution migration** ([§6.4b](#64b-re-executing-a-held-node-with-different-settings)).
 A node held at a breakpoint can be run again with different settings, and each attempt keeps
@@ -796,12 +797,37 @@ not reported as failed because a thumbnail could not be encoded. Encoded for sto
 `spec/concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md`, and must not quietly become it —
 that feature needs different retention, addressing and lifecycle.
 
-`pipeline_run.status` — `PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL,
-CANCELLED` — exists **only as a SQL comment**. There is no enum; the column, the DAO
-model and `PipelineRunRecord` all use free-form `String`.
+#### The three status/state vocabularies
 
-`PAUSED` is **non-terminal** and is deliberately absent from
-`PipelineRunStatusResolver.isTerminal`.
+All three columns are **`VARCHAR`, and stay that way** — a Postgres enum needs a migration for
+every new value. The vocabulary is enforced in Java instead, by an enum in
+`io.metaloom.loom.api.pipeline` (`loom-shared/api`, so both `loom-db-api` and `loom-rest-model`
+can reach it):
+
+| Column | Enum | Values |
+|---|---|---|
+| `pipeline_run.status` | `PipelineRunStatus` | `PENDING, RUNNING, PAUSED, SUCCESS, FAILED, PARTIAL, CANCELLED` |
+| `pipeline_node_task.state` | `NodeTaskState` | `PENDING, RUNNING, COMPLETED, FAILED, SKIPPED, DEAD_LETTER` |
+| `pipeline_run_item.state` | `RunItemState` | `PENDING, RUNNING, SUCCESS, FAILED, SKIPPED` |
+
+`PAUSED` is **non-terminal** — `PipelineRunStatus.isTerminal()` returns false for it, and
+`PipelineRunStatusResolver.isTerminal` delegates there.
+
+**Parsing happens at exactly one boundary**: a jOOQ `forcedTypes` converter per column
+(`PipelineRunStatusConverter`, `NodeTaskStateConverter`, `RunItemStateConverter` in
+`loom/db/jooq/…/converter/`), so the generated `TableField` is already enum-typed and every
+read goes through it. A value outside the vocabulary is **rejected**, naming the column, the
+value and what was allowed — it never reaches the UI as a status nothing can switch on. The
+same parse backs the `status` REST filter and the GraphQL `status` argument, where a bad value
+is a **400** rather than an empty page.
+
+⚠️ `NodeTaskState` is close to, but not the same as, the engine's `NodeState`: the engine has
+no `DEAD_LETTER`, because giving up on a task is a decision the reaper makes rather than an
+outcome a worker reports. Likewise `ItemState.ItemOutcome` spells its failure case `FAILURE`
+while the column says `FAILED`. Both are mapped **explicitly** in `DaoRunStateStore`, never by
+`valueOf(name())`. The second of those two was a live defect until `V2.77`: `outcome.name()`
+wrote `FAILURE` straight into the column, so a failed item matched neither the terminal-state
+set nor any filter and looked unfinished forever.
 
 ### 9.2 Retention — decided, not enforced
 
@@ -937,8 +963,11 @@ with no routing context.
 `priority`); `PipelineModelBuilder` folds `Pipeline` + `PipelineVersion` into it, and
 creator/editor status comes from the **version**.
 
-⚠️ `PipelineRunRecord.started`/`finished` are **ISO-8601 Strings** and `status` is a
-`String`.
+⚠️ `PipelineRunRecord.started`/`finished` are **ISO-8601 Strings**. `status` is a
+`PipelineRunStatus`; `PipelineRunItemRecord.state` a `RunItemState`; and
+`PipelineNodeTaskRecord.state` a `NodeTaskState` (§9.1). The wire form is unchanged — Jackson
+serialises each as its own name — so the vocabulary is now a contract rather than a comment,
+and `loom-ui` mirrors all three as string-literal unions in `src/api/pipelines.ts`.
 
 ---
 
@@ -1064,7 +1093,8 @@ root first (and again after any Flyway change), or tests fail at
 | Authoring | `PipelineAuthoringServiceTest` (rest), `PipelineAuthoringToolTest` + `NodeDescriptorToolTest` (mcp), `MCPPipelineAuthoringTest` (loom/core, pooled DB) |
 | Loom REST | `PipelineValidationServiceTest`, `PipelineRunStatusResolverTest`, `PipelineRunCapabilityTest`, `PipelineRunEndToEndTest`, `PipelineMatcherTest`, `PipelineEventBroadcasterTest`, `SegmentProtocolSerdeTest`, `ProcessorEndpointTest`, `PipelineEventEndpointTest`, `CombinedEndpointTest` |
 | Versioning + dispatch + delete (REST) | `PipelineVersionEndpointTest` (append/immutability, restore copies forward with 201, 404s, permissions), `PipelineRunDispatchEndpointTest` (400 / 503 / 202 and the `SOURCE_TASK` payload, `DELETE /:uuid` cascade) |
-| DAO | `PipelineDaoTest`, `PipelineVersionDaoTest`, `PipelineRunDaoTest`, `PipelineNodeTaskDaoTest` |
+| DAO | `PipelineDaoTest`, `PipelineVersionDaoTest`, `PipelineRunDaoTest`, `PipelineRunItemDaoTest`, `PipelineNodeTaskDaoTest` |
+| Status/state vocabularies | `PipelineVocabularyTest` (loom-shared/api — parse, terminality, cross-vocabulary rejection), `PipelineVocabularyDaoTest` (jooq — every value round-trips; a raw bad string written past the converter is rejected naming column and value), `PipelineVocabularyEndpointTest` (loom/core — every value out over REST as its own name, and a bad filter value is a 400) |
 | Cross-tree ports | `integration-test/…/NodePortConformanceTest` — reflects over every node's `IN_*`/`OUT_*` constants and holds them against its descriptor |
 
 ### 13.2 Node tests — use the chain base class
@@ -1250,7 +1280,6 @@ produce failure messages that name the port. Legacy-tree asserts live in
 **Known debt:**
 
 - [ ] `loadWithLatestVersion` does not load the version; `createPipeline` ignores `name`
-- [ ] Run status is an untyped `String` with the vocabulary only in a SQL comment
 - [ ] Processor capability is hardcoded to `CPU` in `unsupportedNodeKinds`/dispatch
 - [ ] Run-state retention is decided but not enforced (§9.2)
 - [ ] `retryFailed` advertised by every descriptor, read by nothing
@@ -1266,5 +1295,5 @@ See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakd
 [NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
 
 ---
-_Git HEAD revision: `ce41aaf1`_
-_Last updated: 2026-08-06 (versioning, run dispatch and delete-cascade now have Java endpoint tests — §13.1). Earlier: (PipelineAuthoringService is now the single write path; MCP is a second authoring door)_
+_Git HEAD revision: `716953c0`_
+_Last updated: 2026-08-07 (run status and both execution states are typed enums parsed at the jOOQ boundary — §9.1; V2.77 normalises the `FAILURE`/`FAILED` mismatch). Earlier: (versioning, run dispatch and delete-cascade now have Java endpoint tests — §13.1)_

@@ -105,10 +105,16 @@ from `Dao`). Useful members:
 
 ### jOOQ code generation
 
-Run **`loom/db/jooq/generate.sh`** (it wipes `src/jooq/java/` first, then runs the plugin goals of
-the `generate` profile: Testcontainers Postgres → Flyway migrate from `../flyway/…/db/migration` →
-`jooq-codegen:generate`). Generated package `io.metaloom.loom.db.jooq`, output `src/jooq/java`
-(added as a source root by `build-helper`), `<daos>false</daos>`, schema `public`.
+Run **`loom/db/jooq/generate.sh`** (the plugin goals of the `generate` profile: Testcontainers
+Postgres → Flyway migrate from `../flyway/…/db/migration` → `jooq-codegen:generate`). Generated
+package `io.metaloom.loom.db.jooq`, output `src/jooq/java` (added as a source root by
+`build-helper`), `<daos>false</daos>`, schema `public`.
+
+Codegen writes into `target/jooq-codegen` first — the script overrides the pom's
+`jooq.output.dir` — and only replaces `src/jooq/java` once it has succeeded. A failing migration
+or codegen step therefore leaves the checked-in sources untouched instead of deleting them.
+⚠️ New converter classes referenced from `<forcedTypes>` must be **compiled** (`mvn compile -pl
+loom/db/jooq`) before running it, or the plugin cannot load them.
 
 Codegen configuration that matters (all in `loom/db/jooq/pom.xml`):
 
@@ -118,6 +124,7 @@ Codegen configuration that matters (all in `loom/db/jooq/pom.xml`):
 | `excludes` + `includeExcludeColumns=true` | `.*\.text_search.*\|.*\.trgm_text` | `GENERATED ALWAYS AS … STORED` tsvector/trigram columns must never appear in an INSERT/UPDATE, and jOOQ has no tsvector binding. `includeExcludeColumns` is **required** — excludes apply to tables, not columns, by default |
 | `forcedType` → `JsonObjectConverter` | `.*\.meta.*\|.*\.outputs\|.*\.definition\|.*\.result_ref` | Vert.x `JsonObject` ⇄ `JSONB` |
 | `forcedType` → `JsonArrayConverter` | `chat\.messages` | the chat transcript is a JSON **array**, not an object |
+| `forcedType` → `PipelineRunStatusConverter` / `NodeTaskStateConverter` / `RunItemStateConverter` | `pipeline_run\.status`, `pipeline_node_task\.state`, `pipeline_run_item\.state` | The columns stay `VARCHAR` — a Postgres enum needs a migration per value — so the vocabulary is enforced in Java. The converter is the **only** boundary a bad string can be caught at, and it rejects one naming the column and the value rather than passing it to the UI |
 
 Excluded columns are addressed by name at runtime via `DSL.field(...)` (see `PostgresSearchProvider`
 and `AssetComponentDaoImpl`).
@@ -191,6 +198,7 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.74`.
 | `V2.54__add_memory_deny_rule` | memory_deny_rule (instance-wide denylist) |
 | `V2.55__remove_webhook` | drops `webhook`, `loom_events`, rebuilds `loom_permission` without `*_WEBHOOK` |
 | `V2.56__pipeline_run_paused_status` | documents `PAUSED` in `pipeline_run.status` (comment only, no CHECK) |
+| `V2.77__normalize_pipeline_run_item_state` | rewrites `pipeline_run_item.state = 'FAILURE'` to `'FAILED'`. The engine's `ItemOutcome.FAILURE` was written through `name()`, so a failed item matched neither the terminal-state query nor any filter. Data only; the vocabulary is now enforced by `RunItemStateConverter` |
 | `V2.57__add_search_permission` | `READ_SEARCH` enum value only |
 | `V2.58__add_search_document` | `search_document` + `search_document_deleted` + per-entity refresh functions |
 | `V2.59__add_search_triggers` | triggers wiring source tables → refresh functions + initial backfill |
@@ -377,6 +385,9 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
   search index is maintained by DB triggers (V2.58/V2.59) rather than DAO callbacks.
 - **`chat.messages` uses `JsonArrayConverter`**, everything else JSONB (`meta`, `definition`,
   `outputs`, `result_ref`) uses `JsonObjectConverter`.
+- **A status/state column typed by an enum is typed by a `forcedType`, not by the POJO setter.**
+  jOOQ's default record mapper would coerce an unknown string to `null` and say nothing; the
+  converter throws. The three pipeline columns are the pattern to copy.
 - **Generated tsvector/trigram columns are excluded from codegen** — reach them with `DSL.field()`.
 - **A `loom_permission` value added by `ALTER TYPE … ADD VALUE` cannot be used in the same
   migration** (Flyway wraps each in one transaction). Seed grants belong in a later migration —
@@ -431,6 +442,7 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 | `AbstractJooqDao<T>` | `io.metaloom.loom.db.jooq` | jOOQ CRUD + `upsert()` + paging |
 | `DaoCollection` / `DaoCollectionImpl` / `DaoProvider` | `io.metaloom.loom.db.dagger` | DAO registry (Dagger `Lazy<>`) |
 | `JsonObjectConverter` / `JsonArrayConverter` | `io.metaloom.loom.db.jooq.converter` | JSONB ⇄ Vert.x |
+| `PipelineVocabularyConverter` + its three subclasses | `io.metaloom.loom.db.jooq.converter` | `VARCHAR` ⇄ `PipelineRunStatus` / `NodeTaskState` / `RunItemState`, rejecting anything else |
 | `LoomFilterKey` | `io.metaloom.loom.db.jooq.filter` | `USER_USERNAME`, `FILE_SIZE` |
 | `PostgresSearchProvider` / `NoopSearchProvider` | `io.metaloom.loom.db.jooq.search` | `search_document` query layer |
 | `LoomJooqStrategy` | `io.metaloom.loom.db.jooq.codegen` | `Jooq` class-name prefix |
@@ -472,8 +484,8 @@ Schema current through **`V2.74`**. Work items live in
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 (added `ChatDaoTest`: CRUD over `ChatDao` plus a deep-equality round-trip of the
+_Git HEAD revision: `716953c0`_
+_Last updated: 2026-08-07 (the three pipeline status/state columns are typed via `forcedTypes` converters that reject an unknown value naming the column; `generate.sh` now stages codegen in `target/` and is no longer destructive; V2.77 normalises `pipeline_run_item.state`. Earlier: added `ChatDaoTest`: CRUD over `ChatDao` plus a deep-equality round-trip of the
 `chat.messages` transcript through `JsonArrayConverter`, the empty-transcript default, and the V2.52
 `chat_session.chat_uuid` ON DELETE SET NULL detach with an untouched second chat/session pair as the
 cascade control. Earlier: fixed the fixture's reaction types - they stored a mime type in a column the REST layer reads with ReactionType.valueOf, so every read of a fixture reaction was a 500; ReactionEndpointTest now guards it. V2.74 finished the asset-delete cascades - comments, reactions and library membership - leaving only two intentional SET NULLs; V2.73 cascaded `collection_asset`, `asset_task` and `asset_user_meta` from the asset, so an asset that is filed or referenced can be deleted at last; V2.72 made the `tag_asset` links cascade both ways; V2.71 gave `tag_asset` a surrogate PK, a `NULLS NOT DISTINCT` placement key and provenance columns — one tag may now sit on an asset several times and every placement names its writer. Also added the transaction gotcha — inside `ctx().transaction(...)` only `cfg.dsl()` is in the transaction — and `TagDao.bulkTagAsset` as its reference. Earlier: migrations to V2.63, pooled test DBs, DAO/test matrix rebuilt from the actual classes.)_

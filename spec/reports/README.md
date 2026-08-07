@@ -5,6 +5,7 @@ Output directory for analysis runs. Nothing here is hand-written.
 | Report | Produced by | File name |
 |---|---|---|
 | Static code analysis (AI-generated-defect audit) | [../guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](../guidelines/METALOOM_STATIC_CODE_ANALYSIS.md) | `static-analysis-<SHORT_HEAD>-<YYYY-MM-DD_HHMM>.html` |
+| Test suite performance (per-test time, peak memory, `forkCount` analysis) | An instrumented `mvn test` run — surefire's `jvm` is pointed at a wrapper that records kernel `ru_maxrss` per fork; per-test times come from the surefire XML reports | `test-performance-<SHORT_HEAD>-<YYYY-MM-DD_HHMM>.html` |
 
 Each file name carries the git HEAD revision and the run timestamp, and the same two values appear in
 the report header — reports accumulate so two runs can be diffed. Never overwrite an existing report.

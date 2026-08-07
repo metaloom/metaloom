@@ -94,7 +94,7 @@ Each open line names the task that owns it; none is re-argued here.
 | **Persistence** | Definitions + immutable versioning + copy-forward restore | `[x]` |
 | | Durable run / item / node-task state; restart recovery rebuilds live engines | `[x]` |
 | | Recovery re-parses **with** the descriptor registry so ports are checked and fan-out survives a restart | `[ ]` Task 12 |
-| | Typed run status instead of a free-form `String` | `[ ]` Task 9 |
+| | Typed run status and execution states instead of free-form `String`s | `[x]` `PipelineRunStatus` / `NodeTaskState` / `RunItemState`, parsed at the jOOQ converter boundary |
 | | Retention sweep for terminal-run detail | `[ ]` [ARCHITECTURE_TASK](../../tasks/METALOOM_ARCHITECTURE_TASK.md) |
 | | `loom/db/memory` can serve pipelines | `[ ]` Task 11 — jOOQ backend required today |
 | **Execution** | Per-element fan-out + implicit gather (`ExecutionMode.PER_ELEMENT`, `isSettled()`) | `[x]` |
@@ -181,13 +181,12 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 - [ ] Recovery must re-parse with the descriptor registry (Task 12)
 - [ ] Validation endpoint + de-triplicated structural rules (Task 8)
 - [ ] Instrument `loom/pipeline` (Task 13)
-- [ ] Java endpoint tests for versioning and dispatch (Task 7)
-- [ ] Typed run status (Task 9)
 - [ ] Resolve dead surfaces: caches, capability, node lifecycle (Tasks 5, 10)
 - [ ] Persistence/API gaps: memory DAOs, DAO naming, UI error masking (Task 11)
 - [ ] Tracked elsewhere: retention sweep, per-node task API, per-item events, artifact cache
 
 ---
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (R7 closed — `MIME`/`SIZE`/`DATE` `FilterStrategy` implementations landed;
-stale descriptor-only-kind items removed, they were fixed by the filter consolidation)_
+_Git HEAD revision: `716953c0`_
+_Last updated: 2026-08-07 (typed run status/state closed; the versioning and dispatch endpoint
+tests are in the tree, so that item went too. Earlier: R7 closed — `MIME`/`SIZE`/`DATE`
+`FilterStrategy` implementations landed; stale descriptor-only-kind items removed)_

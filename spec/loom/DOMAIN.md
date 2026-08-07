@@ -161,9 +161,9 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 |--------|----------|---------|---------------|-------|
 | **Pipeline** | `pipeline` | Pipeline identity + `latest_version_uuid` pointer. Name/description/`definition`/enabled/priority/dry-run moved to `pipeline_version` in V2.30. | → Pipeline Version (**SET NULL**) | V2.19; V2.30; V2.49 |
 | **Pipeline Version** | `pipeline_version` | Immutable snapshot of a pipeline definition (graph JSONB, enabled, priority, dry-run), keyed `(pipeline_uuid, version_number)`. | → Pipeline (CASCADE) | V2.30 |
-| **Pipeline Run** | `pipeline_run` | One execution: `status` ∈ PENDING, RUNNING, **PAUSED**, SUCCESS, FAILED, PARTIAL, CANCELLED (free text, no CHECK) + success/failure/skipped counts. | → Pipeline | V2.29; PAUSED V2.56 |
-| **Run Item** | `pipeline_run_item` | One media item discovered by a run's source node (media path + nullable sha512 = the pre-hash identity, state). Indexed on path (V2.32). | → Run | V2.30 |
-| **Node Task** | `pipeline_node_task` | One node execution — leased, retried, dead-lettered. Idempotency key `(item_uuid, node_id, element_seq)`; `outputs` is keyed by output port id, each value a PortPayload with content type, cardinality and origin-tagged elements. | → Run Item (CASCADE), → Run | V2.30; `element_seq` V2.60 |
+| **Pipeline Run** | `pipeline_run` | One execution: `status` ∈ PENDING, RUNNING, **PAUSED**, SUCCESS, FAILED, PARTIAL, CANCELLED + success/failure/skipped counts. VARCHAR with no CHECK — the vocabulary is `PipelineRunStatus`, enforced by a jOOQ converter on the way in and out. | → Pipeline | V2.29; PAUSED V2.56 |
+| **Run Item** | `pipeline_run_item` | One media item discovered by a run's source node (media path + nullable sha512 = the pre-hash identity, `state` ∈ PENDING, RUNNING, SUCCESS, FAILED, SKIPPED = `RunItemState`). Indexed on path (V2.32). | → Run | V2.30 |
+| **Node Task** | `pipeline_node_task` | One node execution — leased, retried, dead-lettered. `state` ∈ PENDING, RUNNING, COMPLETED, FAILED, SKIPPED, DEAD_LETTER = `NodeTaskState`. Idempotency key `(item_uuid, node_id, element_seq)`; `outputs` is keyed by output port id, each value a PortPayload with content type, cardinality and origin-tagged elements. | → Run Item (CASCADE), → Run | V2.30; `element_seq` V2.60 |
 | **Cortex Instance** | `cortex_instance`, `cortex_instance_node_kind` | Registered processor/worker keyed by a stable `node_id` (host, priority, state) with a node-kind whitelist/blacklist. Audit columns nullable — it is a machine. | — | V2.33 |
 
 > Fan-out stays **inside** one run item: the item is the origin, which is what lets a later node
@@ -497,5 +497,7 @@ ledger row in `asset_node_result`. "The node ran and produced nothing" is expres
 | Open schema questions | `spec/features/DB_SCHEMA_FEEDBACK.md`, [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | Test DB pool setup | `./setup-pool.sh` (`io.metaloom.loom.test.PoolSetupRunner`) |
 | Spec index / routing | [../CONTEXT.md](../CONTEXT.md) |
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `716953c0`_
+_Last updated: 2026-08-07 (the three pipeline status/state columns are typed by an enum parsed at
+the jOOQ converter boundary; V2.77 normalises the `FAILURE` rows `pipeline_run_item.state` used to
+collect. Earlier: reference sweep — no content changes)_
