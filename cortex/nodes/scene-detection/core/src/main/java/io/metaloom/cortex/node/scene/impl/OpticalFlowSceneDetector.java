@@ -51,42 +51,55 @@ public class OpticalFlowSceneDetector extends AbstractSceneDetector {
 		AtomicReference<Mat> previousGray = new AtomicReference<>();
 		boolean headless = GraphicsEnvironment.isHeadless();
 		Mat err = MatProvider.mat();
-		return detect(video, (img, frame) -> {
-			Mat colorFrame = frame.mat();
-			Mat grayFrame = CVUtils.toGrayScale(colorFrame);
+		// An empty kernel selects Imgproc.dilate's default 3x3 structuring element. Allocated once for the whole video: it used to be created inline per
+		// sampled frame and never freed.
+		Mat dilateKernel = MatProvider.mat();
+		try {
+			return detect(video, (img, frame) -> {
+				Mat colorFrame = frame.mat();
+				// Converts in place and hands back the very same Mat, so grayFrame is the frame's own buffer - owned and freed by the base loop.
+				Mat grayFrame = CVUtils.toGrayScale(colorFrame);
 
-			// Canny-enhance so structural (edge) changes dominate the difference over lighting/exposure drift.
-			Mat cannyFrame = MatProvider.mat();
-			Imgproc.Canny(grayFrame, cannyFrame, 50f, 70f);
-			Imgproc.dilate(cannyFrame, cannyFrame, MatProvider.mat());
-			Core.addWeighted(cannyFrame, 0.50f, grayFrame, 1.f, 1.0f, grayFrame);
-			cannyFrame.release();
+				// Canny-enhance so structural (edge) changes dominate the difference over lighting/exposure drift.
+				Mat cannyFrame = MatProvider.mat();
+				Imgproc.Canny(grayFrame, cannyFrame, 50f, 70f);
+				Imgproc.dilate(cannyFrame, cannyFrame, dilateKernel);
+				Core.addWeighted(cannyFrame, 0.50f, grayFrame, 1.f, 1.0f, grayFrame);
+				cannyFrame.close();
 
-			// Cut signal: normalized mean absolute difference against the previous sampled frame.
-			Mat prev = previousGray.get();
-			double delta = 0d;
-			if (prev != null) {
-				Mat diff = MatProvider.mat();
-				Core.absdiff(prev, grayFrame, diff);
-				delta = Core.mean(diff).val[0] / 255d;
-				diff.release();
+				// Cut signal: normalized mean absolute difference against the previous sampled frame.
+				Mat prev = previousGray.get();
+				double delta = 0d;
+				if (prev != null) {
+					Mat diff = MatProvider.mat();
+					Core.absdiff(prev, grayFrame, diff);
+					delta = Core.mean(diff).val[0] / 255d;
+					diff.close();
+				}
+
+				// Optional optical-flow point overlay for the interactive viewer only.
+				if (!headless) {
+					Graphics g = img.getGraphics();
+					g.drawImage(ImageUtils.matToBufferedImage(grayFrame), 1, 1, null);
+					drawFlowOverlay(g, prev, grayFrame, err);
+				}
+
+				// Store an independent copy as the reference for the next frame and free the old one. The clone is required because grayFrame belongs to
+				// the frame, which the base loop frees as soon as this callback returns.
+				Mat old = previousGray.getAndSet(grayFrame.clone());
+				if (old != null) {
+					old.close();
+				}
+				return new DetectionResult(delta, FRAME_DIFF_THRESHOLD);
+			});
+		} finally {
+			err.close();
+			dilateKernel.close();
+			Mat last = previousGray.getAndSet(null);
+			if (last != null) {
+				last.close();
 			}
-
-			// Optional optical-flow point overlay for the interactive viewer only.
-			if (!headless) {
-				Graphics g = img.getGraphics();
-				g.drawImage(ImageUtils.matToBufferedImage(grayFrame), 1, 1, null);
-				drawFlowOverlay(g, prev, grayFrame, err);
-			}
-
-			// Store an independent copy as the reference for the next frame and release the old one (video4j recycles the live Mat, so the reference must
-			// be cloned — otherwise the comparison degenerates to a frame against itself).
-			Mat old = previousGray.getAndSet(grayFrame.clone());
-			if (old != null) {
-				old.release();
-			}
-			return new DetectionResult(delta, FRAME_DIFF_THRESHOLD);
-		});
+		}
 	}
 
 	/** Draw the Lucas-Kanade tracked points onto the viewer image. Visualization only — not part of the cut decision. */
@@ -94,15 +107,13 @@ public class OpticalFlowSceneDetector extends AbstractSceneDetector {
 		if (previousGray == null) {
 			return;
 		}
-		try {
-			SparsePyrLKOpticalFlow flow = SparsePyrLKOpticalFlow.create();
-			MatOfPoint corners = new MatOfPoint();
-			Imgproc.goodFeaturesToTrack(grayFrame, corners, MAX_CORNERS, qualityLevel, minDistance, new Mat(), blockSize, gradientSize,
+		SparsePyrLKOpticalFlow flow = SparsePyrLKOpticalFlow.create();
+		try (MatOfPoint corners = new MatOfPoint(); Mat mask = new Mat(); MatOfPoint2f p1 = new MatOfPoint2f(); MatOfPoint2f status = new MatOfPoint2f()) {
+			Imgproc.goodFeaturesToTrack(grayFrame, corners, MAX_CORNERS, qualityLevel, minDistance, mask, blockSize, gradientSize,
 				useHarrisDetector, k);
-			MatOfPoint2f p0 = new MatOfPoint2f(corners.toArray());
-			MatOfPoint2f p1 = new MatOfPoint2f();
-			MatOfPoint2f status = new MatOfPoint2f();
-			flow.calc(previousGray, grayFrame, p0, p1, status, err);
+			try (MatOfPoint2f p0 = new MatOfPoint2f(corners.toArray())) {
+				flow.calc(previousGray, grayFrame, p0, p1, status, err);
+			}
 			List<Point> points = new ArrayList<>();
 			for (Point p : p1.toArray()) {
 				points.add(p);

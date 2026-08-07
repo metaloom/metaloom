@@ -9,6 +9,7 @@ import java.awt.image.BufferedImage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.opencv.core.Mat;
 import io.metaloom.opencv.core.Size;
 import io.metaloom.opencv.imgproc.Imgproc;
 
@@ -59,13 +60,16 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 				log.debug("Frame rate: {} fps at frame {}/{}", String.format("%.2f", avg), nFrame, videoLength);
 			}
 			// Advance videoChopRate frames, keeping the last readable one as the sample. Stop cleanly at end-of-stream instead of relying on a fixed
-			// tail margin (the old "length - 100" guard truncated short clips, so their final cuts were never examined).
+			// tail margin (the old "length - 100" guard truncated short clips, so their final cuts were never examined). The frames we step over are
+			// freed as we go - see free(VideoFrame).
 			VideoFrame frame = null;
 			for (int i = 0; i < videoChopRate; i++) {
 				VideoFrame next = video.frame();
 				if (next == null || next.mat() == null) {
+					free(next);
 					break;
 				}
+				free(frame);
 				frame = next;
 			}
 			if (frame == null) {
@@ -115,6 +119,8 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 			} catch (Exception e) {
 				log.error("Scene detection failed at frame {} of {} — skipping frame", nFrame, video.length(), e);
 				continue;
+			} finally {
+				free(frame);
 			}
 
 		}
@@ -127,5 +133,31 @@ public abstract class AbstractSceneDetector implements SceneDetector {
 			result.addScene(new Scene(0, videoLength));
 		}
 		return result;
+	}
+
+	/**
+	 * Free the native buffer behind a decoded frame.
+	 *
+	 * <p>
+	 * {@link Mat} is a bare FFM handle with no cleaner: a frame that is not freed here keeps its pixel data for the lifetime of the JVM. The loop above
+	 * decodes <em>every</em> frame of the video and samples only every {@code videoChopRate}-th one, so dropping the rest on the floor used to retain
+	 * the whole decoded video - 28 GB of RSS for a single test class.
+	 *
+	 * <p>
+	 * The consequence for implementors: a {@link Detector} must not hold on to the frame, or to its {@link Mat}, after
+	 * {@link Detector#test(BufferedImage, VideoFrame)} returns. Anything it needs to compare against on the next call has to be an independent copy.
+	 *
+	 * @param frame
+	 *            the frame to free, may be {@code null}
+	 */
+	private static void free(VideoFrame frame) {
+		if (frame == null) {
+			return;
+		}
+		Mat mat = frame.mat();
+		if (mat != null) {
+			// close() deletes the cv::Mat, whose destructor drops the pixel data; release() alone would leak the handle.
+			mat.close();
+		}
 	}
 }

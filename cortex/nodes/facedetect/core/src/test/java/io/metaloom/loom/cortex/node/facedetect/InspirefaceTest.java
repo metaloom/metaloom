@@ -2,7 +2,6 @@ package io.metaloom.loom.cortex.node.facedetect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -37,7 +36,7 @@ public class InspirefaceTest extends AbstractFacedetectMediaTest {
 	private static final int MAX_FRAMES = 25;
 
 	@Test
-	public void testVideoUsageExample() throws IOException {
+	public void testVideoUsageExample() throws Exception {
 		// SNIPPET START video-usage.example
 
 		// Initialize video4j and InspirefaceLib (Video4j is used to handle OpenCV Mat)
@@ -56,30 +55,34 @@ public class InspirefaceTest extends AbstractFacedetectMediaTest {
 				// Process each frame
 				VideoFrame frame;
 				int frameCount = 0;
+				// A frame owns a native buffer that no cleaner will ever reclaim, so it is closed each
+				// time round - a sampling loop that does not is a leak the size of the video.
 				while ((frame = video.frame()) != null && frameCount++ < MAX_FRAMES) {
+					try (VideoFrame current = frame) {
 
-					// Optionally downscale the frame
-					CVUtils.resize(frame, 512);
+						// Optionally downscale the frame
+						CVUtils.resize(current, 512);
 
-					// Run the detection on the mat reference
-					FaceDetections detections = session.detect(frame.mat(), true);
+						// Run the detection on the mat reference
+						FaceDetections detections = session.detect(current.mat(), true);
 
-					if (!detections.isEmpty()) {
-						// Extract the face embedding from the first face
-						float[] embedding = session.embedding(frame.mat(), detections, 0);
-						// Extract the face attributes
-						List<FaceAttributes> attrs = session.attributes(frame.mat(), detections, true);
-						assertThat(embedding).as("A detected face must yield an embedding").isNotEmpty();
-						assertThat(attrs).as("A detected face must yield attributes").isNotEmpty();
-					}
+						if (!detections.isEmpty()) {
+							// Extract the face embedding from the first face
+							float[] embedding = session.embedding(current.mat(), detections, 0);
+							// Extract the face attributes
+							List<FaceAttributes> attrs = session.attributes(current.mat(), detections, true);
+							assertThat(embedding).as("A detected face must yield an embedding").isNotEmpty();
+							assertThat(attrs).as("A detected face must yield attributes").isNotEmpty();
+						}
 
-					// Inspect the detections
-					for (Detection detection : detections) {
-						double confidence = detection.conf();
-						BoundingBox box = detection.box();
-						assertThat(confidence).as("Detection confidence is a probability").isBetween(0d, 1d);
-						assertThat(box).as("Every detection carries a bounding box").isNotNull();
-						detectedFaces++;
+						// Inspect the detections
+						for (Detection detection : detections) {
+							double confidence = detection.conf();
+							BoundingBox box = detection.box();
+							assertThat(confidence).as("Detection confidence is a probability").isBetween(0d, 1d);
+							assertThat(box).as("Every detection carries a bounding box").isNotNull();
+							detectedFaces++;
+						}
 					}
 				}
 			}

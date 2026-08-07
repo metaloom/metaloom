@@ -33,54 +33,63 @@ public class FeatureSceneDetector extends AbstractSceneDetector {
 	public SceneDetectionResult detect(VideoFile video) {
 
 		AtomicReference<DetectionVector> prevVector = new AtomicReference<>();
-		return detect(video, (img, frame) -> {
+		// Allocated once for the whole video rather than per sampled frame: both used to be created inline and never freed, and nothing reclaims a
+		// cv::Mat for us. An empty mask means "consider every pixel"; an empty kernel selects dilate's default 3x3 structuring element.
+		Mat mask = MatProvider.mat();
+		Mat dilateKernel = MatProvider.mat();
+		try {
+			return detect(video, (img, frame) -> {
 
-			MatOfPoint corners = new MatOfPoint();
-			double qualityLevel = 0.30f;
-			double minDistance = 10f;
-			Mat mask = MatProvider.mat();
-			int blockSize = 15;
-			int gradientSize = 3;
-			boolean useHarrisDetector = false;
-			double k = 0.04f;
-			// Mat greyImage = CVUtils.toGreyScale(frame.mat());
-			Mat colorFrame = frame.mat();
-			Mat grayFrame = CVUtils.toGrayScale(colorFrame);
-			// CVUtils.increaseContrast(grayFrame, grayFrame, 0.05f, 0.5f);
+				double qualityLevel = 0.30f;
+				double minDistance = 10f;
+				int blockSize = 15;
+				int gradientSize = 3;
+				boolean useHarrisDetector = false;
+				double k = 0.04f;
+				// Mat greyImage = CVUtils.toGreyScale(frame.mat());
+				Mat colorFrame = frame.mat();
+				// Converts in place and hands back the very same Mat, so grayFrame is the frame's own buffer - owned and freed by the base loop.
+				Mat grayFrame = CVUtils.toGrayScale(colorFrame);
+				// CVUtils.increaseContrast(grayFrame, grayFrame, 0.05f, 0.5f);
 
-			// Mat cannyFrame = CVUtils.canny(greyFrame, 60f, 60f);
-			Mat cannyFrame = MatProvider.mat();
-			Imgproc.Canny(grayFrame, cannyFrame, 50f, 70f);
-			Imgproc.dilate(cannyFrame, cannyFrame, MatProvider.mat());
+				// Mat cannyFrame = CVUtils.canny(greyFrame, 60f, 60f);
+				try (MatOfPoint corners = new MatOfPoint(); Mat cannyFrame = MatProvider.mat()) {
+					Imgproc.Canny(grayFrame, cannyFrame, 50f, 70f);
+					Imgproc.dilate(cannyFrame, cannyFrame, dilateKernel);
 
-			// Mat greyFrame = MatProvider.mat();
-			// Mat colorCannyFrame = CVUtils.toBGR(cannyFrame);
-			// Core.addWeighted(colorCannyFrame, 0.25f, colorFrame, 1.f, 1.0f, grayFrame);
+					// Mat greyFrame = MatProvider.mat();
+					// Mat colorCannyFrame = CVUtils.toBGR(cannyFrame);
+					// Core.addWeighted(colorCannyFrame, 0.25f, colorFrame, 1.f, 1.0f, grayFrame);
 
-			Graphics g = img.getGraphics();
-			g.drawImage(ImageUtils.matToBufferedImage(cannyFrame), 1, 1, null);
-			Imgproc.goodFeaturesToTrack(cannyFrame, corners, MAX_CORNORS, qualityLevel, minDistance, mask, blockSize, gradientSize, useHarrisDetector,
-				k);
-			// System.out.println("Got: " + corners.toList().size());
+					Graphics g = img.getGraphics();
+					g.drawImage(ImageUtils.matToBufferedImage(cannyFrame), 1, 1, null);
+					Imgproc.goodFeaturesToTrack(cannyFrame, corners, MAX_CORNORS, qualityLevel, minDistance, mask, blockSize, gradientSize,
+						useHarrisDetector, k);
+					// System.out.println("Got: " + corners.toList().size());
 
-			// Show Image
-			for (Point p : corners.toList()) {
-				g.setColor(Color.RED);
-				g.fillOval((int) p.x, (int) p.y, 5, 5);
-			}
+					// Show Image
+					for (Point p : corners.toList()) {
+						g.setColor(Color.RED);
+						g.fillOval((int) p.x, (int) p.y, 5, 5);
+					}
 
-			EuclideanDistance d = new EuclideanDistance();
-			double[] frameAVector = toVector(corners, MAX_CORNORS * 2);
-			if (prevVector.get() == null) {
-				prevVector.set(new DetectionVector(frameAVector));
-			}
-			printVector(prevVector.get().vector());
+					EuclideanDistance d = new EuclideanDistance();
+					double[] frameAVector = toVector(corners, MAX_CORNORS * 2);
+					if (prevVector.get() == null) {
+						prevVector.set(new DetectionVector(frameAVector));
+					}
+					printVector(prevVector.get().vector());
 
-			double delta = d.compute(frameAVector, prevVector.get().vector);
-			System.out.println(video.currentFrame() + " Delta: " + String.format("%.2f", delta));
-			prevVector.set(new DetectionVector(frameAVector));
-			return new DetectionResult( delta, FEATURE_THRESHOLD);
-		});
+					double delta = d.compute(frameAVector, prevVector.get().vector);
+					System.out.println(video.currentFrame() + " Delta: " + String.format("%.2f", delta));
+					prevVector.set(new DetectionVector(frameAVector));
+					return new DetectionResult(delta, FEATURE_THRESHOLD);
+				}
+			});
+		} finally {
+			mask.close();
+			dilateKernel.close();
+		}
 
 	}
 

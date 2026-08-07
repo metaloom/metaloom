@@ -83,12 +83,14 @@ public class SceneDetectionNode extends AbstractMediaNode<SceneDetectionOptions>
 				ctx.output(OUT_SCENES, cached);
 				return ctx.origin(LOCAL).next();
 			}
-			VideoFile video = VideoFile.open(media.path());
-			double fps = video.fps();
-			SceneDetectionResult result = detector.detect(video);
-			ctx.output(OUT_SCENES, result.toString());
-			resultCache.put(path, result.toString());
-			persist(ctx, asset, result, fps);
+			// Closing the video releases the native capture and its decode buffers - it used to be left open for the lifetime of the JVM.
+			try (VideoFile video = VideoFile.open(media.path())) {
+				double fps = video.fps();
+				SceneDetectionResult result = detector.detect(video);
+				ctx.output(OUT_SCENES, result.toString());
+				resultCache.put(path, result.toString());
+				persist(ctx, asset, result, fps);
+			}
 			return ctx.origin(COMPUTED).next();
 		} else {
 			return ctx.skipped("no video media").next();

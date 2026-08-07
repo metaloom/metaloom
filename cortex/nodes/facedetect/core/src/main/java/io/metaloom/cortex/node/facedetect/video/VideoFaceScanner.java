@@ -224,10 +224,6 @@ public class VideoFaceScanner {
 			// long startSkip = System.currentTimeMillis();
 			nFrame += windowSteps;
 			video.seekToFrame(nFrame);
-			VideoFrame frame = video.frame();
-			// for (int i = 0; i < windowSteps; i++) {
-			// frame = video.frame();
-			// }
 			// System.out.println("Skip took: " + (System.currentTimeMillis() - startSkip));
 
 			// Stop processing when we found n faces
@@ -236,7 +232,19 @@ public class VideoFaceScanner {
 				break;
 			}
 
-			List<VideoFace> dFaces = processFrame(frame);
+			// Every decoded frame is a native buffer the size of the video (a 1080x1920 source is 6 MB
+			// a frame) and Mat has no cleaner - the GC never touches it. Held only for the length of
+			// one detection, the scan costs one frame; leaked, it cost one per step of every window.
+			List<VideoFace> dFaces;
+			VideoFrame frame = video.frame();
+			if (frame == null) {
+				break;
+			}
+			try {
+				dFaces = processFrame(frame);
+			} finally {
+				free(frame);
+			}
 			faces.addAll(dFaces);
 
 			// No faces found. Lets skip a few frames
@@ -288,26 +296,32 @@ public class VideoFaceScanner {
 
 				// Mat faceImage = faceFrame.mat().clone();
 				int padding = (int) ((double) face.box().getWidth() * 1d);
+				// The crop is a native buffer of its own and the blur measurement allocates several more
+				// from it, so it is freed on both exits - the face survives as a BufferedImage on the
+				// heap, which is what the report carries. This used to be a commented-out release().
 				Mat faceImage = cropToFace(faceFrame, face, padding);
-				double blurriness = CVUtils.blurriness(faceImage);
-				face.setBluriness(blurriness);
-				if (blurriness < BLUR_THRESHOLD) {
-					//viewer.show(faceImage);
-					// ImageUtils.show(faceImage);
-					logger.warn("Omitting face due to blur check: {}", blurriness);
-					// Skipped due to bad quality
-					continue;
-				} else {
-					logger.info("Bluriness is {}", face.getBluriness());
+				try {
+					double blurriness = CVUtils.blurriness(faceImage);
+					face.setBluriness(blurriness);
+					if (blurriness < BLUR_THRESHOLD) {
+						//viewer.show(faceImage);
+						// ImageUtils.show(faceImage);
+						logger.warn("Omitting face due to blur check: {}", blurriness);
+						// Skipped due to bad quality
+						continue;
+					} else {
+						logger.info("Bluriness is {}", face.getBluriness());
+					}
+					BufferedImage croppedFaceImage = ImageUtils.matToBufferedImage(faceImage);
+					// System.out.println("Cropped: " + croppedFaceImage.getWidth() + " x " + croppedFaceImage.getHeight());
+					// croppedFaceImage = ImageUtils.scale(croppedFaceImage, croppedFaceImage.getWidth()*2, croppedFaceImage.getHeight()*2);
+					// BufferedImage croppedFaceImage = ImageUtils.matToBufferedImage(frame.mat());
+					videoFace.setImage(croppedFaceImage);
+					// logger.info("Adding face for window " + nWindow + " now " + faces.size() + " in total for this window.");
+					faces.add(videoFace);
+				} finally {
+					CVUtils.free(faceImage);
 				}
-				BufferedImage croppedFaceImage = ImageUtils.matToBufferedImage(faceImage);
-				// System.out.println("Cropped: " + croppedFaceImage.getWidth() + " x " + croppedFaceImage.getHeight());
-				// croppedFaceImage = ImageUtils.scale(croppedFaceImage, croppedFaceImage.getWidth()*2, croppedFaceImage.getHeight()*2);
-				// BufferedImage croppedFaceImage = ImageUtils.matToBufferedImage(frame.mat());
-				videoFace.setImage(croppedFaceImage);
-				// faceImage.release();
-				// logger.info("Adding face for window " + nWindow + " now " + faces.size() + " in total for this window.");
-				faces.add(videoFace);
 			}
 
 		}
@@ -321,7 +335,29 @@ public class VideoFaceScanner {
 		int startY = Math.max(1, box.getStartY());
 		int width = Math.max(1, box.getWidth());
 		int height = Math.max(1, box.getHeight());
-		return CVUtils.crop2(frame.mat(), new java.awt.Point(startX, startY), new Dimension(width, height), padding).clone();
+		// crop2 hands back a submat - a view onto the frame, but still a native header that has to be
+		// given back. Only the clone outlives this method.
+		Mat roi = CVUtils.crop2(frame.mat(), new java.awt.Point(startX, startY), new Dimension(width, height), padding);
+		try {
+			return roi.clone();
+		} finally {
+			CVUtils.free(roi);
+		}
+	}
+
+	/**
+	 * Release the native buffer behind a decoded frame. {@link Mat} carries no cleaner, so a frame the
+	 * GC collects leaks its pixels for the lifetime of the process.
+	 */
+	private static void free(VideoFrame frame) {
+		if (frame == null) {
+			return;
+		}
+		try {
+			frame.close();
+		} catch (Exception e) {
+			logger.warn("Could not release a video frame", e);
+		}
 	}
 
 	public FaceVideoFrame detectFaces(Facedetector detector, VideoFrame frame) {
@@ -369,7 +405,7 @@ public class VideoFaceScanner {
 			}
 			smaller.release();
 		}
-		System.out.println("Inspireface Duration: " + (System.currentTimeMillis() - start) + " " + videoFrame.hasFaces());
+		logger.debug("Inspireface duration: {}ms, faces: {}", System.currentTimeMillis() - start, videoFrame.hasFaces());
 		return videoFrame;
 	}
 
@@ -468,8 +504,16 @@ public class VideoFaceScanner {
 			// logger.info("Scanning frame for potential window " + nFrame);
 			video.seekToFrame(nFrame);
 			VideoFrame frame = video.frame();
-			CVUtils.resize(frame, 512);
-			FaceVideoFrame faceFrame = inspireface.detectFaces(frame);
+			if (frame == null) {
+				break;
+			}
+			FaceVideoFrame faceFrame;
+			try {
+				CVUtils.resize(frame, 512);
+				faceFrame = inspireface.detectFaces(frame);
+			} finally {
+				free(frame);
+			}
 
 			// The middle frame of the vindow contains a face - thus add it to the list of windows.
 			if (faceFrame.hasFaces()) {
