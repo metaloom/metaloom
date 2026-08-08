@@ -119,17 +119,27 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-99 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+124 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
-├── CONTEXT.md                         # ← THIS FILE — entry point and router
+├── METALOOM_CONTEXT.md                # ← THIS FILE — entry point and router
 ├── METALOOM.md                        # Big-picture module layout & framework map
-├── METALOOM_NOTES.md                  # Scratch backlog: raw ideas without a spec file yet
-├── CLUSTERING.md                      # 🔴 Loom is single-writer (replicaCount 1); clustering blockers
-├── SPEC_RULES.md                      # RULES for writing spec files
-├── TASKS.template.md                  # Required format for every *_TASKS.md file
+├── GLOSSAR.md                         # Terminology
+├── tasks/                             # Actionable work items + scratch. Format: TASKS.template.md
+│   ├── TASKS.template.md              # Required format for every *_TASKS.md file
+│   ├── METALOOM_NOTES.md              # Scratch backlog: raw ideas without a spec file yet
+│   ├── WORKFLOW_TASKS.md              # NEW 2026-08-07 — W1–W15 for the workflows/ family.
+│   │                                  #   W1 (FilterBy.TAG/RATING) is the keystone: without it no
+│   │                                  #   pipeline can act on a human decision
+│   ├── PIPELINE_TASKS.md              # Pipeline work items (Task 14: FilterPortResolver.asList)
+│   ├── PERSISTENCE_TASKS.md           # Open persistence-layer gaps
+│   ├── LOOM_UI_TASKS.md               # UI work items
+│   ├── IMAGEGEN_NODE.md               # imagegen follow-ups
+│   ├── METALOOM_ARCHITECTURE_TASK.md  # Open architecture tasks (+ explicitly dropped ideas)
+│   └── METALOOM_CODEREVIEW.md         # Review findings
 ├── guidelines/
+│   ├── SPEC_RULES.md                  # RULES for writing spec files
 │   ├── CODING.md                      # RULES for code changes (REST/DAO/Docs/Demo/Spec)
 │   ├── NEW_NODE.md                    # RULES for adding a Cortex node — read before cortex/nodes/*
 │   └── METALOOM_STATIC_CODE_ANALYSIS.md
@@ -375,7 +385,13 @@ spec/
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
 | The CLI | [features/cli/CLI_PLAN.md](features/cli/CLI_PLAN.md) |
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
-| **The face identity workflow** — detect → embed → cluster → confirm a person | [features/facedetection/FACE_WORKFLOW.md](features/facedetection/FACE_WORKFLOW.md) — 🔴 **only stage 1 runs.** No face embedding is ever persisted, so there is nothing to cluster; `cluster` and `person` have no FK. Specifies the `V2.75` migration and the confirm endpoint. ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
+| **Anything a human reviews in bulk** — rating, tagging, confirming, rejecting | [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) — the family index. Read §3 (the 7-piece anatomy) before adding a workflow and §4 (defects X1–X10) before debugging one. 🔴 Of six shipped modes, exactly one writes to the server |
+| **The face identity workflow** — detect → embed → cluster → confirm a person | [workflows/WORKFLOW_FACE.md](workflows/WORKFLOW_FACE.md) — 🟡 **stages 1–2 of 4 run.** Detections and embeddings persist; there is no clustering code and `cluster.creator_uuid` is `NOT NULL`, so a worker cannot write one. ⚠️ moved here from `features/facedetection/` on 2026-08-07; ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
+| Reviewing dedup candidates (the human step) | [workflows/WORKFLOW_DEDUP.md](workflows/WORKFLOW_DEDUP.md) — the workflow half; the nodes and algorithm stay in [concept/NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md) |
+| Confirming or rejecting object detections | [workflows/WORKFLOW_OBJECT_DETECT.md](workflows/WORKFLOW_OBJECT_DETECT.md) — 🔴 `detection` has no review status, so the decision has nowhere to go |
+| **What happens after a file is uploaded** — which pipeline runs and why | [workflows/WORKFLOW_UPLOAD.md](workflows/WORKFLOW_UPLOAD.md) — 🟢 built. The trigger is untyped JSON in `pipeline_version.meta.trigger`, matched on mime type only |
+| Moving or disposing of an asset's bytes from a pipeline | [workflows/WORKFLOW_TRASH.md](workflows/WORKFLOW_TRASH.md) — 🔵 the `move` node does not exist; 🔴 cross-device moves silently copy |
+| Making a rating or a tag actually *do* something | [workflows/WORKFLOW_MANUAL_SORT.md](workflows/WORKFLOW_MANUAL_SORT.md) §5 — 🔴 `FilterBy` has no `TAG`/`RATING` strategy, which is why every manual decision is inert. Task W1 in [tasks/WORKFLOW_TASKS.md](tasks/WORKFLOW_TASKS.md) |
 | **Segmentation** — masks rather than boxes, and video object tracking | [features/nodes/sam2/NODE_SAM2.md](features/nodes/sam2/NODE_SAM2.md) — the `sam2` node + its :9130 sidecar. 🔴 the only per-pixel geometry in the tree, and it is **ledger only**: masks are worker-local files, so there is no way to query them |
 | **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](concept/SEARCH_PLAN.md) |
 | Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — **not built**; the API seams exist and reject with 400 |
@@ -735,8 +751,21 @@ and subcomponents for request scope (`RestComponent` per REST request).
 - [ ] Chat defects F1 (vLLM tool streaming throws) and F2 (turn-granular abort) are open
       ([CHAT_TASKS.md](features/chat/CHAT_TASKS.md)); the session filesystem snapshot and run-time
       context assembly in [CHAT_SESSIONS_CONCEPT.md](features/chat/CHAT_SESSIONS_CONCEPT.md) are vapour
-- [ ] `objectdetect` is faces-only, which limits
-      [NODE_SCENE_LAYOUT_PLAN.md](concept/NODE_SCENE_LAYOUT_PLAN.md)
+- [x] ~~`objectdetect` is faces-only~~ — **wrong, corrected 2026-08-07.** `YoloObjectDetector` loads
+      an arbitrary ONNX model + labels file and reports `YoloLib.labels().size()` classes at init;
+      `ObjectDetectNode` writes `detection.label` per box.
+      [NODE_SCENE_LAYOUT_PLAN.md](concept/NODE_SCENE_LAYOUT_PLAN.md) should be re-read with this
+      corrected — it was written against the false constraint
+- [ ] 🔴 **The workflow family is a screen without write paths.** Of the six modes in
+      `WorkflowView.tsx`, only rating persists; tagging, dedup, faces, objects and llm all discard
+      the user's decisions. See [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) §4 and
+      [tasks/WORKFLOW_TASKS.md](tasks/WORKFLOW_TASKS.md)
+- [ ] 🔴 **No pipeline can act on a human decision.** `FilterBy` is `LANGUAGE`/`MIME`/`SIZE`/`DATE`;
+      there is no `TAG` or `RATING` strategy, and `PipelineMatcher` triggers on mime type only.
+      Task W1 — the keystone of the workflow family
+- [ ] 🔴 `detection` has no review status column, so confirming a box or a face has nowhere to go
+      (task W5). Related: the UI's `DetectionResponse` omits `label` (W6)
+- [ ] No workflow has a page under `website/content/english/docs` (task W15)
 - [ ] Assets and auth are still documented per component rather than extracted into `features/`
 - [ ] `./build.sh` does not invoke `cli/build-native.sh` — the native CLI is not part of a full build
 
@@ -771,6 +800,7 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (the filter node's `MIME`/`SIZE`/`DATE` strategies landed, closing R7;
-the open item is now the demo pipelines, blocked on `FilterPortResolver.asList`)_
+_Git HEAD revision: `21e8a8cd`_
+_Last updated: 2026-08-07 (new `workflows/` family: 12 workflow specs + `tasks/WORKFLOW_TASKS.md`;
+`features/facedetection/FACE_WORKFLOW.md` moved to `workflows/WORKFLOW_FACE.md`; the "objectdetect is
+faces-only" claim in section 7 corrected as false)_

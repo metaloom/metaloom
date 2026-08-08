@@ -20,7 +20,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | The engine that runs the graph once it is dispatched | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
 | Ingesting an existing corpus rather than one file | [WORKFLOW_INGEST_MIGRATION.md](WORKFLOW_INGEST_MIGRATION.md) |
 | Pulling from S3 / Google Drive / OneDrive instead | [../concept/NODE_S3SOURCE_PLAN.md](../concept/NODE_S3SOURCE_PLAN.md), [../concept/NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md) |
-| Authoring the pipeline that gets triggered | [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) |
+| Authoring the pipeline that gets triggered | [../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) |
 
 ---
 
@@ -115,7 +115,7 @@ None of these break the mechanism; all of them make it hard to operate.
 | # | Gap | Consequence |
 |---|---|---|
 | U1 | 🟡 **The trigger is untyped JSON in `meta`.** No column, no schema validation, no `PipelineModelValidator` rule | A typo (`mimetypes`, `autorun`) silently matches nothing. There is no error, no warning and no way to ask "which pipeline handles a JPEG?" |
-| U2 | 🔴 **The trigger is invisible in the editor.** [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) has no trigger field | An operator cannot enable auto-processing from the UI at all |
+| U2 | 🔴 **The trigger is invisible in the editor.** [../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) has no trigger field | An operator cannot enable auto-processing from the UI at all |
 | U3 | 🔴 **A 503 from the auto-trigger is only logged.** `AssetPipelineTrigger` logs `dispatched=false` and the message | The uploader sees a green checkmark and no processing. This is the workflow's worst failure mode |
 | U4 | 🔴 **No backfill.** The trigger fires on `asset.created` only | Adding a pipeline never processes assets already in the system. There is no "run this pipeline over library X" from the UI, only a manual per-asset run |
 | U5 | 🟡 **Matching is mime-type only.** Not library, pool, collection, size or origin | Every JPEG in the instance gets the same treatment. A library that wants a cheaper graph cannot ask for one |

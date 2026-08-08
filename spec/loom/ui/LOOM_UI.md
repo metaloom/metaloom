@@ -151,7 +151,7 @@ graph TD
 | `/detection` | `DetectionManagement` | `features/detection/DetectionManagement.tsx` |
 | `/faces` | `<Navigate to="/detection" replace />` | `layout/AppShell.tsx` |
 | `/tags` | `TagsView` | `features/tags/TagsView.tsx` |
-| `/workflow` | `WorkflowView` | `features/workflow/WorkflowView.tsx` |
+| `/workflow` | `WorkflowView` | `features/workflow/WorkflowView.tsx` — six review modes; specs in [../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) |
 | `/asset-pools` | `AssetPoolsView` | `features/assetPools/AssetPoolsView.tsx` |
 | `/pipelines` | `PipelineEditor` | `features/pipeline/PipelineEditor.tsx` |
 | `/cortex` | `CortexView` | `features/cortex/CortexView.tsx` |
@@ -441,7 +441,7 @@ Only **two** modules still import `src/mock/`:
 | Consumer | What is mocked | What is real |
 |----------|----------------|--------------|
 | `features/monitoring/MonitoringArea.tsx` | `METRICS` — ingestion, latency, storage, task backlog, chat usage, annotations charts | Pipeline run stats via `loadPipelineRunStats` (`/pipelines/runs/stats`) + live `subscribePipelineEvents` |
-| `features/workflow/WorkflowView.tsx` | `FACE_CLUSTERS`, `PERSONS` seeds, plus a hardcoded VLM result string | Assets (`listAssets`) and detections (`listAssetDetections`) |
+| `features/workflow/WorkflowView.tsx` | `FACE_CLUSTERS`, `PERSONS` seeds, a hardcoded VLM result string, `ALL_TAGS` (24 strings), and `buildDuplicateGroups` (pairs adjacent assets) | Assets (`listAssets`) and detections (`listAssetDetections`). 🔴 Of six modes only rating **writes** to the server — [../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §2 |
 
 Everything else — chat, sessions, skills, memory, tasks, tags, collections, pools, cortex,
 maintenance (`/health` + `/`), pipelines — is wired to real endpoints.
@@ -716,7 +716,10 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [x] Maintenance on real `/health` + `/`
 - [x] Monitoring on real `/pipelines/runs/stats` + live events
 - [ ] Monitoring KPI/chart series still from `mock/data.ts` `METRICS` (no `/metrics` endpoint)
-- [ ] Workflow face-cluster/person seeds and the VLM result still mocked
+- [ ] Workflow face-cluster/person seeds and the VLM result still mocked — and, more importantly,
+      five of the six modes discard the reviewer's decisions entirely
+      ([../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §4, tasks W2/W3/W5/W6 in
+      [../../tasks/WORKFLOW_TASKS.md](../../tasks/WORKFLOW_TASKS.md))
 - [x] Keyset paging for large lists — `?limit=`/`?from=`, server totals, "load more" (§11.3)
 - [x] Asset search runs against `/search/assets` rather than filtering the loaded page (§7.5.1)
 
@@ -732,5 +735,6 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (added the /search route, api/search.ts, SearchContext and the global sidebar search field; refreshed the provider tree and test counts)_
+_Git HEAD revision: `21e8a8cd`_
+_Last updated: 2026-08-07 (cross-referenced the new `spec/workflows/` family from the `/workflow`
+route, the mock inventory and the progress list; no other content changes)_

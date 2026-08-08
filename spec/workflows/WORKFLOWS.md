@@ -43,7 +43,7 @@ Three properties distinguish a workflow from a plain feature:
 | Not a workflow | Why | Where it lives |
 |---|---|---|
 | **Chat / the Loom Agent** | A conversation is not a queue and produces no per-item decision. It is a different interaction model that happens to touch the same data. It has its own spec family already | [../loom/ui/CHAT.md](../loom/ui/CHAT.md), [../features/chat/](../features/chat/) |
-| **The pipeline editor** | Authoring a graph is a design activity, not a review queue | [../loom/ui/PIPELINE_EDITOR.md](../loom/ui/PIPELINE_EDITOR.md) |
+| **The pipeline editor** | Authoring a graph is a design activity, not a review queue | [../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) |
 | **Search** | A query is not a decision. Search *feeds* workflows (it is how a queue gets scoped) but reviewing results is not itself a workflow | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
 | **Admin / RBAC** | Low-volume configuration, not bulk review | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) |
 
