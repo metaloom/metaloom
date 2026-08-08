@@ -10,6 +10,53 @@ from .base import CreatorEditorResponse, ListResponse, MetaModel, Model
 
 
 @dataclass
+class ClusterBulkCreateRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterBulkCreateRequest``."""
+
+    clusters: list[ClusterCreateItem] = field(default_factory=list)
+    prune_stale: bool = False
+
+
+@dataclass
+class ClusterBulkResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterBulkResponse``."""
+
+    clusters: list[ClusterResponse] = field(default_factory=list)
+    total: int = 0
+    created: int = 0
+    failed: int = 0
+    pruned: int = 0
+
+
+@dataclass
+class ClusterConfirmRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterConfirmRequest``."""
+
+    person_uuid: str | None = None
+    alias: str | None = None
+    firstname: str | None = None
+    lastname: str | None = None
+    name: str | None = None
+
+
+@dataclass
+class ClusterCreateItem(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterCreateItem``."""
+
+    type: str | None = None
+    node_kind: str | None = None
+    node_id: str | None = None
+    producer_version: str | None = None
+    cluster_index: int | None = None
+    score: float | None = None
+    centroid: list[float] = field(default_factory=list)
+    model: str | None = None
+    dimensions: int | None = None
+    meta: dict[str, Any] | None = None
+    members: list[ClusterMemberCreateItem] = field(default_factory=list)
+
+
+@dataclass
 class ClusterCreateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterCreateRequest``."""
 
@@ -27,11 +74,51 @@ class ClusterListResponse(ListResponse):
 
 
 @dataclass
+class ClusterMemberCreateItem(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterMemberCreateItem``."""
+
+    embedding_uuid: str | None = None
+    confidence: float | None = None
+    origin: str | None = None
+
+
+@dataclass
+class ClusterMemberListResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterMemberListResponse``."""
+
+    members: list[ClusterMemberModel] = field(default_factory=list)
+    total: int = 0
+
+
+@dataclass
+class ClusterMemberModel(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterMemberModel``."""
+
+    embedding_uuid: str | None = None
+    detection_uuid: str | None = None
+    asset_uuid: str | None = None
+    frame_number: int | None = None
+    bbox_x: float | None = None
+    bbox_y: float | None = None
+    bbox_width: float | None = None
+    bbox_height: float | None = None
+    confidence: float | None = None
+    origin: str | None = None
+
+
+@dataclass
 class ClusterResponse(CreatorEditorResponse):
     """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterResponse``."""
 
     name: str | None = None
     type: str | None = None
+    review_status: str | None = None
+    person_uuid: str | None = None
+    asset_uuid: str | None = None
+    cluster_index: int | None = None
+    score: float | None = None
+    member_count: int | None = None
+    node_kind: str | None = None
 
 
 @dataclass

@@ -27,8 +27,25 @@
 - [ ] F3 transcript normalization (`chat_message` table) — deferred, superseded in part by CTX5
 - [ ] F4 group-scoped skill library — deferred
 - [ ] F5 live-LLM smoke coverage in CI — deferred
-- [ ] **Enhancement backlog CTX1–CTX8, EXE1–EXE6, RD1–RD6, LP1–LP5, SEC1/ACT1/ACT2, QW1–QW6, MEM1** —
-      none started
+- [ ] **Open defects CTX2, CTX3, SEC2** — see the table below; these are failures, not enhancements
+- [ ] **Enhancement backlog CTX1, CTX4–CTX8, EXE1–EXE6, RD1–RD6, LP1–LP5, SEC1, ACT1/ACT2, QW1–QW6,
+      MEM1** — none started
+
+## Open Defects
+
+Found by code audit on 2026-08-08. Each has a full task below under its existing ID — they live in
+the themed backlog so the surrounding design context stays with them, and are listed here because
+they are **defects with a reproducible failure**, not improvements.
+
+| ID | Defect | Failure | Severity |
+|---|---|---|---|
+| **CTX2** | `AgentLoop.buildHistory` replays every message in `chat.messages` with no cap | Once the replayed transcript exceeds `LOOM_AI_CONTEXT_WINDOW` the provider rejects the request → terminal `LLM_ERROR`. `persist()` appends the user message **before** the error check, so every retry makes the transcript one message longer: the chat cannot recover by itself. There is no UI affordance to trim it (`ChatWorkspace` only ever sends `meta`); recovery needs a hand-written `POST /chats/:uuid` carrying a shorter `messages` array, or deleting the chat. | High |
+| **CTX3** | `AgentLoop.executeToolCall` returns the **untruncated** tool result into the live history (only the persisted `resultSummary` is capped at 2048) | One large `search_assets`, `run_shell` or `load_skill` result overflows the window mid-run and fails the turn. Unlike CTX2 this needs no history at all — it can happen on the first message of a new chat. | High |
+| **SEC2** | `chat.messages` and `chat.meta` are client-writable through `POST /api/v1/chats/:uuid` | `ChatEndpointService.update` copies `getMessages()`/`getMeta()` straight onto the row, so a caller can author a transcript the loop will replay as genuine `assistantWithToolCalls` + `toolResult` pairs. Self-inflicted today; becomes cross-user injection once a published session's history is injected into somebody else's run (CTX7). Also contradicts [LOOM_UI_CHAT.md §5](../chat/LOOM_UI_CHAT.md), which states the server owns the transcript. | Medium |
+
+`CTX1` (no token accounting anywhere in `loom/agent/chat` or `genai-utils`) is **not** itself a
+defect — it is the missing instrument that makes CTX2 and CTX3 invisible until they fire, which is
+why it is scheduled alongside them.
 
 ```mermaid
 flowchart LR
@@ -197,15 +214,16 @@ without a live model server.
 
 | # | Task | Size | Why now |
 |---|---|---|---|
-| 1 | **CTX2** budgeted history replay | S | A long chat currently **bricks itself**: the replay overflows the window and every later message fails the same way. This is a bug, not an enhancement. |
-| 2 | **CTX3** cap tool results entering the live history | S | Same failure inside a single run; one large tool result kills the turn. |
+| 1 | **CTX2** budgeted history replay | S | **Defect.** The replay overflows the window and every later message fails the same way, each one leaving the transcript longer. |
+| 2 | **CTX3** cap tool results entering the live history | S | **Defect.** Same failure inside a single run, and it needs no history at all — one large tool result kills the turn. |
 | 3 | **CTX1** token accounting | S | Makes CTX2/CTX3/CTX4 measurable instead of guessed; one afternoon. |
-| 4 | **QW1**, **QW2**, **QW3** | S | Known defects and a [CODING.md](../guidelines/CODING.md) test-coverage violation. |
-| 5 | **EXE2** `run_node_probe` (synchronous, one node, one item) | M | The smallest thing that satisfies "run a node from the loop to gather data" — no migration, no job model, no quota system. |
-| 6 | **RD4** `node_coverage`, **RD1** `find_assets` | M | The cheapest tools with the widest reach; RD1 also removes two tools that lie to the model. |
-| 7 | **CTX6** working set · **CTX4** compaction | M | Multi-turn coherence; both need CTX1. |
-| 8 | **RD2** dossier + **SEC1** injection delimiting | L | Gates ~45 of the 88 catalogued requests. Land them together — RD2 without SEC1 opens an injection surface. |
-| 9 | **EXE1** → **EXE3/EXE4/EXE5** | L | Only after the design decision in EXE1 is taken. |
+| 4 | **SEC2** stop the client writing the transcript | S | **Defect.** Do it right after CTX2 — it is currently the only way to unwedge a chat. |
+| 5 | **QW1**, **QW2**, **QW3** | S | Known defects and a [CODING.md](../guidelines/CODING.md) test-coverage violation. |
+| 6 | **EXE2** `run_node_probe` (synchronous, one node, one item) | M | The smallest thing that satisfies "run a node from the loop to gather data" — no migration, no job model, no quota system. |
+| 7 | **RD4** `node_coverage`, **RD1** `find_assets` | M | The cheapest tools with the widest reach; RD1 also removes two tools that lie to the model. |
+| 8 | **CTX6** working set · **CTX4** compaction | M | Multi-turn coherence; both need CTX1. |
+| 9 | **RD2** dossier + **SEC1** injection delimiting | L | Gates ~45 of the 88 catalogued requests. Land them together — RD2 without SEC1 opens an injection surface. |
+| 10 | **EXE1** → **EXE3/EXE4/EXE5** | L | Only after the design decision in EXE1 is taken. |
 
 ---
 
@@ -254,15 +272,19 @@ persisted. `mvn -q test -pl loom/agent/chat`.
 
 ---
 
-### Task CTX2: Bound the replayed transcript so a long chat cannot brick itself — **S**
+### Task CTX2: Bound the replayed transcript so a long chat cannot wedge itself — **S — DEFECT**
 
 **Argumentation Summary:** `AgentLoop.buildHistory(chat)` walks **every** element of
 `chat.messages` and appends it — user turns, assistant turns, and a reconstructed
 `assistantWithToolCalls` + `toolResult` pair for every recorded tool call — with no cap of any kind.
 At `LOOM_AI_CONTEXT_WINDOW=16384` a chat of a few dozen exchanges overflows the window. The failure
-is not graceful and it is not transient: the provider error becomes a terminal `LLM_ERROR`, only the
-user message is persisted, and the **next** message replays the same over-long transcript and fails
-identically. The chat is permanently dead and the only recovery is starting a new one.
+is neither graceful nor transient: the provider error becomes a terminal `LLM_ERROR`, and the
+**next** message replays the same over-long transcript and fails identically. It is a ratchet —
+`persist()` calls `messages.add(userMessage)` *before* the `"error".equals(status)` check, so each
+failed attempt leaves the transcript one message longer than the attempt that failed. The chat
+cannot recover by itself; `ChatWorkspace` only ever sends `meta` on update, so the only ways out are
+a hand-written `POST /chats/:uuid` carrying a trimmed `messages` array (see SEC2 — that this works
+at all is itself a defect) or deleting the chat.
 
 **Improvement Summary:** Assemble the history newest-first against `ContextBudget`, keep the system
 prompt and the current user message unconditionally, drop whole exchanges from the front once the
@@ -294,7 +316,7 @@ unchanged. `mvn -q test -pl loom/agent/chat`.
 
 ---
 
-### Task CTX3: Cap the tool-result text that enters the live in-run history — **S**
+### Task CTX3: Cap the tool-result text that enters the live in-run history — **S — DEFECT**
 
 **Argumentation Summary:** There are two tool-result paths and only one is capped.
 `AgentLoop.executeToolCall` truncates to `RESULT_SUMMARY_MAX_LENGTH` (2048) for the **persisted**
@@ -1162,6 +1184,59 @@ selection. This is the "Injection" row of
 
 ---
 
+### Task SEC2: Stop the client from writing the transcript the loop replays — **S — DEFECT**
+
+**Argumentation Summary:** `ChatEndpointService.update(ChatModel, Chat)` copies `model::getMessages`
+and `model::getMeta` straight onto the row, and `ChatUpdateRequest` exposes both — so
+`POST /api/v1/chats/:uuid` lets a caller replace the whole transcript. `AgentLoop.buildHistory`
+then replays whatever is there as genuine history, including reconstructing
+`assistantWithToolCalls` + `toolResult` pairs from `toolCalls[]`. A caller can therefore author a
+tool result the model will treat as something Loom actually returned. Three consequences:
+
+1. **The spec says the opposite.** [LOOM_UI_CHAT.md §5](../chat/LOOM_UI_CHAT.md) documents
+   `api/chat.ts` as "title renames and `meta` only — the server owns the transcript". It does not.
+   The UI happens to send only `meta` (`ChatWorkspace.tsx` line ~552), so nothing depends on the
+   hole; the client type and the endpoint both still allow it, and `api/chat.test.ts` exercises it.
+2. **Blast radius grows with the roadmap.** Today forgery is self-inflicted — the agent runs with
+   the caller's own permissions, so a user can only fool themselves. That stops being true the
+   moment CTX7 injects a *published* session's history into another user's run, and the moment
+   CTX4/CTX6/LP3 start trusting `chat.meta` for the rolling summary, the working set and the plan.
+   Each of those turns a client-writable field into a control surface.
+3. **It is the only recovery path for CTX2.** Closing this without CTX2 landing first would take
+   away the one way to unwedge an over-long chat.
+
+**Improvement Summary:** Make the transcript server-owned as documented, and keep `meta` writable
+only for the keys the client legitimately owns.
+
+```
+1. Land CTX2 first — otherwise this removes the only escape from a wedged chat.
+2. Remove `messages` from ChatUpdateRequest and from the update(ChatModel, Chat) copy in
+   loom/services/rest/.../ChatEndpointService.java. Do the same in loom-ui/src/api/chat.ts and
+   drop the case in api/chat.test.ts.
+3. Replace it with a deliberate, narrow route for the one legitimate need: DELETE
+   /api/v1/chats/:uuid/messages (clear the transcript, keep the chat) — UPDATE_CHAT plus
+   ownership, 404 for a foreign chat. That is what a "clear conversation" button in the UI wants
+   anyway; note the UI half in TASK_UI_CHAT.md.
+4. Restrict the meta merge to a whitelist of client-owned keys (activeSkillUuids today) rather
+   than replacing the object, so server-owned keys — model, lastError, and the summary / working
+   set / plan that CTX4, CTX6 and LP3 will add — cannot be authored by a caller.
+5. Fix spec/chat/LOOM_UI_CHAT.md §5 in the same change: state what the route accepts now, and
+   record the whitelist as the rule. Code wins over spec, and both must end up saying the same
+   thing.
+```
+
+**References:** [LOOM_UI_CHAT.md §4.3, §5](../chat/LOOM_UI_CHAT.md) ·
+[AGENTIC_CHAT_PLAN.md §8](../chat/AGENTIC_CHAT_PLAN.md) (injection surfaces) ·
+[CHAT_SESSIONS_CONCEPT.md §8](../chat/CHAT_SESSIONS_CONCEPT.md) (cross-session content is
+untrusted) · CTX2 (blocking), CTX4, CTX6, CTX7, LP3
+**Test Requirements:** `ChatEndpointTest`: a `messages` field in an update request is rejected or
+ignored (assert the stored transcript is unchanged); `meta` update preserves server-owned keys and
+applies client-owned ones; the new clear-messages route works, is owner-scoped, and 404s for a
+foreign chat. `AgentLoopTest` regression proving a run's persisted transcript still round-trips.
+`./setup-pool.sh && mvn -q test -pl loom/core -Dtest=ChatEndpointTest`.
+
+---
+
 ### Task ACT1: Catalog write tools with agent provenance — **M**
 
 **Argumentation Summary:** The agent's entire write surface is `create_pipeline`,
@@ -1537,4 +1612,6 @@ mvn -q test -pl loom/core -Dtest=MCPToolReferencesTest
 | UI-side task record | [TASK_UI_CHAT.md](../loom/ui/TASK_UI_CHAT.md) |
 
 _Git HEAD revision: `6a54f296`_
-_Last updated: 2026-08-08 (added the enhancement backlog CTX/EXE/RD/LP/SEC/ACT/QW/MEM; fixed the dead cross-links to the moved chat specs)_
+_Last updated: 2026-08-08 (added the enhancement backlog CTX/EXE/RD/LP/SEC/ACT/QW/MEM; split out an
+Open Defects table — CTX2, CTX3 and the newly found SEC2; fixed the dead cross-links to the moved
+chat specs)_

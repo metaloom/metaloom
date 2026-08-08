@@ -716,7 +716,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **`ctx.failure(...).next()`** | 🔴 Returns **SUCCESS** — `NodeContextImpl.next()` ignores the failure cause; only `abort()` yields FAILED. Several nodes still report success on their failure paths. Use `ctx.failure(msg).abort()` in new nodes |
 | **Node result write-back** | Results reach Loom via `POST /api/v1/assets/:uuid/node-results` — upsert a typed component **and** record the `asset_node_result` ledger row. `WhisperNode` is the reference implementation |
 | **Two `NodeState` vocabularies** | They *are* reconciled: `NodeResultMapper.toWireState()` maps SUCCESS→COMPLETED, SKIPPED→SKIPPED, FAILED/null→FAILED. The wire enum's extra `PENDING`/`RUNNING` are never produced by a terminal result |
-| **Cortex `cortex.yml`** | 🔴 Genuinely never read on the CLI/server path — `CortexOptionsLoader.load()` has no caller. Worse, the container/Helm config path is `/config` while the loader would probe `${user.home}/.config/metaloom/` — the two disagree even if the caller were restored |
+| **Cortex `cortex.yml`** | ✅ **Is** read (corrected 2026-08-08): `CortexClientModule.options(...)` calls `CortexOptionsLoader.load()` whenever no explicit `CortexOptions` is injected — the `CortexMain` path — and the environment is then applied on top. 🔴 But the loader probes **only** `${user.home}/.config/metaloom/cortex.yml`, while the container/Helm config path is `/config`, so in a container the YAML layer is still dead in practice. Anything only settable in YAML (e.g. `CortexOptions.dryrun`, which has no `CortexEnvOptions` mapping) is therefore unreachable there |
 | **Cortex shutdown** | ✅ `CortexImpl.registerShutdownHook()` → `syncCollector.flush()` → `drain()`, bounded by `CORTEX_DRAIN_TIMEOUT_MS` (default 30 s). SIGTERM does **not** abandon buffered results |
 | **Loom shutdown** | 🔴 Loom has **no JVM shutdown hook** — SIGTERM skips `deinit()`. Only Cortex drains |
 | **Reconnect backoff** | Cortex is **linear**: `min(RECONNECT_BASE_DELAY_MS × attempt, 30 000)` in `LoomControlChannel`. Only the *UI* uses exponential backoff with jitter. Any spec calling the worker backoff exponential is wrong |
@@ -762,9 +762,10 @@ and subcomponents for request scope (`RestComponent` per REST request).
       ([PIPELINE_TASKS.md](tasks/PIPELINE_TASKS.md) Task 14)
 - [ ] 🔴 Helm: the unread `LOOM_AUTH_KEYSTORE_PATH` (the `LOOM_DB_USER` mismatch was fixed 2026-08-02)
 - [ ] 🔴 Loom has no JVM shutdown hook — SIGTERM skips `deinit()`
-- [ ] `cortex/CONFIGURATION.md` documents a YAML precedence chain that does not work
-      (`CortexOptionsLoader.load()` has no caller); the container path `/config` and the loader's
-      `${user.home}/.config/metaloom/` probe disagree as well
+- [ ] `cortex/CONFIGURATION.md`'s YAML precedence chain half works: the loader **is** called
+      (`CortexClientModule.options(...)`, corrected 2026-08-08 — the old "no caller" claim was
+      wrong), but it probes only `${user.home}/.config/metaloom/` while the container path is
+      `/config`, so a containerised worker still never sees its `cortex.yml`
 - [ ] Search has **no consumers**: no UI surface, no GraphQL field, and the MCP tools still query
       the DB directly instead of the search provider
 - [ ] Semantic/vector search is unbuilt behind shipped API seams (§6)

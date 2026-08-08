@@ -89,3 +89,32 @@ class AttachmentMethods:
         :meth:`~loom_client.methods.asset_binary.AssetBinaryMethods.download_asset_binary`.
         """
         return self._download(f"attachments/{self._uuid(uuid)}/data")
+
+    def upload_face_crop(
+        self,
+        file: str | bytes,
+        asset_uuid: _uuid_mod.UUID | str,
+        detection_uuid: _uuid_mod.UUID | str,
+        variant: str | None = None,
+        node_kind: str | None = None,
+    ) -> LoomRequest[AttachmentResponse]:
+        """Upload a cropped face, bound to the detection it depicts.
+
+        A face crop belongs to one detected face rather than to a whole asset - an asset
+        has many faces - so the detection uuid is what addresses it later. Uploading the
+        same ``(detection, variant)`` again replaces the previous crop.
+        """
+        return self._upload_multipart(
+            "attachments",
+            file,
+            AttachmentResponse,
+            filename="face-crop.jpg",
+            mime_type="image/jpeg",
+            fields=(
+                ("assetUuid", str(asset_uuid)),
+                ("type", "FACE_CROP"),
+                ("detectionUuid", str(detection_uuid)),
+                ("variant", variant),
+                ("nodeKind", node_kind),
+            ),
+        )

@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config";
+import type { ClusterListResponse } from "./clusters";
 import { pagingQuery, type PagingInfo, type PagingParams } from "./paging";
 
 export interface PersonResponse {
@@ -95,4 +96,17 @@ export async function deletePerson(token: string, uuid: string): Promise<void> {
     const text = await res.text().catch(() => "");
     throw new Error(`API error ${res.status}: ${text}`);
   }
+}
+
+/**
+ * The face clusters confirmed to be this person, across every asset they appear in.
+ *
+ * The inverse of confirming a cluster.
+ */
+export async function listPersonClusters(token: string, uuid: string): Promise<ClusterListResponse> {
+  const res = await fetch(`${API_BASE_URL}/persons/${encodeURIComponent(uuid)}/clusters`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<ClusterListResponse>(res);
 }

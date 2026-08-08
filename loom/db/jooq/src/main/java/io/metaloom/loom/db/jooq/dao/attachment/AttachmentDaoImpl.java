@@ -50,6 +50,28 @@ public class AttachmentDaoImpl extends AbstractJooqDao<Attachment> implements At
 	}
 
 	@Override
+	public Attachment findFaceCrop(UUID detectionUuid, String variant) {
+		if (detectionUuid == null) {
+			return null;
+		}
+		org.jooq.Condition condition = ATTACHMENT.DETECTION_UUID.eq(detectionUuid)
+			.and(ATTACHMENT.TYPE.eq(io.metaloom.loom.db.jooq.enums.JooqAttachmentType.FACE_CROP));
+		if (variant != null) {
+			condition = condition.and(ATTACHMENT.VARIANT.eq(variant));
+		}
+		// The pool lives on attachment_binary, and the download path needs it to resolve the storage backend.
+		return ctx()
+			.select()
+			.from(ATTACHMENT)
+			.leftJoin(ATTACHMENT_BINARY)
+			.on(ATTACHMENT_BINARY.SHA512SUM.eq(ATTACHMENT.BINARY_SHA512SUM))
+			.where(condition)
+			.orderBy(ATTACHMENT.CREATED.desc())
+			.limit(1)
+			.fetchOneInto(getPojoClass());
+	}
+
+	@Override
 	public Attachment load(UUID uuid) {
 		return ctx()
 			.select()

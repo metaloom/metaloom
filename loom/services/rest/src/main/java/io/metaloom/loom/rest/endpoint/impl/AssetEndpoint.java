@@ -414,6 +414,12 @@ public class AssetEndpoint extends AbstractEndpoint {
 				detectionService.loadAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
 			});
 
+		addRoute(basePath() + "/:uuid/detections/:detectionUuid/crop", GET,
+			"Load the cropped face image for a detection. Served from this deployment's own storage - face crops are biometric data and must not be fetched from a third party.",
+			lrc -> {
+				detectionService.loadDetectionCrop(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
+			});
+
 		addRoute(basePath() + "/:uuid/detections/:detectionUuid", POST,
 			"Update a detection for an asset",
 			examples.detectionUpdateRequestExample(),

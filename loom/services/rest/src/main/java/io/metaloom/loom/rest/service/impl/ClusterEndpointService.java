@@ -265,7 +265,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 				response.add(modelBuilder.toResponse(dao().load(cluster.getUuid()), (long) item.getMembers().size()));
 			}
 
-			if (request.isPruneStale() && nodeKind != null) {
+			if (request.pruneStaleOrDefault() && nodeKind != null) {
 				response.setPruned(dao().deleteStalePending(assetUuid, nodeKind, indices));
 			}
 			response.setTotal(items.size()).setCreated(stored.size()).setFailed(0);

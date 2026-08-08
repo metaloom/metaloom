@@ -94,6 +94,11 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 			AttachmentType type = attachmentType(lrc);
 			UUID assetUuid = optionalUuid(lrc, "assetUuid");
 			UUID embeddingUuid = optionalUuid(lrc, "embeddingUuid");
+			// A face crop belongs to one detected face rather than to the whole asset - an asset has many
+			// faces, so the asset pointer alone cannot address a crop.
+			UUID detectionUuid = optionalUuid(lrc, "detectionUuid");
+			String variant = lrc.routingContext().request().getFormAttribute("variant");
+			String nodeKind = lrc.routingContext().request().getFormAttribute("nodeKind");
 
 			SHA512 sha512sum = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
 			UUID poolUuid = poolFor(lrc, assetUuid);
@@ -106,6 +111,9 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 			attachment.setPoolUuid(poolUuid);
 			attachment.setAssetUuid(assetUuid);
 			attachment.setEmbeddingUuid(embeddingUuid);
+			attachment.setDetectionUuid(detectionUuid);
+			attachment.setVariant(variant == null ? "" : variant);
+			attachment.setNodeKind(nodeKind);
 			log.info("Stored attachment {} ({} bytes, {}) in {}", filename, size, mimeType, storage.describe());
 			return attachment;
 		}, modelBuilder::toResponse);

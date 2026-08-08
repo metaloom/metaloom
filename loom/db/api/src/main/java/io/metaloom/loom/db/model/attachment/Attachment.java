@@ -50,4 +50,32 @@ public interface Attachment extends CUDElement<Attachment> {
 
 	Attachment setPoolUuid(UUID poolUuid);
 
+	/**
+	 * The detection this binary depicts, for a {@link io.metaloom.loom.api.attachment.AttachmentType#FACE_CROP}.
+	 *
+	 * <p>
+	 * Null for every other attachment type. A face crop belongs to one detected face rather than to the whole asset, which is why the asset pointer
+	 * alone could not address it - an asset has many faces.
+	 * </p>
+	 */
+	UUID getDetectionUuid();
+
+	Attachment setDetectionUuid(UUID detectionUuid);
+
+	/**
+	 * Discriminator between attachments of the same type for the same target, e.g. the longest edge of a crop.
+	 *
+	 * <p>
+	 * Part of the idempotency key, so re-running a producer rewrites its own variant instead of appending another one.
+	 * </p>
+	 */
+	String getVariant();
+
+	Attachment setVariant(String variant);
+
+	/** The node kind that produced this binary, or null when a user uploaded it. */
+	String getNodeKind();
+
+	Attachment setNodeKind(String nodeKind);
+
 }

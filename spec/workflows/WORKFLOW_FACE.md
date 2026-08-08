@@ -1,10 +1,9 @@
 # Workflow: Face Clusters — Detect → Embed → Cluster → Confirm a Person
 
-> **Status**: 🟡 **Two of four stages run.** Detection writes `detection` rows and, since 2026-08-06,
-> face **embeddings are computed and persisted** (§1.2). **Clustering and confirmation still do not
-> exist**: the `cluster` / `embedding_cluster` tables, the `faceClusterEPS` / `faceClusterMinimum`
-> node options and `ClustersPanel` / `PersonsPanel` are present but connected to nothing, and
-> `cluster` cannot be written by a worker at all.
+> **Status**: 🟢 **All four stages run.** Detection and embedding persist; since `V2.79` the node
+> **clusters** the vectors per asset and writes `cluster` + `embedding_cluster` rows, and a human
+> **confirms** a cluster into a `person` over REST. `faceClusterEPS` / `faceClusterMinimum` are read
+> by the algorithm that consumes them, and face crops are served from this deployment.
 > **Scope**: the end-to-end identity loop across Cortex, Loom, the database and the UI: from a face
 > in a frame to a human-confirmed `person`.
 > **Audience**: AI coding agents and humans working on
@@ -40,13 +39,13 @@ Status legend: 🟢 built · 🟡 partly built · 🔵 plan/concept · 🔴 defe
 
 | Question | Short answer |
 |---|---|
-| **Does the detect → cluster → confirm loop work?** | **No.** Stages 1-2 of 4 run. |
-| **Where exactly does it break?** | 🔴 **At link 3.** Detection and embedding both persist (§1.2, built 2026-08-06). There is no clustering algorithm and `cluster` cannot be machine-written, so the vectors sit there unused. |
-| **Is there clustering code?** | **None.** `faceClusterEPS` / `faceClusterMinimum` are validated, shown in the UI, and read by no algorithm. The only "DBSCAN" in the repo is that option's label text. |
-| **Can a Cortex worker even create a cluster?** | 🔴 **No.** `cluster.creator_uuid` is `NOT NULL` referencing `user`. `V2.47` relaxed this for `detection`/`embedding`/comp tables and skipped `cluster`. |
-| **Is `cluster` linked to `person`?** | **No FK, no join table, no code path.** They are two unrelated islands. |
-| **What does the UI show today?** | Cluster/person CRUD over empty data, and 🔴 an asset face panel that is **always empty** because of a type-string mismatch (§6.1). |
-| **How much of the fix is new invention?** | Little. The embedder already exists in `video4j`, the review model already exists as `dedup_group`, and the tables already exist. The work is wiring plus one migration. |
+| **Does the detect → cluster → confirm loop work?** | **Yes.** All four stages run. |
+| **Where does the clustering happen?** | Inside `FacedetectNode`, **scoped to one asset** — DBSCAN over cosine distance. It answers *"who is in this video"*, not *"who is this"* (§2.2). |
+| **Is there clustering code?** | `cortex/nodes/facedetect/core/.../facedetect/cluster/` — `Vectors`, `Dbscan`, `FaceClusterer`. Pure Java, no pack or natives needed to test. |
+| **Can a Cortex worker create a cluster?** | Yes, since `V2.79` made the audit columns nullable — the relaxation `V2.47` applied to every other producer table. |
+| **Is `cluster` linked to `person`?** | Yes: `cluster.person_uuid`, `ON DELETE SET NULL`, set by `POST /clusters/:uuid/confirm`. |
+| **What does the UI show?** | A review queue with real member crops served from this deployment, and confirm/reject that persists. |
+| **What is still missing?** | Cross-asset identity. The same person in two videos is still two unrelated clusters (§2.2). |
 
 ---
 
@@ -116,27 +115,34 @@ Persistence, storage and the pluggable index are specified in
 the ANN index is a rebuildable cache behind the `VectorIndex` SPI, keyed by
 `(type, model, dimensions)` so the recognition model can change without invalidating what is stored.
 
-### 1.3 Why there is no clustering
+### 1.3 Clustering — built
 
 | Thing | State |
 |---|---|
-| `faceClusterEPS` (0.6, labelled *"DBSCAN cluster radius threshold"*) | validated, surfaced in the UI, **read by nothing** |
-| `faceClusterMinimum` (2) | same |
-| Any DBSCAN/HDBSCAN implementation | **does not exist**; the only k-means in the tree is `LabKMeans` in the `dominant-color` node, for colour quantisation |
-| `ClusterDao.link(Cluster, Embedding)` / `unlink` | implemented as plain inserts into `embedding_cluster`; **no caller outside `ClusterDaoTest`** |
-| Cluster-row producers | `DemoDatabaseInitializer` and the generic CRUD endpoint. That is all. |
-| ANN index over `embedding.vector` | none — `real[]`, no pgvector (§3.4) |
+| `faceClusterEPS` (0.6, a cosine **distance** radius) | 🟢 read by `FaceClusterer` |
+| `faceClusterMinimum` (2) | 🟢 read by `Dbscan`; **counts the point itself**, so 2 means "needs one neighbour" |
+| DBSCAN implementation | `cluster/Dbscan.java` — dense O(N²) matrix, which is right for the few dozen faces an asset yields |
+| `ClusterDao.link` | now `ON CONFLICT DO UPDATE`; it was a bare insert that threw on a re-run |
+| Cluster-row producers | `FacedetectNode`, plus the CRUD endpoint and the demo initializer |
+| ANN index over `embedding.vector` | still none — per-asset clustering needs none (§3.4) |
 
-`OUT_FACE_COUNT` is documented as *"How many distinct faces survived clustering"* but is emitted as
-`(long) elements.size()` — a raw detection count. The port's own description is aspirational.
+`OUT_FACE_COUNT` now emits the **subject** count, which is what its `@PortDoc` always claimed. A face
+that carries no vector is counted as its own subject rather than dropped, so switching embeddings off
+degrades the number's meaning instead of silently reporting zero.
 
-### 1.4 Why `cluster` and `person` cannot meet
+> ⚠️ **Noise points become singleton clusters.** DBSCAN's own answer is to discard them, which would
+> make a portrait — exactly one face, and therefore noise under `minPts = 2` — report nobody at all.
+> `faceClusterMinimum` governs what gets *merged*, not whether an unmatched face is recorded.
 
-`cluster` (`V2.12`, never altered except the `V2.51` FK fix) and `person` (`V2.26`) have **no foreign
-key, no join table and no code path** between them. Two competing models of "a person" coexist:
-`cluster(type='person')` + `embedding_cluster`, and the standalone `person` / `person_image` island.
-`person_image` has **no writer at all** — it is referenced only by DAO cascade tests. This duplication
-is already recorded in [DB_SCHEMA_FEEDBACK.md](../features/DB_SCHEMA_FEEDBACK.md) §4.3.
+### 1.4 How `cluster` and `person` meet
+
+`V2.79` adds `cluster.person_uuid` → `person(uuid)` **`ON DELETE SET NULL`**, and
+`POST /clusters/:uuid/confirm` is what sets it — creating the person when the reviewer names somebody
+new, or linking an existing one. `SET NULL` rather than `CASCADE` because deleting a person must not
+erase the record that a human looked at these faces and made a call.
+
+`person_image` still has **no writer**; the person's avatar is `primary_image_uuid`, which
+`PersonEndpointService` now actually applies (§6.9).
 
 ---
 
@@ -211,16 +217,14 @@ and record what it was calibrated against.
 
 ---
 
-## 3. Schema — the cluster migration (design; not yet written)
+## 3. Schema — `V2.79__cluster_review_model.sql` (built)
 
-> 🔴 **The version this section used to claim is gone.** It specified `V2.75`; `V2.75` was taken on
-> 2026-08-06 by `V2.75__embedding_index_contract.sql` (the exporter contract, dimensions CHECK,
-> `model` in the identity key, and `normalized` — see §1.2), and the tree is at
-> `V2.77__normalize_pipeline_run_item_state.sql` as of `21e8a8cd`. **Take the next free version at the
-> time you write it and do not hard-code one in this spec again.** This is the explicit gotcha in
-> [SEARCH_PLAN.md](../concept/SEARCH_PLAN.md), demonstrated.
+> ℹ️ **The version drifted twice while this was being written.** The section first claimed `V2.75`,
+> then `V2.78`; both were taken by other work before the migration landed — `V2.78` by
+> `rating_reaction_type` on the very day this shipped. It is `V2.79`. **Take the next free version at
+> the time you write it, sort numerically (`V2.9` < `V2.77`), and do not hard-code one here again.**
 
-### 3.1 `cluster` — today it cannot be machine-written
+### 3.1 `cluster` — machine-writable since `V2.79`
 
 Current DDL (`V2.12`) is a generic, human-authored entity:
 
@@ -237,7 +241,7 @@ CREATE TABLE "cluster" (
 CREATE UNIQUE INDEX ON "cluster" ("name");   -- globally unique across ALL types
 ```
 
-Required changes:
+What `V2.79` changed:
 
 | # | Change | Why |
 |---|---|---|
@@ -258,20 +262,33 @@ but keeping the shape identical avoids the question:
 CREATE TYPE "cluster_status" AS ENUM ('PENDING', 'CONFIRMED', 'REJECTED');
 ```
 
-### 3.2 `embedding_cluster` — a join with no facts
+### 3.2 `embedding_cluster` — now carries facts
 
-Today it is `(embedding_uuid, cluster_uuid)` and nothing else. Add `confidence real`, `origin`
-(`CHECK (origin IN ('AUTO','MANUAL'))`) and `created`, so an auto-assignment is distinguishable from a
-human correction and a member can be re-assigned with an audit trail. Both FKs already cascade
-(`V2.12` + `V2.51`).
+It gained `confidence real`, `origin` (`CHECK (origin IN ('AUTO','MANUAL'))`) and `created`, so an
+auto-assignment is distinguishable from a human correction. It also gained an index on
+`cluster_uuid`: the primary key is `(embedding_uuid, cluster_uuid)`, so "the members of this cluster"
+— the one query the review UI makes per card — had no usable index at all.
 
-### 3.3 `person` — leave alone
+`V2.79` additionally gave **`tag_cluster.cluster_uuid`** `ON DELETE CASCADE`. `V2.51` fixed exactly
+this on `embedding_cluster` and left `tag_cluster` alone, so a *tagged* cluster could never be deleted.
+Harmless while nothing deleted clusters; the clusterer retires its own stale proposals, so it stopped
+being harmless.
+
+### 3.3 Face crops reuse `attachment`
+
+`V2.79` adds the `FACE_CROP` attachment type, `attachment.detection_uuid` and a partial unique index
+on `(detection_uuid, type, node_kind, variant)`. No new table: `attachment` is already the sink for
+node-produced derived binaries (`V2.44`), with content-addressed bytes and machine-nullable audit
+columns (`V2.47`). The existing `attachment_asset_variant_key` could not serve — an asset has many
+faces, so crops key by detection.
+
+### 3.4 `person` — left alone
 
 `creator_uuid` / `editor_uuid` stay `NOT NULL`: a person is only ever created by a human confirming a
 cluster. No schema change needed. (Its `primaryImageUuid` write path is broken for an unrelated
 reason — §6.9.)
 
-### 3.4 What deliberately does **not** change
+### 3.5 What deliberately did **not** change
 
 `embedding.vector` stays `real[]` with **no ANN index**. pgvector is an open decision owned by
 [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md), and
@@ -280,24 +297,25 @@ reason — §6.9.)
 **`pgvector` is not in that image**, so an unguarded `CREATE EXTENSION vector` breaks jOOQ codegen for
 everyone. Per-asset clustering (§2.2) needs no index at all, which is part of why it is phase 1.
 
-### 3.5 Obligations a migration triggers
+### 3.6 Obligations a migration triggers
 
 Per [CODING.md](../guidelines/CODING.md):
 
 ```bash
 mvn install -pl loom/db/flyway     # or the pool skips the new migration silently
-loom/db/jooq/generate.sh           # DESTRUCTIVE: rm -rf's src/jooq/java first
+loom/db/jooq/generate.sh           # generates into target/ and only swaps on success
 ./setup-pool.sh                    # re-provision the pooled test databases
 ```
 
-`meta` / `centroid` columns need a `forcedTypes` converter entry in the jOOQ pom.
+**No `forcedTypes` entry was needed.** `real[]` generates as `Float[]` natively (as `embedding.vector`
+already did), `cluster.meta` is matched by the existing `.*\.meta.*` expression, and a Postgres enum
+generates its own `JooqClusterStatus`. jOOQ's generic POJO mapping bridges the POJO's `String status`
+to that enum in both directions — verified by `ClusterDaoTest#testStatusRoundTrip`, which exists
+precisely so nobody has to take that on trust again.
 
 ---
 
-## 4. REST — the confirmation endpoint
-
-Current surface is plain CRUD at `/api/v1/clusters` and `/api/v1/persons`: **no member list, no
-person link, no confirm.** Proposed additions:
+## 4. REST — the confirmation endpoint (built)
 
 | Method | Path | Purpose | Permission |
 |---|---|---|---|
@@ -307,24 +325,44 @@ person link, no confirm.** Proposed additions:
 | POST | `/api/v1/clusters/:uuid/reject` | sets `REJECTED` | `UPDATE_CLUSTER` |
 | GET | `/api/v1/persons/:uuid/clusters` | inverse lookup | `READ_PERSON` |
 | POST | `/api/v1/assets/:uuid/embeddings/bulk` | the node's embedding write path | `CREATE_EMBEDDING` |
+| POST | `/api/v1/assets/:uuid/clusters/bulk` | the node's cluster write path; idempotent on `(asset, nodeKind, clusterIndex)` | `CREATE_CLUSTER` |
+| GET | `/api/v1/assets/:uuid/clusters` | the subjects found in one asset | `READ_CLUSTER` |
+| GET | `/api/v1/assets/:uuid/detections/:detectionUuid/crop` | the cropped face, from this deployment's own storage | `READ_DETECTION` |
 
 All permissions already exist in the `loom_permission` enum — **no new permission value is needed**,
 which avoids the Flyway single-transaction trap (`SEARCH_PLAN.md` gotcha 7).
 
-`ClusterResponse` gains `status`, `personUuid`, `assetUuid`, `memberCount` and `score`;
-`PersonResponse` gains `clusterUuids`.
+`ClusterResponse` gained **`reviewStatus`**, `personUuid`, `assetUuid`, `clusterIndex`, `score`,
+`memberCount` and `nodeKind`.
 
-### 4.1 Two blockers on the write path
+> ⚠️ **It is `reviewStatus`, not `status`.** `AbstractCreatorEditorRestResponse` already publishes a
+> `status` object carrying the creator/editor audit block, so the review verdict had to give way.
+> `DedupGroupResponse` gets away with a plain `status` only because it has no audit envelope.
 
-1. 🔴 **`EmbeddingCreateRequest` has no `detectionUuid`.** Its fields are `source`, `area`, `type`,
-   `vector`, `assetUuid`. `V2.43` added the `embedding.detection_uuid` FK, but **no REST caller can
-   ever set it** — an embedding created over REST is permanently unlinkable from the face it came
-   from. This must be added before the loop can work.
-2. **`EmbeddingType` has no InspireFace value** — the enum is
-   `{DLIB_FACE_RESNET_v1, VIDEO4J_FINGERPRINT_V1, VIDEO4J_FINGERPRINT_V2}`. Add a pack-versioned
-   value. Per [FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md)
-   §6.3, **switching the pack invalidates every stored embedding and every cluster**, so the stored
-   `(type, model, dimensions, producer_version)` tuple is what makes that detectable.
+The inverse lookup is `GET /persons/:uuid/clusters` rather than a `clusterUuids` field on
+`PersonResponse`: a person can appear in arbitrarily many assets, and that does not belong inline on
+every person in a list page.
+
+### 4.1 Permissions that depend on the request
+
+Confirming needs `UPDATE_CLUSTER`, **plus `CREATE_PERSON` only when it actually creates a person**.
+That is what lets a reviewer be trusted to attribute faces to people who already exist without being
+able to add new ones to the directory. `AbstractEndpointService.checkPerms(lrc, action, Permission...)`
+exists for exactly this, and `ClusterEndpointTest#testConfirmRequiresCreatePersonOnlyWhenCreating`
+pins both halves — 200 with a `personUuid`, 403 with an alias.
+
+### 4.2 Model identity — no enum
+
+Both blockers this section used to list are resolved, and the second one was resolved the other way
+round from how it was written. `EmbeddingCreateRequest.detectionUuid` exists and the node sets it.
+
+**`EmbeddingType` was not given an InspireFace value, and must not be.** The enum was deliberately
+retired from the embedding path on 2026-08-06; `embedding.type` is free text (`"face"`) so that a new
+model needs no code change. Pack identity rides on **`model`** instead: `FacedetectNodeOptions`
+derives `inspireface-pikachu-r18` from the pack path, and `model` is part of both the row's unique key
+and the `(type, model, dimensions)` vector-index key — so Pikachu and Megatron vectors can never be
+compared to each other by accident. The binding exposes no pack version at runtime, so the pack path
+is the only evidence there is.
 
 ### 4.2 A convention to settle
 
@@ -355,21 +393,21 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
 
 ## 6. Defects found while writing this spec
 
-Recorded, **not fixed** in this pass. Each was read in this checkout.
+**All eleven are fixed**; 6.12 remains open. Each row records what the defect was and what closed it.
 
 | # | Sev | Defect | Location |
 |---|---|---|---|
-| 6.1 | 🔴 | **The asset face panel is always empty.** The UI filters `d.type === "facedetection"`; the node writes `.setType("face")` (pinned by `FacedetectNodeDetectionsTest`). The filter can never match. **Cheapest real bug in this file.** | `loom-ui/src/features/assetDetail/AssetDetail.tsx:229` |
-| 6.2 | 🔴 | **Cluster→person assignment is a no-op.** `// TODO: implement cluster-to-person assignment via REST API when backend supports it` — mutates local state only, lost on reload. This is the *"has no confirmation endpoint"* of the original task note. | `FaceDetectionManagement.tsx:113-120` |
-| 6.3 | 🔴 | **`faceIds: []` / `clusterIds: []` hardcoded.** Every cluster card shows "0 faces", person cluster chips never render, and `FaceDetectionPanel`'s grouping is always empty so every face reads as unclustered. Unfixable client-side: no REST shape returns membership. | `FaceDetectionManagement.tsx:44-50`, `AssetDetail.tsx:240-246` |
-| 6.4 | ⚠️ | **bbox written in absolute pixels** into a column `V2.43` documents as *"normalized 0-1"*. The node works around it by stamping `"coordinates": "ABSOLUTE_PIXELS"` on the emitted port elements; nothing converts or validates on the DB side. | `FacedetectNode.persist` vs `V2.43` |
-| 6.5 | ⚠️ | **Face confidence is overwritten with a literal `1.0f`** before persisting, discarding the detector's actual score. Every face row reads `confidence = 1.0`. | `FacedetectNode` |
-| 6.6 | ⚠️ | **`resultRef("detection")` is called with zero uuids**, and `resultRef` returns `null` when `uuids.length == 0`. The ledger's `result_ref` is therefore always empty for facedetect; the bulk-create response uuids are discarded. | `AbstractMediaNode.java:169-179` |
-| 6.7 | ⚠️ | **`facedescription` has a descriptor but no `@IntoMap` binding** — advertised in the pipeline editor, not instantiable. Pinned deliberately: `assertThat(kinds).doesNotContain("facedescription")`. | `FacedetectNodeModule`, `NodeRegistrarTest:100` |
-| 6.8 | ⚠️ | **`maxFaceAngle` gates the video path only.** The check sits in `detectFaces(VideoFrame)` with no counterpart in `detectFaces(BufferedImage)` — the same frame yields faces as an image and none as a video. | `InspireFacedetectorImpl` (video4j) |
-| 6.9 | ⚠️ | **`PersonEndpointService.update` silently drops `primaryImageUuid`.** The DTO carries it, the validator passes it, `update()` never applies it — person avatars can never be set. | `PersonEndpointService.java:65-79`; already [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) Task 3 |
-| 6.10 | ⚠️ | **Dead node options.** `videoChopRate` and `videoScaleSize` are validated but unused — `VideoFaceScanner` uses its own `WINDOW_STEPS = 15` and `DETECTION_SCALE_SIZE = 640`. Same class of defect as the cluster options. | `FacedetectNodeOptions` |
-| 6.11 | ⚠️ | **Face crops are fetched from `https://i.pravatar.cc`**, a third-party avatar service, for data that is by definition PII-adjacent. There is no face-crop endpoint. | `ClustersPanel.tsx:103` |
+| 6.1 | ✅ | **The asset face panel is always empty.** The UI filters `d.type === "facedetection"`; the node writes `.setType("face")` (pinned by `FacedetectNodeDetectionsTest`). The filter can never match. **Cheapest real bug in this file.** | `loom-ui/src/features/assetDetail/AssetDetail.tsx:229` |
+| 6.2 | ✅ | **Cluster→person assignment is a no-op.** `// TODO: implement cluster-to-person assignment via REST API when backend supports it` — mutates local state only, lost on reload. This is the *"has no confirmation endpoint"* of the original task note. | `FaceDetectionManagement.tsx:113-120` |
+| 6.3 | ✅ | **`faceIds: []` / `clusterIds: []` hardcoded.** Every cluster card shows "0 faces", person cluster chips never render, and `FaceDetectionPanel`'s grouping is always empty so every face reads as unclustered. Unfixable client-side: no REST shape returns membership. | `FaceDetectionManagement.tsx:44-50`, `AssetDetail.tsx:240-246` |
+| 6.4 | ✅ | **bbox written in absolute pixels** into a column `V2.43` documents as *"normalized 0-1"*. The node works around it by stamping `"coordinates": "ABSOLUTE_PIXELS"` on the emitted port elements; nothing converts or validates on the DB side. | `FacedetectNode.persist` vs `V2.43` |
+| 6.5 | ✅ | **Face confidence is overwritten with a literal `1.0f`** before persisting, discarding the detector's actual score. Every face row reads `confidence = 1.0`. | `FacedetectNode` |
+| 6.6 | ✅ | **`resultRef("detection")` is called with zero uuids**, and `resultRef` returns `null` when `uuids.length == 0`. The ledger's `result_ref` is therefore always empty for facedetect; the bulk-create response uuids are discarded. | `AbstractMediaNode.java:169-179` |
+| 6.7 | ✅ | **`facedescription` has a descriptor but no `@IntoMap` binding** — advertised in the pipeline editor, not instantiable. Pinned deliberately: `assertThat(kinds).doesNotContain("facedescription")`. | `FacedetectNodeModule`, `NodeRegistrarTest:100` |
+| 6.8 | ✅ | **`maxFaceAngle` gates the video path only.** The check sits in `detectFaces(VideoFrame)` with no counterpart in `detectFaces(BufferedImage)` — the same frame yields faces as an image and none as a video. | `InspireFacedetectorImpl` (video4j) |
+| 6.9 | ✅ | **`PersonEndpointService.update` silently drops `primaryImageUuid`.** The DTO carries it, the validator passes it, `update()` never applies it — person avatars can never be set. | `PersonEndpointService.java:65-79`; already [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) Task 3 |
+| 6.10 | ✅ | **Dead node options.** `videoChopRate` and `videoScaleSize` are validated but unused — `VideoFaceScanner` uses its own `WINDOW_STEPS = 15` and `DETECTION_SCALE_SIZE = 640`. Same class of defect as the cluster options. | `FacedetectNodeOptions` |
+| 6.11 | ✅ | **Face crops are fetched from `https://i.pravatar.cc`**, a third-party avatar service, for data that is by definition PII-adjacent. There is no face-crop endpoint. | `ClustersPanel.tsx:103` |
 | 6.12 | ⚪ | `person_image` has **no writer** — only cascade tests touch it. `AssetCascadeTest` pins it so *"the table cannot grow a writer and an orphan problem at the same time."* | `V2.26` |
 
 > ℹ️ **Stale claim corrected elsewhere.** `FACEDETECTION_OVERVIEW.md` §6.3 lists *"Add a
@@ -393,30 +431,40 @@ Recorded, **not fixed** in this pass. Each was read in this checkout.
 - [x] Enumerate the 12 defects in §6 against this checkout
 - [x] Correct the false `Face.cosineSimilarity` claim (§2.3) before it propagated
 
-**Implementation — none started**
-- [ ] Cluster migration (next free version): cluster provenance, nullable audit columns, `status`, `person_uuid`, upsert key (§3.1)
-- [ ] `embedding_cluster` gains `confidence` / `origin` / `created` (§3.2)
-- [ ] jOOQ regen + `./setup-pool.sh` after the migration (§3.5)
-- [ ] `EmbeddingCreateRequest.detectionUuid` — 🔴 blocks the whole loop (§4.1)
-- [ ] `EmbeddingType` value for the InspireFace pack (§4.1)
-- [ ] `POST /assets/:uuid/embeddings/bulk`
-- [ ] `FacedetectNode` extracts and persists embeddings (§5)
-- [ ] Cosine-distance DBSCAN consuming `faceClusterEPS` / `faceClusterMinimum` (§2.3, §5)
-- [ ] `GET /clusters/:uuid/members`
-- [ ] `POST /clusters/:uuid/confirm` + `/reject` (§4)
-- [ ] `GET /persons/:uuid/clusters`
-- [ ] `ClusterEndpointTest` / `PersonEndpointTest` extended incl. 403 cases; `ClusterDaoTest` cascade coverage (§8)
-- [ ] UI: review queue, real member thumbnails, working confirm — coordinate with [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md)
-- [ ] Face-crop endpoint, retiring the `i.pravatar.cc` placeholder (§6.11)
+**Implementation**
+- [x] Cluster migration `V2.79`: provenance, nullable audit columns, `status`, `person_uuid`, upsert key (§3.1)
+- [x] `embedding_cluster` gains `confidence` / `origin` / `created`, plus the missing member index (§3.2)
+- [x] jOOQ regen + `./setup-pool.sh` after the migration (§3.6)
+- [x] ~~`EmbeddingCreateRequest.detectionUuid`~~ — already existed
+- [x] ~~`EmbeddingType` value for the InspireFace pack~~ — **resolved the other way**: no enum, pack rides on `model` (§4.2)
+- [x] `POST /assets/:uuid/embeddings/bulk`
+- [x] `FacedetectNode` extracts and persists embeddings (§5)
+- [x] Cosine-distance DBSCAN consuming `faceClusterEPS` / `faceClusterMinimum` (§2.3, §5)
+- [x] `GET /clusters/:uuid/members`
+- [x] `POST /clusters/:uuid/confirm` + `/reject` (§4)
+- [x] `GET /persons/:uuid/clusters`
+- [x] `ClusterEndpointTest` / `PersonEndpointTest` extended incl. the `CREATE_PERSON` 403/200 pair; `ClusterDaoTest` cascade coverage (§8)
+- [x] UI: review queue, real member crops, persistent confirm
+- [x] Face-crop endpoint + node-written crops, retiring the `i.pravatar.cc` placeholder (§6.11)
+- [x] Demo data: face detections seeded as `type='face'` so the demo matches the pipeline
 - [ ] Customer-facing docs under `website/content/english/docs/` (required by CODING.md)
-- [ ] Demo data: at least one PENDING face cluster in `DemoDatabaseInitializer`
+- [ ] A PENDING face **cluster** in `DemoDatabaseInitializer` — the detections are seeded, the cluster is not
 
-**Defects, none fixed**
-- [ ] 6.1 🔴 `"facedetection"` vs `"face"` — the one-line fix that makes the panel work
-- [ ] 6.2 🔴 assignment no-op · [ ] 6.3 🔴 hardcoded empty membership
-- [ ] 6.4 bbox units · [ ] 6.5 confidence 1.0 · [ ] 6.6 empty `result_ref`
-- [ ] 6.7 `facedescription` unbound · [ ] 6.8 `maxFaceAngle` asymmetry
-- [ ] 6.9 `primaryImageUuid` dropped · [ ] 6.10 dead options · [ ] 6.11 third-party crops
+**Not built — the honest gap**
+- [ ] **Cross-asset identity.** Clustering is per asset, so the same person in two videos is two
+      unrelated clusters. This is the phase-2 pass over the vector index (§2.2), and the schema is
+      shaped for it: `cluster.asset_uuid` is nullable precisely so a library-wide cluster fits the
+      same table.
+- [ ] **`faceClusterEPS` is still calibrated against nothing.** `0.6` is a guess (§2.3).
+
+**Defects — eleven of twelve fixed**
+- [x] 6.1 `"facedetection"` vs `"face"` — fixed in the UI **and** the demo seed, which had the same wrong string
+- [x] 6.2 assignment no-op · [x] 6.3 hardcoded empty membership
+- [x] 6.4 bbox units · [x] 6.5 confidence 1.0 · [x] 6.6 empty `result_ref`
+- [x] 6.7 `facedescription` unbound — it was **unconstructable**, not merely unbound (§6)
+- [x] 6.8 `maxFaceAngle` asymmetry · [x] 6.9 `primaryImageUuid` dropped
+- [x] 6.10 dead options — wired, with their defaults corrected to what the code actually did
+- [x] 6.11 third-party crops · [ ] 6.12 `person_image` still has no writer
 
 **Open questions**
 - [ ] Is per-asset identity useful on its own, or is phase 2 (library-wide) required before shipping? §2.2 is honest that phase 1 answers *"who is in this video"*, not *"who is this"*.
@@ -460,14 +508,14 @@ Node options live under `FacedetectNodeOptions`, `KEY = "facedetection"` (**not*
 
 | Option | Default | Used today? | After this work |
 |---|---|---|---|
-| `faceClusterEPS` | `0.6` | 🔴 **no** | DBSCAN cosine radius — becomes live |
-| `faceClusterMinimum` | `2` | 🔴 **no** | DBSCAN min points — becomes live |
+| `faceClusterEPS` | `0.6` | ✅ | DBSCAN cosine **distance** radius. Uncalibrated — Pikachu's manifest quotes *similarity* 0.48, i.e. distance 0.52 |
+| `faceClusterMinimum` | `2` | ✅ | DBSCAN min points, **counting the point itself** |
 | `inspirefacePackPath` | `packs/Pikachu` | ✅ | unchanged; a change invalidates every embedding and cluster |
 | `capabilities` | `{INSPIREFACE}` | ✅ | unchanged (🔴 non-commercial default — see the overview) |
 | `minFaceHeightFactor` | `0.05` | ✅ | unchanged |
-| `maxFaceAngle` | `30` | 🟡 video path only (§6.8) | should gate both paths |
-| `videoChopRate` | `5` | 🔴 dead (§6.10) | remove or wire |
-| `videoScaleSize` | `384` | 🔴 dead (§6.10) | remove or wire |
+| `maxFaceAngle` | `30` | ✅ | now gates both paths (video4j change) |
+| `videoChopRate` | `15` | ✅ | frames sampled per scan window. **Default changed from 5**, which never matched the hard-coded 15 |
+| `videoScaleSize` | `0` | ✅ | longest edge before detection; **0 = native resolution**, which is what the scanner always did |
 
 **No environment variables are specific to this feature.** The node is configured entirely through
 pipeline node options. Server-side env vars are in [CONFIGURATION.md](../loom/CONFIGURATION.md).
@@ -501,18 +549,18 @@ pipeline node options. Server-side env vars are in [CONFIGURATION.md](../loom/CO
 
 | # | Gotcha |
 |---|---|
-| 1 | 🔴 **The loop breaks at link 1, not at confirmation.** Adding a confirm endpoint alone changes nothing — there would be no clusters to confirm. Fix the embedding write first. |
-| 2 | 🔴 **`cluster.creator_uuid` is `NOT NULL`.** A Cortex worker cannot insert a cluster today. `V2.47` fixed exactly this for the other producer tables and skipped this one — the same trap for any new machine-written table. |
-| 3 | 🔴 **An option that is validated is not an option that is used.** `faceClusterEPS`, `faceClusterMinimum`, `videoChopRate`, `videoScaleSize` all validate, all appear in the editor, none are read. Grep for the *getter*, not the field. |
+| 1 | ⚠️ **Three names, one feature.** `facedetect` (node kind) ≠ `facedetection` (options `KEY`) ≠ `"face"` (`detection.type` and `cluster.type`). Defect 6.1 was the UI comparing against the middle one; the demo seeded the same wrong string, so the two agreed with each other and neither agreed with the pipeline. |
+| 2 | ⚠️ **A node re-run must never overwrite a review verdict.** The cluster upsert deliberately preserves `status` and `person_uuid`; without that, re-running face detection resets every confirmed cluster to PENDING. Pinned by `ClusterDaoTest#testUpsertDoesNotClobberConfirmedStatus`. |
+| 3 | ⚠️ **An option that is validated is not an option that is used** — grep for the *getter*, not the field. All four are now read, but wiring a dead option is not free: `videoChopRate` defaulted to 5 while the scanner hard-coded 15, so connecting it naively would have tripled frame decoding for every existing pipeline. Its default moved to 15, and `videoScaleSize` to 0, to preserve the behaviour that was actually shipping. |
 | 4 | **`facedetect` (kind) ≠ `facedetection` (options `KEY`) ≠ `"face"` (`detection.type`).** Three different strings for one feature, and §6.1 is the bug that produces. Check which one a comparison means. |
 | 5 | ⚠️ **Switching the InspireFace pack invalidates every embedding and every cluster.** Pikachu and Megatron have different embedders and different similarity thresholds (0.48 vs 0.32). Never mix; version stored embeddings by (model, pack, dim). |
-| 6 | ⚠️ **`cluster.name` is globally unique across all types** until the cluster migration lands. Two people with the same name cannot coexist. |
+| 6 | ⚠️ **`cluster.name` is nullable and unique per `(type, name)`** since `V2.79`. A machine proposal has no name until a reviewer supplies one, so the UI must render an unnamed cluster rather than a blank card. |
 | 7 | ⚠️ **`embedding.vector` has no ANN index and pgvector is not in the codegen image.** An unguarded `CREATE EXTENSION vector` breaks `generate.sh` for everyone. |
-| 8 | ⚠️ **`generate.sh` is destructive** — it `rm -rf`s `src/jooq/java` before regenerating; a failed codegen leaves the build broken. |
+| 8 | ℹ️ **`generate.sh` is no longer destructive** — it generates into `target/jooq-codegen` and only swaps on success, so a failed codegen leaves the tree untouched. Several docs still claim otherwise. |
 | 9 | ⚠️ **Install `loom/db/flyway` before `./setup-pool.sh`**, or the pool reports success while silently skipping the new migration. |
 | 10 | ⚠️ **Grant test permissions via group + role**, never a direct user grant — `user_permission` allows only one direct permission per user. |
 | 11 | ⚠️ **Don't confuse this file with [CLUSTERING.md](../concept/CLUSTERING.md)**, which is about multi-instance deployment. |
-| 12 | ⚠️ **Face data is PII.** Embeddings are biometric identifiers; §6.11's third-party crop fetch is a privacy defect, not only a cosmetic one. Compare the deliberate PII section in [METADATA_OVERVIEW.md](../features/nodes/metadata/METADATA_OVERVIEW.md). |
+| 12 | ⚠️ **Face data is PII.** Embeddings and crops are biometric identifiers. Crops are now written by the node and served from `GET /assets/:uuid/detections/:uuid/crop`; **never reintroduce a third-party image host** as a placeholder. Compare the deliberate PII section in [METADATA_OVERVIEW.md](../features/nodes/metadata/METADATA_OVERVIEW.md). |
 | 13 | ⚠️ **The default face stack is non-commercially licensed.** Not a code defect, but a shipping blocker — see the overview. |
 
 ---
@@ -544,8 +592,11 @@ Written 2026-08-06 to close the "Rework the face workflow" item in
 enumerated by reading each cited file rather than by inference. The `Face.cosineSimilarity` claim in
 an earlier draft was checked and **removed as false** (§2.3) — it exists only in javadoc prose.
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (moved into `spec/workflows/`: every relative link repointed; §0 and the §1
-diagram corrected — embeddings are built, so the chain breaks at link 3 not link 1; the hard-coded
-`V2.75` claim removed because `V2.75` was taken by `embedding_index_contract` and the tree is at
-`V2.77`)_
+_Git HEAD revision: `aefeca40`_
+_Last updated: 2026-08-08 — **the loop was closed.** `V2.79` made `cluster` machine-writable and
+linked it to `person`; `FacedetectNode` now clusters per asset with DBSCAN over cosine distance;
+`/clusters/:uuid/confirm` and `/reject` exist; the UI shows real member crops served from this
+deployment. Eleven of the twelve §6 defects are fixed. Three claims in the previous revision were
+wrong and are corrected here: `generate.sh` is not destructive, `centroid`/`meta` need no
+`forcedTypes`, and `EmbeddingType` must **not** gain an InspireFace value. What is still missing is
+cross-asset identity (§2.2) and a calibrated `faceClusterEPS`._

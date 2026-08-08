@@ -993,7 +993,9 @@ export default function WorkflowView() {
       const faces: DetectedFace[] = [];
       const objects: DetectedObject[] = [];
       for (const d of (resp.data ?? [])) {
-        if (d.type === "facedetection") {
+        // "face" is the detection type FacedetectNode writes. Not to be confused with the workflow
+        // mode of the same-ish name below, nor with the node's options key "facedetection".
+        if (d.type === "face") {
           faces.push({
             id: d.uuid,
             assetId: d.assetUuid,

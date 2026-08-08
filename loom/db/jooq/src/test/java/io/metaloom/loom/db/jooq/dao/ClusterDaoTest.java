@@ -276,6 +276,52 @@ public class ClusterDaoTest extends AbstractJooqTest implements CRUDDaoTestcases
 	}
 
 	/**
+	 * The exact shape the demo seed and the facedetect node both write: a machine cluster whose members are embeddings linked back to detections.
+	 *
+	 * <p>
+	 * Worth pinning because the demo seed is only executed when a demo container boots - nothing in the test suite runs it - so a mistake there would
+	 * surface as a container that fails to start rather than as a red test.
+	 * </p>
+	 */
+	@Test
+	public void testPendingClusterWithDetectionBackedMembers() {
+		User user = dummyUser();
+		UUID assetUuid = asset().getUuid();
+
+		Cluster cluster = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", assetUuid, 0);
+		cluster.setModel("inspireface-pikachu-r18");
+		cluster.setProducerVersion("inspireface-pikachu-r18");
+		cluster.setScore(0.93f);
+		getDao().upsertCluster(cluster);
+
+		for (int i = 0; i < 2; i++) {
+			Detection detection = detectionDao().createDetection(user, "face");
+			detection.setAssetUuid(assetUuid);
+			detection.setNodeKind("facedetect");
+			detection.setFrameNumber(0);
+			detection.setDetectionIndex(i);
+			detectionDao().upsertDetection(detection);
+
+			Embedding embedding = embeddingDao().createEmbedding(user, asset(), VECTOR_DATA, "face");
+			embedding.setNodeKind("facedetect");
+			embedding.setModel("inspireface-pikachu-r18");
+			embedding.setDetectionUuid(detection.getUuid());
+			embedding.setSubjectIndex(i);
+			embeddingDao().store(embedding);
+
+			getDao().link(cluster.getUuid(), embedding.getUuid(), 0.95f, ClusterMember.ORIGIN_AUTO);
+		}
+
+		Cluster reloaded = getDao().load(cluster.getUuid());
+		assertEquals(Cluster.STATUS_PENDING, reloaded.getStatus(), "a proposal starts pending");
+		assertNull(reloaded.getName(), "a machine proposal has no name until a human supplies one");
+		assertNull(reloaded.getCreatorUuid(), "a Cortex worker is not a user");
+		assertEquals(2, getDao().countMembers(cluster.getUuid()));
+		assertEquals(2, getDao().listMembers(cluster.getUuid()).stream().filter(m -> m.getDetectionUuid() != null).count(),
+			"every member must resolve back to the detection it depicts, which is what addresses its crop");
+	}
+
+	/**
 	 * Deleting a cluster cascades its {@code embedding_cluster} membership rows (V2.51); the embeddings themselves survive.
 	 */
 	@Test

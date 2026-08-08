@@ -1528,6 +1528,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> loadDetectionCrop(AssetId assetId, UUID detectionUuid) {
+		return getDownloadRequest(assetPath(assetId) + "/detections/" + detectionUuid + "/crop");
+	}
+
+	@Override
 	public LoomClientHttpRequest<LoomBinaryResponse> downloadAttachment(UUID uuid) {
 		// Was "/attachments/<uuid>", which is the JSON route: the caller got a serialized
 		// AttachmentResponse typed as a binary stream. The bytes live behind /data.
@@ -1539,6 +1544,17 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return multipartRequest("attachments", AttachmentResponse.class, file, mimeType,
 			"assetUuid", assetUuid == null ? null : assetUuid.toString(),
 			"type", type);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AttachmentResponse> uploadFaceCrop(java.io.File file, UUID assetUuid, UUID detectionUuid, String variant,
+		String nodeKind) {
+		return multipartRequest("attachments", AttachmentResponse.class, file, "image/jpeg",
+			"assetUuid", assetUuid == null ? null : assetUuid.toString(),
+			"type", "FACE_CROP",
+			"detectionUuid", detectionUuid == null ? null : detectionUuid.toString(),
+			"variant", variant,
+			"nodeKind", nodeKind);
 	}
 
 	@Override

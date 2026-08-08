@@ -293,12 +293,44 @@ one at a time, mark everything as read, or clear the inbox entirely.
 You are never notified about your own actions: assigning a task to yourself, or commenting on your own
 task, tells nobody. Notifications are private — you only ever see your own.
 
+[#face-review]
 === Face Detection
 
-The Detection view aggregates face, object and LLM detections. The *Faces* tab manages face clusters and
-lets you assign them to persons in the person database.
+The Detection view aggregates face, object and LLM detections. The *Faces* tab is where you turn what
+the face-detection node found into people you have named.
 
 image::face-detection.png[Face detection and cluster management,role=img-fluid]
+
+==== Reviewing a group of faces
+
+When link:../nodes/facedetect/[Face Detection] runs over an asset it sorts the faces it found into
+groups — one per person it believes is present — and leaves each group *pending*. Nothing is
+attributed to anybody until you say so.
+
+Each card shows how many faces are in the group and the actual cropped faces themselves, so you can
+tell at a glance whether the grouping is right before deciding anything. From there you either
+confirm the group onto a person — somebody already in your list, or a new one created on the spot —
+or reject it if it is not a person worth keeping.
+
+Confirming is a real, saved decision, not a view setting: it survives reloading the page, and it
+survives the asset being processed again. Re-running face detection updates the boxes and vectors and
+leaves your verdicts untouched, so a group you confirmed last month is still confirmed afterwards.
+
+==== What the grouping does and does not mean
+
+Faces are grouped **within a single asset**. Confirming a group means "this person appears in *this*
+video", not "the software now recognises this person everywhere". The same person in a second video
+comes back as a separate group with no memory of the first, and you confirm it again. Recognising
+somebody across the whole library is a larger job and is not part of this yet.
+
+A person's page lists every group confirmed to them, which is how you see where somebody appears
+across your material.
+
+==== Face images stay in your deployment
+
+The cropped faces on these cards were cut by the detection node and stored by your own installation.
+Face images and the vectors derived from them are biometric data; they are never fetched from, or
+sent to, any outside service.
 
 [#rating-and-tagging]
 === Rating and Tagging at Keyboard Speed

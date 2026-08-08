@@ -163,7 +163,9 @@ class FacedetectNodeEmbeddingTest {
 		EmbeddingCreateRequest item = items.get(0);
 		assertEquals("face", item.getType());
 		assertEquals("facedetect", item.getNodeKind());
-		assertEquals(FacedetectNodeOptions.DEFAULT_EMBEDDING_MODEL, item.getModel());
+		// The pack-qualified form, not the bare DEFAULT_EMBEDDING_MODEL: the pack is what actually decides
+		// which embedder ran, and it is folded into the model identifier so two packs' vectors never mix.
+		assertEquals(new FacedetectNodeOptions().resolvedEmbeddingModel(), item.getModel());
 		assertEquals(3, item.getDimensions().intValue());
 		assertEquals(0, item.getSubjectIndex().intValue());
 		assertThat(item.getVector()).containsExactly(0.1f, 0.2f, 0.3f);
@@ -213,9 +215,13 @@ class FacedetectNodeEmbeddingTest {
 
 		// The model is part of the embedding's identity in Loom. Recording the configured value rather
 		// than a constant is what keeps a model upgrade additive instead of destructive.
+		//
+		// It is additionally qualified by the model pack, because the InspireFace binding exposes no pack
+		// version at runtime and two packs' vectors are not comparable - so the pack path is the only
+		// evidence of which embedder produced a vector.
 		EmbeddingCreateRequest item = captor.getValue().getEmbeddings().get(0);
 		assertNotNull(item.getModel());
-		assertEquals("some-newer-model", item.getModel());
+		assertEquals("some-pikachu-newer-model", item.getModel());
 	}
 
 	@Test

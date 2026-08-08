@@ -17,7 +17,15 @@ public class ClusterBulkCreateRequest implements RestRequestModel {
 
 	private List<ClusterCreateItem> clusters = new ArrayList<>();
 
-	private boolean pruneStale = true;
+	/**
+	 * Nullable rather than a primitive {@code boolean} so that "absent" is distinguishable from "false", and absent means the default (prune).
+	 *
+	 * <p>
+	 * The generated Python client is transcribed by a line scanner that cannot see Java field initialisers, so a primitive with a {@code true}
+	 * initialiser would come out as {@code False} on the other side and silently turn pruning off for every Python caller.
+	 * </p>
+	 */
+	private Boolean pruneStale;
 
 	public List<ClusterCreateItem> getClusters() {
 		return clusters;
@@ -41,13 +49,18 @@ public class ClusterBulkCreateRequest implements RestRequestModel {
 	 * rejected are never retired, whatever this is set to - the producer owns its proposals, not the verdicts on them.
 	 * </p>
 	 */
-	public boolean isPruneStale() {
+	public Boolean getPruneStale() {
 		return pruneStale;
 	}
 
-	public ClusterBulkCreateRequest setPruneStale(boolean pruneStale) {
+	public ClusterBulkCreateRequest setPruneStale(Boolean pruneStale) {
 		this.pruneStale = pruneStale;
 		return this;
+	}
+
+	/** Whether to prune, resolving an absent flag to the default. */
+	public boolean pruneStaleOrDefault() {
+		return pruneStale == null || pruneStale;
 	}
 
 }

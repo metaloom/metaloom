@@ -28,9 +28,17 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 
 	/**
 	 * Process only every nth video frame.
+	 *
+	 * <p>
+	 * Read by {@code VideoFaceScanner}, which decides how many frames each scan window samples. It was
+	 * unread until the clustering work: the scanner used its own {@code WINDOW_STEPS = 15} while this
+	 * said 5, so simply wiring the option up would have tripled the frames decoded per window for every
+	 * existing pipeline. The default was raised to 15 to match the behaviour that has actually been
+	 * shipping; lower it to sample more densely.
+	 * </p>
 	 */
 	@ParamDoc(label = "Video Chop Rate", description = "Process every Nth video frame", min = "1")
-	private int videoChopRate = 5;
+	private int videoChopRate = 15;
 
 	/**
 	 * Defines the minimum of detections that may form a dedicated cluster.
@@ -45,11 +53,20 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 	public float faceClusterEPS = 0.6f;
 
 	/**
-	 * Defines the size to which every frame will be increased in either width or height before processing. Higher resolution increased detection precision but
-	 * also detection time.
+	 * Longest edge a video frame is rescaled to before detection, or {@code 0} to detect at the frame's native resolution.
+	 *
+	 * <p>
+	 * A frame is only rescaled when it is at least 128px taller than this, so a frame already near the target does not pay for a resize that buys
+	 * nothing. Smaller is faster and finds fewer small faces.
+	 * </p>
+	 *
+	 * <p>
+	 * Defaults to 0 - no downscale. The option previously said 384 while the scanner had the rescale branch hard-disabled, so nothing had ever run
+	 * through it; 0 preserves the behaviour that has actually been shipping rather than silently enabling untested code on upgrade.
+	 * </p>
 	 */
-	@ParamDoc(label = "Scale Size (px)", description = "Rescale video frames to this size")
-	private int videoScaleSize = 384;
+	@ParamDoc(label = "Scale Size (px)", description = "Rescale video frames to this longest edge before detection; 0 detects at native resolution", min = "0")
+	private int videoScaleSize = 0;
 
 	/**
 	 * Defines the height factor in respect to the total frame height which controls whether a found face will be processed further.
@@ -128,6 +145,50 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 
 	public String getEmbeddingModel() {
 		return embeddingModel;
+	}
+
+	/**
+	 * The model identifier written to every embedding and cluster, qualified by the pack it came from.
+	 *
+	 * <p>
+	 * The InspireFace binding exposes no pack name or version at runtime - there is no manifest accessor - so the pack path is the only evidence of
+	 * which embedder produced a vector. Folding it into the identifier is what keeps two packs' vectors in separate spaces: {@code embedding.model} is
+	 * part of both the row's unique key and the {@code (type, model, dimensions)} vector-index key, so Pikachu and Megatron vectors can never be
+	 * compared to each other by accident.
+	 * </p>
+	 *
+	 * @return e.g. {@code inspireface-pikachu-r18} for pack {@code packs/Pikachu} and model {@code inspireface-r18}
+	 */
+	public String resolvedEmbeddingModel() {
+		String pack = packName();
+		if (pack == null || embeddingModel == null || embeddingModel.isBlank()) {
+			return embeddingModel;
+		}
+		String lower = pack.toLowerCase(java.util.Locale.ROOT);
+		if (embeddingModel.toLowerCase(java.util.Locale.ROOT).contains(lower)) {
+			// Already qualified by the caller; do not say it twice.
+			return embeddingModel;
+		}
+		// inspireface-r18 + Pikachu -> inspireface-pikachu-r18, keeping the vendor prefix in front.
+		int dash = embeddingModel.indexOf('-');
+		if (dash > 0) {
+			return embeddingModel.substring(0, dash + 1) + lower + embeddingModel.substring(dash);
+		}
+		return embeddingModel + "-" + lower;
+	}
+
+	/** Final path segment of {@link #getInspirefacePackPath()}, e.g. {@code Pikachu}. */
+	private String packName() {
+		if (inspirefacePackPath == null || inspirefacePackPath.isBlank()) {
+			return null;
+		}
+		String normalised = inspirefacePackPath.replace('\\', '/');
+		while (normalised.endsWith("/")) {
+			normalised = normalised.substring(0, normalised.length() - 1);
+		}
+		int slash = normalised.lastIndexOf('/');
+		String name = slash < 0 ? normalised : normalised.substring(slash + 1);
+		return name.isBlank() ? null : name;
 	}
 
 	public FacedetectNodeOptions setEmbeddingModel(String embeddingModel) {
@@ -216,9 +277,9 @@ public class FacedetectNodeOptions extends AbstractNodeOptions<FacedetectNodeOpt
 			errors.add("videoChopRate must be positive, got " + videoChopRate);
 		}
 		
-		// videoScaleSize must be positive
-		if (videoScaleSize <= 0) {
-			errors.add("videoScaleSize must be positive, got " + videoScaleSize);
+		// videoScaleSize is a longest edge, or 0 for "do not rescale"
+		if (videoScaleSize < 0) {
+			errors.add("videoScaleSize must not be negative, got " + videoScaleSize);
 		}
 		
 		// faceClusterMinimum must be positive

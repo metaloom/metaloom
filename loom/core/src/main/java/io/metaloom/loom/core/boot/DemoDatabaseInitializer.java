@@ -71,6 +71,8 @@ import io.metaloom.loom.db.model.dedup.DedupGroupDao;
 import io.metaloom.loom.db.model.dedup.DedupGroupMember;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.detection.DetectionDao;
+import io.metaloom.loom.db.model.embedding.Embedding;
+import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.person.Person;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.collection.Collection;
@@ -188,6 +190,8 @@ public class DemoDatabaseInitializer {
 	private final BlacklistDao blacklistDao;
 	private final MemoryDenyRuleDao memoryDenyRuleDao;
 	private final ClusterDao clusterDao;
+
+	private final EmbeddingDao embeddingDao;
 	private final PersonDao personDao;
 	private final DetectionDao detectionDao;
 	private final AssetComponentDao assetComponentDao;
@@ -211,7 +215,7 @@ public class DemoDatabaseInitializer {
 		GroupDao groupDao, RoleDao roleDao, PermissionDao permissionDao, TaskDao taskDao, NotificationDao notificationDao,
 		AnnotationDao annotationDao, ReactionDao reactionDao, TokenDao tokenDao,
 		CommentDao commentDao, BlacklistDao blacklistDao, MemoryDenyRuleDao memoryDenyRuleDao, ClusterDao clusterDao, PersonDao personDao,
-		DetectionDao detectionDao,
+		DetectionDao detectionDao, EmbeddingDao embeddingDao,
 		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao,
 		PipelineRunDao pipelineRunDao, AssetBinaryDao assetBinaryDao, SkillDao skillDao, SkillVersionDao skillVersionDao,
 		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, DedupGroupDao dedupGroupDao, LoomOptions options) {
@@ -237,6 +241,7 @@ public class DemoDatabaseInitializer {
 		this.clusterDao = clusterDao;
 		this.personDao = personDao;
 		this.detectionDao = detectionDao;
+		this.embeddingDao = embeddingDao;
 		this.assetComponentDao = assetComponentDao;
 		this.chatDao = chatDao;
 		this.pipelineVersionDao = pipelineVersionDao;
@@ -814,20 +819,27 @@ public class DemoDatabaseInitializer {
 
 		// --- Detections ---
 		// Face detections on image assets
-		createDetection(admin, imageAssets[0], "facedetection", 0, 0.3f, 0.2f, 0.12f, 0.2f, 0.97f,
+		Detection faceOne = createDetection(admin, imageAssets[0], "face", 0, 0.3f, 0.2f, 0.12f, 0.2f, 0.97f,
 			new JsonObject().put("gender", "male").put("age", 30));
-		createDetection(admin, imageAssets[0], "facedetection", 0, 0.55f, 0.15f, 0.1f, 0.18f, 0.94f,
+		Detection faceTwo = createDetection(admin, imageAssets[0], "face", 0, 0.55f, 0.15f, 0.1f, 0.18f, 0.94f,
 			new JsonObject().put("gender", "female").put("age", 25));
-		createDetection(admin, imageAssets[3], "facedetection", 0, 0.42f, 0.15f, 0.13f, 0.22f, 0.91f,
+		createDetection(admin, imageAssets[3], "face", 0, 0.42f, 0.15f, 0.13f, 0.22f, 0.91f,
 			new JsonObject().put("gender", "male").put("age", 45));
 
 		// Face detections on video assets (different frames)
-		createDetection(admin, videoAssets[0], "facedetection", 60, 0.4f, 0.1f, 0.15f, 0.22f, 0.92f,
+		createDetection(admin, videoAssets[0], "face", 60, 0.4f, 0.1f, 0.15f, 0.22f, 0.92f,
 			new JsonObject().put("gender", "female").put("age", 28));
-		createDetection(admin, videoAssets[0], "facedetection", 180, 0.2f, 0.3f, 0.1f, 0.18f, 0.89f,
+		createDetection(admin, videoAssets[0], "face", 180, 0.2f, 0.3f, 0.1f, 0.18f, 0.89f,
 			new JsonObject().put("gender", "male").put("age", 35));
-		createDetection(admin, videoAssets[2], "facedetection", 300, 0.45f, 0.2f, 0.1f, 0.18f, 0.96f,
+		createDetection(admin, videoAssets[2], "face", 300, 0.45f, 0.2f, 0.1f, 0.18f, 0.96f,
 			new JsonObject().put("gender", "female").put("age", 32));
+
+		// A face group awaiting review, as the facedetect node would leave it.
+		//
+		// Without this the review screen is empty in the demo, which reads as "the feature does not
+		// work" rather than "nothing has been proposed yet". The two faces on the first image become
+		// one pending proposal; a reviewer confirms or rejects it.
+		createPendingFaceCluster(admin, imageAssets[0], faceOne, faceTwo);
 
 		// Object detections on image assets
 		createDetection(admin, imageAssets[0], "objectdetection", 0, 0.1f, 0.4f, 0.25f, 0.3f, 0.95f,
@@ -1036,6 +1048,41 @@ public class DemoDatabaseInitializer {
 		return person;
 	}
 
+	/**
+	 * Seed one machine-proposed face cluster, with the embeddings that make it a real group.
+	 *
+	 * <p>
+	 * Shaped exactly as {@code FacedetectNode} writes them - no name, no creator, status PENDING, keyed by
+	 * {@code (asset, node_kind, cluster_index)} - so the demo exercises the same review path a real run
+	 * produces rather than a hand-made approximation of it.
+	 * </p>
+	 */
+	private void createPendingFaceCluster(User admin, Asset asset, Detection... detections) {
+		Cluster cluster = clusterDao.createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset.getUuid(), 0);
+		cluster.setProducerVersion("inspireface-pikachu-r18");
+		cluster.setModel("inspireface-pikachu-r18");
+		cluster.setScore(0.93f);
+		clusterDao.upsertCluster(cluster);
+
+		int subject = 0;
+		for (Detection detection : detections) {
+			// A short vector rather than a realistic 512-d one: nothing in the demo compares them, and a
+			// wall of floats in the seed would only obscure what this is demonstrating.
+			Float[] vector = new Float[] { 0.1f * (subject + 1), 0.2f, 0.3f };
+			Embedding embedding = embeddingDao.createEmbedding(admin.getUuid(), asset.getUuid(), vector, "face");
+			embedding.setNodeKind("facedetect");
+			embedding.setModel("inspireface-pikachu-r18");
+			embedding.setDetectionUuid(detection.getUuid());
+			embedding.setSubjectIndex(subject);
+			embedding.setNormalized(true);
+			embeddingDao.store(embedding);
+
+			clusterDao.link(cluster.getUuid(), embedding.getUuid(), 0.95f, "AUTO");
+			subject++;
+		}
+		log.info("Created a pending demo face cluster with {} member(s)", detections.length);
+	}
+
 	private Cluster createCluster(User admin, String name, String type) {
 		Cluster cluster = clusterDao.createCluster(admin.getUuid(), name, type);
 		cluster.setUuid(UUIDUtils.randomUUID());
@@ -1059,7 +1106,12 @@ public class DemoDatabaseInitializer {
 		// Both kinds now have a producer node, so both are attributed to one. Leaving the object boxes
 		// on the DAO's "manual" attribution made the demo library look like somebody had drawn them by
 		// hand, which is exactly the wrong story for a catalogue selling automated enrichment.
-		if ("facedetection".equals(type)) {
+		// "face", not "facedetection": that is what FacedetectNode actually writes. The demo seeded the
+		// longer string and the UI filtered on it, so the two agreed with each other and neither agreed
+		// with the pipeline - the asset face panel worked against demo data and was empty for every real
+		// asset. The three names in play are the node kind (facedetect), the options key (facedetection)
+		// and the detection type (face); only the last one belongs here.
+		if ("face".equals(type)) {
 			detection.setNodeKind("facedetect");
 		} else if ("objectdetection".equals(type)) {
 			detection.setNodeKind("objectdetect");

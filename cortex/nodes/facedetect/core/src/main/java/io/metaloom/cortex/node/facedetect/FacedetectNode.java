@@ -4,10 +4,12 @@ import static io.metaloom.cortex.api.node.ResultOrigin.COMPUTED;
 import static io.metaloom.cortex.api.node.ResultOrigin.LOCAL;
 
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
@@ -32,6 +34,9 @@ import io.metaloom.cortex.api.node.spec.PortGroupDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.node.facedetect.cluster.FaceCluster;
+import io.metaloom.cortex.node.facedetect.cluster.FaceClusterResult;
+import io.metaloom.cortex.node.facedetect.cluster.FaceClusterer;
 import io.metaloom.cortex.node.facedetect.video.VideoFace;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScanner;
 import io.metaloom.cortex.node.facedetect.video.VideoFaceScannerReport;
@@ -40,12 +45,19 @@ import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
 import io.metaloom.loom.nodes.spec.NodeCategory;
 import io.metaloom.loom.nodes.spec.PortGroupMode;
 import io.metaloom.loom.rest.model.asset.AssetResponse;
+import io.metaloom.loom.rest.model.cluster.ClusterBulkCreateRequest;
+import io.metaloom.loom.rest.model.cluster.ClusterBulkResponse;
+import io.metaloom.loom.rest.model.cluster.ClusterCreateItem;
+import io.metaloom.loom.rest.model.cluster.ClusterMemberCreateItem;
+import io.metaloom.loom.rest.model.cluster.ClusterResponse;
 import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionBulkResponse;
 import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingBulkCreateRequest;
+import io.metaloom.loom.rest.model.embedding.EmbeddingBulkResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingCreateRequest;
+import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
 import io.metaloom.video.facedetect.face.Face;
 import io.metaloom.video.facedetect.face.FaceBox;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
@@ -133,10 +145,13 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * how many downstream per-element tasks the engine spawns.
 	 * </p>
 	 */
-	private record CachedDetections(String flag, List<String> elements) {
+	private record CachedDetections(String flag, List<String> elements, long clusterCount) {
 	}
 
 	private static final int WINDOW_COUNT = 50;
+
+	/** The {@code cluster.type} this node proposes. Reviewed and confirmed into a {@code person}. */
+	private static final String FACE_CLUSTER_TYPE = "face";
 
 	/**
 	 * Longest edge of a per-face crop preview.
@@ -199,7 +214,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 		// one halted item can afford.
 		CachedDetections cached = resultCache.get(path);
 		if (cached != null && !ctx.capturePreviews()) {
-			emit(ctx, cached.flag(), cached.elements());
+			emit(ctx, cached.flag(), cached.elements(), cached.clusterCount());
 			return ctx.origin(LOCAL).next();
 		}
 
@@ -220,7 +235,9 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 			List<String> elements = detections == null
 				? List.of()
 				: detections.values().stream().map(String::valueOf).toList();
-			resultCache.put(path, new CachedDetections(ctx.outputs().get(OUT_FLAG.id()).single().toString(), elements));
+			PortOutput faceCount = ctx.outputs().get(OUT_FACE_COUNT.id());
+			long clusterCount = faceCount == null ? 0L : ((Number) faceCount.single()).longValue();
+			resultCache.put(path, new CachedDetections(ctx.outputs().get(OUT_FLAG.id()).single().toString(), elements, clusterCount));
 		}
 		return result;
 	}
@@ -240,16 +257,20 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 				FaceBox box = face.box();
 				detections.add(new Detection(
 					new BoundingBox(box.getStartX(), box.getStartY(), box.getWidth(), box.getHeight()),
-					0, 1.0f, "face", face.getEmbedding()));
+					0, confidenceOf(face), "face", face.getEmbedding()));
 			}
 		}
+		FaceClusterResult clusters = cluster(detections);
 		emit(ctx, count > 0 ? "SUCCESS" : "NONE",
-			detectionElements(detections, image.getWidth(), image.getHeight()));
+			detectionElements(detections, clusters, image.getWidth(), image.getHeight()), subjectCount(clusters));
 		// Crops are taken from the full-resolution decode, before anything downsamples it. A face is a
 		// small part of a large frame - cutting it out of a 512px preview instead would yield a 30px
 		// smudge on any modern source.
 		previewDetections(ctx, new PreviewFrame(image, null), detections, null);
-		persist(ctx, asset, detections);
+		// Cut once, used twice: the same crops become the debug preview and the durable images the review
+		// UI shows. Taken from the full-resolution decode for the same reason the previews are.
+		List<BufferedImage> crops = cropsFor(image, detections);
+		persist(ctx, asset, detections, clusters, image.getWidth(), image.getHeight(), crops);
 		return ctx.origin(COMPUTED).next();
 	}
 
@@ -266,16 +287,18 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 				int frameIndex = vf.getFrame() != null ? vf.getFrame().intValue() : 0;
 				detections.add(new Detection(
 					new BoundingBox(box.getStartX(), box.getStartY(), box.getWidth(), box.getHeight()),
-					frameIndex, 1.0f, "face", vf.getEmbedding()));
+					frameIndex, confidenceOf(vf), "face", vf.getEmbedding()));
 			}
 			// The frame size comes off the video's own properties - no decode, no seek. It used to be
 			// omitted here on the belief that VideoFile could not report it, which left every
 			// video-path element without the dimensions its ABSOLUTE_PIXELS boxes are measured
 			// against: anything wanting to draw those boxes, or convert them to the normalized
 			// convention the detection table documents, had nothing to divide by.
-			emit(ctx, "SUCCESS", detectionElements(detections, video.width(), video.height()));
-			previewDetections(ctx, detectionFrame(video, detections), detections, faceCrops(faces));
-			persist(ctx, asset, detections);
+			FaceClusterResult clusters = cluster(detections);
+			emit(ctx, "SUCCESS", detectionElements(detections, clusters, video.width(), video.height()), subjectCount(clusters));
+			List<BufferedImage> crops = faceCrops(faces);
+			previewDetections(ctx, detectionFrame(video, detections), detections, crops);
+			persist(ctx, asset, detections, clusters, video.width(), video.height(), crops);
 			return ctx.origin(COMPUTED).next();
 		} catch (InterruptedException | IOException | URISyntaxException e) {
 			log.error("Failed to process video", e);
@@ -284,16 +307,73 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	}
 
 	/**
-	 * Write the three output ports. The count is derived from the element sequence rather than
-	 * tracked separately, so the two can never disagree.
+	 * Write the three output ports.
+	 *
+	 * <p>
+	 * {@link #OUT_FACE_COUNT} carries the number of <em>distinct subjects</em>, not the number of boxes - forty detections of two people in a video is
+	 * two. That is what the port has always documented ("how many distinct faces survived clustering") and, until clustering existed, never what it
+	 * emitted.
+	 * </p>
 	 */
-	private void emit(NodeContext<LoomMedia> ctx, String flag, List<String> elements) {
-		ctx.output(OUT_FACE_COUNT, (long) elements.size());
+	private void emit(NodeContext<LoomMedia> ctx, String flag, List<String> elements, long clusterCount) {
+		ctx.output(OUT_FACE_COUNT, clusterCount);
 		ctx.output(OUT_FLAG, flag);
 		for (String element : elements) {
 			ctx.outputElement(OUT_DETECTIONS, element);
 		}
 		ctx.preview(OUT_DETECTIONS, detectionsMarkdown(elements));
+	}
+
+	/**
+	 * Group the detections that carry a vector into proposed subjects.
+	 *
+	 * <p>
+	 * Scoped to this asset: it answers "who appears in this file", not "who is this person". Best-effort - a clustering failure must not lose the
+	 * detections, which are useful on their own.
+	 * </p>
+	 */
+	private FaceClusterResult cluster(List<Detection> detections) {
+		int count = detections == null ? 0 : detections.size();
+		if (!options().isEmbeddingsEnabled()) {
+			// Every face is unattributed rather than absent - see subjectCount().
+			return new FaceClusterResult(List.of(), 0, count);
+		}
+		try {
+			FaceClusterResult result = FaceClusterer.cluster(detections, options().getFaceClusterEPS(), options().getFaceClusterMinimum());
+			log.info("Clustered {} embedded face(s) into {} subject(s); {} face(s) had no vector",
+				result.embeddedCount(), result.count(), result.skippedCount());
+			return result;
+		} catch (RuntimeException e) {
+			log.warn("Could not cluster faces: {}", e.getMessage());
+			return new FaceClusterResult(List.of(), 0, count);
+		}
+	}
+
+	/**
+	 * How many distinct people the node believes it saw.
+	 *
+	 * <p>
+	 * Clusters, plus every face that could not be attributed to one. A face with no vector is still a face: counting only clusters would report zero
+	 * for a run with embeddings switched off, or for one where the recognition pass failed - turning a degraded result into a silently empty one. An
+	 * unattributed face is counted as its own subject, which can over-count when the same person appears twice unmatched, but never under-counts.
+	 * </p>
+	 */
+	private static long subjectCount(FaceClusterResult clusters) {
+		return (long) clusters.count() + clusters.skippedCount();
+	}
+
+	/**
+	 * The detector's own confidence for a face, or {@code 1.0} when the backend did not report one.
+	 *
+	 * <p>
+	 * This used to be a hard-coded {@code 1.0f}, so every stored face read as certain and the score could not be used to rank or filter anything. The
+	 * video path always had the value; the image path only started reporting it once {@code detectFaces(BufferedImage, boolean)} was made symmetric with
+	 * its {@code VideoFrame} counterpart, so the fallback stays for older video4j builds.
+	 * </p>
+	 */
+	private static float confidenceOf(Face face) {
+		Object value = face.get(InspireFacedetector.ATTR_CONFIDENCE);
+		return value instanceof Number number ? number.floatValue() : 1.0f;
 	}
 
 	/**
@@ -378,6 +458,95 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 			log.debug("Could not crop a face preview from {}x{}", frame.getWidth(), frame.getHeight(), e);
 			return null;
 		}
+	}
+
+	/** One crop per detection, cut from the frame the boxes were measured on. Entries may be null where the box left nothing inside the frame. */
+	private static List<BufferedImage> cropsFor(BufferedImage frame, List<Detection> detections) {
+		List<BufferedImage> crops = new ArrayList<>(detections.size());
+		for (Detection detection : detections) {
+			crops.add(frame == null ? null : cropFace(frame, detection.boundingBox()));
+		}
+		return crops;
+	}
+
+	/**
+	 * Store each face crop as an attachment keyed to the detection it depicts.
+	 *
+	 * <p>
+	 * The node is the only place these images can come from. The server has no imaging libraries at all - it cannot decode a video frame - so a crop
+	 * that is not written here can never be produced later, and the review UI would be left showing stand-in portraits fetched from a third party.
+	 * Face crops are biometric data; they must not leave the deployment.
+	 * </p>
+	 *
+	 * <p>
+	 * Best-effort per crop: one image that fails to encode must not cost the others, and none of them are worth failing the detections over.
+	 * </p>
+	 */
+	private void persistCrops(AssetResponse asset, DetectionBulkResponse stored, List<BufferedImage> crops) {
+		if (crops == null || crops.isEmpty() || stored == null || stored.getDetections() == null) {
+			return;
+		}
+		List<DetectionResponse> rows = stored.getDetections();
+		if (rows.size() != crops.size()) {
+			// The same one-to-one rule the embeddings follow: without it there is no safe way to say which
+			// image belongs to which face, and a wrong crop is worse than no crop.
+			log.warn("Skipping face crops for asset {}: {} crop(s) but {} stored detection(s)", asset.getUuid(), crops.size(), rows.size());
+			return;
+		}
+		int written = 0;
+		for (int i = 0; i < crops.size(); i++) {
+			BufferedImage crop = crops.get(i);
+			UUID detectionUuid = rows.get(i).getUuid();
+			if (crop == null || detectionUuid == null) {
+				continue;
+			}
+			File file = null;
+			try {
+				BufferedImage scaled = scaleToEdge(crop, FACE_PREVIEW_EDGE_PX);
+				file = File.createTempFile("face-crop-", ".jpg");
+				if (!ImageIO.write(scaled, "jpg", file)) {
+					log.debug("No JPEG writer accepted the crop for detection {}", detectionUuid);
+					continue;
+				}
+				client().uploadFaceCrop(file, asset.getUuid(), detectionUuid, String.valueOf(FACE_PREVIEW_EDGE_PX), name()).sync();
+				written++;
+			} catch (Exception e) {
+				log.warn("Could not store the face crop for detection {}: {}", detectionUuid, e.getMessage());
+			} finally {
+				if (file != null && !file.delete()) {
+					file.deleteOnExit();
+				}
+			}
+		}
+		if (written > 0) {
+			log.info("Stored {} face crop(s) for asset {}", written, asset.getUuid());
+		}
+	}
+
+	/**
+	 * Scale an image so its longest edge is at most {@code edge}, preserving aspect ratio.
+	 *
+	 * <p>
+	 * Only ever shrinks: enlarging a small crop would store more bytes than the detector ever saw.
+	 * </p>
+	 */
+	private static BufferedImage scaleToEdge(BufferedImage image, int edge) {
+		int longest = Math.max(image.getWidth(), image.getHeight());
+		if (longest <= edge || longest == 0) {
+			return image;
+		}
+		double factor = (double) edge / (double) longest;
+		int width = Math.max(1, (int) Math.round(image.getWidth() * factor));
+		int height = Math.max(1, (int) Math.round(image.getHeight() * factor));
+		BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+		java.awt.Graphics2D g = scaled.createGraphics();
+		try {
+			g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+			g.drawImage(image, 0, 0, width, height, null);
+		} finally {
+			g.dispose();
+		}
+		return scaled;
 	}
 
 	/** The crops the video scanner already cut for its blur check, in detection order. */
@@ -467,13 +636,14 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * @param imageHeight height of that image, or null
 	 * @return one encoded document per detection, in detection order
 	 */
-	private List<String> detectionElements(List<Detection> detections, Integer imageWidth, Integer imageHeight) {
+	private List<String> detectionElements(List<Detection> detections, FaceClusterResult clusters, Integer imageWidth, Integer imageHeight) {
+		int[] clusterOf = clusterIndexPerDetection(detections.size(), clusters);
 		List<String> elements = new ArrayList<>(detections.size());
 		int index = 0;
 		for (Detection detection : detections) {
 			BoundingBox box = detection.boundingBox();
 			JsonObject element = new JsonObject()
-				.put("index", index++)
+				.put("index", index)
 				.put("type", "face")
 				.put("label", detection.label())
 				.put("frame", detection.frameIndex())
@@ -484,12 +654,30 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 					.put("h", box.height()))
 				.put("confidence", detection.confidence())
 				.put("coordinates", "ABSOLUTE_PIXELS");
+			// Which subject this face was attributed to, so a per-face consumer and the editor overlay can
+			// colour by person without a REST round trip. -1 when clustering did not run or produced nothing.
+			element.put("cluster", clusterOf[index]);
 			if (imageWidth != null && imageHeight != null) {
 				element.put("imageWidth", imageWidth).put("imageHeight", imageHeight);
 			}
 			elements.add(element.encode());
+			index++;
 		}
 		return elements;
+	}
+
+	/** Cluster ordinal per detection index, or -1 where the detection was not attributed to any subject. */
+	private static int[] clusterIndexPerDetection(int detectionCount, FaceClusterResult clusters) {
+		int[] clusterOf = new int[detectionCount];
+		java.util.Arrays.fill(clusterOf, -1);
+		for (FaceCluster cluster : clusters.clusters()) {
+			for (int member : cluster.members()) {
+				if (member >= 0 && member < detectionCount) {
+					clusterOf[member] = cluster.index();
+				}
+			}
+		}
+		return clusterOf;
 	}
 
 	/**
@@ -497,11 +685,13 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * (asset, node_kind, frame_number, detection_index), so re-running the node upserts rather than appends. Best-effort and a no-op when the asset is
 	 * not yet known to Loom or we run offline.
 	 */
-	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<Detection> detections) {
+	private void persist(NodeContext<LoomMedia> ctx, AssetResponse asset, List<Detection> detections, FaceClusterResult clusters,
+		Integer frameWidth, Integer frameHeight, List<BufferedImage> crops) {
 		if (asset == null || client() == null) {
 			return;
 		}
 		try {
+			String producerVersion = producerVersion();
 			List<DetectionCreateRequest> items = new ArrayList<>();
 			int index = 0;
 			for (Detection detection : detections) {
@@ -509,24 +699,68 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 				items.add(new DetectionCreateRequest()
 					.setType("face")
 					.setNodeKind(name())
+					.setProducerVersion(producerVersion)
+					.setLabel(detection.label())
 					.setDetectionIndex(index++)
 					.setFrameNumber(detection.frameIndex())
-					.setBboxX((float) box.x())
-					.setBboxY((float) box.y())
-					.setBboxWidth((float) box.width())
-					.setBboxHeight((float) box.height())
+					// Normalised to a 0-1 factor of the frame, which is the convention the column has always
+					// documented and the one every reader assumed. Writing absolute pixels put the boxes on a
+					// scale nothing recorded, so a consumer had no way to know what to divide by - and a
+					// derivative at another resolution could not use them at all.
+					.setBboxX(normalise(box.x(), frameWidth))
+					.setBboxY(normalise(box.y(), frameHeight))
+					.setBboxWidth(normalise(box.width(), frameWidth))
+					.setBboxHeight(normalise(box.height(), frameHeight))
 					.setConfidence(detection.confidence()));
 			}
 			DetectionBulkResponse stored = client()
 				.bulkCreateAssetDetections(asset.getUuid(), new DetectionBulkCreateRequest().setDetections(items))
 				.sync()
 				.body();
-			persistEmbeddings(asset, detections, stored);
-			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, null, resultRef("detection"));
+			persistCrops(asset, stored, crops);
+			List<UUID> embeddingUuids = persistEmbeddings(asset, detections, stored, producerVersion);
+			List<UUID> clusterUuids = persistClusters(asset, clusters, embeddingUuids, producerVersion);
+
+			// The ledger points at the node's headline output. This used to be resultRef("detection") with no
+			// uuids at all, and resultRef answers null for an empty varargs - so result_ref was always empty
+			// even though the uuids were in hand two lines earlier.
+			recordNodeResult(asset, ctx, ResultState.SUCCESS, null, producerVersion,
+				clusterUuids.isEmpty()
+					? resultRef("detection", uuidsOf(stored))
+					: resultRef("cluster", clusterUuids.toArray(UUID[]::new)));
 		} catch (Exception e) {
 			log.warn("Failed to persist detections for asset {}: {}", asset.getUuid(), e.getMessage());
 			recordNodeResult(asset, ctx, ResultState.FAILED, e.getMessage(), null, null);
 		}
+	}
+
+	/** The version stamped on everything this run writes: the node's own version qualified by the model that produced the vectors. */
+	private String producerVersion() {
+		String model = options().resolvedEmbeddingModel();
+		return model == null || model.isBlank() ? "" : model;
+	}
+
+	/**
+	 * Express a pixel coordinate as a 0-1 factor of the frame.
+	 *
+	 * <p>
+	 * Falls back to the raw pixel value when the frame size is unknown or nonsensical: a box on the wrong scale is recoverable and visibly wrong, while
+	 * a divide by zero would be neither.
+	 * </p>
+	 */
+	private static float normalise(int value, Integer extent) {
+		if (extent == null || extent <= 0) {
+			log.warn("No frame extent to normalise a bounding box against; storing the raw pixel value {}", value);
+			return value;
+		}
+		return (float) value / (float) extent;
+	}
+
+	private static UUID[] uuidsOf(DetectionBulkResponse stored) {
+		if (stored == null || stored.getDetections() == null) {
+			return new UUID[0];
+		}
+		return stored.getDetections().stream().map(DetectionResponse::getUuid).filter(java.util.Objects::nonNull).toArray(UUID[]::new);
 	}
 
 	/**
@@ -542,9 +776,10 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	 * than losing the detection as well, and re-running the node upserts both sets rather than duplicating them.
 	 * </p>
 	 */
-	private void persistEmbeddings(AssetResponse asset, List<Detection> detections, DetectionBulkResponse stored) {
+	private List<UUID> persistEmbeddings(AssetResponse asset, List<Detection> detections, DetectionBulkResponse stored, String producerVersion) {
+		List<UUID> embeddingUuids = new ArrayList<>(java.util.Collections.nCopies(detections.size(), (UUID) null));
 		if (!options().isEmbeddingsEnabled() || stored == null) {
-			return;
+			return embeddingUuids;
 		}
 		List<DetectionResponse> rows = stored.getDetections();
 		if (rows == null || rows.size() != detections.size()) {
@@ -553,10 +788,12 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 			if (rows != null && !rows.isEmpty()) {
 				log.warn("Skipping embeddings for asset {}: {} detection(s) sent but {} stored", asset.getUuid(), detections.size(), rows.size());
 			}
-			return;
+			return embeddingUuids;
 		}
 		try {
 			List<EmbeddingCreateRequest> items = new ArrayList<>();
+			// Detection index each request came from, so the returned uuids can be put back on the right faces.
+			List<Integer> sourceIndex = new ArrayList<>();
 			for (int i = 0; i < detections.size(); i++) {
 				Detection detection = detections.get(i);
 				if (!detection.hasEmbedding()) {
@@ -570,21 +807,118 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 				items.add(new EmbeddingCreateRequest()
 					.setType(FacedetectNodeOptions.EMBEDDING_TYPE)
 					.setNodeKind(name())
-					.setModel(options().getEmbeddingModel())
+					// Qualified by the pack, because the binding exposes no pack version at runtime and two packs'
+					// vectors are not comparable. model is part of the row's identity and of the vector-index key,
+					// so this is what keeps them in separate spaces.
+					.setModel(options().resolvedEmbeddingModel())
+					.setProducerVersion(producerVersion)
 					.setVector(boxed)
 					.setDimensions(vector.length)
 					.setDetectionUuid(rows.get(i).getUuid())
 					.setFrameNumber(detection.frameIndex())
 					.setSubjectIndex(i)
+					// The clusterer L2-normalises before comparing, and writes the vectors it normalised.
+					.setNormalized(true)
 					.setConfidence(detection.confidence()));
+				sourceIndex.add(i);
 			}
 			if (items.isEmpty()) {
-				return;
+				return embeddingUuids;
 			}
-			client().bulkCreateAssetEmbeddings(asset.getUuid(), new EmbeddingBulkCreateRequest().setEmbeddings(items)).sync();
+			EmbeddingBulkResponse response = client()
+				.bulkCreateAssetEmbeddings(asset.getUuid(), new EmbeddingBulkCreateRequest().setEmbeddings(items))
+				.sync()
+				.body();
+			List<EmbeddingResponse> embeddingRows = response == null ? null : response.getEmbeddings();
+			if (embeddingRows != null && embeddingRows.size() == items.size()) {
+				for (int i = 0; i < embeddingRows.size(); i++) {
+					embeddingUuids.set(sourceIndex.get(i), embeddingRows.get(i).getUuid());
+				}
+			} else {
+				// Without the uuids there is nothing to build cluster membership from. The embeddings are stored
+				// either way; only the grouping is lost, and a re-run rebuilds it.
+				log.warn("Stored embeddings for asset {} but the response carried no usable uuids; clusters will have no members", asset.getUuid());
+			}
 			log.info("Stored {} face embedding(s) for asset {}", items.size(), asset.getUuid());
 		} catch (Exception e) {
 			log.warn("Failed to persist embeddings for asset {}: {}", asset.getUuid(), e.getMessage());
 		}
+		return embeddingUuids;
+	}
+
+	/**
+	 * Write the subjects found in this asset, each holding the embeddings attributed to it.
+	 *
+	 * <p>
+	 * Third of the three writes, and for the same reason the embeddings are second: membership references embedding rows, and those uuids only exist
+	 * once the embedding bulk call has returned.
+	 * </p>
+	 *
+	 * <p>
+	 * Best-effort, like the others. A cluster that fails to store leaves the detections and embeddings in place - faces that are found and matchable but
+	 * not yet grouped is a far better outcome than losing them, and a re-run regroups them.
+	 * </p>
+	 *
+	 * @return the uuids of the stored clusters, for the ledger
+	 */
+	private List<UUID> persistClusters(AssetResponse asset, FaceClusterResult clusters, List<UUID> embeddingUuids, String producerVersion) {
+		if (clusters == null || clusters.count() == 0) {
+			return List.of();
+		}
+		try {
+			ClusterBulkCreateRequest request = new ClusterBulkCreateRequest();
+			for (FaceCluster cluster : clusters.clusters()) {
+				ClusterCreateItem item = new ClusterCreateItem()
+					.setType(FACE_CLUSTER_TYPE)
+					.setNodeKind(name())
+					.setProducerVersion(producerVersion)
+					.setClusterIndex(cluster.index())
+					.setScore(cluster.score())
+					.setCentroid(boxed(cluster.centroid()))
+					.setModel(options().resolvedEmbeddingModel())
+					.setDimensions(cluster.centroid() == null ? null : cluster.centroid().length);
+				if (cluster.noise()) {
+					// A face that matched nobody. Recorded as its own subject rather than discarded - a portrait is
+					// exactly one face and would otherwise report nobody at all - but flagged, because "seen once"
+					// and "seen and corroborated" are different things to a reviewer.
+					item.setMeta(new JsonObject().put("noise", true));
+				}
+				List<Integer> members = cluster.members();
+				for (int m = 0; m < members.size(); m++) {
+					UUID embeddingUuid = embeddingUuids.get(members.get(m));
+					if (embeddingUuid != null) {
+						item.add(new ClusterMemberCreateItem()
+							.setEmbeddingUuid(embeddingUuid.toString())
+							.setConfidence(cluster.confidences()[m])
+							.setOrigin("AUTO"));
+					}
+				}
+				request.add(item);
+			}
+			ClusterBulkResponse stored = client()
+				.bulkCreateAssetClusters(asset.getUuid(), request)
+				.sync()
+				.body();
+			if (stored == null || stored.getClusters() == null) {
+				return List.of();
+			}
+			log.info("Stored {} face cluster(s) for asset {} ({} stale proposal(s) retired)",
+				stored.getClusters().size(), asset.getUuid(), stored.getPruned());
+			return stored.getClusters().stream().map(ClusterResponse::getUuid).filter(java.util.Objects::nonNull).toList();
+		} catch (Exception e) {
+			log.warn("Failed to persist clusters for asset {}: {}", asset.getUuid(), e.getMessage());
+			return List.of();
+		}
+	}
+
+	private static Float[] boxed(float[] vector) {
+		if (vector == null) {
+			return null;
+		}
+		Float[] out = new Float[vector.length];
+		for (int i = 0; i < vector.length; i++) {
+			out[i] = vector[i];
+		}
+		return out;
 	}
 }

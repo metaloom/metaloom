@@ -93,11 +93,10 @@ public class NodeRegistrarTest {
 			// The two fingerprint-dedup kinds gained real runtimes and map bindings; NODES.md §8
 			// records them as intentionally bound, so they belong here rather than in the
 			// not-advertised list below (where this assertion had gone stale).
-			"fingerprint-dedup", "fingerprint-dedup-apply");
-
-		// Stubs / unwired nodes must NOT be advertised, or Loom would dispatch work
-		// the worker cannot actually run.
-		assertThat(kinds).doesNotContain("facedescription");
+			"fingerprint-dedup", "fingerprint-dedup-apply",
+			// facedescription had a descriptor and no bindings, so the pipeline editor offered a node the
+			// registrar could not resolve. It is bound now, which is the whole point of advertising it.
+			"facedescription");
 	}
 
 	@Test

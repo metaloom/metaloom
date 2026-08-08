@@ -5,6 +5,7 @@ import static io.metaloom.loom.api.asset.AssetId.assetId;
 import java.util.UUID;
 
 import io.metaloom.loom.api.asset.AssetId;
+import io.metaloom.loom.client.common.LoomBinaryResponse;
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
@@ -44,6 +45,22 @@ public interface DetectionMethods {
 
 	default LoomClientRequest<NoResponse> deleteAssetDetection(UUID assetUuid, UUID detectionUuid) {
 		return deleteAssetDetection(assetId(assetUuid), detectionUuid);
+	}
+
+	/**
+	 * Download the cropped face image for a detection.
+	 *
+	 * <p>
+	 * Served from the deployment's own storage: face crops are biometric data. The bytes are written by the face-detection node, so a detection whose
+	 * node has not run answers 404.
+	 * </p>
+	 *
+	 * @return the request, yielding a streaming response the caller must close
+	 */
+	LoomClientRequest<LoomBinaryResponse> loadDetectionCrop(AssetId assetId, UUID detectionUuid);
+
+	default LoomClientRequest<LoomBinaryResponse> loadDetectionCrop(UUID assetUuid, UUID detectionUuid) {
+		return loadDetectionCrop(assetId(assetUuid), detectionUuid);
 	}
 
 	LoomClientRequest<DetectionBulkResponse> bulkCreateAssetDetections(AssetId assetId, DetectionBulkCreateRequest request);

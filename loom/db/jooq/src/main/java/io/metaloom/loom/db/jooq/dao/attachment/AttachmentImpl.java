@@ -29,6 +29,12 @@ public class AttachmentImpl extends AbstractEditableElement<Attachment> implemen
 
 	private UUID poolUuid;
 
+	private UUID detectionUuid;
+
+	private String variant;
+
+	private String nodeKind;
+
 	@Override
 	public UUID getPoolUuid() {
 		return poolUuid;
@@ -118,6 +124,40 @@ public class AttachmentImpl extends AbstractEditableElement<Attachment> implemen
 	@Override
 	public Attachment setType(AttachmentType type) {
 		this.type = type;
+		return this;
+	}
+
+
+	@Override
+	public UUID getDetectionUuid() {
+		return detectionUuid;
+	}
+
+	@Override
+	public Attachment setDetectionUuid(UUID detectionUuid) {
+		this.detectionUuid = detectionUuid;
+		return this;
+	}
+
+	@Override
+	public String getVariant() {
+		return variant;
+	}
+
+	@Override
+	public Attachment setVariant(String variant) {
+		this.variant = variant;
+		return this;
+	}
+
+	@Override
+	public String getNodeKind() {
+		return nodeKind;
+	}
+
+	@Override
+	public Attachment setNodeKind(String nodeKind) {
+		this.nodeKind = nodeKind;
 		return this;
 	}
 

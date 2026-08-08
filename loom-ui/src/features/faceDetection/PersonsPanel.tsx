@@ -10,6 +10,7 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
+import { assetBinaryUrl } from "../../api/assets";
 import { deletePerson as apiDeletePerson, updatePerson as apiUpdatePerson } from "../../api/persons";
 
 interface PersonsPanelProps {
@@ -59,10 +60,14 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
         firstname: editFirstname || undefined,
         lastname: editLastname || undefined,
       });
+      // Echo what the server stored rather than the strings that were typed. The response was
+      // previously assigned and never read, so the panel showed the edit even when the write had
+      // silently dropped part of it - which it did, for the avatar, on every save.
       onPersonUpdated?.({
         ...editPerson,
-        name: [editFirstname, editLastname].filter(Boolean).join(" ") || editAlias,
-        description: editAlias,
+        name: [resp.firstname, resp.lastname].filter(Boolean).join(" ") || resp.alias,
+        description: resp.alias,
+        avatarUrl: resp.primaryImageUuid ? assetBinaryUrl(resp.primaryImageUuid) : editPerson.avatarUrl,
       });
     } catch (e) {
       console.error("Failed to update person", e);

@@ -17,6 +17,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.filter.Filter;
+import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.Optional;
+
 import io.metaloom.loom.api.asset.AssetId;
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
@@ -24,6 +28,8 @@ import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetDao;
+import io.metaloom.loom.db.model.attachment.Attachment;
+import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.perm.Permission;
@@ -41,6 +47,10 @@ import io.metaloom.loom.rest.parameter.PagingParameters;
 import io.metaloom.loom.rest.parameter.SortParameters;
 import io.metaloom.loom.rest.service.AbstractEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
+import io.metaloom.loom.storage.BinaryStorage;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.http.HttpServerResponse;
 
 @Singleton
 public class DetectionEndpointService extends AbstractEndpointService {
@@ -51,15 +61,102 @@ public class DetectionEndpointService extends AbstractEndpointService {
 
 	private final AssetDao assetDao;
 
+	private final AttachmentDao attachmentDao;
+
+	private final BinaryStorageResolver storageResolver;
+
 	@Inject
-	public DetectionEndpointService(DetectionDao detectionDao, AssetDao assetDao, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
+	public DetectionEndpointService(DetectionDao detectionDao, AssetDao assetDao, AttachmentDao attachmentDao,
+		BinaryStorageResolver storageResolver, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
 		super(modelBuilder, validator);
 		this.dao = detectionDao;
 		this.assetDao = assetDao;
+		this.attachmentDao = attachmentDao;
+		this.storageResolver = storageResolver;
 	}
 
 	public DetectionDao dao() {
 		return dao;
+	}
+
+	/**
+	 * {@code GET /api/v1/assets/:uuid/detections/:detectionUuid/crop} - the cropped face, as an image.
+	 *
+	 * <p>
+	 * Served from the deployment's own storage. Face crops are biometric data, and the review UI previously stood them in with portraits fetched from
+	 * a third-party avatar service - which leaked detection uuids to that service and showed the reviewer somebody else's face.
+	 * </p>
+	 *
+	 * <p>
+	 * The bytes are written by the producing node from the crop it already cut to compute the embedding, rather than re-derived here. That is not only
+	 * cheaper: the server container ships without any native imaging libraries, so it cannot decode a video frame at all, and re-cropping would work
+	 * for stills and silently fail for every video.
+	 * </p>
+	 *
+	 * <p>
+	 * A crop is a pure function of an immutable row, so it is safe to cache hard.
+	 * </p>
+	 */
+	public void loadDetectionCrop(LoomRoutingContext lrc, AssetId assetId, UUID detectionUuid) {
+		checkPerm(lrc, Permission.READ_DETECTION, () -> {
+			UUID assetUuid = resolveAssetUuid(assetId);
+			Detection detection = dao.load(detectionUuid);
+			if (detection == null || assetUuid == null || !assetUuid.equals(detection.getAssetUuid())) {
+				// A detection belonging to another asset is answered as missing rather than as forbidden: the
+				// pairing is part of the address, and confirming that the uuid exists elsewhere leaks it.
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Detection not found.");
+			}
+
+			Attachment crop = attachmentDao.findFaceCrop(detectionUuid, null);
+			if (crop == null || crop.getSha512sum() == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND,
+					"No face crop has been stored for this detection. Crops are written by the face-detection node when it runs.");
+			}
+
+			BinaryStorage storage = storageResolver.forPool(crop.getPoolUuid());
+			String locator = storage.locatorFor(crop.getSha512sum());
+			if (!storage.exists(locator)) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND,
+					"The face crop's bytes are missing in " + storage.describe() + ".");
+			}
+
+			HttpServerResponse response = lrc.routingContext().response();
+			String etag = "\"" + detectionUuid + "-" + crop.getSha512sum().toString().substring(0, 16) + "\"";
+			if (etag.equals(lrc.routingContext().request().getHeader(HttpHeaders.IF_NONE_MATCH))) {
+				response.setStatusCode(304).end();
+				return;
+			}
+			response.putHeader(HttpHeaders.CONTENT_TYPE, crop.getMimeType() == null ? "image/jpeg" : crop.getMimeType());
+			response.putHeader(HttpHeaders.ETAG, etag);
+			// private: a face crop is not something a shared cache should hold.
+			response.putHeader(HttpHeaders.CACHE_CONTROL, "private, max-age=86400, immutable");
+
+			Optional<Path> local = storage.localPath(locator);
+			if (local.isPresent()) {
+				response.sendFile(local.get().toString());
+				return;
+			}
+			long size = storage.size(locator);
+			if (size >= 0) {
+				response.putHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(size));
+			} else {
+				// Vert.x refuses a write with neither a Content-Length nor chunked encoding.
+				response.setChunked(true);
+			}
+			try (InputStream in = storage.read(locator, 0, -1)) {
+				byte[] buffer = new byte[64 * 1024];
+				int read;
+				while ((read = in.read(buffer)) > 0) {
+					response.write(Buffer.buffer(java.util.Arrays.copyOf(buffer, read)));
+				}
+				response.end();
+			} catch (Exception e) {
+				log.error("Failed to stream the face crop for detection {}", detectionUuid, e);
+				if (!response.headWritten()) {
+					throw new LoomRestException(500, LoomRestErrorCode.INTERNAL_ERROR, "Could not read the face crop.");
+				}
+			}
+		});
 	}
 
 	// --- Helper methods ---

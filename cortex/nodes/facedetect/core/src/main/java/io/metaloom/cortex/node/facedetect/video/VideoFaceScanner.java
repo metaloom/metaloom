@@ -12,6 +12,7 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.cortex.node.facedetect.FacedetectNodeOptions;
 import io.metaloom.facedetection.client.FaceDetectionServerClient;
 import io.metaloom.facedetection.client.model.DetectionResponse;
 import io.metaloom.facedetection.client.model.FaceModel;
@@ -32,10 +33,26 @@ public class VideoFaceScanner {
 	private final static Logger logger = LoggerFactory.getLogger(VideoFaceScanner.class);
 
 	/**
-	 * Size to which the frame should be scaled down to before running initial face detection
+	 * Size to which the frame should be scaled down to before running initial face detection.
+	 *
+	 * <p>
+	 * Retained as the fallback for the no-options constructor. The configured value is
+	 * {@code videoScaleSize}, which defaults to 0 - no downscale at all - because that is what this
+	 * scanner actually did for years: the rescale branch was commented out and then hard-disabled.
+	 * </p>
 	 */
 	public static final int DETECTION_SCALE_SIZE = 640;
 
+	/**
+	 * Frames sampled per window, when no options are supplied.
+	 *
+	 * <p>
+	 * The configured value is {@code videoChopRate}. That option existed for years with a default of
+	 * 5 while this constant said 15, and nothing read the option - so wiring it up naively would have
+	 * tripled the number of frames decoded per window for every existing pipeline. The option's
+	 * default was changed to 15 to match what the scanner has really been doing.
+	 * </p>
+	 */
 	public static final int WINDOW_STEPS = 15;
 
 	/**
@@ -59,9 +76,24 @@ public class VideoFaceScanner {
 	private final InspireFacedetector inspireface;
 	//private SimpleImageViewer viewer = new SimpleImageViewer();
 
+	/** Frames sampled per window; {@code videoChopRate}. */
+	private final int windowSteps;
+
+	/** Longest edge to rescale a frame to before detection, or 0 to detect at native resolution; {@code videoScaleSize}. */
+	private final int scaleSize;
+
 	@Inject
+	public VideoFaceScanner(InspireFacedetector inspireface, FacedetectNodeOptions options) {
+		this.inspireface = inspireface;
+		this.windowSteps = options.getVideoChopRate() > 0 ? options.getVideoChopRate() : WINDOW_STEPS;
+		this.scaleSize = Math.max(0, options.getVideoScaleSize());
+	}
+
+	/** Scan with the built-in defaults, for callers that have no node options - tests, mostly. */
 	public VideoFaceScanner(InspireFacedetector inspireface) {
 		this.inspireface = inspireface;
+		this.windowSteps = WINDOW_STEPS;
+		this.scaleSize = 0;
 	}
 
 	public VideoFaceScannerReport scan(VideoFile video, int maxWindowCount)
@@ -83,7 +115,7 @@ public class VideoFaceScanner {
 
 		// Locate potential windows
 		// List<FrameWindow> windows = identifyPotentialWindows(video, windowCount);
-		List<FrameWindow> windows = VideoFaceScannerUtils.splitWindows(video.length(), WINDOW_STEPS, maxWindowCount);
+		List<FrameWindow> windows = VideoFaceScannerUtils.splitWindows(video.length(), windowSteps, maxWindowCount);
 		report.setWindowInfo(maxWindowCount, windows.size());
 		logger.info("Split Window: {} windows to be scanned.", windows.size());
 
@@ -187,7 +219,7 @@ public class VideoFaceScanner {
 			logger.debug("Tuning window: {}", window);
 		}
 
-		List<VideoFace> faces = scanWindow(video, window, WINDOW_STEPS);
+		List<VideoFace> faces = scanWindow(video, window, windowSteps);
 		// Only keep the sharpest face from the window
 		// faces = faces.stream().sorted(this::blurComperator).limit(1).toList();
 		logger.info("Window scan of window {} yield {} faces", window, faces.size());
@@ -364,16 +396,19 @@ public class VideoFaceScanner {
 		long start = System.currentTimeMillis();
 		Mat original = frame.mat();
 
-		// boolean scaleDown = frame.height() >= DETECTION_SCALE_SIZE + 128;
-		boolean scaleDown = false;
+		// Driven by videoScaleSize, which defaults to 0 - detect at native resolution, which is what this
+		// scanner has always really done. Only rescale when the frame is meaningfully taller than the
+		// target; the 128px margin stops a frame that is already near the target from paying for a resize
+		// that buys nothing.
+		boolean scaleDown = scaleSize > 0 && frame.height() >= scaleSize + 128;
 		Mat smaller = null;
 		if (scaleDown) {
 			// Resize to smaller size for detection
 			smaller = original.clone();
 			double aspectRatio = (double) original.height() / (double) original.width();
-			int width = (int) ((double) DETECTION_SCALE_SIZE * aspectRatio);
+			int width = (int) ((double) scaleSize * aspectRatio);
 			logger.info("Scaling down image to width {} ", width);
-			CVUtils.resize(smaller, smaller, DETECTION_SCALE_SIZE, width);
+			CVUtils.resize(smaller, smaller, scaleSize, width);
 			frame.setMat(smaller);
 		}
 

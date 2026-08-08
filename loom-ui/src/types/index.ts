@@ -380,7 +380,22 @@ export interface FaceCluster {
   id: string;
   label: string;
   representativeThumbnailUrl: string;
+  /**
+   * Detection uuids of the faces in this cluster.
+   *
+   * Detections rather than embeddings, because a detection is what addresses a face crop. Empty
+   * until the members are loaded — the list route reports only `faceCount`, so a page of cards costs
+   * one request rather than one per card.
+   */
   faceIds: string[];
+  /** How many faces the server says are in this cluster, known before the members are loaded. */
+  faceCount: number;
+  /** The asset the cluster was computed within; needed to address its members' crops. */
+  assetId?: string;
+  /** Review verdict: PENDING, CONFIRMED or REJECTED. */
+  reviewStatus?: string;
+  /** Cohesion, or undefined for a single-member cluster. */
+  score?: number;
   personId?: string;
 }
 

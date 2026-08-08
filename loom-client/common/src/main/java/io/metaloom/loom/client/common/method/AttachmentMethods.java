@@ -34,6 +34,22 @@ public interface AttachmentMethods {
 	LoomClientRequest<AttachmentResponse> uploadAttachment(File file, String mimeType, UUID assetUuid, String type);
 
 	/**
+	 * Upload a cropped face, bound to the detection it depicts.
+	 *
+	 * <p>
+	 * A face crop belongs to one detected face rather than to a whole asset - an asset has many faces - so the detection uuid is what addresses it
+	 * later. Uploading the same {@code (detection, variant)} again replaces the previous crop rather than adding a second one.
+	 * </p>
+	 *
+	 * @param file          the encoded crop
+	 * @param assetUuid     the asset the face was found in; decides which storage pool the bytes land in
+	 * @param detectionUuid the detection the crop depicts
+	 * @param variant       size discriminator, e.g. the longest edge in pixels
+	 * @param nodeKind      the producing node kind
+	 */
+	LoomClientRequest<AttachmentResponse> uploadFaceCrop(File file, UUID assetUuid, UUID detectionUuid, String variant, String nodeKind);
+
+	/**
 	 * Download an attachment's raw bytes from {@code GET /attachments/:uuid/data}.
 	 *
 	 * @param attachmentUuid

@@ -11,10 +11,16 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
-import { listPersons, createPerson as apiCreatePerson, PersonResponse } from "../../api/persons";
-import { listClusters as apiListClusters, createCluster as apiCreateCluster, ClusterResponse } from "../../api/clusters";
+import { listPersons, createPerson as apiCreatePerson, listPersonClusters, PersonResponse } from "../../api/persons";
+import {
+  listClusters as apiListClusters,
+  createCluster as apiCreateCluster,
+  confirmCluster as apiConfirmCluster,
+  ClusterResponse,
+} from "../../api/clusters";
 import ClustersPanel from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
+import { assetBinaryUrl } from "../../api/assets";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
@@ -33,21 +39,31 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const { t } = useTranslation();
   const { token } = useAuth();
 
-  const toUiPerson = (r: PersonResponse): Person => ({
+  const toUiPerson = (r: PersonResponse, clusterIds: string[] = []): Person => ({
     id: r.uuid,
     name: [r.firstname, r.lastname].filter(Boolean).join(" ") || r.alias,
     description: r.alias,
-    avatarUrl: "",
-    clusterIds: [],
+    // The avatar is the person's primary image when they have one. It used to be hardcoded empty, so
+    // every avatar fell back to the MUI default however the person was set up.
+    avatarUrl: r.primaryImageUuid ? assetBinaryUrl(r.primaryImageUuid) : "",
+    clusterIds,
     createdAt: r.status?.created ?? new Date().toISOString(),
   });
 
   const toUiCluster = (r: ClusterResponse): FaceCluster => ({
     id: r.uuid,
-    label: r.name,
+    // A machine proposal has no name until somebody confirms one, so fall back to something a
+    // reviewer can act on rather than rendering a blank card.
+    label: r.name || t("faceDetection.label.unnamedCluster"),
     representativeThumbnailUrl: "",
+    // Members are fetched lazily: the list route reports the count, so a page of cards is one request
+    // rather than one per card.
     faceIds: [],
-    personId: undefined,
+    faceCount: r.memberCount ?? 0,
+    assetId: r.assetUuid,
+    reviewStatus: r.reviewStatus,
+    score: r.score,
+    personId: r.personUuid,
   });
 
   useEffect(() => {
@@ -58,8 +74,20 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             apiListClusters(token, { limit: PAGE_SIZE }),
             listPersons(token, { limit: PAGE_SIZE }),
           ]);
-          setClusters(clustersResp.data.map(toUiCluster));
-          setPersons(personsResp.data.map(toUiPerson));
+          setClusters((clustersResp.data ?? []).map(toUiCluster));
+
+          // A person's clusters are the inverse of the confirmation, and the person list does not carry
+          // them. One request per person is acceptable for a page of 25 and is what makes the cluster
+          // chips on a person card real rather than permanently empty.
+          const persons = personsResp.data ?? [];
+          const clusterIdsByPerson = await Promise.all(
+            persons.map(p =>
+              listPersonClusters(token, p.uuid)
+                .then(resp => (resp.data ?? []).map(c => c.uuid))
+                .catch(() => [] as string[]),
+            ),
+          );
+          setPersons(persons.map((p, i) => toUiPerson(p, clusterIdsByPerson[i])));
         } catch (e) {
           console.error("Failed to load face detection data", e);
         }
@@ -111,11 +139,26 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     setCreateClusterOpen(false);
   };
 
+  /**
+   * Confirm that a cluster is a person.
+   *
+   * This used to mutate local state and nothing else, so the assignment vanished on reload. It now
+   * goes through the confirmation endpoint, which sets the verdict and the person link in one
+   * transaction; local state is updated from what the server actually stored.
+   */
   const handleAssignCluster = async () => {
-    if (!assignOpen || !assignPersonId) return;
-    // TODO: implement cluster-to-person assignment via REST API when backend supports it
-    setClusters(prev => prev.map(c => c.id === assignOpen ? { ...c, personId: assignPersonId } : c));
-    setPersons(prev => prev.map(p => p.id === assignPersonId ? { ...p, clusterIds: [...p.clusterIds, assignOpen!] } : p));
+    if (!assignOpen || !assignPersonId || !token) return;
+    try {
+      const confirmed = await apiConfirmCluster(token, assignOpen, { personUuid: assignPersonId });
+      setClusters(prev => prev.map(c => (c.id === assignOpen ? { ...c, ...toUiCluster(confirmed), faceIds: c.faceIds } : c)));
+      setPersons(prev =>
+        prev.map(p => (p.id === assignPersonId && !p.clusterIds.includes(assignOpen) 
+          ? { ...p, clusterIds: [...p.clusterIds, assignOpen] } 
+          : p)),
+      );
+    } catch (e) {
+      console.error("Failed to confirm the cluster", e);
+    }
     setAssignOpen(null);
     setAssignPersonId("");
   };

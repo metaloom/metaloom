@@ -37,13 +37,20 @@ public class FacedetectNodeTest extends AbstractFacedetectMediaTest {
 		NodeResult result = node.process(ctx(media));
 		assertThat(result).isSuccess();
 		assertThat(result).hasOutput(FacedetectNode.OUT_FACE_COUNT);
+
+		// One element per detected face. VideoFaceScanner#processFaces caps its output at 10, so "at least
+		// 10" cannot be a strict greater-than — that asserted a count the scanner is built never to return.
+		int detectionCount = result.getOutputs().get(FacedetectNode.OUT_DETECTIONS.id()).size();
+		assertTrue(detectionCount >= 10, "There should be at least 10 detections. Found: " + detectionCount);
+
 		// scalar/integer is widened to Long at the port boundary.
 		Long faceCount = result.get(FacedetectNode.OUT_FACE_COUNT);
-		// VideoFaceScanner#processFaces caps its output at 10, so "at least 10" cannot be a strict
-		// greater-than — that asserted a count the scanner is built never to return.
-		assertTrue(faceCount >= 10, "There should be at least 10 detections. Found: " + faceCount);
-		// The count is derived from the element sequence, so the two can never disagree.
-		assertThat(result).hasElementCount(FacedetectNode.OUT_DETECTIONS, faceCount.intValue());
+		// face_count is the number of distinct *people*, not of boxes — which is what its @PortDoc has always
+		// claimed and, before clustering existed, never delivered: it emitted the detection count. Ten sampled
+		// boxes of three people is three, so the two numbers not only may differ, they normally do.
+		assertTrue(faceCount >= 1, "A video with faces must report at least one subject. Found: " + faceCount);
+		assertTrue(faceCount <= detectionCount,
+			"There cannot be more subjects than detections. Subjects: " + faceCount + ", detections: " + detectionCount);
 	}
 
 	@Test

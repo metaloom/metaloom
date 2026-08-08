@@ -23,14 +23,14 @@ import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
+import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, assetBinaryUrl, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
 import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, DEFAULT_TAG_COLLECTION } from "../../api/tags";
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
-import { listClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
+import { listAssetClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
 import {
   listAssetDetections, createDetection, updateDetection, deleteDetection,
   bulkCreateDetections, DetectionResponse,
@@ -227,7 +227,9 @@ export default function AssetDetail() {
       token ? listAssetTasks(token, id).then(r => r.data ?? []).catch(() => [] as TaskResponse[]) : Promise.resolve([] as TaskResponse[]),
       token ? listAssetTranscripts(token, id).then(resp => (resp.data ?? []).map(transcriptResponseToGroup)) : Promise.resolve([] as TranscriptGroup[]),
       token ? listAssetDetections(token, id).then(resp => (resp.data ?? [])
-        .filter(d => d.type === "facedetection")
+        // "face" is what FacedetectNode writes. This read "facedetection" — which is the node's *options*
+        // key, not its detection type — so the panel matched the demo seed and never a real asset.
+        .filter(d => d.type === "face")
         .map((d): DetectedFace => ({
           id: d.uuid,
           assetId: d.assetUuid,
@@ -238,12 +240,25 @@ export default function AssetDetail() {
           clusterId: (d.meta as Record<string, unknown>)?.clusterId as string | undefined,
         }))
       ) : Promise.resolve([] as DetectedFace[]),
-      token ? listClusters(token, { limit: PAGE_SIZE }).then(r => r.data.map((c: ClusterApiResponse): FaceCluster => ({
-        id: c.uuid, label: c.name, representativeThumbnailUrl: "", faceIds: [], personId: undefined,
+      // The clusters computed within THIS asset, not every cluster in the library. The panel groups the
+      // asset's faces by subject, so a library-wide list could only ever have produced groups whose
+      // members are not here.
+      token && id ? listAssetClusters(token, id).then(r => (r.data ?? []).map((c: ClusterApiResponse): FaceCluster => ({
+        id: c.uuid,
+        label: c.name || "Unnamed cluster",
+        representativeThumbnailUrl: "",
+        faceIds: [],
+        faceCount: c.memberCount ?? 0,
+        assetId: c.assetUuid,
+        reviewStatus: c.reviewStatus,
+        score: c.score,
+        personId: c.personUuid,
       }))) : Promise.resolve([] as FaceCluster[]),
       token ? listPersons(token, { limit: PAGE_SIZE }).then(r => r.data.map((p: PersonResponse): Person => ({
         id: p.uuid, name: [p.firstname, p.lastname].filter(Boolean).join(" ") || p.alias,
-        description: p.alias, avatarUrl: "", clusterIds: [], createdAt: p.status?.created ?? "",
+        description: p.alias,
+        avatarUrl: p.primaryImageUuid ? assetBinaryUrl(p.primaryImageUuid) : "",
+        clusterIds: [], createdAt: p.status?.created ?? "",
       }))) : Promise.resolve([] as Person[]),
     ]).then(([c, t, tr, faces, clusters, pers]) => {
       setComments(c);

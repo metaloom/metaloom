@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid as _uuid_mod
 from typing import TYPE_CHECKING
 
+from ..models.cluster import ClusterListResponse
 from ..models.person import (
     PersonCreateRequest,
     PersonListResponse,
@@ -42,3 +43,13 @@ class PersonMethods:
     def delete_person(self, person_uuid: _uuid_mod.UUID | str) -> LoomRequest[None]:
         """Delete a person. Answers 204 with no body."""
         return self._delete(f"persons/{self._uuid(person_uuid)}")
+
+    def list_person_clusters(
+        self, person_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[ClusterListResponse]:
+        """List the face clusters confirmed to be this person.
+
+        The inverse of :meth:`confirm_cluster`: given a person, which groups of faces
+        were attributed to them, across which assets.
+        """
+        return self._get(f"persons/{self._uuid(person_uuid)}/clusters", ClusterListResponse)

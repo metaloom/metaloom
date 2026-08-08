@@ -1378,7 +1378,8 @@
     "label": {
       "since": "seit {{date}}",
       "name": "Name",
-      "description": "Beschreibung"
+      "description": "Beschreibung",
+      "unnamedCluster": "Unbenanntes Cluster"
     },
     "tooltip": {
       "assign": "Person zuweisen"

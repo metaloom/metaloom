@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box, Typography, Paper, Avatar, Chip, IconButton, Tooltip, Dialog, DialogTitle,
   DialogContent, DialogActions, Button, TextField,
@@ -10,7 +10,12 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
-import { deleteCluster as apiDeleteCluster, updateCluster as apiUpdateCluster } from "../../api/clusters";
+import {
+  deleteCluster as apiDeleteCluster,
+  updateCluster as apiUpdateCluster,
+  listClusterMembers,
+} from "../../api/clusters";
+import { FaceCrop } from "./FaceCrop";
 
 interface ClustersPanelProps {
   clusters: FaceCluster[];
@@ -25,6 +30,46 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
   const { token } = useAuth();
   const [editCluster, setEditCluster] = useState<FaceCluster | null>(null);
   const [editName, setEditName] = useState("");
+
+  /**
+   * Detection uuids per cluster, fetched once the cards are on screen.
+   *
+   * Held here rather than on the cluster objects because it is a display concern: the list route
+   * already reports the member count, so the cards can say "N faces" immediately and fill in the
+   * thumbnails as the member lists arrive. Membership used to be hardcoded to an empty array, which
+   * made every card read "0 faces" no matter what was in it.
+   */
+  const [memberIds, setMemberIds] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    // Only the clusters that have members and have not been fetched yet.
+    const pending = clusters.filter(c => c.faceCount > 0 && memberIds[c.id] === undefined);
+    if (pending.length === 0) return;
+
+    Promise.all(
+      pending.map(c =>
+        listClusterMembers(token, c.id)
+          .then(resp => [c.id, (resp.members ?? []).map(m => m.detectionUuid).filter((d): d is string => !!d)] as const)
+          .catch(() => [c.id, [] as string[]] as const),
+      ),
+    ).then(entries => {
+      if (cancelled) return;
+      setMemberIds(prev => {
+        const next = { ...prev };
+        for (const [id, ids] of entries) {
+          next[id] = ids;
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, clusters, memberIds]);
 
   const handleDelete = async (id: string) => {
     if (!token) return;
@@ -75,7 +120,7 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                   {cluster.label}
                 </Typography>
                 <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>
-                  {t("faceDetection.count.faces", { count: cluster.faceIds.length })}
+                  {t("faceDetection.count.faces", { count: cluster.faceCount })}
                 </Typography>
               </Box>
               {person ? (
@@ -96,16 +141,21 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                 </IconButton>
               </Box>
             </Box>
-            {/* Face thumbnails grid */}
+            {/* Face thumbnails grid.
+
+                The crops are served from this deployment via <FaceCrop>. They used to be
+                https://i.pravatar.cc/80?u={faceId} — stock portraits of people who were not in the
+                picture, fetched by sending every detection uuid to a third party. Face crops are
+                biometric data and do not leave the deployment. */}
             <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", p: 1.5 }}>
-              {cluster.faceIds.slice(0, 8).map(fid => (
-                <Box key={fid} sx={{ width: 44, height: 44, borderRadius: tokens.radius.sm, overflow: "hidden", border: `2px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.overlay }}>
-                  <img src={`https://i.pravatar.cc/80?u=${fid}`} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </Box>
+              {(memberIds[cluster.id] ?? []).slice(0, 8).map(fid => (
+                <FaceCrop key={fid} assetUuid={cluster.assetId} detectionUuid={fid} size={44} rounded={false} />
               ))}
-              {cluster.faceIds.length > 8 && (
+              {cluster.faceCount > 8 && (
                 <Box sx={{ width: 44, height: 44, borderRadius: tokens.radius.sm, bgcolor: tokens.bg.overlay, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Typography variant="caption" sx={{ fontSize: "0.7rem", color: tokens.text.tertiary }}>+{cluster.faceIds.length - 8}</Typography>
+                  <Typography variant="caption" sx={{ fontSize: "0.7rem", color: tokens.text.tertiary }}>
+                    +{cluster.faceCount - 8}
+                  </Typography>
                 </Box>
               )}
             </Box>

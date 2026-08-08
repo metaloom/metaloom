@@ -21,7 +21,7 @@
 > | `image-manipulation` — EXIF autorotate, crop, subject crop, aspect/VVS, resize | [image-manipulation/NODE_IMAGE_MANIPULATION.md](image-manipulation/NODE_IMAGE_MANIPULATION.md) |
 > | `tika` — document body text | [SERVICE_TIKA.md](SERVICE_TIKA.md) |
 > | `facedetect` / `facedescription` — the face model and licensing landscape | [facedetect/FACEDETECTION_OVERVIEW.md](facedetect/FACEDETECTION_OVERVIEW.md) |
-> | `facedetect` — the identity **workflow**: detect → embed → cluster → confirm a person | [../facedetection/FACE_WORKFLOW.md](../facedetection/FACE_WORKFLOW.md) — 🔴 only stage 1 runs; the `faceClusterEPS` / `faceClusterMinimum` options in §5 are read by nothing |
+> | `facedetect` — the identity **workflow**: detect → embed → cluster → confirm a person | [../../workflows/WORKFLOW_FACE.md](../../workflows/WORKFLOW_FACE.md) — 🟢 all four stages run; clustering is per asset, so cross-asset identity is still open |
 >
 > **Source of truth is the code under `cortex/`.** Where this file and the code disagree, the code
 > wins — fix this file in the same change.
@@ -121,7 +121,7 @@ shadows the base method — do not copy it.
 | `sha512` | **ledger only** — the SHA-512 *is* the asset identity, nothing to write back | — |
 | `consistency` | `assets/:uuid` update → `asset` consistency block | `updateAsset` |
 | `fingerprint` | `assets/:uuid/fingerprints` → `asset_fingerprint_comp` (sector 0) | `createAssetFingerprintComp` |
-| `facedetect` | `assets/:uuid/detections/bulk` → `detection` (upsert) | `bulkCreateAssetDetections` |
+| `facedetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=face`), then `…/embeddings/bulk` → `embedding`, then `…/clusters/bulk` → `cluster` + `embedding_cluster`, plus one `FACE_CROP` `attachment` per face | `bulkCreateAssetDetections`, `bulkCreateAssetEmbeddings`, `bulkCreateAssetClusters`, `uploadFaceCrop` |
 | `objectdetect` | `assets/:uuid/detections/bulk` → `detection` (upsert, `type=objectdetection`, `label` = the class) | `bulkCreateAssetDetections` |
 | `whisper` | `assets/:uuid/transcripts` → `asset_transcript_comp` (`streamIndex 0`) | `createAssetTranscript` |
 | `scene-detection` | `assets/:uuid/segments` → `asset_segment_comp` (whole-set **replace**) | `createAssetSegmentComps` |
@@ -186,7 +186,7 @@ Port ids only; content types and cardinality are in
 | `thumbnail` | `ThumbnailNode` · thumbnail | video (+`is_complete` gate) | `media`, `is_complete` → `thumbnail`, `flag` | ledger only | video4j |
 | `quality` | `QualityNode` · quality | video, image | `media` → `metrics`, `blurriness`, `width`, `height`, `fps`, `frame_count`, `flag` | `asset_json_comp` | video4j |
 | `scene-detection` | `SceneDetectionNode` · scene-detection | video | `media` → `scenes` | `asset_segment_comp` (replace) | video4j |
-| `facedetect` | `FacedetectNode` · facedetect | video, image | `image` \| `video` → `face_count`, `flag`, `detections` (MANY) | `detection` (upsert) | InspireFace |
+| `facedetect` | `FacedetectNode` · facedetect | video, image | `image` \| `video` → `face_count` (**distinct subjects**), `flag`, `detections` (MANY) | `detection`, `embedding`, `cluster` + `embedding_cluster` (all upsert), `attachment` (FACE_CROP) | InspireFace |
 | `facedescription` | `FacedescriptionNode` · facedetect | video, image | `detections` (MANY) → `descriptions` (MANY) | `asset_json_comp` | LLM |
 | `objectdetect` | `ObjectDetectNode` · objectdetect | video, image | `image` \| `video` → `detections` (MANY), `labels` (MANY), `object_count`, `flag` | `detection` (upsert) | yolo4j / ONNX |
 | `ocr` | `OCRNode` · ocr | image | `media` → `text` | `asset_json_comp` | Tesseract |
@@ -453,7 +453,7 @@ flowchart TD
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
-two from disagreeing. `facedescription` deliberately has **no** map binding.
+two from disagreeing.
 
 The `Provider` keeps a node uninstantiated until a task of its kind arrives — several pull heavy
 native transitive deps, so merely booting a worker must not construct them.
@@ -474,7 +474,7 @@ Reconciling the two registries:
 | Set | Count | Members |
 |---|---|---|
 | Descriptor **and** runnable | 36 | the 34 kind bindings minus `sha512-dedup`, plus `filesystem-source`, `s3-source`, `gdrive-source` and `onedrive-source` |
-| Descriptor only — **not runnable** | 2 | `facedescription`, `loom-fetch` |
+| Descriptor only — **not runnable** | 1 | `loom-fetch` |
 | Runnable only — **no descriptor** | 2 | `sha512-dedup` (alias), `asset-source` |
 
 🔴 The descriptor is an enforced contract, not decoration: `PortGraphAnalyzer` validates every edge
@@ -553,7 +553,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `thumbnail` | `cols`, `rows`, `tileSize` |
 | `ocr` | `tessDataPath` (`/usr/share/tesseract-ocr/5/tessdata`), `language` (`eng`) |
 | `whisper` | `modelPath` (`models/ggml-large-v3-turbo.bin`), `temperature` (0.0), `temperatureInc` (0.2), `language`, `useGpu` (true), `gpuDevice` (0) |
-| `facedetection` | `videoChopRate` (5), `videoScaleSize` (384), `minFaceHeightFactor` (0.05), `inspirefacePackPath`, `capabilities` (`{INSPIREFACE}`), `faceClusterMinimum`, `faceClusterEPS` |
+| `facedetection` | `videoChopRate` (15), `videoScaleSize` (0 = native), `minFaceHeightFactor` (0.05), `maxFaceAngle` (30), `inspirefacePackPath`, `capabilities` (`{INSPIREFACE}`), `embeddingsEnabled`, `embeddingModel`, `faceClusterMinimum` (2), `faceClusterEPS` (0.6). All are read; the first two had their defaults corrected to the behaviour that was actually shipping |
 | `objectdetect` | `modelPath` (`models/yolo/YOLOv11n_voc.onnx`), `labelsPath` (`models/yolo/voc.names`), `useGpu` (true), `onnxRuntimeLibPath` (null, hidden), `minConfidence` (0.5, floor 0.4), `videoChopRate` (25), `videoScaleSize` (1024), `maxDetections` (500), `classFilter` (empty = all) |
 | `quality` | `checkBlurriness`, `checkResolution`, `checkVideoBitrate`, `checkAudioBitrate` (all true) |
 | `captioning` | `smolVLMHost` (`localhost`), `smolVLMPort` (8000), `videoStrategy` (`WHOLE`), `videoEndpointUrl` (`http://localhost:8000`), `videoModel` (`qwen25vl-awq`), `videoApiKey` (``), `frameCount` (8), `targetFrameSize` (512), `maxScenes` (32), `maxTokens` (256), `temperature` (0.2), `videoPrompt` |
@@ -763,7 +763,9 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ### Coverage and registration gaps
 
-- [ ] **`facedescription` has a descriptor but no `@IntoMap` binding** — not runnable in a pipeline.
+- [x] **`facedescription` has a descriptor but no `@IntoMap` binding** — fixed. The missing binding was a
+      symptom: the node injects an `ObjectMapper` that nothing in the Cortex graph provided, so it could
+      not be constructed at all. Both the provider and the two bindings were added.
       It is also image-only; per-frame video description is stubbed.
 - [ ] **`loom-fetch` has a descriptor but no runtime** — `LoomFetchNode` exists in `pipeline-core`,
       no producer is registered, and it is not a `MediaSourceNode`, so it cannot drive a run.
@@ -869,7 +871,7 @@ _Git HEAD revision: `a63b034b`_
 _Last updated: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
 all four `filterBy` values are implemented. Earlier the same day: added the routing row for
 `features/facedetection/FACE_WORKFLOW.md`, which owns the face identity loop — and recorded that the
-`faceClusterEPS` / `faceClusterMinimum` options listed in §5 here are read by no code). Previously 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
+`faceClusterEPS` / `faceClusterMinimum` options listed in §5 here are now read by `FaceClusterer`, and `facedescription` is bound and runnable). Previously 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —
 one request per item, one transaction, and a rejected withdrawal fails the item; added
 `TagNodeIntegrationTest` to the per-node ITs. Also finished removing `NodePortConformanceTest` from the
 test tables and the file map, where three references survived the 2026-08-04 correction)_

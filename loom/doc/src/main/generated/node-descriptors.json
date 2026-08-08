@@ -649,7 +649,7 @@
     }, {
       "key" : "videoChopRate",
       "type" : "INTEGER",
-      "defaultValue" : 5,
+      "defaultValue" : 15,
       "label" : "Video Chop Rate",
       "description" : "Process every Nth video frame",
       "min" : 1
@@ -671,9 +671,10 @@
     }, {
       "key" : "videoScaleSize",
       "type" : "INTEGER",
-      "defaultValue" : 384,
+      "defaultValue" : 0,
       "label" : "Scale Size (px)",
-      "description" : "Rescale video frames to this size"
+      "description" : "Rescale video frames to this longest edge before detection; 0 detects at native resolution",
+      "min" : 0
     }, {
       "key" : "minFaceHeightFactor",
       "type" : "NUMBER",

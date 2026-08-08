@@ -8,9 +8,12 @@ import java.nio.file.Paths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import io.metaloom.cortex.node.facedescription.FacedescriptionNode;
 import dagger.multibindings.IntoMap;
 import dagger.multibindings.IntoSet;
 import dagger.multibindings.StringKey;
@@ -40,6 +43,37 @@ public abstract class FacedetectNodeModule extends AbstractNodeModule {
 	@IntoMap
 	@StringKey("facedetect")
 	abstract FilesystemNode<?, ?> kindFacedetect(FacedetectNode node);
+
+	/**
+	 * The VLM face-description node.
+	 *
+	 * <p>
+	 * It has a descriptor - so the pipeline editor has always offered it - but no binding, which made it advertised and not instantiable: adding it to
+	 * a pipeline produced a node the registrar could not resolve. The two bindings below are what a node needs to exist at all, and it had neither.
+	 * </p>
+	 */
+	@Binds
+	@IntoSet
+	abstract CortexNode<?, ?> bindFacedescriptionNode(FacedescriptionNode node);
+
+	@Binds
+	@IntoMap
+	@StringKey("facedescription")
+	abstract FilesystemNode<?, ?> kindFacedescription(FacedescriptionNode node);
+
+	/**
+	 * The JSON mapper {@link FacedescriptionNode} parses the vision model's replies with.
+	 *
+	 * <p>
+	 * Nothing in the Cortex graph provided one, which is the real reason that node was never bound: it could not be constructed at all, so the missing
+	 * {@code @IntoMap} was a symptom rather than the defect. Declared here because this module owns the only consumer; if a second one appears, move it
+	 * to a core module rather than binding it twice - Dagger rejects a duplicate.
+	 * </p>
+	 */
+	@Provides
+	public static ObjectMapper objectMapper() {
+		return new ObjectMapper();
+	}
 
 	@IntoSet
 	@Provides

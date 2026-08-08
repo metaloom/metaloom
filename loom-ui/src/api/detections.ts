@@ -162,3 +162,35 @@ export async function bulkCreateDetections(
   );
   return handleResponse<DetectionBulkResponse>(res);
 }
+
+/**
+ * Fetch the cropped face image for a detection.
+ *
+ * Served from this deployment's own storage. The review UI used to stand these in with portraits from
+ * a third-party avatar service, which both leaked detection uuids to that service and showed the
+ * reviewer a stranger's face — face crops are biometric data and do not leave the deployment.
+ *
+ * A crop only exists once the face-detection node has run, so a 404 is a normal state rather than an
+ * error to surface.
+ */
+export async function fetchDetectionCrop(
+  token: string,
+  assetUuid: string,
+  detectionUuid: string
+): Promise<Blob | null> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${encodeURIComponent(assetUuid)}/detections/${encodeURIComponent(detectionUuid)}/crop`,
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+  return res.blob();
+}

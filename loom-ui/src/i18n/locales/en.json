@@ -1390,7 +1390,8 @@
       "description": "Description",
       "alias": "Alias",
       "firstname": "First Name",
-      "lastname": "Last Name"
+      "lastname": "Last Name",
+      "unnamedCluster": "Unnamed cluster"
     },
     "tooltip": {
       "assign": "Assign to person"

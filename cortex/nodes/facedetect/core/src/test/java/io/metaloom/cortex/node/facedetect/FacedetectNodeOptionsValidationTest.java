@@ -45,17 +45,19 @@ public class FacedetectNodeOptionsValidationTest {
 	}
 
 	@Test
-	public void testZeroVideoScaleSizeInvalid() {
+	public void testZeroVideoScaleSizeIsValidAndMeansNoDownscale() {
+		// 0 is the default and the documented way to say "detect at native resolution". It used to be
+		// rejected, which was harmless only because nothing read the option at all.
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setVideoScaleSize(0);
-		assertThat(options).isInvalid().hasError("videoScaleSize must be positive");
+		assertThat(options).isValid();
 	}
 
 	@Test
 	public void testNegativeVideoScaleSizeInvalid() {
 		FacedetectNodeOptions options = new FacedetectNodeOptions();
 		options.setVideoScaleSize(-1);
-		assertThat(options).isInvalid().hasError("videoScaleSize must be positive");
+		assertThat(options).isInvalid().hasError("videoScaleSize must not be negative");
 	}
 
 	@Test

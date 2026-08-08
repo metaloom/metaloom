@@ -16,6 +16,7 @@ from ..models.detection import (
 )
 
 if TYPE_CHECKING:
+    from ..response import BinaryResponse
     from ..request import LoomRequest
 
 
@@ -78,3 +79,16 @@ class DetectionMethods:
         HTTP status.
         """
         return self._post(f"{self._asset_sub(asset_id)}/detections/bulk", request, DetectionBulkResponse)
+
+    def load_detection_crop(
+        self, asset_id: AssetId | _uuid_mod.UUID | str, detection_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[BinaryResponse]:
+        """Download the cropped face image for a detection.
+
+        Served from the deployment's own storage - face crops are biometric data. The
+        bytes are written by the face-detection node, so a detection whose node has not
+        run answers 404.
+        """
+        return self._download(
+            f"{self._asset_sub(asset_id)}/detections/{self._uuid(detection_uuid)}/crop"
+        )
