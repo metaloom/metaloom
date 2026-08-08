@@ -26,6 +26,7 @@ import io.metaloom.loom.rest.service.impl.EmbeddingEndpointService;
 import io.metaloom.loom.rest.service.impl.FingerprintCompEndpointService;
 import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
+import io.metaloom.loom.rest.service.impl.ClusterEndpointService;
 import io.metaloom.loom.rest.service.impl.DedupGroupEndpointService;
 import io.metaloom.loom.rest.service.impl.SegmentCompEndpointService;
 import io.metaloom.loom.rest.service.impl.SimilarityEndpointService;
@@ -55,6 +56,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final TaskEndpointService taskService;
 	private final SimilarityEndpointService similarityService;
 	private final DedupGroupEndpointService dedupGroupService;
+
+	private final ClusterEndpointService clusterService;
 	private final ModelExamples examples;
 
 	@Inject
@@ -72,6 +75,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		TaskEndpointService taskService,
 		SimilarityEndpointService similarityService,
 		DedupGroupEndpointService dedupGroupService,
+		ClusterEndpointService clusterService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
@@ -90,6 +94,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.taskService = taskService;
 		this.similarityService = similarityService;
 		this.dedupGroupService = dedupGroupService;
+		this.clusterService = clusterService;
 		this.examples = examples;
 	}
 
@@ -369,6 +374,24 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.embeddingBulkResponseExample(),
 			lrc -> {
 				embeddingService.bulkCreateAssetEmbeddings(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
+		// --- CLUSTER (the subjects a producer found in this asset) ---
+
+		addRoute(basePath() + "/:uuid/clusters/bulk", POST,
+			"Bulk create the clusters a producer found in an asset. Idempotent on (asset, nodeKind, clusterIndex), and never overwrites a review verdict.",
+			examples.clusterBulkCreateRequestExample(),
+			examples.clusterBulkResponseExample(),
+			lrc -> {
+				clusterService.bulkCreateAssetClusters(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/clusters", GET,
+			"List the clusters computed within an asset",
+			null,
+			examples.clusterListResponseExample(),
+			lrc -> {
+				clusterService.listAssetClusters(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		addRoute(basePath() + "/:uuid/detections/:detectionUuid", DELETE,

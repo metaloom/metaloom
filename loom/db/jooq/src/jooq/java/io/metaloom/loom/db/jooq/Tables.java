@@ -284,11 +284,9 @@ public class Tables {
     public static final JooqChatSessionSkill CHAT_SESSION_SKILL = JooqChatSessionSkill.CHAT_SESSION_SKILL;
 
     /**
-     * Generic cluster that aggregates multiple embeddings. 
-     * A cluster could for example represent a person which can have multiple
-     * face embeddings.
-     * Alternatively media fingerprint embeddings can be used to group media
-     * together by visual similarity.
+     * A group of embeddings that a producer believes belong to one subject,
+     * carrying a human confirm/reject decision. type='face' clusters are
+     * proposed per asset by the facedetect node and confirmed into a person.
      */
     public static final JooqCluster CLUSTER = JooqCluster.CLUSTER;
 

@@ -4,6 +4,7 @@
 package io.metaloom.loom.db.jooq.tables.records;
 
 
+import io.metaloom.loom.db.jooq.enums.JooqClusterStatus;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.vertx.core.json.JsonObject;
 
@@ -12,20 +13,18 @@ import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record8;
-import org.jooq.Row8;
+import org.jooq.Record21;
+import org.jooq.Row21;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Generic cluster that aggregates multiple embeddings. 
- * A cluster could for example represent a person which can have multiple face
- * embeddings.
- * Alternatively media fingerprint embeddings can be used to group media
- * together by visual similarity.
+ * A group of embeddings that a producer believes belong to one subject,
+ * carrying a human confirm/reject decision. type='face' clusters are proposed
+ * per asset by the facedetect node and confirmed into a person.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> implements Record8<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> implements Record21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqClusterStatus, UUID, Float, Float[], String, Integer> {
 
     private static final long serialVersionUID = 1L;
 
@@ -44,16 +43,18 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     /**
-     * Setter for <code>public.cluster.name</code>. Name of the cluster. (e.g.
-     * name of a person)
+     * Setter for <code>public.cluster.name</code>. Human-supplied label. NULL
+     * for a machine proposal nobody has named yet. Unique per (type, name) when
+     * set, so two cluster types may share a name.
      */
     public void setName(String value) {
         set(1, value);
     }
 
     /**
-     * Getter for <code>public.cluster.name</code>. Name of the cluster. (e.g.
-     * name of a person)
+     * Getter for <code>public.cluster.name</code>. Human-supplied label. NULL
+     * for a machine proposal nobody has named yet. Unique per (type, name) when
+     * set, so two cluster types may share a name.
      */
     public String getName() {
         return (String) get(1);
@@ -106,14 +107,16 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     /**
-     * Setter for <code>public.cluster.creator_uuid</code>.
+     * Setter for <code>public.cluster.creator_uuid</code>. NULL when written by
+     * a Cortex worker rather than a user (see cortex_instance)
      */
     public void setCreatorUuid(UUID value) {
         set(5, value);
     }
 
     /**
-     * Getter for <code>public.cluster.creator_uuid</code>.
+     * Getter for <code>public.cluster.creator_uuid</code>. NULL when written by
+     * a Cortex worker rather than a user (see cortex_instance)
      */
     public UUID getCreatorUuid() {
         return (UUID) get(5);
@@ -134,17 +137,233 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     /**
-     * Setter for <code>public.cluster.editor_uuid</code>.
+     * Setter for <code>public.cluster.editor_uuid</code>. NULL when written by
+     * a Cortex worker rather than a user (see cortex_instance)
      */
     public void setEditorUuid(UUID value) {
         set(7, value);
     }
 
     /**
-     * Getter for <code>public.cluster.editor_uuid</code>.
+     * Getter for <code>public.cluster.editor_uuid</code>. NULL when written by
+     * a Cortex worker rather than a user (see cortex_instance)
      */
     public UUID getEditorUuid() {
         return (UUID) get(7);
+    }
+
+    /**
+     * Setter for <code>public.cluster.node_kind</code>. Producing node kind,
+     * e.g. facedetect. NULL for a human-authored cluster.
+     */
+    public void setNodeKind(String value) {
+        set(8, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.node_kind</code>. Producing node kind,
+     * e.g. facedetect. NULL for a human-authored cluster.
+     */
+    public String getNodeKind() {
+        return (String) get(8);
+    }
+
+    /**
+     * Setter for <code>public.cluster.node_id</code>.
+     */
+    public void setNodeId(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.node_id</code>.
+     */
+    public String getNodeId() {
+        return (String) get(9);
+    }
+
+    /**
+     * Setter for <code>public.cluster.producer_version</code>. Version of the
+     * producer and its model, so a model change can retire stale proposals via
+     * WHERE node_kind = ? AND producer_version &lt;&gt; ?.
+     */
+    public void setProducerVersion(String value) {
+        set(10, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.producer_version</code>. Version of the
+     * producer and its model, so a model change can retire stale proposals via
+     * WHERE node_kind = ? AND producer_version &lt;&gt; ?.
+     */
+    public String getProducerVersion() {
+        return (String) get(10);
+    }
+
+    /**
+     * Setter for <code>public.cluster.run_uuid</code>.
+     */
+    public void setRunUuid(UUID value) {
+        set(11, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.run_uuid</code>.
+     */
+    public UUID getRunUuid() {
+        return (UUID) get(11);
+    }
+
+    /**
+     * Setter for <code>public.cluster.task_uuid</code>.
+     */
+    public void setTaskUuid(UUID value) {
+        set(12, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.task_uuid</code>.
+     */
+    public UUID getTaskUuid() {
+        return (UUID) get(12);
+    }
+
+    /**
+     * Setter for <code>public.cluster.asset_uuid</code>. The asset this cluster
+     * was computed within. NULL for a human-authored cluster or a phase-2
+     * library-wide one.
+     */
+    public void setAssetUuid(UUID value) {
+        set(13, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.asset_uuid</code>. The asset this cluster
+     * was computed within. NULL for a human-authored cluster or a phase-2
+     * library-wide one.
+     */
+    public UUID getAssetUuid() {
+        return (UUID) get(13);
+    }
+
+    /**
+     * Setter for <code>public.cluster.cluster_index</code>. Ordinal of this
+     * cluster within (asset_uuid, node_kind), assigned deterministically by the
+     * producer so a re-run upserts rather than appends.
+     */
+    public void setClusterIndex(Integer value) {
+        set(14, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.cluster_index</code>. Ordinal of this
+     * cluster within (asset_uuid, node_kind), assigned deterministically by the
+     * producer so a re-run upserts rather than appends.
+     */
+    public Integer getClusterIndex() {
+        return (Integer) get(14);
+    }
+
+    /**
+     * Setter for <code>public.cluster.status</code>. PENDING (awaiting review),
+     * CONFIRMED (linked to a person) or REJECTED (not a real subject).
+     */
+    public void setStatus(JooqClusterStatus value) {
+        set(15, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.status</code>. PENDING (awaiting review),
+     * CONFIRMED (linked to a person) or REJECTED (not a real subject).
+     */
+    public JooqClusterStatus getStatus() {
+        return (JooqClusterStatus) get(15);
+    }
+
+    /**
+     * Setter for <code>public.cluster.person_uuid</code>. The person a reviewer
+     * confirmed this cluster to be. SET NULL on person delete: the review
+     * record outlives the person row.
+     */
+    public void setPersonUuid(UUID value) {
+        set(16, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.person_uuid</code>. The person a reviewer
+     * confirmed this cluster to be. SET NULL on person delete: the review
+     * record outlives the person row.
+     */
+    public UUID getPersonUuid() {
+        return (UUID) get(16);
+    }
+
+    /**
+     * Setter for <code>public.cluster.score</code>. Cohesion: mean cosine
+     * similarity of the members to the centroid. NULL for a singleton, which
+     * has nothing to cohere with.
+     */
+    public void setScore(Float value) {
+        set(17, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.score</code>. Cohesion: mean cosine
+     * similarity of the members to the centroid. NULL for a singleton, which
+     * has nothing to cohere with.
+     */
+    public Float getScore() {
+        return (Float) get(17);
+    }
+
+    /**
+     * Setter for <code>public.cluster.centroid</code>. Unit-normalised mean of
+     * the member vectors. Only comparable against embeddings sharing this row's
+     * (type, model, dimensions).
+     */
+    public void setCentroid(Float[] value) {
+        set(18, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.centroid</code>. Unit-normalised mean of
+     * the member vectors. Only comparable against embeddings sharing this row's
+     * (type, model, dimensions).
+     */
+    public Float[] getCentroid() {
+        return (Float[]) get(18);
+    }
+
+    /**
+     * Setter for <code>public.cluster.model</code>. Model the member embeddings
+     * were produced by; qualifies "centroid".
+     */
+    public void setModel(String value) {
+        set(19, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.model</code>. Model the member embeddings
+     * were produced by; qualifies "centroid".
+     */
+    public String getModel() {
+        return (String) get(19);
+    }
+
+    /**
+     * Setter for <code>public.cluster.dimensions</code>. Length of "centroid";
+     * qualifies it together with "model".
+     */
+    public void setDimensions(Integer value) {
+        set(20, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.dimensions</code>. Length of "centroid";
+     * qualifies it together with "model".
+     */
+    public Integer getDimensions() {
+        return (Integer) get(20);
     }
 
     // -------------------------------------------------------------------------
@@ -157,17 +376,17 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     // -------------------------------------------------------------------------
-    // Record8 type implementation
+    // Record21 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqClusterStatus, UUID, Float, Float[], String, Integer> fieldsRow() {
+        return (Row21) super.fieldsRow();
     }
 
     @Override
-    public Row8<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row8) super.valuesRow();
+    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqClusterStatus, UUID, Float, Float[], String, Integer> valuesRow() {
+        return (Row21) super.valuesRow();
     }
 
     @Override
@@ -211,6 +430,71 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
+    public Field<String> field9() {
+        return JooqCluster.CLUSTER.NODE_KIND;
+    }
+
+    @Override
+    public Field<String> field10() {
+        return JooqCluster.CLUSTER.NODE_ID;
+    }
+
+    @Override
+    public Field<String> field11() {
+        return JooqCluster.CLUSTER.PRODUCER_VERSION;
+    }
+
+    @Override
+    public Field<UUID> field12() {
+        return JooqCluster.CLUSTER.RUN_UUID;
+    }
+
+    @Override
+    public Field<UUID> field13() {
+        return JooqCluster.CLUSTER.TASK_UUID;
+    }
+
+    @Override
+    public Field<UUID> field14() {
+        return JooqCluster.CLUSTER.ASSET_UUID;
+    }
+
+    @Override
+    public Field<Integer> field15() {
+        return JooqCluster.CLUSTER.CLUSTER_INDEX;
+    }
+
+    @Override
+    public Field<JooqClusterStatus> field16() {
+        return JooqCluster.CLUSTER.STATUS;
+    }
+
+    @Override
+    public Field<UUID> field17() {
+        return JooqCluster.CLUSTER.PERSON_UUID;
+    }
+
+    @Override
+    public Field<Float> field18() {
+        return JooqCluster.CLUSTER.SCORE;
+    }
+
+    @Override
+    public Field<Float[]> field19() {
+        return JooqCluster.CLUSTER.CENTROID;
+    }
+
+    @Override
+    public Field<String> field20() {
+        return JooqCluster.CLUSTER.MODEL;
+    }
+
+    @Override
+    public Field<Integer> field21() {
+        return JooqCluster.CLUSTER.DIMENSIONS;
+    }
+
+    @Override
     public UUID component1() {
         return getUuid();
     }
@@ -251,6 +535,71 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
+    public String component9() {
+        return getNodeKind();
+    }
+
+    @Override
+    public String component10() {
+        return getNodeId();
+    }
+
+    @Override
+    public String component11() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public UUID component12() {
+        return getRunUuid();
+    }
+
+    @Override
+    public UUID component13() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public UUID component14() {
+        return getAssetUuid();
+    }
+
+    @Override
+    public Integer component15() {
+        return getClusterIndex();
+    }
+
+    @Override
+    public JooqClusterStatus component16() {
+        return getStatus();
+    }
+
+    @Override
+    public UUID component17() {
+        return getPersonUuid();
+    }
+
+    @Override
+    public Float component18() {
+        return getScore();
+    }
+
+    @Override
+    public Float[] component19() {
+        return getCentroid();
+    }
+
+    @Override
+    public String component20() {
+        return getModel();
+    }
+
+    @Override
+    public Integer component21() {
+        return getDimensions();
+    }
+
+    @Override
     public UUID value1() {
         return getUuid();
     }
@@ -288,6 +637,71 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     @Override
     public UUID value8() {
         return getEditorUuid();
+    }
+
+    @Override
+    public String value9() {
+        return getNodeKind();
+    }
+
+    @Override
+    public String value10() {
+        return getNodeId();
+    }
+
+    @Override
+    public String value11() {
+        return getProducerVersion();
+    }
+
+    @Override
+    public UUID value12() {
+        return getRunUuid();
+    }
+
+    @Override
+    public UUID value13() {
+        return getTaskUuid();
+    }
+
+    @Override
+    public UUID value14() {
+        return getAssetUuid();
+    }
+
+    @Override
+    public Integer value15() {
+        return getClusterIndex();
+    }
+
+    @Override
+    public JooqClusterStatus value16() {
+        return getStatus();
+    }
+
+    @Override
+    public UUID value17() {
+        return getPersonUuid();
+    }
+
+    @Override
+    public Float value18() {
+        return getScore();
+    }
+
+    @Override
+    public Float[] value19() {
+        return getCentroid();
+    }
+
+    @Override
+    public String value20() {
+        return getModel();
+    }
+
+    @Override
+    public Integer value21() {
+        return getDimensions();
     }
 
     @Override
@@ -339,7 +753,85 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
-    public JooqClusterRecord values(UUID value1, String value2, JsonObject value3, String value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8) {
+    public JooqClusterRecord value9(String value) {
+        setNodeKind(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value10(String value) {
+        setNodeId(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value11(String value) {
+        setProducerVersion(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value12(UUID value) {
+        setRunUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value13(UUID value) {
+        setTaskUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value14(UUID value) {
+        setAssetUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value15(Integer value) {
+        setClusterIndex(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value16(JooqClusterStatus value) {
+        setStatus(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value17(UUID value) {
+        setPersonUuid(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value18(Float value) {
+        setScore(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value19(Float[] value) {
+        setCentroid(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value20(String value) {
+        setModel(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord value21(Integer value) {
+        setDimensions(value);
+        return this;
+    }
+
+    @Override
+    public JooqClusterRecord values(UUID value1, String value2, JsonObject value3, String value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8, String value9, String value10, String value11, UUID value12, UUID value13, UUID value14, Integer value15, JooqClusterStatus value16, UUID value17, Float value18, Float[] value19, String value20, Integer value21) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -348,6 +840,19 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
         value6(value6);
         value7(value7);
         value8(value8);
+        value9(value9);
+        value10(value10);
+        value11(value11);
+        value12(value12);
+        value13(value13);
+        value14(value14);
+        value15(value15);
+        value16(value16);
+        value17(value17);
+        value18(value18);
+        value19(value19);
+        value20(value20);
+        value21(value21);
         return this;
     }
 
@@ -365,7 +870,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     /**
      * Create a detached, initialised JooqClusterRecord
      */
-    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, UUID assetUuid, Integer clusterIndex, JooqClusterStatus status, UUID personUuid, Float score, Float[] centroid, String model, Integer dimensions) {
         super(JooqCluster.CLUSTER);
 
         setUuid(uuid);
@@ -376,5 +881,18 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
+        setNodeKind(nodeKind);
+        setNodeId(nodeId);
+        setProducerVersion(producerVersion);
+        setRunUuid(runUuid);
+        setTaskUuid(taskUuid);
+        setAssetUuid(assetUuid);
+        setClusterIndex(clusterIndex);
+        setStatus(status);
+        setPersonUuid(personUuid);
+        setScore(score);
+        setCentroid(centroid);
+        setModel(model);
+        setDimensions(dimensions);
     }
 }

@@ -4,22 +4,26 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.tables.records.JooqEmbeddingClusterRecord;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 
+import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function2;
+import org.jooq.Function5;
+import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row2;
+import org.jooq.Row5;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -27,6 +31,7 @@ import org.jooq.TableField;
 import org.jooq.TableOptions;
 import org.jooq.UniqueKey;
 import org.jooq.impl.DSL;
+import org.jooq.impl.Internal;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
 
@@ -61,6 +66,25 @@ public class JooqEmbeddingCluster extends TableImpl<JooqEmbeddingClusterRecord> 
      * The column <code>public.embedding_cluster.cluster_uuid</code>.
      */
     public final TableField<JooqEmbeddingClusterRecord, UUID> CLUSTER_UUID = createField(DSL.name("cluster_uuid"), SQLDataType.UUID.nullable(false), this, "");
+
+    /**
+     * The column <code>public.embedding_cluster.confidence</code>. Cosine
+     * similarity of this member to the cluster centroid at assignment time.
+     */
+    public final TableField<JooqEmbeddingClusterRecord, Float> CONFIDENCE = createField(DSL.name("confidence"), SQLDataType.REAL, this, "Cosine similarity of this member to the cluster centroid at assignment time.");
+
+    /**
+     * The column <code>public.embedding_cluster.origin</code>. AUTO when the
+     * clusterer assigned this member, MANUAL when a reviewer moved it.
+     */
+    public final TableField<JooqEmbeddingClusterRecord, String> ORIGIN = createField(DSL.name("origin"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'AUTO'::character varying", SQLDataType.VARCHAR)), this, "AUTO when the clusterer assigned this member, MANUAL when a reviewer moved it.");
+
+    /**
+     * The column <code>public.embedding_cluster.created</code>. When the
+     * membership was recorded, so a human correction is distinguishable from
+     * the original assignment.
+     */
+    public final TableField<JooqEmbeddingClusterRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "When the membership was recorded, so a human correction is distinguishable from the original assignment.");
 
     private JooqEmbeddingCluster(Name alias, Table<JooqEmbeddingClusterRecord> aliased) {
         this(alias, aliased, null);
@@ -101,6 +125,11 @@ public class JooqEmbeddingCluster extends TableImpl<JooqEmbeddingClusterRecord> 
     }
 
     @Override
+    public List<Index> getIndexes() {
+        return Arrays.asList(Indexes.IDX_EMBEDDING_CLUSTER_CLUSTER_UUID);
+    }
+
+    @Override
     public UniqueKey<JooqEmbeddingClusterRecord> getPrimaryKey() {
         return Keys.EMBEDDING_CLUSTER_PKEY;
     }
@@ -131,6 +160,13 @@ public class JooqEmbeddingCluster extends TableImpl<JooqEmbeddingClusterRecord> 
             _cluster = new JooqCluster(this, Keys.EMBEDDING_CLUSTER__EMBEDDING_CLUSTER_CLUSTER_UUID_FKEY);
 
         return _cluster;
+    }
+
+    @Override
+    public List<Check<JooqEmbeddingClusterRecord>> getChecks() {
+        return Arrays.asList(
+            Internal.createCheck(this, DSL.name("embedding_cluster_origin_check"), "(((origin)::text = ANY ((ARRAY['AUTO'::character varying, 'MANUAL'::character varying])::text[])))", true)
+        );
     }
 
     @Override
@@ -173,18 +209,18 @@ public class JooqEmbeddingCluster extends TableImpl<JooqEmbeddingClusterRecord> 
     }
 
     // -------------------------------------------------------------------------
-    // Row2 type methods
+    // Row5 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row2<UUID, UUID> fieldsRow() {
-        return (Row2) super.fieldsRow();
+    public Row5<UUID, UUID, Float, String, LocalDateTime> fieldsRow() {
+        return (Row5) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function2<? super UUID, ? super UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function5<? super UUID, ? super UUID, ? super Float, ? super String, ? super LocalDateTime, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -192,7 +228,7 @@ public class JooqEmbeddingCluster extends TableImpl<JooqEmbeddingClusterRecord> 
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function2<? super UUID, ? super UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function5<? super UUID, ? super UUID, ? super Float, ? super String, ? super LocalDateTime, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

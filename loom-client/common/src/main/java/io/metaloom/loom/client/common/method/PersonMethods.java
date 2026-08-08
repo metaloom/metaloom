@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.rest.model.NoResponse;
+import io.metaloom.loom.rest.model.cluster.ClusterListResponse;
 import io.metaloom.loom.rest.model.person.PersonCreateRequest;
 import io.metaloom.loom.rest.model.person.PersonListResponse;
 import io.metaloom.loom.rest.model.person.PersonResponse;
@@ -20,5 +21,8 @@ public interface PersonMethods {
 	LoomClientRequest<PersonListResponse> listPersons();
 
 	LoomClientRequest<NoResponse> deletePerson(UUID personUuid);
+
+	/** The face clusters confirmed to be this person, across every asset they appear in. */
+	LoomClientRequest<ClusterListResponse> listPersonClusters(UUID personUuid);
 
 }

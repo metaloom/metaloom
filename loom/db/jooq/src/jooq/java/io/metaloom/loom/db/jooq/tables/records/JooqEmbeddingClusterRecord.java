@@ -6,11 +6,13 @@ package io.metaloom.loom.db.jooq.tables.records;
 
 import io.metaloom.loom.db.jooq.tables.JooqEmbeddingCluster;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.jooq.Field;
 import org.jooq.Record2;
-import org.jooq.Row2;
+import org.jooq.Record5;
+import org.jooq.Row5;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -18,7 +20,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * List embeddings for clusters
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddingClusterRecord> implements Record2<UUID, UUID> {
+public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddingClusterRecord> implements Record5<UUID, UUID, Float, String, LocalDateTime> {
 
     private static final long serialVersionUID = 1L;
 
@@ -50,6 +52,56 @@ public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddin
         return (UUID) get(1);
     }
 
+    /**
+     * Setter for <code>public.embedding_cluster.confidence</code>. Cosine
+     * similarity of this member to the cluster centroid at assignment time.
+     */
+    public void setConfidence(Float value) {
+        set(2, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding_cluster.confidence</code>. Cosine
+     * similarity of this member to the cluster centroid at assignment time.
+     */
+    public Float getConfidence() {
+        return (Float) get(2);
+    }
+
+    /**
+     * Setter for <code>public.embedding_cluster.origin</code>. AUTO when the
+     * clusterer assigned this member, MANUAL when a reviewer moved it.
+     */
+    public void setOrigin(String value) {
+        set(3, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding_cluster.origin</code>. AUTO when the
+     * clusterer assigned this member, MANUAL when a reviewer moved it.
+     */
+    public String getOrigin() {
+        return (String) get(3);
+    }
+
+    /**
+     * Setter for <code>public.embedding_cluster.created</code>. When the
+     * membership was recorded, so a human correction is distinguishable from
+     * the original assignment.
+     */
+    public void setCreated(LocalDateTime value) {
+        set(4, value);
+    }
+
+    /**
+     * Getter for <code>public.embedding_cluster.created</code>. When the
+     * membership was recorded, so a human correction is distinguishable from
+     * the original assignment.
+     */
+    public LocalDateTime getCreated() {
+        return (LocalDateTime) get(4);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -60,17 +112,17 @@ public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddin
     }
 
     // -------------------------------------------------------------------------
-    // Record2 type implementation
+    // Record5 type implementation
     // -------------------------------------------------------------------------
 
     @Override
-    public Row2<UUID, UUID> fieldsRow() {
-        return (Row2) super.fieldsRow();
+    public Row5<UUID, UUID, Float, String, LocalDateTime> fieldsRow() {
+        return (Row5) super.fieldsRow();
     }
 
     @Override
-    public Row2<UUID, UUID> valuesRow() {
-        return (Row2) super.valuesRow();
+    public Row5<UUID, UUID, Float, String, LocalDateTime> valuesRow() {
+        return (Row5) super.valuesRow();
     }
 
     @Override
@@ -84,6 +136,21 @@ public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddin
     }
 
     @Override
+    public Field<Float> field3() {
+        return JooqEmbeddingCluster.EMBEDDING_CLUSTER.CONFIDENCE;
+    }
+
+    @Override
+    public Field<String> field4() {
+        return JooqEmbeddingCluster.EMBEDDING_CLUSTER.ORIGIN;
+    }
+
+    @Override
+    public Field<LocalDateTime> field5() {
+        return JooqEmbeddingCluster.EMBEDDING_CLUSTER.CREATED;
+    }
+
+    @Override
     public UUID component1() {
         return getEmbeddingUuid();
     }
@@ -94,6 +161,21 @@ public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddin
     }
 
     @Override
+    public Float component3() {
+        return getConfidence();
+    }
+
+    @Override
+    public String component4() {
+        return getOrigin();
+    }
+
+    @Override
+    public LocalDateTime component5() {
+        return getCreated();
+    }
+
+    @Override
     public UUID value1() {
         return getEmbeddingUuid();
     }
@@ -101,6 +183,21 @@ public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddin
     @Override
     public UUID value2() {
         return getClusterUuid();
+    }
+
+    @Override
+    public Float value3() {
+        return getConfidence();
+    }
+
+    @Override
+    public String value4() {
+        return getOrigin();
+    }
+
+    @Override
+    public LocalDateTime value5() {
+        return getCreated();
     }
 
     @Override
@@ -116,9 +213,30 @@ public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddin
     }
 
     @Override
-    public JooqEmbeddingClusterRecord values(UUID value1, UUID value2) {
+    public JooqEmbeddingClusterRecord value3(Float value) {
+        setConfidence(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingClusterRecord value4(String value) {
+        setOrigin(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingClusterRecord value5(LocalDateTime value) {
+        setCreated(value);
+        return this;
+    }
+
+    @Override
+    public JooqEmbeddingClusterRecord values(UUID value1, UUID value2, Float value3, String value4, LocalDateTime value5) {
         value1(value1);
         value2(value2);
+        value3(value3);
+        value4(value4);
+        value5(value5);
         return this;
     }
 
@@ -136,10 +254,13 @@ public class JooqEmbeddingClusterRecord extends UpdatableRecordImpl<JooqEmbeddin
     /**
      * Create a detached, initialised JooqEmbeddingClusterRecord
      */
-    public JooqEmbeddingClusterRecord(UUID embeddingUuid, UUID clusterUuid) {
+    public JooqEmbeddingClusterRecord(UUID embeddingUuid, UUID clusterUuid, Float confidence, String origin, LocalDateTime created) {
         super(JooqEmbeddingCluster.EMBEDDING_CLUSTER);
 
         setEmbeddingUuid(embeddingUuid);
         setClusterUuid(clusterUuid);
+        setConfidence(confidence);
+        setOrigin(origin);
+        setCreated(created);
     }
 }

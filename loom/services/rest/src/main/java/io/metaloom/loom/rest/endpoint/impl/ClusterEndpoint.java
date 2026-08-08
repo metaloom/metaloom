@@ -88,5 +88,35 @@ public class ClusterEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// Members
+		addRoute(basePath() + "/:uuid/members", GET,
+			"List the embeddings belonging to a cluster, each with the detection and bounding box it came from so a face crop can be addressed.",
+			null,
+			examples.clusterMemberListResponseExample(),
+			lrc -> {
+				service.listMembers(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Confirm
+		//
+		// An RPC-style sub-resource rather than a field write, because the operation is not one: it creates or links a person and mutates the
+		// cluster in a single transaction, and its required permissions depend on which of those it does.
+		addRoute(basePath() + "/:uuid/confirm", POST,
+			"Confirm that a cluster is a person, linking an existing one or creating a new one. Requires CREATE_PERSON in addition to UPDATE_CLUSTER when it creates.",
+			examples.clusterConfirmExample(),
+			examples.clusterResponseExample(),
+			lrc -> {
+				service.confirm(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Reject
+		addRoute(basePath() + "/:uuid/reject", POST,
+			"Reject a cluster: it is not a subject worth keeping. The person pointer is left as it was, so an earlier verdict stays readable.",
+			null,
+			examples.clusterResponseExample(),
+			lrc -> {
+				service.reject(lrc, lrc.pathParamUUID("uuid"));
+			});
 	}
 }

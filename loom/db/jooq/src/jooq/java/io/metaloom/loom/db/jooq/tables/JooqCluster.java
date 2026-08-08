@@ -8,6 +8,7 @@ import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
+import io.metaloom.loom.db.jooq.enums.JooqClusterStatus;
 import io.metaloom.loom.db.jooq.tables.records.JooqClusterRecord;
 import io.vertx.core.json.JsonObject;
 
@@ -18,12 +19,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function8;
+import org.jooq.Function21;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row8;
+import org.jooq.Row21;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -36,11 +37,9 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Generic cluster that aggregates multiple embeddings. 
- * A cluster could for example represent a person which can have multiple face
- * embeddings.
- * Alternatively media fingerprint embeddings can be used to group media
- * together by visual similarity.
+ * A group of embeddings that a producer believes belong to one subject,
+ * carrying a human confirm/reject decision. type='face' clusters are proposed
+ * per asset by the facedetect node and confirmed into a person.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
 public class JooqCluster extends TableImpl<JooqClusterRecord> {
@@ -66,10 +65,11 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     public final TableField<JooqClusterRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
 
     /**
-     * The column <code>public.cluster.name</code>. Name of the cluster. (e.g.
-     * name of a person)
+     * The column <code>public.cluster.name</code>. Human-supplied label. NULL
+     * for a machine proposal nobody has named yet. Unique per (type, name) when
+     * set, so two cluster types may share a name.
      */
-    public final TableField<JooqClusterRecord, String> NAME = createField(DSL.name("name"), SQLDataType.VARCHAR.nullable(false), this, "Name of the cluster. (e.g. name of a person)");
+    public final TableField<JooqClusterRecord, String> NAME = createField(DSL.name("name"), SQLDataType.VARCHAR, this, "Human-supplied label. NULL for a machine proposal nobody has named yet. Unique per (type, name) when set, so two cluster types may share a name.");
 
     /**
      * The column <code>public.cluster.meta</code>. Custom meta properties to
@@ -89,9 +89,10 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     public final TableField<JooqClusterRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.cluster.creator_uuid</code>.
+     * The column <code>public.cluster.creator_uuid</code>. NULL when written by
+     * a Cortex worker rather than a user (see cortex_instance)
      */
-    public final TableField<JooqClusterRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqClusterRecord, java.util.UUID> CREATOR_UUID = createField(DSL.name("creator_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user (see cortex_instance)");
 
     /**
      * The column <code>public.cluster.edited</code>.
@@ -99,16 +100,98 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     public final TableField<JooqClusterRecord, LocalDateTime> EDITED = createField(DSL.name("edited"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
 
     /**
-     * The column <code>public.cluster.editor_uuid</code>.
+     * The column <code>public.cluster.editor_uuid</code>. NULL when written by
+     * a Cortex worker rather than a user (see cortex_instance)
      */
-    public final TableField<JooqClusterRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+    public final TableField<JooqClusterRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "NULL when written by a Cortex worker rather than a user (see cortex_instance)");
+
+    /**
+     * The column <code>public.cluster.node_kind</code>. Producing node kind,
+     * e.g. facedetect. NULL for a human-authored cluster.
+     */
+    public final TableField<JooqClusterRecord, String> NODE_KIND = createField(DSL.name("node_kind"), SQLDataType.VARCHAR, this, "Producing node kind, e.g. facedetect. NULL for a human-authored cluster.");
+
+    /**
+     * The column <code>public.cluster.node_id</code>.
+     */
+    public final TableField<JooqClusterRecord, String> NODE_ID = createField(DSL.name("node_id"), SQLDataType.VARCHAR, this, "");
+
+    /**
+     * The column <code>public.cluster.producer_version</code>. Version of the
+     * producer and its model, so a model change can retire stale proposals via
+     * WHERE node_kind = ? AND producer_version &lt;&gt; ?.
+     */
+    public final TableField<JooqClusterRecord, String> PRODUCER_VERSION = createField(DSL.name("producer_version"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("''::character varying", SQLDataType.VARCHAR)), this, "Version of the producer and its model, so a model change can retire stale proposals via WHERE node_kind = ? AND producer_version <> ?.");
+
+    /**
+     * The column <code>public.cluster.run_uuid</code>.
+     */
+    public final TableField<JooqClusterRecord, java.util.UUID> RUN_UUID = createField(DSL.name("run_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.cluster.task_uuid</code>.
+     */
+    public final TableField<JooqClusterRecord, java.util.UUID> TASK_UUID = createField(DSL.name("task_uuid"), SQLDataType.UUID, this, "");
+
+    /**
+     * The column <code>public.cluster.asset_uuid</code>. The asset this cluster
+     * was computed within. NULL for a human-authored cluster or a phase-2
+     * library-wide one.
+     */
+    public final TableField<JooqClusterRecord, java.util.UUID> ASSET_UUID = createField(DSL.name("asset_uuid"), SQLDataType.UUID, this, "The asset this cluster was computed within. NULL for a human-authored cluster or a phase-2 library-wide one.");
+
+    /**
+     * The column <code>public.cluster.cluster_index</code>. Ordinal of this
+     * cluster within (asset_uuid, node_kind), assigned deterministically by the
+     * producer so a re-run upserts rather than appends.
+     */
+    public final TableField<JooqClusterRecord, Integer> CLUSTER_INDEX = createField(DSL.name("cluster_index"), SQLDataType.INTEGER.nullable(false).defaultValue(DSL.field("0", SQLDataType.INTEGER)), this, "Ordinal of this cluster within (asset_uuid, node_kind), assigned deterministically by the producer so a re-run upserts rather than appends.");
+
+    /**
+     * The column <code>public.cluster.status</code>. PENDING (awaiting review),
+     * CONFIRMED (linked to a person) or REJECTED (not a real subject).
+     */
+    public final TableField<JooqClusterRecord, JooqClusterStatus> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::cluster_status", SQLDataType.VARCHAR)).asEnumDataType(io.metaloom.loom.db.jooq.enums.JooqClusterStatus.class), this, "PENDING (awaiting review), CONFIRMED (linked to a person) or REJECTED (not a real subject).");
+
+    /**
+     * The column <code>public.cluster.person_uuid</code>. The person a reviewer
+     * confirmed this cluster to be. SET NULL on person delete: the review
+     * record outlives the person row.
+     */
+    public final TableField<JooqClusterRecord, java.util.UUID> PERSON_UUID = createField(DSL.name("person_uuid"), SQLDataType.UUID, this, "The person a reviewer confirmed this cluster to be. SET NULL on person delete: the review record outlives the person row.");
+
+    /**
+     * The column <code>public.cluster.score</code>. Cohesion: mean cosine
+     * similarity of the members to the centroid. NULL for a singleton, which
+     * has nothing to cohere with.
+     */
+    public final TableField<JooqClusterRecord, Float> SCORE = createField(DSL.name("score"), SQLDataType.REAL, this, "Cohesion: mean cosine similarity of the members to the centroid. NULL for a singleton, which has nothing to cohere with.");
+
+    /**
+     * The column <code>public.cluster.centroid</code>. Unit-normalised mean of
+     * the member vectors. Only comparable against embeddings sharing this row's
+     * (type, model, dimensions).
+     */
+    public final TableField<JooqClusterRecord, Float[]> CENTROID = createField(DSL.name("centroid"), SQLDataType.REAL.getArrayDataType(), this, "Unit-normalised mean of the member vectors. Only comparable against embeddings sharing this row's (type, model, dimensions).");
+
+    /**
+     * The column <code>public.cluster.model</code>. Model the member embeddings
+     * were produced by; qualifies "centroid".
+     */
+    public final TableField<JooqClusterRecord, String> MODEL = createField(DSL.name("model"), SQLDataType.VARCHAR, this, "Model the member embeddings were produced by; qualifies \"centroid\".");
+
+    /**
+     * The column <code>public.cluster.dimensions</code>. Length of "centroid";
+     * qualifies it together with "model".
+     */
+    public final TableField<JooqClusterRecord, Integer> DIMENSIONS = createField(DSL.name("dimensions"), SQLDataType.INTEGER, this, "Length of \"centroid\"; qualifies it together with \"model\".");
 
     private JooqCluster(Name alias, Table<JooqClusterRecord> aliased) {
         this(alias, aliased, null);
     }
 
     private JooqCluster(Name alias, Table<JooqClusterRecord> aliased, Field<?>[] parameters) {
-        super(alias, null, aliased, parameters, DSL.comment("Generic cluster that aggregates multiple embeddings. \nA cluster could for example represent a person which can have multiple face embeddings.\nAlternatively media fingerprint embeddings can be used to group media together by visual similarity."), TableOptions.table());
+        super(alias, null, aliased, parameters, DSL.comment("A group of embeddings that a producer believes belong to one subject, carrying a human confirm/reject decision. type='face' clusters are proposed per asset by the facedetect node and confirmed into a person."), TableOptions.table());
     }
 
     /**
@@ -143,7 +226,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.CLUSTER_NAME_IDX);
+        return Arrays.asList(Indexes.CLUSTER_TYPE_NAME_KEY, Indexes.IDX_CLUSTER_ASSET_UUID, Indexes.IDX_CLUSTER_PERSON_UUID, Indexes.IDX_CLUSTER_STATUS, Indexes.IDX_CLUSTER_TYPE_STATUS);
     }
 
     @Override
@@ -152,12 +235,21 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     }
 
     @Override
+    public List<UniqueKey<JooqClusterRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.CLUSTER_PRODUCER_KEY);
+    }
+
+    @Override
     public List<ForeignKey<JooqClusterRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.CLUSTER__CLUSTER_CREATOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.CLUSTER__CLUSTER_CREATOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_EDITOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_RUN_UUID_FKEY, Keys.CLUSTER__CLUSTER_TASK_UUID_FKEY, Keys.CLUSTER__CLUSTER_ASSET_UUID_FKEY, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY);
     }
 
     private transient JooqUser _clusterCreatorUuidFkey;
     private transient JooqUser _clusterEditorUuidFkey;
+    private transient JooqPipelineRun _pipelineRun;
+    private transient JooqPipelineNodeTask _pipelineNodeTask;
+    private transient JooqAsset _asset;
+    private transient JooqPerson _person;
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -179,6 +271,47 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
             _clusterEditorUuidFkey = new JooqUser(this, Keys.CLUSTER__CLUSTER_EDITOR_UUID_FKEY);
 
         return _clusterEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_run</code> table.
+     */
+    public JooqPipelineRun pipelineRun() {
+        if (_pipelineRun == null)
+            _pipelineRun = new JooqPipelineRun(this, Keys.CLUSTER__CLUSTER_RUN_UUID_FKEY);
+
+        return _pipelineRun;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.pipeline_node_task</code>
+     * table.
+     */
+    public JooqPipelineNodeTask pipelineNodeTask() {
+        if (_pipelineNodeTask == null)
+            _pipelineNodeTask = new JooqPipelineNodeTask(this, Keys.CLUSTER__CLUSTER_TASK_UUID_FKEY);
+
+        return _pipelineNodeTask;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.asset</code> table.
+     */
+    public JooqAsset asset() {
+        if (_asset == null)
+            _asset = new JooqAsset(this, Keys.CLUSTER__CLUSTER_ASSET_UUID_FKEY);
+
+        return _asset;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.person</code> table.
+     */
+    public JooqPerson person() {
+        if (_person == null)
+            _person = new JooqPerson(this, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY);
+
+        return _person;
     }
 
     @Override
@@ -221,18 +354,18 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row8 type methods
+    // Row21 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row8<java.util.UUID, String, JsonObject, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row8) super.fieldsRow();
+    public Row21<java.util.UUID, String, JsonObject, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, java.util.UUID, Integer, JooqClusterStatus, java.util.UUID, Float, Float[], String, Integer> fieldsRow() {
+        return (Row21) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function8<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqClusterStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -240,7 +373,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function8<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqClusterStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

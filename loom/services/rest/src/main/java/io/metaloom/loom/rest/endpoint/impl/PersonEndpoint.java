@@ -88,5 +88,14 @@ public class PersonEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// Clusters confirmed to be this person - the inverse of POST /clusters/:uuid/confirm
+		addRoute(basePath() + "/:uuid/clusters", GET,
+			"List the face clusters confirmed to be this person, across every asset they appear in",
+			null,
+			examples.clusterListResponseExample(),
+			lrc -> {
+				service.listClusters(lrc, lrc.pathParamUUID("uuid"));
+			});
 	}
 }

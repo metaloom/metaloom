@@ -23,13 +23,88 @@ public interface ClusterExamples extends ExampleValues {
 		return new ExampleImpl(clusterListResponse(), "The cluster list response", HttpResponseStatus.OK);
 	}
 
+	default Example clusterMemberListResponseExample() {
+		return new ExampleImpl(clusterMemberListResponse(), "The cluster member list response", HttpResponseStatus.OK);
+	}
+
+	default Example clusterConfirmExample() {
+		return new ExampleImpl(clusterConfirmRequest(), "The cluster confirmation request", HttpResponseStatus.OK);
+	}
+
+	default Example clusterBulkCreateRequestExample() {
+		return new ExampleImpl(clusterBulkCreateRequest(), "The cluster bulk create request", HttpResponseStatus.CREATED);
+	}
+
+	default Example clusterBulkResponseExample() {
+		return new ExampleImpl(clusterBulkResponse(), "The cluster bulk create response", HttpResponseStatus.CREATED);
+	}
+
+	default ClusterBulkCreateRequest clusterBulkCreateRequest() {
+		ClusterBulkCreateRequest model = new ClusterBulkCreateRequest();
+		model.add(new ClusterCreateItem()
+			.setType("face")
+			.setNodeKind("facedetect")
+			.setProducerVersion("1/inspireface-pikachu-r18")
+			.setClusterIndex(0)
+			.setScore(0.94f)
+			.setModel("inspireface-pikachu-r18")
+			.setDimensions(512)
+			.add(new ClusterMemberCreateItem().setEmbeddingUuid(uuidA().toString()).setConfidence(0.96f).setOrigin("AUTO")));
+		return model;
+	}
+
+	default ClusterBulkResponse clusterBulkResponse() {
+		ClusterBulkResponse model = new ClusterBulkResponse();
+		model.add(clusterResponse());
+		model.setTotal(1);
+		model.setCreated(1);
+		model.setFailed(0);
+		model.setPruned(0);
+		return model;
+	}
+
 	default ClusterResponse clusterResponse() {
 		ClusterResponse model = new ClusterResponse();
 		model.setUuid(uuidC());
 		model.setName("The cluster name");
+		model.setType("face");
+		model.setReviewStatus("PENDING");
+		model.setClusterIndex(0);
+		model.setScore(0.92f);
+		model.setMemberCount(4L);
+		model.setNodeKind("facedetect");
 		model.setMeta(meta());
 		setCreatorEditor(model);
 		return model;
+	}
+
+	default ClusterMemberListResponse clusterMemberListResponse() {
+		ClusterMemberListResponse model = new ClusterMemberListResponse();
+		model.add(clusterMember());
+		model.add(clusterMember());
+		model.setTotal(2);
+		return model;
+	}
+
+	default ClusterMemberModel clusterMember() {
+		return new ClusterMemberModel()
+			.setEmbeddingUuid(uuidA().toString())
+			.setDetectionUuid(uuidB().toString())
+			.setAssetUuid(uuidC().toString())
+			.setFrameNumber(0)
+			.setBboxX(0.25f)
+			.setBboxY(0.15f)
+			.setBboxWidth(0.12f)
+			.setBboxHeight(0.2f)
+			.setConfidence(0.97f)
+			.setOrigin("AUTO");
+	}
+
+	default ClusterConfirmRequest clusterConfirmRequest() {
+		return new ClusterConfirmRequest()
+			.setAlias("Anna Meyer")
+			.setFirstname("Anna")
+			.setLastname("Meyer");
 	}
 
 	default ClusterListResponse clusterListResponse() {

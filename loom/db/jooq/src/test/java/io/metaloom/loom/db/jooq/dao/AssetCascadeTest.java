@@ -36,6 +36,7 @@ import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.attachment.Attachment;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
+import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.detection.Detection;
@@ -110,6 +111,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		UUID blacklist;
 		UUID annotation;
 		UUID person;
+		UUID cluster;
 	}
 
 	private AssetComponentDao comp() {
@@ -233,6 +235,13 @@ public class AssetCascadeTest extends AbstractJooqTest {
 			.values(person.getUuid(), assetUuid)
 			.execute();
 
+		// cluster (V2.79). A per-asset face cluster describes that asset and is meaningless without it. Confirmed to the person above, to prove the
+		// cascade fires even when a reviewer has already decided on it - the asset is what it depends on, not the verdict.
+		Cluster cluster = clusterDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", assetUuid, 0);
+		clusterDao().upsertCluster(cluster);
+		clusterDao().updateStatus(cluster.getUuid(), Cluster.STATUS_CONFIRMED, person.getUuid(), userUuid);
+		d.cluster = cluster.getUuid();
+
 		return d;
 	}
 
@@ -263,6 +272,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNull(annotationDao().load(d.annotation), "annotation must cascade with the asset");
 		assertEquals(0, countAnnotationAsset(d.annotation), "annotation_asset link must cascade with the asset");
 		assertEquals(0, countPersonImage(d.person), "person_image gallery row must cascade with the asset");
+		assertNull(clusterDao().load(d.cluster), "cluster must cascade with the asset (V2.79)");
 		assertNotNull(personDao().load(d.person), "the person is a shared resource and must survive its asset");
 	}
 
@@ -285,6 +295,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNotNull(annotationDao().load(d.annotation), "annotation of the other asset must survive");
 		assertEquals(1, countAnnotationAsset(d.annotation), "annotation_asset link of the other asset must survive");
 		assertEquals(1, countPersonImage(d.person), "person_image gallery row of the other asset must survive");
+		assertNotNull(clusterDao().load(d.cluster), "cluster of the other asset must survive");
 	}
 
 	// ---------------------------------------------------------------------------------------------

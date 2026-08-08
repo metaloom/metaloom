@@ -54,8 +54,12 @@ import io.metaloom.loom.rest.model.pool.AssetPoolCreateRequest;
 import io.metaloom.loom.rest.model.pool.AssetPoolListResponse;
 import io.metaloom.loom.rest.model.pool.AssetPoolResponse;
 import io.metaloom.loom.rest.model.pool.AssetPoolUpdateRequest;
+import io.metaloom.loom.rest.model.cluster.ClusterBulkCreateRequest;
+import io.metaloom.loom.rest.model.cluster.ClusterBulkResponse;
+import io.metaloom.loom.rest.model.cluster.ClusterConfirmRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterCreateRequest;
 import io.metaloom.loom.rest.model.cluster.ClusterListResponse;
+import io.metaloom.loom.rest.model.cluster.ClusterMemberListResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterResponse;
 import io.metaloom.loom.rest.model.cluster.ClusterUpdateRequest;
 import io.metaloom.loom.rest.model.blacklist.BlacklistCreateRequest;
@@ -537,6 +541,45 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return getRequest("clusters", ClusterListResponse.class);
 	}
 
+	@Override
+	public LoomClientHttpRequest<ClusterListResponse> listClusters(String status, String type) {
+		// addQueryParameter, not a hand-built path: the path is added via addPathSegments, which escapes '?' into %3F and
+		// turns the whole thing into one literal segment that matches no route.
+		LoomClientHttpRequest<ClusterListResponse> request = getRequest("clusters", ClusterListResponse.class);
+		if (status != null) {
+			request.addQueryParameter("status", status);
+		}
+		if (type != null) {
+			request.addQueryParameter("type", type);
+		}
+		return request;
+	}
+
+	@Override
+	public LoomClientHttpRequest<ClusterMemberListResponse> listClusterMembers(UUID clusterUuid) {
+		return getRequest("clusters/" + clusterUuid + "/members", ClusterMemberListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ClusterResponse> confirmCluster(UUID clusterUuid, ClusterConfirmRequest request) {
+		return postRequest("clusters/" + clusterUuid + "/confirm", request, ClusterResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ClusterResponse> rejectCluster(UUID clusterUuid) {
+		return postRequest("clusters/" + clusterUuid + "/reject", null, ClusterResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ClusterListResponse> listAssetClusters(AssetId assetId) {
+		return getRequest(assetPath(assetId) + "/clusters", ClusterListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ClusterBulkResponse> bulkCreateAssetClusters(AssetId assetId, ClusterBulkCreateRequest request) {
+		return postRequest(assetPath(assetId) + "/clusters/bulk", request, ClusterBulkResponse.class);
+	}
+
 	// PERSON
 
 	@Override
@@ -557,6 +600,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PersonResponse> createPerson(PersonCreateRequest request) {
 		return postRequest("persons", request, PersonResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ClusterListResponse> listPersonClusters(UUID personUuid) {
+		return getRequest("persons/" + personUuid + "/clusters", ClusterListResponse.class);
 	}
 
 	@Override

@@ -117,13 +117,32 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 	 * @param keyFields the natural-key columns the unique constraint is defined on
 	 * @return the uuid of the inserted or updated row
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected UUID upsert(T element, Field<?>... keyFields) {
+		return upsert(element, java.util.Set.of(), keyFields);
+	}
+
+	/**
+	 * As {@link #upsert(Element, Field...)}, but additionally preserving the named columns on the conflicting row.
+	 *
+	 * <p>
+	 * Some columns belong to a different writer than the one running the upsert. A producer re-running over an asset owns the payload it computed, but
+	 * not a human decision recorded against it since - re-running face detection must not reset a cluster a reviewer already confirmed. Naming those
+	 * columns here keeps the row's existing values instead of overwriting them with whatever the producer happened to set.
+	 * </p>
+	 *
+	 * @param element        the element to persist; its uuid is populated on return
+	 * @param preserved      column names to keep from the existing row on conflict
+	 * @param keyFields      the natural-key columns the unique constraint is defined on
+	 * @return the uuid of the inserted or updated row
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	protected UUID upsert(T element, java.util.Set<String> preserved, Field<?>... keyFields) {
 		TableRecord<?> reco = ctx().newRecord(getTable(), element);
 		if (element.getUuid() == null) {
 			reco.reset("uuid");
 		}
 		java.util.Set<String> excluded = new java.util.HashSet<>(List.of("uuid", "created", "creator_uuid"));
+		excluded.addAll(preserved);
 		for (Field<?> key : keyFields) {
 			excluded.add(key.getName());
 		}
