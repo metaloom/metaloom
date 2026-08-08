@@ -48,6 +48,8 @@
     "name" : "comments",
     "description" : "Comments and their reactions"
   }, {
+    "name" : "dedup-groups"
+  }, {
     "name" : "embeddings",
     "description" : "Vector embeddings and their attachments"
   }, {
@@ -14572,6 +14574,292 @@
         }
       } ]
     },
+    "/api/v1/dedup-groups" : {
+      "description" : "Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
+      "get" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "List duplicate review groups, newest first, optionally filtered by status (PENDING, CONFIRMED, REJECTED). Keyset paged via limit and from.",
+        "description" : "List duplicate review groups, newest first, optionally filtered by status (PENDING, CONFIRMED, REJECTED). Keyset paged via limit and from.",
+        "operationId" : "getDedupgroups",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
+        "description" : "Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
+        "operationId" : "postDedupgroups",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dedup-groups/{uuid}" : {
+      "description" : "Load one duplicate review group and its members",
+      "get" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Load one duplicate review group and its members",
+        "description" : "Load one duplicate review group and its members",
+        "operationId" : "getDedupgroupsByUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Delete a duplicate review group. Its members are removed with it.",
+        "description" : "Delete a duplicate review group. Its members are removed with it.",
+        "operationId" : "deleteDedupgroupsByUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Confirm or reject a duplicate review group. Only a confirmed group is ever acted on by the apply node.",
+        "description" : "Confirm or reject a duplicate review group. Only a confirmed group is ever acted on by the apply node.",
+        "operationId" : "patchDedupgroupsByUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/embeddings" : {
       "description" : "Create new embedding",
       "get" : {
@@ -18375,7 +18663,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "1d3f81d8-66e1-4ed1-862a-4010d73b68f1",
+                    "versionUuid" : "4afc3fc6-5ebd-48ad-8e44-e3c4335209e4",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18402,7 +18690,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "449af185-e4f3-451c-a43b-1033932493f1",
+                    "versionUuid" : "02bf7925-31cc-4c2e-9d20-8a80d1ec5a07",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18509,7 +18797,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "d7e370af-8ef4-4ec2-b690-d61e34598204",
+                  "versionUuid" : "41203b8f-5dbd-4e13-8c70-b1414d09c4fb",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18595,7 +18883,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "7af540a6-7949-420f-bc6e-f577b7601179",
+                  "versionUuid" : "6e645731-28df-4134-8f40-720e00e79233",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18702,7 +18990,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "c28e9058-d59e-4bb2-8929-75bc6b746687",
+                  "versionUuid" : "79e01180-d876-4003-8445-3034b23fe9d2",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18864,7 +19152,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "147e1767-6098-4bf7-8b6d-362db3c41398",
+                  "runUuid" : "7d582bfb-5b17-4672-afb0-66c8bc487434",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -18990,11 +19278,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "d26d138f-b6c1-451c-92e5-c050c4bd718d",
-                    "pipelineUuid" : "e40e7dcd-c301-44ee-8f74-95eb78853abf",
+                    "uuid" : "c1eaaffe-bfbc-4ee0-97de-83c2ac3326cc",
+                    "pipelineUuid" : "26d7d89a-d237-4bc2-8149-ed9aa7dfd652",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-06T22:38:05.885961838Z",
-                    "finished" : "2026-08-06T22:38:05.886094528Z",
+                    "started" : "2026-08-08T09:58:31.573599173Z",
+                    "finished" : "2026-08-08T09:58:31.573699103Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -19003,11 +19291,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "2c8715ea-3025-4131-8bf1-eebc08df52a7",
-                    "pipelineUuid" : "3a680fb1-12b3-49ce-8191-456209f28ff7",
+                    "uuid" : "7c0d3291-01ec-496c-bda5-4d785d6792ce",
+                    "pipelineUuid" : "2b3910ab-e348-432c-84ac-a8d0ab0a0e99",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-06T22:38:05.886249099Z",
-                    "finished" : "2026-08-06T22:38:05.886253719Z",
+                    "started" : "2026-08-08T09:58:31.573830113Z",
+                    "finished" : "2026-08-08T09:58:31.573834343Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -19100,11 +19388,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "bf74f277-83ee-46ea-bacf-f814b9716ac7",
-                  "pipelineUuid" : "20ca84d3-a669-4253-82c8-496a507c2ae5",
+                  "uuid" : "df73d5d5-482a-4673-a66a-e0e8d37ec9db",
+                  "pipelineUuid" : "04dd93f9-a09c-4e14-8208-09592f170ea8",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-06T22:38:05.887172959Z",
-                  "finished" : "2026-08-06T22:38:05.887180039Z",
+                  "started" : "2026-08-08T09:58:31.574655892Z",
+                  "finished" : "2026-08-08T09:58:31.574662992Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -19594,16 +19882,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "b35947b6-26ab-4a09-a8d8-0b9d7b9819f9",
-                    "runUuid" : "0886d42d-6881-480c-ade9-42d2bc1b05e9",
+                    "uuid" : "40e066e0-2a0b-43a8-b1a4-f5388667d475",
+                    "runUuid" : "c1576aca-ee10-439b-80ea-670bbcc6b50c",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "7d38ec06-a085-49a0-93a9-8c0a84813e23",
-                    "runUuid" : "49a3631f-b855-4261-9b1c-61da14b09924",
+                    "uuid" : "d8685689-54ca-431e-ad82-18462cc83944",
+                    "runUuid" : "3e7a74ed-fafa-430a-912d-1190dc2e4974",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -19704,9 +19992,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "a9a2ad1e-dff0-4a4b-bc69-7ea53ce2c0a9",
-                    "itemUuid" : "a0fbdcf5-54aa-4b0c-9fab-f0f44b0bc1dc",
-                    "runUuid" : "d0448830-d578-4869-8074-8e65892e89af",
+                    "uuid" : "a060c765-98b8-41f1-b366-fd6e4e0308a7",
+                    "itemUuid" : "425fb98f-f167-466c-b6ef-63626c8d6032",
+                    "runUuid" : "264f4bbf-a30f-46dd-94f0-f1268dc9bd7c",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -20372,7 +20660,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "46533dd4-8392-44c9-b148-225b75376a66",
+                    "versionUuid" : "6f4ce01b-7f77-4aab-a9d8-001ad7c8b587",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20399,7 +20687,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "0bf932c5-abd1-46c0-9b62-36dbf16eba47",
+                    "versionUuid" : "626f45b3-7031-4e56-bdaf-ad42d3462f0f",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20510,7 +20798,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "426c9268-7042-4283-8916-1edc2fcd4f6e",
+                  "versionUuid" : "0b752303-53a3-425b-b924-98dea8befe83",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -20635,7 +20923,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "bbf25384-e815-4e71-844c-1f3232bfbba6",
+                  "versionUuid" : "797ab3b6-9e92-4a3a-b657-8b19f7c320bb",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

@@ -22,6 +22,7 @@ import io.metaloom.cortex.api.node.spec.NodeSpec;
 import io.metaloom.cortex.api.node.spec.ParamOverride;
 import io.metaloom.cortex.api.node.spec.PortDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
+import io.metaloom.cortex.common.media.impl.LoomMediaImpl;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
 import io.metaloom.loom.client.common.LoomClient;
 import io.metaloom.loom.nodes.spec.ContentTypeRegistry;
@@ -31,6 +32,8 @@ import io.metaloom.loom.rest.model.dedup.DedupGroupListResponse;
 import io.metaloom.loom.rest.model.dedup.DedupGroupMemberModel;
 import io.metaloom.loom.rest.model.dedup.DedupGroupResponse;
 import io.metaloom.utils.fs.FileUtils;
+import io.metaloom.utils.hash.HashUtils;
+import io.metaloom.utils.hash.SHA512;
 
 /**
  * Apply node: acts on human-CONFIRMED dedup groups. For the current asset, if it is a DUP member of a confirmed group whose KEEP still passes the
@@ -38,7 +41,7 @@ import io.metaloom.utils.fs.FileUtils;
  *
  * <p>
  * Safeguards re-verified against the live filesystem before any move (spec §4/§5): the KEEP exists on disk, is complete, is at least as large as the
- * duplicate, and is not itself inside the dups folder. Idempotent: an already-moved duplicate is skipped.
+ * duplicate, is not itself inside the dups folder, and still hashes to the value Loom recorded. Idempotent: an already-moved duplicate is skipped.
  * </p>
  */
 @NodeSpec(nodeId = "fingerprint-dedup-apply", name = "Fingerprint Deduplication (Apply)", icon = "content_copy", category = NodeCategory.OUTPUT,
@@ -68,7 +71,7 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 	@PortDoc(label = "Hash", description = "Any content hash; identifies the asset whose confirmed dedup groups are applied")
 	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_ANY, String.class);
 
-	private static final String STATUS_CONFIRMED = "CONFIRMED";
+	private static final String STATUS_CONFIRMED = DedupGroupResponse.STATUS_CONFIRMED;
 
 	@Inject
 	public FingerprintDedupApplyNode(@Nullable LoomClient client, CortexOptions cortexOptions, DedupNodeOptions options) {
@@ -150,7 +153,10 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 			.anyMatch(m -> uuid.equals(m.getAssetUuid()) && DedupGroupMemberModel.ROLE_DUP.equals(m.getRole()));
 	}
 
-	/** The KEEP must exist on disk, be complete, be at least as large as the duplicate, and not itself live in the dups folder. */
+	/**
+	 * The KEEP must exist on disk, be complete, be at least as large as the duplicate, not itself live in the dups folder, and still hold the content
+	 * that was fingerprinted.
+	 */
 	private boolean keepPassesSafeguards(AssetResponse keep, LoomMedia dupMedia, Path dupFolder) throws IOException {
 		if (keep == null || keep.getFile() == null || keep.getFile().getFilename() == null) {
 			return false;
@@ -169,7 +175,63 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 		if (isInFolder(keepFile, dupFolder)) {
 			return false; // keep is itself a trashed/duplicate file
 		}
+		if (!keepContentMatches(keep, keepFile)) {
+			return false; // the keep is no longer the file the reviewer decided about
+		}
 		return true;
+	}
+
+	/**
+	 * The KEEP's bytes must still be the ones Loom recorded when the group was proposed.
+	 *
+	 * <p>
+	 * Existence, size and completeness say nothing about content: a file replaced in place between discovery and apply passes all three while no longer
+	 * being the duplicate's counterpart. Deleting the other copy at that point loses the only remaining original.
+	 * </p>
+	 *
+	 * <p>
+	 * <b>The stored hash is trusted.</b> {@code LoomMedia.getSHA512()} reads the {@code loom_sha512} xattr (and the legacy {@code sha512sum} key) and
+	 * only digests the file when neither is present - so this is a cheap attribute read for anything a hash node has already seen, and writes the
+	 * attribute back for next time when it is not. An asset with no recorded hash is passed through rather than re-digested: there would be nothing to
+	 * compare the result against.
+	 * </p>
+	 */
+	private boolean keepContentMatches(AssetResponse keep, File keepFile) {
+		SHA512 recorded = keep.getHashes() == null ? null : keep.getHashes().getSHA512();
+		if (recorded == null) {
+			return true;
+		}
+		SHA512 actual;
+		try {
+			actual = hashOf(keepFile);
+		} catch (Exception e) {
+			log.warn("Could not determine the hash of keep file {} - refusing to move its duplicate: {}", keepFile, e.getMessage());
+			return false;
+		}
+		if (actual == null || !recorded.toString().equals(actual.toString())) {
+			log.warn("Keep file {} no longer matches the hash recorded at discovery time (recorded {}, found {}) - refusing to move its duplicate.",
+				keepFile, recorded, actual);
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * The KEEP's current hash, from its xattr when one is stored and by digesting the file when not.
+	 *
+	 * <p>
+	 * {@link LoomMediaImpl} owns that precedence (including the legacy {@code sha512sum} key) and writes the attribute back once computed. It raises on
+	 * a filesystem with no user-xattr support at all, which says nothing about the file's content - fall back to a plain digest there rather than
+	 * blocking every move on the storage backend.
+	 * </p>
+	 */
+	private static SHA512 hashOf(File file) {
+		try {
+			return new LoomMediaImpl(file.toPath()).getSHA512();
+		} catch (Exception e) {
+			log.debug("Extended attributes unavailable for {} - digesting directly: {}", file, e.getMessage());
+			return HashUtils.computeSHA512(file);
+		}
 	}
 
 	private static boolean isInFolder(File file, Path folder) {

@@ -165,6 +165,11 @@ public class FingerprintDedupNode extends AbstractMediaNode<FingerprintDedupDisc
 
 		try {
 			DedupGroupResponse group = client().createDedupGroup(request).sync().body();
+			// Loom refuses to re-propose a candidate set a reviewer already decided on and answers with the decided group instead. That is a no-op,
+			// not a discovery: reporting it as a success would put a misleading row in the ledger on every single run.
+			if (group != null && group.getStatus() != null && !DedupGroupResponse.STATUS_PENDING.equals(group.getStatus())) {
+				return ctx.skipped("candidate set already " + group.getStatus().toLowerCase()).next();
+			}
 			UUID groupUuid = group != null && group.getUuid() != null ? UUID.fromString(group.getUuid()) : null;
 			print(ctx, "CANDIDATE", dups.size() + " duplicate(s) of " + keep.assetUuid);
 			recordNodeResult(asset, ctx, ResultState.SUCCESS, dups.size() + " duplicate candidate(s)", algorithm,

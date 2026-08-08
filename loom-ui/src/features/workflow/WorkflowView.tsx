@@ -21,9 +21,17 @@ import { FACE_CLUSTERS, PERSONS } from "../../mock/data";
 import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
-import { listAssets, AssetResponse } from "../../api/assets";
+import { useToast } from "../../context/ToastContext";
+import { listAssets, loadAsset, assetBinaryUrl, AssetResponse } from "../../api/assets";
 import { listAssetDetections, DetectionResponse } from "../../api/detections";
+import {
+  listDedupGroups, STATUS_CONFIRMED, STATUS_PENDING, STATUS_REJECTED,
+  type DedupGroupMemberModel, type DedupGroupResponse,
+} from "../../api/dedup";
 import { persistAssetRating, hydrateAssetRatings } from "./ratingPersistence";
+import { decideGroup, dupMembers, formatSize, isComplete, keepMember, reassignKeep, replaceGroup } from "./dedupGroups";
+import EmptyState from "../../components/EmptyState";
+import AssetThumbnail from "../../components/AssetThumbnail";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
 function apiToWorkflowAsset(r: AssetResponse): Asset {
@@ -59,6 +67,27 @@ function apiToWorkflowAsset(r: AssetResponse): Asset {
   };
 }
 
+/** Media class of an asset, used to pick the placeholder icon when there is no preview. */
+function assetTypeOf(asset?: AssetResponse): AssetType {
+  const mime = asset?.file?.mimeType ?? "";
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("application/") || mime.startsWith("text/")) return "document";
+  return "unknown";
+}
+
+/**
+ * Preview URL for an asset, or "" when it has none.
+ *
+ * Only images can be rendered by an `<img>` — there is no thumbnail service and no poster frames,
+ * so most dedup members (near-duplicate detection runs on video) show the type placeholder. That is
+ * the honest result, not a broken image.
+ */
+function previewUrlOf(asset?: AssetResponse): string {
+  return asset && assetTypeOf(asset) === "image" ? assetBinaryUrl(asset.uuid) : "";
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────
 type WorkflowMode = "rating" | "tagging" | "deduplication" | "facedetection" | "objectdetection" | "llm";
 
@@ -82,14 +111,6 @@ const ALL_TAGS = [
   "night", "studio", "outdoor", "indoor", "wildlife", "street",
   "fashion", "architecture", "food", "travel", "sports", "music",
 ];
-
-function buildDuplicateGroups(assets: Asset[]): { keep: Asset; candidates: Asset[] }[] {
-  const groups: { keep: Asset; candidates: Asset[] }[] = [];
-  for (let i = 0; i + 1 < assets.length; i += 2) {
-    groups.push({ keep: assets[i], candidates: [assets[i + 1]] });
-  }
-  return groups;
-}
 
 function keyDisplayName(key: string): string {
   if (key === " ") return "Space";
@@ -273,72 +294,140 @@ function TaggingMode({
   );
 }
 
-// ── Deduplication Mode (reworked layout) ──────────────────────────────────
+// ── Deduplication Mode ────────────────────────────────────────────────────
+
+/**
+ * Facts about one member of a duplicate group: name, preview, size and completeness.
+ *
+ * Size is the usual reason a reviewer overrides the machine's keep choice, and completeness is why
+ * a plausible-looking duplicate is sometimes a truncated download — both are discovery-time
+ * snapshots, which the apply node re-verifies against the live file before moving anything.
+ */
+function DedupMemberFacts({ member, asset }: { member: DedupGroupMemberModel; asset?: AssetResponse }) {
+  const { t } = useTranslation();
+  const complete = isComplete(member);
+  return (
+    <>
+      <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem", wordBreak: "break-all" }}>
+        {asset?.file?.filename ?? member.assetUuid}
+      </Typography>
+      <Box sx={{ display: "flex", gap: 0.75, mt: 0.5, alignItems: "center", flexWrap: "wrap" }}>
+        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+          {t("workflow.dedup.size")}: {formatSize(member.size)}
+        </Typography>
+        {typeof member.score === "number" && (
+          <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+            {t("workflow.dedup.score")}: {member.score.toFixed(2)}
+          </Typography>
+        )}
+        {!complete && (
+          <Chip label={t("workflow.dedup.incomplete")} size="small"
+            sx={{ height: 18, fontSize: "0.65rem", fontWeight: 600, bgcolor: `${tokens.accent.red}18`, color: tokens.accent.red }} />
+        )}
+      </Box>
+    </>
+  );
+}
+
+function DedupPreview({ asset, alt }: { asset?: AssetResponse; alt: string }) {
+  // AssetThumbnail is absolutely positioned, so the aspect-ratio wrapper is load-bearing.
+  return (
+    <Box sx={{ position: "relative", width: "100%", paddingTop: "56.25%", bgcolor: tokens.bg.overlay, overflow: "hidden" }}>
+      <AssetThumbnail type={assetTypeOf(asset)} src={previewUrlOf(asset)} iconSize={32} alt={alt} fit="contain" />
+    </Box>
+  );
+}
+
 function DeduplicationMode({
-  group, onConfirm, onReject, decision,
+  group, assets, onConfirm, onReject, onMakeKeep, busy,
 }: {
-  group: { keep: Asset; candidates: Asset[] };
+  group: DedupGroupResponse;
+  /** assetUuid -> the loaded asset record; a member not yet resolved renders by uuid. */
+  assets: Record<string, AssetResponse>;
   onConfirm: () => void; onReject: () => void;
-  decision: "confirmed" | "rejected" | null;
+  onMakeKeep: (assetUuid: string) => void;
+  busy: boolean;
 }) {
   const { t } = useTranslation();
+  const keep = keepMember(group);
+  const dups = dupMembers(group);
+  const decision = group.status === STATUS_CONFIRMED ? "confirmed" : group.status === STATUS_REJECTED ? "rejected" : null;
+  const keepAsset = keep ? assets[keep.assetUuid] : undefined;
+
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
-      {/* Keep asset */}
-      <Box>
-        <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.accent.green, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>{t("workflow.dedup.keep")}</Typography>
-        <Paper elevation={0} sx={{ border: `2px solid ${tokens.accent.green}`, borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated }}>
-          <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "#000", overflow: "hidden" }}>
-            <img src={group.keep.thumbnailUrl} alt={group.keep.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-          </Box>
-          <Box sx={{ p: 1.5 }}>
-            <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{group.keep.name}</Typography>
-            <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
-              {group.keep.tags.slice(0, 5).map(t => <Chip key={t} label={t} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />)}
-            </Box>
-          </Box>
-        </Paper>
+    <Box data-testid="dedup-group" data-group-uuid={group.uuid}
+      sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+          {t("workflow.dedup.algorithm")}: {group.algorithm}
+        </Typography>
+        {typeof group.score === "number" && (
+          <Typography variant="caption" data-testid="dedup-group-score" sx={{ color: tokens.text.tertiary, fontSize: "0.7rem" }}>
+            {t("workflow.dedup.score")}: {group.score.toFixed(2)}
+          </Typography>
+        )}
       </Box>
+
+      {/* Keep asset */}
+      {keep && (
+        <Box>
+          <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.accent.green, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>{t("workflow.dedup.keep")}</Typography>
+          <Paper data-testid="dedup-keep" elevation={0} sx={{ border: `2px solid ${tokens.accent.green}`, borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated }}>
+            <DedupPreview asset={keepAsset} alt={keepAsset?.file?.filename ?? ""} />
+            <Box sx={{ p: 1.5 }}>
+              <DedupMemberFacts member={keep} asset={keepAsset} />
+            </Box>
+          </Paper>
+        </Box>
+      )}
 
       {/* Duplicate candidates */}
       <Box>
         <Typography variant="caption" fontWeight={600} sx={{ textTransform: "uppercase", color: tokens.text.tertiary, fontSize: "0.7rem", letterSpacing: "0.06em", mb: 0.5, display: "block" }}>
           {t("workflow.dedup.duplicateCandidates")}
         </Typography>
-        {group.candidates.map(c => (
-          <Paper key={c.id} elevation={0} sx={{
-            border: `2px dashed ${decision === "confirmed" ? tokens.accent.red : decision === "rejected" ? tokens.text.tertiary : tokens.border.strong}`,
-            borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated,
-            opacity: decision === "confirmed" ? 0.5 : 1, transition: "opacity 200ms ease", mb: 1,
-          }}>
-            <Box sx={{ width: "100%", aspectRatio: "16/9", bgcolor: "#000", overflow: "hidden" }}>
-              <img src={c.thumbnailUrl} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-            </Box>
-            <Box sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>{c.name}</Typography>
-                <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
-                  {c.tags.slice(0, 5).map(t => <Chip key={t} label={t} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />)}
+        {dups.map(c => {
+          const asset = assets[c.assetUuid];
+          return (
+            <Paper key={c.assetUuid} data-testid={`dedup-member-${c.assetUuid}`} elevation={0} sx={{
+              border: `2px dashed ${decision === "confirmed" ? tokens.accent.red : decision === "rejected" ? tokens.text.tertiary : tokens.border.strong}`,
+              borderRadius: tokens.radius.lg, overflow: "hidden", bgcolor: tokens.bg.elevated,
+              opacity: decision === "confirmed" ? 0.5 : 1, transition: "opacity 200ms ease", mb: 1,
+            }}>
+              <DedupPreview asset={asset} alt={asset?.file?.filename ?? ""} />
+              <Box sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{ flex: 1 }}>
+                  <DedupMemberFacts member={c} asset={asset} />
                 </Box>
+                {/* The decision a reviewer could not express at all before: keep this one instead. */}
+                <Button size="small" variant="outlined" disabled={busy}
+                  data-testid={`dedup-make-keep-${c.assetUuid}`}
+                  onClick={() => onMakeKeep(c.assetUuid)}
+                  sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.72rem", whiteSpace: "nowrap" }}>
+                  {t("workflow.dedup.makeKeep")}
+                </Button>
+                {decision && (
+                  <Chip data-testid="dedup-decision-chip"
+                    label={decision === "confirmed" ? t("workflow.dedup.chipRemove") : t("workflow.dedup.chipKept")} size="small"
+                    sx={{ height: 20, fontSize: "0.68rem", fontWeight: 600,
+                      bgcolor: decision === "confirmed" ? `${tokens.accent.red}18` : `${tokens.accent.green}18`,
+                      color: decision === "confirmed" ? tokens.accent.red : tokens.accent.green }} />
+                )}
               </Box>
-              {decision && (
-                  <Chip label={decision === "confirmed" ? t("workflow.dedup.chipRemove") : t("workflow.dedup.chipKept")} size="small"
-                  sx={{ height: 20, fontSize: "0.68rem", fontWeight: 600,
-                    bgcolor: decision === "confirmed" ? `${tokens.accent.red}18` : `${tokens.accent.green}18`,
-                    color: decision === "confirmed" ? tokens.accent.red : tokens.accent.green }} />
-              )}
-            </Box>
-          </Paper>
-        ))}
+            </Paper>
+          );
+        })}
       </Box>
 
       <Box sx={{ display: "flex", gap: 1, px: 1 }}>
         <Button variant={decision === "confirmed" ? "contained" : "outlined"} size="small" color="error"
+          data-testid="dedup-confirm" disabled={busy}
           startIcon={<DeleteOutlineOutlined sx={{ fontSize: 16 }} />} onClick={onConfirm}
           sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}>
           {t("workflow.dedup.confirmBtn")}
         </Button>
         <Button variant={decision === "rejected" ? "contained" : "outlined"} size="small"
+          data-testid="dedup-reject" disabled={busy}
           startIcon={<CloseOutlined sx={{ fontSize: 16 }} />} onClick={onReject}
           sx={{ textTransform: "none", fontWeight: 600, fontSize: "0.8rem" }}>
           {t("workflow.dedup.rejectBtn")}
@@ -724,6 +813,7 @@ export default function WorkflowView() {
   const { setSidebarCollapsed } = useLayout();
   const { t } = useTranslation();
   const { token } = useAuth();
+  const { showToast } = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [mode, setMode] = useState<WorkflowMode>("rating");
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -731,7 +821,12 @@ export default function WorkflowView() {
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [ratingReactionUuids, setRatingReactionUuids] = useState<Record<string, string>>({});
   const [assetTags, setAssetTags] = useState<Record<string, string[]>>({});
-  const [dedupDecisions, setDedupDecisions] = useState<Record<number, "confirmed" | "rejected">>({});
+  // The dedup queue is server state: the group carries its own status, so there is no local
+  // decision map to drift out of sync with what was actually written.
+  const [dedupGroups, setDedupGroups] = useState<DedupGroupResponse[]>([]);
+  const [dedupLoaded, setDedupLoaded] = useState(false);
+  const [dedupAssets, setDedupAssets] = useState<Record<string, AssetResponse>>({});
+  const [dedupBusy, setDedupBusy] = useState(false);
   const [selectedClusterIdx, setSelectedClusterIdx] = useState(0);
   const [clusterDecisions, setClusterDecisions] = useState<Record<string, "confirmed" | "denied">>({});
   const [clusterPersonAssignments, setClusterPersonAssignments] = useState<Record<string, string>>({});
@@ -760,9 +855,44 @@ export default function WorkflowView() {
     }).catch(() => {});
   }, [token]);
 
-  const duplicateGroups = useMemo(() => buildDuplicateGroups(assets), [assets]);
+  // The real review queue: groups a discovery run proposed and nobody has decided yet.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    listDedupGroups(token, { status: STATUS_PENDING, limit: PAGE_SIZE })
+      .then(r => {
+        if (cancelled) return;
+        setDedupGroups(r.data ?? []);
+        setDedupLoaded(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDedupLoaded(true);
+        showToast(t("workflow.dedup.loadFailed"), "error");
+      });
+    return () => { cancelled = true; };
+  }, [token, showToast, t]);
+
   const currentAsset = assets[currentIdx] ?? assets[0];
-  const currentGroup = duplicateGroups[currentIdx] ?? duplicateGroups[0];
+  const currentGroup = dedupGroups[currentIdx] ?? dedupGroups[0];
+
+  // A group carries only asset uuids; the filename, mime type and preview come from the asset itself.
+  useEffect(() => {
+    if (!token || !currentGroup) return;
+    const missing = (currentGroup.members ?? [])
+      .map(m => m.assetUuid)
+      .filter(uuid => !dedupAssets[uuid]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(missing.map(uuid => loadAsset(token, uuid).then(a => [uuid, a] as const).catch(() => null)))
+      .then(results => {
+        if (cancelled) return;
+        const resolved = results.filter((r): r is readonly [string, AssetResponse] => r !== null);
+        if (resolved.length === 0) return;
+        setDedupAssets(prev => ({ ...prev, ...Object.fromEntries(resolved) }));
+      });
+    return () => { cancelled = true; };
+  }, [token, currentGroup, dedupAssets]);
 
   const [currentFaces, setCurrentFaces] = useState<DetectedFace[]>([]);
   const [currentObjects, setCurrentObjects] = useState<DetectedObject[]>([]);
@@ -813,7 +943,8 @@ export default function WorkflowView() {
       return { cluster, faces: currentFaces.filter(f => f.clusterId === cid) };
     }).filter(c => c.cluster);
   }, [currentFaces]);
-  const maxIdx = mode === "deduplication" ? duplicateGroups.length - 1 : assets.length - 1;
+  // The dedup queue counts groups, not assets.
+  const maxIdx = mode === "deduplication" ? dedupGroups.length - 1 : assets.length - 1;
 
   useEffect(() => {
     const profile = profiles.find(p => p.mode === mode);
@@ -850,8 +981,60 @@ export default function WorkflowView() {
   const handleRemoveTag = useCallback((tag: string) => {
     setAssetTags(prev => ({ ...prev, [currentAsset.id]: (prev[currentAsset.id] ?? []).filter(t => t !== tag) }));
   }, [currentAsset]);
-  const handleConfirmDedup = useCallback(() => { setDedupDecisions(prev => ({ ...prev, [currentIdx]: "confirmed" })); }, [currentIdx]);
-  const handleRejectDedup = useCallback(() => { setDedupDecisions(prev => ({ ...prev, [currentIdx]: "rejected" })); }, [currentIdx]);
+  /**
+   * Write a dedup decision, showing it immediately and taking it back if the write fails.
+   *
+   * A row that looks decided but was never PATCHed is the exact failure this screen used to have:
+   * a reviewer works through twenty groups, the server learns nothing, and the apply node moves
+   * nothing. So the optimistic chip is always paired with a rollback.
+   */
+  const applyDedupDecision = useCallback(async (
+    optimistic: DedupGroupResponse,
+    write: (token: string, group: DedupGroupResponse) => Promise<DedupGroupResponse>,
+    failureKey: string,
+  ) => {
+    const group = dedupGroups[currentIdx];
+    if (!group || !token) return;
+    setDedupGroups(prev => replaceGroup(prev, optimistic));
+    setDedupBusy(true);
+    try {
+      const saved = await write(token, group);
+      setDedupGroups(prev => replaceGroup(prev, saved));
+    } catch {
+      setDedupGroups(prev => replaceGroup(prev, group));
+      showToast(t(failureKey), "error");
+    } finally {
+      setDedupBusy(false);
+    }
+  }, [dedupGroups, currentIdx, token, showToast, t]);
+
+  const handleConfirmDedup = useCallback(() => {
+    const group = dedupGroups[currentIdx];
+    if (!group) return;
+    void applyDedupDecision(
+      { ...group, status: STATUS_CONFIRMED },
+      (tk, g) => decideGroup(tk, g, STATUS_CONFIRMED),
+      "workflow.dedup.saveFailed");
+  }, [dedupGroups, currentIdx, applyDedupDecision]);
+
+  const handleRejectDedup = useCallback(() => {
+    const group = dedupGroups[currentIdx];
+    if (!group) return;
+    void applyDedupDecision(
+      { ...group, status: STATUS_REJECTED },
+      (tk, g) => decideGroup(tk, g, STATUS_REJECTED),
+      "workflow.dedup.saveFailed");
+  }, [dedupGroups, currentIdx, applyDedupDecision]);
+
+  /** Keep a different member. Sent as a status-preserving PATCH so picking a file decides nothing. */
+  const handleMakeKeep = useCallback((assetUuid: string) => {
+    const group = dedupGroups[currentIdx];
+    if (!group) return;
+    void applyDedupDecision(
+      { ...group, keepAssetUuid: assetUuid },
+      (tk, g) => reassignKeep(tk, g, assetUuid),
+      "workflow.dedup.keepFailed");
+  }, [dedupGroups, currentIdx, applyDedupDecision]);
   const handleConfirmCluster = useCallback((id: string) => { setClusterDecisions(prev => ({ ...prev, [id]: "confirmed" })); }, []);
   const handleDenyCluster = useCallback((id: string) => { setClusterDecisions(prev => ({ ...prev, [id]: "denied" })); }, []);
   const handleAssignPerson = useCallback((clusterId: string, name: string) => { setClusterPersonAssignments(prev => ({ ...prev, [clusterId]: name })); }, []);
@@ -927,7 +1110,7 @@ export default function WorkflowView() {
             <ToggleButton value="tagging" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <LocalOfferOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.tagging")}
             </ToggleButton>
-            <ToggleButton value="deduplication" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+            <ToggleButton value="deduplication" data-testid="workflow-mode-deduplication" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <ContentCopyOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.dedup")}
             </ToggleButton>
             <ToggleButton value="llm" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
@@ -978,8 +1161,15 @@ export default function WorkflowView() {
               assetTags={assetTags[currentAsset.id] ?? []} onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} />
           )}
           {mode === "deduplication" && currentGroup && (
-            <DeduplicationMode group={currentGroup} onConfirm={handleConfirmDedup}
-              onReject={handleRejectDedup} decision={dedupDecisions[currentIdx] ?? null} />
+            <DeduplicationMode group={currentGroup} assets={dedupAssets}
+              onConfirm={handleConfirmDedup} onReject={handleRejectDedup}
+              onMakeKeep={handleMakeKeep} busy={dedupBusy} />
+          )}
+          {mode === "deduplication" && !currentGroup && dedupLoaded && (
+            <Box data-testid="dedup-empty" sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <EmptyState icon={ContentCopyOutlined} title={t("workflow.dedup.emptyState.title")}
+                description={t("workflow.dedup.emptyState.description")} />
+            </Box>
           )}
           {mode === "facedetection" && currentAsset && (
             <FaceDetectionMode asset={currentAsset} faces={currentFaces} clusters={currentFaceClusters}

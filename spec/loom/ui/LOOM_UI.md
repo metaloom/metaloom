@@ -76,7 +76,7 @@ Scripts: `dev`, `build` (`tsc && vite build`), `preview`, `test` / `test:watch` 
 ```
 loom-ui/
 ├── src/
-│   ├── api/          # 37 REST/WS client modules + 19 co-located *.test.ts (§5)
+│   ├── api/          # 38 REST/WS client modules + 20 co-located *.test.ts (§5)
 │   ├── components/   # Shared: Title, EmptyState, ListPaging, MediaPlaceholder, AssetThumbnail
 │   ├── context/      # Auth, Space, NodeRegistry, Search, Theme, Toast, Notification, Layout (§6)
 │   ├── features/     # One directory per UI area (§4.2)
@@ -88,7 +88,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 78 Playwright specs (§8.2)
+├── e2e/              # 79 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -254,6 +254,7 @@ export const API_BASE_URL =
 | `annotations.ts` | `/annotations[/:uuid]` |
 | `transcripts.ts` | `/assets/:uuid/transcripts[/:transcriptUuid]` |
 | `detections.ts` | `/assets/:uuid/detections[/:uuid|/bulk]` |
+| `dedup.ts` | `/dedup-groups[/:uuid]`, `/assets/:uuid/dedup-groups` — ⚠️ the **only** module using `method: "PATCH"`; the backend route genuinely is PATCH |
 | `clusters.ts` · `persons.ts` | `/clusters` · `/persons` |
 | `pools.ts` | `/pools` |
 | `pipelines.ts` | `/pipelines`, `/:uuid/run`, `/:uuid/runs[/:runUuid[/items|/cancel]]`, `/:uuid/versions[/:n[/restore]]`, `/pipelines/runs/stats` |
@@ -441,7 +442,7 @@ Only **two** modules still import `src/mock/`:
 | Consumer | What is mocked | What is real |
 |----------|----------------|--------------|
 | `features/monitoring/MonitoringArea.tsx` | `METRICS` — ingestion, latency, storage, task backlog, chat usage, annotations charts | Pipeline run stats via `loadPipelineRunStats` (`/pipelines/runs/stats`) + live `subscribePipelineEvents` |
-| `features/workflow/WorkflowView.tsx` | `FACE_CLUSTERS`, `PERSONS` seeds, a hardcoded VLM result string, `ALL_TAGS` (24 strings), and `buildDuplicateGroups` (pairs adjacent assets) | Assets (`listAssets`) and detections (`listAssetDetections`). 🔴 Of six modes only rating **writes** to the server — [../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §2 |
+| `features/workflow/WorkflowView.tsx` | `FACE_CLUSTERS`, `PERSONS` seeds, a hardcoded VLM result string, `ALL_TAGS` (24 strings) | Assets (`listAssets`), detections (`listAssetDetections`) and the **dedup review queue** (`listDedupGroups`, `updateDedupGroup`). 🔴 Of six modes only rating and dedup **write** to the server — [../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §2 |
 
 Everything else — chat, sessions, skills, memory, tasks, tags, collections, pools, cortex,
 maintenance (`/health` + `/`), pipelines — is wired to real endpoints.
@@ -477,13 +478,13 @@ tasks attached to assets with priority/status/due dates.
 > component is a *mocked* Playwright spec (§8.2). Do not add RTL/jsdom to test a component —
 > extract the logic into a `.ts` module or write a mocked e2e.
 
-39 test files today:
+41 test files today:
 
 | Area | Files |
 |------|-------|
-| `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `paging`, `listPaging`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
+| `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `dedup`, `paging`, `listPaging`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
 | `src/hooks/` | `pagedList` — the pure half of `usePagedList`, since the hook itself needs a renderer this repo does not have |
-| Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence` |
+| Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence`, `workflow/dedupGroups` |
 
 > `listPaging.test.ts` is table-driven over all sixteen paged clients rather than sixteen
 > near-identical files — the contract (`?limit=&from=` on the wire, `_metainfo` passed through) is
@@ -501,7 +502,7 @@ tasks attached to assets with priority/status/due dates.
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-78 specs in two flavours, distinguished by filename suffix:
+79 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
@@ -716,17 +717,19 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [x] Maintenance on real `/health` + `/`
 - [x] Monitoring on real `/pipelines/runs/stats` + live events
 - [ ] Monitoring KPI/chart series still from `mock/data.ts` `METRICS` (no `/metrics` endpoint)
+- [x] Workflow deduplication wired end to end: real `status=PENDING` queue, PATCHed decisions with
+      rollback, KEEP reassignment ([../../workflows/WORKFLOW_DEDUP.md](../../workflows/WORKFLOW_DEDUP.md))
 - [ ] Workflow face-cluster/person seeds and the VLM result still mocked — and, more importantly,
-      five of the six modes discard the reviewer's decisions entirely
-      ([../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §4, tasks W2/W3/W5/W6 in
+      four of the six modes discard the reviewer's decisions entirely
+      ([../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §4, tasks W2/W5/W6 in
       [../../tasks/WORKFLOW_TASKS.md](../../tasks/WORKFLOW_TASKS.md))
 - [x] Keyset paging for large lists — `?limit=`/`?from=`, server totals, "load more" (§11.3)
 - [x] Asset search runs against `/search/assets` rather than filtering the loaded page (§7.5.1)
 
 ### 13.4 Testing
 
-- [x] vitest (node env) for API clients and extracted helpers — 39 files
-- [x] Playwright mocked specs as the component tier — 45 files
+- [x] vitest (node env) for API clients and extracted helpers — 41 files
+- [x] Playwright mocked specs as the component tier — 46 files
 - [x] Playwright backend specs against demo data — 30 files
 - [x] `tsc --noEmit` gate via `npm run build`
 - [ ] Visual regression tests
@@ -735,6 +738,6 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (cross-referenced the new `spec/workflows/` family from the `/workflow`
-route, the mock inventory and the progress list; no other content changes)_
+_Git HEAD revision: `43ada5a8`_
+_Last updated: 2026-08-08 (`api/dedup.ts` added — the UI's only PATCH client; workflow dedup dropped
+out of the mock inventory; test counts refreshed)_

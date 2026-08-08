@@ -43,7 +43,8 @@ operating the installation.
 * *Tasks* — a Kanban-style task board with priority, status, due dates and per-asset tasks
 * *Detection* — review face, object and LLM detections; manage face clusters and persons
 * *Tags* — manage tags grouped by collection
-* *Workflow* — fullscreen, keyboard-driven bulk review
+* *Workflow* — fullscreen, keyboard-driven bulk review, including the
+  <<reviewing-duplicates,duplicate review queue>>
 
 *Management*
 
@@ -298,6 +299,54 @@ The Detection view aggregates face, object and LLM detections. The *Faces* tab m
 lets you assign them to persons in the person database.
 
 image::face-detection.png[Face detection and cluster management,role=img-fluid]
+
+[#reviewing-duplicates]
+=== Reviewing Duplicates
+
+*Workflow → Dedup* is the queue of near-duplicate videos that a link:../nodes/dedup/[deduplication]
+pipeline has found and nobody has decided on yet. Nothing has been moved at this point: the search
+only proposes, and your decision is what allows anything to happen to a file.
+
+Each entry shows one group. The file the system suggests keeping is framed in green at the top, and
+the candidate duplicates sit below it. For every file you get:
+
+* its *name*, so you can recognise where it came from
+* its *size* — the usual reason to disagree with the suggested keeper
+* an *Incomplete* marker when the file looked truncated at the time it was found, which is what a
+  convincing "duplicate" sometimes turns out to be
+* a *score*, from 0 to 1, saying how close the match is
+
+A preview is shown for anything the browser can display. Most candidates are video, which has no
+preview, so those show a placeholder and you decide on the numbers.
+
+Work through the queue with the keyboard:
+
+[options="header",cols="1,3"]
+|===
+| Key | Action
+| `Y` | Confirm — the duplicates in this group may be cleared away
+| `N` | Reject — leave these files alone, permanently
+| `←` `→` | Move between groups
+| `F` | Fullscreen
+|===
+
+If you disagree with which file should be kept, press *Keep this one* on the file you would rather
+keep. That only changes the choice; it does not decide the group, so you still confirm or reject
+afterwards.
+
+Every decision is saved as you make it. If saving fails — a lost connection, or a missing permission
+— the entry visibly goes back to undecided and a message says so, so a queue that looks finished
+really is.
+
+Rejecting a group is final in a useful way: the next deduplication run will not propose the same set
+of files again, so the queue does not refill with decisions you have already made.
+
+TIP: Confirming a group does not itself move anything. The clean-up happens the next time a pipeline
+with the apply step runs over those files, and it re-checks the file being kept before it touches
+anything.
+
+NOTE: Opening this queue needs the *Deduplication → READ_DEDUP* permission, and deciding a group
+needs *UPDATE_DEDUP*. Both are granted in the *Permissions* screen under *Administration*.
 
 [#pipeline-editing]
 == Pipeline Editing

@@ -48,6 +48,8 @@
     "name" : "comments",
     "description" : "Comments and their reactions"
   }, {
+    "name" : "dedup-groups"
+  }, {
     "name" : "embeddings",
     "description" : "Vector embeddings and their attachments"
   }, {
@@ -77,6 +79,9 @@
   }, {
     "name" : "memory-deny-rules",
     "description" : "Administration of the agent memory denylist"
+  }, {
+    "name" : "notifications",
+    "description" : "The caller's notification inbox: list, mark read, dismiss and clear"
   }, {
     "name" : "persons",
     "description" : "Persons known to the face recognition model"
@@ -119,6 +124,8 @@
   }, {
     "name" : "users",
     "description" : "Users of the RBAC model"
+  }, {
+    "name" : "vector-index"
   } ],
   "paths" : {
     "/api/v1" : {
@@ -1022,7 +1029,8 @@
                     "priority" : "MEDIUM",
                     "taskStatus" : "PENDING",
                     "dueDate" : "2026-08-01T12:00:00Z",
-                    "comments" : [ ]
+                    "comments" : [ ],
+                    "assignees" : [ ]
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -1117,7 +1125,8 @@
                   "priority" : "MEDIUM",
                   "taskStatus" : "PENDING",
                   "dueDate" : "2026-08-01T12:00:00Z",
-                  "comments" : [ ]
+                  "comments" : [ ],
+                  "assignees" : [ ]
                 }
               }
             }
@@ -1614,7 +1623,8 @@
                               "SATISFIED" : 10
                             }
                           }
-                        } ]
+                        } ],
+                        "assignees" : [ ]
                       } ],
                       "comments" : [ {
                         "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -1745,7 +1755,8 @@
                               "SATISFIED" : 10
                             }
                           }
-                        } ]
+                        } ],
+                        "assignees" : [ ]
                       } ],
                       "comments" : [ {
                         "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -1918,7 +1929,8 @@
                           "SATISFIED" : 10
                         }
                       }
-                    } ]
+                    } ],
+                    "assignees" : [ ]
                   } ],
                   "comments" : [ {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -2018,7 +2030,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -2661,7 +2674,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -2835,7 +2849,8 @@
                           "SATISFIED" : 10
                         }
                       }
-                    } ]
+                    } ],
+                    "assignees" : [ ]
                   } ],
                   "comments" : [ {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -2938,7 +2953,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -3112,7 +3128,8 @@
                           "SATISFIED" : 10
                         }
                       }
-                    } ]
+                    } ],
+                    "assignees" : [ ]
                   } ],
                   "comments" : [ {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -3215,7 +3232,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -3450,7 +3468,8 @@
                           "SATISFIED" : 10
                         }
                       }
-                    } ]
+                    } ],
+                    "assignees" : [ ]
                   } ],
                   "comments" : [ {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -3553,7 +3572,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -4542,7 +4562,7 @@
                     "confidence" : 0.97,
                     "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
                   }, {
-                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                     "status" : {
                       "creator" : {
                         "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
@@ -4555,17 +4575,14 @@
                       },
                       "edited" : "2018-11-20T20:12:01Z"
                     },
-                    "meta" : {
-                      "gender" : "male",
-                      "age" : 30
-                    },
-                    "type" : "facedetection",
-                    "frameNumber" : 0,
-                    "bboxX" : 0.3,
-                    "bboxY" : 0.2,
-                    "bboxWidth" : 0.12,
-                    "bboxHeight" : 0.2,
-                    "confidence" : 0.97,
+                    "type" : "objectdetection",
+                    "label" : "dog",
+                    "frameNumber" : 120,
+                    "bboxX" : 0.51,
+                    "bboxY" : 0.34,
+                    "bboxWidth" : 0.18,
+                    "bboxHeight" : 0.27,
+                    "confidence" : 0.88,
                     "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
                   } ],
                   "_metainfo" : {
@@ -5097,6 +5114,131 @@
                     "bboxHeight" : 0.2,
                     "confidence" : 0.97,
                     "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                  } ],
+                  "total" : 2,
+                  "created" : 2,
+                  "failed" : 0
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/embeddings/bulk" : {
+      "description" : "Bulk create embeddings on an asset",
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Bulk create embeddings on an asset",
+        "description" : "Bulk create embeddings on an asset",
+        "operationId" : "postAssetsByUuidEmbeddingsBulk",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "embeddings" : [ {
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "type" : "face",
+                  "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                  "nodeKind" : "facedetect",
+                  "model" : "inspireface-r18",
+                  "frameNumber" : 0,
+                  "subjectIndex" : 0
+                }, {
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "type" : "face",
+                  "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                  "nodeKind" : "facedetect",
+                  "model" : "inspireface-r18",
+                  "frameNumber" : 0,
+                  "subjectIndex" : 0
+                } ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The embedding bulk response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "embeddings" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    }
+                  }, {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    }
                   } ],
                   "total" : 2,
                   "created" : 2,
@@ -6987,8 +7129,204 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/tag-placements/{placementUuid}" : {
+      "description" : "Remove one placement of a tag from an asset, keeping its other placements",
+      "delete" : {
+        "tags" : [ "assets" ],
+        "summary" : "Remove one placement of a tag from an asset, keeping its other placements",
+        "description" : "Remove one placement of a tag from an asset, keeping its other placements",
+        "operationId" : "deleteAssetsByUuidTagplacementsByPlacementUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "placementUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced placement",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/tags" : {
       "description" : "Tag the asset",
+      "put" : {
+        "tags" : [ "assets" ],
+        "summary" : "Apply a set of tags to the asset in one request",
+        "description" : "Apply a set of tags to the asset in one request",
+        "operationId" : "putAssetsByUuidTags",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "collection" : "colors",
+                "tags" : [ {
+                  "name" : "red",
+                  "collection" : "colors"
+                }, {
+                  "name" : "amber",
+                  "collection" : "colors"
+                } ],
+                "withdraw" : [ "f04e89d0-076d-4d90-b192-715a25a2cd59" ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The bulk asset tagging response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "tags" : [ {
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "red",
+                    "area" : {
+                      "from" : 12,
+                      "to" : 42,
+                      "width" : 480,
+                      "height" : 200,
+                      "startX" : 120,
+                      "startY" : 240
+                    },
+                    "color" : "1681de",
+                    "collection" : "colors"
+                  } ],
+                  "total" : 2,
+                  "applied" : 2,
+                  "withdrawn" : 1
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "post" : {
         "tags" : [ "assets" ],
         "summary" : "Tag the asset",
@@ -7059,11 +7397,11 @@
       } ]
     },
     "/api/v1/assets/{uuid}/tags/{tagUuid}" : {
-      "description" : "Remove a tag from an asset",
+      "description" : "Remove a tag from an asset, with every placement of it",
       "delete" : {
         "tags" : [ "assets" ],
-        "summary" : "Remove a tag from an asset",
-        "description" : "Remove a tag from an asset",
+        "summary" : "Remove a tag from an asset, with every placement of it",
+        "description" : "Remove a tag from an asset, with every placement of it",
         "operationId" : "deleteAssetsByUuidTagsByTagUuid",
         "responses" : {
           "400" : {
@@ -7161,7 +7499,8 @@
                     "priority" : "MEDIUM",
                     "taskStatus" : "PENDING",
                     "dueDate" : "2026-08-01T12:00:00Z",
-                    "comments" : [ ]
+                    "comments" : [ ],
+                    "assignees" : [ ]
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -7256,7 +7595,8 @@
                   "priority" : "MEDIUM",
                   "taskStatus" : "PENDING",
                   "dueDate" : "2026-08-01T12:00:00Z",
-                  "comments" : [ ]
+                  "comments" : [ ],
+                  "assignees" : [ ]
                 }
               }
             }
@@ -7979,7 +8319,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -8053,7 +8394,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -8204,7 +8546,8 @@
                               "SATISFIED" : 10
                             }
                           }
-                        } ]
+                        } ],
+                        "assignees" : [ ]
                       } ],
                       "comments" : [ {
                         "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -8377,7 +8720,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -8551,7 +8895,8 @@
                           "SATISFIED" : 10
                         }
                       }
-                    } ]
+                    } ],
+                    "assignees" : [ ]
                   } ],
                   "comments" : [ {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -8654,7 +8999,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -8828,7 +9174,8 @@
                           "SATISFIED" : 10
                         }
                       }
-                    } ]
+                    } ],
+                    "assignees" : [ ]
                   } ],
                   "comments" : [ {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -8931,7 +9278,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -9166,7 +9514,8 @@
                           "SATISFIED" : 10
                         }
                       }
-                    } ]
+                    } ],
+                    "assignees" : [ ]
                   } ],
                   "comments" : [ {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -9269,7 +9618,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -9479,7 +9829,8 @@
                             "SATISFIED" : 10
                           }
                         }
-                      } ]
+                      } ],
+                      "assignees" : [ ]
                     } ],
                     "comments" : [ {
                       "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
@@ -14223,6 +14574,292 @@
         }
       } ]
     },
+    "/api/v1/dedup-groups" : {
+      "description" : "Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
+      "get" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "List duplicate review groups, newest first, optionally filtered by status (PENDING, CONFIRMED, REJECTED). Keyset paged via limit and from.",
+        "description" : "List duplicate review groups, newest first, optionally filtered by status (PENDING, CONFIRMED, REJECTED). Keyset paged via limit and from.",
+        "operationId" : "getDedupgroups",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
+        "description" : "Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
+        "operationId" : "postDedupgroups",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dedup-groups/{uuid}" : {
+      "description" : "Load one duplicate review group and its members",
+      "get" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Load one duplicate review group and its members",
+        "description" : "Load one duplicate review group and its members",
+        "operationId" : "getDedupgroupsByUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Delete a duplicate review group. Its members are removed with it.",
+        "description" : "Delete a duplicate review group. Its members are removed with it.",
+        "operationId" : "deleteDedupgroupsByUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch" : {
+        "tags" : [ "dedup-groups" ],
+        "summary" : "Confirm or reject a duplicate review group. Only a confirmed group is ever acted on by the apply node.",
+        "description" : "Confirm or reject a duplicate review group. Only a confirmed group is ever acted on by the apply node.",
+        "operationId" : "patchDedupgroupsByUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/embeddings" : {
       "description" : "Create new embedding",
       "get" : {
@@ -14352,7 +14989,12 @@
                 "meta" : {
                   "abc" : "cdef"
                 },
-                "vector" : [ 0.42, 0.24, 0.44, 21.5 ]
+                "type" : "face",
+                "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+                "nodeKind" : "facedetect",
+                "model" : "inspireface-r18",
+                "frameNumber" : 0,
+                "subjectIndex" : 0
               }
             }
           }
@@ -16668,6 +17310,473 @@
         }
       }
     },
+    "/api/v1/notifications" : {
+      "description" : "Load a paged list of the caller's notifications. Pass ?unread=true to restrict to unread entries.",
+      "get" : {
+        "tags" : [ "notifications" ],
+        "summary" : "Load a paged list of the caller's notifications. Pass ?unread=true to restrict to unread entries.",
+        "description" : "Load a paged list of the caller's notifications. Pass ?unread=true to restrict to unread entries.",
+        "operationId" : "getNotifications",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The notification list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : { },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "type" : "TASK_ASSIGNED",
+                    "read" : false,
+                    "title" : "joedoe assigned you \"Colour-grade the hero shot\"",
+                    "body" : "The white balance drifts warm in the top-left quadrant.",
+                    "taskUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc"
+                  } ],
+                  "unreadCount" : 1,
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "notifications" ],
+        "summary" : "Delete all of the caller's notifications",
+        "description" : "Delete all of the caller's notifications",
+        "operationId" : "deleteNotifications",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{uuid}" : {
+      "description" : "Load one of the caller's notifications",
+      "get" : {
+        "tags" : [ "notifications" ],
+        "summary" : "Load one of the caller's notifications",
+        "description" : "Load one of the caller's notifications",
+        "operationId" : "getNotificationsByUuid",
+        "responses" : {
+          "200" : {
+            "description" : "The notification response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "status" : { },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "type" : "TASK_ASSIGNED",
+                  "read" : false,
+                  "title" : "joedoe assigned you \"Colour-grade the hero shot\"",
+                  "body" : "The white balance drifts warm in the top-left quadrant.",
+                  "taskUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "notifications" ],
+        "summary" : "Mark a notification as read or unread",
+        "description" : "Mark a notification as read or unread",
+        "operationId" : "postNotificationsByUuid",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "read" : true
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The notification response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "status" : { },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "type" : "TASK_ASSIGNED",
+                  "read" : false,
+                  "title" : "joedoe assigned you \"Colour-grade the hero shot\"",
+                  "body" : "The white balance drifts warm in the top-left quadrant.",
+                  "taskUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "notifications" ],
+        "summary" : "Dismiss a notification",
+        "description" : "Dismiss a notification",
+        "operationId" : "deleteNotificationsByUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/notifications/read-all" : {
+      "description" : "Mark all of the caller's notifications as read",
+      "post" : {
+        "tags" : [ "notifications" ],
+        "summary" : "Mark all of the caller's notifications as read",
+        "description" : "Mark all of the caller's notifications as read",
+        "operationId" : "postNotificationsReadall",
+        "responses" : {
+          "200" : {
+            "description" : "The mark-all-read response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "message" : "Marked 3 notifications as read"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/openapi" : {
       "description" : "Load the OpenAPI spec of this server (YAML)",
       "get" : {
@@ -17554,7 +18663,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "79bc6b92-5a91-4f9a-802e-448964cc204b",
+                    "versionUuid" : "4afc3fc6-5ebd-48ad-8e44-e3c4335209e4",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -17581,7 +18690,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "9b7fe98b-1ec2-4793-877f-07e7aa6add74",
+                    "versionUuid" : "02bf7925-31cc-4c2e-9d20-8a80d1ec5a07",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -17688,7 +18797,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "0d3910ed-844b-49c0-b263-008d0be68906",
+                  "versionUuid" : "41203b8f-5dbd-4e13-8c70-b1414d09c4fb",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17774,7 +18883,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "47afa16e-6749-4936-a797-a88872400501",
+                  "versionUuid" : "6e645731-28df-4134-8f40-720e00e79233",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -17881,7 +18990,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "d628a28a-c38f-424b-a64b-a1c1f3daffe9",
+                  "versionUuid" : "79e01180-d876-4003-8445-3034b23fe9d2",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18043,7 +19152,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "140361ce-00eb-442a-ba62-eb534948fa6a",
+                  "runUuid" : "7d582bfb-5b17-4672-afb0-66c8bc487434",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -18169,11 +19278,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "06d1755d-f772-4f57-82ba-aef2b330c3c0",
-                    "pipelineUuid" : "477dc9ac-5dfb-4899-92c2-b2e22301a439",
+                    "uuid" : "c1eaaffe-bfbc-4ee0-97de-83c2ac3326cc",
+                    "pipelineUuid" : "26d7d89a-d237-4bc2-8149-ed9aa7dfd652",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-04T21:55:37.637005688Z",
-                    "finished" : "2026-08-04T21:55:37.637119148Z",
+                    "started" : "2026-08-08T09:58:31.573599173Z",
+                    "finished" : "2026-08-08T09:58:31.573699103Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18182,11 +19291,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "a0d5764f-3665-453e-b073-950a4d079c26",
-                    "pipelineUuid" : "8e6917ef-9665-44b1-a76e-cb6709a8c4aa",
+                    "uuid" : "7c0d3291-01ec-496c-bda5-4d785d6792ce",
+                    "pipelineUuid" : "2b3910ab-e348-432c-84ac-a8d0ab0a0e99",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-04T21:55:37.637147638Z",
-                    "finished" : "2026-08-04T21:55:37.637150728Z",
+                    "started" : "2026-08-08T09:58:31.573830113Z",
+                    "finished" : "2026-08-08T09:58:31.573834343Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -18279,11 +19388,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "94ad56f7-bd8f-4cb2-ad83-478e5ace8ec5",
-                  "pipelineUuid" : "0ecafa10-bd95-458d-8dba-9f8b05d365cc",
+                  "uuid" : "df73d5d5-482a-4673-a66a-e0e8d37ec9db",
+                  "pipelineUuid" : "04dd93f9-a09c-4e14-8208-09592f170ea8",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-04T21:55:37.637830729Z",
-                  "finished" : "2026-08-04T21:55:37.637838169Z",
+                  "started" : "2026-08-08T09:58:31.574655892Z",
+                  "finished" : "2026-08-08T09:58:31.574662992Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -18773,16 +19882,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "94f63157-63f6-4cb9-a1d9-7425fa7d360c",
-                    "runUuid" : "b5dded1c-bd03-4ac7-8a67-a064bade46c4",
+                    "uuid" : "40e066e0-2a0b-43a8-b1a4-f5388667d475",
+                    "runUuid" : "c1576aca-ee10-439b-80ea-670bbcc6b50c",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "ee81cbf2-9288-4960-b0fd-518b18847e40",
-                    "runUuid" : "7b29f538-2c43-4a5f-9db1-fb4c6186c1ba",
+                    "uuid" : "d8685689-54ca-431e-ad82-18462cc83944",
+                    "runUuid" : "3e7a74ed-fafa-430a-912d-1190dc2e4974",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -18883,14 +19992,14 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "69e23776-0a92-4a94-b99e-541115432b2b",
-                    "itemUuid" : "244f5feb-54e9-47c2-af98-567cae1421ae",
-                    "runUuid" : "b5d6323f-df9a-4a37-9200-1f60da2d60b4",
+                    "uuid" : "a060c765-98b8-41f1-b366-fd6e4e0308a7",
+                    "itemUuid" : "425fb98f-f167-466c-b6ef-63626c8d6032",
+                    "runUuid" : "264f4bbf-a30f-46dd-94f0-f1268dc9bd7c",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
                     "generation" : 0,
-                    "state" : "DONE",
+                    "state" : "COMPLETED",
                     "attempt" : 1,
                     "maxAttempts" : 3,
                     "durationMs" : 42,
@@ -19551,7 +20660,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "580bbf91-0748-424c-a7b2-d6c8c5716cf8",
+                    "versionUuid" : "6f4ce01b-7f77-4aab-a9d8-001ad7c8b587",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -19578,7 +20687,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "dfa7f6a0-2d8d-4d50-a585-592fd36b538f",
+                    "versionUuid" : "626f45b3-7031-4e56-bdaf-ad42d3462f0f",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -19689,7 +20798,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "87e0da9f-1b37-4c8e-8150-d1bfbd2b8808",
+                  "versionUuid" : "0b752303-53a3-425b-b924-98dea8befe83",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -19814,7 +20923,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "63b8ad19-b997-4097-9e48-41d96336c69a",
+                  "versionUuid" : "797ab3b6-9e92-4a3a-b657-8b19f7c320bb",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",
@@ -24332,7 +25441,8 @@
                     "priority" : "MEDIUM",
                     "taskStatus" : "PENDING",
                     "dueDate" : "2026-08-01T12:00:00Z",
-                    "comments" : [ ]
+                    "comments" : [ ],
+                    "assignees" : [ ]
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -24419,7 +25529,8 @@
                   "priority" : "MEDIUM",
                   "taskStatus" : "PENDING",
                   "dueDate" : "2026-08-01T12:00:00Z",
-                  "comments" : [ ]
+                  "comments" : [ ],
+                  "assignees" : [ ]
                 }
               }
             }
@@ -24466,6 +25577,341 @@
           }
         }
       }
+    },
+    "/api/v1/tasks/{taskUuid}/assignees" : {
+      "description" : "List the users and groups a task is assigned to",
+      "get" : {
+        "tags" : [ "tasks" ],
+        "summary" : "List the users and groups a task is assigned to",
+        "description" : "List the users and groups a task is assigned to",
+        "operationId" : "getTasksByTaskUuidAssignees",
+        "responses" : {
+          "200" : {
+            "description" : "The task assignee list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "userUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "name" : "joedoe",
+                    "assigned" : "2026-08-01T12:00:00Z",
+                    "assignerUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "tasks" ],
+        "summary" : "Assign a task to one or more users and/or groups",
+        "description" : "Assign a task to one or more users and/or groups",
+        "operationId" : "postTasksByTaskUuidAssignees",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "userUuids" : [ "86abc160-4da2-4951-a91f-da0c33fbc634" ],
+                "groupUuids" : [ "0f3332a6-e404-4777-88a9-1fa984a311bc" ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The task assignee list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "userUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "name" : "joedoe",
+                    "assigned" : "2026-08-01T12:00:00Z",
+                    "assignerUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "taskUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced task",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/tasks/{taskUuid}/assignees/groups/{groupUuid}" : {
+      "description" : "Unassign a task from a group",
+      "delete" : {
+        "tags" : [ "tasks" ],
+        "summary" : "Unassign a task from a group",
+        "description" : "Unassign a task from a group",
+        "operationId" : "deleteTasksByTaskUuidAssigneesGroupsByGroupUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "taskUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced task",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "groupUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced group",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/tasks/{taskUuid}/assignees/users/{userUuid}" : {
+      "description" : "Unassign a task from a user",
+      "delete" : {
+        "tags" : [ "tasks" ],
+        "summary" : "Unassign a task from a user",
+        "description" : "Unassign a task from a user",
+        "operationId" : "deleteTasksByTaskUuidAssigneesUsersByUserUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "taskUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced task",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "userUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced user",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
     },
     "/api/v1/tasks/{taskUuid}/comments" : {
       "description" : "Create a new comment on a task",
@@ -25035,7 +26481,8 @@
                   "priority" : "MEDIUM",
                   "taskStatus" : "PENDING",
                   "dueDate" : "2026-08-01T12:00:00Z",
-                  "comments" : [ ]
+                  "comments" : [ ],
+                  "assignees" : [ ]
                 }
               }
             }
@@ -25127,7 +26574,8 @@
                   "priority" : "MEDIUM",
                   "taskStatus" : "PENDING",
                   "dueDate" : "2026-08-01T12:00:00Z",
-                  "comments" : [ ]
+                  "comments" : [ ],
+                  "assignees" : [ ]
                 }
               }
             }
@@ -26296,6 +27744,159 @@
           "format" : "uuid"
         }
       } ]
+    },
+    "/api/v1/vector-index/rebuild" : {
+      "description" : "Rebuild the embedding vector index from the stored embeddings",
+      "post" : {
+        "tags" : [ "vector-index" ],
+        "summary" : "Rebuild the embedding vector index from the stored embeddings",
+        "description" : "Rebuild the embedding vector index from the stored embeddings",
+        "operationId" : "postVectorindexRebuild",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vector-index/status" : {
+      "description" : "Report which vector index backend is bound and whether it is usable",
+      "get" : {
+        "tags" : [ "vector-index" ],
+        "summary" : "Report which vector index backend is bound and whether it is usable",
+        "description" : "Report which vector index backend is bound and whether it is usable",
+        "operationId" : "getVectorindexStatus",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vector-index/sync" : {
+      "description" : "Index the embeddings that have not yet been written to the vector index",
+      "post" : {
+        "tags" : [ "vector-index" ],
+        "summary" : "Index the embeddings that have not yet been written to the vector index",
+        "description" : "Index the embeddings that have not yet been written to the vector index",
+        "operationId" : "postVectorindexSync",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components" : {

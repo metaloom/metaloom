@@ -123,6 +123,33 @@ class FingerprintDedupNodeTest {
 		}));
 	}
 
+	/**
+	 * Loom answers a re-proposal of an already-decided candidate set with the decision instead of creating a new group. That is a no-op, and reporting
+	 * it as a discovery would put a misleading SUCCESS row in the ledger on every run over an already-reviewed corpus.
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void testSkipsWhenTheCandidateSetWasAlreadyDecided() throws Exception {
+		AssetResponse query = asset(queryUuid, 2000L, 0L).setFingerprint(new FingerprintInfo().setFingerprintV1("deadbeef"));
+		LoomClientRequest<AssetResponse> queryReq = request(query);
+		LoomClientRequest<AssetResponse> hitReq = request(asset(hitUuid, 1000L, 0L));
+		SimilarAssetListResponse hits = new SimilarAssetListResponse();
+		hits.add(new SimilarAssetResponse().setAssetUuid(hitUuid.toString()).setScore(0.9f).setSha512("hitsha"));
+		LoomClientRequest<SimilarAssetListResponse> hitsReq = request(hits);
+		LoomClientRequest<DedupGroupResponse> groupReq = request(new DedupGroupResponse()
+			.setUuid(UUID.randomUUID().toString())
+			.setStatus(DedupGroupResponse.STATUS_REJECTED));
+
+		when(client.loadAsset(nullable(SHA512.class))).thenReturn(queryReq);
+		when(client.loadAsset(eq(hitUuid))).thenReturn(hitReq);
+		when(client.listSimilarAssets(eq(queryUuid), any(), anyInt(), anyFloat())).thenReturn(hitsReq);
+		when(client.createDedupGroup(any())).thenReturn(groupReq);
+
+		assertThat(node().process(NodeContext.create(media))).isSkipped();
+
+		verify(client, never()).createAssetNodeResult(any(), any());
+	}
+
 	@Test
 	@SuppressWarnings("unchecked")
 	void testAbortsWhenDuplicateLargerThanKeep() throws Exception {

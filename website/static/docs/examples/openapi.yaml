@@ -38,6 +38,7 @@ tags:
   description: Asset collections
 - name: comments
   description: Comments and their reactions
+- name: dedup-groups
 - name: embeddings
   description: Vector embeddings and their attachments
 - name: graphql
@@ -58,6 +59,8 @@ tags:
   description: "Agent memory - scopes, notes and entries"
 - name: memory-deny-rules
   description: Administration of the agent memory denylist
+- name: notifications
+  description: "The caller's notification inbox: list, mark read, dismiss and clear"
 - name: persons
   description: Persons known to the face recognition model
 - name: pipeline
@@ -86,6 +89,7 @@ tags:
   description: API tokens for programmatic access
 - name: users
   description: Users of the RBAC model
+- name: vector-index
 paths:
   /api/v1:
     description: Load REST API info
@@ -708,6 +712,7 @@ paths:
                   taskStatus: PENDING
                   dueDate: 2026-08-01T12:00:00Z
                   comments: []
+                  assignees: []
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -772,6 +777,7 @@ paths:
                 taskStatus: PENDING
                 dueDate: 2026-08-01T12:00:00Z
                 comments: []
+                assignees: []
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -1115,6 +1121,7 @@ paths:
                             downVotes: 0
                           reactions:
                             SATISFIED: 10
+                      assignees: []
                     comments:
                     - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                       status: {}
@@ -1217,6 +1224,7 @@ paths:
                             downVotes: 0
                           reactions:
                             SATISFIED: 10
+                      assignees: []
                     comments:
                     - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                       status: {}
@@ -1343,6 +1351,7 @@ paths:
                         downVotes: 0
                       reactions:
                         SATISFIED: 10
+                  assignees: []
                 comments:
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status: {}
@@ -1418,6 +1427,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -1863,6 +1873,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -1991,6 +2002,7 @@ paths:
                         downVotes: 0
                       reactions:
                         SATISFIED: 10
+                  assignees: []
                 comments:
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status: {}
@@ -2068,6 +2080,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -2194,6 +2207,7 @@ paths:
                         downVotes: 0
                       reactions:
                         SATISFIED: 10
+                  assignees: []
                 comments:
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status: {}
@@ -2271,6 +2285,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -2438,6 +2453,7 @@ paths:
                         downVotes: 0
                       reactions:
                         SATISFIED: 10
+                  assignees: []
                 comments:
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status: {}
@@ -2515,6 +2531,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -3210,7 +3227,7 @@ paths:
                   bboxHeight: 0.2
                   confidence: 0.97
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
-                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status:
                     creator:
                       uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
@@ -3220,16 +3237,14 @@ paths:
                       uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                       name: joedoe
                     edited: 2018-11-20T20:12:01Z
-                  meta:
-                    gender: male
-                    age: 30
-                  type: facedetection
-                  frameNumber: 0
-                  bboxX: 0.3
-                  bboxY: 0.2
-                  bboxWidth: 0.12
-                  bboxHeight: 0.2
-                  confidence: 0.97
+                  type: objectdetection
+                  label: dog
+                  frameNumber: 120
+                  bboxX: 0.51
+                  bboxY: 0.34
+                  bboxWidth: 0.18
+                  bboxHeight: 0.27
+                  confidence: 0.88
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                 _metainfo:
                   perPage: 2
@@ -3599,6 +3614,99 @@ paths:
                   bboxHeight: 0.2
                   confidence: 0.97
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                total: 2
+                created: 2
+                failed: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/embeddings/bulk:
+    description: Bulk create embeddings on an asset
+    post:
+      tags:
+      - assets
+      summary: Bulk create embeddings on an asset
+      description: Bulk create embeddings on an asset
+      operationId: postAssetsByUuidEmbeddingsBulk
+      requestBody:
+        content:
+          application/json:
+            example:
+              embeddings:
+              - meta:
+                  abc: cdef
+                type: face
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                nodeKind: facedetect
+                model: inspireface-r18
+                frameNumber: 0
+                subjectIndex: 0
+              - meta:
+                  abc: cdef
+                type: face
+                vector:
+                - 0.42
+                - 0.24
+                - 0.44
+                - 21.5
+                nodeKind: facedetect
+                model: inspireface-r18
+                frameNumber: 0
+                subjectIndex: 0
+      responses:
+        "200":
+          description: The embedding bulk response
+          content:
+            application/json:
+              example:
+                embeddings:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status: {}
+                  meta:
+                    abc: cdef
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status: {}
+                  meta:
+                    abc: cdef
                 total: 2
                 created: 2
                 failed: 0
@@ -4869,8 +4977,143 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/tag-placements/{placementUuid}:
+    description: "Remove one placement of a tag from an asset, keeping its other placements"
+    delete:
+      tags:
+      - assets
+      summary: "Remove one placement of a tag from an asset, keeping its other placements"
+      description: "Remove one placement of a tag from an asset, keeping its other\
+        \ placements"
+      operationId: deleteAssetsByUuidTagplacementsByPlacementUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: placementUuid
+      in: path
+      description: UUID of the referenced placement
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/tags:
     description: Tag the asset
+    put:
+      tags:
+      - assets
+      summary: Apply a set of tags to the asset in one request
+      description: Apply a set of tags to the asset in one request
+      operationId: putAssetsByUuidTags
+      requestBody:
+        content:
+          application/json:
+            example:
+              collection: colors
+              tags:
+              - name: red
+                collection: colors
+              - name: amber
+                collection: colors
+              withdraw:
+              - f04e89d0-076d-4d90-b192-715a25a2cd59
+      responses:
+        "200":
+          description: The bulk asset tagging response
+          content:
+            application/json:
+              example:
+                tags:
+                - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: red
+                  area:
+                    from: 12
+                    to: 42
+                    width: 480
+                    height: 200
+                    startX: 120
+                    startY: 240
+                  color: 1681de
+                  collection: colors
+                total: 2
+                applied: 2
+                withdrawn: 1
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
     post:
       tags:
       - assets
@@ -4917,12 +5160,12 @@ paths:
         type: string
         format: uuid
   /api/v1/assets/{uuid}/tags/{tagUuid}:
-    description: Remove a tag from an asset
+    description: "Remove a tag from an asset, with every placement of it"
     delete:
       tags:
       - assets
-      summary: Remove a tag from an asset
-      description: Remove a tag from an asset
+      summary: "Remove a tag from an asset, with every placement of it"
+      description: "Remove a tag from an asset, with every placement of it"
       operationId: deleteAssetsByUuidTagsByTagUuid
       responses:
         "400":
@@ -4994,6 +5237,7 @@ paths:
                   taskStatus: PENDING
                   dueDate: 2026-08-01T12:00:00Z
                   comments: []
+                  assignees: []
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -5058,6 +5302,7 @@ paths:
                 taskStatus: PENDING
                 dueDate: 2026-08-01T12:00:00Z
                 comments: []
+                assignees: []
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -5555,6 +5800,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -5611,6 +5857,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -5717,6 +5964,7 @@ paths:
                             downVotes: 0
                           reactions:
                             SATISFIED: 10
+                      assignees: []
                     comments:
                     - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                       status: {}
@@ -5839,6 +6087,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -5967,6 +6216,7 @@ paths:
                         downVotes: 0
                       reactions:
                         SATISFIED: 10
+                  assignees: []
                 comments:
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status: {}
@@ -6044,6 +6294,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -6170,6 +6421,7 @@ paths:
                         downVotes: 0
                       reactions:
                         SATISFIED: 10
+                  assignees: []
                 comments:
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status: {}
@@ -6247,6 +6499,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -6414,6 +6667,7 @@ paths:
                         downVotes: 0
                       reactions:
                         SATISFIED: 10
+                  assignees: []
                 comments:
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status: {}
@@ -6491,6 +6745,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -6663,6 +6918,7 @@ paths:
                           downVotes: 0
                         reactions:
                           SATISFIED: 10
+                    assignees: []
                   comments:
                   - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                     status: {}
@@ -9844,6 +10100,204 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/dedup-groups:
+    description: "Create or update a candidate duplicate group. Used by the fingerprint-dedup\
+      \ discovery node; upserts the pending group for the same keep asset and algorithm.\
+      \ Answers 201 for a new proposal, or 200 with the existing decision when the\
+      \ same candidate set was already confirmed or rejected."
+    get:
+      tags:
+      - dedup-groups
+      summary: "List duplicate review groups, newest first, optionally filtered by\
+        \ status (PENDING, CONFIRMED, REJECTED). Keyset paged via limit and from."
+      description: "List duplicate review groups, newest first, optionally filtered\
+        \ by status (PENDING, CONFIRMED, REJECTED). Keyset paged via limit and from."
+      operationId: getDedupgroups
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - dedup-groups
+      summary: "Create or update a candidate duplicate group. Used by the fingerprint-dedup\
+        \ discovery node; upserts the pending group for the same keep asset and algorithm.\
+        \ Answers 201 for a new proposal, or 200 with the existing decision when the\
+        \ same candidate set was already confirmed or rejected."
+      description: "Create or update a candidate duplicate group. Used by the fingerprint-dedup\
+        \ discovery node; upserts the pending group for the same keep asset and algorithm.\
+        \ Answers 201 for a new proposal, or 200 with the existing decision when the\
+        \ same candidate set was already confirmed or rejected."
+      operationId: postDedupgroups
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/dedup-groups/{uuid}:
+    description: Load one duplicate review group and its members
+    get:
+      tags:
+      - dedup-groups
+      summary: Load one duplicate review group and its members
+      description: Load one duplicate review group and its members
+      operationId: getDedupgroupsByUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - dedup-groups
+      summary: Delete a duplicate review group. Its members are removed with it.
+      description: Delete a duplicate review group. Its members are removed with it.
+      operationId: deleteDedupgroupsByUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    patch:
+      tags:
+      - dedup-groups
+      summary: Confirm or reject a duplicate review group. Only a confirmed group
+        is ever acted on by the apply node.
+      description: Confirm or reject a duplicate review group. Only a confirmed group
+        is ever acted on by the apply node.
+      operationId: patchDedupgroupsByUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/embeddings:
     description: Create new embedding
     get:
@@ -9937,11 +10391,16 @@ paths:
             example:
               meta:
                 abc: cdef
+              type: face
               vector:
               - 0.42
               - 0.24
               - 0.44
               - 21.5
+              nodeKind: facedetect
+              model: inspireface-r18
+              frameNumber: 0
+              subjectIndex: 0
       responses:
         "200":
           description: The embedding response
@@ -11459,6 +11918,320 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/notifications:
+    description: Load a paged list of the caller's notifications. Pass ?unread=true
+      to restrict to unread entries.
+    get:
+      tags:
+      - notifications
+      summary: Load a paged list of the caller's notifications. Pass ?unread=true
+        to restrict to unread entries.
+      description: Load a paged list of the caller's notifications. Pass ?unread=true
+        to restrict to unread entries.
+      operationId: getNotifications
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The notification list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status: {}
+                  meta:
+                    abc: cdef
+                  type: TASK_ASSIGNED
+                  read: false
+                  title: joedoe assigned you "Colour-grade the hero shot"
+                  body: The white balance drifts warm in the top-left quadrant.
+                  taskUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                unreadCount: 1
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - notifications
+      summary: Delete all of the caller's notifications
+      description: Delete all of the caller's notifications
+      operationId: deleteNotifications
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/notifications/{uuid}:
+    description: Load one of the caller's notifications
+    get:
+      tags:
+      - notifications
+      summary: Load one of the caller's notifications
+      description: Load one of the caller's notifications
+      operationId: getNotificationsByUuid
+      responses:
+        "200":
+          description: The notification response
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                status: {}
+                meta:
+                  abc: cdef
+                type: TASK_ASSIGNED
+                read: false
+                title: joedoe assigned you "Colour-grade the hero shot"
+                body: The white balance drifts warm in the top-left quadrant.
+                taskUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - notifications
+      summary: Mark a notification as read or unread
+      description: Mark a notification as read or unread
+      operationId: postNotificationsByUuid
+      requestBody:
+        content:
+          application/json:
+            example:
+              read: true
+      responses:
+        "200":
+          description: The notification response
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                status: {}
+                meta:
+                  abc: cdef
+                type: TASK_ASSIGNED
+                read: false
+                title: joedoe assigned you "Colour-grade the hero shot"
+                body: The white balance drifts warm in the top-left quadrant.
+                taskUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - notifications
+      summary: Dismiss a notification
+      description: Dismiss a notification
+      operationId: deleteNotificationsByUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/notifications/read-all:
+    description: Mark all of the caller's notifications as read
+    post:
+      tags:
+      - notifications
+      summary: Mark all of the caller's notifications as read
+      description: Mark all of the caller's notifications as read
+      operationId: postNotificationsReadall
+      responses:
+        "200":
+          description: The mark-all-read response
+          content:
+            application/json:
+              example:
+                message: Marked 3 notifications as read
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/openapi:
     description: Load the OpenAPI spec of this server (YAML)
     get:
@@ -12063,7 +12836,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: d87fec1c-20c3-47b1-8dbb-89149b3b07a1
+                  versionUuid: 494c2cb9-162c-4436-a7a6-f061d9f7fe23
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12084,7 +12857,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: f55c824e-fcfa-4fe5-8621-88581888d1d8
+                  versionUuid: 118b1bc4-7613-4860-8709-3561f440be60
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -12157,7 +12930,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 82a4242f-f36e-4487-8030-985125f26a42
+                versionUuid: 424c6378-95b0-4aa2-8dad-e83d2e4b3057
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12216,7 +12989,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 43821bad-0417-4dd6-bb83-d565cc9169f9
+                versionUuid: 87c53aea-2329-471c-b22d-64ecfdf5306f
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12288,7 +13061,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 77cd8f50-4d96-409f-9c1a-978b61790e1c
+                versionUuid: cc3ca82d-0e8a-465f-a45f-145cb224fb48
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -12397,7 +13170,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 8defa58c-27cf-4119-9e56-93290d125255
+                runUuid: 6cdf69ae-add6-4dcb-b7cf-b0c64ce05a1e
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -12485,11 +13258,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 20467cf5-2966-4c84-af09-424fc89be9b4
-                  pipelineUuid: 0d48b98d-45d5-4920-9c87-4f4921d7920a
+                - uuid: 6f9ac2e8-164e-4041-b161-71333524699e
+                  pipelineUuid: f51985a7-9970-4ba0-ae20-709d50a3a2b3
                   pipelineVersion: 1
-                  started: 2026-08-04T21:55:37.784824759Z
-                  finished: 2026-08-04T21:55:37.784837029Z
+                  started: 2026-08-08T09:58:31.697422058Z
+                  finished: 2026-08-08T09:58:31.697433638Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12497,11 +13270,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 8f8e60be-b8db-4f72-94e8-05fda2df1845
-                  pipelineUuid: 2c21cfda-a9ac-4d4d-adef-ae6d4deb4b54
+                - uuid: 8c4a79dd-7756-4675-8255-ee68eade2053
+                  pipelineUuid: 6cf34023-15ab-4ef0-b3fa-82db9e3227cf
                   pipelineVersion: 1
-                  started: 2026-08-04T21:55:37.784861079Z
-                  finished: 2026-08-04T21:55:37.784863579Z
+                  started: 2026-08-08T09:58:31.697458978Z
+                  finished: 2026-08-08T09:58:31.697461688Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -12564,11 +13337,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: bffbef28-d171-4131-891e-7841624ddb49
-                pipelineUuid: f69a205c-fb7e-41f8-9ec8-8db1f8090202
+                uuid: 912d4dd2-10ec-438a-a63d-f8fdf22abc63
+                pipelineUuid: c5ab93a2-dc76-4e59-a932-4cbd09ba88a3
                 pipelineVersion: 1
-                started: 2026-08-04T21:55:37.784918019Z
-                finished: 2026-08-04T21:55:37.784920609Z
+                started: 2026-08-08T09:58:31.697501928Z
+                finished: 2026-08-08T09:58:31.697504478Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -12910,15 +13683,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 6e057a9b-da18-433f-865b-38f50cb56c1c
-                  runUuid: d6043860-f835-4154-b615-40688185ecff
+                - uuid: 6f685250-2c48-406a-94da-927aa8eac677
+                  runUuid: 5d57206e-7238-41e1-ae47-1d6873c653fc
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: e1ec6a28-6b29-4f6c-8745-79dad8cb7eb6
-                  runUuid: 7f562e49-99b7-413e-adda-869f8e9017b2
+                - uuid: 4a4928bb-7e75-49da-a351-b0322a01dc1c
+                  runUuid: dfebea17-9da2-4c11-bf62-38362ff2f29a
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -12990,14 +13763,14 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: bb7ac32d-08e3-407e-8622-5f334428886c
-                  itemUuid: d52ae897-1021-4ad1-a5c0-6ecb830c859a
-                  runUuid: 922f603c-3ad5-42db-a20c-ffe1bc83689a
+                - uuid: 0930e1d3-8cd3-4790-a242-22dbc2978c73
+                  itemUuid: ee45e552-b9b5-42f6-8da0-68512647d8e5
+                  runUuid: b2632927-dbd6-403c-a8dc-a37a0ec3396e
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
                   generation: 0
-                  state: DONE
+                  state: COMPLETED
                   attempt: 1
                   maxAttempts: 3
                   durationMs: 42
@@ -13455,7 +14228,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: e28df123-d267-4e5b-92a5-79e20c12fbcc
+                  versionUuid: 08a5b298-2895-4030-8d70-5746d01e41d8
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -13476,7 +14249,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: c7878262-e6e7-4629-b136-e04073c088ff
+                  versionUuid: 21bd8010-8b09-41a8-a62c-386fe5562f0b
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -13552,7 +14325,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: b2196afb-acb4-4665-bf9d-891b3b706386
+                versionUuid: bae4a85c-c5ab-4648-882c-f3dd173916d1
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -13638,7 +14411,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: e3135c50-a470-44b8-9676-8a3241dec6bb
+                versionUuid: 94a5b3af-ddab-4724-a257-7fcb27b8f650
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1
@@ -16763,6 +17536,7 @@ paths:
                   taskStatus: PENDING
                   dueDate: 2026-08-01T12:00:00Z
                   comments: []
+                  assignees: []
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -16821,6 +17595,7 @@ paths:
                 taskStatus: PENDING
                 dueDate: 2026-08-01T12:00:00Z
                 comments: []
+                assignees: []
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -16845,6 +17620,230 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/tasks/{taskUuid}/assignees:
+    description: List the users and groups a task is assigned to
+    get:
+      tags:
+      - tasks
+      summary: List the users and groups a task is assigned to
+      description: List the users and groups a task is assigned to
+      operationId: getTasksByTaskUuidAssignees
+      responses:
+        "200":
+          description: The task assignee list response
+          content:
+            application/json:
+              example:
+                data:
+                - userUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  name: joedoe
+                  assigned: 2026-08-01T12:00:00Z
+                  assignerUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - tasks
+      summary: Assign a task to one or more users and/or groups
+      description: Assign a task to one or more users and/or groups
+      operationId: postTasksByTaskUuidAssignees
+      requestBody:
+        content:
+          application/json:
+            example:
+              userUuids:
+              - 86abc160-4da2-4951-a91f-da0c33fbc634
+              groupUuids:
+              - 0f3332a6-e404-4777-88a9-1fa984a311bc
+      responses:
+        "200":
+          description: The task assignee list response
+          content:
+            application/json:
+              example:
+                data:
+                - userUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  name: joedoe
+                  assigned: 2026-08-01T12:00:00Z
+                  assignerUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: taskUuid
+      in: path
+      description: UUID of the referenced task
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/tasks/{taskUuid}/assignees/groups/{groupUuid}:
+    description: Unassign a task from a group
+    delete:
+      tags:
+      - tasks
+      summary: Unassign a task from a group
+      description: Unassign a task from a group
+      operationId: deleteTasksByTaskUuidAssigneesGroupsByGroupUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: taskUuid
+      in: path
+      description: UUID of the referenced task
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: groupUuid
+      in: path
+      description: UUID of the referenced group
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/tasks/{taskUuid}/assignees/users/{userUuid}:
+    description: Unassign a task from a user
+    delete:
+      tags:
+      - tasks
+      summary: Unassign a task from a user
+      description: Unassign a task from a user
+      operationId: deleteTasksByTaskUuidAssigneesUsersByUserUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: taskUuid
+      in: path
+      description: UUID of the referenced task
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: userUuid
+      in: path
+      description: UUID of the referenced user
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/tasks/{taskUuid}/comments:
     description: Create a new comment on a task
     get:
@@ -17228,6 +18227,7 @@ paths:
                 taskStatus: PENDING
                 dueDate: 2026-08-01T12:00:00Z
                 comments: []
+                assignees: []
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -17289,6 +18289,7 @@ paths:
                 taskStatus: PENDING
                 dueDate: 2026-08-01T12:00:00Z
                 comments: []
+                assignees: []
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -18071,6 +19072,107 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/vector-index/rebuild:
+    description: Rebuild the embedding vector index from the stored embeddings
+    post:
+      tags:
+      - vector-index
+      summary: Rebuild the embedding vector index from the stored embeddings
+      description: Rebuild the embedding vector index from the stored embeddings
+      operationId: postVectorindexRebuild
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/vector-index/status:
+    description: Report which vector index backend is bound and whether it is usable
+    get:
+      tags:
+      - vector-index
+      summary: Report which vector index backend is bound and whether it is usable
+      description: Report which vector index backend is bound and whether it is usable
+      operationId: getVectorindexStatus
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/vector-index/sync:
+    description: Index the embeddings that have not yet been written to the vector
+      index
+    post:
+      tags:
+      - vector-index
+      summary: Index the embeddings that have not yet been written to the vector index
+      description: Index the embeddings that have not yet been written to the vector
+        index
+      operationId: postVectorindexSync
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
 components:
   schemas:
     GenericMessageResponse:

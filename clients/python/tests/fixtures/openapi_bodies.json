@@ -155,6 +155,106 @@
    },
    "data": [
     {
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "text": "The comment text",
+     "title": "The Title",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    },
+    {
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "text": "The comment text",
+     "title": "The Title",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getAnnotationsByAnnotationUuidComments",
+  "path": "annotations/{annotationUuid}/comments",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "meta": {
+    "abc": "cdef"
+   },
+   "text": "The comment text",
+   "title": "The comment title"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postAnnotationsByAnnotationUuidComments",
+  "path": "annotations/{annotationUuid}/comments",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "meta": {
+    "abc": "cdef"
+   },
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "text": "The comment text",
+   "title": "The Title",
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postAnnotationsByAnnotationUuidComments",
+  "path": "annotations/{annotationUuid}/comments",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "assignees": [],
      "comments": [],
      "dueDate": "2026-08-01T12:00:00Z",
      "meta": {
@@ -177,6 +277,7 @@
  },
  {
   "body": {
+   "assignees": [],
    "comments": [],
    "dueDate": "2026-08-01T12:00:00Z",
    "meta": {
@@ -347,6 +448,7 @@
        ],
        "tasks": [
         {
+         "assignees": [],
          "comments": [
           {
            "social": {
@@ -499,6 +601,7 @@
        ],
        "tasks": [
         {
+         "assignees": [],
          "comments": [
           {
            "social": {
@@ -679,6 +782,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -754,6 +858,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -934,6 +1039,7 @@
        ],
        "tasks": [
         {
+         "assignees": [],
          "comments": [
           {
            "social": {
@@ -1019,6 +1125,7 @@
        ],
        "tasks": [
         {
+         "assignees": [],
          "comments": [
           {
            "social": {
@@ -1139,6 +1246,7 @@
         ],
         "tasks": [
          {
+          "assignees": [],
           "comments": [
            {
             "social": {
@@ -1237,6 +1345,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -1414,6 +1523,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -1489,6 +1599,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -1666,6 +1777,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -1741,6 +1853,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -1918,6 +2031,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -1993,6 +2107,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -2153,6 +2268,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -2450,6 +2566,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -2627,6 +2744,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -2702,6 +2820,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -2879,6 +2998,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -2954,6 +3074,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -3131,6 +3252,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -3206,6 +3328,7 @@
      ],
      "tasks": [
       {
+       "assignees": [],
        "comments": [
         {
          "social": {
@@ -3596,16 +3719,13 @@
     },
     {
      "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
-     "bboxHeight": 0.2,
-     "bboxWidth": 0.12,
-     "bboxX": 0.3,
-     "bboxY": 0.2,
-     "confidence": 0.97,
-     "frameNumber": 0,
-     "meta": {
-      "age": 30,
-      "gender": "male"
-     },
+     "bboxHeight": 0.27,
+     "bboxWidth": 0.18,
+     "bboxX": 0.51,
+     "bboxY": 0.34,
+     "confidence": 0.88,
+     "frameNumber": 120,
+     "label": "dog",
      "status": {
       "created": "2018-10-12T14:15:06Z",
       "creator": {
@@ -3618,8 +3738,8 @@
        "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
       }
      },
-     "type": "facedetection",
-     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+     "type": "objectdetection",
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
     }
    ]
   },
@@ -3846,6 +3966,79 @@
   "media_type": "application/json",
   "operation_id": "postAssetsByUuidDetectionsByDetectionUuid",
   "path": "assets/{uuid}/detections/{detectionUuid}",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "embeddings": [
+    {
+     "frameNumber": 0,
+     "meta": {
+      "abc": "cdef"
+     },
+     "model": "inspireface-r18",
+     "nodeKind": "facedetect",
+     "subjectIndex": 0,
+     "type": "face",
+     "vector": [
+      0.42,
+      0.24,
+      0.44,
+      21.5
+     ]
+    },
+    {
+     "frameNumber": 0,
+     "meta": {
+      "abc": "cdef"
+     },
+     "model": "inspireface-r18",
+     "nodeKind": "facedetect",
+     "subjectIndex": 0,
+     "type": "face",
+     "vector": [
+      0.42,
+      0.24,
+      0.44,
+      21.5
+     ]
+    }
+   ]
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidEmbeddingsBulk",
+  "path": "assets/{uuid}/embeddings/bulk",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "created": 2,
+   "embeddings": [
+    {
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {},
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    {
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {},
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   ],
+   "failed": 0,
+   "total": 2
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidEmbeddingsBulk",
+  "path": "assets/{uuid}/embeddings/bulk",
   "status": "200",
   "verb": "POST"
  },
@@ -4229,12 +4422,81 @@
  },
  {
   "body": {
+   "collection": "colors",
+   "tags": [
+    {
+     "collection": "colors",
+     "name": "red"
+    },
+    {
+     "collection": "colors",
+     "name": "amber"
+    }
+   ],
+   "withdraw": [
+    "f04e89d0-076d-4d90-b192-715a25a2cd59"
+   ]
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "putAssetsByUuidTags",
+  "path": "assets/{uuid}/tags",
+  "status": null,
+  "verb": "PUT"
+ },
+ {
+  "body": {
+   "applied": 2,
+   "tags": [
+    {
+     "area": {
+      "from": 12,
+      "height": 200,
+      "startX": 120,
+      "startY": 240,
+      "to": 42,
+      "width": 480
+     },
+     "collection": "colors",
+     "color": "1681de",
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "red",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ],
+   "total": 2,
+   "withdrawn": 1
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "putAssetsByUuidTags",
+  "path": "assets/{uuid}/tags",
+  "status": "200",
+  "verb": "PUT"
+ },
+ {
+  "body": {
    "_metainfo": {
     "perPage": 2,
     "totalCount": 28
    },
    "data": [
     {
+     "assignees": [],
      "comments": [],
      "dueDate": "2026-08-01T12:00:00Z",
      "meta": {
@@ -4257,6 +4519,7 @@
  },
  {
   "body": {
+   "assignees": [],
    "comments": [],
    "dueDate": "2026-08-01T12:00:00Z",
    "meta": {
@@ -5789,9 +6052,14 @@
  },
  {
   "body": {
+   "frameNumber": 0,
    "meta": {
     "abc": "cdef"
    },
+   "model": "inspireface-r18",
+   "nodeKind": "facedetect",
+   "subjectIndex": 0,
+   "type": "face",
    "vector": [
     0.42,
     0.24,
@@ -6312,6 +6580,97 @@
    },
    "data": [
     {
+     "body": "The white balance drifts warm in the top-left quadrant.",
+     "meta": {
+      "abc": "cdef"
+     },
+     "read": false,
+     "status": {},
+     "taskUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
+     "title": "joedoe assigned you \"Colour-grade the hero shot\"",
+     "type": "TASK_ASSIGNED",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   ],
+   "unreadCount": 1
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getNotifications",
+  "path": "notifications",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "message": "Marked 3 notifications as read"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postNotificationsReadall",
+  "path": "notifications/read-all",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "body": "The white balance drifts warm in the top-left quadrant.",
+   "meta": {
+    "abc": "cdef"
+   },
+   "read": false,
+   "status": {},
+   "taskUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
+   "title": "joedoe assigned you \"Colour-grade the hero shot\"",
+   "type": "TASK_ASSIGNED",
+   "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getNotificationsByUuid",
+  "path": "notifications/{uuid}",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "read": true
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postNotificationsByUuid",
+  "path": "notifications/{uuid}",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "body": "The white balance drifts warm in the top-left quadrant.",
+   "meta": {
+    "abc": "cdef"
+   },
+   "read": false,
+   "status": {},
+   "taskUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
+   "title": "joedoe assigned you \"Colour-grade the hero shot\"",
+   "type": "TASK_ASSIGNED",
+   "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postNotificationsByUuid",
+  "path": "notifications/{uuid}",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
      "alias": "jdoe",
      "firstname": "John",
      "lastname": "Doe",
@@ -6514,7 +6873,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 1,
-     "versionUuid": "cf081261-de49-447a-8dfb-cfc6fb777215"
+     "versionUuid": "4afc3fc6-5ebd-48ad-8e44-e3c4335209e4"
     },
     {
      "definition": {
@@ -6542,7 +6901,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 1,
-     "versionUuid": "b1d44f8f-e003-4b96-b93b-cd40bef04d89"
+     "versionUuid": "02bf7925-31cc-4c2e-9d20-8a80d1ec5a07"
     }
    ]
   },
@@ -6601,7 +6960,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 1,
-   "versionUuid": "d14bf3d9-a095-4552-8c8e-a015a4e4a2bf"
+   "versionUuid": "41203b8f-5dbd-4e13-8c70-b1414d09c4fb"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -6663,7 +7022,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 1,
-   "versionUuid": "88965c6a-ae99-4459-8e81-4d9429824ed4"
+   "versionUuid": "6e645731-28df-4134-8f40-720e00e79233"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -6715,7 +7074,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 1,
-   "versionUuid": "bef920ad-5de0-45b4-a4b7-4ffcc374074d"
+   "versionUuid": "79e01180-d876-4003-8445-3034b23fe9d2"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -6745,7 +7104,7 @@
    "dispatched": true,
    "message": "Pipeline run dispatched",
    "processorNodeId": "cortex-01",
-   "runUuid": "238f3611-9038-423c-a5eb-8b2efe15cac4"
+   "runUuid": "7d582bfb-5b17-4672-afb0-66c8bc487434"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -6765,29 +7124,29 @@
      "dryRun": false,
      "durationMs": 45000,
      "failureCount": 3,
-     "finished": "2026-08-01T16:59:56.047223512Z",
+     "finished": "2026-08-08T09:58:31.573699103Z",
      "mediaCount": 100,
-     "pipelineUuid": "537f3c7e-3e8f-4bfc-9217-8f80d5df5288",
+     "pipelineUuid": "26d7d89a-d237-4bc2-8149-ed9aa7dfd652",
      "pipelineVersion": 1,
      "skippedCount": 2,
-     "started": "2026-08-01T16:59:56.047121382Z",
+     "started": "2026-08-08T09:58:31.573599173Z",
      "status": "SUCCESS",
      "successCount": 95,
-     "uuid": "6209a0d8-5810-4c76-9a02-645ba53fc85d"
+     "uuid": "c1eaaffe-bfbc-4ee0-97de-83c2ac3326cc"
     },
     {
      "dryRun": false,
      "durationMs": 45000,
      "failureCount": 3,
-     "finished": "2026-08-01T16:59:56.047254543Z",
+     "finished": "2026-08-08T09:58:31.573834343Z",
      "mediaCount": 100,
-     "pipelineUuid": "ec969e87-d9fa-4aaa-844b-fae45a755ffb",
+     "pipelineUuid": "2b3910ab-e348-432c-84ac-a8d0ab0a0e99",
      "pipelineVersion": 1,
      "skippedCount": 2,
-     "started": "2026-08-01T16:59:56.047251212Z",
+     "started": "2026-08-08T09:58:31.573830113Z",
      "status": "SUCCESS",
      "successCount": 95,
-     "uuid": "6636534a-a563-4a6e-a3b1-aeada9d4c98a"
+     "uuid": "7c0d3291-01ec-496c-bda5-4d785d6792ce"
     }
    ]
   },
@@ -6803,15 +7162,15 @@
    "dryRun": false,
    "durationMs": 45000,
    "failureCount": 3,
-   "finished": "2026-08-01T16:59:56.047927344Z",
+   "finished": "2026-08-08T09:58:31.574662992Z",
    "mediaCount": 100,
-   "pipelineUuid": "3abaab1d-9878-4f02-943e-ace7d63e8de8",
+   "pipelineUuid": "04dd93f9-a09c-4e14-8208-09592f170ea8",
    "pipelineVersion": 1,
    "skippedCount": 2,
-   "started": "2026-08-01T16:59:56.047919564Z",
+   "started": "2026-08-08T09:58:31.574655892Z",
    "status": "SUCCESS",
    "successCount": 95,
-   "uuid": "10ab748f-24d2-463c-b3ef-09eaad62d4d3"
+   "uuid": "df73d5d5-482a-4673-a66a-e0e8d37ec9db"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -6819,6 +7178,59 @@
   "path": "pipelines/{uuid}/runs/{runUuid}",
   "status": "200",
   "verb": "GET"
+ },
+ {
+  "body": {
+   "held": [
+    {
+     "elementSeq": 0,
+     "itemUuid": "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+     "nodeId": "thumbnail"
+    }
+   ],
+   "nodeIds": [
+    "thumbnail"
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getPipelinesByUuidRunsByRunUuidBreakpoints",
+  "path": "pipelines/{uuid}/runs/{runUuid}/breakpoints",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "nodeIds": [
+    "thumbnail"
+   ]
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "putPipelinesByUuidRunsByRunUuidBreakpoints",
+  "path": "pipelines/{uuid}/runs/{runUuid}/breakpoints",
+  "status": null,
+  "verb": "PUT"
+ },
+ {
+  "body": {
+   "held": [
+    {
+     "elementSeq": 0,
+     "itemUuid": "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+     "nodeId": "thumbnail"
+    }
+   ],
+   "nodeIds": [
+    "thumbnail"
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "putPipelinesByUuidRunsByRunUuidBreakpoints",
+  "path": "pipelines/{uuid}/runs/{runUuid}/breakpoints",
+  "status": "200",
+  "verb": "PUT"
  },
  {
   "body": {
@@ -6830,20 +7242,20 @@
     {
      "itemSeq": 1,
      "mediaPath": "/media/example.mp4",
-     "runUuid": "80d9612e-4ce3-4907-b700-8013319c08dd",
+     "runUuid": "c1576aca-ee10-439b-80ea-670bbcc6b50c",
      "sha512": "0f8ef1c9...",
      "sizeBytes": 1048576,
      "state": "SUCCESS",
-     "uuid": "2fff35d3-f6de-4779-8ff7-7e875c3e496c"
+     "uuid": "40e066e0-2a0b-43a8-b1a4-f5388667d475"
     },
     {
      "itemSeq": 1,
      "mediaPath": "/media/example.mp4",
-     "runUuid": "e09c7808-55f7-4479-a602-5e9da55bad11",
+     "runUuid": "3e7a74ed-fafa-430a-912d-1190dc2e4974",
      "sha512": "0f8ef1c9...",
      "sizeBytes": 1048576,
      "state": "SUCCESS",
-     "uuid": "d0414bd3-9db3-475d-b1cf-6d6f1b1a27e9"
+     "uuid": "d8685689-54ca-431e-ad82-18462cc83944"
     }
    ]
   },
@@ -6853,6 +7265,101 @@
   "path": "pipelines/{uuid}/runs/{runUuid}/items",
   "status": "200",
   "verb": "GET"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 25,
+    "totalCount": 1
+   },
+   "data": [
+    {
+     "attempt": 1,
+     "durationMs": 42,
+     "elementSeq": 0,
+     "generation": 0,
+     "itemUuid": "425fb98f-f167-466c-b6ef-63626c8d6032",
+     "maxAttempts": 3,
+     "nodeId": "pn2",
+     "nodeKind": "sha512",
+     "outputs": {
+      "sha512": {
+       "cardinality": "ONE",
+       "contentType": "hash/sha512",
+       "elements": [
+        {
+         "origin": {
+          "itemId": "5c1f",
+          "seq": 0,
+          "total": 1
+         },
+         "value": "0f8ef1c9..."
+        }
+       ]
+      }
+     },
+     "runUuid": "264f4bbf-a30f-46dd-94f0-f1268dc9bd7c",
+     "state": "COMPLETED",
+     "uuid": "a060c765-98b8-41f1-b366-fd6e4e0308a7"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getPipelinesByUuidRunsByRunUuidItemsByItemUuidTasks",
+  "path": "pipelines/{uuid}/runs/{runUuid}/items/{itemUuid}/tasks",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "elementSeq": 0,
+   "itemUuid": "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+   "options": {
+    "maxFaceAngle": 90
+   }
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postPipelinesByUuidRunsByRunUuidNodesByNodeIdReexecutions",
+  "path": "pipelines/{uuid}/runs/{runUuid}/nodes/{nodeId}/reexecutions",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "generation": 1,
+   "nodeId": "facedetect",
+   "options": {
+    "maxFaceAngle": 90
+   }
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postPipelinesByUuidRunsByRunUuidNodesByNodeIdReexecutions",
+  "path": "pipelines/{uuid}/runs/{runUuid}/nodes/{nodeId}/reexecutions",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "held": [
+    {
+     "elementSeq": 0,
+     "itemUuid": "f7d8e1a2-4c3b-4d5e-9a1f-2b3c4d5e6f70",
+     "nodeId": "thumbnail"
+    }
+   ],
+   "nodeIds": [
+    "thumbnail"
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postPipelinesByUuidRunsByRunUuidSteps",
+  "path": "pipelines/{uuid}/runs/{runUuid}/steps",
+  "status": "200",
+  "verb": "POST"
  },
  {
   "body": {
@@ -6887,7 +7394,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 2,
-     "versionUuid": "98973bd4-c5c9-4169-ba96-c4d3f9ffe5d6"
+     "versionUuid": "6f4ce01b-7f77-4aab-a9d8-001ad7c8b587"
     },
     {
      "definition": {
@@ -6915,7 +7422,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 2,
-     "versionUuid": "3a075282-de82-4dcd-9111-4206ca0abe20"
+     "versionUuid": "626f45b3-7031-4e56-bdaf-ad42d3462f0f"
     }
    ]
   },
@@ -6953,7 +7460,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 2,
-   "versionUuid": "79b4cc7a-c6c7-40a8-82bc-d017720071af"
+   "versionUuid": "0b752303-53a3-425b-b924-98dea8befe83"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -7001,7 +7508,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 2,
-   "versionUuid": "b6b7aa5a-d079-47be-8b78-2978f8330fda"
+   "versionUuid": "797ab3b6-9e92-4a3a-b657-8b19f7c320bb"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -8281,6 +8788,7 @@
    },
    "data": [
     {
+     "assignees": [],
      "comments": [],
      "dueDate": "2026-08-01T12:00:00Z",
      "meta": {
@@ -8320,6 +8828,7 @@
  },
  {
   "body": {
+   "assignees": [],
    "comments": [],
    "dueDate": "2026-08-01T12:00:00Z",
    "meta": {
@@ -8335,6 +8844,58 @@
   "media_type": "application/json",
   "operation_id": "postTasks",
   "path": "tasks",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "data": [
+    {
+     "assigned": "2026-08-01T12:00:00Z",
+     "assignerUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "name": "joedoe",
+     "userUuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getTasksByTaskUuidAssignees",
+  "path": "tasks/{taskUuid}/assignees",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "groupUuids": [
+    "0f3332a6-e404-4777-88a9-1fa984a311bc"
+   ],
+   "userUuids": [
+    "86abc160-4da2-4951-a91f-da0c33fbc634"
+   ]
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postTasksByTaskUuidAssignees",
+  "path": "tasks/{taskUuid}/assignees",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "data": [
+    {
+     "assigned": "2026-08-01T12:00:00Z",
+     "assignerUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "name": "joedoe",
+     "userUuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postTasksByTaskUuidAssignees",
+  "path": "tasks/{taskUuid}/assignees",
   "status": "200",
   "verb": "POST"
  },
@@ -8439,6 +9000,7 @@
  },
  {
   "body": {
+   "assignees": [],
    "comments": [],
    "dueDate": "2026-08-01T12:00:00Z",
    "meta": {
@@ -8476,6 +9038,7 @@
  },
  {
   "body": {
+   "assignees": [],
    "comments": [],
    "dueDate": "2026-08-01T12:00:00Z",
    "meta": {

@@ -31,6 +31,7 @@ import io.metaloom.loom.rest.endpoint.impl.ChatEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ClusterEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.DedupGroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
@@ -229,6 +230,7 @@ public class LoomOpenAPI {
 		endpoints.add(new ClusterEndpoint(null, deps, examples));
 		endpoints.add(new CollectionEndpoint(null, deps, examples));
 		endpoints.add(new CommentEndpoint(null, null, deps, examples));
+		endpoints.add(new DedupGroupEndpoint(null, deps));
 		endpoints.add(new EmbeddingEndpoint(null, deps, examples));
 		endpoints.add(new GraphQLEndpoint(deps, null));
 		endpoints.add(new GroupEndpoint(null, deps, examples));

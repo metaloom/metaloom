@@ -10,26 +10,29 @@
 >
 > Plus `sha512-dedup` / `hash-dedup` (the same class under two kind ids) for exact-hash duplicates.
 
-## 🟢 Status: BUILT (backend + both nodes) — verified at `499f71f7`
+## 🟢 Status: BUILT end to end — verified at `43ada5a8`
 
-The schema, permissions, DAO, all six REST routes, the DTOs and client, **both Cortex nodes**, the
-descriptors, the kind bindings and the customer docs all exist. Test counts by `@Test`: cortex dedup
-module **11**, `DedupGroupEndpointTest` **11**, `DedupGroupDaoTest` **6**. The prerequisite similarity
-index ([../search/LUCENE_PLAN.md](LUCENE_PLAN.md)) is built and is what discovery queries.
+The schema, permissions, DAO, all six REST routes (keyset paged), the DTOs and both clients, **both
+Cortex nodes**, the descriptors, the kind bindings, the customer docs **and the review UI** all exist.
+Test counts by `@Test`: cortex dedup module **27**, `DedupGroupEndpointTest` **14**,
+`DedupGroupDaoTest` **7**, plus `dedup.test.ts` (12), `dedupGroups.test.ts` (17) and
+`workflow-dedup-mocked.spec.ts` (6) in loom-ui. The prerequisite similarity index
+([../search/LUCENE_PLAN.md](LUCENE_PLAN.md)) is built and is what discovery queries.
 
-🔴 **The human-in-the-loop review step has no working UI.** That is the one substantial piece of this
-feature still missing, and §3.1 is the only part of this file that is still a *plan*.
+The human step lives at `/workflow` → Dedup —
+[../workflows/WORKFLOW_DEDUP.md](../workflows/WORKFLOW_DEDUP.md) §4 is its spec; §3.1 below is now a
+record of what was built rather than a plan.
 
 ⚠️ **Corrections against the previous revision of this file.** It carried a "BUILT" header over a
 "§9 — nothing below exists yet" note and a "§13 — Nothing is implemented" line. Those were stale and
-are removed. Four further statements were wrong and are corrected here:
+are removed. Four further statements were wrong; three have since been *made* true by building them:
 
 | Previously specified | Actually built |
 |---|---|
-| Website docs still open | `website/content/english/docs/nodes/dedup/index.adoc` **exists** and covers all three kinds |
-| Discovery "skips already-dedupped media (assets already in a CONFIRMED/REJECTED group)" ✅ | 🔴 **Not implemented.** `FingerprintDedupNode` never queries existing groups. Server-side `createDedupGroup` refuses to *reopen* a decided group but happily creates a **new PENDING** one for the same keep+algorithm on every run (§3.2) |
-| Apply "re-hashes the KEEP correctly before any move" ✅ | 🔴 **No re-hash.** `keepPassesSafeguards` checks existence, completeness, size and folder — nothing else (§3.3) |
-| Discovery upserts via a client-side idempotency key | Idempotency lives **server-side**: `DedupGroupEndpointService.createDedupGroup` → `findPendingByKeep(keep, algorithm)` → delete + recreate |
+| Website docs still open | `website/content/english/docs/nodes/dedup/index.adoc` **exists** and covers all three kinds; the review screen is documented in `docs/ui/index.adoc` |
+| Discovery "skips already-dedupped media" ✅ | 🟢 **True now, but server-side.** `createDedupGroup` compares the incoming member set against the decided groups for that algorithm and answers `200` with the decision instead of creating a second proposal (§3.2) |
+| Apply "re-hashes the KEEP correctly before any move" ✅ | 🟢 **True now, and cheaper than a re-hash.** `keepPassesSafeguards` compares the recorded SHA-512 against the KEEP's **stored xattr**, digesting only when no attribute is present (§3.3) |
+| Discovery upserts via a client-side idempotency key | Idempotency lives **server-side**: `DedupGroupEndpointService.createDedupGroup` → `findPendingByKeep(keep, algorithm)` → delete + recreate, plus the decided-set guard |
 | Kind-id mismatch `hash-dedup` vs `sha512-dedup` still open | **Fixed** — both `@StringKey`s bind `HashDedupNode`; the descriptor advertises `hash-dedup`, `name()` returns `sha512-dedup` |
 
 **Module**: `cortex/nodes/dedup` (aggregator + `core`, no `-api` submodule) ·
@@ -162,70 +165,80 @@ graph TB
 
 ## 3. Open work
 
-### 3.1 🔴 The dedup review UI — the one real gap
+### 3.1 🟢 The dedup review UI — built
 
-**Nothing in `loom-ui` calls the dedup API.** There is no `loom-ui/src/api/dedup.ts`, and
-`dedup-groups` appears nowhere under `loom-ui/src` or `loom-ui/e2e`. All four DEDUP permissions are
-annotated `ui:no` in the `Permission` enum, which is accurate today.
+The human step is `DeduplicationMode` in `loom-ui/src/features/workflow/WorkflowView.tsx` (route
+`/workflow`), backed by `loom-ui/src/api/dedup.ts` and the pure helpers in
+`loom-ui/src/features/workflow/dedupGroups.ts`. It loads `GET /dedup-groups?status=PENDING`, shows
+each member's size, completeness and score, offers **Keep this one** per candidate, and PATCHes
+`Y`/`N` with a visible rollback when the write fails. All four DEDUP permissions are now `ui:yes`,
+present in the ACL matrix and granted in the demo roles.
 
-What exists is a **mock**: `loom-ui/src/features/workflow/WorkflowView.tsx` (route `/workflow`,
-registered in `layout/AppShell.tsx:61`, sidebar entry `Sidebar.tsx:68`) has a `"deduplication"` mode,
-a `DeduplicationMode` component, a `dedup-default` key profile (`Y` confirm / `N` reject) and i18n
-strings in `en.json` / `de.json`. But:
+Everything about the screen, its test ids and its three easy-to-get-wrong details lives in
+[../workflows/WORKFLOW_DEDUP.md](../workflows/WORKFLOW_DEDUP.md) §4 — not repeated here.
 
-- groups come from `buildDuplicateGroups(assets)` (~L85-91), which simply **pairs adjacent assets** —
-  it never calls `GET /api/v1/dedup-groups`;
-- decisions live in local React state `dedupDecisions` (~L733) and are **never PATCHed back**.
+### 3.2 🟢 A decided candidate set is never re-proposed
 
-To finish it:
+`DedupGroupEndpointService.createDedupGroup` compares the incoming member set against
+`DedupGroupDao.listDecidedByAssets(memberUuids, algorithm)`. On an exact set match it writes nothing
+and answers **200** with the decided group; a fresh proposal still answers **201**.
+`FingerprintDedupNode` reads the returned `status` and reports `skipped` rather than recording a
+SUCCESS ledger row for a no-op.
 
-| Step | Detail |
-|---|---|
-| 1 | `loom-ui/src/api/dedup.ts` — `listDedupGroups(status)`, `loadDedupGroup(uuid)`, `updateDedupGroup(uuid, {status, keepAssetUuid})`, `deleteDedupGroup(uuid)`. Follow any of the 45 sibling modules in `loom-ui/src/api/`. |
-| 2 | Replace `buildDuplicateGroups` with a real query for `status=PENDING`. Group members carry `size` and `zeroChunkCount` snapshots — surface both, they are why a reviewer can decide without opening the files. |
-| 3 | Wire confirm / reject / **choose a different KEEP** to `PATCH`, and reflect the server's response rather than local state. |
-| 4 | Show a thumbnail per member. The `thumbnail` node's artifacts are worker-local; decide whether the UI uses the asset's stored thumbnail or nothing. |
-| 5 | Flip the four `ui:no` annotations in `Permission.java` and grant the perms in the demo roles. |
-| 6 | Playwright mocked e2e per the loom-ui test convention (component tests are mocked Playwright, not RTL/jsdom). |
+⚠️ Two deliberate choices, both testable:
 
-Until then the workflow is only completable with `curl` or the client library.
+- **The comparison is on the whole member set**, not "this asset appears in a decided group" — the
+  latter would suppress a genuinely new duplicate of an already-reviewed file.
+- **Roles are ignored.** After a KEEP reassignment the same two files can come back with roles
+  swapped; that is still the same decision.
 
-### 3.2 🔴 Discovery re-proposes already-decided groups
+Covered by `DedupGroupDaoTest.testListDecidedByAssetsFindsOnlySettledGroups`,
+`DedupGroupEndpointTest.testDecidedGroupsAreNeverReProposed` /
+`testANewCandidateSetIsStillProposedAfterADecision`, and
+`FingerprintDedupNodeTest.testSkipsWhenTheCandidateSetWasAlreadyDecided`.
 
-`FingerprintDedupNode.compute()` never asks Loom whether this asset is already in a CONFIRMED or
-REJECTED group. The server-side upsert (`findPendingByKeep`) only collapses repeated **PENDING**
-proposals; a keep+algorithm pair that a human already rejected gets a **fresh PENDING group on every
-run**, so the review queue refills with decisions that were already made.
+### 3.3 🟢 Apply verifies the KEEP's content
 
-Fix: have discovery call `listAssetDedupGroups(uuid)` first and skip when any group containing this
-asset is `CONFIRMED` or `REJECTED` — or add a server-side guard in `createDedupGroup`. Either way it
-needs an endpoint test asserting the second discovery run produces nothing.
+`keepPassesSafeguards` gained a fifth check after existence / completeness / size / folder: the
+KEEP's recorded SHA-512 must still match the file. This is what protects against a keep whose bytes
+changed between discovery and apply — existence, size and completeness all still hold for a file
+replaced in place, and that file is no longer the duplicate's counterpart.
 
-### 3.3 🔴 Apply does not re-hash the KEEP
+⚠️ **It trusts the xattr, and is not an unconditional re-hash.** `hashOf()` goes through
+`LoomMediaImpl.getSHA512()`, which reads `loom_sha512` (and the legacy `sha512sum` key) and digests
+only when neither attribute is present — writing it back for next time. Two non-failures by design:
+an asset with **no** recorded hash passes the check (there is nothing to compare against, and
+re-digesting would only produce a number to ignore), and a filesystem with no user-xattr support
+falls back to a direct digest rather than blocking every move on the storage backend.
 
-`keepPassesSafeguards` checks existence, completeness, size and folder. `xdb-clean`'s
-`databaseConsistencyFilter` also **re-hashes the keep and compares it to the recorded SHA-512** before
-any move — that is what protects against a keep whose bytes changed since discovery. Add it, and a
-unit test for the mismatch path.
+`FingerprintDedupApplyNodeTest.testAKeepWhoseContentChangedBlocksTheMove` writes a same-length,
+different-content keep, so it fails on content and nothing else.
 
 ### 3.4 Smaller gaps
 
-- [ ] **No apply-node test at all.** `FingerprintDedupApplyNode`'s confirmed-only gating, its four
-      safeguards and its idempotent skip are entirely untested. `HashDedupNodeTest` is an **empty stub
-      class with zero `@Test` methods**.
+- [x] 🟢 **Apply-node tests.** `FingerprintDedupApplyNodeTest` (11) covers the confirmed-only gating,
+      all five safeguards and the idempotent skip; `HashDedupNodeTest` (4) has real bodies.
 - [ ] **No per-node E2E.** Nothing under `integration-test/` or `e2e-test/` mentions dedup, and
       `NodePortConformanceTest` has no dedup case. The target: two near-identical demo videos →
       fingerprinted → discovery produces a PENDING group → `PATCH` CONFIRMED → apply moves the DUP
       into `dupFolder` and writes a ledger row → re-running apply is a no-op.
-- [ ] **No demo data.** `DemoDatabaseInitializer` seeds no dedup group (shared item with
-      [../search/LUCENE_PLAN.md](LUCENE_PLAN.md)).
-- [ ] 🔴 **`HashDedupNode` blocks on `System.in.read()`** when the local file's size disagrees with the
-      DB record — an interactive halt inside a headless worker. It must log and skip instead.
+- [x] 🟢 **Demo data.** `DemoDatabaseInitializer.seedDemoDedupGroup` seeds one **PENDING** group over
+      two demo videos. Deliberately never CONFIRMED — the demo container's media exists as database
+      rows only, so a confirmed group would instruct the apply node to move fiction.
+- [x] 🟢 **`HashDedupNode` no longer blocks.** The size-mismatch branch logs both paths at `error` and
+      returns `skipped`; `HashDedupNodeTest`'s `@Timeout(10)` fails by hanging if it ever comes back.
 - [ ] **Discovery options are unreachable from the pipeline editor.** `DedupDescriptorProvider`
       exposes only `enabled` and `dupFolder`; `algorithm`, `topK`, `scoreThreshold`, `allowPartial`
       and `abortOnLargerDup` are **not** descriptor parameters, so they are YAML-only.
-- [ ] **`GET /api/v1/dedup-groups` without `status`** concatenates three separate list queries with no
-      combined ordering and **no pagination** — it will not survive a real review queue.
+- [x] 🟢 **`GET /api/v1/dedup-groups` is keyset paged** (`?limit=`/`?from=`, default 25) and answers
+      one globally ordered query with or without `status`. `DedupGroupDao.loadPage` is bespoke
+      (`NotificationDaoImpl` is the template) because `AbstractJooqDao.getField(SortKey)` casts every
+      sort column to `Field<UUID>` and would throw on `created`.
+- [ ] ⚠️ **`PATCH keepAssetUuid` does not rewrite `dedup_group_member.role`.** Pointer and roles
+      diverge after a reassignment, so readers must prefer `keepAssetUuid`. Rewriting the roles
+      server-side is the real fix.
+- [ ] **`toResponse` is N+1** — one `loadMembers` query per group. Bounded by the page size now, but
+      still a join waiting to be written.
 - [ ] **Thumbnail dominant-colour safeguard not carried over.** `xdb-clean` compares generated
       thumbnails before declaring a near-duplicate; MetaLoom gates on fingerprint score plus
       size/completeness only. A deliberate gap, recorded here so it is not rediscovered as a bug.
@@ -269,12 +282,15 @@ The only **environment variable** that gates this feature end to end is on the L
 
 | Test | Covers |
 |---|---|
-| `FingerprintDedupNodeTest` (2) | `testReportsGroupWithLargerKeep` — correct KEEP/DUP split; `testAbortsWhenDuplicateLargerThanKeep` — skipped and `createDedupGroup` never called. Mockito over `LoomHttpClient` |
+| `FingerprintDedupNodeTest` (3) | `testReportsGroupWithLargerKeep` — correct KEEP/DUP split; `testAbortsWhenDuplicateLargerThanKeep` — skipped and `createDedupGroup` never called; `testSkipsWhenTheCandidateSetWasAlreadyDecided` — a non-PENDING response writes no ledger row. Mockito over `LoomHttpClient` |
+| `FingerprintDedupApplyNodeTest` (11) | Confirmed DUP moves; **PENDING and REJECTED never move**; the KEEP of a confirmed group is never moved; missing / incomplete / smaller / **content-changed** KEEP each block; a KEEP with no recorded hash still applies; an already-moved dup is an idempotent skip |
+| `HashDedupNodeTest` (4) | Known-file move; **size mismatch skips instead of blocking** (`@Timeout(10)` is the real assertion); same-file no-op; unknown file skipped |
 | `DedupNodeOptionsValidationTest` (5), `FingerprintDedupDiscoverOptionsValidationTest` (4) | Option validation |
-| `DedupGroupDaoTest` (6) | Store/load, `listByStatus` + `listByAsset`, `findPendingByKeep` + `updateStatus`, invalid-role rejection, 🔴 **group-delete cascade**, 🔴 **asset-delete removes memberships and nulls `keep_asset_uuid`** |
-| `DedupGroupEndpointTest` (11) | Create + load, PENDING idempotency, confirm/reject, list-by-asset, delete, invalid status, empty-members rejection, `404`, all routes require permissions (`403`), **`READ_DEDUP` does not grant `UPDATE`**, asset-delete cascade through the API |
+| `DedupGroupDaoTest` (7) | Store/load, `listByStatus` + `listByAsset`, `findPendingByKeep` + `updateStatus`, **`listDecidedByAssets`** (PENDING excluded, other algorithms excluded), invalid-role rejection, 🔴 **group-delete cascade**, 🔴 **asset-delete removes memberships and nulls `keep_asset_uuid`** |
+| `DedupGroupEndpointTest` (14) | Create + load, PENDING idempotency, **decided sets answer 200 and write nothing**, **a different set still answers 201**, **keyset paging (page size, totalCount, no overlap across `?from=`)**, confirm/reject, list-by-asset, delete, invalid status, empty-members rejection, `404`, all routes require permissions (`403`), **`READ_DEDUP` does not grant `UPDATE`**, asset-delete cascade through the API |
 | `NodeRegistrarTest:59-64` | `sha512-dedup`, `fingerprint-dedup`, `fingerprint-dedup-apply` are registered kinds (`hash-dedup` is not asserted) |
-| — **missing** — | Apply-node unit tests, `HashDedupNodeTest` bodies, any integration/E2E test, demo data (§3.4) |
+| loom-ui | `dedup.test.ts` (12), `dedupGroups.test.ts` (17), `workflow-dedup-mocked.spec.ts` (6) — see [../workflows/WORKFLOW_DEDUP.md](../workflows/WORKFLOW_DEDUP.md) §7 |
+| — **missing** — | Any integration/E2E test (§3.4) |
 
 ```bash
 mvn -pl cortex/nodes/dedup/core -am test
@@ -295,17 +311,19 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 | Area | Gotcha |
 |---|---|
 | **Two lifecycles** | 🔴 Discovery writes review items; apply acts on human decisions. Never let discovery move files, and never let apply act on `PENDING` or `REJECTED`. |
-| **Live re-verification** | 🔴 The `size` / `zero_chunk_count` columns are discovery-time **snapshots** — hints for the UI, not authority. Apply must re-check the live file (and should also re-hash — §3.3). |
+| **Live re-verification** | 🔴 The `size` / `zero_chunk_count` columns are discovery-time **snapshots** — hints for the UI, not authority. Apply re-checks the live file: existence, completeness, size, folder **and content** (§3.3). |
+| **Trust the xattr, do not re-hash** | ⚠️ The content check reads the stored `loom_sha512` attribute and digests only when none exists. A missing *recorded* hash passes; a missing xattr *layer* falls back to a direct digest. Neither is a mismatch (§3.3). |
 | **Larger DUP aborts the group** | ⚠️ Not "drop that member" — the *whole* group is abandoned. A duplicate bigger than the keep means the keep selection is wrong, not that one member is odd. |
-| **Idempotency is server-side** | ⚠️ The upsert lives in `DedupGroupEndpointService.createDedupGroup` (delete + recreate the PENDING group), **not** in the node. Do not add a second client-side key. |
-| **Decided groups still get re-proposed** | 🔴 §3.2 — the queue refills with already-rejected pairs on every discovery run. |
+| **Idempotency is server-side** | ⚠️ Both halves live in `DedupGroupEndpointService.createDedupGroup`: the PENDING upsert (delete + recreate) **and** the decided-set guard. Not in the node. Do not add a client-side key. |
+| **A 200 from POST is not a discovery** | ⚠️ §3.2 — `201` means proposed, `200` means the candidate set was already decided and nothing was written. A node that ignores the status reports a phantom find on every run. |
 | **`hash-dedup` vs `sha512-dedup`** | ⚠️ Two `@StringKey`s onto **one** `HashDedupNode`. The descriptor advertises `hash-dedup`; `name()` returns `sha512-dedup`, so ledger rows say `sha512-dedup` whichever id was placed. Do not "fix" this by renaming — it is a deliberate alias. |
 | **`sha512-dedup` has no descriptor** | ⚠️ It is runnable but cannot be placed from the UI palette ([../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §3.3). |
 | **No in-memory DAO** | ⚠️ `loom/db/memory` does not mirror `DedupGroupDao` — deliberate, following the `AssetNodeResultDao` precedent. The jOOQ impl is exercised against the pooled database. |
 | **First asset-to-asset relation** | 🔴 `dedup_group` / `dedup_group_member` is the schema's first asset-to-asset relation. Respect the cascade split: `SET NULL` on `keep_asset_uuid`, `CASCADE` on members. |
 | **Offline mode** | ⚠️ Both fingerprint nodes are no-ops when `client() == null` or offline — the whole workflow requires Loom **and** an enabled similarity index. |
 | **Thumbnail safeguard dropped** | ⚠️ Near-duplicates are gated by fingerprint score + size/completeness only (§3.4). |
-| **`System.in.read()`** | 🔴 `HashDedupNode` halts on a size mismatch waiting for a keypress. Never copy that pattern into a worker node. |
+| **`System.in.read()`** | 🔴 `HashDedupNode` *used to* halt on a size mismatch waiting for a keypress; it now logs and skips. Never put an interactive read in a worker node — `HashDedupNodeTest`'s `@Timeout` is there to catch a relapse. |
+| **`keepAssetUuid` vs `role`** | 🔴 `updateStatus` writes only the denormalised pointer, so a reviewer's KEEP reassignment leaves the member roles describing the machine's original choice. Readers prefer `keepAssetUuid` when set. |
 
 ---
 
@@ -364,34 +382,40 @@ direct `user_permission` grant (one direct grant per user — see `SkillEndpoint
 ### Loom backend
 - [x] `V2.61` — `dedup_status`, `dedup_group`, `dedup_group_member`, indexes, role CHECK, UNIQUE
 - [x] `V2.62` + `Permission` enum — `READ/CREATE/UPDATE/DELETE_DEDUP`
-- [x] `DedupGroupDao` (api + jOOQ) with `findPendingByKeep`; delete-cascade tests green (memory impl deliberately skipped)
-- [x] Five `/api/v1/dedup-groups` routes + `GET /api/v1/assets/:uuid/dedup-groups`, server-side PENDING upsert
-- [x] DTOs + `DedupGroupMethods` client + HTTP impl
-- [x] `DedupGroupEndpointTest` (11) incl. RBAC and cascade; `DedupGroupDaoTest` (6)
+- [x] `DedupGroupDao` (api + jOOQ) with `findPendingByKeep`, `listDecidedByAssets` and a keyset `loadPage`; delete-cascade tests green (memory impl deliberately skipped)
+- [x] Five `/api/v1/dedup-groups` routes + `GET /api/v1/assets/:uuid/dedup-groups`, server-side PENDING upsert **and** decided-set guard
+- [x] Keyset paging on the list route; the endpoint is in `LoomOpenAPI` and `openapi.json`
+- [x] DTOs + `DedupGroupMethods` client + HTTP impl + the Python mirror
+- [x] `DedupGroupEndpointTest` (14) incl. RBAC, cascade, paging and the re-proposal guard; `DedupGroupDaoTest` (7)
+- [x] Demo data: one PENDING group (`seedDemoDedupGroup`); `READ_DEDUP`/`UPDATE_DEDUP` granted to the demo Editor role
 
 ### Cortex nodes
-- [x] `FingerprintDedupNode` (discovery) + `FingerprintDedupDiscoverOptions`
-- [x] `FingerprintDedupApplyNode` reusing `DedupNodeOptions`, with live KEEP safeguards and idempotent skip
+- [x] `FingerprintDedupNode` (discovery) + `FingerprintDedupDiscoverOptions`, reporting a decided set as `skipped`
+- [x] `FingerprintDedupApplyNode` reusing `DedupNodeOptions`, with live KEEP safeguards incl. the content check, and an idempotent skip
+- [x] `HashDedupNode` logs and skips a size mismatch instead of blocking on `System.in.read()`
 - [x] Four kind bindings incl. the `hash-dedup` ↔ `sha512-dedup` alias fix
 - [x] Three descriptors + `META-INF/services`
-- [x] 11 module tests (discovery split, larger-dup abort, both option validators)
-- [ ] Apply-node unit tests; `HashDedupNodeTest` is an empty stub (§3.4)
+- [x] 27 module tests (discovery split, larger-dup abort, decided-set skip, all apply-node paths, hash-dedup, both option validators)
 - [ ] Per-node E2E in `integration-test` (§3.4)
+
+### UI
+- [x] `loom-ui/src/api/dedup.ts` + `features/workflow/dedupGroups.ts`; wired `DeduplicationMode` with optimistic write and rollback
+- [x] `PERMISSION_GROUPS` group `Deduplication` + `admin.roles.permission.*_DEDUP` in both locales
+- [x] `dedup.test.ts` (12), `dedupGroups.test.ts` (17), `workflow-dedup-mocked.spec.ts` (6)
 
 ### Docs
 - [x] `website/content/english/docs/nodes/dedup/index.adoc`
+- [x] `website/content/english/docs/ui/index.adoc` §Reviewing Duplicates — the first customer doc for any workflow
 - [x] [NODES.md](../features/nodes/NODES.md) §2/§3/§5 rows; [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §4.6; [../../loom/DOMAIN.md](../loom/DOMAIN.md)
 - [ ] `loom/doc/.../cortex/nodes/index.adoc` still omits `fingerprint-dedup-apply` (§3.4)
 
 ### Open
-- [ ] 🔴 **Real dedup review UI** — today only a non-wired mock exists (§3.1)
-- [ ] 🔴 Discovery must skip assets already in a CONFIRMED/REJECTED group (§3.2)
-- [ ] 🔴 Apply must re-hash the KEEP before moving (§3.3)
-- [ ] 🔴 `HashDedupNode` blocks on `System.in.read()` (§3.4)
-- [ ] Discovery options exposed as descriptor parameters; paginated `GET /dedup-groups` (§3.4)
-- [ ] Demo data (§3.4)
+- [ ] ⚠️ `PATCH keepAssetUuid` does not rewrite `dedup_group_member.role` (§3.4, §6)
+- [ ] Per-node E2E; discovery options as descriptor parameters (§3.4)
+- [ ] `toResponse` N+1 on member loads (§3.4)
 - [ ] Thumbnail dominant-colour safeguard; multi-partial ranking; delta sync (§3.4)
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `43ada5a8`_
+_Last updated: 2026-08-08 (decided-set guard, xattr-trusted KEEP verification, `System.in.read()` fix,
+keyset paging, apply-node + hash-dedup tests, demo data and the review UI all landed)_

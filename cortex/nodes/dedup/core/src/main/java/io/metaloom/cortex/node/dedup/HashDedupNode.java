@@ -115,11 +115,14 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 						String pathB = foundMedia.absolutePath();
 
 						if (foundMedia.size() != dbFile.length()) {
-							log.error("Inconsistent file found. The file sizes do not match. Please verify files manually! Halting processing now!");
-							log.info("[A]: " + media.shortHash() + " E: " + media.exists() + " (" + dbFile.length() + " bytes) " + " => " + pathA);
-							log.info(
+							// This used to block on System.in.read(), which hangs a headless worker forever on a condition that needs a human to
+							// look at two files. Report it and leave both files alone instead: moving one when the records disagree is exactly the
+							// case where a move could destroy the only good copy.
+							log.error("Inconsistent file found. The file sizes do not match. Please verify these files manually - skipping.");
+							log.error("[A]: " + media.shortHash() + " E: " + media.exists() + " (" + dbFile.length() + " bytes) " + " => " + pathA);
+							log.error(
 								"[B]: " + foundMedia.shortHash() + " E: " + foundMedia.exists() + " (" + foundMedia.size() + ") " + "  => " + pathB);
-							System.in.read();
+							return ctx.skipped("size mismatch between the local file and the database record").next();
 						}
 						if (pathA.equalsIgnoreCase(pathB)) {
 							return ctx.info("same file").next();

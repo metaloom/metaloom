@@ -65,6 +65,9 @@ import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionSkillPin;
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
+import io.metaloom.loom.db.model.dedup.DedupGroup;
+import io.metaloom.loom.db.model.dedup.DedupGroupDao;
+import io.metaloom.loom.db.model.dedup.DedupGroupMember;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.person.Person;
@@ -194,6 +197,7 @@ public class DemoDatabaseInitializer {
 	private final SkillVersionDao skillVersionDao;
 	private final ChatSessionDao chatSessionDao;
 	private final MemoryEntryDao memoryEntryDao;
+	private final DedupGroupDao dedupGroupDao;
 	private final LoomOptions options;
 
 	/** Running detection ordinal per {@code asset|nodeKind|frame}; see {@link #createDetection}. */
@@ -208,7 +212,7 @@ public class DemoDatabaseInitializer {
 		DetectionDao detectionDao,
 		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao,
 		PipelineRunDao pipelineRunDao, AssetBinaryDao assetBinaryDao, SkillDao skillDao, SkillVersionDao skillVersionDao,
-		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, LoomOptions options) {
+		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, DedupGroupDao dedupGroupDao, LoomOptions options) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -240,6 +244,7 @@ public class DemoDatabaseInitializer {
 		this.skillVersionDao = skillVersionDao;
 		this.chatSessionDao = chatSessionDao;
 		this.memoryEntryDao = memoryEntryDao;
+		this.dedupGroupDao = dedupGroupDao;
 		this.options = options;
 	}
 
@@ -394,6 +399,8 @@ public class DemoDatabaseInitializer {
 			Permission.CREATE_CHAT, Permission.READ_CHAT, Permission.UPDATE_CHAT, Permission.DELETE_CHAT,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
 			Permission.READ_SPACE, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
+			// The reviewer's pair: open the duplicate queue and decide a group. Without UPDATE_DEDUP the workflow screen offers a button that 403s.
+			Permission.READ_DEDUP, Permission.UPDATE_DEDUP,
 		}) {
 			permissionDao.grantRolePermission(editorRole.getUuid(), perm);
 		}
@@ -408,6 +415,8 @@ public class DemoDatabaseInitializer {
 			Permission.READ_CHAT,
 			Permission.READ_USER, Permission.READ_GROUP, Permission.READ_ROLE,
 			Permission.READ_SPACE, Permission.READ_LIBRARY, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
+			// Read only: a viewer can watch the duplicate queue but not decide anything in it.
+			Permission.READ_DEDUP,
 		}) {
 			permissionDao.grantRolePermission(viewerRole.getUuid(), perm);
 		}
@@ -838,6 +847,9 @@ public class DemoDatabaseInitializer {
 		// --- Dominant colour ---
 		createDominantColorComp(admin, imageAssets[0]);
 
+		// --- Deduplication review queue ---
+		seedDemoDedupGroup(admin, videoAssets[0]);
+
 		log.info(
 			"Demo data initialization complete — created {} assets ({} with previewable binaries), {} tags, {} collections, {} pipelines, {} users, "
 				+ "{} groups, {} roles, {} tasks, {} skills, {} chat sessions, {} memory entries, {} annotations, {} reactions.",
@@ -1113,6 +1125,34 @@ public class DemoDatabaseInitializer {
 		assetDao.store(asset);
 		log.info("Created demo asset: {}", filename);
 		return asset;
+	}
+
+	/**
+	 * Put one duplicate proposal in the review queue, so the deduplication workflow has something real to open on first boot.
+	 *
+	 * <p>
+	 * A lower-bitrate re-encode of an existing demo video is created as the duplicate: same footage, smaller file, so the machine's KEEP choice (the
+	 * largest complete candidate) is the obvious one and a reviewer can still see why they might override it.
+	 * </p>
+	 *
+	 * <p>
+	 * Deliberately <b>PENDING</b> and never CONFIRMED. A confirmed group is an instruction to the apply node to move a file, and the demo container's
+	 * media only exists as database rows - the first apply run would report failures over seeded fiction.
+	 * </p>
+	 */
+	private void seedDemoDedupGroup(User admin, Asset keepAsset) {
+		Asset dupAsset = createAsset(admin, "drone-coastal-720p.mp4", "video/mp4", 18_000_000, "/demo/videos/drone-coastal-720p.mp4");
+
+		DedupGroup group = dedupGroupDao.createGroup(admin.getUuid(), "metaloom-multisector-v1");
+		group.setKeepAssetUuid(keepAsset.getUuid());
+		// The group score is the *minimum* member score - how close a call the whole proposal is.
+		group.setScore(0.93f);
+		dedupGroupDao.storeGroup(group);
+
+		dedupGroupDao.addMember(group.getUuid(), keepAsset.getUuid(), DedupGroupMember.ROLE_KEEP, 1.0f, 52_000_000L, 0L);
+		dedupGroupDao.addMember(group.getUuid(), dupAsset.getUuid(), DedupGroupMember.ROLE_DUP, 0.93f, 18_000_000L, 0L);
+
+		log.info("Created demo dedup review group: {} vs {}", keepAsset.getFilename(), dupAsset.getFilename());
 	}
 
 	/**

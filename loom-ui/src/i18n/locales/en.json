@@ -750,6 +750,10 @@
         "READ_COMMENT": "View comments — user comments on assets.",
         "DELETE_COMMENT": "Delete comments — user comments on assets.",
         "UPDATE_COMMENT": "Edit existing comments — user comments on assets.",
+        "CREATE_DEDUP": "Propose duplicate groups — what the deduplication discovery node needs.",
+        "READ_DEDUP": "View the duplicate review queue — needed to open the deduplication workflow.",
+        "DELETE_DEDUP": "Discard duplicate proposals outright, without deciding them.",
+        "UPDATE_DEDUP": "Confirm or reject duplicate groups — the reviewer's decision, which is what allows files to be moved later.",
         "CREATE_EMBEDDING": "Create new embeddings — vectors used for similarity search.",
         "READ_EMBEDDING": "View embeddings — vectors used for similarity search.",
         "DELETE_EMBEDDING": "Delete embeddings — vectors used for similarity search.",
@@ -1459,7 +1463,19 @@
       "confirmDedup": "Confirm Dedup (Y)",
       "confirmBtn": "Confirm Dedup (Y)",
       "rejectBtn": "Reject (N)",
-      "reject": "Reject (N)"
+      "reject": "Reject (N)",
+      "makeKeep": "Keep this one",
+      "size": "Size",
+      "score": "Score",
+      "algorithm": "Algorithm",
+      "incomplete": "Incomplete",
+      "loadFailed": "Could not load the duplicate review queue.",
+      "saveFailed": "Could not save your decision — it was not recorded.",
+      "keepFailed": "Could not change which file is kept.",
+      "emptyState": {
+        "title": "No duplicates to review",
+        "description": "Nothing is waiting for a decision. Run a deduplication pipeline to find near-duplicate videos, and the candidates will show up here."
+      }
     },
     "faceMode": {
       "clusters": "Face Clusters ({{count}})",

@@ -234,10 +234,10 @@ public enum Permission {
 	// Deduplication review. Gate on /api/v1/dedup-groups and /api/v1/assets/:uuid/dedup-groups.
 	// The discovery node creates PENDING groups (CREATE_DEDUP); a reviewer confirms/denies
 	// (UPDATE_DEDUP); the apply node reads CONFIRMED groups (READ_DEDUP).
-	CREATE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
-	READ_DEDUP,               // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
-	UPDATE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest
-	DELETE_DEDUP,             // doc:yes  ui:no  test:DedupGroupEndpointTest (403 cases)
+	CREATE_DEDUP,             // doc:yes  ui:yes test:DedupGroupEndpointTest (403 cases)
+	READ_DEDUP,               // doc:yes  ui:yes test:DedupGroupEndpointTest (403 cases)
+	UPDATE_DEDUP,             // doc:yes  ui:yes test:DedupGroupEndpointTest
+	DELETE_DEDUP,             // doc:yes  ui:yes test:DedupGroupEndpointTest (403 cases)
 
 	// The per-user notification inbox. Gate on /api/v1/notifications.
 	// There is deliberately no CREATE_NOTIFICATION: notifications are dispatched server-side

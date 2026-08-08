@@ -108,6 +108,35 @@ public class DedupGroupDaoTest extends AbstractJooqTest {
 	}
 
 	@Test
+	public void testListDecidedByAssetsFindsOnlySettledGroups() {
+		User user = dummyUser();
+		Asset keep = storeAsset(user, 12);
+		Asset dup = storeAsset(user, 13);
+		DedupGroup group = storeGroup(keep.getUuid(), dup.getUuid(), user);
+		List<UUID> assets = List.of(keep.getUuid(), dup.getUuid());
+
+		// While the group is still awaiting review it is not "decided" - re-discovery must be allowed to refresh it.
+		assertTrue(dao().listDecidedByAssets(assets, ALGO).isEmpty());
+
+		dao().updateStatus(group.getUuid(), DedupGroup.STATUS_REJECTED, null, user.getUuid());
+
+		List<DedupGroup> decided = dao().listDecidedByAssets(assets, ALGO);
+		assertEquals(1, decided.size(), "A rejected group must be visible to the re-proposal guard");
+		assertEquals(group.getUuid(), decided.get(0).getUuid());
+
+		// Matching on one member alone is enough to surface the group - the caller compares the full member set.
+		assertEquals(1, dao().listDecidedByAssets(List.of(dup.getUuid()), ALGO).size());
+
+		// A different algorithm is a different opinion about the same files and must not be suppressed.
+		assertTrue(dao().listDecidedByAssets(assets, "some-other-algorithm").isEmpty());
+
+		// An unrelated asset matches nothing, and an empty request never hits the database.
+		Asset unrelated = storeAsset(user, 14);
+		assertTrue(dao().listDecidedByAssets(List.of(unrelated.getUuid()), ALGO).isEmpty());
+		assertTrue(dao().listDecidedByAssets(List.of(), ALGO).isEmpty());
+	}
+
+	@Test
 	public void testInvalidRoleIsRejected() {
 		User user = dummyUser();
 		Asset keep = storeAsset(user, 7);

@@ -8,7 +8,8 @@
 > the shared anatomy (§3) and the cross-cutting defect table (§4) these tasks reference as `X1`-`X10`.
 >
 > **Ordering.** **W1 is the keystone** — it unblocks W4 and every "act on a human decision"
-> requirement in the family. W2, W3, W6 and W7 are independent and can run in parallel. W5 gates the
+> requirement in the family. W3 is **done** (2026-08-08) and is the worked example the other review
+> modes should copy. W2, W6 and W7 are independent and can run in parallel. W5 gates the
 > object-detection workflow. W8 is small and improves five modes at once. W9-W14 are proposals whose
 > own spec files carry their build order; the tasks here are the entry points, not the full plans.
 
@@ -94,49 +95,59 @@ a failed POST removes the chip. `cd loom-ui && ./node_modules/.bin/vitest run` a
 
 ---
 
-## Task 3: Replace the dedup review mock with the built API
+## Task 3: Replace the dedup review mock with the built API — ✅ DONE (2026-08-08)
 
-**Argumentation Summary:** The dedup backend is complete — schema, four permissions, DAO, six REST
-routes, both Cortex nodes, 17 backend tests, customer docs. The review screen is a mock:
-`buildDuplicateGroups(assets)` (`WorkflowView.tsx:86-92`) pairs adjacent assets and never calls
-`GET /api/v1/dedup-groups`, and decisions live in `dedupDecisions` React state and are never PATCHed.
-A reviewer confirms twenty groups, nothing is written, and `fingerprint-dedup-apply` moves nothing.
+**Argumentation Summary:** The dedup backend was complete but the review screen was a mock:
+`buildDuplicateGroups(assets)` paired adjacent assets and never called `GET /api/v1/dedup-groups`,
+and decisions lived in `dedupDecisions` React state and were never PATCHed. A reviewer could confirm
+twenty groups, nothing was written, and `fingerprint-dedup-apply` moved nothing.
 
-**Improvement Summary:** A `dedup.ts` API module and a wired `DeduplicationMode`, plus the ability to
-reassign the KEEP — the decision the current UI cannot express at all.
+**Improvement Summary:** The whole loop is now connected, and the two correctness defects that would
+have made the wired UI misleading were fixed first.
 
-```
-BLOCKING PREREQUISITE: fix NODE_DEDUP_PLAN.md section 3.2 first. Discovery re-proposes
-groups a human already rejected, so wiring the UI without it means the reviewer's first
-experience is a queue that refills with decisions they already made.
+**What was built:**
 
-1. loom-ui/src/api/dedup.ts: listDedupGroups(status), loadDedupGroup(uuid),
-   updateDedupGroup(uuid, {status, keepAssetUuid}), deleteDedupGroup(uuid). Follow any
-   sibling module in loom-ui/src/api/.
-2. WorkflowView.tsx: delete buildDuplicateGroups; query status=PENDING. Keep the
-   maxIdx special case at :816 (groups, not assets).
-3. handleConfirmDedup / handleRejectDedup (:853-854) PATCH and reflect the server
-   response. Revert the chip on failure.
-4. DeduplicationMode: show each member's size and zeroChunkCount (already on
-   DedupGroupMemberModel), and add a per-member "make this the KEEP" action that
-   PATCHes keepAssetUuid.
-5. Decide the thumbnail question explicitly: the thumbnail node's artifacts are
-   worker-local. Either serve GET /assets/:uuid/binary/data or show filename + size.
-   Do not leave a broken <img>.
-6. Flip the four DEDUP ui:no annotations in Permission.java, add them to
-   PERMISSION_GROUPS in AdminArea.tsx, and grant READ_DEDUP/UPDATE_DEDUP in
-   DemoDatabaseInitializer.
-7. Add pagination to GET /dedup-groups - without a status param it concatenates three
-   lists with no ordering and no paging.
-```
+1. 🟢 **Discovery no longer re-proposes a decided candidate set.** Server-side, in
+   `DedupGroupEndpointService.createDedupGroup`: an exact member-set match against
+   `DedupGroupDao.listDecidedByAssets(members, algorithm)` answers `200` with the decision and writes
+   nothing (`201` for a real proposal). `FingerprintDedupNode` reads the status and reports
+   `skipped`. Scoped to the *set*, not to its assets, so a new duplicate of a reviewed file still
+   reaches the queue.
+2. 🟢 **`GET /dedup-groups` is keyset paged** (`?limit=`/`?from=`, default 25) with one globally
+   ordered query instead of three concatenated lists. `DedupGroupDao.loadPage` is bespoke, following
+   `NotificationDaoImpl` — the generic path casts every sort column to `Field<UUID>` and throws on
+   `created`. The endpoint is now in `LoomOpenAPI`, so the two `test_parity.py` waivers are gone.
+3. 🟢 **`loom-ui/src/api/dedup.ts`** — the UI's only `PATCH` client — plus
+   `features/workflow/dedupGroups.ts` for the pure logic (`keepMember`, `dupMembers`, `isComplete`,
+   `formatSize`, `replaceGroup`, `decideGroup`, `reassignKeep`).
+4. 🟢 **`DeduplicationMode` is wired**: real `status=PENDING` queue, per-member size / completeness /
+   score, `AssetThumbnail` previews (images only — video members show `MediaPlaceholder`, decided
+   explicitly), **Keep this one** per candidate, `EmptyState` on an empty queue, and one
+   `applyDedupDecision` path that writes optimistically and **rolls back with a toast** on failure.
+   Decisions are keyed by group uuid — in fact by `group.status` from the server, not by a local map.
+5. 🟢 **Permissions**: four `ui:yes` constants, a `Deduplication` group in `PERMISSION_GROUPS`, the
+   four missing `admin.roles.permission.*_DEDUP` strings in **both** locales, and
+   `READ_DEDUP`/`UPDATE_DEDUP` on the demo Editor role (`READ_DEDUP` on Viewer).
+6. 🟢 **Demo data**: `seedDemoDedupGroup` seeds one PENDING group over two demo videos. Never
+   CONFIRMED — the demo container's media is database rows only.
+7. 🟢 **Beyond the original scope**, because they block trusting the loop in production: the apply
+   node now verifies the KEEP's **content** against its recorded SHA-512 (trusting the stored xattr,
+   digesting only when none exists), and `HashDedupNode` logs and skips a size mismatch instead of
+   blocking a headless worker on `System.in.read()`.
+8. 🟢 **Customer docs**: `docs/ui/index.adoc` §Reviewing Duplicates — the first customer-facing
+   workflow page in the tree, which closes X10 for this workflow.
 
-**References:** [../workflows/WORKFLOW_DEDUP.md](../workflows/WORKFLOW_DEDUP.md) §4-§5 ·
-[../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §3.1-§3.2 · `V2.61`, `V2.62`
-**Test Requirements:** `dedup.test.ts` (query shaping, PATCH body, error propagation).
-`workflow-dedup-mocked.spec.ts`: route-mock the PENDING list, `Y` PATCHes CONFIRMED, `N` PATCHes
-REJECTED, a failed PATCH reverts the chip, reassigning the KEEP sends `keepAssetUuid`. Existing
-`DedupGroupEndpointTest` (11) and `DedupGroupDaoTest` (6) stay green. `mvn -pl loom/core test
--Dtest=DedupGroupEndpointTest` after `./setup-pool.sh`.
+**Still open:** ⚠️ `PATCH keepAssetUuid` does not rewrite `dedup_group_member.role`, so the pointer
+and the roles diverge after a reassignment (readers prefer the pointer); per-node E2E in
+`integration-test`; discovery options as descriptor parameters; the queue loads one page with no
+"load more".
+
+**References:** [../workflows/WORKFLOW_DEDUP.md](../workflows/WORKFLOW_DEDUP.md) ·
+[../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §3.1-§3.3 · `V2.61`, `V2.62`
+**Tests:** `DedupGroupEndpointTest` 11→**14**, `DedupGroupDaoTest` 6→**7**, cortex dedup module
+11→**27** (new `FingerprintDedupApplyNodeTest`, real `HashDedupNodeTest` bodies), plus
+`dedup.test.ts` (12), `dedupGroups.test.ts` (17) and `workflow-dedup-mocked.spec.ts` (6). Python
+client suite green (122). ⚠️ `npx` stalls in this sandbox — use `./node_modules/.bin/`.
 
 ---
 
@@ -635,5 +646,6 @@ every mode. ⚠️ The website build: back up `yarn.lock` and escape bare `local
 
 ---
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (new file — 15 tasks derived from the workflow specs written the same day)_
+_Git HEAD revision: `43ada5a8`_
+_Last updated: 2026-08-08 (Task 3 completed — dedup review loop wired end to end, plus the two
+correctness defects that gated it)_

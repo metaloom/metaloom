@@ -1,9 +1,10 @@
 # Workflow: Deduplication — Discover, Review, Apply
 
-> **Status**: 🟡 **Backend complete, human step missing.** Both Cortex nodes, the schema, four
-> permissions, six REST routes, the DAO, the DTOs, the client and the customer docs are built and
-> tested. 🔴 The review screen is a **mock that never calls the API**, so the only way to complete the
-> loop today is `curl`.
+> **Status**: 🟢 **Built end to end.** Both Cortex nodes, the schema, four permissions, six REST
+> routes (paged), the DAO, the DTOs, both clients, the customer docs *and* the review screen are
+> built and tested. A reviewer opens `/workflow` → Dedup, presses `Y`/`N`, and the decision is
+> PATCHed; discovery no longer re-proposes a decided candidate set; apply re-verifies the KEEP's
+> content before moving bytes.
 > **Scope**: the human decision that sits between discovering near-duplicates and moving them.
 > **Audience**: AI coding agents working on `loom-ui/src/features/workflow/` and
 > `loom-ui/src/api/`.
@@ -32,10 +33,10 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | Question | Short answer |
 |---|---|
 | **Is the propose/apply split real?** | 🟢 **Yes**, and it is the reference implementation for the whole workflow family. Discovery never touches a file; apply reads only `CONFIRMED` groups. |
-| **Can a human make the decision?** | 🔴 **Not from the UI.** `DeduplicationMode` builds its groups with `buildDuplicateGroups(assets)`, which pairs adjacent assets, and stores decisions in a React `useState` that is never PATCHed. |
-| **Is the API missing anything?** | Very little. Six routes exist. The gaps are pagination on the unfiltered list and thumbnails for the members. |
-| **What is the risk of shipping the UI as-is?** | It looks like it works. A reviewer confirms twenty groups, nothing is written, and `fingerprint-dedup-apply` moves nothing — a silent no-op is worse than an error. |
-| **Biggest correctness risk once wired?** | 🔴 Discovery re-proposes groups a human already rejected, so the queue refills on every run ([../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §3.2). Fix that before a reviewer meets the queue twice. |
+| **Can a human make the decision?** | 🟢 **Yes.** `DeduplicationMode` loads `GET /dedup-groups?status=PENDING`, `Y`/`N` PATCH the group, and a failed PATCH reverts the chip and toasts. |
+| **Is the API missing anything?** | No. Six routes, keyset paged, in `openapi.json`, mirrored in both clients. |
+| **What stops a silent no-op?** | The decision is server state: the chip renders `group.status` from the response, never a local map. A write that fails visibly rolls back — `workflow-dedup-mocked.spec.ts` pins exactly that. |
+| **Biggest remaining sharp edge** | ⚠️ `PATCH keepAssetUuid` does **not** rewrite `dedup_group_member.role`, so after a reassignment the pointer and the roles disagree. Readers must prefer `keepAssetUuid` (§10). |
 
 ---
 
@@ -75,14 +76,14 @@ crosses it.
 A dedup decision is not "yes/no" — it is "yes, and *this* one is the keeper". The review record was
 designed around that:
 
-| Signal | Source | Why the reviewer needs it |
+| Signal | Source | Shown as |
 |---|---|---|
-| **Which member is KEEP** | `dedup_group_member.role`, and `dedup_group.keep_asset_uuid` denormalised | The decision includes reassigning it. `PATCH` accepts `keepAssetUuid` |
-| **Size per member** | `dedup_group_member.size` — a discovery-time snapshot | The usual reason to override the machine's choice |
-| **Completeness** | `dedup_group_member.zero_chunk_count` | A truncated download can look like a fine duplicate |
-| **Similarity score** | `dedup_group.score` = the **minimum** member score | How close a call this is |
-| **Algorithm** | `dedup_group.algorithm` | Two algorithms can disagree about the same pair |
-| **A visual** | 🔴 **nothing** | The one genuinely missing signal — see §4 |
+| **Which member is KEEP** | `dedup_group.keep_asset_uuid`, falling back to `role='KEEP'` | 🟢 Green-framed card on top; **Keep this one** per candidate PATCHes `keepAssetUuid` |
+| **Size per member** | `dedup_group_member.size` — a discovery-time snapshot | 🟢 `formatSize()` on every card |
+| **Completeness** | `dedup_group_member.zero_chunk_count` | 🟢 An "Incomplete" chip; an *absent* count counts as complete, not as truncated |
+| **Similarity score** | `dedup_group.score` = the **minimum** member score | 🟢 Group header + per-member score |
+| **Algorithm** | `dedup_group.algorithm` | 🟢 Group header |
+| **A visual** | `GET /assets/:uuid/binary/data` via `AssetThumbnail` | 🟡 **Images only** — there is no thumbnail service and no poster frames, so a video member shows `MediaPlaceholder`. Deliberate: a placeholder is honest, a broken `<img>` is not |
 
 ⚠️ The snapshots are **hints for the reviewer, not authority**. `fingerprint-dedup-apply` re-verifies
 existence, completeness, size and folder against the live file before it moves anything.
@@ -100,55 +101,80 @@ existence, completeness, size and folder against the live file before it moves a
 | `POST /api/v1/dedup-groups` | Discovery writes here (server-side PENDING upsert) | `CREATE_DEDUP` |
 | `GET /api/v1/assets/:uuid/dedup-groups` | What apply calls | `READ_DEDUP` |
 
-⚠️ `GET /dedup-groups` **without** `status` concatenates the three status lists with no combined
-ordering and **no pagination**. The review UI must always pass `status=PENDING`, and the endpoint
-should get real paging before a queue of any size meets it.
+🟢 `GET /dedup-groups` is **keyset paged** (`?limit=`/`?from=`, default 25) via
+`DedupGroupDao.loadPage(status, fromId, pageSize)` — a bespoke DAO method, because this DAO is a
+plain `Dao` and `AbstractJooqDao.getField(SortKey)` casts every sort column to `Field<UUID>` (so the
+generic path throws on `created`). Ordering is `(created DESC, uuid DESC)`; the uuid tie-breaks a
+burst written inside one millisecond. Without a `status` it is now **one** query with a global
+ordering, not three concatenated lists.
 
-⚠️ All four `DEDUP` permissions are annotated `ui:no` in `Permission.java` — accurate today, and part
-of the wiring work: they must be added to `PERMISSION_GROUPS` in
-`loom-ui/src/features/admin/AdminArea.tsx` and granted in the demo roles, or a reviewer with a normal
-role gets a 403 from a screen that offers them the button.
+🟢 `POST /dedup-groups` answers **201** for a new proposal and **200** with the existing decision when
+the same candidate set was already CONFIRMED/REJECTED — see §5.1.
 
----
-
-## 4. The UI work
-
-`loom-ui/src/features/workflow/WorkflowView.tsx` — `DeduplicationMode` (`:277-349`) and the
-`dedup-default` key profile (`:143-154`, `Y` confirm / `N` reject).
-
-The **presentation is already right**: KEEP framed in green above, candidates below with a dashed
-border that turns red on confirm, a decision chip, and a keyboard profile. Only the data and the write
-path are fake.
-
-| # | Change | File | Notes |
-|---|---|---|---|
-| 1 | 🔴 Create `loom-ui/src/api/dedup.ts` — `listDedupGroups(status)`, `loadDedupGroup(uuid)`, `updateDedupGroup(uuid, {status, keepAssetUuid})`, `deleteDedupGroup(uuid)` | new | Follow any of the 55 sibling modules in `loom-ui/src/api/` |
-| 2 | 🔴 Delete `buildDuplicateGroups` (`:86-92`) and query `status=PENDING` | `WorkflowView.tsx` | It pairs adjacent assets — it is not a heuristic, it is a placeholder |
-| 3 | 🔴 `handleConfirmDedup`/`handleRejectDedup` (`:853-854`) must `PATCH` and reflect the server response, not `setDedupDecisions` | `WorkflowView.tsx` | On failure, revert the chip — a confirmed-looking row that was not written is the worst outcome |
-| 4 | Surface `size` and `zeroChunkCount` per member | `DeduplicationMode` | Already on `DedupGroupMemberModel`; they are why a reviewer can decide without opening the files |
-| 5 | 🔴 **Choose a different KEEP** — a click target per member that PATCHes `keepAssetUuid` | `DeduplicationMode` | The decision the current UI cannot express at all |
-| 6 | Show a thumbnail per member | `DeduplicationMode` | 🔴 Open question: the `thumbnail` node's artifacts are worker-local. Either serve the asset's stored binary through `GET /assets/:uuid/binary/data` or show filename + size only. Decide explicitly — do not leave a broken `<img>` |
-| 7 | Flip the four `ui:no` annotations and grant `READ_DEDUP`/`UPDATE_DEDUP` in the demo roles | `Permission.java`, `AdminArea.tsx`, `DemoDatabaseInitializer` | §3 |
-| 8 | Mocked Playwright e2e | `loom-ui/e2e/workflow-dedup-mocked.spec.ts` | Component tests here are mocked Playwright, not RTL/jsdom |
-
-The queue navigation already special-cases this mode: `maxIdx = duplicateGroups.length - 1` rather
-than `assets.length - 1` (`:816`). Keep that when the source changes.
+🟢 All four `DEDUP` permissions are `ui:yes`: in `PERMISSION_GROUPS` (`AdminArea.tsx`, group
+`Deduplication`), described in `admin.roles.permission.*_DEDUP` in **both** locale files, and granted
+in the demo roles (Editor gets `READ_DEDUP`+`UPDATE_DEDUP`, Viewer only `READ_DEDUP`).
 
 ---
 
-## 5. Ordering — what must land before the UI
+## 4. The UI (🟢 built)
 
-1. 🔴 **Discovery must skip already-decided groups.** `FingerprintDedupNode` never asks whether this
-   asset is already in a `CONFIRMED`/`REJECTED` group, and the server-side upsert only collapses
-   repeated **PENDING** proposals. Wiring the UI first means the reviewer's first experience is a
-   queue that refills with pairs they already rejected. Detail and fix:
-   [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §3.2.
-2. Pagination on `GET /dedup-groups` (§3).
-3. The thumbnail decision (§4.6) — it changes the layout.
-4. Then the UI (§4).
-5. Then, independently: apply must re-hash the KEEP before moving
-   ([../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §3.3). This does not block the UI
-   but does block trusting it in production.
+Three files: `loom-ui/src/api/dedup.ts` (the REST client), `loom-ui/src/features/workflow/dedupGroups.ts`
+(the pure logic), and `DeduplicationMode` in `WorkflowView.tsx`. The `dedup-default` key profile
+(`Y` confirm / `N` reject) is unchanged.
+
+| Piece | Where | Note |
+|---|---|---|
+| `listDedupGroups(token, {status, limit, from})`, `loadDedupGroup`, `updateDedupGroup`, `deleteDedupGroup`, `listAssetDedupGroups` | `src/api/dedup.ts` | ⚠️ `updateDedupGroup` is the **only `method: "PATCH"` in the whole UI**. Uses `withPaging()` so `?status=` + `?limit=` share one `?` |
+| `keepMember` / `dupMembers` / `isComplete` / `formatSize` / `replaceGroup` / `decideGroup` / `reassignKeep` | `src/features/workflow/dedupGroups.ts` | Extracted so vitest can cover it — loom-ui has no jsdom, so anything rendered has to be a mocked Playwright spec |
+| Queue load, member-asset resolution, optimistic write + rollback | `WorkflowView.tsx` | `dedupGroups` / `dedupAssets` / `dedupBusy` state; `applyDedupDecision(optimistic, write, failureKey)` is the single rollback path all three actions share |
+| KEEP card, candidate cards with size/completeness/score, **Keep this one**, decision chip, `EmptyState` | `DeduplicationMode` | Test ids: `dedup-group`, `dedup-keep`, `dedup-member-<uuid>`, `dedup-make-keep-<uuid>`, `dedup-confirm`, `dedup-reject`, `dedup-decision-chip`, `dedup-empty`, `workflow-mode-deduplication` |
+
+**Three things that are easy to get wrong here:**
+
+1. 🔴 **Decisions are keyed by group uuid, not queue index.** The old `Record<number, …>` broke the
+   moment the queue was re-fetched. In fact there is no decision map at all any more — the chip
+   renders `group.status`, so what you see is what the server returned.
+2. ⚠️ **`status` is mandatory on every PATCH.** Reassigning the KEEP therefore repeats the group's
+   *current* status (`reassignKeep`), or picking a file would silently confirm the group.
+3. ⚠️ **A group carries only asset uuids.** Filenames, mime types and previews come from a
+   `loadAsset` per member into a `dedupAssets` cache, refreshed when the current group changes.
+
+The queue navigation still special-cases this mode: `maxIdx = dedupGroups.length - 1` rather than
+`assets.length - 1`.
+
+---
+
+## 5. Correctness rules that hold the loop together
+
+### 5.1 🟢 A decided candidate set is never re-proposed
+
+`DedupGroupEndpointService.createDedupGroup` compares the incoming member set against
+`dedupDao.listDecidedByAssets(memberUuids, algorithm)`; on an exact set match it writes **nothing**
+and answers `200` with the decided group (`201` otherwise). `FingerprintDedupNode` reads the returned
+`status` and reports `skipped`, so a re-run over an already-reviewed corpus does not pile up
+misleading SUCCESS ledger rows.
+
+⚠️ **The guard is on the candidate *set*, not on its assets.** "This asset appears in some decided
+group" would suppress a genuinely new duplicate of an already-reviewed file. Roles are ignored in the
+comparison: after a KEEP reassignment the same two files can come back with roles swapped, and that
+is still the same decision.
+
+### 5.2 🟢 Apply verifies the KEEP's content, not just its metadata
+
+`keepPassesSafeguards` gained a fifth check: the KEEP's recorded SHA-512 must still match the file.
+`hashOf()` goes through `LoomMediaImpl.getSHA512()`, which **trusts the stored xattr**
+(`loom_sha512`, legacy `sha512sum`) and only digests when neither is present — so this is an
+attribute read for anything a hash node has seen. Two deliberate non-failures: an asset with **no**
+recorded hash passes (nothing to compare against), and a filesystem with no user-xattr support falls
+back to a direct digest rather than blocking every move.
+
+### 5.3 🟢 `HashDedupNode` no longer blocks
+
+The size-mismatch branch used to call `System.in.read()`. It now logs both paths at `error` and
+returns `skipped` — records that disagree are exactly when a move could destroy the only good copy.
+`HashDedupNodeTest` pins it with a `@Timeout(10)`: the test fails by hanging if the blocking read
+ever returns.
 
 ---
 
@@ -157,28 +183,25 @@ than `assets.length - 1` (`:816`). Keep that when the source changes.
 ### Built (see [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §9 for the full list)
 - [x] `V2.61` review record (`dedup_status`, `dedup_group`, `dedup_group_member`), `V2.62` permissions
 - [x] `DedupGroupDao` + jOOQ impl, delete-cascade tests green
-- [x] Six REST routes with server-side PENDING upsert; `DedupGroupEndpointTest` (11), `DedupGroupDaoTest` (6)
+- [x] Six REST routes, keyset paged, in `openapi.json`; `DedupGroupEndpointTest` (14), `DedupGroupDaoTest` (7)
 - [x] Both Cortex nodes, three descriptors, four kind bindings
-- [x] Customer docs `website/content/english/docs/nodes/dedup/index.adoc`
-- [x] The review screen's **layout** and key profile
+- [x] `loom-ui/src/api/dedup.ts` + `dedupGroups.ts`, wired `DeduplicationMode` with rollback (§4)
+- [x] Reassign the KEEP; member size / completeness / score; `AssetThumbnail` previews
+- [x] Four `ui:yes` permissions in `PERMISSION_GROUPS` + both locale files + demo roles
+- [x] `dedup.test.ts` (12) · `dedupGroups.test.ts` (17) · `workflow-dedup-mocked.spec.ts` (6)
+- [x] Demo data: one PENDING group over two demo videos (`seedDemoDedupGroup`)
+- [x] Customer docs: `nodes/dedup/index.adoc` + `ui/index.adoc` §Reviewing Duplicates (closes X10 for this workflow)
+- [x] 🟢 Discovery never re-proposes a decided candidate set (§5.1)
+- [x] 🟢 Apply verifies the KEEP's content via the stored xattr (§5.2)
+- [x] 🟢 `HashDedupNode` no longer blocks on `System.in.read()` (§5.3)
+- [x] Apply-node tests (`FingerprintDedupApplyNodeTest`, 11) and `HashDedupNodeTest` (4)
 
-### Open — the workflow
-- [ ] 🔴 `loom-ui/src/api/dedup.ts` (§4.1)
-- [ ] 🔴 Replace `buildDuplicateGroups` with a real `status=PENDING` query (§4.2)
-- [ ] 🔴 PATCH on confirm/reject, with rollback on failure (§4.3)
-- [ ] 🔴 Reassign the KEEP (§4.5)
-- [ ] Member size / completeness in the card (§4.4)
-- [ ] Thumbnail decision (§4.6)
-- [ ] Flip four `ui:no` permissions, grant in demo roles (§4.7)
-- [ ] Mocked Playwright e2e (§4.8)
-- [ ] Paginated `GET /dedup-groups` (§3)
+### Open
+- [ ] ⚠️ `PATCH keepAssetUuid` does not rewrite `dedup_group_member.role` — pointer and roles diverge (§10)
+- [ ] Per-node E2E in `integration-test` (two near-identical videos → discover → confirm → apply → no-op)
 - [ ] Progress/resumption so two reviewers can split a queue (shared defect X7)
-
-### Open — blocking correctness (owned by the node spec)
-- [ ] 🔴 Discovery re-proposes decided groups (§5.1)
-- [ ] 🔴 Apply does not re-hash the KEEP
-- [ ] 🔴 `HashDedupNode` blocks on `System.in.read()` in a headless worker
-- [ ] No apply-node tests, no per-node E2E, no demo data
+- [ ] Discovery options (`algorithm`, `topK`, `scoreThreshold`, …) are still YAML-only, not descriptor parameters
+- [ ] The UI loads one page of the queue and does not "load more" — fine for a review session, not for a 10k backlog
 
 ---
 
@@ -186,11 +209,14 @@ than `assets.length - 1` (`:816`). Keep that when the source changes.
 
 | Test | Covers | Command |
 |---|---|---|
-| `DedupGroupEndpointTest` (11) 🟢 | Create+load, PENDING idempotency, confirm/reject, list-by-asset, delete, invalid status, 404, 403 on every route, `READ_DEDUP` does not grant UPDATE, asset-delete cascade | `mvn -pl loom/core test -Dtest=DedupGroupEndpointTest` |
-| `DedupGroupDaoTest` (6) 🟢 | Store/load, `listByStatus`, `listByAsset`, `findPendingByKeep`+`updateStatus`, invalid role, both delete-cascades | `mvn -pl loom/db/jooq test -Dtest=DedupGroupDaoTest` |
-| `FingerprintDedupNodeTest` (2) 🟢 | KEEP/DUP split; larger-dup abort | `mvn -pl cortex/nodes/dedup/core -am test` |
-| `dedup.test.ts` 🔵 **to write** | The new API module: query-param shaping, PATCH body, error propagation | node-env vitest |
-| `workflow-dedup-mocked.spec.ts` 🔵 **to write** | Route-mock `GET /dedup-groups?status=PENDING`, press `Y`, assert the PATCH body and the chip; press `N`, assert `REJECTED`; assert a failed PATCH reverts the chip | `./node_modules/.bin/playwright test` |
+| `DedupGroupEndpointTest` (14) 🟢 | Create+load, PENDING idempotency, **decided sets are not re-proposed (200)**, **a different set still is (201)**, **keyset paging**, confirm/reject, list-by-asset, delete, invalid status, 404, 403 on every route, `READ_DEDUP` does not grant UPDATE, asset-delete cascade | `mvn -pl loom/core test -Dtest=DedupGroupEndpointTest` |
+| `DedupGroupDaoTest` (7) 🟢 | Store/load, `listByStatus`, `listByAsset`, `findPendingByKeep`+`updateStatus`, **`listDecidedByAssets`**, invalid role, both delete-cascades | `mvn -pl loom/db/jooq test -Dtest=DedupGroupDaoTest` |
+| `FingerprintDedupNodeTest` (3) 🟢 | KEEP/DUP split; larger-dup abort; **already-decided set → skipped, no ledger row** | `mvn -pl cortex/nodes/dedup/core -am test` |
+| `FingerprintDedupApplyNodeTest` (11) 🟢 | Confirmed DUP moves; PENDING/REJECTED never move; the KEEP of a confirmed group is never moved; missing / incomplete / smaller / **content-changed** KEEP all block; no recorded hash still applies; already-moved dup is idempotent | same command |
+| `HashDedupNodeTest` (4) 🟢 | Known-file move; **size mismatch skips instead of blocking** (`@Timeout(10)` is the assertion); same-file no-op; unknown file skipped | same command |
+| `dedup.test.ts` (12) 🟢 | Query-param shaping (`?status=`+`?limit=`+`?from=` on one `?`), uuid encoding, the PATCH method and body, DELETE with no body, error propagation | `./node_modules/.bin/vitest run src/api/dedup.test.ts` |
+| `dedupGroups.test.ts` (17) 🟢 | `keepMember` precedence, `dupMembers`, completeness of an unmeasured file, size formatting, `replaceGroup`, and that `reassignKeep` repeats the current status | `./node_modules/.bin/vitest run src/features/workflow/` |
+| `workflow-dedup-mocked.spec.ts` (6) 🟢 | Queue renders with sizes; `Y` PATCHes CONFIRMED; `N` PATCHes REJECTED; **a 500 reverts the chip and toasts**; make-keep sends `keepAssetUuid` with `status: PENDING`; empty queue shows `dedup-empty` | `./node_modules/.bin/playwright test e2e/workflow-dedup-mocked.spec.ts` |
 | E2E 🔵 **to write** | Two near-identical demo videos → fingerprint → discovery produces PENDING → PATCH CONFIRMED → apply moves the DUP and writes a ledger row → re-running apply is a no-op | `./it.sh` |
 
 ⚠️ `npx` stalls here — use `./node_modules/.bin/`. 🔴 `./setup-pool.sh` before DAO/endpoint tests.
@@ -217,11 +243,12 @@ are descriptor parameters — the rest are YAML-only and unreachable from the pi
 
 | Class / file | Package or path | Purpose |
 |---|---|---|
-| `DeduplicationMode` | `loom-ui/src/features/workflow/WorkflowView.tsx:277` | 🔴 The mock review screen |
-| `buildDuplicateGroups` | same, `:86` | 🔴 Pairs adjacent assets; delete it |
-| `dedup-default` key profile | same, `:143` | `Y` confirm / `N` reject |
-| `loom-ui/src/api/dedup.ts` | — | 🔵 Does not exist yet |
-| `DedupGroupEndpoint` / `DedupGroupEndpointService` | `io.metaloom.loom.rest.{endpoint,service}.impl` | The five routes + the server-side upsert |
+| `DeduplicationMode` | `loom-ui/src/features/workflow/WorkflowView.tsx` | 🟢 The review screen |
+| `applyDedupDecision` | same | The single optimistic-write-with-rollback path all three actions share |
+| `dedup-default` key profile | same | `Y` confirm / `N` reject |
+| `dedupGroups.ts` | `loom-ui/src/features/workflow/` | Pure logic: `keepMember`, `dupMembers`, `isComplete`, `formatSize`, `replaceGroup`, `decideGroup`, `reassignKeep` |
+| `dedup.ts` | `loom-ui/src/api/` | The REST client; the UI's only `PATCH` |
+| `DedupGroupEndpoint` / `DedupGroupEndpointService` | `io.metaloom.loom.rest.{endpoint,service}.impl` | The five routes, the PENDING upsert and the decided-set guard |
 | `DedupGroupDao` / `DedupGroup` / `DedupGroupMember` | `io.metaloom.loom.db.model.dedup` | Review-record persistence |
 | `DedupGroupMethods` | `io.metaloom.loom.client.common.method` | Java client, 6 methods |
 | `FingerprintDedupNode` / `FingerprintDedupApplyNode` | `io.metaloom.cortex.node.dedup` | Propose / apply |
@@ -234,14 +261,18 @@ are descriptor parameters — the rest are YAML-only and unreachable from the pi
 | Area | Gotcha |
 |---|---|
 | **Two lifecycles** | 🔴 Discovery writes review items; apply acts on decisions. Never let discovery move a file, never let apply act on `PENDING`/`REJECTED` |
-| **Snapshots are hints** | ⚠️ `size` / `zero_chunk_count` are discovery-time values for the reviewer. Apply re-checks live |
+| **Snapshots are hints** | ⚠️ `size` / `zero_chunk_count` are discovery-time values for the reviewer. Apply re-checks live — existence, completeness, size, folder **and content** |
 | **A larger DUP aborts the whole group** | ⚠️ Not "drop that member". A duplicate bigger than the keep means the keep selection is wrong |
-| **Idempotency is server-side** | ⚠️ In `DedupGroupEndpointService.createDedupGroup`, not in the node. Do not add a client-side key |
-| **Decided groups get re-proposed** | 🔴 The queue refills with already-rejected pairs on every discovery run — fix before wiring the UI (§5.1) |
-| **Unfiltered list has no paging** | ⚠️ `GET /dedup-groups` without `status` concatenates three lists. Always pass `status` |
-| **`ui:no` permissions** | ⚠️ All four DEDUP permissions are API-only today; the ACL matrix must learn them or the screen 403s |
-| **Optimistic decisions must roll back** | 🔴 A confirmed-looking row that was never PATCHed is the failure mode this workflow already has |
+| **Idempotency is server-side** | ⚠️ Both halves live in `createDedupGroup`: the PENDING upsert *and* the decided-set guard. Do not add a client-side key |
+| **🔴 `keepAssetUuid` and `role` diverge** | `updateStatus` writes only the pointer, so after a reassignment the members still carry the machine's original roles. **Always prefer `keepAssetUuid` when set** — `keepMember()` in `dedupGroups.ts` and `DedupGroup`'s javadoc both say so. Rewriting the roles server-side is the real fix and is still open |
+| **The guard compares member sets, not assets** | ⚠️ §5.1 — "this asset is in a decided group" would suppress a genuinely new duplicate of an already-reviewed file |
+| **A 200 from POST is not a discovery** | ⚠️ 201 = proposed, 200 = already decided, nothing written. A client that ignores the status reports phantom finds every run |
+| **Always pass `status`** | ⚠️ The unfiltered list is now one ordered, paged query — but the review queue is `PENDING`, and asking for everything wastes a page on decided history |
+| **PATCH needs a status** | ⚠️ There is no status-less "just move the keep". Reassigning repeats the current status or it decides the group by accident |
+| **Optimistic decisions must roll back** | 🔴 A confirmed-looking row that was never PATCHed is the failure mode this workflow used to have. `applyDedupDecision` is the only write path; keep it that way |
+| **Previews are images only** | ⚠️ There is no thumbnail service and no poster frames, so video members show `MediaPlaceholder`. Do not "fix" this with a bare `<img>` |
 | **`sha512-dedup` has no descriptor** | ⚠️ Runnable but not placeable from the palette. `hash-dedup` is a deliberate alias onto the same class |
+| **Never `System.in.read()` in a node** | 🔴 It hung a headless worker forever. `HashDedupNodeTest`'s `@Timeout` exists to stop it coming back |
 
 ---
 
@@ -250,16 +281,20 @@ are descriptor parameters — the rest are YAML-only and unreachable from the pi
 | Need | Look here |
 |---|---|
 | The nodes, options, algorithm and their defects | [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
-| The mock to replace | `loom-ui/src/features/workflow/WorkflowView.tsx:277` |
-| An API module to copy | any of `loom-ui/src/api/*.ts` (55 modules) |
+| The review screen | `loom-ui/src/features/workflow/WorkflowView.tsx` (`DeduplicationMode`) |
+| Its pure logic and its tests | `loom-ui/src/features/workflow/dedupGroups.ts` + `.test.ts` |
+| The REST client | `loom-ui/src/api/dedup.ts` + `dedup.test.ts` |
+| The keyset-paging template this DAO copied | `loom/db/jooq/.../dao/notification/NotificationDaoImpl.loadPageForRecipient` |
 | Schema + permissions | `loom/db/flyway/.../V2.61__add_dedup_group.sql`, `V2.62__add_dedup_permission.sql` |
 | REST implementation | `loom/services/rest/.../endpoint/impl/DedupGroupEndpoint.java` |
 | The similarity query | [../concept/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
-| Customer docs | `website/content/english/docs/nodes/dedup/index.adoc` |
+| Customer docs | `website/content/english/docs/nodes/dedup/index.adoc`; `website/content/english/docs/ui/index.adoc` §Reviewing Duplicates |
+| Demo data | `DemoDatabaseInitializer.seedDemoDedupGroup` |
 | Shared workflow defects | [WORKFLOWS.md](WORKFLOWS.md) §4 |
 | Open tasks | [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md) W3 |
 
 ---
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (new file — the workflow half; node detail stays in NODE_DEDUP_PLAN.md)_
+_Git HEAD revision: `43ada5a8`_
+_Last updated: 2026-08-08 (review UI wired end to end; decided-set guard, keyset paging, KEEP content
+verification and the `System.in.read()` fix landed with tests)_

@@ -45,15 +45,13 @@ EXPECTED_JAVA_METHOD_COUNT = 249
 #:
 #: * STALE SPEC -- the server registers the route, but ``LoomOpenAPI.generate()`` never
 #:   constructs the endpoint that owns it, so it is absent from ``openapi.json``.
-#:   ``DedupGroupEndpoint``, ``SearchEndpoint`` and ``SimilarityIndexEndpoint`` are all
-#:   missing from that list while being registered on the real router. The client is
-#:   right and the description is incomplete.
+#:   ``SearchEndpoint`` and ``SimilarityIndexEndpoint`` are missing from that list while
+#:   being registered on the real router. The client is right and the description is
+#:   incomplete. (``DedupGroupEndpoint`` used to be here too and has since been added to
+#:   ``LoomOpenAPI``.)
 #: * DEAD ROUTE -- no endpoint implements it at all, so the call really does 404. These
 #:   exist because the Java client has them, and full parity was the goal.
 KNOWN_UNLISTED_PATHS = {
-    # STALE SPEC: DedupGroupEndpoint is registered but absent from LoomOpenAPI.
-    "dedup-groups": "stale spec",
-    "dedup-groups/{}": "stale spec",
     # STALE SPEC: SearchEndpoint likewise.
     "search/results": "stale spec",
     "search/assets": "stale spec",

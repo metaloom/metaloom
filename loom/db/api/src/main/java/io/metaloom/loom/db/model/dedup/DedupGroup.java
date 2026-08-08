@@ -9,7 +9,13 @@ import io.metaloom.loom.db.CUDElement;
  *
  * <p>
  * See spec/features/pipeline-nodes/NODE_DEDUP_PLAN.md. The authoritative KEEP is the member with role {@link DedupGroupMember#ROLE_KEEP};
- * {@link #getKeepAssetUuid()} is a denormalised convenience pointer the DAO keeps consistent.
+ * {@link #getKeepAssetUuid()} is a denormalised convenience pointer.
+ * </p>
+ *
+ * <p>
+ * <b>The two are not kept in sync.</b> {@link DedupGroupDao#updateStatus(UUID, String, UUID, UUID)} writes only the pointer, so a reviewer who
+ * reassigns the KEEP leaves the member roles describing the machine's original choice. Readers must prefer {@link #getKeepAssetUuid()} when it is set
+ * and fall back to the {@code KEEP} member otherwise.
  * </p>
  */
 public interface DedupGroup extends CUDElement<DedupGroup> {

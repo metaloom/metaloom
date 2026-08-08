@@ -741,6 +741,10 @@
         "READ_COMMENT": "Kommentare ansehen — Benutzerkommentare zu Assets.",
         "DELETE_COMMENT": "Kommentare löschen — Benutzerkommentare zu Assets.",
         "UPDATE_COMMENT": "Bestehende Kommentare bearbeiten — Benutzerkommentare zu Assets.",
+        "CREATE_DEDUP": "Duplikatgruppen vorschlagen — wird von der Duplikaterkennung benötigt.",
+        "READ_DEDUP": "Die Duplikat-Prüfliste ansehen — nötig, um den Deduplizierungs-Workflow zu öffnen.",
+        "DELETE_DEDUP": "Duplikatvorschläge verwerfen, ohne sie zu entscheiden.",
+        "UPDATE_DEDUP": "Duplikatgruppen bestätigen oder ablehnen — die Entscheidung, die das spätere Verschieben von Dateien überhaupt erst erlaubt.",
         "CREATE_EMBEDDING": "Neue Embeddings anlegen — Vektoren für die Ähnlichkeitssuche.",
         "READ_EMBEDDING": "Embeddings ansehen — Vektoren für die Ähnlichkeitssuche.",
         "DELETE_EMBEDDING": "Embeddings löschen — Vektoren für die Ähnlichkeitssuche.",
@@ -1447,7 +1451,19 @@
       "confirmDedup": "Deduplizierung bestätigen (Y)",
       "confirmBtn": "Deduplizierung bestätigen (Y)",
       "rejectBtn": "Ablehnen (N)",
-      "reject": "Ablehnen (N)"
+      "reject": "Ablehnen (N)",
+      "makeKeep": "Diese behalten",
+      "size": "Größe",
+      "score": "Ähnlichkeit",
+      "algorithm": "Algorithmus",
+      "incomplete": "Unvollständig",
+      "loadFailed": "Die Duplikat-Prüfliste konnte nicht geladen werden.",
+      "saveFailed": "Die Entscheidung konnte nicht gespeichert werden — sie wurde nicht übernommen.",
+      "keepFailed": "Die zu behaltende Datei konnte nicht geändert werden.",
+      "emptyState": {
+        "title": "Keine Duplikate zu prüfen",
+        "description": "Es wartet nichts auf eine Entscheidung. Starte eine Deduplizierungs-Pipeline, um ähnliche Videos zu finden — die Kandidaten erscheinen dann hier."
+      }
     },
     "faceMode": {
       "clusters": "Gesichts-Cluster ({{count}})",

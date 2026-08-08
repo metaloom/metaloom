@@ -40,15 +40,29 @@ class DedupGroupMethods:
         """Update a dedup group. Sent as PATCH, unlike most update methods."""
         return self._patch(f"dedup-groups/{self._uuid(group_uuid)}", request, DedupGroupResponse)
 
-    def list_dedup_groups(self, status: str | None = None) -> LoomRequest[DedupGroupListResponse]:
+    def list_dedup_groups(
+        self,
+        status: str | None = None,
+        from_uuid: _uuid_mod.UUID | str | None = None,
+        limit: int | None = None,
+    ) -> LoomRequest[DedupGroupListResponse]:
         """List dedup groups, optionally filtered by resolution status.
+
+        The route is keyset paged and caps at 25 rows by default, so a bare call
+        returns a page rather than the whole collection.
 
         Args:
             status: Restrict to groups in this status. Omitted when ``None``.
+            from_uuid: Seek cursor - the ``_metainfo.last_uuid`` of the previous page.
+            limit: Page size. Omitted when ``None`` (server default).
         """
         request = self._get("dedup-groups", DedupGroupListResponse)
         if status is not None:
             request.param("status", status)
+        if from_uuid is not None:
+            request.param("from", str(from_uuid))
+        if limit is not None:
+            request.param("limit", str(limit))
         return request
 
     def delete_dedup_group(self, group_uuid: _uuid_mod.UUID | str) -> LoomRequest[None]:

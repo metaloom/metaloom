@@ -1,6 +1,7 @@
 package io.metaloom.loom.core.endpoint.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,6 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.client.common.LoomClientException;
+import io.metaloom.loom.client.common.LoomClientResponse;
 import io.metaloom.loom.client.http.LoomHttpClient;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.db.dagger.DaoCollection;
@@ -134,11 +136,62 @@ public class DedupGroupEndpointTest extends AbstractEndpointTest {
 		client.createDedupGroup(request(keep, dup)).sync().body();
 		client.createDedupGroup(request(keep, dup)).sync().body();
 
-		DedupGroupListResponse pending = client.listDedupGroups("PENDING").sync().body();
+		DedupGroupListResponse pending = client.listDedupGroups("PENDING", null, null).sync().body();
 		long forKeep = pending.getData().stream()
 			.filter(g -> keep.getUuid().toString().equals(g.getKeepAssetUuid()))
 			.count();
 		assertEquals(1, forKeep, "Re-discovery must upsert the pending group, not create a second one");
+	}
+
+	/**
+	 * The queue must not refill with decisions a reviewer already made.
+	 *
+	 * <p>
+	 * The PENDING upsert alone does not achieve that: a rejected pair would come back as a fresh PENDING group on the very next discovery run. A
+	 * re-proposal of an already-decided candidate set writes nothing and answers 200 with the decided group, so the discovery node can tell it apart
+	 * from a real find without seeing an error.
+	 * </p>
+	 */
+	@Test
+	public void testDecidedGroupsAreNeverReProposed() throws LoomClientException {
+		Asset keep = seedAsset("keep_k.mp4", 4096L);
+		Asset dup = seedAsset("dup_k.mp4", 2048L);
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+
+		DedupGroupResponse created = client.createDedupGroup(request(keep, dup)).sync().body();
+		UUID uuid = UUID.fromString(created.getUuid());
+		client.updateDedupGroup(uuid, new DedupGroupUpdateRequest().setStatus("REJECTED")).sync().body();
+
+		LoomClientResponse<DedupGroupResponse> reProposal = client.createDedupGroup(request(keep, dup)).sync();
+		assertEquals(200, reProposal.statusCode(), "A decided candidate set must be answered with the decision, not created anew");
+		assertEquals(created.getUuid(), reProposal.body().getUuid());
+		assertEquals("REJECTED", reProposal.body().getStatus());
+
+		DedupGroupListResponse pending = client.listDedupGroups("PENDING", null, null).sync().body();
+		assertTrue(pending.getData() == null
+			|| pending.getData().stream().noneMatch(g -> keep.getUuid().toString().equals(g.getKeepAssetUuid())),
+			"A rejected pair must not reappear in the review queue");
+	}
+
+	/**
+	 * The guard is scoped to the candidate set, not to the assets in it: a genuinely new duplicate of an already-reviewed file must still be proposed.
+	 */
+	@Test
+	public void testANewCandidateSetIsStillProposedAfterADecision() throws LoomClientException {
+		Asset keep = seedAsset("keep_l.mp4", 4096L);
+		Asset dup = seedAsset("dup_l.mp4", 2048L);
+		Asset newcomer = seedAsset("dup_l2.mp4", 2048L);
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+
+		DedupGroupResponse created = client.createDedupGroup(request(keep, dup)).sync().body();
+		client.updateDedupGroup(UUID.fromString(created.getUuid()), new DedupGroupUpdateRequest().setStatus("REJECTED")).sync().body();
+
+		LoomClientResponse<DedupGroupResponse> fresh = client.createDedupGroup(request(keep, newcomer)).sync();
+		assertEquals(201, fresh.statusCode(), "A different candidate set is a different decision and must reach the reviewer");
+		assertEquals("PENDING", fresh.body().getStatus());
+		assertNotEquals(created.getUuid(), fresh.body().getUuid());
 	}
 
 	@Test
@@ -159,9 +212,36 @@ public class DedupGroupEndpointTest extends AbstractEndpointTest {
 		assertEquals("REJECTED", rejected.getStatus());
 
 		// The confirmed list must no longer contain it, so the apply node cannot act on a reverted decision.
-		DedupGroupListResponse confirmedList = client.listDedupGroups("CONFIRMED").sync().body();
+		DedupGroupListResponse confirmedList = client.listDedupGroups("CONFIRMED", null, null).sync().body();
 		assertTrue(confirmedList.getData() == null
 			|| confirmedList.getData().stream().noneMatch(g -> created.getUuid().equals(g.getUuid())));
+	}
+
+	/**
+	 * The review queue is keyset paged, so opening it never streams the whole review history.
+	 */
+	@Test
+	public void testReviewQueueIsPaged() throws LoomClientException {
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+
+		int total = 8;
+		for (int i = 0; i < total; i++) {
+			client.createDedupGroup(request(seedAsset("keep_p" + i + ".mp4", 4096L), seedAsset("dup_p" + i + ".mp4", 2048L))).sync().body();
+		}
+
+		DedupGroupListResponse first = client.listDedupGroups("PENDING", null, 3).sync().body();
+		assertEquals(3, first.getData().size());
+		assertNotNull(first.getMetainfo(), "A paged list must report where the reader is");
+		assertEquals(3L, first.getMetainfo().getPerPage().longValue());
+		assertTrue(first.getMetainfo().getTotalCount() >= total, "totalCount counts the whole queue, not the page");
+		assertNotNull(first.getMetainfo().getLastUuid());
+
+		DedupGroupListResponse second = client.listDedupGroups("PENDING", first.getMetainfo().getLastUuid(), 3).sync().body();
+		assertEquals(3, second.getData().size());
+
+		List<String> firstUuids = first.getData().stream().map(DedupGroupResponse::getUuid).toList();
+		assertTrue(second.getData().stream().noneMatch(g -> firstUuids.contains(g.getUuid())), "The seek cursor must not replay the previous page");
 	}
 
 	@Test
@@ -240,7 +320,7 @@ public class DedupGroupEndpointTest extends AbstractEndpointTest {
 		UUID uuid = UUID.fromString(created.getUuid());
 
 		LoomHttpClient nobody = loginPermissionlessClient();
-		expect(403, "Forbidden", nobody.listDedupGroups("PENDING"));
+		expect(403, "Forbidden", nobody.listDedupGroups("PENDING", null, null));
 		expect(403, "Forbidden", nobody.loadDedupGroup(uuid));
 		expect(403, "Forbidden", nobody.createDedupGroup(request(keep, dup)));
 		expect(403, "Forbidden", nobody.updateDedupGroup(uuid, new DedupGroupUpdateRequest().setStatus("CONFIRMED")));

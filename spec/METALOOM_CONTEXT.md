@@ -119,7 +119,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-124 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+127 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -168,6 +168,24 @@ spec/
 │   │                                  #   palette refresh, offline nodes last, show-offline toggle.
 │   │                                  #   Nothing built; §13 is the order
 │   └── imagegen-node.md               # ⚠️ superseded draft — NODE_IMAGEGEN_PLAN.md is authoritative
+├── chat/                              # The chat / agent feature family. Start at AGENTIC_CHAT_PLAN.md
+│   ├── LOOM_UI_CHAT.md                # 🟢 The BUILT loop: agentic turn loop, SSE protocol, skills,
+│   │                                  #   chat UI contract (moved here from loom/ui/CHAT.md)
+│   ├── AGENTIC_CHAT_PLAN.md           # 🔵 NEW 2026-08-08 — the vision and the gap map. Five capability
+│   │                                  #   tiers (retrieve/comprehend/act/produce/ship), what is missing
+│   │                                  #   in backend, frontend and loop, and §6 the KEYSTONE gap:
+│   │                                  #   there is NO ad-hoc node execution API. Read §6 before
+│   │                                  #   designing anything that runs a node from chat
+│   ├── CHAT_USER_REQUESTS.md          # 🔵 NEW 2026-08-08 — 88 user prompts worked through the stack,
+│   │                                  #   24 extracted open spots (N1–N24) and a ranking of what blocks
+│   │                                  #   the most. The top two blockers are reading data Loom already
+│   │                                  #   computed
+│   └── AGENTIC_CHAT_CONTEXT_DATA.md   # 🔵 NEW 2026-08-08 — how extracted metadata reaches the model.
+│                                      #   Three layers: index (search_document, built) / dossier
+│                                      #   (rendered ON READ, not materialized) / raw drill-down.
+│                                      #   Rejects a per-asset markdown RAG corpus and a GraphQL agent
+│                                      #   surface; recommends a bounded filter DSL. §7 flags the
+│                                      #   two-whitelists hazard with search_extract_json_text
 ├── features/                          # Cross-cutting features (span Loom + Cortex + UI)
 │   ├── DB_SCHEMA_FEEDBACK.md          # Schema audit vs. node results; resolved items marked in place
 │   ├── chat/
@@ -379,7 +397,10 @@ spec/
 | Getting Cortex-produced artefacts (thumbnails, depth maps, TTS) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan**; the endpoints it needs exist |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
-| Chat / AI agent / skills / memory | [loom/ui/CHAT.md](loom/ui/CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [features/chat/CHAT_TASKS.md](features/chat/CHAT_TASKS.md) |
+| Chat / AI agent / skills / memory | [chat/LOOM_UI_CHAT.md](chat/LOOM_UI_CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [tasks/CHAT_TASKS.md](tasks/CHAT_TASKS.md) |
+| **What the chat agent should become** — capability tiers, the gap map, the roadmap | [chat/AGENTIC_CHAT_PLAN.md](chat/AGENTIC_CHAT_PLAN.md). 🔴 §6: **ad-hoc node execution does not exist** — `POST /pipelines/:uuid/run` needs a stored pipeline, and per-node re-execution only works inside a live, breakpointed run |
+| **What users will ask the chat, and whether Loom can answer** | [chat/CHAT_USER_REQUESTS.md](chat/CHAT_USER_REQUESTS.md) — 88 prompts, 24 open spots, ranked by what blocks the most |
+| **Getting node results (faces, captions, GPS, transcripts, detections) in front of the model** | [chat/AGENTIC_CHAT_CONTEXT_DATA.md](chat/AGENTIC_CHAT_CONTEXT_DATA.md) — render on read, do **not** materialize a markdown corpus per asset; `search_document` is already the precomputed text layer |
 | The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |
 | **Uploading media from the UI** (background queue, progress, which pool receives the bytes) | [loom/ui/LOOM_UI_UPLOAD.md](loom/ui/LOOM_UI_UPLOAD.md) — **shipped**; the endpoint contract itself is in [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
 | Metrics / health / readiness | [features/ops/METRICS.md](features/ops/METRICS.md), [features/ops/MONITORING.md](features/ops/MONITORING.md) |
@@ -800,7 +821,8 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (new `workflows/` family: 12 workflow specs + `tasks/WORKFLOW_TASKS.md`;
-`features/facedetection/FACE_WORKFLOW.md` moved to `workflows/WORKFLOW_FACE.md`; the "objectdetect is
-faces-only" claim in section 7 corrected as false)_
+_Git HEAD revision: `43ada5a8`_
+_Last updated: 2026-08-08 (registered the `chat/` family: `AGENTIC_CHAT_PLAN.md`,
+`CHAT_USER_REQUESTS.md`, `AGENTIC_CHAT_CONTEXT_DATA.md`. ⚠️ the `spec/` tree above is otherwise
+stale: `chat/LOOM_UI_CHAT.md` was `loom/ui/CHAT.md`, and `CHAT_TASKS.md`/`DATABASE_TASKS.md`/
+`CLI_PLAN.md` have moved to `tasks/` and `plans/`)_

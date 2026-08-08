@@ -975,6 +975,9 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   Cluster: ["CREATE_CLUSTER", "READ_CLUSTER", "DELETE_CLUSTER", "UPDATE_CLUSTER"],
   Collection: ["CREATE_COLLECTION", "READ_COLLECTION", "DELETE_COLLECTION", "UPDATE_COLLECTION"],
   Comment: ["CREATE_COMMENT", "READ_COMMENT", "DELETE_COMMENT", "UPDATE_COMMENT"],
+  // READ + UPDATE is the reviewer's set: see the queue, decide a group. CREATE belongs to the
+  // discovery node's credentials, DELETE discards a proposal outright.
+  Deduplication: ["CREATE_DEDUP", "READ_DEDUP", "DELETE_DEDUP", "UPDATE_DEDUP"],
   Embedding: ["CREATE_EMBEDDING", "READ_EMBEDDING", "DELETE_EMBEDDING", "UPDATE_EMBEDDING"],
   Reaction: ["CREATE_REACTION", "READ_REACTION", "DELETE_REACTION", "UPDATE_REACTION"],
   Task: ["CREATE_TASK", "READ_TASK", "DELETE_TASK", "UPDATE_TASK"],

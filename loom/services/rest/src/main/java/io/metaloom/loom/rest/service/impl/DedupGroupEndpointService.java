@@ -6,7 +6,9 @@ import static io.metaloom.loom.db.model.perm.Permission.READ_DEDUP;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_DEDUP;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -16,7 +18,9 @@ import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.model.dedup.DedupGroup;
 import io.metaloom.loom.db.model.dedup.DedupGroupDao;
 import io.metaloom.loom.db.model.dedup.DedupGroupMember;
+import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.LoomRoutingContext;
+import io.metaloom.loom.rest.parameter.PagingParameters;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.dedup.DedupGroupCreateRequest;
 import io.metaloom.loom.rest.model.dedup.DedupGroupListResponse;
@@ -53,6 +57,14 @@ public class DedupGroupEndpointService extends AbstractEndpointService {
 	 * same KEEP asset and algorithm is rewritten in place. A group a human has already decided on (CONFIRMED/REJECTED) is never touched - re-discovery
 	 * must not silently reopen a settled decision.
 	 * </p>
+	 *
+	 * <p>
+	 * <b>A decided candidate set is never re-proposed either.</b> The PENDING upsert alone is not enough: a pair a reviewer rejected would come back as
+	 * a brand new PENDING group on the next discovery run, refilling the queue with decisions already made. When the exact same member set was already
+	 * decided for this algorithm, nothing is written and the decided group is returned with <b>200</b> instead of 201, so a client can tell a no-op from
+	 * a fresh proposal without treating it as an error. The comparison is deliberately on the whole member set rather than "this asset appears in some
+	 * decided group" - a genuinely new duplicate of an already-reviewed file must still reach a reviewer.
+	 * </p>
 	 */
 	public void createDedupGroup(LoomRoutingContext lrc) {
 		checkPerm(lrc, CREATE_DEDUP, () -> {
@@ -65,19 +77,10 @@ public class DedupGroupEndpointService extends AbstractEndpointService {
 				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "A dedup group needs at least one member.");
 			}
 			UUID keepUuid = parseUuid(request.getKeepAssetUuid(), "keepAssetUuid");
+			String algorithm = request.getAlgorithm();
 
-			UUID userUuid = lrc.userUuid();
-			DedupGroup existing = keepUuid == null ? null : dedupDao.findPendingByKeep(keepUuid, request.getAlgorithm());
-			if (existing != null) {
-				// Replace the candidate set of the still-pending group rather than creating a second one for the same content.
-				dedupDao.deleteGroup(existing.getUuid());
-			}
-
-			DedupGroup group = dedupDao.createGroup(userUuid, request.getAlgorithm());
-			group.setKeepAssetUuid(keepUuid);
-			group.setScore(request.getScore());
-			dedupDao.storeGroup(group);
-
+			// Validate every member before writing anything - a bad role halfway through would otherwise leave a half-populated group behind.
+			List<MemberEntry> members = new java.util.ArrayList<>();
 			for (DedupGroupMemberModel member : request.getMembers()) {
 				UUID memberAsset = parseUuid(member.getAssetUuid(), "members.assetUuid");
 				if (memberAsset == null) {
@@ -88,33 +91,54 @@ public class DedupGroupEndpointService extends AbstractEndpointService {
 					throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
 						"The member role must be " + DedupGroupMember.ROLE_KEEP + " or " + DedupGroupMember.ROLE_DUP + ".");
 				}
-				dedupDao.addMember(group.getUuid(), memberAsset, role, member.getScore(), member.getSize(), member.getZeroChunkCount());
+				members.add(new MemberEntry(memberAsset, role, member.getScore(), member.getSize(), member.getZeroChunkCount()));
+			}
+
+			DedupGroup decided = findDecidedWithSameMembers(members, algorithm);
+			if (decided != null) {
+				lrc.send(toResponse(decided), 200);
+				return;
+			}
+
+			UUID userUuid = lrc.userUuid();
+			DedupGroup existing = keepUuid == null ? null : dedupDao.findPendingByKeep(keepUuid, algorithm);
+			if (existing != null) {
+				// Replace the candidate set of the still-pending group rather than creating a second one for the same content.
+				dedupDao.deleteGroup(existing.getUuid());
+			}
+
+			DedupGroup group = dedupDao.createGroup(userUuid, algorithm);
+			group.setKeepAssetUuid(keepUuid);
+			group.setScore(request.getScore());
+			dedupDao.storeGroup(group);
+
+			for (MemberEntry member : members) {
+				dedupDao.addMember(group.getUuid(), member.assetUuid(), member.role(), member.score(), member.size(), member.zeroChunkCount());
 			}
 
 			lrc.send(toResponse(group), 201);
 		});
 	}
 
-	/** {@code GET /api/v1/dedup-groups?status=PENDING} - the review queue. */
+	/**
+	 * {@code GET /api/v1/dedup-groups?status=PENDING} - the review queue, keyset paged.
+	 *
+	 * <p>
+	 * Without a {@code status} the whole review history is returned in one ordering rather than three concatenated status lists. Paging is the standard
+	 * {@code ?limit=}/{@code ?from=} contract, so a queue of any size is safe to open.
+	 * </p>
+	 */
 	public void listDedupGroups(LoomRoutingContext lrc) {
 		checkPerm(lrc, READ_DEDUP, () -> {
 			List<String> statuses = lrc.queryParam("status");
-			String status = statuses == null || statuses.isEmpty() ? null : statuses.get(0);
+			String raw = statuses == null || statuses.isEmpty() ? null : statuses.get(0);
+			String status = raw == null || raw.isBlank() ? null : requireStatus(raw);
 
-			List<DedupGroup> groups;
-			if (status == null || status.isBlank()) {
-				// No status filter: the whole review history, newest first.
-				groups = new java.util.ArrayList<>();
-				groups.addAll(dedupDao.listByStatus(DedupGroup.STATUS_PENDING));
-				groups.addAll(dedupDao.listByStatus(DedupGroup.STATUS_CONFIRMED));
-				groups.addAll(dedupDao.listByStatus(DedupGroup.STATUS_REJECTED));
-			} else {
-				groups = dedupDao.listByStatus(requireStatus(status));
-			}
+			// pagingParams(), never lrc.pageSize() - the latter reads a *path* parameter and would ignore ?limit= entirely.
+			PagingParameters paging = lrc.pagingParams();
+			Page<DedupGroup> page = dedupDao.loadPage(status, paging.from(), paging.limit());
 
-			DedupGroupListResponse response = new DedupGroupListResponse();
-			groups.forEach(group -> response.add(toResponse(group)));
-			lrc.send(response);
+			lrc.send(modelBuilder.setPage(new DedupGroupListResponse(), page, this::toResponse));
 		});
 	}
 
@@ -163,6 +187,31 @@ public class DedupGroupEndpointService extends AbstractEndpointService {
 	}
 
 	// ---------------------------------------------------------------------------------------------
+
+	/** A validated member of an incoming create request, held until the whole request is known to be well-formed. */
+	private record MemberEntry(UUID assetUuid, String role, Float score, Long size, Long zeroChunkCount) {
+	}
+
+	/**
+	 * The already-decided group covering exactly this candidate set for this algorithm, or {@code null}.
+	 *
+	 * <p>
+	 * Roles are deliberately ignored: after a reviewer reassigns the KEEP, the same two files can come back with their roles swapped, and that is still
+	 * the same decision. Only the set of participating assets identifies a candidate set.
+	 * </p>
+	 */
+	private DedupGroup findDecidedWithSameMembers(List<MemberEntry> members, String algorithm) {
+		Set<UUID> wanted = members.stream().map(MemberEntry::assetUuid).collect(Collectors.toSet());
+		for (DedupGroup candidate : dedupDao.listDecidedByAssets(wanted, algorithm)) {
+			Set<UUID> present = dedupDao.loadMembers(candidate.getUuid()).stream()
+				.map(DedupGroupMember::getAssetUuid)
+				.collect(Collectors.toSet());
+			if (wanted.equals(present)) {
+				return candidate;
+			}
+		}
+		return null;
+	}
 
 	private DedupGroup requireGroup(UUID uuid) {
 		DedupGroup group = dedupDao.loadGroup(uuid);

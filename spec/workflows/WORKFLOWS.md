@@ -62,7 +62,7 @@ simple to very complex, each grounded in capabilities that already exist in the 
 | # | Workflow | Spec | Status | One line |
 |---|---|---|---|---|
 | 1 | **Manual sorting** | [WORKFLOW_MANUAL_SORT.md](WORKFLOW_MANUAL_SORT.md) | 🟡 | Tab through assets, assign a rating and tags. Rating persists; 🔴 tagging does not |
-| 2 | **Deduplication** | [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) | 🟡 | Confirm or reject near-duplicate groups; apply moves the losers. Backend complete, 🔴 review UI is a mock |
+| 2 | **Deduplication** | [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) | 🟢 | Confirm or reject near-duplicate groups; apply moves the losers. **The reference implementation of the whole family — copy this one** |
 | 3 | **Auto trash** | [WORKFLOW_TRASH.md](WORKFLOW_TRASH.md) | 🔵 | A decision marks an asset for disposal; a `move` node relocates the bytes. Needs a new node |
 | 4 | **Face clusters** | [WORKFLOW_FACE.md](WORKFLOW_FACE.md) | 🟡 | Detect → embed → cluster → confirm a person. Detect and embed run; 🔴 clustering does not exist |
 | 5 | **Object detection review** | [WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) | 🔴 | Confirm or reject YOLO boxes. 🔴 `detection` has no status column, so no decision can be stored |
@@ -92,7 +92,7 @@ flowchart TB
         PS["ProfilesSidebar<br/>rebindable KeyProfile per mode"]
         M1["RatingMode 🟡"]
         M2["TaggingMode 🔴"]
-        M3["DeduplicationMode 🔴"]
+        M3["DeduplicationMode 🟢"]
         M4["LLMMode 🔴"]
         M5["FaceDetectionMode 🔴"]
         M6["ObjectDetectionMode 🔴"]
@@ -101,23 +101,28 @@ flowchart TB
     KB --> M1 & M2 & M3 & M4 & M5 & M6
     PS --- KB
     M1 -->|"persistAssetRating"| API["Loom REST"]
+    M3 -->|"PATCH /dedup-groups/:uuid<br/>(rollback on failure)"| API
     M2 -.->|"🔴 local state only"| X1["nothing"]
-    M3 -.->|"🔴 buildDuplicateGroups pairs adjacent assets"| X2["nothing"]
     M4 -.->|"🔴 hardcoded string"| X3["nothing"]
     M5 -.->|"🔴 FACE_CLUSTERS / PERSONS mock seeds"| X4["nothing"]
     M6 -.->|"🔴 decisions in React state"| X5["nothing"]
 
     style M2 fill:#ffd0d0,color:#000
-    style M3 fill:#ffd0d0,color:#000
+    style M3 fill:#d0f0d0,color:#000
     style M4 fill:#ffd0d0,color:#000
     style M5 fill:#ffd0d0,color:#000
     style M6 fill:#ffd0d0,color:#000
 ```
 
-🔴 **Read that diagram as the headline finding of this spec family: of six shipped modes, exactly one
-writes anything to the server.** The screen, the keyboard layer, the rebindable profiles and the
-fullscreen mode are all real and reusable. What is missing is, in almost every case, the write path
+🔴 **Read that diagram as the headline finding of this spec family: of six shipped modes, two write
+anything to the server.** The screen, the keyboard layer, the rebindable profiles and the fullscreen
+mode are all real and reusable. What is missing is, in almost every remaining case, the write path
 and the column it would write to — not the UI.
+
+🟢 **Dedup is the one to copy.** It is the only mode where the decision is *server state*: the queue
+comes from `GET /dedup-groups?status=PENDING`, the chip renders `group.status` from the PATCH
+response rather than a local map, and a failed write visibly rolls back. Any mode being wired next
+should follow that shape rather than adding a second `Record<id, decision>`.
 
 ### 2.1 The keyboard layer (🟢 built, and worth keeping)
 
@@ -138,7 +143,7 @@ no `key_profile` table, no REST route and no `localStorage` write. Every workflo
 | Mode | Queue source | Reality |
 |---|---|---|
 | rating, tagging, llm | `listAssets(token, { limit: PAGE_SIZE })`, first 20 | 🔴 Not a queue — the first page of all assets, unfiltered, unsorted, unpaged past 20 |
-| deduplication | `buildDuplicateGroups(assets)` (`:86-92`) | 🔴 Pairs adjacent assets. Never calls `GET /api/v1/dedup-groups` |
+| deduplication | `listDedupGroups(token, { status: "PENDING", limit: PAGE_SIZE })` | 🟢 A real queue: only items awaiting a decision, and a decided one never comes back. One page, no "load more" yet |
 | facedetection | `listAssetDetections` where `type === "facedetection"` | 🔴 `FacedetectNode` writes `type = "face"` — see §4 |
 | objectdetection | `listAssetDetections` where `type === "objectdetection"` | 🟢 Type matches. 🔴 the label does not — see §4 |
 
@@ -176,11 +181,11 @@ These are real, verified at `21e8a8cd`, and shared by more than one workflow. Ea
 | X3 | 🔴 **`detection` has no review status.** No column, no enum, no endpoint. Confirming a box has nowhere to go | `V2.27` + `V2.43` DDL | Object detect, face (per-detection), safety triage |
 | X4 | 🔴 **`cluster.creator_uuid` is `NOT NULL`.** `V2.47` relaxed this for `detection`, `embedding` and the comp tables and skipped `cluster`, so a worker cannot insert one | `V2.12__add_embedding.sql`; `V2.47` has no `cluster` statement | Face, and any future clustering workflow |
 | X5 | 🔴 **Key profiles are not persisted.** Rebinding is lost on reload | `WorkflowView.tsx:742` | All six modes |
-| X6 | 🔴 **No queue.** Every mode reviews "the first 20 assets" rather than "the items that need a decision". No `?needsReview=` filter exists on any list endpoint | `WorkflowView.tsx:749` | All six modes |
-| X7 | 🔴 **No progress or resumption.** Nothing records that asset N was reviewed, so a session cannot be resumed and two reviewers cannot split a queue | — | All six modes |
+| X6 | 🔴 **No queue.** Every mode reviews "the first 20 assets" rather than "the items that need a decision". No `?needsReview=` filter exists on any list endpoint | `WorkflowView.tsx` | 🟢 **Except dedup**, whose review record has a `status` column and whose list route filters on it. That is the shape the other five need |
+| X7 | 🔴 **No progress or resumption.** Nothing records that asset N was reviewed, so a session cannot be resumed and two reviewers cannot split a queue | — | All six. 🟡 Dedup is closest: a decided group leaves the PENDING queue, so a reload resumes where you were — but two reviewers still race on the same page |
 | X8 | ⚠️ **Ratings are stored as reactions with a marker type.** `persistAssetRating` writes `type: "SATISFIED"` because the endpoint requires a non-null type; `reaction` has `UNIQUE (creator_uuid, type, asset_uuid)`, so a real 🤣 reaction and a star rating are the same row | `ratingPersistence.ts:17`, `V2.17__add_social.sql` | Manual sort, curation |
 | X9 | ⚠️ **`tag_asset` provenance is written but never surfaced.** `V2.71` added `node_kind`/`confidence`/`creator_uuid` precisely so machine tags are distinguishable from curated ones; no UI reads them | `V2.71__tag_asset_placements.sql` | Manual sort, AI review |
-| X10 | 🔴 **No workflow has customer docs.** `website/content/english/docs` has no workflow page — [../guidelines/CODING.md](../guidelines/CODING.md) requires one for a customer-facing feature | `find website/content -ipath "*workflow*"` is empty | All |
+| X10 | 🟡 **Almost no workflow has customer docs.** [../guidelines/CODING.md](../guidelines/CODING.md) requires one for a customer-facing feature | `docs/ui/index.adoc` §Reviewing Duplicates is the first and so far only one | All except dedup |
 
 ---
 
@@ -234,13 +239,19 @@ Full lists: [../loom/CONFIGURATION.md](../loom/CONFIGURATION.md),
 
 ## 7. Test Setup
 
-There is **one** workflow test in the tree.
+Two of the six modes are tested.
 
 | Test | Covers | Command |
 |---|---|---|
 | `loom-ui/src/features/workflow/ratingPersistence.test.ts` (node-env vitest) | `persistAssetRating` create-vs-update, `hydrateAssetRatings` per-asset failure tolerance | `cd loom-ui && ./node_modules/.bin/vitest run src/features/workflow/ratingPersistence.test.ts` |
 | `loom-ui/e2e/workflow-rating-mocked.spec.ts` (mocked Playwright) | The rating mode renders and the star value updates | `cd loom-ui && ./node_modules/.bin/playwright test e2e/workflow-rating-mocked.spec.ts` |
-| — **missing** — | Every other mode. No mocked e2e for tagging, dedup, faces, objects or llm; no keyboard-handler test; no profile-rebinding test | — |
+| `loom-ui/src/features/workflow/dedupGroups.test.ts` (17) | KEEP precedence, completeness, size formatting, and that reassigning a keep repeats the current status instead of deciding the group | `./node_modules/.bin/vitest run src/features/workflow/` |
+| `loom-ui/e2e/workflow-dedup-mocked.spec.ts` (6) | The queue renders from the API; `Y`/`N` PATCH the right group; **a failed PATCH reverts the chip**; make-keep sends `keepAssetUuid`; an empty queue says so | `./node_modules/.bin/playwright test e2e/workflow-dedup-mocked.spec.ts` |
+| — **missing** — | Tagging, faces, objects, llm. No keyboard-handler test; no profile-rebinding test | — |
+
+> The dedup rollback test is the one worth copying: it mocks the PATCH to 500 and asserts the chip is
+> **gone** afterwards. Any mode that writes optimistically needs that assertion, or the failure it
+> guards against is invisible.
 
 Conventions that apply to every workflow test:
 
@@ -326,7 +337,7 @@ Conventions that apply to every workflow test:
 - [ ] 🔴 A real queue: a `?needsReview=` / status filter per workflow instead of "first 20 assets" (X6)
 - [ ] 🔴 Progress and resumption; two reviewers splitting one queue (X7)
 - [ ] 🔴 Customer docs under `website/content/english/docs` (X10)
-- [ ] Mocked Playwright e2e for the five unwired modes
+- [ ] Mocked Playwright e2e for the four still-unwired modes (dedup and rating have one)
 
 ### The loop-closing change
 
@@ -336,8 +347,8 @@ Conventions that apply to every workflow test:
 ### Per workflow
 
 - [x] 6 — Upload: built end to end ([WORKFLOW_UPLOAD.md](WORKFLOW_UPLOAD.md))
+- [x] 2 — Dedup: built end to end, and the reference for the family ([WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md))
 - [ ] 1 — Manual sort: tagging write path, rating storage decision ([WORKFLOW_MANUAL_SORT.md](WORKFLOW_MANUAL_SORT.md))
-- [ ] 2 — Dedup: replace the mock with the built API ([WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md))
 - [ ] 3 — Trash: the `move` node does not exist ([WORKFLOW_TRASH.md](WORKFLOW_TRASH.md))
 - [ ] 4 — Face: clustering does not exist ([WORKFLOW_FACE.md](WORKFLOW_FACE.md))
 - [ ] 5 — Object detect: `detection` has no status column ([WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md))
@@ -352,5 +363,6 @@ Conventions that apply to every workflow test:
 
 ---
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (new file — workflow family defined, catalogued and routed)_
+_Git HEAD revision: `43ada5a8`_
+_Last updated: 2026-08-08 (dedup wired end to end — §2 diagram, §2.2 queue sources, X6/X7/X10 and §7
+updated; dedup is now the reference implementation the other five modes should copy)_

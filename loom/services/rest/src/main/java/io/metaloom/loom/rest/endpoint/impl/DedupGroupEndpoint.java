@@ -54,11 +54,11 @@ public class DedupGroupEndpoint extends AbstractEndpoint {
 		secure(basePath() + "*");
 
 		addRoute(basePath(), POST,
-			"Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm.",
+			"Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
 			lrc -> service.createDedupGroup(lrc));
 
 		addRoute(basePath(), GET,
-			"List duplicate review groups, optionally filtered by status (PENDING, CONFIRMED, REJECTED)",
+			"List duplicate review groups, newest first, optionally filtered by status (PENDING, CONFIRMED, REJECTED). Keyset paged via limit and from.",
 			lrc -> service.listDedupGroups(lrc));
 
 		addRoute(basePath() + "/:uuid", GET,

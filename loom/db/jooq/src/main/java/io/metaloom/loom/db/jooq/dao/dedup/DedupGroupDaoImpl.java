@@ -6,20 +6,24 @@ import static io.metaloom.loom.db.jooq.tables.JooqDedupGroupMember.DEDUP_GROUP_M
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.UpdateSetMoreStep;
+import org.jooq.impl.DSL;
 
 import io.metaloom.loom.db.jooq.tables.records.JooqDedupGroupRecord;
 
 import io.metaloom.loom.db.jooq.enums.JooqDedupStatus;
 import io.metaloom.loom.db.model.dedup.DedupGroup;
+import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.db.model.dedup.DedupGroupDao;
 import io.metaloom.loom.db.model.dedup.DedupGroupMember;
 
@@ -95,6 +99,33 @@ public class DedupGroupDaoImpl implements DedupGroupDao {
 	}
 
 	@Override
+	public Page<DedupGroup> loadPage(String status, UUID fromId, int pageSize) {
+		Condition condition = status == null ? DSL.noCondition() : DEDUP_GROUP.STATUS.eq(status(status));
+		long totalCount = ctx.fetchCount(DEDUP_GROUP, condition);
+
+		if (fromId != null) {
+			// Keyset seek: continue strictly after the cursor row in (created DESC, uuid DESC) order. A cursor that no longer exists (the group was
+			// decided away between pages) yields no rows rather than silently restarting from the top.
+			LocalDateTime fromCreated = ctx.select(DEDUP_GROUP.CREATED)
+				.from(DEDUP_GROUP)
+				.where(DEDUP_GROUP.UUID.eq(fromId))
+				.fetchOne(DEDUP_GROUP.CREATED);
+			if (fromCreated == null) {
+				return new Page<>(pageSize, totalCount, List.<DedupGroup> of());
+			}
+			condition = condition.and(DSL.row(DEDUP_GROUP.CREATED, DEDUP_GROUP.UUID).lt(DSL.row(fromCreated, fromId)));
+		}
+
+		List<DedupGroup> list = ctx.selectFrom(DEDUP_GROUP)
+			.where(condition)
+			.orderBy(DEDUP_GROUP.CREATED.desc(), DEDUP_GROUP.UUID.desc())
+			.limit(pageSize)
+			.fetch(this::mapGroup);
+
+		return new Page<>(pageSize, totalCount, list);
+	}
+
+	@Override
 	public List<DedupGroup> listByAsset(UUID assetUuid) {
 		return ctx.selectDistinct(DEDUP_GROUP.fields())
 			.from(DEDUP_GROUP)
@@ -111,6 +142,21 @@ public class DedupGroupDaoImpl implements DedupGroupDao {
 				.and(DEDUP_GROUP.ALGORITHM.eq(algorithm))
 				.and(DEDUP_GROUP.STATUS.eq(JooqDedupStatus.PENDING)))
 			.fetchAny(this::mapGroup);
+	}
+
+	@Override
+	public List<DedupGroup> listDecidedByAssets(Collection<UUID> assetUuids, String algorithm) {
+		if (assetUuids == null || assetUuids.isEmpty()) {
+			return List.of();
+		}
+		return ctx.selectDistinct(DEDUP_GROUP.fields())
+			.from(DEDUP_GROUP)
+			.join(DEDUP_GROUP_MEMBER).on(DEDUP_GROUP_MEMBER.GROUP_UUID.eq(DEDUP_GROUP.UUID))
+			.where(DEDUP_GROUP_MEMBER.ASSET_UUID.in(assetUuids)
+				.and(DEDUP_GROUP.ALGORITHM.eq(algorithm))
+				.and(DEDUP_GROUP.STATUS.ne(JooqDedupStatus.PENDING)))
+			.orderBy(DEDUP_GROUP.CREATED.desc())
+			.fetch(this::mapGroup);
 	}
 
 	@Override

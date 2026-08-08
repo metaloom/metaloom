@@ -463,9 +463,13 @@ the admin ACL matrix at `/admin/permissions` drives. What still does **not** exi
 - GraphQL exposes `User.groups`, `Group.users`, `Group.roles` and `Role` as **read-only**
   types with no permission field; gRPC has no RBAC protos.
 
-The matrix's hard-coded `PERMISSION_GROUPS` list covers 19 of the 28 entities — the
-newer ones (skill, memory, chat session, dedup, search, person, detection) cannot be
-granted from the admin area, only over REST. Its stale `*_PROJECT` entries (renamed to
+The matrix's hard-coded `PERMISSION_GROUPS` list covers 20 of the 28 entities — the
+newer ones (skill, memory, chat session, search, person, detection) cannot be granted
+from the admin area, only over REST. **Dedup was added on 2026-08-08** when its review
+screen shipped; note that adding a group is only half the job — the four
+`admin.roles.permission.<NAME>` strings have to go into **both** locale files at the same
+time, or the matrix renders rows with no description at all (the DEDUP constants were
+annotated `doc:yes` while having no i18n entries). Its stale `*_PROJECT` entries (renamed to
 `*_SPACE` in `V2.22`) were corrected: they are not valid `RolePermission` constants, so
 a request carrying one is now rejected outright and would have taken the whole matrix
 down with it.
@@ -768,7 +772,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 - [ ] `token_permission` entirely unwired; API keys inherit full owner authority (§6.5)
 - [ ] No REST/GraphQL/gRPC surface for granting or revoking **user or token** permissions (§6.2)
 - [ ] No membership routes (add user to group, attach role to group) (§6.2)
-- [ ] UI ACL matrix covers 19 of 28 entities — the newer ones are REST-only (§6.2)
+- [ ] UI ACL matrix covers 20 of 28 entities — the newer ones are REST-only (§6.2)
 - [ ] Demo editor/viewer roles do not cover skill, memory, chat-session, dedup or search
 
 ### 13.5 Test gaps
@@ -780,5 +784,5 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
       (masked by the cache being invalidated only on role-permission writes, §4.4)
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
-_Git HEAD revision: `ce41aaf1`_
-_Last updated: 2026-08-06 (`READ_PIPELINE_VERSION`, `RESTORE_PIPELINE_VERSION` and `DELETE_PIPELINE` now carry 403 cases — §8.2). Earlier: (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE` added by `V2.76`; MCP now filters its tool listing by permission). Earlier: (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_
+_Git HEAD revision: `43ada5a8`_
+_Last updated: 2026-08-08 (the four `DEDUP` permissions became `ui:yes` — added to `PERMISSION_GROUPS`, described in both locale files, and granted to the demo Editor/Viewer roles). Earlier: 2026-08-06 (`READ_PIPELINE_VERSION`, `RESTORE_PIPELINE_VERSION` and `DELETE_PIPELINE` now carry 403 cases — §8.2). Earlier: (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE` added by `V2.76`; MCP now filters its tool listing by permission). Earlier: (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_

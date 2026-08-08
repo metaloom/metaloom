@@ -1737,11 +1737,17 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
-	public LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupListResponse> listDedupGroups(String status) {
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupListResponse> listDedupGroups(String status, UUID from, Integer limit) {
 		LoomClientHttpRequest<io.metaloom.loom.rest.model.dedup.DedupGroupListResponse> request = getRequest("dedup-groups",
 			io.metaloom.loom.rest.model.dedup.DedupGroupListResponse.class);
 		if (status != null) {
 			request.addQueryParameter("status", status);
+		}
+		if (from != null) {
+			request.addQueryParameter("from", from.toString());
+		}
+		if (limit != null) {
+			request.addQueryParameter("limit", String.valueOf(limit));
 		}
 		return request;
 	}

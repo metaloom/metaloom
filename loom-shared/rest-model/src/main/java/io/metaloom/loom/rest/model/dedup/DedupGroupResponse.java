@@ -9,6 +9,15 @@ import io.metaloom.loom.rest.model.RestResponseModel;
  */
 public class DedupGroupResponse implements RestResponseModel<DedupGroupResponse> {
 
+	/** Awaiting a human decision. */
+	public static final String STATUS_PENDING = "PENDING";
+
+	/** Confirmed by a reviewer - the only status the apply node acts on. */
+	public static final String STATUS_CONFIRMED = "CONFIRMED";
+
+	/** Rejected by a reviewer - never act on it, and never propose the same candidate set again. */
+	public static final String STATUS_REJECTED = "REJECTED";
+
 	private String uuid;
 	private String algorithm;
 	private String status;

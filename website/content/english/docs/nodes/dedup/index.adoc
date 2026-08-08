@@ -32,8 +32,10 @@ until a person has agreed to it.
 . **Find.** `fingerprint-dedup` compares each video's perceptual fingerprint against every other
   fingerprinted video and groups the ones that match closely enough. Each group records one file to
   *keep* and one or more *duplicates*. **No file is changed at this stage.**
-. **Review.** The groups wait for a decision. Confirming a group approves the proposed clean-up;
-  rejecting it means those files are never touched again.
+. **Review.** The groups queue up under *Workflow → Dedup*, where you work through them a keystroke
+  at a time — see link:../../ui/#reviewing-duplicates[Reviewing duplicates]. Confirming a group
+  approves the proposed clean-up; rejecting it means those files are never touched again. Once you
+  have decided a set of files, the search will not put it back in the queue on the next run.
 . **Apply.** `fingerprint-dedup-apply` acts only on confirmed groups, and re-checks the file it is
   about to keep before moving anything.
 
@@ -50,8 +52,14 @@ is that a clean-up can only ever discard the lesser copy.
 
 Before it moves anything, the apply step checks all over again against the files as they are on disk
 right now: the file being kept must still exist, still be complete, still be at least as large as the
-duplicate, and must not itself already be sitting in the duplicates folder. If any of that no longer
-holds, the move is skipped rather than guessed at.
+duplicate, must not itself already be sitting in the duplicates folder, and must still hold the same
+content it had when the group was proposed. If any of that no longer holds, the move is skipped
+rather than guessed at.
+
+That last check matters most when a review has been sitting in the queue for a while: a file that was
+replaced in place in the meantime still exists and is still the right size, but is no longer the copy
+the reviewer approved. Verifying it costs nothing when a checksum is already on record for the file,
+which is the normal case once it has been through a hash step.
 
 Both steps are safe to re-run. Re-running the search updates the same pending group instead of piling
 up new ones, and re-running the apply step skips files that have already been moved.
