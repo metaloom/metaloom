@@ -14,8 +14,6 @@ import io.metaloom.ai.genai.llm.LargeLanguageModel;
 import io.metaloom.ai.genai.llm.impl.LargeLanguageModelImpl;
 import io.metaloom.ai.genai.llm.prompt.Prompt;
 import io.metaloom.ai.genai.llm.prompt.impl.PromptImpl;
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -74,7 +72,8 @@ public class LanguageFilterStrategy implements FilterStrategy {
 	}
 
 	@Override
-	public Classification classify(NodeContext<LoomMedia> ctx, FilterNodeOptions options, List<FilterBucket> buckets, String text) {
+	public Classification classify(FilterItem item, FilterNodeOptions options, List<FilterBucket> buckets) {
+		String text = item.text();
 		if (text == null || text.isBlank()) {
 			// Not a failure: an item with no text wired in genuinely belongs in 'other'. Skipping
 			// instead would emit nothing at all, which under port routing closes the 'other' branch
@@ -103,7 +102,7 @@ public class LanguageFilterStrategy implements FilterStrategy {
 
 		String raw = answer == null ? null : answer.getString("bucket");
 		if (raw == null || raw.isBlank()) {
-			log.warn("Language filter got no bucket back for {}; routing to '{}'", ctx.media().absolutePath(), Classification.OTHER);
+			log.warn("Language filter got no bucket back for {}; routing to '{}'", item.media().absolutePath(), Classification.OTHER);
 			return Classification.of(Classification.OTHER, 0, detail);
 		}
 
@@ -121,7 +120,7 @@ public class LanguageFilterStrategy implements FilterStrategy {
 		// An answer that names no configured bucket - including a literal "other" - is the catch-all.
 		// Logged at debug rather than warn: with a bucket set of {de, en} most items legitimately
 		// land here, and a warn per item would drown the log.
-		log.debug("Language filter answer '{}' matched no bucket for {}", raw, ctx.media().absolutePath());
+		log.debug("Language filter answer '{}' matched no bucket for {}", raw, item.media().absolutePath());
 		return Classification.of(Classification.OTHER, confidence, detail);
 	}
 }

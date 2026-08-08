@@ -1446,12 +1446,22 @@
     "rating": {
       "label": "Rating:",
       "addTag": "Add tag… (Enter to confirm)",
-      "addTagPlaceholder": "Add tag… (Enter to confirm)"
+      "addTagPlaceholder": "Add tag… (Enter to confirm)",
+      "saveFailed": "Could not save the rating. It has been reverted.",
+      "hydrateFailed": "Could not load existing ratings.",
+      "alreadyRated": "Already rated"
     },
     "tagging": {
       "noTags": "No tags yet",
       "search": "Type to search tags… (Enter to add)",
-      "placeholder": "Type to search tags… (Enter to add)"
+      "placeholder": "Type to search tags… (Enter to add)",
+      "addFailed": "Could not add the tag \"{{tag}}\". It has been removed again.",
+      "removeFailed": "Could not remove the tag \"{{tag}}\". It has been restored.",
+      "vocabularyFailed": "Could not load the tag list. You can still type a new tag.",
+      "alreadyTagged": "{{count}} tag already",
+      "alreadyTagged_other": "{{count}} tags already",
+      "machineTooltip": "Attached by {{nodeKind}} — {{confidence}}% confident. Remove it from the asset detail screen.",
+      "machineTooltipNoConfidence": "Attached by {{nodeKind}}. Remove it from the asset detail screen."
     },
     "dedup": {
       "keep": "Keep",
@@ -1525,6 +1535,9 @@
       "objects": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen",
       "facedetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle clusters · <strong>Tab</strong> Next cluster · <strong>Y</strong> Confirm · <strong>N</strong> Deny · <strong>Enter</strong> Assign person · <strong>F</strong> Fullscreen",
       "objectdetection": "<strong>←/→</strong> Navigate · <strong>↑/↓</strong> Cycle detections · <strong>Tab</strong> Next detection · <strong>Y</strong> Confirm · <strong>N</strong> Reject · <strong>F</strong> Fullscreen"
+    },
+    "queue": {
+      "loadFailed": "Could not load the review queue."
     }
   },
   "assetPools": {
@@ -1599,7 +1612,8 @@
       "THUMBSDOWN": "Thumbs down",
       "SATISFIED": "Satisfied",
       "PLUS_ONE": "+1",
-      "MINUS_ONE": "-1"
+      "MINUS_ONE": "-1",
+      "RATING": "Rating"
     }
   },
   "assetDetail": {

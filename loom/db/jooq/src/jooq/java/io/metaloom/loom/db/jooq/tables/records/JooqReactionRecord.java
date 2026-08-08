@@ -40,16 +40,18 @@ public class JooqReactionRecord extends UpdatableRecordImpl<JooqReactionRecord> 
     }
 
     /**
-     * Setter for <code>public.reaction.type</code>. Type of the reaction (e.g.
-     * thumbsup)
+     * Setter for <code>public.reaction.type</code>. A ReactionType constant
+     * name; anything else makes every REST read of the row a 500. RATING marks
+     * a workflow star rating, whose value is in "rating".
      */
     public void setType(String value) {
         set(1, value);
     }
 
     /**
-     * Getter for <code>public.reaction.type</code>. Type of the reaction (e.g.
-     * thumbsup)
+     * Getter for <code>public.reaction.type</code>. A ReactionType constant
+     * name; anything else makes every REST read of the row a 500. RATING marks
+     * a workflow star rating, whose value is in "rating".
      */
     public String getType() {
         return (String) get(1);

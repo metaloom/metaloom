@@ -27,7 +27,7 @@ import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, Tag
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
-import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset } from "../../api/tags";
+import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, DEFAULT_TAG_COLLECTION } from "../../api/tags";
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
 import { listClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
@@ -659,7 +659,6 @@ export default function AssetDetail() {
 
   // ── Region tagging helpers ──────────────────────────────────────────────
   // Area coordinates are stored as normalized permille (0-1000) because the DB columns are ints.
-  const DEFAULT_TAG_COLLECTION = "default";
   const toPermille = (v: number) => Math.round(v * 1000);
   const fromPermille = (v: number) => v / 1000;
   const isSpatial = (a?: AreaInfo) => !!a && a.startX != null && a.startY != null && a.width != null && a.height != null;

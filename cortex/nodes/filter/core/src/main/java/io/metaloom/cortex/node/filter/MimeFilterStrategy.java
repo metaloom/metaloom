@@ -8,8 +8,6 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.common.media.MediaContentTypes;
 import io.vertx.core.json.JsonObject;
 
@@ -55,10 +53,10 @@ public class MimeFilterStrategy implements FilterStrategy {
 	}
 
 	@Override
-	public Classification classify(NodeContext<LoomMedia> ctx, FilterNodeOptions options, List<FilterBucket> buckets, String text) {
+	public Classification classify(FilterItem item, FilterNodeOptions options, List<FilterBucket> buckets) {
 		// The name, not the bytes: probeContentType is platform-dependent and would route the same
 		// asset differently on two workers. See MediaContentTypes.
-		String mimeType = MediaContentTypes.of(ctx.media().path());
+		String mimeType = MediaContentTypes.of(item.media().path());
 		JsonObject detail = new JsonObject().put("mimeType", mimeType);
 
 		for (FilterBucket bucket : buckets) {
@@ -70,7 +68,7 @@ public class MimeFilterStrategy implements FilterStrategy {
 		}
 
 		// Debug, not warn: with a bucket set of {image, video} every document legitimately lands here.
-		log.debug("MIME filter found no bucket for {} ({})", ctx.media().absolutePath(), mimeType);
+		log.debug("MIME filter found no bucket for {} ({})", item.media().absolutePath(), mimeType);
 		return Classification.of(Classification.OTHER, 1, detail);
 	}
 

@@ -808,14 +808,21 @@
       "type" : "ENUM",
       "defaultValue" : "LANGUAGE",
       "label" : "Filter By",
-      "description" : "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata",
-      "values" : [ "LANGUAGE", "MIME", "SIZE", "DATE" ]
+      "description" : "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata; RATING and TAG read the decisions people recorded in Loom",
+      "values" : [ "LANGUAGE", "MIME", "SIZE", "DATE", "RATING", "TAG" ]
     }, {
       "key" : "buckets",
       "type" : "PORT_LIST",
       "defaultValue" : [ ],
       "label" : "Buckets",
-      "description" : "One output port per bucket, tried in order with the first match winning. Each row's match column holds hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB' or dates like '2024-01-01..2024-12-31'. An 'other' port for everything else is always present"
+      "description" : "One output port per bucket, tried in order with the first match winning. Each row's match column holds hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB', dates like '2024-01-01..2024-12-31', rating conditions like '>=8' or 'unrated', or tag names like 'hero', 'person/*' and '!archive'. An 'other' port for everything else is always present"
+    }, {
+      "key" : "tagSource",
+      "type" : "ENUM",
+      "defaultValue" : "ANY",
+      "label" : "Tag Source",
+      "description" : "Which tags count when filterBy=TAG: ANY, MANUAL for only the tags a person attached, or MACHINE for only those a node attached",
+      "values" : [ "ANY", "MANUAL", "MACHINE" ]
     }, {
       "key" : "model",
       "type" : "STRING",

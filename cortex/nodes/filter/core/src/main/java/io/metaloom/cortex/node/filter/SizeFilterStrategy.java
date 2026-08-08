@@ -10,8 +10,6 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -79,10 +77,10 @@ public class SizeFilterStrategy implements FilterStrategy {
 	}
 
 	@Override
-	public Classification classify(NodeContext<LoomMedia> ctx, FilterNodeOptions options, List<FilterBucket> buckets, String text)
+	public Classification classify(FilterItem item, FilterNodeOptions options, List<FilterBucket> buckets)
 		throws Exception {
 		// Propagates: a size we cannot read is the worker failing to do its job, not a routing answer.
-		long size = ctx.media().size();
+		long size = item.media().size();
 		JsonObject detail = new JsonObject().put("size", size);
 
 		for (FilterBucket bucket : buckets) {
@@ -96,7 +94,7 @@ public class SizeFilterStrategy implements FilterStrategy {
 			}
 		}
 
-		log.debug("Size filter found no bucket for {} ({} bytes)", ctx.media().absolutePath(), size);
+		log.debug("Size filter found no bucket for {} ({} bytes)", item.media().absolutePath(), size);
 		return Classification.of(Classification.OTHER, 1, detail);
 	}
 

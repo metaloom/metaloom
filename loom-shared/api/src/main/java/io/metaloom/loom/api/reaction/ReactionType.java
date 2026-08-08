@@ -12,7 +12,20 @@ public enum ReactionType {
 
 	PLUS_ONE("👍", ":+1:"),
 
-	MINUS_ONE("👎", ":-1:");
+	MINUS_ONE("👎", ":-1:"),
+
+	/**
+	 * A star rating a person gave an asset, whose value is in {@code reaction.rating}.
+	 *
+	 * <p>
+	 * Not an emoji reaction, but it lives on the same table on purpose: the existing
+	 * {@code UNIQUE (creator_uuid, type, asset_uuid)} index then means exactly "one rating per user
+	 * per asset", and gives it without colliding with a genuine {@link #SATISFIED}. Before this
+	 * constant existed the rating was written as {@code SATISFIED} with a number attached, which made
+	 * a star rating and a 🤣 the same row.
+	 * </p>
+	 */
+	RATING("⭐", ":star:");
 
 	private String id;
 	private String icon;

@@ -356,30 +356,28 @@ unchanged.
 
 ---
 
-## Task 14: Let a programmatic definition resolve bucket ports, and give the demos a real MIME filter
+## Task 14: Let a programmatic definition resolve bucket ports — 🟡 parser fixed, demo rewiring open
 
-**Argumentation Summary:** `filterBy: MIME` now exists, so the three demo pipelines that label a
-node "Media Filter" could finally route by file type instead of funnelling every item through the
-catch-all `other` port. They cannot yet. `FilterPortResolver.asList` accepts a
-`java.util.List` and each entry as a `java.util.Map`; `DemoDatabaseInitializer` builds its
-definitions programmatically, so `buckets` arrives as a Vert.x `JsonArray` of `JsonObject` and is
-dropped. No bucket port resolves, and an edge drawn to one would fail validation at boot. Only a
-definition **parsed from a JSON string** — the production path — resolves buckets today, which is
-why the demos were rewired to `other` rather than fixed.
+**Argumentation Summary:** `FilterPortResolver.asList` accepts a `java.util.List` and each entry as a
+`java.util.Map`; `DemoDatabaseInitializer` builds its definitions programmatically, so `buckets`
+arrived as a Vert.x `JsonArray` of `JsonObject` and was dropped. No bucket port resolved, and an edge
+drawn to one failed validation at boot. Only a definition **parsed from a JSON string** — the
+production path — resolved buckets, which is why the demos were rewired to `other` rather than fixed.
 
-**Improvement Summary:**
+**Step 1 — ✅ DONE (2026-08-08).** Normalised at the boundary rather than teaching the resolver about
+Vert.x (`loom-shared/node-model` has no vertx dependency and should not gain one):
+`PipelineGraphParser.readOptions` now returns `new JsonObject(options.encode())`, so `getMap()` yields
+the plain `Map`/`List` tree whichever way the definition arrived. Guarded by a `PipelineGraphParserTest`
+case asserting a built definition resolves the same ports as its string-parsed equivalent, and proved
+end to end by the new `Review Triage` demo pipeline — the first seeded graph with configured buckets,
+which `DemoPipelineDefinitionTest` parses through the real registry.
+
+**Step 2 — still open.**
 
 ```
-1. Normalise at the boundary rather than teaching the resolver about Vert.x: loom-shared/node-model
-   has no vertx dependency and should not gain one for this. PipelineGraphParser.readOptions is the
-   one place a live JsonObject becomes the Map the resolver reads.
-
-2. Then rewire the 'medium', 'complex' and 'transcription' demos: buckets for images and video,
-   edges off those ports, and the fingerprint branch off the video bucket rather than off 'other'.
-   That is what makes the demo container show routing at all.
-
-3. Guard it with a parser test that a programmatically-built definition resolves its bucket ports —
-   the shape that silently produced none is the whole point.
+Rewire the 'medium', 'complex' and 'transcription' demos: buckets for images and video, edges off
+those ports, and the fingerprint branch off the video bucket rather than off 'other'. Now unblocked;
+reviewTriageDefinition() is the worked example of the shape.
 ```
 
 **References:** `loom-shared/node-model/…/spec/FilterPortResolver.java` (`asList`) ·

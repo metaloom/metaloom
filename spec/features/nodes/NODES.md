@@ -297,10 +297,20 @@ of its dynamic bucket ports — the port *is* the branch, see
 [NODE_DATA_TYPES.md §4.5 and §8.6](../pipeline/NODE_DATA_TYPES.md).
 
 `filterBy` picks a `FilterStrategy` from a `Map<FilterBy, Provider<FilterStrategy>>` multibinding.
-Four values: `LANGUAGE` classifies the wired `text` through the shared `LLMProvider`
-(`cortex/llm-common`); `MIME`, `SIZE` and `DATE` read the item's own metadata and take **no
-`LLMProvider` at all**, so a filter-only graph runs with no model backend reachable. The hint
-grammars are tabulated in [NODE_DATA_TYPES.md §4.5](../pipeline/NODE_DATA_TYPES.md).
+Six values, in three cost tiers: `LANGUAGE` classifies the wired `text` through the shared
+`LLMProvider` (`cortex/llm-common`); `MIME`, `SIZE` and `DATE` read the item's own metadata and take
+**no `LLMProvider` at all**, so a filter-only graph runs with no model backend reachable; and `TAG`
+and `RATING` route on what a **person** recorded, so they need Loom but no model — `TAG` reads the
+asset the node already loaded, `RATING` costs one `listAssetReaction` call per item, memoised per run.
+The hint grammars are tabulated in [NODE_DATA_TYPES.md §4.5](../pipeline/NODE_DATA_TYPES.md).
+
+`RATING` and `TAG` are why manual review is worth doing at all — see
+[../../workflows/WORKFLOW_MANUAL_SORT.md](../../workflows/WORKFLOW_MANUAL_SORT.md) §5. Both answer
+`other` rather than throwing when the asset is unknown to Loom, and `RATING` keeps "the lookup
+failed" distinct from "nobody rated it": treating an outage as *unrated* would route the un-reviewed
+branch's work — typically trash — over a blip. Strategies receive a `FilterItem` record (context,
+asset, reactions, availability, text) rather than a bare `NodeContext`, so every Loom call stays in
+the node.
 
 Adding a way of filtering is a strategy class plus a `@FilterByKey` binding plus an enum value in the
 descriptor — never an edit to `FilterNode`. Two default methods on the seam carry what is
@@ -761,7 +771,8 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
       and replaced by the one runnable `filter` kind (§3.3).
 - [ ] **`asset-source` has no descriptor** — selectable from pipeline JSON, invisible to the palette.
 - [x] **Filter code ↔ descriptor mismatch** — resolved by the consolidation; both sides are now one
-      kind, and all four `filterBy` values (`LANGUAGE`, `MIME`, `SIZE`, `DATE`) are implemented.
+      kind, and all six `filterBy` values (`LANGUAGE`, `MIME`, `SIZE`, `DATE`, `RATING`, `TAG`) are
+      implemented.
 - [ ] **`QualityNode` has no test that runs the node** — only `QualityNodeOptionsValidationTest` and
       the assertj helpers.
 - [ ] **`HashDedupNodeTest` is a 5-line empty stub**, and `FingerprintDedupApplyNode` has no unit

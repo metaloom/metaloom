@@ -43,8 +43,8 @@ operating the installation.
 * *Tasks* — a Kanban-style task board with priority, status, due dates and per-asset tasks
 * *Detection* — review face, object and LLM detections; manage face clusters and persons
 * *Tags* — manage tags grouped by collection
-* *Workflow* — fullscreen, keyboard-driven bulk review, including the
-  <<reviewing-duplicates,duplicate review queue>>
+* *Workflow* — fullscreen, keyboard-driven bulk review: <<rating-and-tagging,rating and tagging>>
+  and the <<reviewing-duplicates,duplicate review queue>>
 
 *Management*
 
@@ -299,6 +299,39 @@ The Detection view aggregates face, object and LLM detections. The *Faces* tab m
 lets you assign them to persons in the person database.
 
 image::face-detection.png[Face detection and cluster management,role=img-fluid]
+
+[#rating-and-tagging]
+=== Rating and Tagging at Keyboard Speed
+
+*Workflow → Rating* and *Workflow → Tagging* are for working through a set of assets one keystroke
+at a time. Press `1` to `9` (and `0` for ten) to rate the asset in front of you; type a word and
+press Enter to tag it. The next asset is always one arrow key away.
+
+Both decisions are saved the moment you make them, and both are yours: your rating is your own, and
+a colleague rating the same asset does not overwrite it.
+
+The tag box offers the tags your instance already uses, so the same idea does not end up spelled
+three ways. You are not limited to that list — type a word that is not in it and it becomes a new
+tag.
+
+Two things are worth knowing about what you see on arrival:
+
+* An asset that already carries a rating or curated tags says so, so you can move past work somebody
+  has already done rather than redoing it.
+* Tags a pipeline attached are shown outlined, with a note of which step attached them and how sure
+  it was. They have no remove button here — undoing what a pipeline decided is a deliberate act, and
+  it belongs on the asset's own page rather than one keystroke away from a review flow.
+
+If a save fails — a lost connection, or a missing permission — the star or the chip visibly goes
+back to how it was and a message says so. A screen that looks finished really is.
+
+TIP: Your decisions follow the *file itself*, not where it happens to sit. Assets are identified by
+their content, so moving a file to another folder, renaming it, or scanning it again all keep the
+rating and the tags it already had.
+
+Decisions made here are not just a record. A pipeline can route on them: see the
+link:../nodes/filter/[Filter] node's *Rating* and *Tag* modes for publishing what reviewers rated
+highly, and finding what nobody has looked at yet.
 
 [#reviewing-duplicates]
 === Reviewing Duplicates

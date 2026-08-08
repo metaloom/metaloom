@@ -66,6 +66,22 @@ public abstract class FilterNodeModule extends AbstractNodeModule {
 	@FilterByKey(FilterBy.DATE)
 	abstract FilterStrategy bindDateStrategy(DateFilterStrategy strategy);
 
+	/**
+	 * The two decision strategies. They need no model either, but unlike the three above they do need
+	 * Loom: a rating and a tag are things a person recorded, and only Loom knows them. Both answer
+	 * {@code other} rather than failing when the asset is unknown or Loom is unreachable, so a worker
+	 * running offline degrades to "nothing matched" instead of aborting the task.
+	 */
+	@Binds
+	@IntoMap
+	@FilterByKey(FilterBy.RATING)
+	abstract FilterStrategy bindRatingStrategy(RatingFilterStrategy strategy);
+
+	@Binds
+	@IntoMap
+	@FilterByKey(FilterBy.TAG)
+	abstract FilterStrategy bindTagStrategy(TagFilterStrategy strategy);
+
 	@IntoSet
 	@Provides
 	public static CortexNodeOptionDeserializerInfo optionInfo() {

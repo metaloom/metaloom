@@ -262,10 +262,25 @@ public class PipelineGraphParser {
 	 * fix still carry {@code config}, so they must keep loading. When both are present
 	 * {@code options} wins - it is the shape the editor writes now.
 	 * </p>
+	 *
+	 * <p>
+	 * <strong>The re-encode is load-bearing.</strong> {@code JsonObject.getMap()} hands back the
+	 * backing map with its values exactly as stored, so a definition <em>parsed from a string</em>
+	 * yields plain {@code Map}s and {@code List}s while one <em>built in code</em> keeps nested
+	 * {@code JsonObject}s and {@code JsonArray}s. A Vert.x {@code JsonArray} is not a
+	 * {@code java.util.List}, and {@code FilterPortResolver} - which lives in {@code node-model} and
+	 * must not gain a Vert.x dependency - can only read the plain shape. Without this, a filter node
+	 * whose buckets were built programmatically resolved <em>no bucket ports at all</em>, and an edge
+	 * drawn to one failed validation at boot. Normalising once here is why the resolver, and every
+	 * other {@code NodePortResolver}, only ever sees one shape.
+	 * </p>
 	 */
 	private static JsonObject readOptions(JsonObject node) {
 		JsonObject options = node.getJsonObject("options");
-		return options != null ? options : node.getJsonObject("config");
+		if (options == null) {
+			options = node.getJsonObject("config");
+		}
+		return options == null ? null : new JsonObject(options.encode());
 	}
 
 	private void applyEdges(String name, JsonArray edges, Set<String> nodeIds,

@@ -709,7 +709,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
 | **Pipeline validation** | *Structural* rules (ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a third copy |
 | **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **39 advertised kinds** — the literal asserted by `NodeDescriptorServiceLoaderTest`. Since the `d9bbc2dc` refactor the descriptors are one generated resource served by two providers (`GeneratedNodeDescriptorProvider` + `OrphanNodeDescriptorProvider`), not one hand-written provider per node. ⚠️ The runnable-kind arithmetic that used to follow here (*"35 runnable with S3 and both clouds, 32 with none, 31 `@StringKey` bindings"*) is stale — there are 34 node `@StringKey` bindings today and the derived totals were never re-checked; recount before quoting them. Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
-| **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). All four `filterBy` values are implemented: `LANGUAGE` (one LLM round trip) plus `MIME`, `SIZE` and `DATE`, which read the item's metadata and take no `LLMProvider` |
+| **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). All six `filterBy` values are implemented: `LANGUAGE` (one LLM round trip); `MIME`, `SIZE` and `DATE`, which read the item's metadata and take no `LLMProvider`; and `RATING` and `TAG`, which route on what reviewers recorded |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
 | **Unknown node kind at the worker** | `RegistryNodeFactory.createNode()` returns **`null`** — there is no stub fallback. The task fails. Anything describing a `StubPipelineNode` is stale; that class is deleted |
 | **Per-instance node options** | Node parameters from the definition reach a node only if it implements `PipelineConfigurable` (`cortex/common`); otherwise `RegistryNodeRegistrar.adapt()` reads only structural fields and takes options from the worker's YAML. The parser reads `options` (the editor's `config` is accepted as an alias). See [NODES.md](features/nodes/NODES.md) §5.1 |
@@ -777,13 +777,14 @@ and subcomponents for request scope (`RestComponent` per REST request).
       `ObjectDetectNode` writes `detection.label` per box.
       [NODE_SCENE_LAYOUT_PLAN.md](concept/NODE_SCENE_LAYOUT_PLAN.md) should be re-read with this
       corrected — it was written against the false constraint
-- [ ] 🔴 **The workflow family is a screen without write paths.** Of the six modes in
-      `WorkflowView.tsx`, only rating persists; tagging, dedup, faces, objects and llm all discard
+- [ ] ⚠️ **The workflow family is still mostly a screen without write paths.** Of the six modes in
+      `WorkflowView.tsx`, rating, tagging and dedup persist; faces, objects and llm still discard
       the user's decisions. See [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) §4 and
       [tasks/WORKFLOW_TASKS.md](tasks/WORKFLOW_TASKS.md)
-- [ ] 🔴 **No pipeline can act on a human decision.** `FilterBy` is `LANGUAGE`/`MIME`/`SIZE`/`DATE`;
-      there is no `TAG` or `RATING` strategy, and `PipelineMatcher` triggers on mime type only.
-      Task W1 — the keystone of the workflow family
+- [ ] ⚠️ **A pipeline can act on a rating or a tag, but not on any other human decision.**
+      `FilterBy.RATING` and `FilterBy.TAG` landed (task W1), and the demo ships a `Review Triage`
+      pipeline that routes on a rating. Still open: `PipelineMatcher` triggers on mime type only, so
+      a decision cannot *start* a run, and a confirmed detection has nowhere to be recorded (W5)
 - [ ] 🔴 `detection` has no review status column, so confirming a box or a face has nowhere to go
       (task W5). Related: the UI's `DetectionResponse` omits `label` (W6)
 - [ ] No workflow has a page under `website/content/english/docs` (task W15)

@@ -38,6 +38,7 @@ import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.agent.memory.MemoryHeader;
 import io.metaloom.loom.api.memory.MemoryScope;
 import io.metaloom.loom.api.options.LoomOptions;
+import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.api.task.TaskStatus;
 import io.metaloom.loom.db.model.annotation.Annotation;
@@ -139,6 +140,7 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_PIPELINE_S3 = "Cloud Bucket Ingest";
 	private static final String DEMO_PIPELINE_S3_PUBLISH = "Thumbnail Publishing";
 	private static final String DEMO_PIPELINE_TRANSCRIPTION = "Media Transcription";
+	private static final String DEMO_PIPELINE_REVIEW = "Review Triage";
 
 	/**
 	 * The demo script node's body. Small on purpose - it is there to be read and edited, not admired.
@@ -285,6 +287,11 @@ public class DemoDatabaseInitializer {
 		AssetTag tagImage = createAssetTag(admin, "image", "type");
 		AssetTag tagAudio = createAssetTag(admin, "audio", "type");
 		AssetTag tagDocument = createAssetTag(admin, "document", "type");
+		// A curated tag, in the namespace the review screen coins tags into. The demo's other tags
+		// live in "category" and "type", which is exactly why the review screen offers the whole
+		// vocabulary rather than one namespace's worth: scoping it would show an empty autocomplete
+		// on the reference deployment.
+		AssetTag tagHero = createAssetTag(admin, "hero", "default");
 
 		// --- Collections ---
 		Collection imagesCollection = createCollection(admin, DEMO_COLLECTION_IMAGES);
@@ -365,6 +372,15 @@ public class DemoDatabaseInitializer {
 			"Transcribes speech in audio and video with Whisper and scores the sentiment of the transcript.",
 			true, 4, false,
 			transcriptionDefinition());
+
+		// 8) Review triage: Source → Filter(RATING) → publish / mark. The one demo pipeline whose
+		// routing comes from a person rather than from the bytes, and the reason the review screen is
+		// worth using: a rating given in the workflow view decides where the file goes. It is also the
+		// only seeded graph with configured buckets - see reviewTriageDefinition().
+		createPipeline(admin, DEMO_PIPELINE_REVIEW,
+			"Routes assets by the rating reviewers gave them: publishes the keepers, tags the rejects and the unreviewed.",
+			true, 6, false,
+			reviewTriageDefinition());
 
 		// --- Pipeline Runs ---
 		// History so the run views and the statistics chart have something to show on a
@@ -487,6 +503,10 @@ public class DemoDatabaseInitializer {
 		tagDao.tagAsset(tagNature, imageAssets[4]);
 		tagDao.tagAsset(tagNature, imageAssets[5]);
 		tagDao.tagAsset(tagLandscape, imageAssets[6]);
+		// The one curated tag: on the same asset the demo rates 9, so the review screen shows an asset
+		// that already carries both kinds of decision. tagAsset defaults node_kind to 'manual', which is
+		// what makes it read as a person's tag rather than a pipeline's.
+		tagDao.tagAsset(tagHero, imageAssets[0]);
 
 		// Tag videos
 		for (Asset a : videoAssets) {
@@ -603,6 +623,16 @@ public class DemoDatabaseInitializer {
 		reactionDao.store(rx3);
 
 		log.info("Created {} demo reactions", 3);
+
+		// --- Ratings ---
+		// A rating is a reaction of its own type carrying a number, which is why one can sit on
+		// imageAssets[0] alongside the THUMBSUP above: the unique index is per (creator, type, asset).
+		// Three values spanning the scale, so the demo rating filter below has something to route -
+		// a 9 down 'keep', a 2 down 'trash', and a 7 that matches neither and lands in 'other'.
+		createRating(admin, imageAssets[0], 9);
+		createRating(admin, imageAssets[3], 2);
+		createRating(admin, videoAssets[0], 7);
+		log.info("Created {} demo ratings", 3);
 
 		// --- Comments ---
 		createComment(admin, "Review notes", "The white balance looks slightly off in the second half.");
@@ -1057,6 +1087,21 @@ public class DemoDatabaseInitializer {
 		detectionDao.store(detection);
 		log.info("Created demo detection: {} on {} (frame {})", type, asset.getFilename(), frameNumber);
 		return detection;
+	}
+
+	/**
+	 * Seed a workflow star rating: an asset reaction of type {@code RATING} carrying the value.
+	 *
+	 * @param rating
+	 *            1-10, as the review screen writes it
+	 */
+	private Reaction createRating(User admin, Asset asset, int rating) {
+		Reaction reaction = reactionDao.createReaction(admin, ReactionType.RATING.name());
+		reaction.setAssetUuid(asset.getUuid());
+		reaction.setRating(rating);
+		reactionDao.store(reaction);
+		log.info("Created demo rating: {} on {}", rating, asset.getFilename());
+		return reaction;
 	}
 
 	private AssetTag createAssetTag(User admin, String name, String collection) {
@@ -1539,6 +1584,69 @@ public class DemoDatabaseInitializer {
 					.add(edge("pe2", "pn2", "other", "pn3", "video"))
 					.add(edge("pe3", "pn3", "transcript", "pn4", "text"))
 					.add(edge("pe4", "pn3", "transcript", "pn5", "text")));
+	}
+
+	/**
+	 * The manual-review loop, closed: what a person decided in the review screen decides where the
+	 * file goes.
+	 *
+	 * <p>
+	 * This is the only demo pipeline whose routing depends on <em>human</em> input rather than on the
+	 * bytes. A reviewer rates an asset 1-10 in the workflow view, that rating is stored on the asset,
+	 * and this graph reads it back: {@code >=8} is published, {@code <=2} is marked for removal, and
+	 * an asset nobody has rated is tagged so it can be found and reviewed. Everything in between
+	 * matches no bucket and leaves through {@code other}, which nothing consumes — an item with no
+	 * decision attached is simply not acted on.
+	 * </p>
+	 *
+	 * <p>
+	 * It is also the first demo pipeline with buckets at all. The others route everything through
+	 * {@code other} because a definition assembled in code used to resolve no bucket ports: the
+	 * parser handed the resolver Vert.x objects it could not read. See
+	 * {@code PipelineGraphParser.readOptions}.
+	 * </p>
+	 *
+	 * <p>
+	 * There is no "delete" node and this graph deliberately does not invent one — the low-rated
+	 * branch <em>tags</em>, so the removal stays a separate, deliberate act on a findable set rather
+	 * than a side effect of a pipeline run.
+	 * </p>
+	 */
+	static JsonObject reviewTriageDefinition() {
+		return new JsonObject()
+				.put("nodes", new JsonArray()
+					.add(node("pn1", "filesystem-source", "File Source", "Watch the reviewed folder", 60, 220))
+					.add(node("pn2", "filter", "Rating Filter", "Route each item by the rating reviewers gave it", 260, 220,
+						new JsonObject()
+							.put("filterBy", "RATING")
+							.put("buckets", new JsonArray()
+								.add(new JsonObject().put("id", "keep").put("label", "Keep").put("match", ">=8"))
+								.add(new JsonObject().put("id", "trash").put("label", "Trash").put("match", "<=2"))
+								.add(new JsonObject().put("id", "unreviewed").put("label", "Unreviewed").put("match", "unrated")))))
+					.add(node("pn3", "thumbnail", "Thumbnail", "Generate a contact sheet for the keepers", 500, 80))
+					.add(node("pn4", "s3-sink", "Publish", "Upload the contact sheet", 720, 80,
+						new JsonObject().put("bucket", "media")))
+					.add(node("pn5", "tag", "Mark For Removal", "Tag what reviewers rated 2 or lower", 500, 240,
+						new JsonObject()
+							.put("tagBy", "RULES")
+							.put("collection", "review")
+							.put("rules", new JsonArray()
+								.add(new JsonObject().put("id", "rejected").put("tag", "rejected")))))
+					.add(node("pn6", "tag", "Mark For Review", "Tag what nobody has rated yet", 500, 400,
+						new JsonObject()
+							.put("tagBy", "RULES")
+							.put("collection", "review")
+							.put("rules", new JsonArray()
+								.add(new JsonObject().put("id", "needs-review").put("tag", "needs-review"))))))
+				.put("edges", new JsonArray()
+					.add(edge("pe1", "pn1", "media", "pn2", "media"))
+					// One edge per bucket port. The node writes exactly one of them per item, and the
+					// engine skips every consumer wired to a port that carried nothing - that silence
+					// is the routing.
+					.add(edge("pe2", "pn2", "keep", "pn3", "media"))
+					.add(edge("pe3", "pn3", "thumbnail", "pn4", "artifacts"))
+					.add(edge("pe4", "pn2", "trash", "pn5", "media"))
+					.add(edge("pe5", "pn2", "unreviewed", "pn6", "media")));
 	}
 
 	static JsonObject scriptDefinition() {

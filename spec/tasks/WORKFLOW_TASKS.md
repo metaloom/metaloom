@@ -7,91 +7,120 @@
 > **Context:** [../workflows/WORKFLOWS.md](../workflows/WORKFLOWS.md) is the family index and carries
 > the shared anatomy (§3) and the cross-cutting defect table (§4) these tasks reference as `X1`-`X10`.
 >
-> **Ordering.** **W1 is the keystone** — it unblocks W4 and every "act on a human decision"
-> requirement in the family. W3 is **done** (2026-08-08) and is the worked example the other review
-> modes should copy. W2, W6 and W7 are independent and can run in parallel. W5 gates the
-> object-detection workflow. W8 is small and improves five modes at once. W9-W14 are proposals whose
-> own spec files carry their build order; the tasks here are the entry points, not the full plans.
+> **Ordering.** **W1, W2 and W3 are done** (2026-08-08). W1 was the keystone — it unblocked W4 and
+> every "act on a human decision" requirement in the family, and `FilterBy.RATING`/`TAG` are the seam
+> the rest of them extend. W3 is the worked example the other review modes should copy for a write
+> path; W2 is the worked example for an optimistic one. W6 and W7 are independent and can run in
+> parallel. W5 gates the object-detection workflow. W8 is small and improves five modes at once.
+> W9-W14 are proposals whose own spec files carry their build order; the tasks here are the entry
+> points, not the full plans.
 
 ---
 
-## Task 1: Add `TAG` and `RATING` strategies to `FilterBy`
+## Task 1: Add `TAG` and `RATING` strategies to `FilterBy` — ✅ DONE (2026-08-08)
 
-**Argumentation Summary:** Nothing in a pipeline can read a human decision. `FilterBy` offers
-`LANGUAGE`, `MIME`, `SIZE` and `DATE` — all derived from the item itself. A reviewer can rate an
-asset 1 and tag it `trash`, and no node, no filter and no trigger will ever act on it. That is why
-[../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md) feels pointless today and
-why [../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) has no input. `FilterBy`'s own
-javadoc names this as its extension contract: "a strategy class plus a Dagger binding plus a value in
-the descriptor's `filterBy` parameter, and never an edit to `FilterNode`."
+**Argumentation Summary:** Nothing in a pipeline could read a human decision. `FilterBy` offered
+`LANGUAGE`, `MIME`, `SIZE` and `DATE` — all derived from the item itself. A reviewer could rate an
+asset 1 and tag it `trash`, and no node, no filter and no trigger would ever act on it. That is why
+[../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md) felt pointless and why
+[../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) had no input.
 
-**Improvement Summary:** Two new `FilterStrategy` implementations that route a pipeline on a tag name
-or a rating threshold, making every manual decision actionable.
+**What was built:**
 
-```
-1. cortex/nodes/filter/core/src/main/java/io/metaloom/cortex/node/filter/:
-   - Add TAG and RATING to FilterBy.java with javadoc matching the existing constants'
-     tone (say what the bucket hints look like and what the strategy costs).
-   - TagFilterStrategy.java: bucket hints are tag names or globs ("hero", "person/*",
-     "!reviewed" for negation). Reads the asset's tags from the AssetResponse the node
-     already loads. No LLMProvider dependency - copy MimeFilterStrategy's shape, not
-     LanguageFilterStrategy's.
-   - RatingFilterStrategy.java: bucket hints are thresholds and ranges (">=8", "<=2",
-     "4..7", "unrated"). Parse with the same grammar SizeFilterStrategy uses so the two
-     stay consistent. Needs the asset's reactions - one Loom round trip per item; cache
-     per run, and document the cost in the javadoc.
-   - FilterNodeModule.java: bind both into the Map<FilterBy, Provider<FilterStrategy>>.
-2. loom-shared/node-model/.../spec/: add "TAG" and "RATING" to the filter descriptor's
-   filterBy parameter enum, so both are selectable in the pipeline editor.
-3. Regenerate node-descriptors.json - install the node module FIRST or the harvest reads
-   a stale jar.
-4. website/content/english/docs/nodes/filter/: document both, with examples.
-```
+1. 🟢 **The strategy seam was widened first, behaviour-free.** `classify` took a `NodeContext` and
+   nothing else, so it had no asset — while `FilterNode.compute` was already holding the
+   `AssetResponse` and dropping it. New record `FilterItem(ctx, asset, reactions, reactionsAvailable,
+   text)`; `classify(FilterItem, FilterNodeOptions, List<FilterBucket>)`. The alternative — injecting
+   a `LoomClient` into the strategy — was rejected: a strategy has no asset identity, so it would
+   re-derive the SHA-512 and load the asset a *second* time per item, and it breaks the codebase's
+   own idiom of keeping every Loom call in the node (`TagNode`). The four existing strategies changed
+   mechanically and **no existing test changed** — nothing calls `classify` directly.
+2. 🟢 **`TagFilterStrategy`** — hints are names, prefix globs (`person/*`, `*`), negations
+   (`!archive`) and `untagged`. A bucket matches when at least one positive hint matches and no
+   negation does; a bucket of only negations matches when none apply. `match()` falls back to the
+   bucket id, like MIME. Zero round trips: tags ride on the asset the node already loaded.
+   Curated-vs-machine is the **`tagSource` node option** (`ANY`/`MANUAL`/`MACHINE`), not a second
+   grammar in the match column; a null `node_kind` counts as `MANUAL`, matching V2.71's default.
+3. 🟢 **`RatingFilterStrategy`** — `>=8`, `<=2`, `4..7`, a bare `8`, `unrated`. Two deliberate
+   divergences from `SizeFilterStrategy`, both in the javadoc: a range is inclusive at **both** ends,
+   and a bare value is **exact**. The rule across all three strategies is now *a bare value is exact
+   on a discrete domain and a ceiling on a continuous one* — `DateFilterStrategy` already read a bare
+   date as that one day. `needsReactions()` opts into one Loom call per item, made by the node and
+   memoised by its existing per-run `LocalResultCache`.
+4. 🟢 **Three states kept apart**: asset unknown to Loom → `other`; known and unrated → `unrated`;
+   reaction fetch **failed** → `other("reactions unavailable")`, pointedly *not* unrated. Collapsing
+   the last two would route the whole un-reviewed backlog down a trash branch during a Loom outage.
+   Nothing throws — a throw aborts the task, which is disproportionate for one un-ingested file.
+5. 🟢 **`tagSource` mixed into `configHash`**, or two nodes differing only in it would share a
+   result-cache entry and a `producerVersion`.
+
+⚠️ **Two instructions in the original task were wrong** and are corrected here for the next reader:
+there is **no hand-maintained `filterBy` enum** under `loom-shared/node-model/.../spec/` — the
+descriptor's `values` array is harvested from `FilterNodeOptions.filterBy`, so adding the constants
+regenerates it. And `MimeFilterStrategyTest` does not exist; the file to mirror is
+`MimeFilterNodeTest`, which tests through the node.
 
 **References:** [../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md) §5 ·
 [../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) §1 ·
 [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §8.6 ·
-`FilterBy.java`, `MimeFilterStrategy.java`, `SizeFilterStrategy.java`
-**Test Requirements:** `TagFilterStrategyTest` and `RatingFilterStrategyTest` mirroring
-`MimeFilterStrategyTest`: hint parsing incl. malformed hints, bucket selection, the catch-all `other`
-port, and an item matching no bucket. Plus `NodePortConformanceTest` still green.
-`mvn -pl cortex/nodes/filter/core -am test`
+`FilterItem.java`, `TagFilterStrategy.java`, `RatingFilterStrategy.java`, `TagSource.java`
+**Tests:** `RatingFilterNodeTest` (10 — grammar, and the null-client contract: an unknown asset lands
+in `other` and the task still **succeeds**), `RatingFilterNodePersistenceTest` (5 — the mean across
+reviewers, the persisted `rating`/`ratingMean`/`ratingCount`/`ratingSource`, and unavailable ≠
+unrated), `TagFilterNodeTest` (13), `FilterOptionsValidationTest` (+1). The 62 pre-existing filter
+tests are green **unchanged**, which is the proof the seam change carried no behaviour.
+`mvn -pl cortex/nodes/filter/core -am test`, then
+`mvn -o -pl integration-test test -Dtest=NodeSpecGoldenTest -Dloom.regenerateNodeDescriptors=true`
 
 ---
 
-## Task 2: Persist tagging in the workflow view
+## Task 2: Persist tagging in the workflow view — ✅ DONE (2026-08-08)
 
-**Argumentation Summary:** `TaggingMode` looks like it works and writes nothing.
-`handleAddTag` / `handleRemoveTag` (`WorkflowView.tsx:847-852`) mutate React state; the client
-functions `tagAsset` (`loom-ui/src/api/tags.ts:150`) and `untagAsset` (`:164`) already exist, are
-typed and documented, and have zero callers in `features/workflow/`. A reviewer can spend an hour
-tagging and lose all of it on reload. Separately, the vocabulary offered is `ALL_TAGS`, 24 hardcoded
-strings at `WorkflowView.tsx:79-84`.
+**Argumentation Summary:** `TaggingMode` looked like it worked and wrote nothing.
+`handleAddTag` / `handleRemoveTag` mutated React state; `tagAsset` (`loom-ui/src/api/tags.ts:150`)
+and `untagAsset` (`:164`) already existed, typed and documented, with zero callers in
+`features/workflow/`. A reviewer could spend an hour tagging and lose all of it on reload. The
+vocabulary offered was `ALL_TAGS`, 24 hardcoded strings.
 
-**Improvement Summary:** Wire the existing client into the existing handlers, load the real tag
-vocabulary, and make the write optimistic with rollback.
+**What was built:**
 
-```
-1. loom-ui/src/features/workflow/tagPersistence.ts (new) - mirror ratingPersistence.ts:
-   addTag(token, assetUuid, name), removeTag(token, assetUuid, tagUuid), and a hydrate
-   helper. Keep it a pure module so it can be unit-tested in node-env vitest.
-2. WorkflowView.tsx: handleAddTag / handleRemoveTag call it. Apply optimistically, then
-   revert the chip if the request fails - a silently dropped write is worse than none.
-3. Replace ALL_TAGS with listTags(token), scoped to the collection the queue came from.
-   Keep freeSolo so a reviewer can coin a tag; a coined tag resolves-or-creates through
-   the same endpoint.
-4. Show tag_asset provenance: a machine tag (node_kind != 'manual', with confidence)
-   renders differently from a curated one, and removing one is an explicit act.
-```
+1. 🟢 **`loom-ui/src/features/workflow/tagPersistence.ts`** — a pure module mirroring
+   `ratingPersistence.ts`: `addAssetTag`, `removeAssetTag`, `loadTagVocabulary`, plus
+   `toWorkflowTags` / `isCurated` / `isPending`. It throws, so the caller owns the rollback.
+2. 🟢 **The state shape changed from names to objects.** `assetTags` was
+   `Record<string, string[]>`, and `untagAsset` needs a uuid. It is now
+   `Record<string, WorkflowTag[]>`, built from the **raw** `AssetResponse` rather than from
+   `Asset.tags` (which `apiToWorkflowAsset` had already flattened to names). ⚠️ The TS
+   `TagReference` in `api/assets.ts` was missing `nodeKind`, `confidence`, `placementUuid`,
+   `attached` and `attachedBy` — the server sends them and the type dropped them. Extended first;
+   without it nothing can tell a curated tag from a machine one.
+3. 🟢 **Optimistic with rollback.** The chip carries a `pending:` placeholder uuid and the rollback
+   removes *that* chip — not the last one, not the one with this name: at a keystroke per decision
+   several writes are in flight. A removal restores the tag **at its original index**. Every failure
+   now raises a toast; the five bare `.catch(() => {})` in the view are gone. `handleRate` got the
+   same treatment.
+4. 🟢 **Vocabulary from `listTags(token, {limit: 200})`**, `freeSolo` kept.
+5. 🟢 **Provenance is visible.** A machine tag (`nodeKind` other than `manual`) renders outlined with
+   a tooltip naming the node kind and its confidence, and carries **no delete affordance** — removal
+   happens on the asset detail screen. A pending chip has none either, having no uuid yet.
+6. 🟢 **Existing decisions are marked** — `initiallyRated` / `initiallyTagged` reflect what each asset
+   *arrived* carrying, deliberately not the live state, which would light up the moment a key is
+   pressed.
+
+⚠️ **Step 3's "scoped to the collection the queue came from" is not implementable** and was dropped;
+see the rewritten D3 in [../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md)
+§2.1. Coined tags go into `DEFAULT_TAG_COLLECTION`, lifted out of `AssetDetail.tsx` into
+`api/tags.ts` so both screens share one string.
 
 **References:** [../workflows/WORKFLOW_MANUAL_SORT.md](../workflows/WORKFLOW_MANUAL_SORT.md) §6 ·
 [../concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md) §2 (why `tagAsset` resolves rather
 than inserts) · migration `V2.71__tag_asset_placements.sql`
-**Test Requirements:** `tagPersistence.test.ts` (node-env vitest): add-then-remove, resolve an
-existing tag rather than creating a duplicate, rollback on a failed request.
-`workflow-tagging-mocked.spec.ts`: type a tag, press Enter, assert the POST body and the chip; assert
-a failed POST removes the chip. `cd loom-ui && ./node_modules/.bin/vitest run` and
-`./node_modules/.bin/playwright test` — ⚠️ `npx` stalls in this sandbox.
+**Tests:** `tagPersistence.test.ts` (9): the POST body and namespace, that the `/tags` CRUD create is
+*never* called, a 204 with no body, rejection on non-2xx, vocabulary de-duplication, and the
+absent-`nodeKind`-is-curated rule. `workflow-tagging-mocked.spec.ts` (4): tag → reload → still there;
+a 500 removes the chip and shows the error; remove issues the DELETE and it stays gone; a machine
+chip has no delete affordance. `cd loom-ui && ./node_modules/.bin/vitest run` and
+`./node_modules/.bin/playwright test e2e/workflow-*` — ⚠️ `npx` stalls in this sandbox.
 
 ---
 

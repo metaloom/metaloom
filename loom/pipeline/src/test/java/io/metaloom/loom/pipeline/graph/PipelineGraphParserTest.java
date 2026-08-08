@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
@@ -304,6 +305,49 @@ public class PipelineGraphParserTest {
 		assertThrows(GraphValidationException.class,
 			() -> parser.parse("empty", new JsonObject().put("nodes", new JsonArray()), true, false, 0));
 		assertThrows(GraphValidationException.class, () -> parser.parse("null", null, true, false, 0));
+	}
+
+	/**
+	 * A definition built in code must parse to the same options as the identical definition parsed
+	 * from a string.
+	 *
+	 * <p>
+	 * It used not to. {@code JsonObject.getMap()} hands back the backing map as stored: a definition
+	 * decoded from a string holds plain {@code Map}s and {@code List}s, while one assembled with
+	 * {@code new JsonObject().put(...)} keeps nested {@code JsonObject}s and {@code JsonArray}s — and
+	 * a Vert.x {@code JsonArray} is not a {@code java.util.List}. {@code FilterPortResolver} lives in
+	 * {@code node-model}, which has no Vert.x on its classpath and can only read the plain shape, so
+	 * a programmatically built filter node resolved <em>no bucket ports</em> and any edge drawn to
+	 * one was refused at boot. That is why {@code DemoDatabaseInitializer} could only ever seed
+	 * bucket-less filters.
+	 * </p>
+	 */
+	@Test
+	void testOptionsFromABuiltDefinitionMatchTheSameDefinitionParsedFromAString() {
+		JsonObject built = new JsonObject()
+			.put("nodes", new JsonArray()
+				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
+				.add(new JsonObject().put("id", "f").put("type", "filter")
+					.put("options", new JsonObject()
+						.put("filterBy", "RATING")
+						.put("buckets", new JsonArray()
+							.add(new JsonObject().put("id", "keep").put("match", ">=8"))
+							.add(new JsonObject().put("id", "trash").put("match", "<=2"))))))
+			.put("edges", new JsonArray()
+				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "f").put("targetPort", "media")));
+
+		Map<String, Object> fromBuilt = parser.parse("built", built, true, false, 0).getNode("f").getOptions();
+		Map<String, Object> fromString = parser.parse("encoded", new JsonObject(built.encode()), true, false, 0)
+			.getNode("f").getOptions();
+
+		assertEquals(fromString, fromBuilt, "How a definition was assembled must not change what it means");
+
+		// The concrete property every NodePortResolver depends on: buckets is a plain List of plain
+		// Maps, whichever way the definition arrived.
+		Object buckets = fromBuilt.get("buckets");
+		assertTrue(buckets instanceof List, "buckets must be a java.util.List, not a Vert.x JsonArray: " + buckets.getClass());
+		assertTrue(((List<?>) buckets).get(0) instanceof Map, "and each bucket a java.util.Map");
+		assertEquals(2, ((List<?>) buckets).size());
 	}
 
 	@Test

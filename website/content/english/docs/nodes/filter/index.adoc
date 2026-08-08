@@ -53,7 +53,7 @@ Each bucket has:
 | Field | Meaning
 | Id | Becomes the output port. Lowercase letters, digits and underscore; typing "Brazilian Portuguese" turns into `brazilian_portuguese` for you
 | Label | The name shown on the node. Defaults to the id
-| Match | The hints this bucket matches on, comma separated. What they mean depends on *Filter by* — other names for a language (`german, deutsch`), MIME patterns (`image/*`), size thresholds (`<10MB`) or dates (`2024-01-01..2024-12-31`)
+| Match | The hints this bucket matches on, comma separated. What they mean depends on *Filter by* — other names for a language (`german, deutsch`), MIME patterns (`image/*`), size thresholds (`<10MB`), dates (`2024-01-01..2024-12-31`), rating conditions (`>=8`) or tag names (`hero`)
 |===
 
 Use the **Add bucket** button to grow a branch, and the delete icon to remove one. The node's ports
@@ -74,11 +74,15 @@ bottom and the first one that matches wins, so a narrow bucket above a broad one
 | MIME type | …pattern matches the item's file type | `image/*`, `video/mp4`, or a bare `image`
 | Size | …threshold the item's size falls into | `<10MB`, `1MB..100MB`, `>1GB`, or a bare `10MB` meaning "up to"
 | Date | …window the item's modification date falls into | `>=2024-01-01`, `2024-01-01..2024-12-31`, `2024-03-17`, `age<30d`
+| Rating | …range the rating reviewers gave it falls into | `>=8`, `<=2`, `4..7`, a bare `8` meaning exactly 8, `unrated`
+| Tag | …tag the item carries | `hero`, `person/*`, `!archive`, `untagged`
 |===
 
-Only **Language** costs anything. The other three read the item's own metadata, so a pipeline that
-only splits images from video, or last month's files from last year's, runs with no model backend at
-all — and adds no time per item.
+Only **Language** needs a model. **MIME type**, **Size** and **Date** read the item's own metadata
+and add no time per item, so a pipeline that only splits images from video, or last month's files
+from last year's, runs with no model backend at all. **Rating** and **Tag** read what people
+recorded, so they need Metaloom reachable — Tag comes free with the item, Rating costs one lookup
+that is remembered for the rest of the run.
 
 === Language
 
@@ -136,6 +140,56 @@ A hint that cannot be read as a threshold or a date — `<10 megabytes`, `last m
 pipeline with a message naming the bucket, rather than starting a run in which every item quietly
 lands in `other`.
 
+=== Rating
+
+The rating is the one people give in the review screen, 1 to 10. This is what makes reviewing worth
+the effort: a decision a person made in a few keystrokes decides where the file goes.
+
+`>=`, `>`, `<=` and `<` compare; `4..7` is a range that **includes both ends**; and a bare `8` is
+exactly 8, not "up to 8". Ratings are ten whole numbers rather than a continuous scale, so an exact
+number is what people mean when they type one, and neighbouring ranges like `1..3` and `4..7`
+already fit together without a gap. The common ladder reads:
+
+[options="header",cols="1,2"]
+|===
+| Bucket | Match
+| `trash` | `<=2`
+| `review` | `3..7`
+| `keep` | `>=8`
+|===
+
+`unrated` matches an asset nobody has rated. Nothing else does — `<=2` means "rated 2 or lower", not
+"rated low or never looked at", so an un-reviewed backlog is never swept into a low-rating branch by
+accident.
+
+When several people have rated the same asset the **average** decides, rounded to the nearest whole
+number. Worth knowing: an average moves as more people rate, so an asset can change branch on a
+later run without anybody changing their mind. Within a single run the answer stays put.
+
+An asset Metaloom does not know about, and one whose ratings could not be read because Metaloom was
+unreachable, both go to `other` — deliberately not to `unrated`, which would send a well-reviewed
+library down the unreviewed branch during an outage. The run continues either way; one item nobody
+has ingested does not stop a job over thousands of files.
+
+=== Tag
+
+Tags are matched by name. An exact name (`hero`) matches that tag; a trailing `*` matches a prefix,
+so `person/*` catches every tag in that namespace and a bare `*` means "has any tag at all". A
+bucket with no hints falls back to its own id, so three buckets called `hero`, `archive` and
+`rejected` route correctly with nothing typed in.
+
+A `!` in front excludes: `hero, !archive` means "tagged hero but not archive". Exclusion always
+wins, whatever else matched. A bucket that is only exclusions — `!reviewed` — matches everything
+that does not carry them, which is the "not looked at yet" branch. `untagged` matches an asset with
+no tags at all.
+
+**Tag source** chooses whose tags count: `ANY`, `MANUAL` for only the tags a person attached, or
+`MACHINE` for only those a pipeline attached. That is how you route on what your team decided rather
+than on what a model guessed, or the other way round. A tag whose origin was never recorded counts
+as a person's.
+
+As with Rating, an asset Metaloom does not know about goes to `other`.
+
 == Configuration
 
 .The node's settings in the pipeline editor
@@ -161,6 +215,11 @@ The strip on the card lists what each output port carried — `de`, `passed`, `b
   cheap thumbnail path on everything else.
 * **Backfill by date** — process last month's arrivals on one branch and the historical archive on
   another, so a re-run does not redo years of work.
+* **Acting on review decisions** — publish what reviewers rated 8 or higher, tag what they rated 2
+  or lower for removal, and tag what nobody has looked at yet so it can be found. This is the
+  `Review Triage` pipeline the demo ships.
+* **Curated versus guessed** — route on the tags your team attached with **Tag source** set to
+  `MANUAL`, so a model's suggestion never triggers a publishing branch.
 * **Catching the unexpected** — wire `other` to a review step and see what your library actually
   contains.
 * **Recording the decision** — wire `bucket` into link:../script/[Script] to count or store which

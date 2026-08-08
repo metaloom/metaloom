@@ -25,6 +25,27 @@ export interface TagReference {
   color?: string;
   /** Spatial/temporal region of the asset this tag references (region tags only). */
   area?: AreaInfo;
+  /**
+   * Identity of *this* placement of the tag on the asset. A tag may sit on one asset several
+   * times — once per face, once per timecode — and this is what identifies the one you mean.
+   * Deleting a placement and deleting the tag from the asset are different operations.
+   */
+  placementUuid?: string;
+  /**
+   * Which node kind attached the tag, or `"manual"` when a person did. Absent counts as manual:
+   * the column defaults to `'manual'`, deliberately, because a machine tag mislabelled human is
+   * merely not filtered out, while a human tag mislabelled machine could be deleted by a
+   * reconciling node.
+   */
+  nodeKind?: string;
+  /** Pipeline node id of the writer, so two instances of one node kind stay distinguishable. */
+  nodeId?: string;
+  /** How sure the writer was, 0.0–1.0. Absent when the question does not apply — a person. */
+  confidence?: number;
+  /** When the tag was attached to this asset — not when the tag itself was created. */
+  attached?: string;
+  /** The principal that made the call, person or worker token. */
+  attachedBy?: string;
 }
 
 export interface CollectionRef {

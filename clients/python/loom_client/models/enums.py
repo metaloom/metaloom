@@ -174,6 +174,7 @@ class ReactionType(str, Enum):
     THUMBSUP = "THUMBSUP"
     PLUS_ONE = "PLUS_ONE"
     MINUS_ONE = "MINUS_ONE"
+    RATING = "RATING"
 
 
 class RolePermission(str, Enum):

@@ -350,6 +350,12 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest implements Repla
 			reactionRequest.setType(ReactionType.PLUS_ONE);
 			ReactionResponse assetReaction = client.createAssetReaction(asset.getUuid(), reactionRequest).sync().body();
 
+			// A workflow star rating is a reaction too, on its own type - so it must cascade the same way.
+			ReactionCreateRequest ratingRequest = new ReactionCreateRequest();
+			ratingRequest.setType(ReactionType.RATING);
+			ratingRequest.setRating(9);
+			ReactionResponse assetRating = client.createAssetReaction(asset.getUuid(), ratingRequest).sync().body();
+
 			// Bystanders: social content on the task, and a reaction on a different asset.
 			CommentCreateRequest commentRequest = new CommentCreateRequest();
 			commentRequest.setTitle("Task feedback");
@@ -362,6 +368,7 @@ public class AssetEndpointTest extends AbstractCRUDEndpointTest implements Repla
 
 			expect(404, "Not Found", client.loadAsset(asset.getUuid()));
 			expect(404, "Not Found", client.loadAssetReaction(asset.getUuid(), assetReaction.getUuid()));
+			expect(404, "Not Found", client.loadAssetReaction(asset.getUuid(), assetRating.getUuid()));
 
 			assertNotNull(client.loadTask(TASK_UUID).sync().body(), "The task must survive the deletion of an asset it referenced");
 			assertNotNull(client.loadComment(taskComment.getUuid()).sync().body(), "A comment on the task is not about the asset");

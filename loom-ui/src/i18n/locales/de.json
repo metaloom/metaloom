@@ -1434,12 +1434,22 @@
     "rating": {
       "label": "Bewertung:",
       "addTag": "Tag hinzufügen… (Enter zum Bestätigen)",
-      "addTagPlaceholder": "Tag hinzufügen… (Enter zum Bestätigen)"
+      "addTagPlaceholder": "Tag hinzufügen… (Enter zum Bestätigen)",
+      "saveFailed": "Die Bewertung konnte nicht gespeichert werden und wurde zurückgesetzt.",
+      "hydrateFailed": "Vorhandene Bewertungen konnten nicht geladen werden.",
+      "alreadyRated": "Bereits bewertet"
     },
     "tagging": {
       "noTags": "Noch keine Tags",
       "search": "Tags suchen… (Enter zum Hinzufügen)",
-      "placeholder": "Tags suchen… (Enter zum Hinzufügen)"
+      "placeholder": "Tags suchen… (Enter zum Hinzufügen)",
+      "addFailed": "Das Tag \"{{tag}}\" konnte nicht hinzugefügt werden und wurde wieder entfernt.",
+      "removeFailed": "Das Tag \"{{tag}}\" konnte nicht entfernt werden und wurde wiederhergestellt.",
+      "vocabularyFailed": "Die Tag-Liste konnte nicht geladen werden. Ein neues Tag lässt sich weiterhin eintippen.",
+      "alreadyTagged": "Bereits {{count}} Tag",
+      "alreadyTagged_other": "Bereits {{count}} Tags",
+      "machineTooltip": "Von {{nodeKind}} vergeben — {{confidence}} % Konfidenz. Entfernen in der Asset-Detailansicht.",
+      "machineTooltipNoConfidence": "Von {{nodeKind}} vergeben. Entfernen in der Asset-Detailansicht."
     },
     "dedup": {
       "keep": "Behalten",
@@ -1513,6 +1523,9 @@
       "objects": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Erkennungen wechseln · <strong>Tab</strong> Nächste Erkennung · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild",
       "facedetection": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Cluster wechseln · <strong>Tab</strong> Nächster Cluster · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>Enter</strong> Person zuweisen · <strong>F</strong> Vollbild",
       "objectdetection": "<strong>←/→</strong> Navigieren · <strong>↑/↓</strong> Erkennungen wechseln · <strong>Tab</strong> Nächste Erkennung · <strong>Y</strong> Bestätigen · <strong>N</strong> Ablehnen · <strong>F</strong> Vollbild"
+    },
+    "queue": {
+      "loadFailed": "Die Review-Warteschlange konnte nicht geladen werden."
     }
   },
   "assetPools": {
@@ -1587,7 +1600,8 @@
       "THUMBSDOWN": "Daumen runter",
       "SATISFIED": "Zufrieden",
       "PLUS_ONE": "+1",
-      "MINUS_ONE": "-1"
+      "MINUS_ONE": "-1",
+      "RATING": "Bewertung"
     }
   },
   "assetDetail": {

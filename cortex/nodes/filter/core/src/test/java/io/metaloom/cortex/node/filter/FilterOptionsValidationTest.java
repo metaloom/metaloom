@@ -36,6 +36,17 @@ class FilterOptionsValidationTest {
 		assertThat(options().setFilterBy(null)).isInvalid().hasError("filterBy must be set");
 	}
 
+	/**
+	 * {@code ANY} by default, so a TAG filter that says nothing about provenance routes on every tag —
+	 * and a {@code null} is rejected rather than quietly read as one of the three.
+	 */
+	@Test
+	void testTagSourceDefaultsToAnyAndMustBeSet() {
+		org.junit.jupiter.api.Assertions.assertEquals(TagSource.ANY, new FilterNodeOptions().getTagSource());
+		assertThat(options().setTagSource(TagSource.MANUAL)).isValid();
+		assertThat(options().setTagSource(null)).isInvalid().hasError("tagSource must be set");
+	}
+
 	@Test
 	void testModelAndUrlMustNotBeBlank() {
 		assertThat(options().setModel(" ")).isInvalid().hasError("model must not be empty");

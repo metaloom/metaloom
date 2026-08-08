@@ -16,8 +16,6 @@ import javax.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -89,10 +87,10 @@ public class DateFilterStrategy implements FilterStrategy {
 	}
 
 	@Override
-	public Classification classify(NodeContext<LoomMedia> ctx, FilterNodeOptions options, List<FilterBucket> buckets, String text)
+	public Classification classify(FilterItem item, FilterNodeOptions options, List<FilterBucket> buckets)
 		throws Exception {
 		// Propagates: a timestamp we cannot read is the worker failing, not a routing answer.
-		long modified = Files.getLastModifiedTime(ctx.media().path()).toMillis();
+		long modified = Files.getLastModifiedTime(item.media().path()).toMillis();
 		ZonedDateTime now = ZonedDateTime.now();
 		JsonObject detail = new JsonObject().put("modified", Instant.ofEpochMilli(modified).toString());
 
@@ -106,7 +104,7 @@ public class DateFilterStrategy implements FilterStrategy {
 			}
 		}
 
-		log.debug("Date filter found no bucket for {} (modified {})", ctx.media().absolutePath(), detail.getString("modified"));
+		log.debug("Date filter found no bucket for {} (modified {})", item.media().absolutePath(), detail.getString("modified"));
 		return Classification.of(Classification.OTHER, 1, detail);
 	}
 

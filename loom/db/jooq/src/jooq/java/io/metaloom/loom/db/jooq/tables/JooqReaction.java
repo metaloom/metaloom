@@ -62,10 +62,11 @@ public class JooqReaction extends TableImpl<JooqReactionRecord> {
     public final TableField<JooqReactionRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
 
     /**
-     * The column <code>public.reaction.type</code>. Type of the reaction (e.g.
-     * thumbsup)
+     * The column <code>public.reaction.type</code>. A ReactionType constant
+     * name; anything else makes every REST read of the row a 500. RATING marks
+     * a workflow star rating, whose value is in "rating".
      */
-    public final TableField<JooqReactionRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR, this, "Type of the reaction (e.g. thumbsup)");
+    public final TableField<JooqReactionRecord, String> TYPE = createField(DSL.name("type"), SQLDataType.VARCHAR, this, "A ReactionType constant name; anything else makes every REST read of the row a 500. RATING marks a workflow star rating, whose value is in \"rating\".");
 
     /**
      * The column <code>public.reaction.rating</code>. Rating by the user
@@ -159,7 +160,7 @@ public class JooqReaction extends TableImpl<JooqReactionRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.REACTION_CREATOR_UUID_TYPE_ANNOTATION_UUID_IDX, Indexes.REACTION_CREATOR_UUID_TYPE_ASSET_UUID_IDX, Indexes.REACTION_CREATOR_UUID_TYPE_COMMENT_UUID_IDX);
+        return Arrays.asList(Indexes.IDX_REACTION_ASSET_TYPE, Indexes.REACTION_CREATOR_UUID_TYPE_ANNOTATION_UUID_IDX, Indexes.REACTION_CREATOR_UUID_TYPE_ASSET_UUID_IDX, Indexes.REACTION_CREATOR_UUID_TYPE_COMMENT_UUID_IDX);
     }
 
     @Override

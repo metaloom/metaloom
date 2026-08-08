@@ -8,6 +8,15 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
+
+
+# Feedback from dedup workflow impl
+The demo seeding path has no test anywhere in the repo — BootstrapInitializer swallows failures, so if seedDemoDedupGroup threw, the group would vanish silently. Its four DAO calls are exactly the ones DedupGroupDaoTest exercises against the pooled DB, and I placed the call last so nothing else could be lost behind it, but it is unverified until you boot the demo container. That is the one item from the plan's manual-verification list I could not run here.
+
+One real backend inconsistency I found but did not fix: PATCH keepAssetUuid writes only the denormalised pointer and never rewrites dedup_group_member.role, so after a reassignment the two disagree — despite DedupGroup's javadoc claiming "the DAO keeps them consistent". I corrected that javadoc, made every reader prefer keepAssetUuid, and recorded it as open in both specs. Rewriting the roles server-side is the actual fix and was outside the approved scope.
+
+
+
 > **Workflows have graduated out of this file.** The twelve workflow specs live in
 > [../workflows/](../workflows/) (start at [WORKFLOWS.md](../workflows/WORKFLOWS.md)) and their
 > actionable work items in [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md). Do not add workflow items here.

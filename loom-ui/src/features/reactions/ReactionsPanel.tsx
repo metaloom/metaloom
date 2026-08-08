@@ -6,6 +6,13 @@ import { tokens } from "../../theme";
 import { ReactionResponseItem, TaskReactionType } from "../../api/reactions";
 
 // ── Reaction vocabulary (mirrors backend io.metaloom.loom.api.reaction.ReactionType) ──
+/**
+ * The types a person can pick from this panel.
+ *
+ * `RATING` is deliberately absent: it is a workflow star rating that happens to live on the
+ * reaction table, and it is given from the review screen with a value attached. Offering it here
+ * would let someone create a rating of nothing.
+ */
 export const REACTION_TYPES: TaskReactionType[] = ["THUMBSUP", "THUMBSDOWN", "SATISFIED", "PLUS_ONE", "MINUS_ONE"];
 export const REACTION_EMOJI: Record<TaskReactionType, string> = {
   THUMBSUP: "👍",
@@ -13,6 +20,8 @@ export const REACTION_EMOJI: Record<TaskReactionType, string> = {
   SATISFIED: "🤣",
   PLUS_ONE: "➕",
   MINUS_ONE: "➖",
+  // Not pickable, but a rating written by the review screen still surfaces here, so it needs a face.
+  RATING: "⭐",
 };
 
 interface ReactionsPanelProps {
@@ -83,6 +92,9 @@ export function ReactionsPanel({ reactions, currentUserUuid, onAdd, onDelete, te
                   <Box component="span">
                     <Box component="span" sx={{ mr: 0.5 }}>{emoji}</Box>
                     {type ? t(`type.${type}`) : (r.type ?? "")}
+                    {/* A rating's meaning is its number, so a chip that showed only the star
+                        would say strictly less than the row holds. */}
+                    {type === "RATING" && typeof r.rating === "number" && ` ${r.rating}`}
                   </Box>
                 }
                 onDelete={owned ? () => onDelete(r.uuid) : undefined}

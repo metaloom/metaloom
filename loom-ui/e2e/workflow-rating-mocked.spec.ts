@@ -36,7 +36,7 @@ function asset(uuid: string, filename: string) {
   };
 }
 
-async function installMocks(page: Page) {
+async function installMocks(page: Page, opts: { failReactionWrites?: boolean } = {}) {
   const reactions: StoredReaction[] = [];
   let seq = 0;
 
@@ -57,6 +57,9 @@ async function installMocks(page: Page) {
   await page.route(/\/api\/v1\/assets\/[^/]+\/reactions$/, route => {
     const assetUuid = decodeURIComponent(route.request().url().split("/assets/")[1].split("/reactions")[0]);
     if (route.request().method() === "POST") {
+      if (opts.failReactionWrites) {
+        return json(route, { message: "nope" }, 500);
+      }
       const body = JSON.parse(route.request().postData() || "{}");
       const created: StoredReaction = {
         uuid: `reaction-${++seq}`,
@@ -118,7 +121,13 @@ test.describe("Workflow rating – mocked e2e", () => {
     await expect(ratingValue).toHaveText("—");
 
     // Rate the current asset via the keyboard binding (5 stars) → POSTs a reaction.
+    const created = page.waitForRequest(
+      req => req.method() === "POST" && /\/assets\/[^/]+\/reactions$/.test(req.url())
+    );
     await page.keyboard.press("5");
+    // The type is the point: a rating rides its own reaction type, so it no longer
+    // collides with an emoji reaction by the same reviewer on the same asset.
+    expect(JSON.parse((await created).postData() || "{}")).toMatchObject({ type: "RATING", rating: 5 });
     await expect(ratingValue).toHaveText("5", { timeout: 10_000 });
 
     // Reload: auth is in-memory so this logs us out. Log back in and reopen the
@@ -128,5 +137,22 @@ test.describe("Workflow rating – mocked e2e", () => {
     await openWorkflow(page);
 
     await expect(page.getByTestId("workflow-rating-value")).toHaveText("5", { timeout: 10_000 });
+  });
+
+  test("a failed write is rolled back rather than left on screen", async ({ page }) => {
+    await installMocks(page, { failReactionWrites: true });
+    await page.goto("/");
+    await login(page);
+    await openWorkflow(page);
+
+    const ratingValue = page.getByTestId("workflow-rating-value");
+    await expect(ratingValue).toHaveText("—");
+
+    await page.keyboard.press("7");
+    // The stars must go back to "unrated". Leaving the 7 up would tell the reviewer the
+    // decision was recorded when the server never heard about it — the failure mode that
+    // makes an unnoticed error worse than no persistence at all.
+    await expect(ratingValue).toHaveText("—", { timeout: 10_000 });
+    await expect(page.getByText(/could not save the rating/i)).toBeVisible({ timeout: 10_000 });
   });
 });

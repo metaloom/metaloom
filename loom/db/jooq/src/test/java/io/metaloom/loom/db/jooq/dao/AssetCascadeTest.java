@@ -319,6 +319,8 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		UUID reply;
 		UUID commentReaction;
 		UUID reaction;
+		/** A workflow star rating - the same table as {@link #reaction}, but a decision a person made rather than an emoji. */
+		UUID rating;
 	}
 
 	private static class Fixture {
@@ -391,6 +393,15 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		reactionDao().store(reaction);
 		l.reaction = reaction.getUuid();
 
+		// A rating by the same user on the same asset. It only fits alongside the reaction above because
+		// RATING is its own type - UNIQUE (creator_uuid, type, asset_uuid) would otherwise reject it, which
+		// is exactly the collision the dedicated type removed.
+		Reaction rating = reactionDao().createReaction(user, ReactionType.RATING.name());
+		rating.setAssetUuid(asset.getUuid());
+		rating.setRating(9);
+		reactionDao().store(rating);
+		l.rating = rating.getUuid();
+
 		return l;
 	}
 
@@ -418,6 +429,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNull(commentDao().load(l.reply), "the reply subtree goes with the comment it hangs from (V2.35)");
 		assertNull(reactionDao().load(l.commentReaction), "a reaction on a cascade-deleted comment goes with it (V2.35)");
 		assertNull(reactionDao().load(l.reaction), "a reaction to the asset must cascade with it (V2.74)");
+		assertNull(reactionDao().load(l.rating), "a rating of the asset must cascade with it (V2.74)");
 	}
 
 	/**
@@ -432,6 +444,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNotNull(commentDao().load(l.reply), "a reply on the other asset must survive");
 		assertNotNull(reactionDao().load(l.commentReaction), "a reaction on the other asset's comment must survive");
 		assertNotNull(reactionDao().load(l.reaction), "a reaction to the other asset must survive");
+		assertNotNull(reactionDao().load(l.rating), "a rating of the other asset must survive");
 	}
 
 	private void assertLinkRowsPresent(Links l) {
@@ -648,7 +661,9 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assetDao().delete(f.victim.getUuid());
 
 		assertNull(reactionDao().load(f.victimLinks.reaction), "the reaction to the asset must go with it");
+		assertNull(reactionDao().load(f.victimLinks.rating), "the rating of the asset must go with it");
 		assertNotNull(reactionDao().load(f.bystanderLinks.reaction), "a reaction to the other asset must survive");
+		assertNotNull(reactionDao().load(f.bystanderLinks.rating), "a rating of the other asset must survive");
 		assertNotNull(reactionDao().load(f.shared.taskReaction), "a reaction on the task must survive");
 
 		assertOnlyTheVictimsLinksAreGone(f);

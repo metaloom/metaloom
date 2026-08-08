@@ -29,6 +29,10 @@ import {
   type DedupGroupMemberModel, type DedupGroupResponse,
 } from "../../api/dedup";
 import { persistAssetRating, hydrateAssetRatings } from "./ratingPersistence";
+import {
+  addAssetTag, isCurated, isPending, loadTagVocabulary, pendingTag, removeAssetTag,
+  toWorkflowTags, type WorkflowTag,
+} from "./tagPersistence";
 import { decideGroup, dupMembers, formatSize, isComplete, keepMember, reassignKeep, replaceGroup } from "./dedupGroups";
 import EmptyState from "../../components/EmptyState";
 import AssetThumbnail from "../../components/AssetThumbnail";
@@ -104,13 +108,6 @@ interface KeyProfile {
   mode: WorkflowMode;
   bindings: KeyAction[];
 }
-
-const ALL_TAGS = [
-  "landscape", "portrait", "urban", "nature", "drone", "interview",
-  "timelapse", "b-roll", "hero", "archive", "aerial", "macro",
-  "night", "studio", "outdoor", "indoor", "wildlife", "street",
-  "fashion", "architecture", "food", "travel", "sports", "music",
-];
 
 function keyDisplayName(key: string): string {
   if (key === " ") return "Space";
@@ -219,13 +216,71 @@ const DEFAULT_PROFILES: KeyProfile[] = [
   },
 ];
 
+/**
+ * The tags on one asset, plus the box to add another.
+ *
+ * Shared by both modes so a chip means the same thing in each. Two rules it enforces:
+ *
+ * - A **machine** tag (`nodeKind` other than `manual`) is outlined and carries no delete
+ *   affordance. Removing what a pipeline decided is an explicit act, and it belongs on the asset
+ *   detail screen rather than one keystroke away from a review flow.
+ * - A **pending** chip — one whose POST has not landed yet — also carries no delete affordance,
+ *   because there is no server-side uuid to delete with until it does.
+ */
+function TagEditor({
+  tags, vocabulary, onAddTag, onRemoveTag, tagInputRef, placeholder, emptyState, maxWidth, autoFocus,
+}: {
+  tags: WorkflowTag[]; vocabulary: string[];
+  onAddTag: (name: string) => void; onRemoveTag: (tag: WorkflowTag) => void;
+  tagInputRef: React.RefObject<HTMLInputElement | null>;
+  placeholder: string; emptyState?: string; maxWidth: number; autoFocus?: boolean;
+}) {
+  const { t } = useTranslation();
+  const taken = new Set(tags.map(tag => tag.name.toLowerCase()));
+  return (
+    <>
+      <Box data-testid="workflow-tags" sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", mb: 0.75 }}>
+        {tags.map(tag => {
+          const chipSx = { height: 22, fontSize: "0.72rem", opacity: isPending(tag) ? 0.55 : 1 };
+          if (isCurated(tag)) {
+            return <Chip key={tag.uuid} label={tag.name} size="small" sx={chipSx}
+              data-testid="workflow-tag-chip" data-tag-name={tag.name}
+              onDelete={isPending(tag) ? undefined : () => onRemoveTag(tag)} />;
+          }
+          const tooltip = tag.confidence != null
+            ? t("workflow.tagging.machineTooltip", { nodeKind: tag.nodeKind, confidence: Math.round(tag.confidence * 100) })
+            : t("workflow.tagging.machineTooltipNoConfidence", { nodeKind: tag.nodeKind });
+          return (
+            <Tooltip key={tag.uuid} title={tooltip}>
+              <Chip label={tag.name} size="small" variant="outlined" sx={chipSx}
+                data-testid="workflow-tag-chip" data-tag-name={tag.name} data-machine-tag="true" />
+            </Tooltip>
+          );
+        })}
+        {tags.length === 0 && emptyState && <Typography variant="caption" color="text.secondary">{emptyState}</Typography>}
+      </Box>
+      <Autocomplete freeSolo options={vocabulary.filter(name => !taken.has(name.toLowerCase()))}
+        renderInput={(params) => (
+          <TextField {...params} inputRef={tagInputRef} placeholder={placeholder} size="small" autoFocus={autoFocus}
+            inputProps={{ ...params.inputProps, "data-testid": "workflow-tag-input" }}
+            InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }}
+            sx={{ "& .MuiInputBase-root": { fontSize: "0.8rem" } }} />
+        )}
+        onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAddTag(val.trim()); }}
+        clearOnBlur={false} selectOnFocus handleHomeEndKeys sx={{ maxWidth }} />
+    </>
+  );
+}
+
 // ── Rating Mode ───────────────────────────────────────────────────────────
 function RatingMode({
-  asset, ratings, onRate, tagInputRef, assetTags, onAddTag, onRemoveTag,
+  asset, ratings, onRate, tagInputRef, assetTags, vocabulary, onAddTag, onRemoveTag, alreadyRated,
 }: {
   asset: Asset; ratings: Record<string, number>; onRate: (r: number) => void;
   tagInputRef: React.RefObject<HTMLInputElement | null>;
-  assetTags: string[]; onAddTag: (t: string) => void; onRemoveTag: (t: string) => void;
+  assetTags: WorkflowTag[]; vocabulary: string[];
+  onAddTag: (t: string) => void; onRemoveTag: (t: WorkflowTag) => void;
+  alreadyRated: boolean;
 }) {
   const { t } = useTranslation();
   const rating = ratings[asset.id] ?? 0;
@@ -240,6 +295,11 @@ function RatingMode({
           <Typography variant="caption" color="text.secondary">{asset.type}</Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {/* Reflects the rating the asset ARRIVED with, so a reviewer can skip work someone
+              already did. Deliberately not driven by the live value, which would light up the
+              instant they press a key and tell them nothing. */}
+          {alreadyRated && <Chip data-testid="workflow-already-rated" label={t("workflow.rating.alreadyRated")}
+            size="small" variant="outlined" sx={{ height: 20, fontSize: "0.68rem" }} />}
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.78rem" }}>{t("workflow.rating.label")}:</Typography>
           <Rating value={rating} max={10} onChange={(_, v) => v !== null && onRate(v)} size="small"
             sx={{ "& .MuiRating-iconFilled": { color: tokens.accent.amber }, "& .MuiRating-iconEmpty": { color: tokens.text.tertiary } }} />
@@ -247,17 +307,8 @@ function RatingMode({
         </Box>
       </Box>
       <Box sx={{ px: 1 }}>
-        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", mb: 0.75 }}>
-          {assetTags.map(t => <Chip key={t} label={t} size="small" onDelete={() => onRemoveTag(t)} sx={{ height: 22, fontSize: "0.72rem" }} />)}
-        </Box>
-        <Autocomplete freeSolo options={ALL_TAGS.filter(t => !assetTags.includes(t))}
-          renderInput={(params) => (
-              <TextField {...params} inputRef={tagInputRef} placeholder={t("workflow.rating.addTagPlaceholder")} size="small"
-              InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }}
-              sx={{ "& .MuiInputBase-root": { fontSize: "0.8rem" } }} />
-          )}
-          onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAddTag(val.trim()); }}
-          clearOnBlur={false} selectOnFocus handleHomeEndKeys sx={{ maxWidth: 360 }} />
+        <TagEditor tags={assetTags} vocabulary={vocabulary} onAddTag={onAddTag} onRemoveTag={onRemoveTag}
+          tagInputRef={tagInputRef} placeholder={t("workflow.rating.addTagPlaceholder")} maxWidth={360} />
       </Box>
     </Box>
   );
@@ -265,10 +316,12 @@ function RatingMode({
 
 // ── Tagging Mode ──────────────────────────────────────────────────────────
 function TaggingMode({
-  asset, tagInputRef, assetTags, onAddTag, onRemoveTag,
+  asset, tagInputRef, assetTags, vocabulary, onAddTag, onRemoveTag, alreadyTagged,
 }: {
   asset: Asset; tagInputRef: React.RefObject<HTMLInputElement | null>;
-  assetTags: string[]; onAddTag: (tag: string) => void; onRemoveTag: (tag: string) => void;
+  assetTags: WorkflowTag[]; vocabulary: string[];
+  onAddTag: (tag: string) => void; onRemoveTag: (tag: WorkflowTag) => void;
+  alreadyTagged: number;
 }) {
   const { t } = useTranslation();
   return (
@@ -277,18 +330,16 @@ function TaggingMode({
         <img src={asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
       </Box>
       <Box sx={{ px: 1 }}>
-        <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem", mb: 0.5 }}>{asset.name}</Typography>
-        <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center", mb: 1 }}>
-          {assetTags.map(tag => <Chip key={tag} label={tag} size="small" onDelete={() => onRemoveTag(tag)} sx={{ height: 22, fontSize: "0.72rem" }} />)}
-          {assetTags.length === 0 && <Typography variant="caption" color="text.secondary">{t("workflow.tagging.noTags")}</Typography>}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+          <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem" }}>{asset.name}</Typography>
+          {/* How many curated tags the asset ARRIVED with - the "somebody already did this one" hint. */}
+          {alreadyTagged > 0 && <Chip data-testid="workflow-already-tagged"
+            label={t("workflow.tagging.alreadyTagged", { count: alreadyTagged })}
+            size="small" variant="outlined" sx={{ height: 20, fontSize: "0.68rem" }} />}
         </Box>
-        <Autocomplete freeSolo options={ALL_TAGS.filter(tag => !assetTags.includes(tag))}
-          renderInput={(params) => (
-              <TextField {...params} inputRef={tagInputRef} placeholder={t("workflow.tagging.placeholder")} size="small" autoFocus
-              InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><LocalOfferOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }} />
-          )}
-          onChange={(_, val) => { if (typeof val === "string" && val.trim()) onAddTag(val.trim()); }}
-          clearOnBlur={false} selectOnFocus handleHomeEndKeys sx={{ maxWidth: 440 }} />
+        <TagEditor tags={assetTags} vocabulary={vocabulary} onAddTag={onAddTag} onRemoveTag={onRemoveTag}
+          tagInputRef={tagInputRef} placeholder={t("workflow.tagging.placeholder")}
+          emptyState={t("workflow.tagging.noTags")} maxWidth={440} autoFocus />
       </Box>
     </Box>
   );
@@ -812,7 +863,7 @@ function ProfilesSidebar({
 export default function WorkflowView() {
   const { setSidebarCollapsed } = useLayout();
   const { t } = useTranslation();
-  const { token } = useAuth();
+  const { token, userUuid } = useAuth();
   const { showToast } = useToast();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [mode, setMode] = useState<WorkflowMode>("rating");
@@ -820,7 +871,14 @@ export default function WorkflowView() {
   const [fullscreen, setFullscreen] = useState(false);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [ratingReactionUuids, setRatingReactionUuids] = useState<Record<string, string>>({});
-  const [assetTags, setAssetTags] = useState<Record<string, string[]>>({});
+  // Tags are held as objects, not names: removal goes through the tag's uuid, and telling a
+  // curated tag from a machine one needs its provenance.
+  const [assetTags, setAssetTags] = useState<Record<string, WorkflowTag[]>>({});
+  const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
+  // What each asset ARRIVED carrying, so the screen can say "somebody already decided this one"
+  // without the marker lighting up the moment the reviewer presses a key.
+  const [initiallyRated, setInitiallyRated] = useState<Set<string>>(new Set());
+  const [initiallyTagged, setInitiallyTagged] = useState<Record<string, number>>({});
   // The dedup queue is server state: the group carries its own status, so there is no local
   // decision map to drift out of sync with what was actually written.
   const [dedupGroups, setDedupGroups] = useState<DedupGroupResponse[]>([]);
@@ -842,18 +900,46 @@ export default function WorkflowView() {
   useEffect(() => {
     if (!token) return;
     listAssets(token, { limit: PAGE_SIZE }).then(r => {
-      const loaded = (r.data ?? []).slice(0, 20).map(apiToWorkflowAsset);
+      const raw = (r.data ?? []).slice(0, 20);
+      const loaded = raw.map(apiToWorkflowAsset);
       setAssets(loaded);
-      const map: Record<string, string[]> = {};
-      loaded.forEach(a => { map[a.id] = [...a.tags]; });
+      // Built from the raw response rather than from Asset.tags, which is a list of names:
+      // untagAsset needs the tag uuid, and the machine/curated distinction needs nodeKind.
+      const map: Record<string, WorkflowTag[]> = {};
+      const tagged: Record<string, number> = {};
+      raw.forEach(a => {
+        const tags = toWorkflowTags(a.tags);
+        map[a.uuid] = tags;
+        const curated = tags.filter(isCurated).length;
+        if (curated > 0) tagged[a.uuid] = curated;
+      });
       setAssetTags(map);
-      // Hydrate any previously persisted ratings so bulk-review work survives reloads.
-      hydrateAssetRatings(token, loaded.map(a => a.id)).then(({ ratings, reactionUuids }) => {
+      setInitiallyTagged(tagged);
+      // Hydrate this reviewer's previously persisted ratings so bulk-review work survives reloads.
+      // Scoped to userUuid: reactions come back for every user, and adopting a colleague's reaction
+      // uuid here would make the next keystroke overwrite their rating rather than write our own.
+      hydrateAssetRatings(token, loaded.map(a => a.id), userUuid ?? undefined).then(({ ratings, reactionUuids }) => {
         setRatings(ratings);
         setRatingReactionUuids(reactionUuids);
-      }).catch(() => {});
-    }).catch(() => {});
-  }, [token]);
+        setInitiallyRated(new Set(Object.keys(ratings)));
+      }).catch(() => {
+        showToast(t("workflow.rating.hydrateFailed"), "error");
+      });
+    }).catch(() => {
+      showToast(t("workflow.queue.loadFailed"), "error");
+    });
+  }, [token, userUuid, showToast, t]);
+
+  // The tag vocabulary a reviewer picks from. Unscoped on purpose - see loadTagVocabulary. A
+  // failure is not fatal: the input is freeSolo, so a reviewer can still type a tag.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    loadTagVocabulary(token)
+      .then(names => { if (!cancelled) setTagVocabulary(names); })
+      .catch(() => { if (!cancelled) showToast(t("workflow.tagging.vocabularyFailed"), "error"); });
+    return () => { cancelled = true; };
+  }, [token, showToast, t]);
 
   // The real review queue: groups a discovery run proposed and nobody has decided yet.
   useEffect(() => {
@@ -965,22 +1051,80 @@ export default function WorkflowView() {
 
   const goNext = useCallback(() => { setCurrentIdx(i => Math.min(i + 1, maxIdx)); setSelectedClusterIdx(0); setSelectedObjIdx(0); }, [maxIdx]);
   const goPrev = useCallback(() => { setCurrentIdx(i => Math.max(i - 1, 0)); setSelectedClusterIdx(0); setSelectedObjIdx(0); }, []);
+  /**
+   * Show the rating at once, then persist it — and take it back if the write fails.
+   *
+   * At a keystroke per decision a POST that silently disappears is worse than no persistence at
+   * all: the stars say the work is done and the server never heard about it.
+   */
   const handleRate = useCallback((rating: number) => {
     const assetId = currentAsset?.id;
     if (!assetId) return;
-    // Optimistically reflect the rating locally, then persist it as an asset reaction.
+    const previous = ratings[assetId];
     setRatings(prev => ({ ...prev, [assetId]: rating }));
     if (!token) return;
     persistAssetRating(token, assetId, rating, ratingReactionUuids[assetId])
       .then(uuid => setRatingReactionUuids(prev => ({ ...prev, [assetId]: uuid })))
-      .catch(() => {});
-  }, [currentAsset, token, ratingReactionUuids]);
-  const handleAddTag = useCallback((tag: string) => {
-    setAssetTags(prev => { const cur = prev[currentAsset.id] ?? []; if (cur.includes(tag)) return prev; return { ...prev, [currentAsset.id]: [...cur, tag] }; });
-  }, [currentAsset]);
-  const handleRemoveTag = useCallback((tag: string) => {
-    setAssetTags(prev => ({ ...prev, [currentAsset.id]: (prev[currentAsset.id] ?? []).filter(t => t !== tag) }));
-  }, [currentAsset]);
+      .catch(() => {
+        setRatings(prev => {
+          const next = { ...prev };
+          if (previous === undefined) delete next[assetId];
+          else next[assetId] = previous;
+          return next;
+        });
+        showToast(t("workflow.rating.saveFailed"), "error");
+      });
+  }, [currentAsset, token, ratings, ratingReactionUuids, showToast, t]);
+  /**
+   * Attach a tag, showing the chip at once and taking it back if the write fails.
+   *
+   * The optimistic chip carries a placeholder uuid, and the rollback removes *that* chip rather
+   * than the last one or the one with this name: at a keystroke per decision several writes are in
+   * flight, and reverting by position would take out whichever chip happens to sit there by then.
+   */
+  const handleAddTag = useCallback((rawName: string) => {
+    const name = rawName.trim();
+    const assetId = currentAsset?.id;
+    if (!name || !assetId || !token) return;
+    const existing = assetTags[assetId] ?? [];
+    if (existing.some(tag => tag.name.toLowerCase() === name.toLowerCase())) return;
+
+    const pending = pendingTag(name);
+    setAssetTags(prev => ({ ...prev, [assetId]: [...(prev[assetId] ?? []), pending] }));
+
+    addAssetTag(token, assetId, name)
+      .then(saved => setAssetTags(prev => ({
+        ...prev,
+        [assetId]: (prev[assetId] ?? []).map(tag => (tag.uuid === pending.uuid ? saved : tag)),
+      })))
+      .catch(() => {
+        setAssetTags(prev => ({
+          ...prev,
+          [assetId]: (prev[assetId] ?? []).filter(tag => tag.uuid !== pending.uuid),
+        }));
+        showToast(t("workflow.tagging.addFailed", { tag: name }), "error");
+      });
+  }, [currentAsset, token, assetTags, showToast, t]);
+
+  /** Remove a tag, restoring it at its original position if the DELETE fails. */
+  const handleRemoveTag = useCallback((tag: WorkflowTag) => {
+    const assetId = currentAsset?.id;
+    // A pending chip has no server-side uuid yet, so there is nothing to delete.
+    if (!assetId || !token || isPending(tag)) return;
+    const index = (assetTags[assetId] ?? []).findIndex(candidate => candidate.uuid === tag.uuid);
+    setAssetTags(prev => ({ ...prev, [assetId]: (prev[assetId] ?? []).filter(candidate => candidate.uuid !== tag.uuid) }));
+
+    removeAssetTag(token, assetId, tag.uuid).catch(() => {
+      setAssetTags(prev => {
+        const current = prev[assetId] ?? [];
+        if (current.some(candidate => candidate.uuid === tag.uuid)) return prev;
+        const restored = [...current];
+        restored.splice(index < 0 ? restored.length : index, 0, tag);
+        return { ...prev, [assetId]: restored };
+      });
+      showToast(t("workflow.tagging.removeFailed", { tag: tag.name }), "error");
+    });
+  }, [currentAsset, token, assetTags, showToast, t]);
   /**
    * Write a dedup decision, showing it immediately and taking it back if the write fails.
    *
@@ -1154,11 +1298,14 @@ export default function WorkflowView() {
           {mode === "rating" && currentAsset && (
             <RatingMode asset={currentAsset} ratings={ratings} onRate={handleRate}
               tagInputRef={tagInputRef} assetTags={assetTags[currentAsset.id] ?? []}
-              onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} />
+              vocabulary={tagVocabulary} onAddTag={handleAddTag} onRemoveTag={handleRemoveTag}
+              alreadyRated={initiallyRated.has(currentAsset.id)} />
           )}
           {mode === "tagging" && currentAsset && (
             <TaggingMode asset={currentAsset} tagInputRef={tagInputRef}
-              assetTags={assetTags[currentAsset.id] ?? []} onAddTag={handleAddTag} onRemoveTag={handleRemoveTag} />
+              assetTags={assetTags[currentAsset.id] ?? []} vocabulary={tagVocabulary}
+              onAddTag={handleAddTag} onRemoveTag={handleRemoveTag}
+              alreadyTagged={initiallyTagged[currentAsset.id] ?? 0} />
           )}
           {mode === "deduplication" && currentGroup && (
             <DeduplicationMode group={currentGroup} assets={dedupAssets}

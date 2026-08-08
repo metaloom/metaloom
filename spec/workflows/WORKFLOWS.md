@@ -191,23 +191,26 @@ These are real, verified at `21e8a8cd`, and shared by more than one workflow. Ea
 
 ## 5. Closing the loop: what a decision is good for
 
-The manual-sorting brief asks the right question — *what can act on a rating or a tag?* Today the
-honest answer is **almost nothing**, and that is a gap with a specific shape.
+The manual-sorting brief asks the right question — *what can act on a rating or a tag?* As of
+2026-08-08 a pipeline can, which is what task W1 delivered. The rest of the row is still open.
 
 | Consumer | Can it read a human decision today? |
 |---|---|
-| `filter` node | 🔴 **No.** `FilterBy` is `LANGUAGE`, `MIME`, `SIZE`, `DATE` — all derived from the item itself. There is no `TAG`, `RATING` or `REVIEW_STATE` strategy |
+| `filter` node | 🟢 **Yes.** `FilterBy.RATING` and `FilterBy.TAG` landed 2026-08-08 (task W1). No `REVIEW_STATE` strategy — `detection` still has no review status column (W5) |
 | `tag` node | 🟡 It *writes* tags from rules over wired ports; it does not read a human decision as an input |
 | `script` node | 🟢 GraalJS can call out, so anything is reachable — at the cost of putting policy in a script |
 | Lexical search | 🟡 `search_document` is fed by triggers; tags are searchable, ratings are not |
 | Pipeline trigger | 🔴 `PipelineMatcher` matches on **mime type only** — a rating cannot start a run |
 
-**The single highest-leverage change in this whole family** is adding `TAG` and `RATING` strategies to
-`FilterBy`. `FilterBy` was designed as exactly this seam — its own javadoc says adding one is "a
-strategy class plus a Dagger binding plus a value in the descriptor's `filterBy` parameter, and never
-an edit to `FilterNode`". With it, every manual decision becomes routable: rated ≤2 goes to the trash
-branch, tagged `hero` goes to the publish branch, and [WORKFLOW_TRASH.md](WORKFLOW_TRASH.md) stops
-needing invention. Task W1 in [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md).
+**This was the single highest-leverage change in the family, and it is done.** `FilterBy` was
+designed as exactly this seam. A manual decision is now routable: rated ≤2 goes down one branch,
+tagged `hero` down another, and [WORKFLOW_TRASH.md](WORKFLOW_TRASH.md) no longer needs invention for
+its input. Task W1 in [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md).
+
+Two details worth carrying into any workflow that reads a decision back. `FilterBy.RATING` averages
+across reviewers, so an asset can change branch between runs without anybody changing their mind. And
+"we could not read the ratings" is kept distinct from "nobody rated it" — collapsing them would send
+the whole un-reviewed backlog down the trash branch during a Loom outage.
 
 ```mermaid
 flowchart LR

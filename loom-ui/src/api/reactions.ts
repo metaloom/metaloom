@@ -21,7 +21,7 @@ export interface ReactionListResponse {
 }
 
 /** Reaction type values, matching the backend `io.metaloom.loom.api.reaction.ReactionType` enum. */
-export type TaskReactionType = "THUMBSUP" | "THUMBSDOWN" | "SATISFIED" | "PLUS_ONE" | "MINUS_ONE";
+export type TaskReactionType = "THUMBSUP" | "THUMBSDOWN" | "SATISFIED" | "PLUS_ONE" | "MINUS_ONE" | "RATING";
 
 export interface ReactionCreateRequest {
   type?: TaskReactionType;

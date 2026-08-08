@@ -25,15 +25,23 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 
 	public static final String KEY = "filter";
 
-	@ParamDoc(label = "Filter By", description = "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata")
+	@ParamDoc(label = "Filter By",
+		description = "What the buckets are matched against. LANGUAGE asks a model; MIME, SIZE and DATE read the item's own metadata; "
+			+ "RATING and TAG read the decisions people recorded in Loom")
 	private FilterBy filterBy = FilterBy.LANGUAGE;
 
 	/** The bucket rows, exactly as the editor's {@code PORT_LIST} widget writes them. */
 	@ParamDoc(label = "Buckets", type = ParameterType.PORT_LIST,
 		description = "One output port per bucket, tried in order with the first match winning. Each row's match column holds "
-			+ "hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB' or "
-			+ "dates like '2024-01-01..2024-12-31'. An 'other' port for everything else is always present")
+			+ "hints for the chosen filterBy - language names, MIME patterns like 'image/*', size thresholds like '<10MB', "
+			+ "dates like '2024-01-01..2024-12-31', rating conditions like '>=8' or 'unrated', or tag names like 'hero', "
+			+ "'person/*' and '!archive'. An 'other' port for everything else is always present")
 	private JsonArray buckets = new JsonArray();
+
+	@ParamDoc(label = "Tag Source",
+		description = "Which tags count when filterBy=TAG: ANY, MANUAL for only the tags a person attached, or MACHINE for only "
+			+ "those a node attached")
+	private TagSource tagSource = TagSource.ANY;
 
 	@ParamDoc(label = "Model", description = "The model asked to classify each item. Used by filterBy=LANGUAGE only")
 	private String model = "meta-llama/Llama-3.2-3B-Instruct";
@@ -65,6 +73,15 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 
 	public JsonArray getBuckets() {
 		return buckets;
+	}
+
+	public TagSource getTagSource() {
+		return tagSource;
+	}
+
+	public FilterNodeOptions setTagSource(TagSource tagSource) {
+		this.tagSource = tagSource;
+		return this;
 	}
 
 	public FilterNodeOptions setBuckets(JsonArray buckets) {
@@ -147,6 +164,9 @@ public class FilterNodeOptions extends AbstractNodeOptions<FilterNodeOptions> {
 
 		if (filterBy == null) {
 			errors.add("filterBy must be set");
+		}
+		if (tagSource == null) {
+			errors.add("tagSource must be set");
 		}
 		if (openaiUrl == null || openaiUrl.isBlank()) {
 			errors.add("openaiUrl must not be empty");

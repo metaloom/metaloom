@@ -47,6 +47,7 @@ public class DemoPipelineDefinitionTest {
 		definitions.put("s3-publish", DemoDatabaseInitializer.s3PublishDefinition());
 		definitions.put("script", DemoDatabaseInitializer.scriptDefinition());
 		definitions.put("transcription", DemoDatabaseInitializer.transcriptionDefinition());
+		definitions.put("review-triage", DemoDatabaseInitializer.reviewTriageDefinition());
 		return definitions;
 	}
 

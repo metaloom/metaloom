@@ -2,8 +2,6 @@ package io.metaloom.cortex.node.filter;
 
 import java.util.List;
 
-import io.metaloom.cortex.api.media.LoomMedia;
-import io.metaloom.cortex.api.node.context.NodeContext;
 import io.vertx.core.json.JsonObject;
 
 /**
@@ -59,23 +57,37 @@ public interface FilterStrategy {
 	}
 
 	/**
+	 * Whether this strategy needs the asset's reactions.
+	 *
+	 * <p>
+	 * Opt-in rather than always-on: the fetch is one Loom round trip per item, and only
+	 * {@link FilterBy#RATING} has any use for it. {@link FilterNode} makes the call once and puts
+	 * the answer on the {@link FilterItem}, so the strategy never touches a client — and a failed
+	 * fetch arrives as {@code reactionsAvailable == false} rather than as an exception, because an
+	 * unreachable Loom must not abort a fifty-thousand-item task.
+	 * </p>
+	 */
+	default boolean needsReactions() {
+		return false;
+	}
+
+	/**
 	 * Classify one item.
 	 *
-	 * @param ctx
-	 *            the node context, carrying the media
+	 * @param item
+	 *            everything known about the item: the context and media, what Loom knows about the
+	 *            asset, and any reactions this strategy asked for
 	 * @param options
 	 *            the node's per-instance configuration
 	 * @param buckets
 	 *            the configured buckets, already validated
-	 * @param text
-	 *            the text wired into the node's {@code text} port; may be null or blank
 	 * @return the outcome; never null. Return {@link Classification#other(String)} rather than
 	 *         throwing when the answer is merely unusable — {@code other} is what that branch is
 	 *         for. Throw only when the strategy genuinely could not do its job, which fails the task
 	 * @throws Exception
 	 *             when the backing service is unreachable or errors
 	 */
-	Classification classify(NodeContext<LoomMedia> ctx, FilterNodeOptions options, List<FilterBucket> buckets, String text) throws Exception;
+	Classification classify(FilterItem item, FilterNodeOptions options, List<FilterBucket> buckets) throws Exception;
 
 	/**
 	 * Where an item was routed, and why.

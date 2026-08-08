@@ -47,6 +47,16 @@ export interface TagUpdateRequest {
   meta?: Record<string, unknown>;
 }
 
+/**
+ * Namespace a screen writes a coined tag into.
+ *
+ * `tag` is `UNIQUE (name, collection)`, so `collection` is a free-text namespace on the tag — it
+ * is *not* an asset collection, despite the name. Two screens that pick different namespaces for
+ * the same word produce two tags a reviewer cannot tell apart, so every screen that lets a person
+ * coin a tag writes into this one.
+ */
+export const DEFAULT_TAG_COLLECTION = "default";
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function authHeaders(token: string): Record<string, string> {

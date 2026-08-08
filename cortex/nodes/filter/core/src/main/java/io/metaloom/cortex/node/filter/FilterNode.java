@@ -172,6 +172,15 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 					+ "'; expected one of " + java.util.Arrays.toString(FilterBy.values()));
 			}
 		}
+		if (nodeDef.containsKey("tagSource")) {
+			String raw = nodeDef.getString("tagSource");
+			try {
+				options.setTagSource(TagSource.valueOf(raw.trim().toUpperCase(java.util.Locale.ROOT)));
+			} catch (IllegalArgumentException | NullPointerException e) {
+				throw new IllegalStateException("Filter node '" + nodeId + "' has unknown tagSource '" + raw
+					+ "'; expected one of " + java.util.Arrays.toString(TagSource.values()));
+			}
+		}
 		if (nodeDef.containsKey("buckets")) {
 			options.setBuckets(nodeDef.getJsonArray("buckets", new JsonArray()));
 		}
@@ -204,8 +213,11 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 			throw new IllegalStateException("Filter node '" + nodeId + "' is misconfigured: " + String.join("; ", bucketErrors));
 		}
 
+		// Every input that can change the answer belongs in here. Two nodes differing only in an
+		// omitted one would share a result-cache entry and a producerVersion, so the second would
+		// re-emit the first's verdict.
 		configHash = hash(options.getFilterBy() + " " + options.getBuckets().encode() + " " + options.getModel()
-			+ " " + strategy.version());
+			+ " " + options.getTagSource() + " " + strategy.version());
 		configured = true;
 	}
 
@@ -228,10 +240,11 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 
 		List<FilterBucket> buckets = options().buckets();
 		FilterStrategy strategy = strategy();
+		FilterItem item = item(ctx, asset, strategy);
 
 		Classification classification;
 		try {
-			classification = strategy.classify(ctx, options(), buckets, ctx.optionalInput(IN_TEXT).orElse(null));
+			classification = strategy.classify(item, options(), buckets);
 		} catch (Exception e) {
 			// The worker could not do the job it was given - an unreachable model is not a routing
 			// decision. .abort() and not .next(): NodeContextImpl.next() ignores the failure cause
@@ -264,6 +277,30 @@ public class FilterNode extends AbstractMediaNode<FilterNodeOptions> implements 
 		}
 		ctx.output(OUT_PASSED, !Classification.OTHER.equals(bucketId));
 		ctx.output(OUT_BUCKET, bucketId);
+	}
+
+	/**
+	 * Gather what the strategy is allowed to see about one item.
+	 *
+	 * <p>
+	 * The asset is whatever {@code AbstractMediaNode} already loaded, so tags cost nothing. Only a
+	 * strategy that asked for reactions pays the extra round trip, and a failed fetch is recorded as
+	 * "unavailable" rather than thrown: an unreachable Loom is not a reason to abort a task over
+	 * thousands of files, and "we could not find out" is a materially different answer from "there
+	 * is no rating" — the strategy decides what to do with each.
+	 * </p>
+	 */
+	private FilterItem item(NodeContext<LoomMedia> ctx, AssetResponse asset, FilterStrategy strategy) {
+		FilterItem item = FilterItem.of(ctx, asset, ctx.optionalInput(IN_TEXT).orElse(null));
+		if (!strategy.needsReactions() || asset == null || client() == null) {
+			return item;
+		}
+		try {
+			return item.withReactions(client().listAssetReaction(asset.getUuid()).sync().body().getData());
+		} catch (Exception e) {
+			log.debug("Filter node {} could not read the reactions of asset {}: {}", nodeId, asset.getUuid(), e.getMessage());
+			return item.withoutReactions();
+		}
 	}
 
 	private FilterStrategy strategy() {
