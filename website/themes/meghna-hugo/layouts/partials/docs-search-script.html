@@ -1,0 +1,18 @@
+{{/*
+  Loads the search script, on documentation pages only.
+
+  Deliberately NOT one of the `[[params.plugins.js]]` entries in config.toml: that list is
+  rendered on every page of the site, and nothing outside /docs/ has anything to search.
+
+  The four URLs ride on this tag rather than on the box, because the box renders two or three
+  times per page and these are page-level facts. They are `data-*-url` attributes so both build
+  gates see them — build.sh's localhost grep and check-links.mjs both enumerate the attributes
+  they check, and both have been taught these four. A renamed index or a moved model then fails
+  the build instead of 404-ing for a reader.
+*/}}
+{{ $search := resources.Get "js/docs-search.js" | minify | fingerprint "sha384" }}
+<script src="{{ $search.RelPermalink }}" integrity="{{ $search.Data.Integrity }}" defer
+	data-search-index-url="{{ "search/docs-index.json" | relURL }}"
+	data-search-vectors-url="{{ "search/docs-vectors.bin" | relURL }}"
+	data-search-model-url="{{ "plugins/ternlight/tern_engine.js" | relURL }}"
+	data-search-wasm-url="{{ "plugins/ternlight/tern_engine_bg.wasm" | relURL }}"></script>

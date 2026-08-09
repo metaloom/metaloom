@@ -1,0 +1,3 @@
+package @ternlight/base@0.1.1
+sha256  27819b70b83fb24a493792db7bdf6b9cae4a1531df408809d1e57d580a3e9087
+engine  tern-engine v1 | embedding_format=int4 | vocab=30522 d_model=384 n_layers=2 n_heads=6 ffn_dim=1536 output_dim=384 max_seq_len=128

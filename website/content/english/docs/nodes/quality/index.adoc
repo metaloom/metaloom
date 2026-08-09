@@ -14,7 +14,7 @@ blurriness (via a Laplacian measure) and bitrate — so low-quality assets can b
 | Kind | `quality`
 | Applies to | Image, Video
 | Input ports | `media`
-| Output ports | `metrics` (all of them together — this is what the link:../filters/[quality filter] connects to), `blurriness`, `width`, `height`, `fps`, `frame_count`, `flag`. The frame-rate and frame-count ports carry a value only for video
+| Output ports | `metrics` (all of them together — this is what the link:../filter/[quality filter] connects to), `blurriness`, `width`, `height`, `fps`, `frame_count`, `flag`. The frame-rate and frame-count ports carry a value only for video
 | Requirements | OpenCV / video4j **native runtime**. CPU-bound. No GPU required.
 | Persists to | `asset_json_comp` + `asset_node_result` ledger
 |===
@@ -46,7 +46,7 @@ The strip on the card lists what each output port carried — `blurriness`, `wid
 
 == Use Cases
 
-* **Quality gating** — pair with the link:../filters/[quality filter] to route low-quality assets
+* **Quality gating** — pair with the link:../filter/[quality filter] to route low-quality assets
   differently or skip them.
 * **Blurry-image detection** — flag out-of-focus photos.
 * **Library stats** — resolution/bitrate reporting across an asset pool.

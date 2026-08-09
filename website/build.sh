@@ -20,12 +20,19 @@ cd $BASEDIR
 hugo
 
 
+# Reads the built documentation pages and writes dist/search/ — the metadata sidecar and the
+# quantised vectors the reader's browser downloads on first search. Runs BEFORE the link check,
+# so that check can verify the URLs the search box will fetch.
+echo "Building the documentation search index"
+node "$BASEDIR/build-search-index.mjs" "$BASEDIR/dist"
+
+
 # The published site must never link back to the build machine. Prose and code samples may of
 # course mention a local address (the demo container is documented as localhost:8092) — only
 # resource/link attributes are rejected, since those are what a visitor's browser would follow.
 # In AsciiDoc, suppress the automatic linking of such a URL by escaping it: `\http://localhost:8092`.
 echo "Checking build output for localhost links"
-LINK_PATTERN='(href|src|srcset|action|data-src|data-openapi-url|data-graphql-url|data-schema-url)="[^"]*(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])[^"]*"'
+LINK_PATTERN='(href|src|srcset|action|data-src|data-openapi-url|data-graphql-url|data-schema-url|data-search-index-url|data-search-vectors-url|data-search-model-url|data-search-wasm-url)="[^"]*(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])[^"]*"'
 LOCALHOST_LINKS=$(grep -rInoE "$LINK_PATTERN" "$BASEDIR/dist" --include='*.html' --include='*.xml' || true)
 if [ -n "$LOCALHOST_LINKS" ]; then
 	echo "" >&2

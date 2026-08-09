@@ -1,6 +1,7 @@
 {{ define "main" }}
 
 {{ partial "navigation.html" . }}
+{{ partial "docs-search-bootstrap.html" . }}
 
 {{/* Docs landing / section index. It opens with the same header as /features/, /blog/ and
      /announcements/ — eyebrow, title, optional lead — so moving between the marketing pages
@@ -19,12 +20,20 @@
       {{ if not $isRoot }}
       <div class="col-lg-3 d-none d-lg-block">
         <div class="docs-sidebar toc-sticky-top">
+          {{ partial "docs-search.html" (dict "variant" "rail") }}
           {{ partial "docs-topics.html" . }}
         </div>
       </div>
       {{ end }}
 
       <div class="{{ if $isRoot }}col-lg-10{{ else }}col-lg-9{{ end }}">
+        {{/* On a section index the box lives in the rail, and the rail is `d-none d-lg-block` —
+             so a phone gets this copy instead. /docs/ has no rail at any width by design, so
+             there the box belongs in the column at every width, under the header rather than
+             above it: on the one page that *is* the map, the map comes first. */}}
+        {{ if not $isRoot }}
+        <div class="d-lg-none">{{ partial "docs-search.html" (dict "variant" "narrow") }}</div>
+        {{ end }}
         <header class="page-head{{ if $isRoot }} page-head-center{{ end }}">
           {{/* The eyebrow names the section this page sits in. Anything directly under /docs/
                (and /docs/ itself, whose parent is the home page) gets "Documentation" —
@@ -36,6 +45,10 @@
           {{ with .Params.subtitle }}<p class="page-lead">{{ . | markdownify }}</p>{{ end }}
         </header>
 
+        {{ if $isRoot }}
+        {{ partial "docs-search.html" (dict "variant" "hero") }}
+        {{ end }}
+
         <div class="post-single-content docs-content docs-main-content">
           {{ .Content }}
         </div>
@@ -43,4 +56,5 @@
     </div>
   </div>
 </section>
+{{ partial "docs-search-script.html" . }}
 {{ end }}

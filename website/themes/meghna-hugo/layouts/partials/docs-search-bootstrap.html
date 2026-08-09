@@ -1,0 +1,18 @@
+{{/*
+  Flags "JavaScript is working" during parse, so the search box may paint at all.
+
+  The same shape as reveal-bootstrap.html, and for the mirror-image reason. Scroll reveal hides
+  finished content and must un-hide it if its script never arrives; search *is* the script, so
+  the control stays hidden until one has confirmed it runs and goes away again if it does not.
+  Either way a blocked or failed script degrades to the page as it was, never to a text field
+  that swallows what a reader types.
+
+  Synchronous on purpose: a deferred snippet would let the rail paint without the box and then
+  push it in, moving the topic list under the reader's cursor.
+*/}}
+<script>
+  document.documentElement.classList.add('docs-search-js');
+  setTimeout(function () {
+    if (!window.__docsSearchReady) document.documentElement.classList.remove('docs-search-js');
+  }, 2500);
+</script>

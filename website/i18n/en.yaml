@@ -28,6 +28,10 @@
   translation: Contact
 - id: documentation
   translation: Documentation
+- id: searchDocsLabel
+  translation: Search the documentation
+- id: searchDocsPlaceholder
+  translation: Search the docs…
 - id: legal
   translation: Legal & Licensing
 - id: modelLicenses

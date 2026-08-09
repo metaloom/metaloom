@@ -366,7 +366,8 @@ spec/
 │   └── TTS_SIDECAR.md                 # :9100 — Orpheus (DE) / Kokoro (EN) text-to-speech
 ├── website/
 │   ├── WEBSITE.md                     # Hugo site: content, build, publish (incl. /tour/, /studio/)
-│   └── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — backend-free in-browser editor + simulator
+│   ├── WEBSITE_PIPELINE_EDITOR.md     # /pipeline-editor/ — backend-free in-browser editor + simulator
+│   └── WEBSITE_SEARCH.md              # /docs/ semantic search — vendored model, build-time index, ranking
 └── workflows/                         # NEW 2026-08-07 — the human-in-the-loop review family.
     │                                  #   A workflow = a queue of machine proposals + a durable human
     │                                  #   decision + something that acts on it. All six shipped modes
@@ -450,6 +451,7 @@ spec/
 | Helm deployment | [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
 | Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
 | The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
+| Search on the documentation site | [website/WEBSITE_SEARCH.md](website/WEBSITE_SEARCH.md) — client-side embeddings, no server, `/docs/**` only |
 | The commercial edition / hosted service | ➜ **sibling repo** `metaloom-saas` — see §2.2 |
 | Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](tasks/TASKS.template.md) |
 | **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [features/nodes/metadata/METADATA_OVERVIEW.md](features/nodes/metadata/METADATA_OVERVIEW.md) — 🟢 **built**: the `metadata` node. Also the only place that records the source-precedence rules, the envelope contract, and where a licence should live |

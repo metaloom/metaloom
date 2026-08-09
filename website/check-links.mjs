@@ -68,7 +68,7 @@ function resolveTarget(path) {
 }
 
 const attrPattern =
-	/\s(href|src|srcset|action|poster|data-src|data-openapi-url|data-graphql-url|data-schema-url)="([^"]*)"/g;
+	/\s(href|src|srcset|action|poster|data-src|data-openapi-url|data-graphql-url|data-schema-url|data-search-index-url|data-search-vectors-url|data-search-model-url|data-search-wasm-url)="([^"]*)"/g;
 
 const broken = [];
 

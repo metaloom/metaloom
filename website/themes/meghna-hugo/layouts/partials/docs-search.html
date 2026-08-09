@@ -1,0 +1,24 @@
+{{/*
+  The documentation search box.
+
+  Call with a variant, which only distinguishes the instances from one another so their labels
+  can point at the right field:
+
+      {{ partial "docs-search.html" (dict "variant" "rail") }}
+
+  A page renders this more than once on purpose. The rail it belongs in is `d-none d-lg-block`,
+  so below 992 px there is no rail and therefore nowhere to search from; and /docs/ itself is
+  laid out centred and rail-free because that page *is* the map. Both layouts therefore pair the
+  rail instance with one in the content column. docs-search.js binds every instance and they
+  share one index, one model and one results panel.
+
+  The form submits nowhere — there is no server to submit to. Search happens in the browser or
+  not at all, which is why the whole control stays hidden until the script has confirmed it runs.
+*/}}
+{{ $variant := .variant | default "rail" }}
+{{ $id := printf "docs-search-%s" $variant }}
+<form class="docs-search docs-search-{{ $variant }}" data-docs-search role="search" action="">
+	<label class="sr-only" for="{{ $id }}">{{ i18n "searchDocsLabel" }}</label>
+	<input type="search" id="{{ $id }}" class="docs-search-input" placeholder="{{ i18n "searchDocsPlaceholder" }}">
+	<span class="docs-search-hint" aria-hidden="true">/</span>
+</form>

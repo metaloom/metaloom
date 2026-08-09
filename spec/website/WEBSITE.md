@@ -18,6 +18,7 @@ coding agent that has to add or restructure site content, or fix the build/publi
 | Definition of done for a spec change | [../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 | Spec-tree entry point / routing | [../CONTEXT.md](../CONTEXT.md) |
 | The `/pipeline-editor/` page (backend-free editor + simulator) | [WEBSITE_PIPELINE_EDITOR.md](WEBSITE_PIPELINE_EDITOR.md) |
+| Client-side semantic search over `/docs/**` (index, model, ranking, the box) | [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) |
 | Typed ports, content types, cardinality (vocabulary the docs must match) | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | Node catalogue / adding a node | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md), [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | REST API (source of the staged OpenAPI document) | [../loom/RESTAPI.md](../loom/RESTAPI.md) |
@@ -30,7 +31,9 @@ coding agent that has to add or restructure site content, or fix the build/publi
   `baseURL = https://metaloom.io`. Single language `en`, `contentDir = content/english`.
 * Docs and blog are **AsciiDoc** (`.adoc`) — `asciidoctor` must be on `PATH` and allow-listed in
   `[security.exec]`. The marketing pages are **data-driven** from `data/en/*.yml`.
-* Build with `./build.sh` → `dist/`, then three gates: a **localhost-link check**,
+* `/docs/**` has **client-side semantic search** — a build step embeds every page with a vendored
+  7 MB model and the browser runs it on the CPU. See [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md).
+* Build with `./build.sh` → `dist/`, then the **search index** and three gates: a **localhost-link check**,
   `check-links.mjs` (broken internal links + missing `#anchors`) and `check-node-screenshots.mjs`
   (every node page has its pictures; every shipped node kind has a page). All three fail the build.
 * **Hugo extended ≥ 0.158 is required.** The system `hugo` is now **0.162.1+extended** and builds the
@@ -98,10 +101,12 @@ All commands assume `cd website` first.
 
 | Command | What it does |
 |---|---|
-| `./build.sh` | theme CSS (`yarn install && yarn build` → `assets/css/main.css`) → `hugo` → `dist/` → the two checks. `set -o errexit -o nounset`, so a missing tool fails the whole script. |
+| `./build.sh` | theme CSS (`yarn install && yarn build` → `assets/css/main.css`) → `hugo` → `dist/` → the search index → the three checks. `set -o errexit -o nounset`, so a missing tool fails the whole script. |
 | `./watch.sh` | `./build.sh` then `hugo server -b http://localhost:1313/`. |
 | `hugo` | Site build only (theme CSS assumed current). |
 | `node check-links.mjs [dist]` | The broken-link check standalone — fast iteration while editing links. |
+| `node build-search-index.mjs [dist]` | The `/docs/` search index standalone (~6 s) — [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md). |
+| `./vendor-ternlight.sh [version]` | Re-vendors the embedding model. Run once; the result is committed. |
 
 ### The two build-output gates
 
@@ -115,7 +120,9 @@ backticks*. Suppress it with a leading backslash: `` `\http://localhost:8092/ui/
 block write `<code>…</code>`, not `<a href>`.
 
 **2. `check-links.mjs`** (plain Node, no deps) walks every page in `dist/`, collects
-`href|src|srcset|action|poster|data-src|data-*-url`, and resolves each **internal** target against
+`href|src|srcset|action|poster|data-src` plus an **explicitly enumerated** list of `data-*-url`
+attributes (`openapi`, `graphql`, `schema`, and the four `search-*` ones), and resolves each
+**internal** target against
 the build output (pretty URLs: `/docs/`, `/docs`, `/docs.html` all resolve). `#fragment` targets are
 checked against the target document's `id=`/`name=` attributes, so a renamed heading is caught.
 `metaloom.io`/`www.metaloom.io` count as internal; every other host is skipped — **it never fetches
@@ -131,8 +138,10 @@ the network**. Two failure shapes it catches regularly:
 ```
 website/
 ├── config.toml            # baseURL, theme, menu, plugins, params, security
-├── build.sh · watch.sh    # build (+2 gates) · build + preview server
+├── build.sh · watch.sh    # build (+index +3 gates) · build + preview server
 ├── check-links.mjs        # internal-link + anchor checker
+├── build-search-index.mjs # /docs/ search index → dist/search/   (WEBSITE_SEARCH.md)
+├── vendor-ternlight.sh    # re-vendors the embedding model (run once, result committed)
 ├── pom.xml                # Maven module registration only
 ├── content/english/       # contentDir — see the page inventory below
 ├── content-off/           # parked, NOT built: java-ffm-graph-storage-poc/
@@ -147,10 +156,11 @@ website/
 │   │                      #   · features · tour · studio · pipeline-editor · partials
 │   ├── less/              #   main.less + includes/{custom,adoc,docs,toc,variables}.less → assets/css/main.css
 │   ├── assets/css/        #   main.css (compiled) · home.css · tour.css · studio.css · pipeline-editor.css
-│   ├── assets/js/         #   script.js · reveal.js · pipeline-editor.js
+│   ├── assets/js/         #   script.js · reveal.js · pipeline-editor.js · docs-search.js
 │   ├── assets/images/scenery/  # 4 photos, Hugo-processed to webp; shared by /tour/ and /studio/
-│   └── static/plugins/    #   14 vendored plugins incl. swagger · graphiql · nodeviz · toc
-└── dist/                  # BUILD OUTPUT (git-ignored)
+│   └── static/plugins/    #   15 vendored plugins incl. swagger · graphiql · nodeviz · toc
+│                          #   · ternlight (the 10 MB embedding model, committed)
+└── dist/                  # BUILD OUTPUT (git-ignored) — incl. generated search/
 ```
 
 There is **no project-root `layouts/` or `archetypes/`** — every template lives in the theme.
@@ -481,8 +491,10 @@ face.
   `custom.less`.
 * The mount contains a **real `<video controls …>`**; the script only adds the canvas overlay and the
   recent-detections strip. JavaScript off still gives a playable clip.
-* Attributes are `data-track-url` / `data-video-url` on purpose — `check-links.mjs` validates
-  `data-*-url`, so a renamed asset fails the build.
+* Attributes are `data-track-url` / `data-video-url` on purpose — but note `check-links.mjs`
+  **enumerates** the `data-*-url` attributes it validates and these two are **not** in the list, so
+  a renamed track asset does *not* currently fail the build. Add them to `attrPattern` (and to
+  `LINK_PATTERN` in `build.sh`) to make the intent real.
 * Track and assets are generated by `integration-test/.../node/DetectionPlayerFixtureGenerator`
   (`-Dloom.regenerateDetectionTrack=true`), which runs the real `FacedetectNode`. `detections` are
   the node's **own encoded elements**, untouched, so the player normalises by each element's
@@ -798,6 +810,8 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Change site colours | the `--ml-*` block at the top of `less/includes/custom.less` (rebuild via `build.sh`) |
 | Change docs layout / TOC | `layouts/docs/{single,list}.html`; TOC scoping in `static/plugins/toc/toc.js` |
 | Find out why a link 404s | `cd website && node check-links.mjs` |
+| Change docs search (index, ranking, the box) | [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) — `build-search-index.mjs`, `assets/js/docs-search.js`, `partials/docs-search*.html` |
+| Bump the search embedding model | `cd website && ./vendor-ternlight.sh [version] && ./build.sh` — **the index must be rebuilt in the same change** |
 | Fix "build fails with localhost links" | Escape the URL: `` `\http://localhost:8092` `` |
 | Fix "asciidoc renders empty" | Install `asciidoctor`; confirm it is in `[security.exec] allow` |
 | Change the published domain | `website/static/CNAME` + `baseURL` + `params.canonical_base` |
@@ -892,7 +906,8 @@ review**.
 
 1. Install prerequisites (Hugo extended **≥ 0.158**, Node, `asciidoctor`).
 2. `cd website && ./build.sh` (or `./watch.sh` for `http://localhost:1313/`). A clean run ends with
-   `All done` — no Hugo errors, no localhost hits, `Link check OK — N pages`.
+   `All done` — no Hugo errors, `Search index OK — N pages, M chunks`, no localhost hits,
+   `Link check OK — N pages`.
 3. Spot-check: `/docs/` card grid, one leaf page with the sidebar TOC, `/docs/loom/rest-api/`
    (Swagger UI loads), `/docs/loom/graphql-api/` (GraphiQL builds the schema offline),
    `/docs/nodes/facedetect/` (nodeviz diagram + hover card), `/pipeline-editor/` (demo loads).
@@ -948,6 +963,10 @@ review**.
 - [x] Playbooks: docker, kubernetes, transcription, scene-analysis, translation, python-node
       (incl. a paste-ready coding-agent prompt hardened against four real generation failures)
 - [x] Legal section: Apache-2.0 hub, model licenses, AI disclosure, Austrian Impressum
+- [x] **Client-side semantic search over `/docs/**`** — a vendored 7 MB Ternlight engine, a
+      build-time index of 88 pages / 1380 chunks, and a rail box that runs both a substring pass and
+      a cosine pass in the reader's browser with nothing fetched until it is focused
+      ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md))
 - [x] Both build gates shipping: the localhost-attribute check and `check-links.mjs` (targets + anchors)
 - [x] Absolute metadata built from `params.canonical_base`, closing the `localhost:1313` flake for pages
 - [x] Site header, footer, social cards, page-image resolution, scroll reveal extracted to `reveal.js`
@@ -1015,5 +1034,5 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (assign/move node pictures; fixture generator now covers both)_
+_Git HEAD revision: `4c02c3a5`_
+_Last updated: 2026-08-09 (client-side semantic search over /docs/ — see WEBSITE_SEARCH.md)_
