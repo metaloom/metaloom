@@ -1,6 +1,8 @@
 package io.metaloom.loom.db.jooq.dao.asset;
 
 import static io.metaloom.loom.db.jooq.tables.JooqAsset.ASSET;
+import static io.metaloom.loom.db.jooq.tables.JooqCollectionAsset.COLLECTION_ASSET;
+import static io.metaloom.loom.db.jooq.tables.JooqLibraryAsset.LIBRARY_ASSET;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -23,6 +25,7 @@ import io.metaloom.loom.db.jooq.tables.JooqAsset;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.user.User;
+import io.metaloom.loom.db.page.Page;
 import io.metaloom.utils.hash.SHA512;
 import io.vertx.core.json.JsonObject;
 
@@ -119,6 +122,28 @@ public class AssetDaoImpl extends AbstractJooqDao<Asset> implements AssetDao {
 	public JsonObject readUserMeta(User user, Asset asset) {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	@Override
+	public Page<Asset> loadPageByCollection(UUID collectionUuid, UUID fromId, int pageSize) {
+		SelectConditionStep<?> query = ctx()
+			.select(getTable())
+			.from(getTable())
+			.join(COLLECTION_ASSET).on(COLLECTION_ASSET.ASSET_UUID.eq(ASSET.UUID))
+			.where(COLLECTION_ASSET.COLLECTION_UUID.eq(collectionUuid));
+
+		return loadPage(query, fromId, pageSize, null, null, null);
+	}
+
+	@Override
+	public Page<Asset> loadPageByLibrary(UUID libraryUuid, UUID fromId, int pageSize) {
+		SelectConditionStep<?> query = ctx()
+			.select(getTable())
+			.from(getTable())
+			.join(LIBRARY_ASSET).on(LIBRARY_ASSET.ASSET_UUID.eq(ASSET.UUID))
+			.where(LIBRARY_ASSET.LIBRARY_UUID.eq(libraryUuid));
+
+		return loadPage(query, fromId, pageSize, null, null, null);
 	}
 
 	@Override

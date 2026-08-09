@@ -1452,6 +1452,12 @@
       "machineTooltip": "Von {{nodeKind}} vergeben — {{confidence}} % Konfidenz. Entfernen in der Asset-Detailansicht.",
       "machineTooltipNoConfidence": "Von {{nodeKind}} vergeben. Entfernen in der Asset-Detailansicht."
     },
+    "object": {
+      "saveFailed": "Deine Entscheidung konnte nicht gespeichert werden — sie wurde nicht übernommen."
+    },
+    "cluster": {
+      "saveFailed": "Deine Entscheidung konnte nicht gespeichert werden — sie wurde nicht übernommen."
+    },
     "dedup": {
       "keep": "Behalten",
       "duplicateCandidates": "Duplikat-Kandidaten",

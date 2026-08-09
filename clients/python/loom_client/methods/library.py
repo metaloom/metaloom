@@ -5,7 +5,9 @@ from __future__ import annotations
 import uuid as _uuid_mod
 from typing import TYPE_CHECKING
 
+from ..models.asset import AssetListResponse
 from ..models.library import (
+    LibraryAssetRequest,
     LibraryCreateRequest,
     LibraryListResponse,
     LibraryResponse,
@@ -42,3 +44,30 @@ class LibraryMethods:
     def delete_library(self, library_uuid: _uuid_mod.UUID | str) -> LoomRequest[None]:
         """Delete a library. Answers 204 with no body."""
         return self._delete(f"libraries/{self._uuid(library_uuid)}")
+
+    def add_library_asset(
+        self, library_uuid: _uuid_mod.UUID | str, request: LibraryAssetRequest | _uuid_mod.UUID | str
+    ) -> LoomRequest[LibraryResponse]:
+        """Add an asset to the library.
+
+        Writes the organizational membership only -- it neither creates nor moves a binary.
+        Answers 201 for a new membership and 200 when the asset was already a member.
+
+        Accepts either a request object or a bare asset uuid."""
+        if not isinstance(request, LibraryAssetRequest):
+            request = LibraryAssetRequest(asset_uuid=str(request))
+        return self._post(f"libraries/{self._uuid(library_uuid)}/assets", request, LibraryResponse)
+
+    def remove_library_asset(
+        self, library_uuid: _uuid_mod.UUID | str, asset_uuid: _uuid_mod.UUID | str
+    ) -> LoomRequest[None]:
+        """Remove an asset from the library. Answers 204 with no body."""
+        return self._delete(f"libraries/{self._uuid(library_uuid)}/assets/{self._uuid(asset_uuid)}")
+
+    def list_library_assets(self, library_uuid: _uuid_mod.UUID | str) -> LoomRequest[AssetListResponse]:
+        """List the assets in the library. Supports ``limit``, ``from_`` and ``iter``."""
+        return self._get(f"libraries/{self._uuid(library_uuid)}/assets", AssetListResponse)
+
+    def list_asset_libraries(self, asset_uuid: _uuid_mod.UUID | str) -> LoomRequest[LibraryListResponse]:
+        """List the libraries the asset belongs to."""
+        return self._get(f"assets/{self._uuid(asset_uuid)}/libraries", LibraryListResponse)

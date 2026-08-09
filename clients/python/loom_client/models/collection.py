@@ -5,7 +5,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .base import CreatorEditorResponse, ListResponse, MetaModel
+from .base import CreatorEditorResponse, ListResponse, MetaModel, Model
+
+
+@dataclass
+class CollectionAssetBulkRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.collection.CollectionAssetBulkRequest``."""
+
+    #: Uuids of the assets to add to the collection.
+    asset_uuids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CollectionAssetBulkResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.collection.CollectionAssetBulkResponse``."""
+
+    #: Number of asset uuids in the request.
+    total: int = 0
+    #: Number of assets that became new members of the collection.
+    added: int = 0
+    #: Number of asset uuids that could not be linked, for example because no such asset exists.
+    failed: int = 0
+    #: The asset uuids that could not be linked.
+    failed_uuids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CollectionAssetRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.collection.CollectionAssetRequest``."""
+
+    #: Uuid of the asset to add to the collection.
+    asset_uuid: str | None = None
 
 
 @dataclass

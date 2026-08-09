@@ -2,6 +2,8 @@ package io.metaloom.loom.cortex.dedup;
 
 import static io.metaloom.cortex.media.test.assertj.NodeAssertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.context.NodeContext;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.media.LoomMediaLoader;
@@ -51,7 +54,6 @@ class HashDedupNodeTest {
 	private LoomHttpClient client;
 	private LoomMediaLoader loader;
 	private CortexOptions cortexOptions;
-	private Path dupFolder;
 
 	private File localFile;
 	private SHA512 hash;
@@ -62,7 +64,6 @@ class HashDedupNodeTest {
 		cortexOptions = new CortexOptions().setMetaPath(tempDir.toPath());
 		client = mock(LoomHttpClient.class);
 		loader = mock(LoomMediaLoader.class);
-		dupFolder = new File(tempDir, "duplicates").toPath();
 
 		LoomClientRequest<NodeResultResponse> ledger = mock(LoomClientRequest.class);
 		when(ledger.sync()).thenReturn(new LoomClientResponseImpl<>(new NodeResultResponse().setUuid(UUID.randomUUID()), 201, "Created", Map.of()));
@@ -74,7 +75,7 @@ class HashDedupNodeTest {
 	}
 
 	private HashDedupNode node() {
-		return new HashDedupNode(client, cortexOptions, new DedupNodeOptions().setDupFolder(dupFolder), loader);
+		return new HashDedupNode(client, cortexOptions, new DedupNodeOptions(), loader);
 	}
 
 	private StubLoomMedia mediaOf(File file) {
@@ -93,21 +94,39 @@ class HashDedupNodeTest {
 		when(client.loadAsset(nullable(SHA512.class))).thenReturn(req);
 	}
 
-	private boolean localWasMoved() {
-		return !localFile.exists() && new File(dupFolder.toFile(), localFile.getName()).exists();
+	/**
+	 * The node reports the finding; a downstream move node acts on it.
+	 *
+	 * <p>
+	 * This used to assert the file had been relocated into a hard-coded duplicates folder. The new invariant is stronger in the direction that
+	 * matters: the detector must signal the duplicate <b>and</b> leave both files exactly where they are.
+	 * </p>
+	 */
+	private void assertDuplicateSignalled(NodeResult result, File original) {
+		assertEquals(localFile.getAbsolutePath(), result.get(HashDedupNode.OUT_DUPLICATE),
+			"the duplicate port must carry the item that duplicates something Loom already has");
+		assertEquals(original.getAbsolutePath(), result.get(HashDedupNode.OUT_ORIGINAL),
+			"the original port must name the copy Loom already knew about");
+		assertTrue(localFile.exists(), "the detector must not move the duplicate; that is the move node's job");
+		assertTrue(original.exists(), "the known original must stay where it is");
+	}
+
+	private void assertNoDuplicateSignalled(NodeResult result) {
+		assertNull(result.get(HashDedupNode.OUT_DUPLICATE), "the duplicate port must stay silent");
+		assertTrue(localFile.exists(), "nothing may be moved");
 	}
 
 	@Test
-	void testMovesALocalCopyOfAnAlreadyKnownFile() throws Exception {
+	void testSignalsALocalCopyOfAnAlreadyKnownFile() throws Exception {
 		File known = new File(tempDir, "original.mp4");
 		Files.write(known.toPath(), "identical bytes".getBytes());
 		knownAssetAt(known);
 		when(loader.load(known.toPath())).thenReturn(mediaOf(known));
 
-		assertThat(node().process(NodeContext.create(mediaOf(localFile)))).isSuccess();
+		NodeResult result = node().process(NodeContext.create(mediaOf(localFile)));
+		assertThat(result).isSuccess();
 
-		assertTrue(localWasMoved(), "A second copy of a file Loom already has must be moved aside");
-		assertTrue(known.exists(), "The known original must stay where it is");
+		assertDuplicateSignalled(result, known);
 	}
 
 	/**
@@ -130,21 +149,22 @@ class HashDedupNodeTest {
 		inconsistent.setSHA512(hash);
 		when(loader.load(known.toPath())).thenReturn(inconsistent);
 
-		assertThat(node().process(NodeContext.create(mediaOf(localFile)))).isSkipped();
+		NodeResult result = node().process(NodeContext.create(mediaOf(localFile)));
+		assertThat(result).isSkipped();
 
-		assertFalse(localWasMoved(), "Records that disagree are exactly when a move could destroy the only good copy");
-		assertTrue(known.exists());
+		assertNoDuplicateSignalled(result);
+		assertTrue(known.exists(), "Records that disagree are exactly when a move could destroy the only good copy");
 	}
 
 	@Test
-	void testTheSameFileIsNotMovedOntoItself() throws Exception {
+	void testTheSameFileIsNotReportedAsItsOwnDuplicate() throws Exception {
 		knownAssetAt(localFile);
 		when(loader.load(localFile.toPath())).thenReturn(mediaOf(localFile));
 
-		node().process(NodeContext.create(mediaOf(localFile)));
+		NodeResult result = node().process(NodeContext.create(mediaOf(localFile)));
 
 		assertTrue(localFile.exists(), "The recorded path and the local path are the same file - there is nothing to deduplicate");
-		assertFalse(localWasMoved());
+		assertNoDuplicateSignalled(result);
 	}
 
 	@Test
@@ -154,8 +174,9 @@ class HashDedupNodeTest {
 		when(req.sync()).thenReturn(new LoomClientResponseImpl<>(null, 404, "Not Found", Map.of()));
 		when(client.loadAsset(nullable(SHA512.class))).thenReturn(req);
 
-		assertThat(node().process(NodeContext.create(mediaOf(localFile)))).isSkipped();
+		NodeResult result = node().process(NodeContext.create(mediaOf(localFile)));
+		assertThat(result).isSkipped();
 
-		assertFalse(localWasMoved());
+		assertNoDuplicateSignalled(result);
 	}
 }

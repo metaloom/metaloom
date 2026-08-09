@@ -39,6 +39,7 @@ import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DedupGroupEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.DetectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SearchEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SimilarityIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.VectorIndexEndpoint;
@@ -67,6 +68,7 @@ public class EndpointModule {
 		NotificationEndpoint notificationEndpoint,
 		SkillEndpoint skillEndpoint,
 		ClusterEndpoint clusterEndpoint,
+		DetectionEndpoint detectionEndpoint,
 		CollectionEndpoint collectionEndpoint,
 		EmbeddingEndpoint embeddingEndpoint,
 		GraphQLEndpoint graphQLEndpoint,
@@ -106,6 +108,7 @@ public class EndpointModule {
 			notificationEndpoint,
 			skillEndpoint,
 			clusterEndpoint,
+			detectionEndpoint,
 			collectionEndpoint,
 			embeddingEndpoint,
 			graphQLEndpoint,

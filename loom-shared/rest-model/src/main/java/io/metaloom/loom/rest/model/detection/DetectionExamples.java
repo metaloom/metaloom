@@ -34,6 +34,28 @@ public interface DetectionExamples extends ExampleValues {
 		return new ExampleImpl(detectionBulkResponse(), "The detection bulk response", HttpResponseStatus.OK);
 	}
 
+	default Example detectionConfirmRequestExample() {
+		return new ExampleImpl(detectionConfirmRequest(), "The detection confirm request", HttpResponseStatus.OK);
+	}
+
+	default Example detectionBulkReviewRequestExample() {
+		return new ExampleImpl(detectionBulkReviewRequest(), "The detection bulk review request", HttpResponseStatus.OK);
+	}
+
+	default DetectionConfirmRequest detectionConfirmRequest() {
+		DetectionConfirmRequest model = new DetectionConfirmRequest();
+		// The interesting case: the box was right, the class was not. Confirming with no body at all is the common one.
+		model.setCorrectedLabel("wolf");
+		return model;
+	}
+
+	default DetectionBulkReviewRequest detectionBulkReviewRequest() {
+		DetectionBulkReviewRequest model = new DetectionBulkReviewRequest();
+		model.add(new DetectionReviewItem().setUuid(uuidB().toString()).setStatus("CONFIRMED").setCorrectedLabel("wolf"));
+		model.add(new DetectionReviewItem().setUuid(uuidC().toString()).setStatus("REJECTED"));
+		return model;
+	}
+
 	default DetectionResponse detectionResponse() {
 		DetectionResponse model = new DetectionResponse();
 		model.setUuid(uuidC());
@@ -46,6 +68,8 @@ public interface DetectionExamples extends ExampleValues {
 		model.setConfidence(0.97f);
 		model.setAssetUuid(uuidA().toString());
 		model.setMeta(new JsonObject().put("gender", "male").put("age", 30));
+		// Every machine-written detection starts here; reviewedAt and correctedLabel stay null until somebody decides.
+		model.setReviewStatus("PENDING");
 		setCreatorEditor(model);
 		return model;
 	}
@@ -71,6 +95,10 @@ public interface DetectionExamples extends ExampleValues {
 		model.setBboxHeight(0.27f);
 		model.setConfidence(0.88f);
 		model.setAssetUuid(uuidA().toString());
+		// The reviewed shape: a human agreed there was an animal here but corrected the class. "label" keeps what the model said.
+		model.setReviewStatus("CONFIRMED");
+		model.setReviewedAt("2026-08-09T10:15:30Z");
+		model.setCorrectedLabel("wolf");
 		setCreatorEditor(model);
 		return model;
 	}

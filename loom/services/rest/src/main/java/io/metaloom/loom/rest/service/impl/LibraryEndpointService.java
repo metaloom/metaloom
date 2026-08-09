@@ -13,15 +13,18 @@ import javax.inject.Singleton;
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
+import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.library.Library;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
+import io.metaloom.loom.rest.model.library.LibraryAssetRequest;
 import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
 import io.metaloom.loom.rest.model.library.LibraryListResponse;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
 import io.metaloom.loom.rest.model.library.LibraryUpdateRequest;
+import io.metaloom.loom.rest.parameter.PagingParameters;
 import io.metaloom.loom.rest.service.AbstractCRUDEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 
@@ -88,6 +91,82 @@ public class LibraryEndpointService extends AbstractCRUDEndpointService<LibraryD
 			setEditor(library, userUuid);
 			return library;
 		}, this::toResponse);
+	}
+
+	/**
+	 * Add one asset to the library.
+	 *
+	 * <p>
+	 * Writes the organizational membership only. Where the asset's bytes live is {@code asset_location} and is not touched here - an asset can be a
+	 * member of a library it holds no binary in.
+	 * </p>
+	 *
+	 * <p>
+	 * Answers <b>201</b> for a new membership and <b>200</b> when the asset was already a member.
+	 * </p>
+	 */
+	public void addAsset(LoomRoutingContext lrc, UUID libraryUuid) {
+		checkPerm(lrc, UPDATE_LIBRARY, () -> {
+			LibraryAssetRequest request = lrc.requestBody(LibraryAssetRequest.class);
+
+			Library library = loadLibrary(libraryUuid);
+			UUID assetUuid = request.getAssetUuid();
+			if (assetUuid == null) {
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The assetUuid field must be set");
+			}
+			Asset asset = loadAsset(assetUuid);
+
+			boolean alreadyMember = dao().containsAsset(library.getUuid(), asset.getUuid());
+			dao().linkAsset(library.getUuid(), asset.getUuid());
+			lrc.send(toResponse(library), alreadyMember ? 200 : 201);
+		});
+	}
+
+	public void removeAsset(LoomRoutingContext lrc, UUID libraryUuid, UUID assetUuid) {
+		checkPerm(lrc, UPDATE_LIBRARY, () -> {
+			Library library = loadLibrary(libraryUuid);
+			Asset asset = loadAsset(assetUuid);
+			if (!dao().containsAsset(library.getUuid(), asset.getUuid())) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND,
+					"Asset " + assetUuid + " is not a member of library " + libraryUuid);
+			}
+			dao().unlinkAsset(library.getUuid(), asset.getUuid());
+			lrc.sendNoContent();
+		});
+	}
+
+	public void listAssets(LoomRoutingContext lrc, UUID libraryUuid) {
+		checkPerm(lrc, READ_LIBRARY, () -> {
+			Library library = loadLibrary(libraryUuid);
+			PagingParameters paging = lrc.pagingParams();
+			Page<Asset> page = daos().assetDao().loadPageByLibrary(library.getUuid(), paging.from(), paging.limit());
+			lrc.send(modelBuilder.toAssetList(page));
+		});
+	}
+
+	public void listLibrariesOfAsset(LoomRoutingContext lrc, UUID assetUuid) {
+		checkPerm(lrc, READ_LIBRARY, () -> {
+			Asset asset = loadAsset(assetUuid);
+			PagingParameters paging = lrc.pagingParams();
+			Page<Library> page = dao().loadPageByAsset(asset.getUuid(), paging.from(), paging.limit());
+			lrc.send(toLibraryList(page));
+		});
+	}
+
+	private Library loadLibrary(UUID libraryUuid) {
+		Library library = dao().load(libraryUuid);
+		if (library == null) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Library not found " + libraryUuid);
+		}
+		return library;
+	}
+
+	private Asset loadAsset(UUID assetUuid) {
+		Asset asset = assetUuid == null ? null : daos().assetDao().load(assetUuid);
+		if (asset == null) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Asset not found " + assetUuid);
+		}
+		return asset;
 	}
 
 	/**

@@ -978,6 +978,9 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   // READ + UPDATE is the reviewer's set: see the queue, decide a group. CREATE belongs to the
   // discovery node's credentials, DELETE discards a proposal outright.
   Deduplication: ["CREATE_DEDUP", "READ_DEDUP", "DELETE_DEDUP", "UPDATE_DEDUP"],
+  // Same reviewer split as Deduplication: UPDATE_DETECTION is what confirm/reject need, while
+  // CREATE belongs to the detecting node's credentials.
+  Detection: ["CREATE_DETECTION", "READ_DETECTION", "DELETE_DETECTION", "UPDATE_DETECTION"],
   Embedding: ["CREATE_EMBEDDING", "READ_EMBEDDING", "DELETE_EMBEDDING", "UPDATE_EMBEDDING"],
   Reaction: ["CREATE_REACTION", "READ_REACTION", "DELETE_REACTION", "UPDATE_REACTION"],
   Task: ["CREATE_TASK", "READ_TASK", "DELETE_TASK", "UPDATE_TASK"],

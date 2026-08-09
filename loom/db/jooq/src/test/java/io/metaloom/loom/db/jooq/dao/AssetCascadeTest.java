@@ -377,10 +377,9 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		collectionDao().linkAsset(s.collection, asset.getUuid());
 		taskDao().assignToAsset(s.task, asset.getUuid());
 
-		// library_asset and asset_user_meta have no DAO writer, so both rows are inserted directly.
-		context.ctx().insertInto(LIBRARY_ASSET, LIBRARY_ASSET.LIBRARY_UUID, LIBRARY_ASSET.ASSET_UUID)
-			.values(s.library, asset.getUuid())
-			.execute();
+		libraryDao().linkAsset(s.library, asset.getUuid());
+
+		// asset_user_meta still has no DAO writer, so that row is inserted directly.
 		context.ctx().insertInto(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, ASSET_USER_META.USER_UUID, ASSET_USER_META.META)
 			.values(asset.getUuid(), user.getUuid(), new JsonObject().put("rating", 5))
 			.execute();
@@ -684,8 +683,8 @@ public class AssetCascadeTest extends AbstractJooqTest {
 	 * Deleting an asset removes it from its libraries; the library survives with everything else in it (V2.74).
 	 *
 	 * <p>
-	 * {@code library_asset} has no DAO writer yet, so both rows are inserted directly with jOOQ. The direction that stays blocked is the other one:
-	 * {@code library_asset.library_uuid} is still a plain reference, so a library cannot be deleted out from under the assets in it.
+	 * The direction that stays blocked is the other one: {@code library_asset.library_uuid} is still a plain reference, so a library cannot be deleted
+	 * out from under the assets in it.
 	 * </p>
 	 */
 	@Test

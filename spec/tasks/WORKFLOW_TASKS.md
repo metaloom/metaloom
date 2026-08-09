@@ -7,7 +7,7 @@
 > **Context:** [../workflows/WORKFLOWS.md](../workflows/WORKFLOWS.md) is the family index and carries
 > the shared anatomy (§3) and the cross-cutting defect table (§4) these tasks reference as `X1`-`X10`.
 >
-> **Ordering.** **W1, W2 and W3 are done** (2026-08-08). W1 was the keystone — it unblocked W4 and
+> **Ordering.** **W1, W2, W3 and W4 are done** (2026-08-08). W1 was the keystone — it unblocked W4 and
 > every "act on a human decision" requirement in the family, and `FilterBy.RATING`/`TAG` are the seam
 > the rest of them extend. W3 is the worked example the other review modes should copy for a write
 > path; W2 is the worked example for an optimistic one. W6 and W7 are independent and can run in
@@ -180,102 +180,42 @@ client suite green (122). ⚠️ `npx` stalls in this sandbox — use `./node_mo
 
 ---
 
-## Task 4: Build the `move` node
+## Task 4: Build the `move` node — ✅ DONE (2026-08-08)
 
-**Argumentation Summary:** Nothing in MetaLoom can relocate an asset's bytes as a pipeline step. Two
-nodes move files today (`HashDedupNode`, `FingerprintDedupApplyNode`), both hard-wired to a
-`dupFolder` and both usable only for duplicates. Trash disposal, safety quarantine and cold-tier
-staging all need the same primitive. The helper they use, `io.metaloom.utils.fs.FileUtils.moveFile`,
-delegates to commons-io, which falls back to **copy + delete** across a mount point — for a 40 GB
-video that is a silent, unbounded, non-atomic operation.
+**Delivered as two kinds, not one.** The five destinations in the brief - filesystem, library,
+storage, collection, s3 bucket - are not one operation: a collection has no path and no bytes. So
+`move` handles bytes (`FOLDER`, `POOL`, `LIBRARY`, `S3_BUCKET`) and `assign` handles membership
+(`COLLECTION`, `LIBRARY`), both in `cortex/nodes/relocate`.
 
-**Improvement Summary:** A `move` node kind that relocates a file, is filesystem-border aware before
-it starts, updates `asset_location` and writes a ledger row — never deleting anything.
+What landed beyond the original scope, and why:
 
-```
-Depends on Task 1 (nothing can route into it otherwise).
+- **`cortex/fs`** — the shared move mechanics, in the module that had been an empty shell. It also
+  absorbed `AtomicFiles`, which was duplicated verbatim in `watermark` and `image-manipulation`.
+- **The Loom REST the mover needed** — collection/library membership routes (the DAO writer existed
+  for collections and had one caller, a cascade test; `library_asset` had none), and
+  `libraryUuid`/`poolUuid` on `AssetBinaryUpdateRequest`, without which relocating into another
+  library or pool was not expressible over REST at all.
+- **`V2.80`** — `collection_asset.collection_uuid` had no cascade, so deleting a collection with any
+  member was a 500. `V2.73`'s own comment claimed otherwise. Found by a test written for this work.
+- **The dedup supersede** — both dedup nodes now report on selective ports and move nothing;
+  `dupFolder` is gone. See [../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) §6a.
 
-1. cortex/nodes/move (aggregator + core), package io.metaloom.cortex.node.move.
-   Read spec/guidelines/NEW_NODE.md before creating anything.
-2. MoveNode: ports media (in, media/*, ONE), moved (out, scalar/boolean, ONE),
-   path (out, scalar/string, ONE).
-3. MoveNodeOptions: targetFolder (default "trash"), layout (FLAT|MIRROR|DATE),
-   crossDevice (COPY|SKIP|FAIL, default SKIP), onConflict (SUFFIX|SKIP|FAIL, never
-   OVERWRITE), dryRun, updateLocation.
-4. Border check BEFORE moving: Files.getFileStore(src) vs Files.getFileStore(dstParent).
-   Equal -> Files.move(ATOMIC_MOVE). Different -> honour crossDevice, and log both
-   FileStores and the byte count at WARN on the COPY path. Preserve extended attributes
-   on the copy path - reuse FileUtils.moveFile's UserDefinedFileAttributeView logic
-   rather than reimplementing it.
-5. A file already inside targetFolder is an idempotent SKIP.
-6. On success: POST the updated asset_location.path, then recordNodeResult(SUCCESS,
-   "moved to <path>", producerVersion(), resultRef("asset_location", uuid)).
-   Use ctx.failure(msg).abort() on every failure path - NEVER .next(), which returns
-   SUCCESS and drops the cause.
-7. MoveDescriptorProvider + META-INF/services + @Binds @IntoMap @StringKey("move").
-   Both, or the kind is visible but not runnable.
-8. Demo pipeline: source -> filter(TAG:trash) -> move.
-9. website/content/english/docs/nodes/move/.
-```
+⚠️ **Release note required.** `CortexOptionsLoader` ignores unknown YAML keys, so a stale `dupFolder`
+in an operator's `cortex.yml` keeps the worker booting and is silently ignored - their duplicates just
+stop being moved. There is no code path left to warn from.
+
+**Still open**, tracked here rather than closed silently:
+
+- Demo pipeline (`source → filter(TAG:trash) → move`) and a seeded `Published` collection.
+- Customer docs under `website/content/english/docs/nodes/move/` and `.../assign/`, plus the dedup
+  page rewrite.
+- Per-node E2E: `MoveNodeIT`, `AssignNodeIT`.
+- Four of the standard node tests: persistence, pipeline-chain, singleton, and the assertj helpers.
 
 **References:** [../workflows/WORKFLOW_TRASH.md](../workflows/WORKFLOW_TRASH.md) §3 ·
-[../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) · `FingerprintDedupApplyNode.java` ·
-`V2.10__add_asset_location.sql` (`filekey_stdev` already records the device id)
-**Test Requirements:** `MoveNodeTest` (same-device move preserves xattrs, location updated, ledger
-row written, already-in-target is SKIPPED), `MoveNodeCrossDeviceTest` (all three policies; assert
-**FAILED**, not SUCCESS, on the FAIL path), `MoveNodeConflictTest` (SUFFIX numbering, never
-overwrites), `MoveNodeOptionsValidationTest`, `NodeRegistrarTest` asserts the kind,
-`NodePortConformanceTest`, and a `MoveNodeIT` in `integration-test/`.
-`mvn -pl cortex/nodes/move/core -am test` then `./it.sh` — ⚠️ rebuild the shaded `cortex/cli` JAR and
-container first.
+[../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) · `cortex/nodes/relocate/` · `cortex/fs/`
 
 ---
-
-## Task 5: Add review state to `detection`
-
-**Argumentation Summary:** A human can confirm or reject an object detection in the UI and the answer
-has nowhere to go: `detection` (`V2.27`, reworked `V2.43`) has no status column, no confirm endpoint
-and no permission for one. `handleConfirmObject` / `handleRejectObject`
-(`WorkflowView.tsx:858-861`) write React state. The same gap blocks per-detection review in the face
-workflow and the "which faces are unconsented?" question in the release gate.
-
-**Improvement Summary:** A shared `review_status` enum plus four columns on `detection`, a review
-endpoint with a bulk variant, and an explicit rule preventing a node re-run from clearing a human
-decision.
-
-```
-1. Migration (take the NEXT FREE version - V2.77 is the highest at 21e8a8cd, do not
-   hard-code a number in a spec):
-     CREATE TYPE review_status AS ENUM ('PENDING','CONFIRMED','REJECTED');
-     ALTER TABLE detection ADD COLUMN status review_status NOT NULL DEFAULT 'PENDING';
-     ALTER TABLE detection ADD COLUMN reviewed_at timestamp;
-     ALTER TABLE detection ADD COLUMN reviewer_uuid uuid REFERENCES "user"(uuid);
-     ALTER TABLE detection ADD COLUMN corrected_label varchar;
-     CREATE INDEX idx_detection_review ON detection (asset_uuid, type, status);
-   Name it review_status, NOT detection_status: WORKFLOW_FACE and
-   WORKFLOW_SAFETY_TRIAGE need the same three values. reviewer_uuid is separate from
-   editor_uuid on purpose - editor_uuid is touched by the node's own upsert.
-2. mvn install -pl loom/db/flyway; loom/db/jooq/generate.sh (DESTRUCTIVE - it rm -rf's
-   src/jooq/java first); ./setup-pool.sh.
-3. DAO: DetectionDao gains listByStatus + a review setter. Impls in BOTH loom/db/jooq
-   and loom/db/memory; contract tests in loom/db/api-test; a delete-cascade test.
-4. REST: POST /assets/:uuid/detections/:detectionUuid/review {status, correctedLabel?}
-   and POST /assets/:uuid/detections/review-bulk, both UPDATE_DETECTION. Plus
-   GET /detections?status=PENDING&type= for a cross-asset queue. Mirror the bulk-create
-   route's {total, created, failed} response - keyboard review outruns per-item calls.
-5. DECIDE AND DOCUMENT the re-run rule in the migration comment: a node upsert must not
-   clear a non-PENDING status. Either preserve the review when the incoming geometry is
-   within an IoU threshold, or version the row on a producer_version change. Leaving
-   this implicit reintroduces exactly the bug V2.43's upsert key was added to fix.
-```
-
-**References:** [../workflows/WORKFLOW_OBJECT_DETECT.md](../workflows/WORKFLOW_OBJECT_DETECT.md) §2 ·
-`V2.43__rework_detection_embedding.sql` · `V2.47__machine_written_audit_columns.sql` ·
-`V2.61__add_dedup_group.sql` (the pattern) · [../guidelines/CODING.md](../guidelines/CODING.md)
-**Test Requirements:** `DetectionDaoTest` extended (status round-trip, `listByStatus`, cascade),
-`DetectionEndpointTest` extended (review 200, 403 without `UPDATE_DETECTION`, bulk partial failure,
-invalid status 400, unknown uuid 404), and a new `DetectionUpsertReviewTest` asserting a node re-run
-does **not** clear a CONFIRMED status. `./setup-pool.sh` first, and again after the migration.
 
 ---
 

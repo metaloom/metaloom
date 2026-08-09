@@ -8,7 +8,7 @@ import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
-import io.metaloom.loom.db.jooq.enums.JooqClusterStatus;
+import io.metaloom.loom.db.jooq.enums.JooqReviewStatus;
 import io.metaloom.loom.db.jooq.tables.records.JooqClusterRecord;
 import io.vertx.core.json.JsonObject;
 
@@ -151,7 +151,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
      * The column <code>public.cluster.status</code>. PENDING (awaiting review),
      * CONFIRMED (linked to a person) or REJECTED (not a real subject).
      */
-    public final TableField<JooqClusterRecord, JooqClusterStatus> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::cluster_status", SQLDataType.VARCHAR)).asEnumDataType(io.metaloom.loom.db.jooq.enums.JooqClusterStatus.class), this, "PENDING (awaiting review), CONFIRMED (linked to a person) or REJECTED (not a real subject).");
+    public final TableField<JooqClusterRecord, JooqReviewStatus> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::review_status", SQLDataType.VARCHAR)).asEnumDataType(io.metaloom.loom.db.jooq.enums.JooqReviewStatus.class), this, "PENDING (awaiting review), CONFIRMED (linked to a person) or REJECTED (not a real subject).");
 
     /**
      * The column <code>public.cluster.person_uuid</code>. The person a reviewer
@@ -358,14 +358,14 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row21<java.util.UUID, String, JsonObject, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, java.util.UUID, Integer, JooqClusterStatus, java.util.UUID, Float, Float[], String, Integer> fieldsRow() {
+    public Row21<java.util.UUID, String, JsonObject, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, java.util.UUID, Integer, JooqReviewStatus, java.util.UUID, Float, Float[], String, Integer> fieldsRow() {
         return (Row21) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqClusterStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqReviewStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -373,7 +373,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqClusterStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqReviewStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

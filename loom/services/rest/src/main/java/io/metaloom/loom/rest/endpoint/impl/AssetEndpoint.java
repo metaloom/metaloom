@@ -27,6 +27,8 @@ import io.metaloom.loom.rest.service.impl.FingerprintCompEndpointService;
 import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
 import io.metaloom.loom.rest.service.impl.ClusterEndpointService;
+import io.metaloom.loom.rest.service.impl.CollectionEndpointService;
+import io.metaloom.loom.rest.service.impl.LibraryEndpointService;
 import io.metaloom.loom.rest.service.impl.DedupGroupEndpointService;
 import io.metaloom.loom.rest.service.impl.SegmentCompEndpointService;
 import io.metaloom.loom.rest.service.impl.SimilarityEndpointService;
@@ -58,6 +60,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 	private final DedupGroupEndpointService dedupGroupService;
 
 	private final ClusterEndpointService clusterService;
+	private final CollectionEndpointService collectionService;
+	private final LibraryEndpointService libraryService;
 	private final ModelExamples examples;
 
 	@Inject
@@ -76,6 +80,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		SimilarityEndpointService similarityService,
 		DedupGroupEndpointService dedupGroupService,
 		ClusterEndpointService clusterService,
+		CollectionEndpointService collectionService,
+		LibraryEndpointService libraryService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
@@ -95,6 +101,8 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.similarityService = similarityService;
 		this.dedupGroupService = dedupGroupService;
 		this.clusterService = clusterService;
+		this.collectionService = collectionService;
+		this.libraryService = libraryService;
 		this.examples = examples;
 	}
 
@@ -298,6 +306,22 @@ public class AssetEndpoint extends AbstractEndpoint {
 				taskService.unassignAssetTask(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("taskUuid"));
 			});
 
+		// The reverse of /collections/:uuid/assets and /libraries/:uuid/assets. Membership is many-to-many
+		// on both axes, so "which collections is this asset in" is a genuine question rather than a lookup.
+		addListRoute(basePath() + "/:uuid/collections", GET,
+			"Load a paged list of the collections the asset belongs to",
+			examples.collectionListResponseExample(),
+			lrc -> {
+				collectionService.listCollectionsOfAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addListRoute(basePath() + "/:uuid/libraries", GET,
+			"Load a paged list of the libraries the asset belongs to",
+			examples.libraryListResponseExample(),
+			lrc -> {
+				libraryService.listLibrariesOfAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
 		// --- REACTION (UUID-based sub-resource) ---
 
 		addRoute(basePath() + "/:uuid/reactions", POST,
@@ -366,6 +390,16 @@ public class AssetEndpoint extends AbstractEndpoint {
 				detectionService.bulkCreateAssetDetections(lrc, lrc.pathParamAssetId("uuid"));
 			});
 
+		// Literal segment, so it must be registered before the "/:uuid/detections/:detectionUuid" POST below - Vert.x matches in registration order
+		// and that route has the same shape, which would bind detectionUuid to the string "review-bulk". Same reason "/detections/bulk" sits here.
+		addRoute(basePath() + "/:uuid/detections/review-bulk", POST,
+			"Record many detection verdicts on one asset. Keyboard review outruns per-item calls, so this is the shape the review UI uses.",
+			examples.detectionBulkReviewRequestExample(),
+			examples.detectionBulkResponseExample(),
+			lrc -> {
+				detectionService.bulkReviewAssetDetections(lrc, lrc.pathParamAssetId("uuid"));
+			});
+
 		// --- EMBEDDING (bulk write, the shape a Cortex node needs) ---
 
 		addRoute(basePath() + "/:uuid/embeddings/bulk", POST,
@@ -427,6 +461,28 @@ public class AssetEndpoint extends AbstractEndpoint {
 			lrc -> {
 				detectionService.updateAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
 			});
+
+		// --- DETECTION REVIEW ---
+		//
+		// RPC-style sub-resources rather than a writable field, matching the cluster review routes: recording a verdict stamps a reviewer and a
+		// time, and it must not be reachable through the generic update path where a client could set the status without either.
+
+		addRoute(basePath() + "/:uuid/detections/:detectionUuid/confirm", POST,
+			"Confirm a detection: the producer found something real here. An optional correctedLabel says the box was right but the class was wrong; the producer's own label is kept alongside it.",
+			examples.detectionConfirmRequestExample(),
+			examples.detectionResponseExample(),
+			lrc -> {
+				detectionService.confirmAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/detections/:detectionUuid/reject", POST,
+			"Reject a detection as a false positive. The row is kept, not deleted: it is the record that the producer was wrong here.",
+			null,
+			examples.detectionResponseExample(),
+			lrc -> {
+				detectionService.rejectAssetDetection(lrc, lrc.pathParamAssetId("uuid"), lrc.pathParamUUID("detectionUuid"));
+			});
+
 
 		// --- TRANSCRIPT (UUID-based sub-resource) ---
 

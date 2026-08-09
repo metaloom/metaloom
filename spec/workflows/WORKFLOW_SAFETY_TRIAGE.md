@@ -75,7 +75,9 @@ constraints shape the design:
 ### 3.1 The review record
 
 Reuse the shared `review_status` enum from
-[WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) §2.1, with domain-appropriate semantics:
+[WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) §2.1, with domain-appropriate semantics. 🟢 It
+exists already (`V2.81`, renamed from `cluster_status`) and backs both `cluster.status` and
+`detection.status`, so this needs no new type — only a column:
 
 | Status | Meaning |
 |---|---|

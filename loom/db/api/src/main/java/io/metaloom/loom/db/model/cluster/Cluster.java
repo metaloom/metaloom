@@ -3,6 +3,7 @@ package io.metaloom.loom.db.model.cluster;
 import java.util.UUID;
 
 import io.metaloom.loom.db.CUDElement;
+import io.metaloom.loom.db.model.review.ReviewStatus;
 
 /**
  * A group of embeddings that a producer believes belong to one subject, carrying a human confirm/reject decision.
@@ -20,13 +21,13 @@ import io.metaloom.loom.db.CUDElement;
 public interface Cluster extends CUDElement<Cluster> {
 
 	/** Proposed by a producer and awaiting human review. The default for a machine-written cluster. */
-	String STATUS_PENDING = "PENDING";
+	String STATUS_PENDING = ReviewStatus.PENDING;
 
 	/** Confirmed by a reviewer; {@link #getPersonUuid()} names who it is. */
-	String STATUS_CONFIRMED = "CONFIRMED";
+	String STATUS_CONFIRMED = ReviewStatus.CONFIRMED;
 
 	/** Rejected by a reviewer; not a real subject. */
-	String STATUS_REJECTED = "REJECTED";
+	String STATUS_REJECTED = ReviewStatus.REJECTED;
 
 	/** The {@code cluster.type} the face workflow proposes and reviews. */
 	String TYPE_FACE = "face";

@@ -54,4 +54,37 @@ public interface CollectionExamples extends ExampleValues {
 		return model;
 	}
 
+	default Example collectionAssetRequestExample() {
+		return new ExampleImpl(collectionAssetRequest(), "The collection membership request", HttpResponseStatus.CREATED);
+	}
+
+	default Example collectionAssetBulkRequestExample() {
+		return new ExampleImpl(collectionAssetBulkRequest(), "The bulk collection membership request", HttpResponseStatus.OK);
+	}
+
+	default Example collectionAssetBulkResponseExample() {
+		return new ExampleImpl(collectionAssetBulkResponse(), "The bulk collection membership response", HttpResponseStatus.OK);
+	}
+
+	default CollectionAssetRequest collectionAssetRequest() {
+		CollectionAssetRequest model = new CollectionAssetRequest();
+		model.setAssetUuid(uuidA());
+		return model;
+	}
+
+	default CollectionAssetBulkRequest collectionAssetBulkRequest() {
+		CollectionAssetBulkRequest model = new CollectionAssetBulkRequest();
+		model.add(uuidA());
+		model.add(uuidB());
+		return model;
+	}
+
+	default CollectionAssetBulkResponse collectionAssetBulkResponse() {
+		CollectionAssetBulkResponse model = new CollectionAssetBulkResponse();
+		model.setTotal(2);
+		model.setAdded(2);
+		model.setFailed(0);
+		return model;
+	}
+
 }

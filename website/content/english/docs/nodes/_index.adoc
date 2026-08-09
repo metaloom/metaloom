@@ -100,6 +100,8 @@ The built-in nodes fall into four categories.
 | link:tag/[Tag] (`tag`) | Any | Attach tags from rules over what upstream nodes worked out — a tagged asset is a findable asset
 | link:script/[Script] (`script`) | Any | Run your own code as a pipeline step and emit declared ports — list outputs fan out
 | link:s3-sink/[S3 Sink] (`s3-sink`) | Any | Upload produced files to an S3 bucket and register them as assets — its `artifacts` port takes **many**
+| link:move/[Move] (`move`) | Any local file | Relocate the file to a folder, a storage pool, a library or an S3 bucket — never overwriting, and only removing the original once the destination is verified
+| link:assign/[Assign] (`assign`) | Any known asset | Add the asset to a collection or a library. Writes the membership only; it never touches the file
 |===
 
 [#requirements]
@@ -124,7 +126,7 @@ Most nodes are pure CPU. A few need a native library or an external model servic
 | A sentiment sidecar (german-sentiment-bert + twitter-roberta; CPU is enough) | `sentiment`
 | A depth sidecar (Depth Anything V2 Small; CPU is enough, GPU is much faster) | `depthmap`
 | The `ffmpeg` / `ffprobe` binaries on `PATH` | `watermark` (video only — the image path needs nothing)
-| S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`
+| S3-compatible object storage (AWS S3, MinIO, Ceph) | `s3-source`, `s3-sink`, `move` (bucket target only)
 | Google Drive, OneDrive or SharePoint credentials | `gdrive-source`, `onedrive-source`
 | A reachable OpenAI-compatible language model endpoint | `llm`, `translate`, `filter`, `guard`
 | A reachable OpenAI-compatible endpoint serving a guardrail model (Llama Guard, ShieldGemma or Granite Guardian) | `guard`
@@ -137,6 +139,13 @@ link:../cortex/configuration/[Cortex Configuration].
 == Processing Capabilities
 
 What the built-in node set gives you, and which node provides it:
+
+Relocation and disposal::
+link:move/[`move`] is the one node that changes where an asset's bytes live — a trash folder, a
+storage pool, a library, or an S3 bucket for cold storage. It refuses to overwrite, works out whether
+a destination is on another disk *before* it starts copying, and only removes the original after the
+destination has been verified. link:assign/[`assign`] is its counterpart for curation: it files an
+asset into a collection or a library and never touches the file at all.
 
 Asset hashing::
 link:hash/[`md5`, `sha256`, `sha512`, `chunk-hash`] run in parallel over any file. Hashes are the

@@ -123,6 +123,8 @@ public class Indexes {
     public static final Index IDX_DEDUP_GROUP_STATUS = Internal.createIndex(DSL.name("idx_dedup_group_status"), JooqDedupGroup.DEDUP_GROUP, new OrderField[] { JooqDedupGroup.DEDUP_GROUP.STATUS }, false);
     public static final Index IDX_DETECTION_ASSET_UUID = Internal.createIndex(DSL.name("idx_detection_asset_uuid"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.ASSET_UUID }, false);
     public static final Index IDX_DETECTION_LABEL = Internal.createIndex(DSL.name("idx_detection_label"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.LABEL }, false);
+    public static final Index IDX_DETECTION_REVIEW = Internal.createIndex(DSL.name("idx_detection_review"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.ASSET_UUID, JooqDetection.DETECTION.TYPE, JooqDetection.DETECTION.STATUS }, false);
+    public static final Index IDX_DETECTION_STATUS_TYPE = Internal.createIndex(DSL.name("idx_detection_status_type"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.STATUS, JooqDetection.DETECTION.TYPE }, false);
     public static final Index IDX_DETECTION_TYPE = Internal.createIndex(DSL.name("idx_detection_type"), JooqDetection.DETECTION, new OrderField[] { JooqDetection.DETECTION.TYPE }, false);
     public static final Index IDX_EMBEDDING_ASSET_UUID = Internal.createIndex(DSL.name("idx_embedding_asset_uuid"), JooqEmbedding.EMBEDDING, new OrderField[] { JooqEmbedding.EMBEDDING.ASSET_UUID }, false);
     public static final Index IDX_EMBEDDING_CLUSTER_CLUSTER_UUID = Internal.createIndex(DSL.name("idx_embedding_cluster_cluster_uuid"), JooqEmbeddingCluster.EMBEDDING_CLUSTER, new OrderField[] { JooqEmbeddingCluster.EMBEDDING_CLUSTER.CLUSTER_UUID }, false);

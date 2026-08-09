@@ -17,13 +17,17 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
-import { FACE_CLUSTERS, PERSONS } from "../../mock/data";
+import { PERSONS } from "../../mock/data";
 import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { listAssets, loadAsset, assetBinaryUrl, AssetResponse } from "../../api/assets";
-import { listAssetDetections, DetectionResponse } from "../../api/detections";
+import {
+  bulkReviewDetections, listAssetDetections, confirmDetection, rejectDetection,
+  type DetectionResponse,
+} from "../../api/detections";
+import { confirmCluster, listAssetClusters, listClusterMembers, rejectCluster } from "../../api/clusters";
 import {
   listDedupGroups, STATUS_CONFIRMED, STATUS_PENDING, STATUS_REJECTED,
   type DedupGroupMemberModel, type DedupGroupResponse,
@@ -124,6 +128,14 @@ function keyDisplayName(key: string): string {
 }
 
 // ── Default Key Profiles ──────────────────────────────────────────────────
+/**
+ * How long to wait for more detection verdicts before sending the batch.
+ *
+ * Long enough that a run of keystrokes coalesces into one request, short enough that a reviewer who
+ * stops to look at something has already had their work saved.
+ */
+const REVIEW_FLUSH_MS = 400;
+
 const DEFAULT_PROFILES: KeyProfile[] = [
   {
     id: "rating-default",
@@ -992,7 +1004,13 @@ export default function WorkflowView() {
     listAssetDetections(token, currentAsset.id).then(resp => {
       const faces: DetectedFace[] = [];
       const objects: DetectedObject[] = [];
+      const decisions: Record<string, "confirmed" | "rejected"> = {};
       for (const d of (resp.data ?? [])) {
+        // Seed the decision map from what the server already holds, so a reload shows the review
+        // that was actually recorded rather than an empty queue.
+        if (d.reviewStatus === "CONFIRMED") decisions[d.uuid] = "confirmed";
+        else if (d.reviewStatus === "REJECTED") decisions[d.uuid] = "rejected";
+
         // "face" is the detection type FacedetectNode writes. Not to be confused with the workflow
         // mode of the same-ish name below, nor with the node's options key "facedetection".
         if (d.type === "face") {
@@ -1009,7 +1027,10 @@ export default function WorkflowView() {
           objects.push({
             id: d.uuid,
             assetId: d.assetUuid,
-            label: ((d.meta as Record<string, unknown>)?.label as string) ?? d.type,
+            // correctedLabel first: once a reviewer has said what this actually is, that is the
+            // answer to show. d.label is the column - reading it from meta rendered every object as
+            // the literal string "objectdetection", because the node never wrote meta.label.
+            label: d.correctedLabel ?? d.label ?? d.type,
             confidence: d.confidence,
             boundingBox: { x: d.bboxX, y: d.bboxY, width: d.bboxWidth, height: d.bboxHeight },
             timestamp: d.frameNumber,
@@ -1018,19 +1039,65 @@ export default function WorkflowView() {
       }
       setCurrentFaces(faces);
       setCurrentObjects(objects);
+      setObjectDecisions(decisions);
     }).catch(() => {
       setCurrentFaces([]);
       setCurrentObjects([]);
+      setObjectDecisions({});
     });
   }, [token, currentAsset?.id]);
 
+  /**
+   * The clusters the face-detection node proposed within this asset, with their members.
+   *
+   * Previously joined against a `FACE_CLUSTERS` mock array that is empty, so the face review pane
+   * rendered nothing whatever the server held.
+   */
+  const [assetClusters, setAssetClusters] = useState<FaceCluster[]>([]);
+
+  useEffect(() => {
+    if (!token || !currentAsset?.id) {
+      setAssetClusters([]);
+      setClusterDecisions({});
+      return;
+    }
+    let cancelled = false;
+    listAssetClusters(token, currentAsset.id).then(async resp => {
+      const clusters = resp.data ?? [];
+      const decisions: Record<string, "confirmed" | "denied"> = {};
+      const loaded: FaceCluster[] = [];
+      for (const c of clusters) {
+        if (c.reviewStatus === "CONFIRMED") decisions[c.uuid] = "confirmed";
+        else if (c.reviewStatus === "REJECTED") decisions[c.uuid] = "denied";
+        const members = await listClusterMembers(token, c.uuid).catch(() => null);
+        loaded.push({
+          id: c.uuid,
+          label: c.name ?? "",
+          representativeThumbnailUrl: "",
+          faceIds: (members?.members ?? []).map(m => m.detectionUuid).filter((id): id is string => Boolean(id)),
+          faceCount: members?.members?.length ?? 0,
+          assetId: currentAsset.id,
+        });
+      }
+      if (cancelled) return;
+      setAssetClusters(loaded);
+      setClusterDecisions(decisions);
+    }).catch(() => {
+      if (cancelled) return;
+      setAssetClusters([]);
+      setClusterDecisions({});
+    });
+    return () => { cancelled = true; };
+  }, [token, currentAsset?.id]);
+
   const currentFaceClusters = useMemo(() => {
-    const clusterIds = [...new Set(currentFaces.map(f => f.clusterId).filter(Boolean))];
-    return clusterIds.map(cid => {
-      const cluster = FACE_CLUSTERS.find(c => c.id === cid)!;
-      return { cluster, faces: currentFaces.filter(f => f.clusterId === cid) };
-    }).filter(c => c.cluster);
-  }, [currentFaces]);
+    // Membership comes from the cluster's own member list, not from a clusterId on the detection:
+    // the join lives in embedding_cluster, and the face detections carry no cluster pointer.
+    return assetClusters.map(cluster => ({
+      cluster,
+      faces: currentFaces.filter(f => cluster.faceIds.includes(f.id)),
+    }));
+  }, [assetClusters, currentFaces]);
   // The dedup queue counts groups, not assets.
   const maxIdx = mode === "deduplication" ? dedupGroups.length - 1 : assets.length - 1;
 
@@ -1181,13 +1248,117 @@ export default function WorkflowView() {
       (tk, g) => reassignKeep(tk, g, assetUuid),
       "workflow.dedup.keepFailed");
   }, [dedupGroups, currentIdx, applyDedupDecision]);
-  const handleConfirmCluster = useCallback((id: string) => { setClusterDecisions(prev => ({ ...prev, [id]: "confirmed" })); }, []);
-  const handleDenyCluster = useCallback((id: string) => { setClusterDecisions(prev => ({ ...prev, [id]: "denied" })); }, []);
+  /**
+   * Show the verdict at once, then persist it — and take it back if the write fails.
+   *
+   * At a keystroke per decision, a POST that silently disappears is worse than no persistence at
+   * all: the card says the work is done and the server never heard about it. Same shape as
+   * {@link applyDedupDecision} and the rating handler.
+   */
+  const applyClusterDecision = useCallback((
+    id: string,
+    optimistic: "confirmed" | "denied",
+    write: (tk: string, uuid: string) => Promise<unknown>,
+  ) => {
+    if (!token) return;
+    const previous = clusterDecisions[id];
+    setClusterDecisions(prev => ({ ...prev, [id]: optimistic }));
+    void write(token, id).catch(() => {
+      setClusterDecisions(prev => {
+        const next = { ...prev };
+        if (previous === undefined) delete next[id];
+        else next[id] = previous;
+        return next;
+      });
+      showToast(t("workflow.cluster.saveFailed"), "error");
+    });
+  }, [token, clusterDecisions, showToast, t]);
+
+  const handleConfirmCluster = useCallback((id: string) => {
+    // A cluster confirm without a personUuid creates a person, which the server refuses unless it
+    // is given a name. The reviewer supplies one through "assign person"; until then the grouping
+    // itself is confirmed under the name already on the card.
+    const name = clusterPersonAssignments[id] ?? assetClusters.find(c => c.id === id)?.label;
+    applyClusterDecision(id, "confirmed", (tk, uuid) => confirmCluster(tk, uuid, { alias: name || undefined, name: name || undefined }));
+  }, [applyClusterDecision, clusterPersonAssignments, assetClusters]);
+
+  const handleDenyCluster = useCallback((id: string) => {
+    applyClusterDecision(id, "denied", (tk, uuid) => rejectCluster(tk, uuid));
+  }, [applyClusterDecision]);
+
   const handleAssignPerson = useCallback((clusterId: string, name: string) => { setClusterPersonAssignments(prev => ({ ...prev, [clusterId]: name })); }, []);
-  const handleConfirmObject = useCallback((id: string) => { setObjectDecisions(prev => ({ ...prev, [id]: "confirmed" })); }, []);
+
+  /**
+   * Persist object-detection verdicts, optimistically, reversibly and in batches.
+   *
+   * Keyboard review produces decisions faster than one request each can carry them, so a verdict is
+   * queued and whatever accumulated within {@link REVIEW_FLUSH_MS} goes out as one `review-bulk`
+   * call. The optimistic state is applied immediately; a failed flush rolls back exactly the
+   * detections that were in it, leaving later decisions alone.
+   */
+  const pendingReviews = useRef<Map<string, { status: "CONFIRMED" | "REJECTED"; previous?: "confirmed" | "rejected" }>>(new Map());
+  const reviewFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushObjectReviews = useCallback(() => {
+    reviewFlushTimer.current = null;
+    const batch = pendingReviews.current;
+    if (batch.size === 0 || !token || !currentAsset?.id) return;
+    pendingReviews.current = new Map();
+
+    const entries = [...batch.entries()];
+    void bulkReviewDetections(token, currentAsset.id, {
+      reviews: entries.map(([uuid, { status }]) => ({ uuid, status })),
+    }).then(response => {
+      // A partially applied batch is reported rather than thrown, so the failed count is the only
+      // signal that some of these decisions did not land.
+      if (response.failed > 0) {
+        showToast(t("workflow.object.saveFailed"), "error");
+      }
+    }).catch(() => {
+      setObjectDecisions(prev => {
+        const next = { ...prev };
+        for (const [uuid, { previous }] of entries) {
+          if (previous === undefined) delete next[uuid];
+          else next[uuid] = previous;
+        }
+        return next;
+      });
+      showToast(t("workflow.object.saveFailed"), "error");
+    });
+  }, [token, currentAsset?.id, showToast, t]);
+
+  const applyObjectDecision = useCallback((id: string, optimistic: "confirmed" | "rejected") => {
+    if (!token || !currentAsset?.id) return;
+    // Keep the value from the first queued decision for this detection: it is the one that
+    // describes the state before the batch, which is what a rollback has to restore.
+    if (!pendingReviews.current.has(id)) {
+      pendingReviews.current.set(id, {
+        status: optimistic === "confirmed" ? "CONFIRMED" : "REJECTED",
+        previous: objectDecisions[id],
+      });
+    } else {
+      pendingReviews.current.get(id)!.status = optimistic === "confirmed" ? "CONFIRMED" : "REJECTED";
+    }
+    setObjectDecisions(prev => ({ ...prev, [id]: optimistic }));
+
+    if (reviewFlushTimer.current !== null) clearTimeout(reviewFlushTimer.current);
+    reviewFlushTimer.current = setTimeout(flushObjectReviews, REVIEW_FLUSH_MS);
+  }, [token, currentAsset?.id, objectDecisions, flushObjectReviews]);
+
+  // Leaving the asset or unmounting must not strand a queued batch.
+  useEffect(() => {
+    return () => {
+      if (reviewFlushTimer.current !== null) {
+        clearTimeout(reviewFlushTimer.current);
+        flushObjectReviews();
+      }
+    };
+  }, [flushObjectReviews]);
+
+  const handleConfirmObject = useCallback((id: string) => { applyObjectDecision(id, "confirmed"); }, [applyObjectDecision]);
+  const handleRejectObject = useCallback((id: string) => { applyObjectDecision(id, "rejected"); }, [applyObjectDecision]);
   const handleApproveLlm = useCallback((assetId: string) => { setLlmDecisions(prev => ({ ...prev, [assetId]: "approved" })); }, []);
   const handleRejectLlm = useCallback((assetId: string) => { setLlmDecisions(prev => ({ ...prev, [assetId]: "rejected" })); }, []);
-  const handleRejectObject = useCallback((id: string) => { setObjectDecisions(prev => ({ ...prev, [id]: "rejected" })); }, []);
   const handleUpdateBinding = useCallback((profileId: string, bindingIdx: number, newKey: string) => {
     setProfiles(prev => prev.map(p => {
       if (p.id !== profileId) return p;
@@ -1265,7 +1436,7 @@ export default function WorkflowView() {
             <ToggleButton value="facedetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <FaceOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.faces")}
             </ToggleButton>
-            <ToggleButton value="objectdetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+            <ToggleButton value="objectdetection" data-testid="workflow-mode-objectdetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <CenterFocusStrongOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.objects")}
             </ToggleButton>
           </ToggleButtonGroup>

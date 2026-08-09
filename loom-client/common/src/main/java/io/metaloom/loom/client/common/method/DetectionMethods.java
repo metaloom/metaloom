@@ -10,6 +10,8 @@ import io.metaloom.loom.client.common.LoomClientRequest;
 import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionBulkResponse;
+import io.metaloom.loom.rest.model.detection.DetectionBulkReviewRequest;
+import io.metaloom.loom.rest.model.detection.DetectionConfirmRequest;
 import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionListResponse;
 import io.metaloom.loom.rest.model.detection.DetectionResponse;
@@ -67,6 +69,43 @@ public interface DetectionMethods {
 
 	default LoomClientRequest<DetectionBulkResponse> bulkCreateAssetDetections(UUID assetUuid, DetectionBulkCreateRequest request) {
 		return bulkCreateAssetDetections(assetId(assetUuid), request);
+	}
+
+	/**
+	 * Confirm a detection: the producer found something real here.
+	 *
+	 * @param request optional; supply a {@code correctedLabel} when the box was right but the class was wrong. May be null.
+	 */
+	LoomClientRequest<DetectionResponse> confirmAssetDetection(AssetId assetId, UUID detectionUuid, DetectionConfirmRequest request);
+
+	default LoomClientRequest<DetectionResponse> confirmAssetDetection(UUID assetUuid, UUID detectionUuid, DetectionConfirmRequest request) {
+		return confirmAssetDetection(assetId(assetUuid), detectionUuid, request);
+	}
+
+	/** Reject a detection as a false positive. The row is kept as the record that the producer was wrong here. */
+	LoomClientRequest<DetectionResponse> rejectAssetDetection(AssetId assetId, UUID detectionUuid);
+
+	default LoomClientRequest<DetectionResponse> rejectAssetDetection(UUID assetUuid, UUID detectionUuid) {
+		return rejectAssetDetection(assetId(assetUuid), detectionUuid);
+	}
+
+	/** Record many verdicts on one asset in a single request - the shape keyboard review needs. */
+	LoomClientRequest<DetectionBulkResponse> bulkReviewAssetDetections(AssetId assetId, DetectionBulkReviewRequest request);
+
+	default LoomClientRequest<DetectionBulkResponse> bulkReviewAssetDetections(UUID assetUuid, DetectionBulkReviewRequest request) {
+		return bulkReviewAssetDetections(assetId(assetUuid), request);
+	}
+
+	/**
+	 * The cross-asset review queue.
+	 *
+	 * @param status one of PENDING, CONFIRMED, REJECTED, or null for any
+	 * @param type   the detection type, or null for any
+	 */
+	LoomClientRequest<DetectionListResponse> listDetections(String status, String type);
+
+	default LoomClientRequest<DetectionListResponse> listDetections() {
+		return listDetections(null, null);
 	}
 
 }

@@ -589,7 +589,14 @@ for the restore — asserted against a caller who holds the *read* permission, s
 the history and rewriting the pipeline from it are different acts),
 `AssetBinaryDataEndpointTest`, `SimilarAssetsEndpointTest`, `TagAssetEndpointTest` (403 on
 `TAG_ASSET` and `UNTAG_ASSET`, both of which read `test:none` until then, plus the
-request-dependent case above).
+request-dependent case above), `DetectionEndpointTest` (403 on `UPDATE_DETECTION` for
+`/confirm`, `/reject` and `/review-bulk` against a caller holding only `READ_DETECTION`,
+plus the mirror case proving the grant is what unblocks it).
+
+⚠️ The mirror case has to be its **own** `@Test`. `PermissionCache` is keyed by user with
+no expiry and is only invalidated by the role endpoint, so a grant written straight to the
+DAO after a check has already run stays invisible for the rest of that test. A fresh test
+gets a cold cache.
 
 Non-CRUD tests with **no** permission assertion at all (open work):
 `TranscriptEndpointTest`, `AssetComponentEndpointTest`,
@@ -777,7 +784,9 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 
 ### 13.5 Test gaps
 
-- [ ] No generic RBAC case for `update` — most `UPDATE_*` constants read `test:none` (§8.2)
+- [ ] No generic RBAC case for `update` — most `UPDATE_*` constants still read `test:none`. Where the
+      update is a distinct act rather than a field write, the endpoint test carries its own case;
+      `DetectionEndpointTest` is the pattern to copy (§8.2)
 - [ ] 10 non-CRUD `*EndpointTest` classes assert no permission behaviour (§8.2)
 - [ ] No endpoint test for collection, comment, reaction, token or blacklist
 - [ ] No test covers group-membership changes affecting effective permissions

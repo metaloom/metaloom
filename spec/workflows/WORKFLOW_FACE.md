@@ -262,6 +262,12 @@ but keeping the shape identical avoids the question:
 CREATE TYPE "cluster_status" AS ENUM ('PENDING', 'CONFIRMED', 'REJECTED');
 ```
 
+⚠️ **Renamed since.** `V2.81` needed the same three values for `detection` and renamed this type to
+`review_status` rather than creating a second, identical one — `ALTER TYPE ... RENAME` is catalog-only,
+so `cluster.status` is unaffected. The generated enum is now `JooqReviewStatus`, and the constants live
+in `io.metaloom.loom.db.model.review.ReviewStatus` (which `Cluster.STATUS_*` points at). See
+[WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) §2.1.
+
 ### 3.2 `embedding_cluster` — now carries facts
 
 It gained `confidence real`, `origin` (`CHECK (origin IN ('AUTO','MANUAL'))`) and `created`, so an

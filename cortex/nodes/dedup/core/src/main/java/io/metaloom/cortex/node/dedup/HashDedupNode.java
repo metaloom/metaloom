@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.OutputPort;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -37,7 +38,7 @@ import io.metaloom.utils.hash.SHA512;
  * described it and it exists only so an older pipeline definition still resolves. See the sweep report.
  */
 @NodeSpec(nodeId = "hash-dedup", name = "Hash Deduplication", icon = "file_copy", category = NodeCategory.OUTPUT,
-	description = "Detect and move duplicate files based on hash equality.",
+	description = "Detect duplicate files by hash equality and report them on the duplicate port. Wire that port into a move node to relocate them.",
 	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
 	// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
 	parameters = {
@@ -59,6 +60,20 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 	 */
 	@PortDoc(label = "Hash", description = "Any content hash. Two files whose hashes match are treated as the same file")
 	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_ANY, String.class);
+
+	/**
+	 * The item, when an asset with identical content already exists elsewhere.
+	 *
+	 * <p>
+	 * Selective: silence on this port is the "nothing to do" signal, exactly as a filter's bucket ports work. Wire it into a {@code move} node to
+	 * relocate the duplicate - this node used to do that itself, hard-wired to a {@code dupFolder} nobody could redirect.
+	 * </p>
+	 */
+	@PortDoc(label = "Duplicate", description = "The item, when an asset with identical content already exists elsewhere")
+	public static final OutputPort<String> OUT_DUPLICATE = OutputPort.one("duplicate", ContentTypeRegistry.MEDIA_ANY, String.class);
+
+	@PortDoc(label = "Original", description = "Path of the copy Loom already knew about")
+	public static final OutputPort<String> OUT_ORIGINAL = OutputPort.one("original", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	private final LoomMediaLoader loader;
 
@@ -131,22 +146,15 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 								log.debug("[A]: " + media.shortHash() + " E: " + media.exists() + " => " + pathA);
 								log.debug("[B]: " + media.shortHash() + " E: " + foundMedia.exists() + " => " + pathB);
 							}
-							// TODO configure target folder selection
-							Path targetFolder = options().getDupFolder();
-							if (!Files.exists(targetFolder)) {
-								try {
-									Files.createDirectories(targetFolder);
-								} catch (FileAlreadyExistsException e1) {
-									// ignored
-								} catch (Exception e2) {
-									throw new RuntimeException("Could not create dups target dir {" + targetFolder.toAbsolutePath() + "}");
-								}
-							}
-							moveMedia(ctx, targetFolder, "Dup Of: " + pathB);
-							// Record that this file was deduplicated against an existing asset; the side effect is a filesystem move, so there is no
-							// typed payload - only the ledger marker.
+							// This node used to move the file itself, into a dupFolder that only worker YAML could set.
+							// It now reports the finding and lets the pipeline author decide: wire 'duplicate' into a
+							// move node and the destination, the conflict policy and whether the original survives all
+							// become properties of the graph rather than of this node.
+							print(ctx, "DUPLICATE", "[" + pathA + "] duplicates [" + pathB + "]");
+							ctx.output(OUT_DUPLICATE, pathA);
+							ctx.output(OUT_ORIGINAL, pathB);
+							// Ledger-only: the finding is the output, and there is no typed payload for it.
 							recordNodeResult(asset, ctx, ResultState.SUCCESS, "duplicate of " + pathB, null, null);
-							// We don't want to store the updated path for this media or alter the original file path.
 							return ctx.next();
 						}
 					} else {
@@ -158,22 +166,6 @@ public class HashDedupNode extends AbstractMediaNode<DedupNodeOptions> {
 			}
 		}
 
-	}
-
-	protected NodeResult moveMedia(NodeContext<LoomMedia> ctx, Path targetFolder, String msg) {
-		LoomMedia media = ctx.media();
-		try {
-			File targetFile = FileUtils.autoRotate(media.file(), targetFolder.toFile());
-			print(ctx, "MOVING", "[" + media.path() + "] to [" + targetFolder.toAbsolutePath() + "] " + msg);
-			if (!isDryrun()) {
-				FileUtils.moveFile(media.file(), targetFile);
-			}
-			return ctx.next();
-		} catch (IOException e) {
-			e.printStackTrace();
-			print(ctx, "FAILED", "(Error while moving, " + msg + ")");
-			return ctx.failure("error while moving").next();
-		}
 	}
 
 }

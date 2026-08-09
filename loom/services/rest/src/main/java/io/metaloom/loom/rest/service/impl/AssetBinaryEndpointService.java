@@ -3,10 +3,12 @@ package io.metaloom.loom.rest.service.impl;
 import static io.metaloom.loom.db.model.perm.Permission.CREATE_ASSET_BINARY;
 import static io.metaloom.loom.db.model.perm.Permission.DELETE_ASSET_BINARY;
 import static io.metaloom.loom.db.model.perm.Permission.READ_ASSET_BINARY;
+import static io.metaloom.loom.db.model.perm.Permission.READ_ASSET_POOL;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_ASSET_BINARY;
 
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +16,7 @@ import java.util.UUID;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.jooq.exception.DataAccessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +25,7 @@ import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
+import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.asset.binary.AssetBinaryCreateRequest;
@@ -42,6 +46,9 @@ public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<Asse
 
 	/** Vert.x {@code HttpHeaders} has no RANGE constant, only the response-side ones. */
 	private static final String RANGE_HEADER = "Range";
+
+	/** SQLSTATE for a unique-constraint violation. Postgres reports {@code asset_location_unique_library_path} with this code. */
+	private static final String UNIQUE_VIOLATION = "23505";
 
 	private final BinaryStorageResolver storageResolver;
 
@@ -105,13 +112,44 @@ public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<Asse
 		return binary;
 	}
 
+	/**
+	 * Update a binary record: its locator, and since this revision also the library and pool it belongs to.
+	 *
+	 * <p>
+	 * Re-pointing an existing row is what makes a relocation expressible. Before {@code libraryUuid}/{@code poolUuid} were accepted here, moving bytes
+	 * into another library or storage pool could only be modelled as create-new plus delete-old, which races the {@code (library_uuid, path)} unique
+	 * key and risks {@link BinaryReclaimer} unlinking bytes the surviving row still refers to.
+	 * </p>
+	 *
+	 * <p>
+	 * Naming {@code poolUuid} explicitly is an operator action - it asserts which storage backend holds the bytes rather than deriving it - so it
+	 * additionally requires {@link io.metaloom.loom.db.model.perm.Permission#READ_ASSET_POOL}, mirroring the rule the upload route already applies.
+	 * </p>
+	 */
 	@Override
 	public void update(LoomRoutingContext lrc, UUID uuid) {
-		update(lrc, UPDATE_ASSET_BINARY, () -> {
-			AssetBinaryUpdateRequest request = lrc.requestBody(AssetBinaryUpdateRequest.class);
+		// Read before the permission check so the required permission set can depend on the body,
+		// the same shape AssetUploadEndpointService.upload uses for its pool override.
+		AssetBinaryUpdateRequest request = lrc.requestBody(AssetBinaryUpdateRequest.class);
+		Permission[] required = request.getPoolUuid() == null
+			? new Permission[] { UPDATE_ASSET_BINARY }
+			: new Permission[] { UPDATE_ASSET_BINARY, READ_ASSET_POOL };
+
+		checkPerms(lrc, () -> {
 			UUID userUuid = lrc.userUuid();
 
 			AssetBinary binary = dao().load(uuid);
+			if (binary == null) {
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Asset binary not found " + uuid);
+			}
+
+			// Library and pool are applied BEFORE the locator branch: s3Locator resolves an omitted bucket
+			// from the pool, so a move into a new S3 pool has to consult the new pool rather than the old one.
+			if (request.getLibraryUuid() != null) {
+				binary.setLibraryUuid(requireLibrary(request.getLibraryUuid()));
+			}
+			binary.setPoolUuid(resolvePoolUuid(request, binary));
+
 			if (request.getS3() != null) {
 				binary.setPath(s3Locator(request.getS3(), binary.getPoolUuid()));
 			} else if (request.getFilesystem() != null) {
@@ -119,8 +157,63 @@ public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<Asse
 			}
 			update(request::getMeta, binary::setMeta);
 			setEditor(binary, userUuid);
-			return binary;
-		}, modelBuilder::toResponse);
+
+			try {
+				dao().update(binary);
+			} catch (DataAccessException e) {
+				// asset_location_unique_library_path (V2.48). Two binaries landing on the same path in the same
+				// library is a caller conflict, not an internal failure, so it must not surface as a driver 500.
+				if (isUniqueViolation(e)) {
+					throw new LoomRestException(409, LoomRestErrorCode.BAD_REQUEST,
+						"A binary already exists at path " + binary.getPath() + " in library " + binary.getLibraryUuid());
+				}
+				throw e;
+			}
+			lrc.send(modelBuilder.toResponse(binary), 200);
+		}, required);
+	}
+
+	/**
+	 * Work out which pool the row should carry after the update.
+	 *
+	 * <p>
+	 * An explicit {@code poolUuid} wins. Naming only a library adopts that library's pool, which is what "move this binary into that library" almost
+	 * always means. Naming neither leaves the row's pool alone rather than deriving it, because the bytes have not moved.
+	 * </p>
+	 */
+	private UUID resolvePoolUuid(AssetBinaryUpdateRequest request, AssetBinary binary) {
+		if (request.getPoolUuid() != null) {
+			return requirePool(request.getPoolUuid());
+		}
+		if (request.getLibraryUuid() != null) {
+			return storageResolver.poolUuidOfLibrary(request.getLibraryUuid());
+		}
+		return binary.getPoolUuid();
+	}
+
+	private UUID requireLibrary(UUID libraryUuid) {
+		if (daos().libraryDao().load(libraryUuid) == null) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "No library found for uuid " + libraryUuid);
+		}
+		return libraryUuid;
+	}
+
+	private UUID requirePool(UUID poolUuid) {
+		if (daos().assetPoolDao().load(poolUuid) == null) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "No storage pool found for uuid " + poolUuid);
+		}
+		return poolUuid;
+	}
+
+	private static boolean isUniqueViolation(DataAccessException e) {
+		Throwable cause = e;
+		while (cause != null) {
+			if (cause instanceof SQLException sql && UNIQUE_VIOLATION.equals(sql.getSQLState())) {
+				return true;
+			}
+			cause = cause.getCause();
+		}
+		return false;
 	}
 
 	/**

@@ -135,8 +135,32 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 	 * @param keyFields      the natural-key columns the unique constraint is defined on
 	 * @return the uuid of the inserted or updated row
 	 */
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	protected UUID upsert(T element, java.util.Set<String> preserved, Field<?>... keyFields) {
+		return upsert(element, preserved, java.util.Map.of(), keyFields);
+	}
+
+	/**
+	 * As {@link #upsert(Element, java.util.Set, Field...)}, but additionally forcing the given columns to the given values in the UPDATE set.
+	 *
+	 * <p>
+	 * The values may be SQL expressions rather than constants, which is what makes a <em>conditional</em> preserve expressible: a column can be set to
+	 * a {@code CASE} that keeps the stored value under one condition and resets it under another. {@code DetectionDaoImpl} uses this to hold a review
+	 * verdict while the producer version is unchanged and to retire it when the version moves on - a plain {@code preserved} entry can only do the
+	 * former.
+	 * </p>
+	 *
+	 * <p>
+	 * Overrides are applied last, so they win over both {@code preserved} and the element's own field values.
+	 * </p>
+	 *
+	 * @param element   the element to persist; its uuid is populated on return
+	 * @param preserved column names to keep from the existing row on conflict
+	 * @param overrides columns to set to an explicit value or expression on conflict
+	 * @param keyFields the natural-key columns the unique constraint is defined on
+	 * @return the uuid of the inserted or updated row
+	 */
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	protected UUID upsert(T element, java.util.Set<String> preserved, java.util.Map<Field<?>, Object> overrides, Field<?>... keyFields) {
 		TableRecord<?> reco = ctx().newRecord(getTable(), element);
 		if (element.getUuid() == null) {
 			reco.reset("uuid");
@@ -152,6 +176,8 @@ public abstract class AbstractJooqDao<T extends Element<T>> implements JooqDao, 
 				updates.put(field, reco.get(field));
 			}
 		}
+		// Last, so an override wins over both the preserved set and whatever the element carried.
+		updates.putAll(overrides);
 		UUID uuid = ctx().insertInto(getTable())
 			.set(reco)
 			.onConflict(keyFields)

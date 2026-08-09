@@ -10,6 +10,14 @@ from .base import CreatorEditorResponse, ListResponse, Model
 
 
 @dataclass
+class LibraryAssetRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.library.LibraryAssetRequest``."""
+
+    #: Uuid of the asset to add to the library.
+    asset_uuid: str | None = None
+
+
+@dataclass
 class LibraryCreateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.library.LibraryCreateRequest``."""
 

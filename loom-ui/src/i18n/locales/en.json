@@ -1464,6 +1464,12 @@
       "machineTooltip": "Attached by {{nodeKind}} — {{confidence}}% confident. Remove it from the asset detail screen.",
       "machineTooltipNoConfidence": "Attached by {{nodeKind}}. Remove it from the asset detail screen."
     },
+    "object": {
+      "saveFailed": "Could not save your decision — it was not recorded."
+    },
+    "cluster": {
+      "saveFailed": "Could not save your decision — it was not recorded."
+    },
     "dedup": {
       "keep": "Keep",
       "duplicateCandidates": "Duplicate Candidates",

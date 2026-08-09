@@ -26,6 +26,20 @@ class DetectionBulkResponse(Model):
 
 
 @dataclass
+class DetectionBulkReviewRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.detection.DetectionBulkReviewRequest``."""
+
+    reviews: list[DetectionReviewItem] = field(default_factory=list)
+
+
+@dataclass
+class DetectionConfirmRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.detection.DetectionConfirmRequest``."""
+
+    corrected_label: str | None = None
+
+
+@dataclass
 class DetectionCreateRequest(MetaModel):
     """Mirrors ``io.metaloom.loom.rest.model.detection.DetectionCreateRequest``."""
 
@@ -63,6 +77,18 @@ class DetectionResponse(CreatorEditorResponse):
     bbox_height: float | None = None
     confidence: float | None = None
     asset_uuid: str | None = None
+    review_status: str | None = None
+    reviewed_at: str | None = None
+    corrected_label: str | None = None
+
+
+@dataclass
+class DetectionReviewItem(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.detection.DetectionReviewItem``."""
+
+    uuid: str | None = None
+    status: str | None = None
+    corrected_label: str | None = None
 
 
 @dataclass

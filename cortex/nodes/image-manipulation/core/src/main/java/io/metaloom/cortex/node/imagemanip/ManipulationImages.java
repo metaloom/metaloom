@@ -1,5 +1,6 @@
 package io.metaloom.cortex.node.imagemanip;
 
+import io.metaloom.cortex.fs.AtomicFiles;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;

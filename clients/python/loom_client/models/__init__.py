@@ -137,6 +137,9 @@ from .cluster import (
     ClusterUpdateRequest,
 )
 from .collection import (
+    CollectionAssetBulkRequest,
+    CollectionAssetBulkResponse,
+    CollectionAssetRequest,
     CollectionCreateRequest,
     CollectionListResponse,
     CollectionResponse,
@@ -158,9 +161,12 @@ from .dedup import (
 from .detection import (
     DetectionBulkCreateRequest,
     DetectionBulkResponse,
+    DetectionBulkReviewRequest,
+    DetectionConfirmRequest,
     DetectionCreateRequest,
     DetectionListResponse,
     DetectionResponse,
+    DetectionReviewItem,
     DetectionUpdateRequest,
 )
 from .embedding import (
@@ -220,6 +226,7 @@ from .jsoncomp import (
     JsonCompResponse,
 )
 from .library import (
+    LibraryAssetRequest,
     LibraryCreateRequest,
     LibraryListResponse,
     LibraryResponse,
@@ -471,6 +478,9 @@ __all__ = [
     "ClusterMemberModel",
     "ClusterResponse",
     "ClusterUpdateRequest",
+    "CollectionAssetBulkRequest",
+    "CollectionAssetBulkResponse",
+    "CollectionAssetRequest",
     "CollectionCreateRequest",
     "CollectionListResponse",
     "CollectionResponse",
@@ -489,9 +499,12 @@ __all__ = [
     "DedupGroupUpdateRequest",
     "DetectionBulkCreateRequest",
     "DetectionBulkResponse",
+    "DetectionBulkReviewRequest",
+    "DetectionConfirmRequest",
     "DetectionCreateRequest",
     "DetectionListResponse",
     "DetectionResponse",
+    "DetectionReviewItem",
     "DetectionUpdateRequest",
     "DocumentInfo",
     "EmbeddingBulkCreateRequest",
@@ -524,6 +537,7 @@ __all__ = [
     "JsonCompListResponse",
     "JsonCompResponse",
     "JsonComponentInfo",
+    "LibraryAssetRequest",
     "LibraryCreateRequest",
     "LibraryListResponse",
     "LibraryResponse",

@@ -8,6 +8,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import org.jooq.DSLContext;
+import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.TableRecord;
 
@@ -15,6 +16,7 @@ import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqCollection;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.page.Page;
 
 @Singleton
 public class CollectionDaoImpl extends AbstractJooqDao<Collection> implements CollectionDao {
@@ -49,9 +51,13 @@ public class CollectionDaoImpl extends AbstractJooqDao<Collection> implements Co
 
 	@Override
 	public void linkAsset(UUID collectionUuid, UUID assetUuid) {
+		// onConflictDoNothing, because collection_asset is keyed on (collection_uuid, asset_uuid): a plain insert made a
+		// second link throw a duplicate-key error, which surfaced as a 500. Re-assigning a corpus that is already curated
+		// is the normal case for a pipeline, so membership is idempotent by construction rather than by a caller's check.
 		ctx().insertInto(COLLECTION_ASSET,
 			COLLECTION_ASSET.COLLECTION_UUID, COLLECTION_ASSET.ASSET_UUID)
 			.values(collectionUuid, assetUuid)
+			.onConflictDoNothing()
 			.execute();
 	}
 
@@ -61,6 +67,31 @@ public class CollectionDaoImpl extends AbstractJooqDao<Collection> implements Co
 			.where(COLLECTION_ASSET.COLLECTION_UUID.eq(collectionUuid)
 				.and(COLLECTION_ASSET.ASSET_UUID.eq(assetUuid)))
 			.execute();
+	}
+
+	@Override
+	public boolean containsAsset(UUID collectionUuid, UUID assetUuid) {
+		return ctx().fetchExists(ctx()
+			.selectOne()
+			.from(COLLECTION_ASSET)
+			.where(COLLECTION_ASSET.COLLECTION_UUID.eq(collectionUuid)
+				.and(COLLECTION_ASSET.ASSET_UUID.eq(assetUuid))));
+	}
+
+	@Override
+	public long countAssets(UUID collectionUuid) {
+		return ctx().fetchCount(COLLECTION_ASSET, COLLECTION_ASSET.COLLECTION_UUID.eq(collectionUuid));
+	}
+
+	@Override
+	public Page<Collection> loadPageByAsset(UUID assetUuid, UUID fromId, int pageSize) {
+		SelectConditionStep<?> query = ctx()
+			.select(getTable())
+			.from(getTable())
+			.join(COLLECTION_ASSET).on(COLLECTION_ASSET.COLLECTION_UUID.eq(JooqCollection.COLLECTION.UUID))
+			.where(COLLECTION_ASSET.ASSET_UUID.eq(assetUuid));
+
+		return loadPage(query, fromId, pageSize, null, null, null);
 	}
 
 }

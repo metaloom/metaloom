@@ -1,9 +1,11 @@
 package io.metaloom.loom.db.jooq.dao.detection;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.detection.Detection;
+import io.metaloom.loom.db.model.review.ReviewStatus;
 import io.vertx.core.json.JsonObject;
 
 public class DetectionImpl extends AbstractEditableElement<Detection> implements Detection {
@@ -35,6 +37,15 @@ public class DetectionImpl extends AbstractEditableElement<Detection> implements
 	private UUID assetUuid;
 
 	private JsonObject meta;
+
+	// Matches the column default, so a detection built in Java and one read back from a fresh insert agree.
+	private String status = ReviewStatus.PENDING;
+
+	private Instant reviewedAt;
+
+	private UUID reviewerUuid;
+
+	private String correctedLabel;
 
 	@Override
 	public String getNodeKind() {
@@ -187,6 +198,51 @@ public class DetectionImpl extends AbstractEditableElement<Detection> implements
 	@Override
 	public Detection setMeta(JsonObject meta) {
 		this.meta = meta;
+		return this;
+	}
+
+	@Override
+	public String getStatus() {
+		return status;
+	}
+
+	@Override
+	public Detection setStatus(String status) {
+		// Null would violate the NOT NULL column and is never a meaningful verdict; treat it as "nobody has decided".
+		this.status = status == null ? ReviewStatus.PENDING : status;
+		return this;
+	}
+
+	@Override
+	public Instant getReviewedAt() {
+		return reviewedAt;
+	}
+
+	@Override
+	public Detection setReviewedAt(Instant reviewedAt) {
+		this.reviewedAt = reviewedAt;
+		return this;
+	}
+
+	@Override
+	public UUID getReviewerUuid() {
+		return reviewerUuid;
+	}
+
+	@Override
+	public Detection setReviewerUuid(UUID reviewerUuid) {
+		this.reviewerUuid = reviewerUuid;
+		return this;
+	}
+
+	@Override
+	public String getCorrectedLabel() {
+		return correctedLabel;
+	}
+
+	@Override
+	public Detection setCorrectedLabel(String correctedLabel) {
+		this.correctedLabel = correctedLabel;
 		return this;
 	}
 

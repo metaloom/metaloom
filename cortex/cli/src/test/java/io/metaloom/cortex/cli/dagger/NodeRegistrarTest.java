@@ -96,7 +96,10 @@ public class NodeRegistrarTest {
 			"fingerprint-dedup", "fingerprint-dedup-apply",
 			// facedescription had a descriptor and no bindings, so the pipeline editor offered a node the
 			// registrar could not resolve. It is bound now, which is the whole point of advertising it.
-			"facedescription");
+			"facedescription",
+			// The relocation pair. A descriptor makes a kind visible in the palette; only the map binding
+			// makes it runnable, and these two are what the dedup nodes now hand their decisions to.
+			"move", "assign");
 	}
 
 	@Test

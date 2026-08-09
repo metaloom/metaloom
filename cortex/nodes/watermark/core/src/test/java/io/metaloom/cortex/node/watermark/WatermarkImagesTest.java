@@ -1,5 +1,6 @@
 package io.metaloom.cortex.node.watermark;
 
+import io.metaloom.cortex.fs.AtomicFiles;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

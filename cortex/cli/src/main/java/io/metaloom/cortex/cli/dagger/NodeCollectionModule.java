@@ -27,6 +27,7 @@ import io.metaloom.cortex.node.sink.s3.S3SinkNodeModule;
 import io.metaloom.cortex.node.source.s3.S3SourceNodeModule;
 import io.metaloom.cortex.node.thumbnail.ThumbnailNodeModule;
 import io.metaloom.cortex.node.metadata.MetadataNodeModule;
+import io.metaloom.cortex.node.relocate.RelocateNodeModule;
 import io.metaloom.cortex.node.tag.TagNodeModule;
 import io.metaloom.cortex.node.tika.TikaNodeModule;
 import io.metaloom.cortex.node.guard.GuardNodeModule;
@@ -72,7 +73,7 @@ import io.metaloom.cortex.node.whisper.WhisperNodeModule;
 	FilterNodeModule.class,
 	TranslateNodeModule.class,
 	GuardNodeModule.class,
-	TagNodeModule.class })
+	TagNodeModule.class, RelocateNodeModule.class })
 public interface NodeCollectionModule {
 
 }

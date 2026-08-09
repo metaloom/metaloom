@@ -4,6 +4,7 @@ import static io.metaloom.loom.rest.RESTConstants.API_V1_PATH;
 import static io.vertx.core.http.HttpMethod.DELETE;
 import static io.vertx.core.http.HttpMethod.GET;
 import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import javax.inject.Inject;
 
@@ -86,6 +87,37 @@ public class CollectionEndpoint extends AbstractEndpoint {
 			examples.collectionResponseExample(),
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Membership. A collection groups assets logically - these routes write collection_asset and
+		// never touch a binary. Moving the bytes of an asset is /binaries, and the two are independent.
+		addRoute(basePath() + "/:uuid/assets", POST,
+			"Add an asset to the collection",
+			examples.collectionAssetRequestExample(),
+			examples.collectionResponseExample(),
+			lrc -> {
+				service.addAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/assets", PUT,
+			"Add several assets to the collection",
+			examples.collectionAssetBulkRequestExample(),
+			examples.collectionAssetBulkResponseExample(),
+			lrc -> {
+				service.addAssets(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/assets/:assetUuid", DELETE,
+			"Remove an asset from the collection",
+			lrc -> {
+				service.removeAsset(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("assetUuid"));
+			});
+
+		addListRoute(basePath() + "/:uuid/assets", GET,
+			"Load a paged list of the assets in the collection",
+			examples.assetListResponseExample(),
+			lrc -> {
+				service.listAssets(lrc, lrc.pathParamUUID("uuid"));
 			});
 	}
 

@@ -95,8 +95,8 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
 | **Space** | `project`, `project_library`, `project_collection` | Outermost workspace grouping libraries + collections. DB table is `project`, exposed as *Space*; permissions renamed to `SPACE_*` in V2.22. Also scopes SPACE-level agent memory via `chat.space_uuid`. | ↔ Library, Collection | V2.11 |
-| **Library** | `library`, `library_asset`, `library_collection` | Container of assets and collections; the scanner root that asset locations belong to. `pool_uuid` decides where uploaded bytes go (NULL = the legacy `LOOM_STORAGE_UPLOAD_DIR`). Deleting an asset removes it from its libraries (V2.74); the library survives. The other direction still blocks on purpose — a library cannot be deleted out from under the assets in it. `library_asset` has **no DAO writer yet**. | ↔ Asset (CASCADE V2.74), Collection; ← Asset Location; → Asset Pool (RESTRICT) | V2.9; `pool_uuid` V2.63; asset cascade V2.74 |
-| **Collection** | `collection`, `collection_asset`, `collection_cluster`, `tag_collection` | Hierarchical folder grouping assets & clusters. Membership is not content: deleting an asset takes it out of its collections (V2.73) and the collection keeps everything else in it. | self-parent; ↔ Asset (CASCADE V2.73), Cluster, Tag | V2.7, V2.73 |
+| **Library** | `library`, `library_asset`, `library_collection` | Container of assets and collections; the scanner root that asset locations belong to. `pool_uuid` decides where uploaded bytes go (NULL = the legacy `LOOM_STORAGE_UPLOAD_DIR`). Deleting an asset removes it from its libraries (V2.74); the library survives. The other direction still blocks on purpose — a library cannot be deleted out from under the assets in it. `library_asset` gained its first DAO writer with the membership routes (`LibraryDao.linkAsset`), used by `POST /libraries/:uuid/assets` and the `assign` node. | ↔ Asset (CASCADE V2.74), Collection; ← Asset Location; → Asset Pool (RESTRICT) | V2.9; `pool_uuid` V2.63; asset cascade V2.74 |
+| **Collection** | `collection`, `collection_asset`, `collection_cluster`, `tag_collection` | Hierarchical folder grouping assets & clusters. Membership is not content and cascades **both** ways: deleting an asset takes it out of its collections (V2.73) and deleting a collection removes its membership rows (V2.80), each leaving the other side intact. Written by `POST /collections/:uuid/assets` and the `assign` node. | self-parent; ↔ Asset (CASCADE V2.73 / V2.80), Cluster, Tag | V2.7, V2.73, V2.80 |
 | **Tag** | `tag`, `tag_asset`, `tag_cluster`, `tag_collection`, `tag_user_meta` | Named label with `rating` and `color`. Uniqueness is `(name, collection)` where `collection` is a **plain varchar namespace**, not an FK. Assignments cascade both ways (V2.72): deleting an asset or a tag removes the assignment and nothing else. A tag may be placed on one asset **several times** since V2.71 — once per face, once per timecode — and each placement has its own uuid and records its writer (`node_kind` = `manual` for a person, `node_id`, `producer_version`, `confidence`). | ↔ Asset, Cluster, Collection, Annotation | V2.2, V2.71, V2.72 |
 | **Tag User Meta** | `tag_user_meta` | Per-user rating for a tag (PK `tag_uuid`+`user_uuid`). **No DAO.** | Tag ↔ User | V2.2 |
 
@@ -138,7 +138,7 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
-| **Detection** | `detection` | Object/face instance in a frame: `type`, indexed `label`, `frame_number`, `detection_index`, `time_from`, `bbox_x/y/width/height` **normalized 0–1** (the single geometry convention), `confidence`. UNIQUE `(asset_uuid, node_kind, frame_number, detection_index)`. | → Asset (CASCADE); ← Embedding | V2.27 → rewritten V2.43 |
+| **Detection** | `detection` | Object/face instance in a frame: `type`, indexed `label`, `frame_number`, `detection_index`, `time_from`, `bbox_x/y/width/height` **normalized 0–1** (the single geometry convention), `confidence`. UNIQUE `(asset_uuid, node_kind, frame_number, detection_index)`. Carries a human verdict: `status review_status` (default `PENDING`), `reviewed_at`, `reviewer_uuid`, `corrected_label` — `reviewer_uuid` is deliberately **not** `editor_uuid`, which the producing node touches on every re-run, and `corrected_label` sits beside `label` rather than replacing it, so what the model said survives as training signal. An upsert preserves all four unless `producer_version` changed, in which case they reset to `PENDING`. | → Asset (CASCADE); → User (reviewer, no cascade); ← Embedding, ← Attachment (face crop) | V2.27 → rewritten V2.43; review state V2.81 |
 | **Embedding** | `embedding`, `embedding_cluster` | Vector extracted from an asset: `type` (free-text, e.g. `face`, `clip`), `model` (NOT NULL, e.g. `inspireface-r18`), `dimensions`, `vector real[]`, `frame_number`, `subject_index`, `time_from`/`time_to`, plus the index-export columns `dirty`/`synced_at`/`index_version`/`normalized`. Geometry is **not** duplicated here — it lives on the linked detection. UNIQUE `(asset_uuid, node_kind, type, **model**, frame_number, subject_index)` — `model` is in the key so a model upgrade **adds** rows beside the old ones instead of overwriting them. CHECK `array_length(vector,1) = dimensions`. This table is the **system of record**; ANN search is a derived, rebuildable index behind the `VectorIndex` SPI. Written by `FacedetectNode`. | → Asset, → Detection (both CASCADE); ↔ Cluster | V2.12 → rewritten V2.43; `embedding_cluster` cascade V2.51; index contract + `model` in key V2.75 |
 | **Cluster** | `cluster`, `embedding_cluster`, `tag_cluster`, `collection_cluster` | Group of embeddings by similarity: `name` (UNIQUE), `type` (e.g. `person`). | ← Embedding; ↔ Tag, Collection | V2.12 |
 | **Person** | `person`, `person_image` | Named identity (`firstname`, `lastname`, `alias`) with an image gallery and a primary image. | → Asset (images) | V2.26 |
@@ -280,9 +280,12 @@ erDiagram
     detection {
         uuid uuid PK
         varchar type
-        varchar label "indexed"
+        varchar label "indexed - what the model said"
         int frame_number
         real bbox_x "normalized 0-1"
+        review_status status "PENDING|CONFIRMED|REJECTED"
+        uuid reviewer_uuid FK "nullable - not editor_uuid"
+        varchar corrected_label "nullable - what the reviewer said"
     }
     embedding {
         uuid uuid PK
@@ -305,7 +308,7 @@ many-to-many at every level, so an asset is reachable through several paths) and
 | Space ↔ Collection | M:N | `project_collection` |
 | Library ↔ Collection | M:N | `library_collection` |
 | Library ↔ Asset | M:N | `library_asset` |
-| Collection ↔ Asset | M:N | `collection_asset` |
+| Collection ↔ Asset | M:N | `collection_asset` (PK both cols; cascades from either side since V2.80) |
 | Collection → Collection | 1:N tree | `parent_collection_uuid` self-FK |
 | Asset → Asset Location | **1:N** | `UNIQUE(library_uuid, path)` on `asset_location` |
 | Library → Asset Location | 1:N | `library_uuid NOT NULL`, ON DELETE CASCADE |

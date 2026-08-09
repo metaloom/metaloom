@@ -160,7 +160,19 @@ group" would suppress a genuinely new duplicate of an already-reviewed file. Rol
 comparison: after a KEEP reassignment the same two files can come back with roles swapped, and that
 is still the same decision.
 
-### 5.2 🟢 Apply verifies the KEEP's content, not just its metadata
+### 5.2 🟢 Apply verifies the KEEP's content — and now only decides
+
+🔴 **`fingerprint-dedup-apply` no longer moves anything.** It writes the item to a selective
+`confirmed_dup` port (plus `keep_path`) and a downstream `move` node relocates it. All five
+safeguards are unchanged and still run against the live filesystem before the port is written - only
+their consequence changed, from "move the file" to "write the port". The destination, the conflict
+policy and whether the original survives are now properties of the pipeline an author can see,
+instead of a `dupFolder` only worker YAML could set.
+
+⚠️ **One safeguard could not follow the move downstream.** "The keeper is not itself a trashed file"
+asks a question about the KEEP, and the move node only ever sees the duplicate. It survives as
+`keepExcludeFolder` on the apply node - default empty, i.e. off - which is also what a `dupFolder`
+setting migrates to. Set it to the same folder the move node trashes into.
 
 `keepPassesSafeguards` gained a fifth check: the KEEP's recorded SHA-512 must still match the file.
 `hashOf()` goes through `LoomMediaImpl.getSHA512()`, which **trusts the stored xattr**
@@ -198,7 +210,7 @@ ever returns.
 
 ### Open
 - [ ] ⚠️ `PATCH keepAssetUuid` does not rewrite `dedup_group_member.role` — pointer and roles diverge (§10)
-- [ ] Per-node E2E in `integration-test` (two near-identical videos → discover → confirm → apply → no-op)
+- [ ] Per-node E2E in `integration-test` (two near-identical videos → discover → confirm → apply → **move** → no-op)
 - [ ] Progress/resumption so two reviewers can split a queue (shared defect X7)
 - [ ] Discovery options (`algorithm`, `topK`, `scoreThreshold`, …) are still YAML-only, not descriptor parameters
 - [ ] The UI loads one page of the queue and does not "load more" — fine for a review session, not for a 10k backlog
@@ -212,8 +224,8 @@ ever returns.
 | `DedupGroupEndpointTest` (14) 🟢 | Create+load, PENDING idempotency, **decided sets are not re-proposed (200)**, **a different set still is (201)**, **keyset paging**, confirm/reject, list-by-asset, delete, invalid status, 404, 403 on every route, `READ_DEDUP` does not grant UPDATE, asset-delete cascade | `mvn -pl loom/core test -Dtest=DedupGroupEndpointTest` |
 | `DedupGroupDaoTest` (7) 🟢 | Store/load, `listByStatus`, `listByAsset`, `findPendingByKeep`+`updateStatus`, **`listDecidedByAssets`**, invalid role, both delete-cascades | `mvn -pl loom/db/jooq test -Dtest=DedupGroupDaoTest` |
 | `FingerprintDedupNodeTest` (3) 🟢 | KEEP/DUP split; larger-dup abort; **already-decided set → skipped, no ledger row** | `mvn -pl cortex/nodes/dedup/core -am test` |
-| `FingerprintDedupApplyNodeTest` (11) 🟢 | Confirmed DUP moves; PENDING/REJECTED never move; the KEEP of a confirmed group is never moved; missing / incomplete / smaller / **content-changed** KEEP all block; no recorded hash still applies; already-moved dup is idempotent | same command |
-| `HashDedupNodeTest` (4) 🟢 | Known-file move; **size mismatch skips instead of blocking** (`@Timeout(10)` is the assertion); same-file no-op; unknown file skipped | same command |
+| `FingerprintDedupApplyNodeTest` (12) 🟢 | Confirmed DUP is **emitted on `confirmed_dup`**; PENDING/REJECTED emit nothing; the KEEP never appears on the port; missing / incomplete / smaller / **content-changed** KEEP all block; no recorded hash still applies; `keepExcludeFolder` blocks; a look-alike folder name does not. ⚠️ **Every case also asserts nothing was moved** | same command |
+| `HashDedupNodeTest` (4) 🟢 | Known file is **signalled on `duplicate`**, not moved; **size mismatch skips instead of blocking** (`@Timeout(10)` is the assertion); same-file no-op; unknown file skipped | same command |
 | `dedup.test.ts` (12) 🟢 | Query-param shaping (`?status=`+`?limit=`+`?from=` on one `?`), uuid encoding, the PATCH method and body, DELETE with no body, error propagation | `./node_modules/.bin/vitest run src/api/dedup.test.ts` |
 | `dedupGroups.test.ts` (17) 🟢 | `keepMember` precedence, `dupMembers`, completeness of an unmeasured file, size formatting, `replaceGroup`, and that `reassignKeep` repeats the current status | `./node_modules/.bin/vitest run src/features/workflow/` |
 | `workflow-dedup-mocked.spec.ts` (6) 🟢 | Queue renders with sizes; `Y` PATCHes CONFIRMED; `N` PATCHes REJECTED; **a 500 reverts the chip and toasts**; make-keep sends `keepAssetUuid` with `status: PENDING`; empty queue shows `dedup-empty` | `./node_modules/.bin/playwright test e2e/workflow-dedup-mocked.spec.ts` |
@@ -251,7 +263,8 @@ are descriptor parameters — the rest are YAML-only and unreachable from the pi
 | `DedupGroupEndpoint` / `DedupGroupEndpointService` | `io.metaloom.loom.rest.{endpoint,service}.impl` | The five routes, the PENDING upsert and the decided-set guard |
 | `DedupGroupDao` / `DedupGroup` / `DedupGroupMember` | `io.metaloom.loom.db.model.dedup` | Review-record persistence |
 | `DedupGroupMethods` | `io.metaloom.loom.client.common.method` | Java client, 6 methods |
-| `FingerprintDedupNode` / `FingerprintDedupApplyNode` | `io.metaloom.cortex.node.dedup` | Propose / apply |
+| `FingerprintDedupNode` / `FingerprintDedupApplyNode` | `io.metaloom.cortex.node.dedup` | Propose / decide. Neither moves a file any more |
+| `MoveNode` | `io.metaloom.cortex.node.relocate` | Acts on the decision. Wire `confirmed_dup → media` |
 | `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` | HNSW k-NN over 256-dim fingerprints |
 
 ---
@@ -260,7 +273,8 @@ are descriptor parameters — the rest are YAML-only and unreachable from the pi
 
 | Area | Gotcha |
 |---|---|
-| **Two lifecycles** | 🔴 Discovery writes review items; apply acts on decisions. Never let discovery move a file, never let apply act on `PENDING`/`REJECTED` |
+| **Three lifecycles now** | 🔴 Discovery proposes, apply **decides**, `move` acts. Never let discovery write a review item it has not verified, never let apply act on `PENDING`/`REJECTED`, and never put the destination back on the apply node |
+| **`dupFolder` is gone** | ⚠️ Removed outright. `CortexOptionsLoader` ignores unknown YAML keys, so a stale `dupFolder` keeps a worker booting and is **silently ignored** - duplicates simply stop being moved. Re-wire `confirmed_dup → move.media`. Release-note material |
 | **Snapshots are hints** | ⚠️ `size` / `zero_chunk_count` are discovery-time values for the reviewer. Apply re-checks live — existence, completeness, size, folder **and content** |
 | **A larger DUP aborts the whole group** | ⚠️ Not "drop that member". A duplicate bigger than the keep means the keep selection is wrong |
 | **Idempotency is server-side** | ⚠️ Both halves live in `createDedupGroup`: the PENDING upsert *and* the decided-set guard. Do not add a client-side key |
@@ -295,6 +309,8 @@ are descriptor parameters — the rest are YAML-only and unreachable from the pi
 
 ---
 
-_Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-08 (review UI wired end to end; decided-set guard, keyset paging, KEEP content
-verification and the `System.in.read()` fix landed with tests)_
+_Git HEAD revision: `98a6dbe1`_
+_Last updated: 2026-08-08 (apply became a gate: it re-verifies the keeper and writes `confirmed_dup`
+rather than moving the file, and a downstream `move` node acts. `dupFolder` removed; the one safeguard
+that could not move downstream survives as `keepExcludeFolder`. See
+[WORKFLOW_TRASH.md](WORKFLOW_TRASH.md) §6a.)_

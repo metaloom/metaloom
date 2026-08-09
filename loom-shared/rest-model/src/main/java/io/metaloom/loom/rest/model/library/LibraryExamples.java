@@ -54,4 +54,14 @@ public interface LibraryExamples extends ExampleValues {
 		return model;
 	}
 
+	default Example libraryAssetRequestExample() {
+		return new ExampleImpl(libraryAssetRequest(), "The library membership request", HttpResponseStatus.CREATED);
+	}
+
+	default LibraryAssetRequest libraryAssetRequest() {
+		LibraryAssetRequest model = new LibraryAssetRequest();
+		model.setAssetUuid(uuidA());
+		return model;
+	}
+
 }

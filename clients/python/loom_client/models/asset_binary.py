@@ -73,6 +73,13 @@ class AssetBinaryResponse(CreatorEditorResponse):
 class AssetBinaryUpdateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.asset.binary.AssetBinaryUpdateRequest``."""
 
+    #: Library the binary belongs to. Set this to move the binary into another library; leave it unset to keep
+    #: the current one.
+    library_uuid: str | None = None
+    #: Storage pool holding the bytes. Set this to record that the bytes now live in another pool. Defaults to
+    #: the pool of the given library when only libraryUuid is set, and is otherwise left unchanged. Requires
+    #: the READ_ASSET_POOL permission.
+    pool_uuid: str | None = None
     #: Information about the location of the asset in the filesystem.
     filesystem: AssetBinaryFilesystemInfo | None = None
     #: S3 meta information on the asset. (only set when S3 is being utilized).

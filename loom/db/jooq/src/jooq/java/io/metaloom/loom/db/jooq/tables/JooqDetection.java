@@ -8,24 +8,20 @@ import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
+import io.metaloom.loom.db.jooq.enums.JooqReviewStatus;
 import io.metaloom.loom.db.jooq.tables.records.JooqDetectionRecord;
 import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function22;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
-import org.jooq.Records;
-import org.jooq.Row22;
 import org.jooq.Schema;
-import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -178,6 +174,35 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
      */
     public final TableField<JooqDetectionRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID, this, "");
 
+    /**
+     * The column <code>public.detection.status</code>. PENDING (awaiting
+     * review), CONFIRMED (a human agreed with the detection) or REJECTED (a
+     * false positive). Reset to PENDING by an upsert whose producer_version
+     * differs from the stored one.
+     */
+    public final TableField<JooqDetectionRecord, JooqReviewStatus> STATUS = createField(DSL.name("status"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PENDING'::review_status", SQLDataType.VARCHAR)).asEnumDataType(io.metaloom.loom.db.jooq.enums.JooqReviewStatus.class), this, "PENDING (awaiting review), CONFIRMED (a human agreed with the detection) or REJECTED (a false positive). Reset to PENDING by an upsert whose producer_version differs from the stored one.");
+
+    /**
+     * The column <code>public.detection.reviewed_at</code>. When a human
+     * decided. NULL while PENDING. Distinct from "edited", which the producing
+     * node touches on every re-run.
+     */
+    public final TableField<JooqDetectionRecord, LocalDateTime> REVIEWED_AT = createField(DSL.name("reviewed_at"), SQLDataType.LOCALDATETIME(6), this, "When a human decided. NULL while PENDING. Distinct from \"edited\", which the producing node touches on every re-run.");
+
+    /**
+     * The column <code>public.detection.reviewer_uuid</code>. The user who
+     * decided. Distinct from editor_uuid, which is machine-written provenance
+     * (V2.47).
+     */
+    public final TableField<JooqDetectionRecord, java.util.UUID> REVIEWER_UUID = createField(DSL.name("reviewer_uuid"), SQLDataType.UUID, this, "The user who decided. Distinct from editor_uuid, which is machine-written provenance (V2.47).");
+
+    /**
+     * The column <code>public.detection.corrected_label</code>. The label a
+     * reviewer supplied when the detection was right but its class was wrong.
+     * "label" keeps what the model said, which is the training signal.
+     */
+    public final TableField<JooqDetectionRecord, String> CORRECTED_LABEL = createField(DSL.name("corrected_label"), SQLDataType.VARCHAR, this, "The label a reviewer supplied when the detection was right but its class was wrong. \"label\" keeps what the model said, which is the training signal.");
+
     private JooqDetection(Name alias, Table<JooqDetectionRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -218,7 +243,7 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.IDX_DETECTION_ASSET_UUID, Indexes.IDX_DETECTION_LABEL, Indexes.IDX_DETECTION_TYPE);
+        return Arrays.asList(Indexes.IDX_DETECTION_ASSET_UUID, Indexes.IDX_DETECTION_LABEL, Indexes.IDX_DETECTION_REVIEW, Indexes.IDX_DETECTION_STATUS_TYPE, Indexes.IDX_DETECTION_TYPE);
     }
 
     @Override
@@ -233,7 +258,7 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
 
     @Override
     public List<ForeignKey<JooqDetectionRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.DETECTION__DETECTION_ASSET_UUID_FKEY, Keys.DETECTION__DETECTION_RUN_UUID_FKEY, Keys.DETECTION__DETECTION_TASK_UUID_FKEY, Keys.DETECTION__DETECTION_CREATOR_UUID_FKEY, Keys.DETECTION__DETECTION_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.DETECTION__DETECTION_ASSET_UUID_FKEY, Keys.DETECTION__DETECTION_RUN_UUID_FKEY, Keys.DETECTION__DETECTION_TASK_UUID_FKEY, Keys.DETECTION__DETECTION_CREATOR_UUID_FKEY, Keys.DETECTION__DETECTION_EDITOR_UUID_FKEY, Keys.DETECTION__DETECTION_REVIEWER_UUID_FKEY);
     }
 
     private transient JooqAsset _asset;
@@ -241,6 +266,7 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
     private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqUser _detectionCreatorUuidFkey;
     private transient JooqUser _detectionEditorUuidFkey;
+    private transient JooqUser _detectionReviewerUuidFkey;
 
     /**
      * Get the implicit join path to the <code>public.asset</code> table.
@@ -295,6 +321,17 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
         return _detectionEditorUuidFkey;
     }
 
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>detection_reviewer_uuid_fkey</code> key.
+     */
+    public JooqUser detectionReviewerUuidFkey() {
+        if (_detectionReviewerUuidFkey == null)
+            _detectionReviewerUuidFkey = new JooqUser(this, Keys.DETECTION__DETECTION_REVIEWER_UUID_FKEY);
+
+        return _detectionReviewerUuidFkey;
+    }
+
     @Override
     public JooqDetection as(String alias) {
         return new JooqDetection(DSL.name(alias), this);
@@ -332,29 +369,5 @@ public class JooqDetection extends TableImpl<JooqDetectionRecord> {
     @Override
     public JooqDetection rename(Table<?> name) {
         return new JooqDetection(name.getQualifiedName(), null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Row22 type methods
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row22<java.util.UUID, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, String, String, Integer, Integer, Long, Float, Float, Float, Float, Float, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row22) super.fieldsRow();
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
-     */
-    public <U> SelectField<U> mapping(Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super Integer, ? super Long, ? super Float, ? super Float, ? super Float, ? super Float, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(Records.mapping(from));
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Class,
-     * Function)}.
-     */
-    public <U> SelectField<U> mapping(Class<U> toType, Function22<? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super String, ? super Integer, ? super Integer, ? super Long, ? super Float, ? super Float, ? super Float, ? super Float, ? super Float, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
-        return convertFrom(toType, Records.mapping(from));
     }
 }

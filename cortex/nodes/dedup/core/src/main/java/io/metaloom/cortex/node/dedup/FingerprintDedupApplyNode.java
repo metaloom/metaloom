@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.cortex.api.media.LoomMedia;
 import io.metaloom.cortex.api.node.InputPort;
+import io.metaloom.cortex.api.node.OutputPort;
+import io.metaloom.cortex.fs.PathContainment;
 import io.metaloom.cortex.api.node.NodeResult;
 import io.metaloom.cortex.api.node.ResultState;
 import io.metaloom.cortex.api.node.context.NodeContext;
@@ -36,24 +38,31 @@ import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
 
 /**
- * Apply node: acts on human-CONFIRMED dedup groups. For the current asset, if it is a DUP member of a confirmed group whose KEEP still passes the
- * live safeguards, it moves the duplicate file into the configured dups folder. It never touches PENDING or REJECTED groups.
+ * The gate on human-CONFIRMED dedup groups. For the current asset, if it is a DUP member of a confirmed group whose KEEP still passes the live
+ * safeguards, it writes the item to {@link #OUT_CONFIRMED_DUP}. It never touches PENDING or REJECTED groups, and it never touches a file.
  *
  * <p>
- * Safeguards re-verified against the live filesystem before any move (spec §4/§5): the KEEP exists on disk, is complete, is at least as large as the
- * duplicate, is not itself inside the dups folder, and still hashes to the value Loom recorded. Idempotent: an already-moved duplicate is skipped.
+ * The safeguards are re-verified against the live filesystem, not read from the review record: the KEEP exists on disk, is complete, is at least as
+ * large as the duplicate, is not itself inside the configured keeper-exclude folder, and still hashes to the value Loom recorded. A reviewer's
+ * decision can be minutes or months old, and the file it was about may have changed since.
+ * </p>
+ *
+ * <p>
+ * 🔴 <b>This node no longer moves anything.</b> It used to relocate the duplicate into a {@code dupFolder} that only worker YAML could set, which
+ * meant the destination, the conflict policy and whether the original survived were invisible to whoever drew the pipeline. Wire
+ * {@code confirmed_dup} into a {@code move} node instead: this node decides, that node acts.
  * </p>
  */
 @NodeSpec(nodeId = "fingerprint-dedup-apply", name = "Fingerprint Deduplication (Apply)", icon = "content_copy", category = NodeCategory.OUTPUT,
-	description = "Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.",
+	description = "Report confirmed near-duplicates on the confirmed_dup port, after re-verifying the keeper against the live filesystem. Acts only on dedup groups a reviewer has confirmed in Loom; wire the port into a move node to relocate them.",
 	defaultMode = io.metaloom.loom.nodes.spec.NodeMode.SEQUENTIAL,
 	parameters = {
 		// The dedup descriptors have only ever advertised `enabled` of the three common knobs.
 		@ParamOverride(key = "processIncomplete", hidden = true),
 		@ParamOverride(key = "retryFailed", hidden = true),
-		// DedupNodeOptions is shared with hash-dedup, whose @ParamDoc says "duplicate files"; this node
-		// only ever moves files a reviewer confirmed, and its descriptor says so.
-		@ParamOverride(key = "dupFolder", label = "Duplicates Folder", description = "Target folder for confirmed duplicate files")
+		// keepExcludeFolder is only meaningful here: hash-dedup has no notion of a keeper.
+		@ParamOverride(key = "keepExcludeFolder", label = "Keeper Exclude Folder",
+			description = "Never act when the keeper itself lives under this folder, for example the trash folder duplicates are moved into")
 	})
 public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOptions> {
 
@@ -70,6 +79,25 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 	 */
 	@PortDoc(label = "Hash", description = "Any content hash; identifies the asset whose confirmed dedup groups are applied")
 	public static final InputPort<String> IN_HASH = InputPort.one("hash", ContentTypeRegistry.HASH_ANY, String.class);
+
+	/**
+	 * The item, when a reviewer confirmed it is a duplicate and its keeper is verified intact.
+	 *
+	 * <p>
+	 * Written when and only when all five safeguards pass: the group is CONFIRMED, this asset is a DUP member, and the KEEP exists, is complete, is at
+	 * least as large as the duplicate and still hashes to what Loom recorded. Silence is the "do not act" signal.
+	 * </p>
+	 *
+	 * <p>
+	 * Wire it into a {@code move} node. This node decides; that node acts.
+	 * </p>
+	 */
+	@PortDoc(label = "Confirmed Duplicate",
+		description = "The item, when a reviewer confirmed it is a duplicate and its keeper is verified intact")
+	public static final OutputPort<String> OUT_CONFIRMED_DUP = OutputPort.one("confirmed_dup", ContentTypeRegistry.MEDIA_ANY, String.class);
+
+	@PortDoc(label = "Keeper", description = "Path of the file the reviewer decided to keep")
+	public static final OutputPort<String> OUT_KEEP_PATH = OutputPort.one("keep_path", ContentTypeRegistry.SCALAR_STRING, String.class);
 
 	private static final String STATUS_CONFIRMED = DedupGroupResponse.STATUS_CONFIRMED;
 
@@ -99,14 +127,14 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 			groups = client().listAssetDedupGroups(asset.getUuid()).sync().body();
 		} catch (Exception e) {
 			log.warn("Failed to load dedup groups for asset {}: {}", asset.getUuid(), e.getMessage());
-			return ctx.failure("failed to load dedup groups").next();
+			return ctx.failure("failed to load dedup groups").abort();
 		}
 		if (groups == null || groups.getData() == null || groups.getData().isEmpty()) {
 			return ctx.skipped("no dedup groups").next();
 		}
 
 		LoomMedia media = ctx.media();
-		Path dupFolder = options().getDupFolder();
+		Path keepExcludeFolder = options().getKeepExcludeFolder();
 
 		for (DedupGroupResponse group : groups.getData()) {
 			if (!STATUS_CONFIRMED.equals(group.getStatus())) {
@@ -125,20 +153,23 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 			} catch (Exception e) {
 				continue;
 			}
-			if (!keepPassesSafeguards(keep, media, dupFolder)) {
+			if (!keepPassesSafeguards(keep, media, keepExcludeFolder)) {
 				continue;
 			}
 
-			// Idempotency: if this duplicate is already inside the dups folder, there is nothing to do.
-			if (isInFolder(media.file(), dupFolder)) {
-				return ctx.skipped("already moved to dups folder").next();
-			}
-
+			// The five safeguards above are unchanged; only their consequence is. This node used to move the
+			// file here, into a dupFolder that only worker YAML could set. It now writes the port and lets a
+			// downstream move node decide where the bytes go and whether the original survives - which is the
+			// same decision, made where a pipeline author can see it.
+			//
+			// Idempotency moved downstream with the move: the move node knows its own destination and skips an
+			// item already inside it, which this node could only ever answer for one hard-coded folder.
 			String keepPath = keep.getFile().getFilename();
-			ensureFolder(dupFolder);
-			NodeResult moved = moveMedia(ctx, dupFolder, "fpdup of " + keepPath);
+			print(ctx, "CONFIRMED-DUP", "[" + media.absolutePath() + "] confirmed duplicate of [" + keepPath + "]");
+			ctx.output(OUT_CONFIRMED_DUP, media.absolutePath());
+			ctx.output(OUT_KEEP_PATH, keepPath);
 			recordNodeResult(asset, ctx, ResultState.SUCCESS, "fpdup of " + keepPath, null, null);
-			return moved;
+			return ctx.next();
 		}
 
 		return ctx.skipped("no confirmed dedup action for this asset").next();
@@ -154,10 +185,10 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 	}
 
 	/**
-	 * The KEEP must exist on disk, be complete, be at least as large as the duplicate, not itself live in the dups folder, and still hold the content
+	 * The KEEP must exist on disk, be complete, be at least as large as the duplicate, not itself live in the configured keeper-exclude folder, and still hold the content
 	 * that was fingerprinted.
 	 */
-	private boolean keepPassesSafeguards(AssetResponse keep, LoomMedia dupMedia, Path dupFolder) throws IOException {
+	private boolean keepPassesSafeguards(AssetResponse keep, LoomMedia dupMedia, Path keepExcludeFolder) throws IOException {
 		if (keep == null || keep.getFile() == null || keep.getFile().getFilename() == null) {
 			return false;
 		}
@@ -172,8 +203,11 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 		if (keep.getFile().getSize() < dupMedia.size()) {
 			return false; // keep smaller than the duplicate
 		}
-		if (isInFolder(keepFile, dupFolder)) {
-			return false; // keep is itself a trashed/duplicate file
+		if (keepExcludeFolder != null && PathContainment.isInside(keepFile, keepExcludeFolder)) {
+			// The one safeguard that could not move downstream with the move: it asks about the KEEP, and the
+			// move node only ever sees the duplicate. keepExcludeFolder is the residue of dupFolder - "never
+			// act when the keeper itself lives here" - and defaults to empty, i.e. off.
+			return false;
 		}
 		if (!keepContentMatches(keep, keepFile)) {
 			return false; // the keep is no longer the file the reviewer decided about
@@ -234,40 +268,4 @@ public class FingerprintDedupApplyNode extends AbstractMediaNode<DedupNodeOption
 		}
 	}
 
-	private static boolean isInFolder(File file, Path folder) {
-		if (file == null || folder == null) {
-			return false;
-		}
-		String f = file.getAbsoluteFile().toPath().normalize().toString();
-		String dir = folder.toAbsolutePath().normalize().toString();
-		return f.startsWith(dir);
-	}
-
-	private static void ensureFolder(Path folder) {
-		if (!Files.exists(folder)) {
-			try {
-				Files.createDirectories(folder);
-			} catch (FileAlreadyExistsException e) {
-				// ignored
-			} catch (Exception e) {
-				throw new RuntimeException("Could not create dups target dir {" + folder.toAbsolutePath() + "}");
-			}
-		}
-	}
-
-	/** Move the current media into the target folder (respecting dry-run), mirroring {@code HashDedupNode.moveMedia}. */
-	private NodeResult moveMedia(NodeContext<LoomMedia> ctx, Path targetFolder, String msg) {
-		LoomMedia media = ctx.media();
-		try {
-			File targetFile = FileUtils.autoRotate(media.file(), targetFolder.toFile());
-			print(ctx, "MOVING", "[" + media.path() + "] to [" + targetFolder.toAbsolutePath() + "] " + msg);
-			if (!isDryrun()) {
-				FileUtils.moveFile(media.file(), targetFile);
-			}
-			return ctx.next();
-		} catch (IOException e) {
-			print(ctx, "FAILED", "(Error while moving, " + msg + ")");
-			return ctx.failure("error while moving").next();
-		}
-	}
 }

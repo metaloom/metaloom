@@ -2,8 +2,10 @@
 title: Deduplication
 ---
 
-The deduplication nodes find duplicate media and move the extra copies aside. There are two ways to
-decide that two files are "the same":
+The deduplication nodes find duplicate media and tell you which copy is redundant. They do not move
+anything themselves — you wire their result into a link:../move/[Move] node, which decides where the
+extra copy goes and whether the original survives. There are two ways to decide that two files are
+"the same":
 
 * **By content hash** — the files are byte-for-byte identical.
 * **By perceptual fingerprint** — the files *look* like the same footage, even when they are different
@@ -11,7 +13,7 @@ decide that two files are "the same":
   automatically: they are collected for a person to confirm first.
 
 ++++
-<div class="ml-nodeviz" data-nodeviz='{"kind":"dedup","applies":"Any file · Video","badge":"CPU only","persist":"duplicate groups for review + processing ledger","configs":[{"name":"sha512-dedup","note":"exact duplicates by content hash","inputs":[{"t":"hash","l":"hash","d":"any content hash — typically the hash port of a sha512 node"}],"outputs":[{"t":"action","l":"duplicate moved","d":"the extra copy is moved into dupFolder"}]},{"name":"fingerprint-dedup","note":"finds near-duplicates and submits them for review","inputs":[{"t":"fingerprint","l":"fingerprint","d":"the perceptual code, from the fingerprint port of a fingerprint node"}],"outputs":[{"t":"action","l":"review group created","d":"a duplicate group awaiting a human decision — no file is touched"}]},{"name":"fingerprint-dedup-apply","note":"carries out confirmed decisions","inputs":[{"t":"hash","l":"hash","d":"any content hash, identifying the file to check against confirmed decisions"}],"outputs":[{"t":"action","l":"confirmed duplicate moved","d":"only for groups a reviewer confirmed"}]}]}'></div>
+<div class="ml-nodeviz" data-nodeviz='{"kind":"dedup","applies":"Any file · Video","badge":"CPU only","persist":"duplicate groups for review + processing ledger","configs":[{"name":"sha512-dedup","note":"exact duplicates by content hash","inputs":[{"t":"hash","l":"hash","d":"any content hash — typically the hash port of a sha512 node"}],"outputs":[{"t":"image","l":"duplicate","d":"the redundant copy — wire this into a Move node"},{"t":"string","l":"original","d":"where the copy the system already knew about lives"}]},{"name":"fingerprint-dedup","note":"finds near-duplicates and submits them for review","inputs":[{"t":"fingerprint","l":"fingerprint","d":"the perceptual code, from the fingerprint port of a fingerprint node"}],"outputs":[{"t":"action","l":"review group created","d":"a duplicate group awaiting a human decision — no file is touched"}]},{"name":"fingerprint-dedup-apply","note":"passes on confirmed decisions","inputs":[{"t":"hash","l":"hash","d":"any content hash, identifying the file to check against confirmed decisions"}],"outputs":[{"t":"image","l":"confirmed_dup","d":"only for groups a reviewer confirmed, and only once the keeper has been re-verified"},{"t":"string","l":"keep_path","d":"where the copy being kept lives"}]}]}'></div>
 ++++
 
 [cols="1,3"]
@@ -19,15 +21,15 @@ decide that two files are "the same":
 | Kinds | `sha512-dedup` (exact), `fingerprint-dedup` (find near-duplicates), `fingerprint-dedup-apply` (act on confirmed ones)
 | Applies to | Any file (hash) / Video (fingerprint)
 | Input ports | Hash dedup takes `hash`, which accepts *any* hash type — connect the `hash` port of a link:../hash/[hash] node; fingerprint dedup takes `fingerprint` — connect the `fingerprint` port of link:../fingerprint/[Fingerprint]
-| Output ports | None — these nodes work by side effect (creating review entries, or moving files)
-| Requirements | CPU only. **Storage**: duplicates are moved to a configured folder, so the worker needs write access there.
+| Output ports | `sha512-dedup` emits `duplicate` and `original`; `fingerprint-dedup-apply` emits `confirmed_dup` and `keep_path`. Both stay silent when there is nothing to act on. `fingerprint-dedup` has none — it writes review entries
+| Requirements | CPU only. Nothing is written to disk by these nodes.
 | Persists to | Duplicate groups awaiting review, plus a processing ledger entry per file
 |===
 
 == Finding near-duplicate videos
 
-Near-duplicate detection is a three-step workflow, and the split is deliberate: nothing is moved
-until a person has agreed to it.
+Near-duplicate detection is a four-step workflow, and the split is deliberate: nothing is moved until
+a person has agreed to it, and the moving itself is a step you can see.
 
 . **Find.** `fingerprint-dedup` compares each video's perceptual fingerprint against every other
   fingerprinted video and groups the ones that match closely enough. Each group records one file to
@@ -36,8 +38,11 @@ until a person has agreed to it.
   at a time — see link:../../ui/#reviewing-duplicates[Reviewing duplicates]. Confirming a group
   approves the proposed clean-up; rejecting it means those files are never touched again. Once you
   have decided a set of files, the search will not put it back in the queue on the next run.
-. **Apply.** `fingerprint-dedup-apply` acts only on confirmed groups, and re-checks the file it is
-  about to keep before moving anything.
+. **Confirm.** `fingerprint-dedup-apply` acts only on confirmed groups, re-checks the file that would
+  be kept against what is on disk right now, and passes the redundant copy on. It touches no files.
+. **Move.** A link:../move/[Move] node takes it from there — into a trash folder, an archive bucket,
+  or wherever you decided. This is the only step that changes anything on disk, and you can leave it
+  in dry-run until you trust the rest.
 
 TIP: Fingerprint dedup needs the link:../fingerprint/[Fingerprint] node to have run first, and
 near-duplicate lookup must be switched on in the server configuration. Without it, the workflow has
@@ -50,11 +55,10 @@ group at all when that choice looks unsafe — for example when one of the candi
 *larger* than the file that would be kept, or when no candidate is known to be complete. The intent
 is that a clean-up can only ever discard the lesser copy.
 
-Before it moves anything, the apply step checks all over again against the files as they are on disk
-right now: the file being kept must still exist, still be complete, still be at least as large as the
-duplicate, must not itself already be sitting in the duplicates folder, and must still hold the same
-content it had when the group was proposed. If any of that no longer holds, the move is skipped
-rather than guessed at.
+Before it passes anything on, the apply step checks all over again against the files as they are on
+disk right now: the file being kept must still exist, still be complete, still be at least as large as
+the duplicate, and must still hold the same content it had when the group was proposed. If any of that
+no longer holds, the item is skipped rather than guessed at, and nothing appears on its output port.
 
 That last check matters most when a review has been sitting in the queue for a while: a file that was
 replaced in place in the meantime still exists and is still the right size, but is no longer the copy
@@ -62,20 +66,32 @@ the reviewer approved. Verifying it costs nothing when a checksum is already on 
 which is the normal case once it has been through a hash step.
 
 Both steps are safe to re-run. Re-running the search updates the same pending group instead of piling
-up new ones, and re-running the apply step skips files that have already been moved.
+up new ones, and the link:../move/[Move] node at the end skips files that are already at their
+destination.
+
+=== Wiring it up
+
+Connect `confirmed_dup` to the `media` port of a link:../move/[Move] node. That node decides where
+confirmed duplicates go — a trash folder you can still look in, or an archive bucket — and whether the
+original is removed once the destination has been verified. Keeping that decision in the pipeline
+rather than in a worker's configuration is the point: it is visible to whoever drew the graph.
 
 == Configuration
 
 .The node's settings in the pipeline editor
-image::config.png[The Hash Deduplication settings panel: Duplicates Folder,role="ml-panel-shot"]
+image::config.png[The Deduplication settings panel,role="ml-panel-shot"]
 
-Exact-hash dedup and the apply step (`DedupNodeOptions`):
+The apply step (`DedupNodeOptions`):
 
 [options="header",cols="1,2"]
 |===
 | Option | Meaning
-| `dupFolder` | Target directory that detected duplicates are moved into
+| `keepExcludeFolder` | Never act when the file being *kept* is itself inside this folder. Set it to the same folder your Move node trashes into, so a copy that has already been discarded can never be used to justify discarding another. Empty by default, which turns the check off
 |===
+
+NOTE: These nodes used to have a `dupFolder` setting and moved files into it themselves. That setting
+is gone. If you have it in a worker configuration it is now ignored — add a link:../move/[Move] node
+to your pipeline instead, or duplicates will simply stop being cleared.
 
 Near-duplicate search (`fingerprint-dedup`):
 
@@ -91,23 +107,15 @@ Near-duplicate search (`fingerprint-dedup`):
 
 == Seeing it run
 
-Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced. This one
-is the exception in the catalogue: it declares **no output ports at all**. What it does is move a
-file and record the fact, so there is nothing to draw on the node card — and the card correctly draws
-nothing.
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced. For a file
+that turned out to be a duplicate you will see the `duplicate` port carrying it, and `original`
+naming the copy the system already had. For a file that did not, both stay empty — which is exactly
+how the routing works: a downstream node wired to `duplicate` simply receives nothing for that item.
 
-The place its work shows up is the node's own Results tab, which the run detail opens:
+image::debug.png[The dedup node's Results tab after a real run,role="ml-panel-shot"]
 
-image::debug.png[The dedup node's Results tab after a real run: COMPLETED in 23ms, with no outputs recorded,role="ml-panel-shot"]
-
-That is a real run against a real Loom: an asset already existed for one copy of the file, a second
-copy of the same bytes was fed in, and the node matched them by hash and moved the second one into
-the duplicates folder. `No outputs were recorded` is the honest answer — the result lives on the
-filesystem and in the asset's history, not on a port.
-
-TIP: If you want a downstream node to react to a duplicate, do not wire it to this one. Put
-link:../hash/[Hash] upstream of both and branch on what you need, or read the asset's history back
-through the API.
+TIP: The empty case is not a failure. A pipeline that finds no duplicates should show a green run with
+silent ports, and that is what it does.
 
 == Use Cases
 
@@ -115,4 +123,4 @@ through the API.
 * **Near-duplicate video pruning** — find re-encodes and re-uploads of the same footage, review them,
   and clear out the redundant copies once approved.
 * **Reclaiming storage safely** — the review step means a large clean-up can be checked before any
-  file moves.
+  file moves, and the Move node at the end can be left in dry-run until you are satisfied.

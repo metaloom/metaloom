@@ -75,6 +75,9 @@ import io.metaloom.loom.rest.model.skill.SkillListResponse;
 import io.metaloom.loom.rest.model.skill.SkillResponse;
 import io.metaloom.loom.rest.model.skill.SkillUpdateRequest;
 import io.metaloom.loom.rest.model.skill.SkillVersionListResponse;
+import io.metaloom.loom.rest.model.collection.CollectionAssetBulkRequest;
+import io.metaloom.loom.rest.model.collection.CollectionAssetBulkResponse;
+import io.metaloom.loom.rest.model.collection.CollectionAssetRequest;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
@@ -84,6 +87,8 @@ import io.metaloom.loom.rest.model.comment.CommentListResponse;
 import io.metaloom.loom.rest.model.comment.CommentResponse;
 import io.metaloom.loom.rest.model.comment.CommentUpdateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionBulkReviewRequest;
+import io.metaloom.loom.rest.model.detection.DetectionConfirmRequest;
 import io.metaloom.loom.rest.model.detection.DetectionBulkResponse;
 import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionListResponse;
@@ -101,6 +106,7 @@ import io.metaloom.loom.rest.model.group.GroupCreateRequest;
 import io.metaloom.loom.rest.model.group.GroupListResponse;
 import io.metaloom.loom.rest.model.group.GroupResponse;
 import io.metaloom.loom.rest.model.group.GroupUpdateRequest;
+import io.metaloom.loom.rest.model.library.LibraryAssetRequest;
 import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
 import io.metaloom.loom.rest.model.library.LibraryListResponse;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
@@ -662,6 +668,26 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	}
 
 	@Override
+	public LoomClientHttpRequest<LibraryResponse> addLibraryAsset(UUID libraryUuid, LibraryAssetRequest request) {
+		return postRequest("libraries/" + libraryUuid + "/assets", request, LibraryResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> removeLibraryAsset(UUID libraryUuid, UUID assetUuid) {
+		return deleteRequest("libraries/" + libraryUuid + "/assets/" + assetUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetListResponse> listLibraryAssets(UUID libraryUuid) {
+		return getRequest("libraries/" + libraryUuid + "/assets", AssetListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<LibraryListResponse> listAssetLibraries(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/libraries", LibraryListResponse.class);
+	}
+
+	@Override
 	public LoomClientHttpRequest<LibraryResponse> createLibrary(LibraryCreateRequest request) {
 		return postRequest("libraries", request, LibraryResponse.class);
 	}
@@ -861,6 +887,31 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 		return deleteRequest("collections/" + collectionUuid);
 	}
 
+	@Override
+	public LoomClientHttpRequest<CollectionResponse> addCollectionAsset(UUID collectionUuid, CollectionAssetRequest request) {
+		return postRequest("collections/" + collectionUuid + "/assets", request, CollectionResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<CollectionAssetBulkResponse> addCollectionAssets(UUID collectionUuid, CollectionAssetBulkRequest request) {
+		return putRequest("collections/" + collectionUuid + "/assets", request, CollectionAssetBulkResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> removeCollectionAsset(UUID collectionUuid, UUID assetUuid) {
+		return deleteRequest("collections/" + collectionUuid + "/assets/" + assetUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<AssetListResponse> listCollectionAssets(UUID collectionUuid) {
+		return getRequest("collections/" + collectionUuid + "/assets", AssetListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<CollectionListResponse> listAssetCollections(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/collections", CollectionListResponse.class);
+	}
+
 	// TASK REACTION
 
 	public LoomClientHttpRequest<ReactionResponse> loadTaskReaction(UUID taskUuid, UUID reactionUuid) {
@@ -929,6 +980,31 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 
 	public LoomClientHttpRequest<DetectionBulkResponse> bulkCreateAssetDetections(AssetId assetId, DetectionBulkCreateRequest request) {
 		return postRequest(assetPath(assetId) + "/detections/bulk", request, DetectionBulkResponse.class);
+	}
+
+	public LoomClientHttpRequest<DetectionResponse> confirmAssetDetection(AssetId assetId, UUID detectionUuid, DetectionConfirmRequest request) {
+		return postRequest(assetPath(assetId) + "/detections/" + detectionUuid + "/confirm", request, DetectionResponse.class);
+	}
+
+	public LoomClientHttpRequest<DetectionResponse> rejectAssetDetection(AssetId assetId, UUID detectionUuid) {
+		return postRequest(assetPath(assetId) + "/detections/" + detectionUuid + "/reject", null, DetectionResponse.class);
+	}
+
+	public LoomClientHttpRequest<DetectionBulkResponse> bulkReviewAssetDetections(AssetId assetId, DetectionBulkReviewRequest request) {
+		return postRequest(assetPath(assetId) + "/detections/review-bulk", request, DetectionBulkResponse.class);
+	}
+
+	public LoomClientHttpRequest<DetectionListResponse> listDetections(String status, String type) {
+		// addQueryParameter, not a hand-built path: the path is added via addPathSegments, which escapes '?' into %3F and
+		// turns the whole thing into one literal segment that matches no route.
+		LoomClientHttpRequest<DetectionListResponse> request = getRequest("detections", DetectionListResponse.class);
+		if (status != null) {
+			request.addQueryParameter("status", status);
+		}
+		if (type != null) {
+			request.addQueryParameter("type", type);
+		}
+		return request;
 	}
 
 	public LoomClientHttpRequest<EmbeddingBulkResponse> bulkCreateAssetEmbeddings(AssetId assetId, EmbeddingBulkCreateRequest request) {

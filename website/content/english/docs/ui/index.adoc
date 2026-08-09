@@ -43,8 +43,9 @@ operating the installation.
 * *Tasks* — a Kanban-style task board with priority, status, due dates and per-asset tasks
 * *Detection* — review face, object and LLM detections; manage face clusters and persons
 * *Tags* — manage tags grouped by collection
-* *Workflow* — fullscreen, keyboard-driven bulk review: <<rating-and-tagging,rating and tagging>>
-  and the <<reviewing-duplicates,duplicate review queue>>
+* *Workflow* — fullscreen, keyboard-driven bulk review: <<rating-and-tagging,rating and tagging>>,
+  the <<reviewing-duplicates,duplicate review queue>> and
+  <<reviewing-detections,confirming what a model found>>
 
 *Management*
 
@@ -412,6 +413,49 @@ anything.
 
 NOTE: Opening this queue needs the *Deduplication → READ_DEDUP* permission, and deciding a group
 needs *UPDATE_DEDUP*. Both are granted in the *Permissions* screen under *Administration*.
+
+[#reviewing-detections]
+=== Reviewing What a Model Found
+
+*Workflow → Objects* is the queue of things an object-detection pipeline believes it found and
+nobody has confirmed yet. A detection model is right most of the time and confidently wrong the
+rest of it, so what it produces is a proposal until somebody says otherwise.
+
+Each box is drawn over the asset and listed below it with the class the model assigned and how sure
+it was. Select a box and decide:
+
+[options="header",cols="1,3"]
+|===
+| Key | Action
+| `Y` | Confirm — there really is one of these here
+| `N` | Reject — a false positive
+| `↑` `↓` `Tab` | Move between boxes
+| `←` `→` | Move between assets
+|===
+
+Confirmed boxes turn green, rejected ones fade and are marked as such, and anything still undecided
+stays amber — so at a glance you can see how far through an asset you are.
+
+There is a third answer, and it is the useful one: the box is in the right place but the class is
+wrong. Correcting the class still counts as a confirmation, because the model did find something
+there. What the model originally said is kept alongside your correction rather than replaced — that
+record is what makes the reviewed set worth anything as training material later.
+
+A rejected detection is kept too, rather than deleted. It is the record that the model was wrong
+about this particular spot, which is also what stops the next run offering you the same box again
+as though it were new.
+
+Decisions are saved as you make them, in batches, so a fast run of keystrokes is not slowed down by
+one save per box. If saving fails, the boxes visibly go back to undecided and a message says so.
+
+TIP: Re-running the same detection pipeline over an asset you have already reviewed does not undo
+your work — the pipeline updates its own boxes and leaves your verdicts alone. Upgrading to a
+different version of the detection model *does* return those boxes to the queue: the new model may
+have found something different in the same place, so an old verdict is no longer a safe answer to a
+question that has changed.
+
+NOTE: Opening this queue needs the *Detection → READ_DETECTION* permission, and deciding a box needs
+*UPDATE_DETECTION*. Both are granted in the *Permissions* screen under *Administration*.
 
 [#pipeline-editing]
 == Pipeline Editing

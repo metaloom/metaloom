@@ -1,5 +1,6 @@
 package io.metaloom.cortex.node.watermark;
 
+import io.metaloom.cortex.fs.AtomicFiles;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

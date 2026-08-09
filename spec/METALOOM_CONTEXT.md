@@ -363,7 +363,7 @@ spec/
     ├── WORKFLOW_FACE.md               # 🟡 detect → embed → cluster → confirm a person. Stages 1–2
     │                                  #   run (embeddings built 2026-08-06); 🔴 no clustering code
     │                                  #   and `cluster.creator_uuid` NOT NULL blocks a worker
-    ├── WORKFLOW_OBJECT_DETECT.md      # 🔴 Blocked at the schema: `detection` has no review status.
+    ├── WORKFLOW_OBJECT_DETECT.md      # 🟢 Built: `detection` carries a review verdict (V2.81).
     │                                  #   Also: objectdetect is NOT faces-only, and the UI's
     │                                  #   DetectionResponse omits `label`
     ├── WORKFLOW_UPLOAD.md             # 🟢 BUILT: asset.created → PipelineMatcher (mime patterns in
@@ -409,7 +409,7 @@ spec/
 | **Anything a human reviews in bulk** — rating, tagging, confirming, rejecting | [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) — the family index. Read §3 (the 7-piece anatomy) before adding a workflow and §4 (defects X1–X10) before debugging one. 🔴 Of six shipped modes, exactly one writes to the server |
 | **The face identity workflow** — detect → embed → cluster → confirm a person | [workflows/WORKFLOW_FACE.md](workflows/WORKFLOW_FACE.md) — 🟡 **stages 1–2 of 4 run.** Detections and embeddings persist; there is no clustering code and `cluster.creator_uuid` is `NOT NULL`, so a worker cannot write one. ⚠️ moved here from `features/facedetection/` on 2026-08-07; ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
 | Reviewing dedup candidates (the human step) | [workflows/WORKFLOW_DEDUP.md](workflows/WORKFLOW_DEDUP.md) — the workflow half; the nodes and algorithm stay in [concept/NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md) |
-| Confirming or rejecting object detections | [workflows/WORKFLOW_OBJECT_DETECT.md](workflows/WORKFLOW_OBJECT_DETECT.md) — 🔴 `detection` has no review status, so the decision has nowhere to go |
+| Confirming or rejecting object detections | [workflows/WORKFLOW_OBJECT_DETECT.md](workflows/WORKFLOW_OBJECT_DETECT.md) — 🟢 `detection` carries `status`/`reviewer_uuid`/`corrected_label` (V2.81); `/confirm`, `/reject`, `/review-bulk` |
 | **What happens after a file is uploaded** — which pipeline runs and why | [workflows/WORKFLOW_UPLOAD.md](workflows/WORKFLOW_UPLOAD.md) — 🟢 built. The trigger is untyped JSON in `pipeline_version.meta.trigger`, matched on mime type only |
 | Moving or disposing of an asset's bytes from a pipeline | [workflows/WORKFLOW_TRASH.md](workflows/WORKFLOW_TRASH.md) — 🔵 the `move` node does not exist; 🔴 cross-device moves silently copy |
 | Making a rating or a tag actually *do* something | [workflows/WORKFLOW_MANUAL_SORT.md](workflows/WORKFLOW_MANUAL_SORT.md) §5 — 🔴 `FilterBy` has no `TAG`/`RATING` strategy, which is why every manual decision is inert. Task W1 in [tasks/WORKFLOW_TASKS.md](tasks/WORKFLOW_TASKS.md) |
@@ -785,10 +785,12 @@ and subcomponents for request scope (`RestComponent` per REST request).
 - [ ] ⚠️ **A pipeline can act on a rating or a tag, but not on any other human decision.**
       `FilterBy.RATING` and `FilterBy.TAG` landed (task W1), and the demo ships a `Review Triage`
       pipeline that routes on a rating. Still open: `PipelineMatcher` triggers on mime type only, so
-      a decision cannot *start* a run, and a confirmed detection has nowhere to be recorded (W5)
-- [ ] 🔴 `detection` has no review status column, so confirming a box or a face has nowhere to go
-      (task W5). Related: the UI's `DetectionResponse` omits `label` (W6)
-- [ ] No workflow has a page under `website/content/english/docs` (task W15)
+      a decision cannot *start* a run. Recording a confirmed detection landed in `V2.81` (W5)
+- [x] 🟢 `detection` carries a review verdict (`V2.81`), with `/confirm`, `/reject`, `/review-bulk` and a
+      cross-asset `GET /detections` queue; the workflow view persists decisions and a node re-run cannot
+      clear one (tasks W5, W6). The `review_status` enum is shared with `cluster.status`
+- [ ] Only the dedup and detection review queues have a page under `website/content/english/docs`
+      (task W15)
 - [ ] Assets and auth are still documented per component rather than extracted into `features/`
 - [ ] `./build.sh` does not invoke `cli/build-native.sh` — the native CLI is not part of a full build
 

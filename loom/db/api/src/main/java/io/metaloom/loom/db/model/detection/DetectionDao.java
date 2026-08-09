@@ -32,4 +32,50 @@ public interface DetectionDao extends CRUDDao<Detection> {
 
 	Page<Detection> loadPageForAsset(AssetId assetId, UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy, SortDirection sortDirection);
 
+	/**
+	 * Load a keyset-paged slice of detections across every asset, optionally narrowed to a review status and a detection type.
+	 *
+	 * <p>
+	 * This is the cross-asset review queue behind {@code GET /api/v1/detections?status=PENDING&type=objectdetection}. Both filters are optional; a null
+	 * means "any".
+	 * </p>
+	 *
+	 * @param status  one of the {@link io.metaloom.loom.db.model.review.ReviewStatus} constants, or null for any
+	 * @param type    the detection type, or null for any
+	 * @param fromId  keyset cursor, or null to start at the newest
+	 * @param pageSize maximum rows to return
+	 * @return the page
+	 */
+	Page<Detection> loadPage(String status, String type, UUID fromId, int pageSize);
+
+	/**
+	 * List the detections of one asset, optionally narrowed to a type and a review status.
+	 *
+	 * <p>
+	 * The per-asset counterpart of {@link #loadPage(String, String, UUID, int)}: what is left to review on the asset currently open in the review UI.
+	 * </p>
+	 *
+	 * @param assetUuid the asset
+	 * @param type      the detection type, or null for any
+	 * @param status    one of the {@link io.metaloom.loom.db.model.review.ReviewStatus} constants, or null for any
+	 * @return the matching detections, ordered by frame then ordinal
+	 */
+	List<Detection> listByStatus(UUID assetUuid, String type, String status);
+
+	/**
+	 * Record a human verdict against a detection.
+	 *
+	 * <p>
+	 * Writes {@code status}, {@code reviewed_at} and {@code reviewer_uuid}, and {@code corrected_label} when one is supplied. It deliberately does
+	 * <em>not</em> touch {@code edited}/{@code editor_uuid}: those are producer provenance, and a review is not a production event.
+	 * </p>
+	 *
+	 * @param detectionUuid  the detection to decide on
+	 * @param status         one of the {@link io.metaloom.loom.db.model.review.ReviewStatus} constants
+	 * @param correctedLabel a reviewer-supplied class, or null to leave any existing correction alone
+	 * @param reviewerUuid   the deciding user
+	 * @return the updated detection
+	 */
+	Detection updateReview(UUID detectionUuid, String status, String correctedLabel, UUID reviewerUuid);
+
 }

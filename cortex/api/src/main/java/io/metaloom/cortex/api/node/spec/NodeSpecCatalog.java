@@ -98,7 +98,9 @@ public final class NodeSpecCatalog {
 		// llm node was never discoverable.
 		"io.metaloom.cortex.node.llm.LLMNode",
 		"io.metaloom.cortex.node.vlm.VlmNode",
-		"io.metaloom.cortex.node.videogen.VideoGenNode");
+		"io.metaloom.cortex.node.videogen.VideoGenNode",
+		"io.metaloom.cortex.node.relocate.MoveNode",
+		"io.metaloom.cortex.node.relocate.AssignNode");
 
 	private NodeSpecCatalog() {
 	}

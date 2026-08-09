@@ -24,6 +24,10 @@ public interface DetectionModelBuilder extends ModelBuilder, UserModelBuilder {
 		if (detection.getAssetUuid() != null) {
 			response.setAssetUuid(detection.getAssetUuid().toString());
 		}
+		response.setReviewStatus(detection.getStatus());
+		response.setReviewedAt(detection.getReviewedAt() == null ? null : detection.getReviewedAt().toString());
+		response.setCorrectedLabel(detection.getCorrectedLabel());
+		// setStatus writes the creator/editor audit envelope, which is a different "status" entirely - see DetectionResponse#getReviewStatus.
 		setStatus(detection, response);
 		return response;
 	}

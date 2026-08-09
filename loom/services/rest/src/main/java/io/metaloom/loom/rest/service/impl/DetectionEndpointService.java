@@ -33,12 +33,16 @@ import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.detection.DetectionDao;
 import io.metaloom.loom.db.model.perm.Permission;
+import io.metaloom.loom.db.model.review.ReviewStatus;
 import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
 import io.metaloom.loom.rest.model.detection.DetectionBulkCreateRequest;
 import io.metaloom.loom.rest.model.detection.DetectionBulkResponse;
+import io.metaloom.loom.rest.model.detection.DetectionBulkReviewRequest;
+import io.metaloom.loom.rest.model.detection.DetectionConfirmRequest;
 import io.metaloom.loom.rest.model.detection.DetectionCreateRequest;
+import io.metaloom.loom.rest.model.detection.DetectionReviewItem;
 import io.metaloom.loom.rest.model.detection.DetectionListResponse;
 import io.metaloom.loom.rest.model.detection.DetectionResponse;
 import io.metaloom.loom.rest.model.detection.DetectionUpdateRequest;
@@ -51,6 +55,7 @@ import io.metaloom.loom.storage.BinaryStorage;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.ext.web.RequestBody;
 
 @Singleton
 public class DetectionEndpointService extends AbstractEndpointService {
@@ -306,7 +311,153 @@ public class DetectionEndpointService extends AbstractEndpointService {
 		});
 	}
 
+	// --- Review ---
+
+	/**
+	 * {@code POST /api/v1/assets/:uuid/detections/:detectionUuid/confirm} - the producer found something real here.
+	 *
+	 * <p>
+	 * An RPC-style sub-resource rather than a field write, matching the cluster review routes. The verdict is not an editable property: it stamps a
+	 * reviewer and a time, and it must not be reachable through the generic update path where a client could set it without either.
+	 * </p>
+	 *
+	 * <p>
+	 * The body is optional. Supplying {@code correctedLabel} is still a confirmation - the box was right, only the class was wrong - and the original
+	 * label is kept alongside it.
+	 * </p>
+	 */
+	public void confirmAssetDetection(LoomRoutingContext lrc, AssetId assetId, UUID detectionUuid) {
+		review(lrc, assetId, detectionUuid, ReviewStatus.CONFIRMED, () -> optionalCorrectedLabel(lrc));
+	}
+
+	/**
+	 * Read {@code correctedLabel} from a body that may legitimately not be there.
+	 *
+	 * <p>
+	 * The emptiness check is on the raw buffer rather than a try/catch around the parse, so that "no body" and "malformed body" stay distinguishable:
+	 * swallowing a parse failure here would silently drop a correction the reviewer typed.
+	 * </p>
+	 */
+	private static String optionalCorrectedLabel(LoomRoutingContext lrc) {
+		RequestBody body = lrc.routingContext().body();
+		if (body == null || body.buffer() == null || body.buffer().length() == 0) {
+			return null;
+		}
+		DetectionConfirmRequest request = lrc.requestBody(DetectionConfirmRequest.class);
+		return request == null ? null : request.getCorrectedLabel();
+	}
+
+	/**
+	 * {@code POST /api/v1/assets/:uuid/detections/:detectionUuid/reject} - a false positive.
+	 *
+	 * <p>
+	 * The row is kept rather than deleted. A rejected detection is the record that the producer was wrong here, which is what makes it useful as
+	 * training feedback and what stops the next run from presenting the same box again as new.
+	 * </p>
+	 */
+	public void rejectAssetDetection(LoomRoutingContext lrc, AssetId assetId, UUID detectionUuid) {
+		review(lrc, assetId, detectionUuid, ReviewStatus.REJECTED, () -> null);
+	}
+
+	private void review(LoomRoutingContext lrc, AssetId assetId, UUID detectionUuid, String status, Supplier<String> correctedLabel) {
+		checkPerm(lrc, UPDATE_DETECTION, () -> {
+			Detection detection = dao().loadAssetDetection(assetId, detectionUuid);
+			if (detection == null) {
+				// A detection belonging to another asset is answered as missing rather than as forbidden: the pairing is part of the address.
+				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Detection not found.");
+			}
+			Detection reviewed = dao().updateReview(detectionUuid, status, correctedLabel.get(), lrc.userUuid());
+			lrc.send(modelBuilder.toResponse(reviewed), 200);
+		});
+	}
+
+	/**
+	 * {@code POST /api/v1/assets/:uuid/detections/review-bulk} - every verdict from one pass over an asset.
+	 *
+	 * <p>
+	 * Reports {@code {total, created, failed}} like the bulk-create route it sits next to. A bad item is counted and skipped rather than failing the
+	 * batch: losing twenty good decisions because the twenty-first named a stale uuid would be worse than reporting the one that did not apply.
+	 * </p>
+	 */
+	public void bulkReviewAssetDetections(LoomRoutingContext lrc, AssetId assetId) {
+		checkPerm(lrc, UPDATE_DETECTION, () -> {
+			DetectionBulkReviewRequest request = lrc.requestBody(DetectionBulkReviewRequest.class);
+			List<DetectionReviewItem> items = request.getReviews() == null ? List.of() : request.getReviews();
+			UUID userUuid = lrc.userUuid();
+
+			DetectionBulkResponse response = new DetectionBulkResponse();
+			response.setTotal(items.size());
+			int reviewed = 0;
+			int failed = 0;
+
+			for (DetectionReviewItem item : items) {
+				try {
+					UUID detectionUuid = UUID.fromString(item.getUuid());
+					String status = requireStatus(item.getStatus());
+					if (dao().loadAssetDetection(assetId, detectionUuid) == null) {
+						throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Detection not found.");
+					}
+					Detection updated = dao().updateReview(detectionUuid, status, item.getCorrectedLabel(), userUuid);
+					response.add(modelBuilder.toResponse(updated));
+					reviewed++;
+				} catch (Exception e) {
+					log.warn("Bulk review item failed: {}", e.getMessage());
+					failed++;
+				}
+			}
+
+			// "created" is the count of rows the batch wrote, which for a review batch is the count it decided. The field name is the bulk-create
+			// route's; keeping it means one response shape for every bulk endpoint rather than a near-duplicate that differs by one word.
+			response.setCreated(reviewed);
+			response.setFailed(failed);
+			lrc.send(response, 200);
+		});
+	}
+
+	/**
+	 * {@code GET /api/v1/detections?status=PENDING&type=objectdetection} - the cross-asset review queue.
+	 *
+	 * <p>
+	 * The filters are explicit query parameters rather than the generic filter machinery: the queue is the one question this top-level collection
+	 * exists to answer, and an explicit parameter is what keeps it visible in the OpenAPI document and simple in every client.
+	 * </p>
+	 */
+	public void listDetections(LoomRoutingContext lrc) {
+		checkPerm(lrc, READ_DETECTION, () -> {
+			String status = optionalStatus(firstQueryParam(lrc, "status"));
+			String type = blankToNull(firstQueryParam(lrc, "type"));
+
+			// pagingParams(), never lrc.pageSize() - the latter reads a path parameter and would ignore ?limit= entirely.
+			PagingParameters paging = lrc.pagingParams();
+			Page<Detection> page = dao().loadPage(status, type, paging.from(), paging.limit());
+			lrc.send(modelBuilder.toDetectionList(page));
+		});
+	}
+
 	// --- Private helpers ---
+
+	private static String firstQueryParam(LoomRoutingContext lrc, String name) {
+		List<String> values = lrc.queryParam(name);
+		return values == null || values.isEmpty() ? null : values.get(0);
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value;
+	}
+
+	/** Null or blank means "any status", which is a valid filter. */
+	private static String optionalStatus(String raw) {
+		String status = blankToNull(raw);
+		return status == null ? null : requireStatus(status);
+	}
+
+	/** Unlike {@link #optionalStatus(String)}, a missing verdict is a bad request - a review has to say something. */
+	private static String requireStatus(String status) {
+		if (!ReviewStatus.isValid(status)) {
+			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The status must be one of PENDING, CONFIRMED, REJECTED.");
+		}
+		return status;
+	}
 
 	private UUID resolveAssetUuid(AssetId assetId) {
 		if (assetId.isUUID()) {

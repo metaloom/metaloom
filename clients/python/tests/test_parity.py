@@ -35,9 +35,9 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 
 #: The Java client's method count, as a tripwire: a new method added there should
 #: fail this test rather than quietly leave the Python client behind.
-#: 217 abstract declarations plus 24 ``default`` overloads. Cross-checked both ways
+#: 238 abstract declarations plus 32 ``default`` overloads. Cross-checked both ways
 #: against ``LoomHttpClientImpl``, which implements exactly these.
-EXPECTED_JAVA_METHOD_COUNT = 257
+EXPECTED_JAVA_METHOD_COUNT = 270
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -308,15 +308,16 @@ class ServerRouteParityTest(unittest.TestCase):
         """The server has no content-addressed routes below the asset itself.
 
         Exactly five ``/assets/sha512/{sha512}`` routes are registered, all on the
-        asset. Nothing nested under it -- no tags, tasks, detections or reactions --
-        has a hash form, so the client refuses rather than building a path that 404s.
+        asset. Nothing nested under it -- no tags, tasks, detections, detection
+        reviews or reactions -- has a hash form, so the client refuses rather than
+        building a path that 404s.
         The Java client's ``SHA512`` overloads of those methods cannot succeed.
         """
         rejected = {n for n, verb, p in self.routes if verb == "ERROR"}
         self.assertEqual(
             len(rejected),
-            22,
-            f"expected the 22 asset sub-resource methods to reject a hash, got {sorted(rejected)}",
+            25,
+            f"expected the 25 asset sub-resource methods to reject a hash, got {sorted(rejected)}",
         )
         for name, verb, path in self.routes:
             if verb == "ERROR":

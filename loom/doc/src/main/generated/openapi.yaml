@@ -39,6 +39,9 @@ tags:
 - name: comments
   description: Comments and their reactions
 - name: dedup-groups
+- name: detections
+  description: The cross-asset detection review queue. Detections themselves are created
+    and reviewed under their asset.
 - name: embeddings
   description: Vector embeddings and their attachments
 - name: graphql
@@ -2780,7 +2783,12 @@ paths:
       requestBody:
         content:
           application/json:
-            example: {}
+            example:
+              assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+              libraryUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+              poolUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+              filesystem:
+                path: /the-current-path/bigbuckbunny-4k.mp4
       responses:
         "200":
           description: The location response
@@ -3182,6 +3190,119 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/collections:
+    description: Load a paged list of the collections the asset belongs to
+    get:
+      tags:
+      - assets
+      summary: Load a paged list of the collections the asset belongs to
+      description: Load a paged list of the collections the asset belongs to
+      operationId: getAssetsByUuidCollections
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The collection list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: The collection name
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: The collection name
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/comments:
     description: Create a new comment on an asset
     get:
@@ -3416,6 +3537,7 @@ paths:
                   bboxHeight: 0.2
                   confidence: 0.97
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: PENDING
                 - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
                   status:
                     creator:
@@ -3435,6 +3557,9 @@ paths:
                   bboxHeight: 0.27
                   confidence: 0.88
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: CONFIRMED
+                  reviewedAt: 2026-08-09T10:15:30Z
+                  correctedLabel: wolf
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -3515,6 +3640,7 @@ paths:
                 bboxHeight: 0.2
                 confidence: 0.97
                 assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                reviewStatus: PENDING
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -3639,6 +3765,7 @@ paths:
                 bboxHeight: 0.2
                 confidence: 0.97
                 assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                reviewStatus: PENDING
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -3721,6 +3848,98 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/detections/{detectionUuid}/confirm:
+    description: "Confirm a detection: the producer found something real here. An\
+      \ optional correctedLabel says the box was right but the class was wrong; the\
+      \ producer's own label is kept alongside it."
+    post:
+      tags:
+      - assets
+      summary: "Confirm a detection: the producer found something real here. An optional\
+        \ correctedLabel says the box was right but the class was wrong; the producer's\
+        \ own label is kept alongside it."
+      description: "Confirm a detection: the producer found something real here. An\
+        \ optional correctedLabel says the box was right but the class was wrong;\
+        \ the producer's own label is kept alongside it."
+      operationId: postAssetsByUuidDetectionsByDetectionUuidConfirm
+      requestBody:
+        content:
+          application/json:
+            example:
+              correctedLabel: wolf
+      responses:
+        "200":
+          description: The detection response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  gender: male
+                  age: 30
+                type: facedetection
+                frameNumber: 0
+                bboxX: 0.3
+                bboxY: 0.2
+                bboxWidth: 0.12
+                bboxHeight: 0.2
+                confidence: 0.97
+                assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                reviewStatus: PENDING
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: detectionUuid
+      in: path
+      description: UUID of the referenced detection
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/detections/{detectionUuid}/crop:
     description: Load the cropped face image for a detection. Served from this deployment's
       own storage - face crops are biometric data and must not be fetched from a third
@@ -3736,6 +3955,90 @@ paths:
         third party.
       operationId: getAssetsByUuidDetectionsByDetectionUuidCrop
       responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: detectionUuid
+      in: path
+      description: UUID of the referenced detection
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/detections/{detectionUuid}/reject:
+    description: "Reject a detection as a false positive. The row is kept, not deleted:\
+      \ it is the record that the producer was wrong here."
+    post:
+      tags:
+      - assets
+      summary: "Reject a detection as a false positive. The row is kept, not deleted:\
+        \ it is the record that the producer was wrong here."
+      description: "Reject a detection as a false positive. The row is kept, not deleted:\
+        \ it is the record that the producer was wrong here."
+      operationId: postAssetsByUuidDetectionsByDetectionUuidReject
+      responses:
+        "200":
+          description: The detection response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  gender: male
+                  age: 30
+                type: facedetection
+                frameNumber: 0
+                bboxX: 0.3
+                bboxY: 0.2
+                bboxWidth: 0.12
+                bboxHeight: 0.2
+                confidence: 0.97
+                assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                reviewStatus: PENDING
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -3842,6 +4145,7 @@ paths:
                   bboxHeight: 0.2
                   confidence: 0.97
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: PENDING
                 - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
                   status:
                     creator:
@@ -3863,6 +4167,120 @@ paths:
                   bboxHeight: 0.2
                   confidence: 0.97
                   assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: PENDING
+                total: 2
+                created: 2
+                failed: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/detections/review-bulk:
+    description: "Record many detection verdicts on one asset. Keyboard review outruns\
+      \ per-item calls, so this is the shape the review UI uses."
+    post:
+      tags:
+      - assets
+      summary: "Record many detection verdicts on one asset. Keyboard review outruns\
+        \ per-item calls, so this is the shape the review UI uses."
+      description: "Record many detection verdicts on one asset. Keyboard review outruns\
+        \ per-item calls, so this is the shape the review UI uses."
+      operationId: postAssetsByUuidDetectionsReviewbulk
+      requestBody:
+        content:
+          application/json:
+            example:
+              reviews:
+              - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                status: CONFIRMED
+                correctedLabel: wolf
+              - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status: REJECTED
+      responses:
+        "200":
+          description: The detection bulk response
+          content:
+            application/json:
+              example:
+                detections:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    gender: male
+                    age: 30
+                  type: facedetection
+                  frameNumber: 0
+                  bboxX: 0.3
+                  bboxY: 0.2
+                  bboxWidth: 0.12
+                  bboxHeight: 0.2
+                  confidence: 0.97
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: PENDING
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    gender: male
+                    age: 30
+                  type: facedetection
+                  frameNumber: 0
+                  bboxX: 0.3
+                  bboxY: 0.2
+                  bboxWidth: 0.12
+                  bboxHeight: 0.2
+                  confidence: 0.97
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: PENDING
                 total: 2
                 created: 2
                 failed: 0
@@ -4463,6 +4881,119 @@ paths:
     - name: compUuid
       in: path
       description: UUID of the referenced comp
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/libraries:
+    description: Load a paged list of the libraries the asset belongs to
+    get:
+      tags:
+      - assets
+      summary: Load a paged list of the libraries the asset belongs to
+      description: Load a paged list of the libraries the asset belongs to
+      operationId: getAssetsByUuidLibraries
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The library list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: MyProject
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: MyProject
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
       required: true
       schema:
         type: string
@@ -7800,7 +8331,12 @@ paths:
       requestBody:
         content:
           application/json:
-            example: {}
+            example:
+              assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+              libraryUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+              poolUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+              filesystem:
+                path: /the-current-path/bigbuckbunny-4k.mp4
       responses:
         "200":
           description: The location response
@@ -7908,7 +8444,11 @@ paths:
       requestBody:
         content:
           application/json:
-            example: {}
+            example:
+              libraryUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+              poolUuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+              filesystem:
+                path: /the-new-path/bigbuckbunny-4k.mp4
       responses:
         "200":
           description: The location response
@@ -10073,6 +10613,466 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/collections/{uuid}/assets:
+    description: Add an asset to the collection
+    get:
+      tags:
+      - collections
+      summary: Load a paged list of the assets in the collection
+      description: Load a paged list of the assets in the collection
+      operationId: getCollectionsByUuidAssets
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The asset list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  geo:
+                    lon: 32.56
+                    lat: 52.156
+                  tags:
+                  - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: red
+                  annotations:
+                  - status: {}
+                    meta:
+                      abc: cdef
+                    title: Intro Feedback
+                    area:
+                      from: 0
+                      to: 10
+                    description: The very nice intro
+                    tasks:
+                    - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                      status: {}
+                      title: Fix text offset here
+                      description: The text is not aligned with the title
+                      comments:
+                      - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                        status: {}
+                        title: Great work!
+                        text: What a great choice of colors!
+                        social:
+                          rating:
+                            stars: 10
+                            upVotes: 42
+                            downVotes: 0
+                          reactions:
+                            SATISFIED: 10
+                      assignees: []
+                    comments:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      status: {}
+                      title: Great work!
+                      text: What a great choice of colors!
+                      social:
+                        rating:
+                          stars: 10
+                          upVotes: 42
+                          downVotes: 0
+                        reactions:
+                          SATISFIED: 10
+                    thumbnail: ???
+                    tags:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      name: blue
+                  collections: []
+                  embeddings: []
+                  file:
+                    mimeType: video/mp4
+                    filename: bigbuckbunny-4k.mp4
+                    size: 42000000
+                    origin: https://www.youtube.com/watch?v=aqz-KE-bpKQ
+                    firstSeen: 2018-10-12T14:15:06Z
+                  hashes:
+                    sha512: 0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123
+                    sha256: f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+                    md5: d8e8fca2dc0f896fd7cb4cb0031ba249
+                  geoComponents: []
+                  imageComponents:
+                  - dominantColor: "#FFFF00"
+                  videoComponents:
+                  - width: 4000
+                    height: 2250
+                    duration: 20000
+                  audioComponents:
+                  - channels: 2
+                    encoding: mp3
+                    samplingRate: 48000
+                    bpm: 120
+                  documentComponents: []
+                  locations:
+                  - status: {}
+                    poolUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    mimeType: video/mp4
+                    state: PRESENT
+                    license: CC-BY-4.0
+                    filesystem:
+                      path: /the-current-path/bigbuckbunny-4k.mp4
+                      filekey:
+                        inode: 42
+                        stDev: 12
+                        edate: 12
+                        edateNano: 3
+                      lastSeen: 2018-11-20T20:12:01Z
+                    s3:
+                      bucket: big_bucket
+                      objectPath: themovie
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  geo:
+                    lon: 32.56
+                    lat: 52.156
+                  tags:
+                  - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: red
+                  annotations:
+                  - status: {}
+                    meta:
+                      abc: cdef
+                    title: Intro Feedback
+                    area:
+                      from: 0
+                      to: 10
+                    description: The very nice intro
+                    tasks:
+                    - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                      status: {}
+                      title: Fix text offset here
+                      description: The text is not aligned with the title
+                      comments:
+                      - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                        status: {}
+                        title: Great work!
+                        text: What a great choice of colors!
+                        social:
+                          rating:
+                            stars: 10
+                            upVotes: 42
+                            downVotes: 0
+                          reactions:
+                            SATISFIED: 10
+                      assignees: []
+                    comments:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      status: {}
+                      title: Great work!
+                      text: What a great choice of colors!
+                      social:
+                        rating:
+                          stars: 10
+                          upVotes: 42
+                          downVotes: 0
+                        reactions:
+                          SATISFIED: 10
+                    thumbnail: ???
+                    tags:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      name: blue
+                  collections: []
+                  embeddings: []
+                  file:
+                    mimeType: video/mp4
+                    filename: bigbuckbunny-4k.mp4
+                    size: 42000000
+                    origin: https://www.youtube.com/watch?v=aqz-KE-bpKQ
+                    firstSeen: 2018-10-12T14:15:06Z
+                  hashes:
+                    sha512: 0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123
+                    sha256: f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+                    md5: d8e8fca2dc0f896fd7cb4cb0031ba249
+                  geoComponents: []
+                  imageComponents:
+                  - dominantColor: "#FFFF00"
+                  videoComponents:
+                  - width: 4000
+                    height: 2250
+                    duration: 20000
+                  audioComponents:
+                  - channels: 2
+                    encoding: mp3
+                    samplingRate: 48000
+                    bpm: 120
+                  documentComponents: []
+                  locations:
+                  - status: {}
+                    poolUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    mimeType: video/mp4
+                    state: PRESENT
+                    license: CC-BY-4.0
+                    filesystem:
+                      path: /the-current-path/bigbuckbunny-4k.mp4
+                      filekey:
+                        inode: 42
+                        stDev: 12
+                        edate: 12
+                        edateNano: 3
+                      lastSeen: 2018-11-20T20:12:01Z
+                    s3:
+                      bucket: big_bucket
+                      objectPath: themovie
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    put:
+      tags:
+      - collections
+      summary: Add several assets to the collection
+      description: Add several assets to the collection
+      operationId: putCollectionsByUuidAssets
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuids:
+              - f04e89d0-076d-4d90-b192-715a25a2cd59
+              - 86abc160-4da2-4951-a91f-da0c33fbc634
+      responses:
+        "200":
+          description: The bulk collection membership response
+          content:
+            application/json:
+              example:
+                total: 2
+                added: 2
+                failed: 0
+                failedUuids: []
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - collections
+      summary: Add an asset to the collection
+      description: Add an asset to the collection
+      operationId: postCollectionsByUuidAssets
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+      responses:
+        "200":
+          description: The collection response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: The collection name
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/collections/{uuid}/assets/{assetUuid}:
+    description: Remove an asset from the collection
+    delete:
+      tags:
+      - collections
+      summary: Remove an asset from the collection
+      description: Remove an asset from the collection
+      operationId: deleteCollectionsByUuidAssetsByAssetUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: assetUuid
+      in: path
+      description: UUID of the referenced asset
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/comments:
     description: Create new comment
     get:
@@ -10811,6 +11811,126 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/detections:
+    description: "Load a paged list of detections across every asset, optionally filtered\
+      \ by review status and type. This is the review queue."
+    get:
+      tags:
+      - detections
+      summary: "Load a paged list of detections across every asset, optionally filtered\
+        \ by review status and type. This is the review queue."
+      description: "Load a paged list of detections across every asset, optionally\
+        \ filtered by review status and type. This is the review queue."
+      operationId: getDetections
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The detection list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    gender: male
+                    age: 30
+                  type: facedetection
+                  frameNumber: 0
+                  bboxX: 0.3
+                  bboxY: 0.2
+                  bboxWidth: 0.12
+                  bboxHeight: 0.2
+                  confidence: 0.97
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: PENDING
+                - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  type: objectdetection
+                  label: dog
+                  frameNumber: 120
+                  bboxX: 0.51
+                  bboxY: 0.34
+                  bboxWidth: 0.18
+                  bboxHeight: 0.27
+                  confidence: 0.88
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  reviewStatus: CONFIRMED
+                  reviewedAt: 2026-08-09T10:15:30Z
+                  correctedLabel: wolf
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/embeddings:
     description: Create new embedding
     get:
@@ -11970,6 +13090,413 @@ paths:
     - name: uuid
       in: path
       description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/libraries/{uuid}/assets:
+    description: Add an asset to the library
+    get:
+      tags:
+      - libraries
+      summary: Load a paged list of the assets in the library
+      description: Load a paged list of the assets in the library
+      operationId: getLibrariesByUuidAssets
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The asset list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  geo:
+                    lon: 32.56
+                    lat: 52.156
+                  tags:
+                  - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: red
+                  annotations:
+                  - status: {}
+                    meta:
+                      abc: cdef
+                    title: Intro Feedback
+                    area:
+                      from: 0
+                      to: 10
+                    description: The very nice intro
+                    tasks:
+                    - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                      status: {}
+                      title: Fix text offset here
+                      description: The text is not aligned with the title
+                      comments:
+                      - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                        status: {}
+                        title: Great work!
+                        text: What a great choice of colors!
+                        social:
+                          rating:
+                            stars: 10
+                            upVotes: 42
+                            downVotes: 0
+                          reactions:
+                            SATISFIED: 10
+                      assignees: []
+                    comments:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      status: {}
+                      title: Great work!
+                      text: What a great choice of colors!
+                      social:
+                        rating:
+                          stars: 10
+                          upVotes: 42
+                          downVotes: 0
+                        reactions:
+                          SATISFIED: 10
+                    thumbnail: ???
+                    tags:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      name: blue
+                  collections: []
+                  embeddings: []
+                  file:
+                    mimeType: video/mp4
+                    filename: bigbuckbunny-4k.mp4
+                    size: 42000000
+                    origin: https://www.youtube.com/watch?v=aqz-KE-bpKQ
+                    firstSeen: 2018-10-12T14:15:06Z
+                  hashes:
+                    sha512: 0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123
+                    sha256: f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+                    md5: d8e8fca2dc0f896fd7cb4cb0031ba249
+                  geoComponents: []
+                  imageComponents:
+                  - dominantColor: "#FFFF00"
+                  videoComponents:
+                  - width: 4000
+                    height: 2250
+                    duration: 20000
+                  audioComponents:
+                  - channels: 2
+                    encoding: mp3
+                    samplingRate: 48000
+                    bpm: 120
+                  documentComponents: []
+                  locations:
+                  - status: {}
+                    poolUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    mimeType: video/mp4
+                    state: PRESENT
+                    license: CC-BY-4.0
+                    filesystem:
+                      path: /the-current-path/bigbuckbunny-4k.mp4
+                      filekey:
+                        inode: 42
+                        stDev: 12
+                        edate: 12
+                        edateNano: 3
+                      lastSeen: 2018-11-20T20:12:01Z
+                    s3:
+                      bucket: big_bucket
+                      objectPath: themovie
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  geo:
+                    lon: 32.56
+                    lat: 52.156
+                  tags:
+                  - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: red
+                  annotations:
+                  - status: {}
+                    meta:
+                      abc: cdef
+                    title: Intro Feedback
+                    area:
+                      from: 0
+                      to: 10
+                    description: The very nice intro
+                    tasks:
+                    - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                      status: {}
+                      title: Fix text offset here
+                      description: The text is not aligned with the title
+                      comments:
+                      - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                        status: {}
+                        title: Great work!
+                        text: What a great choice of colors!
+                        social:
+                          rating:
+                            stars: 10
+                            upVotes: 42
+                            downVotes: 0
+                          reactions:
+                            SATISFIED: 10
+                      assignees: []
+                    comments:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      status: {}
+                      title: Great work!
+                      text: What a great choice of colors!
+                      social:
+                        rating:
+                          stars: 10
+                          upVotes: 42
+                          downVotes: 0
+                        reactions:
+                          SATISFIED: 10
+                    thumbnail: ???
+                    tags:
+                    - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                      name: blue
+                  collections: []
+                  embeddings: []
+                  file:
+                    mimeType: video/mp4
+                    filename: bigbuckbunny-4k.mp4
+                    size: 42000000
+                    origin: https://www.youtube.com/watch?v=aqz-KE-bpKQ
+                    firstSeen: 2018-10-12T14:15:06Z
+                  hashes:
+                    sha512: 0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123
+                    sha256: f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2
+                    md5: d8e8fca2dc0f896fd7cb4cb0031ba249
+                  geoComponents: []
+                  imageComponents:
+                  - dominantColor: "#FFFF00"
+                  videoComponents:
+                  - width: 4000
+                    height: 2250
+                    duration: 20000
+                  audioComponents:
+                  - channels: 2
+                    encoding: mp3
+                    samplingRate: 48000
+                    bpm: 120
+                  documentComponents: []
+                  locations:
+                  - status: {}
+                    poolUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                    mimeType: video/mp4
+                    state: PRESENT
+                    license: CC-BY-4.0
+                    filesystem:
+                      path: /the-current-path/bigbuckbunny-4k.mp4
+                      filekey:
+                        inode: 42
+                        stDev: 12
+                        edate: 12
+                        edateNano: 3
+                      lastSeen: 2018-11-20T20:12:01Z
+                    s3:
+                      bucket: big_bucket
+                      objectPath: themovie
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - libraries
+      summary: Add an asset to the library
+      description: Add an asset to the library
+      operationId: postLibrariesByUuidAssets
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+      responses:
+        "200":
+          description: The library response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: MyProject
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/libraries/{uuid}/assets/{assetUuid}:
+    description: Remove an asset from the library
+    delete:
+      tags:
+      - libraries
+      summary: Remove an asset from the library
+      description: Remove an asset from the library
+      operationId: deleteLibrariesByUuidAssetsByAssetUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: assetUuid
+      in: path
+      description: UUID of the referenced asset
       required: true
       schema:
         type: string
@@ -13446,7 +14973,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 9e26a19b-5b96-433f-b628-760c504c1478
+                  versionUuid: 8a0ae4ec-ee38-444a-8d0e-53e5ed4a380f
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -13467,7 +14994,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: db28471d-2fc2-43d7-bdce-e626517ed00e
+                  versionUuid: 2afc5396-13a9-4b4e-aab3-cf2ee5adb9f9
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -13540,7 +15067,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 8f59367d-d30d-4782-934e-cdc5fdcd2d87
+                versionUuid: 2e10dc6a-a022-42b3-9aa9-db82217782c7
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -13599,7 +15126,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 4c4f60a4-033a-4b8d-b47d-5981778ef975
+                versionUuid: 80fabc5a-4089-43d6-b373-0ca30909b4b9
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -13671,7 +15198,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 1aa7f284-1e18-4ad8-8f5e-84110d148664
+                versionUuid: 88d8c8cf-3a39-4468-a427-b7cbe8f40fa9
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -13780,7 +15307,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: fb83125c-7db4-45aa-8f43-43335ac09903
+                runUuid: 9db38519-2ee7-46de-9699-83e5b671e312
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -13868,11 +15395,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: d8a1b622-3fb9-4f37-ab1a-d556afc150a5
-                  pipelineUuid: 1f37b1ca-1788-4e1a-a95c-72bbe855167f
+                - uuid: 703c74b9-ad93-4531-a5b3-560e005ba2f6
+                  pipelineUuid: e8817544-fe2f-44a3-bcea-818e523fff49
                   pipelineVersion: 1
-                  started: 2026-08-08T16:26:24.187321508Z
-                  finished: 2026-08-08T16:26:24.187339008Z
+                  started: 2026-08-09T00:30:36.726647035Z
+                  finished: 2026-08-09T00:30:36.726663345Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -13880,11 +15407,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: d67606a8-94a5-4968-bb97-b233fe8e722a
-                  pipelineUuid: 189c9c4d-00f7-4a0f-9750-175636ceced1
+                - uuid: 2b2d9643-e4f9-4153-a12f-5c2ad452f33f
+                  pipelineUuid: 11ac71e0-c5ba-469e-8f35-656da405401c
                   pipelineVersion: 1
-                  started: 2026-08-08T16:26:24.187365658Z
-                  finished: 2026-08-08T16:26:24.187368288Z
+                  started: 2026-08-09T00:30:36.726699475Z
+                  finished: 2026-08-09T00:30:36.726703285Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -13947,11 +15474,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: 2fe5118f-b49e-4639-81ee-1aa5590c1b14
-                pipelineUuid: 0c8b531b-e859-40c7-91bf-bd5808a36e1e
+                uuid: f28d8f22-6091-4836-8d5d-b37653d407b8
+                pipelineUuid: 79bf0e7c-aefe-49ed-9351-0ed95e9c6470
                 pipelineVersion: 1
-                started: 2026-08-08T16:26:24.187457117Z
-                finished: 2026-08-08T16:26:24.187460297Z
+                started: 2026-08-09T00:30:36.726787255Z
+                finished: 2026-08-09T00:30:36.726792565Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -14293,15 +15820,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: ade1ce86-c077-4159-b3dd-329055c7aa53
-                  runUuid: c845558c-8346-4113-9b0a-35746e648c32
+                - uuid: 7242c4c2-0412-415c-bc79-5dad103aff60
+                  runUuid: 521dca6a-ba1a-4815-9326-b9abfdaa4561
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: fbaf94ec-25a1-439c-b7a5-f33a86ed518e
-                  runUuid: ca4a6db8-3ffd-464d-a977-1f09f17b5822
+                - uuid: ac82a5c6-8094-426e-885b-7105153611f2
+                  runUuid: 8990101c-e268-46bd-b0b6-550538dc46cd
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -14373,9 +15900,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: ac269ec0-7a1b-4df0-a8b8-c89a9c99f1ab
-                  itemUuid: 077c5b01-be35-46a0-85ce-acc0bf27e625
-                  runUuid: 27a553b5-50bb-408a-be50-41bd1e55602c
+                - uuid: 144e553e-f909-4c30-b198-49706be2f6f0
+                  itemUuid: dd459236-ae9b-4e36-b7d2-96a6d87b24ad
+                  runUuid: c00165c6-90bd-4ae3-9b35-1be1ee4eb4f5
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -14838,7 +16365,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: e983ff26-9fd8-4009-b0a6-6f4570c499a5
+                  versionUuid: 8067f254-a53e-42b3-bd6f-668ba1f3430d
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -14859,7 +16386,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 12f8c439-1b86-472f-8812-55ace17a9fe4
+                  versionUuid: 1bb52254-0a45-4f16-87a5-d2a6eeac100c
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -14935,7 +16462,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 46b7be3b-ddc1-4cc4-abc6-e396f508b759
+                versionUuid: af2e6e78-b013-42f6-b877-06e5629011e7
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -15021,7 +16548,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: e3054267-58ca-4ede-ba70-16a0017413cc
+                versionUuid: 73c08624-e747-45ac-aa37-18561fb1533f
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

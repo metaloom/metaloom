@@ -1,0 +1,124 @@
+---
+title: Move
+---
+
+Every media library eventually needs to put a file somewhere else. Duplicates you have reviewed
+should leave the working set. Material flagged for disposal should go to a trash folder you can still
+look in tomorrow. Finished projects should move to cheaper storage. Until now none of that was a step
+you could draw into a pipeline — two nodes could move files, but only duplicates, and only into one
+folder set by whoever configured the worker.
+
+This node is that missing step. It relocates an asset's file to a folder, a storage pool, a library,
+or an S3 bucket, and it records where the file went so the rest of the system keeps working.
+
+It runs no model and needs nothing installed alongside it.
+
+++++
+<div class="ml-nodeviz" data-nodeviz='{"kind":"move","applies":"Any local file","badge":"No model required","persist":"asset_location (the binary record) plus a processing record","configs":[{"name":"to a folder","note":"the trash and quarantine case; needs nothing but a path","inputs":[{"t":"image","l":"media","d":"the item to relocate"}],"outputs":[{"t":"flag","l":"moved","ct":"scalar/boolean","d":"whether the bytes actually went anywhere"},{"t":"string","l":"path","d":"where the file is now"},{"t":"string","l":"flag","d":"MOVED, COPIED, ALREADY_THERE, SKIPPED, DRY_RUN or FAILED"}]},{"name":"to storage or a bucket","note":"the cold-tier case","inputs":[{"t":"image","l":"media","d":"the item to relocate"}],"outputs":[{"t":"flag","l":"moved","ct":"scalar/boolean","d":"whether the bytes actually went anywhere"},{"t":"string","l":"path","d":"an s3:// reference, or a path inside the pool"},{"t":"string","l":"flag","d":"how the node finished for this item"}]}]}'></div>
+++++
+
+[cols="1,3"]
+|===
+| Kind | `move`
+| Applies to | Any item whose file is on the worker
+| Input ports | `media` — the item to relocate
+| Output ports | `moved` (Boolean), `path` (String), `flag` (String)
+| Requirements | None for a folder. A connection to the server for a pool or a library. S3 credentials on the worker for a bucket
+| Persists to | The asset's binary record — its path, and its library and pool when you move it into one
+|===
+
+== Where it can send a file
+
+[cols="1,3"]
+|===
+| Folder | A directory on the machine running the pipeline. The simplest target, and the only one that works when the server is unreachable.
+| Storage | One of your configured storage pools. The file lands where the pool keeps its content, so the system can find it again.
+| Library | The library's storage, and the file is recorded as belonging to that library from then on.
+| Bucket | An S3 bucket named on the node. The one target that needs no shared filesystem at all, which is what makes it the cold-tier option.
+|===
+
+Adding a file to a **collection** is a different node — see link:../assign/[Assign]. A collection is a
+grouping, not a place, so nothing is moved.
+
+== It will not overwrite, and it will not delete by accident
+
+Three deliberate refusals, because a file mover that gets these wrong destroys work that cannot be
+recovered.
+
+**It never overwrites.** If something is already at the destination with the same name, the incoming
+file lands beside it as `clip_1.mp4`, or the item is skipped, or the step fails — whichever you chose.
+There is no "overwrite" setting, because a name collision in a trash folder is very often a
+completely different file that happens to share a name.
+
+**It keeps the original unless you say otherwise.** By default the node copies and leaves the source
+in place — and says so: the `flag` port reads `COPIED` rather than `MOVED`. Removing the original is
+something you switch on, and even then it only happens after the destination has been checked to hold
+the same content.
+
+**It does not silently spend an hour copying.** Moving a file within one disk is instant. Moving it
+to a different disk is a full copy of every byte, and for a 40 GB video that is a very different
+operation. The node works out which it would be *before* it starts, and by default declines the
+second one rather than surprising you with it. You can tell it to go ahead — it will, and it will say
+so in the log, naming both disks and the size.
+
+image::verify-then-delete.svg[The order of operations when a file crosses to another disk,role=img-fluid]
+
+== Settings
+
+[cols="1,1,2"]
+|===
+| Setting | Default | What it does
+
+| Target | Folder | Folder, storage pool, library, or S3 bucket
+| Target folder | `trash` | Where a folder move puts the file. A relative path is relative to the scanned root
+| Layout | Mirror | `Flat` puts everything in one directory; `Mirror` keeps the folder structure the file already had; `Date` files it under year and month. Storage, library and bucket targets always use the system's own layout so the file can be found again
+| On conflict | Add a suffix | Add a suffix, skip the item, or fail the step. Never overwrite
+| Across disks | Skip | Skip, copy, or fail when the destination is on another disk
+| Original file | Keep | Keep it, or remove it once the destination has been verified
+| Verify | Full checksum | Full checksum, or size only. What has to match before the original may be removed
+| Update the record | On | Record the new location on the asset
+| Dry run | Off | Report what would happen and touch nothing
+|===
+
+== Building a trash workflow
+
+The usual shape is three nodes: something decides, the filter routes, and this node acts.
+
+. Tag the assets you want gone — by hand in the review screen, or with a rule.
+. Add a link:../filter/[Filter] node set to filter by tag, with a bucket for `trash`.
+. Wire that bucket into this node's `media` port, with the target folder you want.
+
+Start with **Dry run** switched on. You will see exactly which files would move and where, without
+anything being touched.
+
+The same three nodes build a quarantine workflow — only the tag and the destination change.
+
+== Clearing out duplicates
+
+link:../dedup/[Deduplication] finds duplicates and, for near-duplicates, waits for a person to confirm
+them. Those nodes no longer move anything themselves: they report their findings, and you wire that
+into this node. That way the destination, the conflict handling and whether the original survives are
+all visible in the pipeline instead of buried in a worker's configuration.
+
+Wire the `confirmed_dup` port of the dedup apply node into this node's `media` port.
+
+== What gets recorded
+
+After a successful move the asset's binary record points at the new location, and the asset's file
+name is kept in step with it. A processing record notes what happened, so the run history shows the
+move alongside everything else that touched the asset.
+
+If the file moves to a bucket, the record holds an `s3://` reference and the file name is deliberately
+left alone — it is a local path, and pointing it at a bucket would break everything that reads it.
+
+== Good to know
+
+* A file already at its destination is reported as `ALREADY_THERE` and nothing happens, so re-running
+  a pipeline over the same library is safe.
+* Items that live in the cloud rather than on the worker are skipped. Their local copy is a cache, not
+  the asset, and relocating a cache entry would be meaningless.
+* Storage pools and libraries are configured on the server, so the machine running the pipeline needs
+  to be able to reach the storage as well. If it cannot, the step fails and tells you which pool and
+  which path — it will not quietly write the file somewhere the system will never look.
+* Cached checksums travel with the file, so moving an asset does not force everything downstream to
+  read it again from scratch.

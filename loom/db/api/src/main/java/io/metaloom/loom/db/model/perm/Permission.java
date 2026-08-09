@@ -183,10 +183,10 @@ public enum Permission {
 	UPDATE_PERSON,            // doc:yes  ui:no  test:none
 
 	// Detection
-	CREATE_DETECTION,         // doc:yes  ui:no  test:DetectionEndpointTest (403 cases)
-	READ_DETECTION,           // doc:yes  ui:no  test:DetectionEndpointTest (403 cases)
-	DELETE_DETECTION,         // doc:yes  ui:no  test:DetectionEndpointTest (403 cases)
-	UPDATE_DETECTION,         // doc:yes  ui:no  test:none
+	CREATE_DETECTION,         // doc:yes  ui:yes  test:DetectionEndpointTest (403 cases)
+	READ_DETECTION,           // doc:yes  ui:yes  test:DetectionEndpointTest (403 cases)
+	DELETE_DETECTION,         // doc:yes  ui:yes  test:DetectionEndpointTest (403 cases)
+	UPDATE_DETECTION,         // doc:yes  ui:yes  test:DetectionEndpointTest#testReviewIsForbiddenWithoutUpdatePermission
 
 	// Chat
 	CREATE_CHAT,              // doc:yes  ui:no  test:ChatEndpointTest (403 cases)

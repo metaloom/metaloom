@@ -47,6 +47,7 @@
         <module>translate</module>
         <module>guard</module>
         <module>tag</module>
+        <module>relocate</module>
     </modules>
 
     <name>MetaLoom // Cortex :: Nodes</name>

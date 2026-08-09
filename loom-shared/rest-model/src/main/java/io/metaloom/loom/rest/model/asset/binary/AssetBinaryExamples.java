@@ -39,15 +39,27 @@ public interface AssetBinaryExamples extends ExampleValues {
 		return model;
 	}
 
+	/**
+	 * The update request as a relocation would send it: a new path, plus the library and pool the bytes now belong to.
+	 *
+	 * <p>
+	 * Every field is set deliberately. The OpenAPI document is example-driven, so a field no example populates is documented nowhere.
+	 * </p>
+	 */
 	default AssetBinaryUpdateRequest binaryUpdateRequest() {
 		AssetBinaryUpdateRequest model = new AssetBinaryUpdateRequest();
-
+		model.setFilesystem(new AssetBinaryFilesystemInfo().setPath("/the-new-path/bigbuckbunny-4k.mp4"));
+		model.setLibraryUuid(uuidB());
+		model.setPoolUuid(uuidC());
 		return model;
 	}
-	
+
 	default AssetBinaryCreateRequest binaryCreateRequest() {
 		AssetBinaryCreateRequest model = new AssetBinaryCreateRequest();
-
+		model.setAssetUuid(uuidA());
+		model.setLibraryUuid(uuidB());
+		model.setPoolUuid(uuidC());
+		model.setFilesystem(new AssetBinaryFilesystemInfo().setPath("/the-current-path/bigbuckbunny-4k.mp4"));
 		return model;
 	}
 

@@ -14,7 +14,7 @@ class ClusterBulkCreateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.cluster.ClusterBulkCreateRequest``."""
 
     clusters: list[ClusterCreateItem] = field(default_factory=list)
-    prune_stale: bool = False
+    prune_stale: bool | None = None
 
 
 @dataclass

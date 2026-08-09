@@ -32,6 +32,56 @@ public class DetectionResponse extends AbstractCreatorEditorRestResponse<Detecti
 
 	private String assetUuid;
 
+	private String reviewStatus;
+
+	private String reviewedAt;
+
+	private String correctedLabel;
+
+	/**
+	 * Review state: PENDING, CONFIRMED or REJECTED.
+	 *
+	 * <p>
+	 * Named {@code reviewStatus} rather than {@code status} because {@link AbstractCreatorEditorRestResponse} already publishes a {@code status} object
+	 * carrying the creator/editor audit block. Same choice, for the same reason, as {@code ClusterResponse}.
+	 * </p>
+	 */
+	public String getReviewStatus() {
+		return reviewStatus;
+	}
+
+	public DetectionResponse setReviewStatus(String reviewStatus) {
+		this.reviewStatus = reviewStatus;
+		return this;
+	}
+
+	/**
+	 * When a human decided, or null while PENDING.
+	 *
+	 * <p>
+	 * Distinct from the {@code edited} timestamp inside the audit block: the producing node touches that on every re-run, so it says nothing about
+	 * whether anybody reviewed the row.
+	 * </p>
+	 */
+	public String getReviewedAt() {
+		return reviewedAt;
+	}
+
+	public DetectionResponse setReviewedAt(String reviewedAt) {
+		this.reviewedAt = reviewedAt;
+		return this;
+	}
+
+	/** The class a reviewer corrected this to, or null when nobody corrected it. {@link #getLabel()} keeps what the model said. */
+	public String getCorrectedLabel() {
+		return correctedLabel;
+	}
+
+	public DetectionResponse setCorrectedLabel(String correctedLabel) {
+		this.correctedLabel = correctedLabel;
+		return this;
+	}
+
 	@Override
 	public String getType() {
 		return type;

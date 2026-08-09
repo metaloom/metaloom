@@ -15,23 +15,23 @@ public class DedupNodeOptionsAssert extends AbstractCortexNodeOptionsAssert<Dedu
 	}
 
 	/**
-	 * Assert that the dupFolder is set to the expected value.
+	 * Assert that the keeper-exclude folder is set to the expected value.
 	 */
-	public DedupNodeOptionsAssert hasDupFolder(Path expectedPath) {
+	public DedupNodeOptionsAssert hasKeepExcludeFolder(Path expectedPath) {
 		isNotNull();
-		if (!expectedPath.equals(actual.getDupFolder())) {
-			failWithMessage("Expected dupFolder to be '%s' but was '%s'", expectedPath, actual.getDupFolder());
+		if (!expectedPath.equals(actual.getKeepExcludeFolder())) {
+			failWithMessage("Expected keepExcludeFolder to be '%s' but was '%s'", expectedPath, actual.getKeepExcludeFolder());
 		}
 		return this;
 	}
 
 	/**
-	 * Assert that the dupFolder is not null.
+	 * Assert that no keeper-exclude folder is configured, which is the default and means the check is off.
 	 */
-	public DedupNodeOptionsAssert hasDupFolder() {
+	public DedupNodeOptionsAssert hasNoKeepExcludeFolder() {
 		isNotNull();
-		if (actual.getDupFolder() == null) {
-			failWithMessage("Expected dupFolder to be set but it was null");
+		if (actual.getKeepExcludeFolder() != null) {
+			failWithMessage("Expected keepExcludeFolder to be unset but it was '%s'", actual.getKeepExcludeFolder());
 		}
 		return this;
 	}

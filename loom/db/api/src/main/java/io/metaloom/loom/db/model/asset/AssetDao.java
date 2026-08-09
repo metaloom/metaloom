@@ -7,6 +7,7 @@ import java.util.UUID;
 import io.metaloom.loom.api.asset.AssetId;
 import io.metaloom.loom.db.CRUDDao;
 import io.metaloom.loom.db.model.user.User;
+import io.metaloom.loom.db.page.Page;
 import io.metaloom.utils.hash.SHA512;
 import io.vertx.core.json.JsonObject;
 
@@ -45,5 +46,30 @@ public interface AssetDao extends CRUDDao<Asset> {
 		}
 		return assets;
 	}
+
+	/**
+	 * Load a page of the assets in the collection.
+	 *
+	 * @param collectionUuid
+	 * @param fromId
+	 * @param pageSize
+	 * @return
+	 */
+	Page<Asset> loadPageByCollection(UUID collectionUuid, UUID fromId, int pageSize);
+
+	/**
+	 * Load a page of the assets in the library.
+	 *
+	 * <p>
+	 * This reads {@code library_asset} - the organizational membership - not {@code asset_location.library_uuid}. The two answer different questions:
+	 * "which assets did a curator put in this library" versus "whose bytes were scanned under this library root".
+	 * </p>
+	 *
+	 * @param libraryUuid
+	 * @param fromId
+	 * @param pageSize
+	 * @return
+	 */
+	Page<Asset> loadPageByLibrary(UUID libraryUuid, UUID fromId, int pageSize);
 
 }

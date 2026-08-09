@@ -1,5 +1,6 @@
 package io.metaloom.cortex.node.watermark;
 
+import io.metaloom.cortex.fs.AtomicFiles;
 import java.awt.AlphaComposite;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;

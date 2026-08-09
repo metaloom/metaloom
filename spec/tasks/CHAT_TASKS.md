@@ -83,25 +83,7 @@ depends on the rest module · `ReferenceExtractor` consumes only the structured 
 
 ## Open Follow-ups
 
-### Task F1: Implement `generateStreamWithTools` for the OpenAI provider — ✅ DONE
 
-**Argumentation Summary (historical):** `LLMProvider.generateStreamWithTools` had a throwing default
-and only the Ollama provider overrode it, so any other deployment with `LOOM_AI_STREAMING=true`
-failed the run terminally and had to stay on the turn-granular `BlockingTurnStreamer`.
-
-**Outcome:** Resolved together with the Ollama removal. `OpenAILLMProvider.generateStreamWithTools`
-accumulates `delta.tool_calls` fragments per `index` (id/name arrive once, argument JSON arrives in
-slices) via the package-visible `ToolCallAccumulator`, and emits the full `StreamEvent` vocabulary —
-`ReasoningDelta` for both the non-standard `reasoning_content` field and inline `<think>` content,
-`TextDelta`, `ToolCallsComplete`, `Completed`. `generateStreamWithTools` is now a plain interface
-method rather than a throwing default, so the compiler rejects a provider that forgets it.
-`TurnStreamer`/`StreamingTurnStreamer` were not touched — the contract was already
-provider-agnostic.
-
-**Covered by:** `ToolCallAccumulatorTest` (genai-utils core, fragment reassembly incl. parallel calls
-keyed by index) · `MockLLMServerTest.testStreamingToolCallResponse` / `testStreamingParallelToolCalls`
-/ `testStreamingWithToolsEmitsTextWhenNoToolIsCalled`, driven through `MockLLMServer`, which now
-streams `tool_calls` deltas when the client asks for a stream.
 
 ---
 

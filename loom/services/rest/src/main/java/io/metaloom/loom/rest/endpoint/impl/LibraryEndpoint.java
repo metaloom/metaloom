@@ -88,5 +88,28 @@ public class LibraryEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// Membership. These write library_asset - the organizational membership - and are deliberately
+		// separate from asset_location.library_uuid, which records where the bytes were scanned or stored.
+		addRoute(basePath() + "/:uuid/assets", POST,
+			"Add an asset to the library",
+			examples.libraryAssetRequestExample(),
+			examples.libraryResponseExample(),
+			lrc -> {
+				service.addAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/assets/:assetUuid", DELETE,
+			"Remove an asset from the library",
+			lrc -> {
+				service.removeAsset(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("assetUuid"));
+			});
+
+		addListRoute(basePath() + "/:uuid/assets", GET,
+			"Load a paged list of the assets in the library",
+			examples.assetListResponseExample(),
+			lrc -> {
+				service.listAssets(lrc, lrc.pathParamUUID("uuid"));
+			});
 	}
 }

@@ -4,16 +4,14 @@
 package io.metaloom.loom.db.jooq.tables.records;
 
 
+import io.metaloom.loom.db.jooq.enums.JooqReviewStatus;
 import io.metaloom.loom.db.jooq.tables.JooqDetection;
 import io.vertx.core.json.JsonObject;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record22;
-import org.jooq.Row22;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -23,7 +21,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * duplicates.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord> implements Record22<UUID, UUID, String, String, String, UUID, UUID, String, String, Integer, Integer, Long, Float, Float, Float, Float, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> {
+public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord> {
 
     private static final long serialVersionUID = 1L;
 
@@ -355,6 +353,80 @@ public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord
         return (UUID) get(21);
     }
 
+    /**
+     * Setter for <code>public.detection.status</code>. PENDING (awaiting
+     * review), CONFIRMED (a human agreed with the detection) or REJECTED (a
+     * false positive). Reset to PENDING by an upsert whose producer_version
+     * differs from the stored one.
+     */
+    public void setStatus(JooqReviewStatus value) {
+        set(22, value);
+    }
+
+    /**
+     * Getter for <code>public.detection.status</code>. PENDING (awaiting
+     * review), CONFIRMED (a human agreed with the detection) or REJECTED (a
+     * false positive). Reset to PENDING by an upsert whose producer_version
+     * differs from the stored one.
+     */
+    public JooqReviewStatus getStatus() {
+        return (JooqReviewStatus) get(22);
+    }
+
+    /**
+     * Setter for <code>public.detection.reviewed_at</code>. When a human
+     * decided. NULL while PENDING. Distinct from "edited", which the producing
+     * node touches on every re-run.
+     */
+    public void setReviewedAt(LocalDateTime value) {
+        set(23, value);
+    }
+
+    /**
+     * Getter for <code>public.detection.reviewed_at</code>. When a human
+     * decided. NULL while PENDING. Distinct from "edited", which the producing
+     * node touches on every re-run.
+     */
+    public LocalDateTime getReviewedAt() {
+        return (LocalDateTime) get(23);
+    }
+
+    /**
+     * Setter for <code>public.detection.reviewer_uuid</code>. The user who
+     * decided. Distinct from editor_uuid, which is machine-written provenance
+     * (V2.47).
+     */
+    public void setReviewerUuid(UUID value) {
+        set(24, value);
+    }
+
+    /**
+     * Getter for <code>public.detection.reviewer_uuid</code>. The user who
+     * decided. Distinct from editor_uuid, which is machine-written provenance
+     * (V2.47).
+     */
+    public UUID getReviewerUuid() {
+        return (UUID) get(24);
+    }
+
+    /**
+     * Setter for <code>public.detection.corrected_label</code>. The label a
+     * reviewer supplied when the detection was right but its class was wrong.
+     * "label" keeps what the model said, which is the training signal.
+     */
+    public void setCorrectedLabel(String value) {
+        set(25, value);
+    }
+
+    /**
+     * Getter for <code>public.detection.corrected_label</code>. The label a
+     * reviewer supplied when the detection was right but its class was wrong.
+     * "label" keeps what the model said, which is the training signal.
+     */
+    public String getCorrectedLabel() {
+        return (String) get(25);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -362,509 +434,6 @@ public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord
     @Override
     public Record1<UUID> key() {
         return (Record1) super.key();
-    }
-
-    // -------------------------------------------------------------------------
-    // Record22 type implementation
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row22<UUID, UUID, String, String, String, UUID, UUID, String, String, Integer, Integer, Long, Float, Float, Float, Float, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> fieldsRow() {
-        return (Row22) super.fieldsRow();
-    }
-
-    @Override
-    public Row22<UUID, UUID, String, String, String, UUID, UUID, String, String, Integer, Integer, Long, Float, Float, Float, Float, Float, JsonObject, LocalDateTime, UUID, LocalDateTime, UUID> valuesRow() {
-        return (Row22) super.valuesRow();
-    }
-
-    @Override
-    public Field<UUID> field1() {
-        return JooqDetection.DETECTION.UUID;
-    }
-
-    @Override
-    public Field<UUID> field2() {
-        return JooqDetection.DETECTION.ASSET_UUID;
-    }
-
-    @Override
-    public Field<String> field3() {
-        return JooqDetection.DETECTION.NODE_KIND;
-    }
-
-    @Override
-    public Field<String> field4() {
-        return JooqDetection.DETECTION.NODE_ID;
-    }
-
-    @Override
-    public Field<String> field5() {
-        return JooqDetection.DETECTION.PRODUCER_VERSION;
-    }
-
-    @Override
-    public Field<UUID> field6() {
-        return JooqDetection.DETECTION.RUN_UUID;
-    }
-
-    @Override
-    public Field<UUID> field7() {
-        return JooqDetection.DETECTION.TASK_UUID;
-    }
-
-    @Override
-    public Field<String> field8() {
-        return JooqDetection.DETECTION.TYPE;
-    }
-
-    @Override
-    public Field<String> field9() {
-        return JooqDetection.DETECTION.LABEL;
-    }
-
-    @Override
-    public Field<Integer> field10() {
-        return JooqDetection.DETECTION.FRAME_NUMBER;
-    }
-
-    @Override
-    public Field<Integer> field11() {
-        return JooqDetection.DETECTION.DETECTION_INDEX;
-    }
-
-    @Override
-    public Field<Long> field12() {
-        return JooqDetection.DETECTION.TIME_FROM;
-    }
-
-    @Override
-    public Field<Float> field13() {
-        return JooqDetection.DETECTION.BBOX_X;
-    }
-
-    @Override
-    public Field<Float> field14() {
-        return JooqDetection.DETECTION.BBOX_Y;
-    }
-
-    @Override
-    public Field<Float> field15() {
-        return JooqDetection.DETECTION.BBOX_WIDTH;
-    }
-
-    @Override
-    public Field<Float> field16() {
-        return JooqDetection.DETECTION.BBOX_HEIGHT;
-    }
-
-    @Override
-    public Field<Float> field17() {
-        return JooqDetection.DETECTION.CONFIDENCE;
-    }
-
-    @Override
-    public Field<JsonObject> field18() {
-        return JooqDetection.DETECTION.META;
-    }
-
-    @Override
-    public Field<LocalDateTime> field19() {
-        return JooqDetection.DETECTION.CREATED;
-    }
-
-    @Override
-    public Field<UUID> field20() {
-        return JooqDetection.DETECTION.CREATOR_UUID;
-    }
-
-    @Override
-    public Field<LocalDateTime> field21() {
-        return JooqDetection.DETECTION.EDITED;
-    }
-
-    @Override
-    public Field<UUID> field22() {
-        return JooqDetection.DETECTION.EDITOR_UUID;
-    }
-
-    @Override
-    public UUID component1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID component2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String component3() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String component4() {
-        return getNodeId();
-    }
-
-    @Override
-    public String component5() {
-        return getProducerVersion();
-    }
-
-    @Override
-    public UUID component6() {
-        return getRunUuid();
-    }
-
-    @Override
-    public UUID component7() {
-        return getTaskUuid();
-    }
-
-    @Override
-    public String component8() {
-        return getType();
-    }
-
-    @Override
-    public String component9() {
-        return getLabel();
-    }
-
-    @Override
-    public Integer component10() {
-        return getFrameNumber();
-    }
-
-    @Override
-    public Integer component11() {
-        return getDetectionIndex();
-    }
-
-    @Override
-    public Long component12() {
-        return getTimeFrom();
-    }
-
-    @Override
-    public Float component13() {
-        return getBboxX();
-    }
-
-    @Override
-    public Float component14() {
-        return getBboxY();
-    }
-
-    @Override
-    public Float component15() {
-        return getBboxWidth();
-    }
-
-    @Override
-    public Float component16() {
-        return getBboxHeight();
-    }
-
-    @Override
-    public Float component17() {
-        return getConfidence();
-    }
-
-    @Override
-    public JsonObject component18() {
-        return getMeta();
-    }
-
-    @Override
-    public LocalDateTime component19() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID component20() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime component21() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID component22() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public UUID value1() {
-        return getUuid();
-    }
-
-    @Override
-    public UUID value2() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public String value3() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String value4() {
-        return getNodeId();
-    }
-
-    @Override
-    public String value5() {
-        return getProducerVersion();
-    }
-
-    @Override
-    public UUID value6() {
-        return getRunUuid();
-    }
-
-    @Override
-    public UUID value7() {
-        return getTaskUuid();
-    }
-
-    @Override
-    public String value8() {
-        return getType();
-    }
-
-    @Override
-    public String value9() {
-        return getLabel();
-    }
-
-    @Override
-    public Integer value10() {
-        return getFrameNumber();
-    }
-
-    @Override
-    public Integer value11() {
-        return getDetectionIndex();
-    }
-
-    @Override
-    public Long value12() {
-        return getTimeFrom();
-    }
-
-    @Override
-    public Float value13() {
-        return getBboxX();
-    }
-
-    @Override
-    public Float value14() {
-        return getBboxY();
-    }
-
-    @Override
-    public Float value15() {
-        return getBboxWidth();
-    }
-
-    @Override
-    public Float value16() {
-        return getBboxHeight();
-    }
-
-    @Override
-    public Float value17() {
-        return getConfidence();
-    }
-
-    @Override
-    public JsonObject value18() {
-        return getMeta();
-    }
-
-    @Override
-    public LocalDateTime value19() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID value20() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime value21() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID value22() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public JooqDetectionRecord value1(UUID value) {
-        setUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value2(UUID value) {
-        setAssetUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value3(String value) {
-        setNodeKind(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value4(String value) {
-        setNodeId(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value5(String value) {
-        setProducerVersion(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value6(UUID value) {
-        setRunUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value7(UUID value) {
-        setTaskUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value8(String value) {
-        setType(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value9(String value) {
-        setLabel(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value10(Integer value) {
-        setFrameNumber(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value11(Integer value) {
-        setDetectionIndex(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value12(Long value) {
-        setTimeFrom(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value13(Float value) {
-        setBboxX(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value14(Float value) {
-        setBboxY(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value15(Float value) {
-        setBboxWidth(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value16(Float value) {
-        setBboxHeight(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value17(Float value) {
-        setConfidence(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value18(JsonObject value) {
-        setMeta(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value19(LocalDateTime value) {
-        setCreated(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value20(UUID value) {
-        setCreatorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value21(LocalDateTime value) {
-        setEdited(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord value22(UUID value) {
-        setEditorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqDetectionRecord values(UUID value1, UUID value2, String value3, String value4, String value5, UUID value6, UUID value7, String value8, String value9, Integer value10, Integer value11, Long value12, Float value13, Float value14, Float value15, Float value16, Float value17, JsonObject value18, LocalDateTime value19, UUID value20, LocalDateTime value21, UUID value22) {
-        value1(value1);
-        value2(value2);
-        value3(value3);
-        value4(value4);
-        value5(value5);
-        value6(value6);
-        value7(value7);
-        value8(value8);
-        value9(value9);
-        value10(value10);
-        value11(value11);
-        value12(value12);
-        value13(value13);
-        value14(value14);
-        value15(value15);
-        value16(value16);
-        value17(value17);
-        value18(value18);
-        value19(value19);
-        value20(value20);
-        value21(value21);
-        value22(value22);
-        return this;
     }
 
     // -------------------------------------------------------------------------
@@ -881,7 +450,7 @@ public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord
     /**
      * Create a detached, initialised JooqDetectionRecord
      */
-    public JooqDetectionRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, String type, String label, Integer frameNumber, Integer detectionIndex, Long timeFrom, Float bboxX, Float bboxY, Float bboxWidth, Float bboxHeight, Float confidence, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid) {
+    public JooqDetectionRecord(UUID uuid, UUID assetUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, String type, String label, Integer frameNumber, Integer detectionIndex, Long timeFrom, Float bboxX, Float bboxY, Float bboxWidth, Float bboxHeight, Float confidence, JsonObject meta, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, JooqReviewStatus status, LocalDateTime reviewedAt, UUID reviewerUuid, String correctedLabel) {
         super(JooqDetection.DETECTION);
 
         setUuid(uuid);
@@ -906,5 +475,9 @@ public class JooqDetectionRecord extends UpdatableRecordImpl<JooqDetectionRecord
         setCreatorUuid(creatorUuid);
         setEdited(edited);
         setEditorUuid(editorUuid);
+        setStatus(status);
+        setReviewedAt(reviewedAt);
+        setReviewerUuid(reviewerUuid);
+        setCorrectedLabel(correctedLabel);
     }
 }

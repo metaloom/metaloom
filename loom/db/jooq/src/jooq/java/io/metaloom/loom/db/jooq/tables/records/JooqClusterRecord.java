@@ -4,7 +4,7 @@
 package io.metaloom.loom.db.jooq.tables.records;
 
 
-import io.metaloom.loom.db.jooq.enums.JooqClusterStatus;
+import io.metaloom.loom.db.jooq.enums.JooqReviewStatus;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.vertx.core.json.JsonObject;
 
@@ -24,7 +24,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * per asset by the facedetect node and confirmed into a person.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> implements Record21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqClusterStatus, UUID, Float, Float[], String, Integer> {
+public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> implements Record21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqReviewStatus, UUID, Float, Float[], String, Integer> {
 
     private static final long serialVersionUID = 1L;
 
@@ -268,7 +268,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
      * Setter for <code>public.cluster.status</code>. PENDING (awaiting review),
      * CONFIRMED (linked to a person) or REJECTED (not a real subject).
      */
-    public void setStatus(JooqClusterStatus value) {
+    public void setStatus(JooqReviewStatus value) {
         set(15, value);
     }
 
@@ -276,8 +276,8 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
      * Getter for <code>public.cluster.status</code>. PENDING (awaiting review),
      * CONFIRMED (linked to a person) or REJECTED (not a real subject).
      */
-    public JooqClusterStatus getStatus() {
-        return (JooqClusterStatus) get(15);
+    public JooqReviewStatus getStatus() {
+        return (JooqReviewStatus) get(15);
     }
 
     /**
@@ -380,12 +380,12 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     // -------------------------------------------------------------------------
 
     @Override
-    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqClusterStatus, UUID, Float, Float[], String, Integer> fieldsRow() {
+    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqReviewStatus, UUID, Float, Float[], String, Integer> fieldsRow() {
         return (Row21) super.fieldsRow();
     }
 
     @Override
-    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqClusterStatus, UUID, Float, Float[], String, Integer> valuesRow() {
+    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqReviewStatus, UUID, Float, Float[], String, Integer> valuesRow() {
         return (Row21) super.valuesRow();
     }
 
@@ -465,7 +465,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
-    public Field<JooqClusterStatus> field16() {
+    public Field<JooqReviewStatus> field16() {
         return JooqCluster.CLUSTER.STATUS;
     }
 
@@ -570,7 +570,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
-    public JooqClusterStatus component16() {
+    public JooqReviewStatus component16() {
         return getStatus();
     }
 
@@ -675,7 +675,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
-    public JooqClusterStatus value16() {
+    public JooqReviewStatus value16() {
         return getStatus();
     }
 
@@ -795,7 +795,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
-    public JooqClusterRecord value16(JooqClusterStatus value) {
+    public JooqClusterRecord value16(JooqReviewStatus value) {
         setStatus(value);
         return this;
     }
@@ -831,7 +831,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     }
 
     @Override
-    public JooqClusterRecord values(UUID value1, String value2, JsonObject value3, String value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8, String value9, String value10, String value11, UUID value12, UUID value13, UUID value14, Integer value15, JooqClusterStatus value16, UUID value17, Float value18, Float[] value19, String value20, Integer value21) {
+    public JooqClusterRecord values(UUID value1, String value2, JsonObject value3, String value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8, String value9, String value10, String value11, UUID value12, UUID value13, UUID value14, Integer value15, JooqReviewStatus value16, UUID value17, Float value18, Float[] value19, String value20, Integer value21) {
         value1(value1);
         value2(value2);
         value3(value3);
@@ -870,7 +870,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     /**
      * Create a detached, initialised JooqClusterRecord
      */
-    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, UUID assetUuid, Integer clusterIndex, JooqClusterStatus status, UUID personUuid, Float score, Float[] centroid, String model, Integer dimensions) {
+    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, UUID assetUuid, Integer clusterIndex, JooqReviewStatus status, UUID personUuid, Float score, Float[] centroid, String model, Integer dimensions) {
         super(JooqCluster.CLUSTER);
 
         setUuid(uuid);

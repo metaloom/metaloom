@@ -71,6 +71,7 @@ import io.metaloom.loom.db.model.dedup.DedupGroupDao;
 import io.metaloom.loom.db.model.dedup.DedupGroupMember;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.detection.DetectionDao;
+import io.metaloom.loom.db.model.review.ReviewStatus;
 import io.metaloom.loom.db.model.embedding.Embedding;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.person.Person;
@@ -842,12 +843,21 @@ public class DemoDatabaseInitializer {
 		createPendingFaceCluster(admin, imageAssets[0], faceOne, faceTwo);
 
 		// Object detections on image assets
-		createDetection(admin, imageAssets[0], "objectdetection", 0, 0.1f, 0.4f, 0.25f, 0.3f, 0.95f,
+		Detection car = createDetection(admin, imageAssets[0], "objectdetection", 0, 0.1f, 0.4f, 0.25f, 0.3f, 0.95f,
 			new JsonObject().put("label", "car"));
-		createDetection(admin, imageAssets[0], "objectdetection", 0, 0.5f, 0.2f, 0.12f, 0.35f, 0.92f,
+		Detection person = createDetection(admin, imageAssets[0], "objectdetection", 0, 0.5f, 0.2f, 0.12f, 0.35f, 0.92f,
 			new JsonObject().put("label", "person"));
 		createDetection(admin, imageAssets[2], "objectdetection", 0, 0.05f, 0.05f, 0.4f, 0.7f, 0.96f,
 			new JsonObject().put("label", "building"));
+
+		// Two of the boxes have been reviewed, the rest are still pending.
+		//
+		// All-pending would demonstrate the queue but not the outcome, and it is the outcome that is
+		// hard to picture: a confirmation can carry a correction, so "the model said car, the reviewer
+		// said van" is one row rather than a rejection plus a re-entry, and a rejected box is kept as
+		// the record that the producer was wrong rather than deleted.
+		detectionDao.updateReview(car.getUuid(), ReviewStatus.CONFIRMED, "van", admin.getUuid());
+		detectionDao.updateReview(person.getUuid(), ReviewStatus.REJECTED, null, admin.getUuid());
 
 		// Object detections on video assets
 		createDetection(admin, videoAssets[0], "objectdetection", 30, 0.75f, 0.1f, 0.2f, 0.5f, 0.88f,

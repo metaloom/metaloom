@@ -32,6 +32,7 @@ import io.metaloom.loom.rest.endpoint.impl.ClusterEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DedupGroupEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.DetectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.EmbeddingEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GraphQLEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.GroupEndpoint;
@@ -223,7 +224,8 @@ public class LoomOpenAPI {
 		endpoints.add(new AssetBinaryEndpoint(null, deps, examples));
 		endpoints.add(new AssetComponentEndpoint(null, deps, examples));
 		endpoints.add(
-			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps, examples));
+			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps,
+				examples));
 		endpoints.add(new AssetPoolEndpoint(null, deps, examples));
 		endpoints.add(new AttachmentEndpoint(null, deps, examples));
 		endpoints.add(new BlacklistEndpoint(null, deps, examples));
@@ -232,6 +234,7 @@ public class LoomOpenAPI {
 		endpoints.add(new CollectionEndpoint(null, deps, examples));
 		endpoints.add(new CommentEndpoint(null, null, deps, examples));
 		endpoints.add(new DedupGroupEndpoint(null, deps));
+		endpoints.add(new DetectionEndpoint(null, deps, examples));
 		endpoints.add(new EmbeddingEndpoint(null, deps, examples));
 		endpoints.add(new GraphQLEndpoint(deps, null));
 		endpoints.add(new GroupEndpoint(null, deps, examples));
@@ -537,6 +540,7 @@ public class LoomOpenAPI {
 		map.put("clusters", "Face/embedding clusters");
 		map.put("collections", "Asset collections");
 		map.put("comments", "Comments and their reactions");
+		map.put("detections", "The cross-asset detection review queue. Detections themselves are created and reviewed under their asset.");
 		map.put("embeddings", "Vector embeddings and their attachments");
 		map.put("graphql", "GraphQL query endpoint");
 		map.put("groups", "Groups of the RBAC model");

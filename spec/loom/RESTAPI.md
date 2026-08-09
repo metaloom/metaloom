@@ -257,7 +257,9 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/assets/:uuid/tasks` · `/tasks/:taskUuid` | GET · POST, DELETE | Assign / unassign existing tasks |
 | `/assets/:uuid/reactions` · `/reactions/:reactionUuid` | POST, GET · GET, POST, DELETE | |
 | `/assets/:uuid/comments` | POST, GET | |
-| `/assets/:uuid/detections` · `/detections/bulk` · `/detections/:detectionUuid` | POST, GET · POST · GET, POST, DELETE | |
+| `/assets/:uuid/detections` · `/detections/bulk` · `/detections/:detectionUuid` · `/detections/:detectionUuid/crop` | POST, GET · POST · GET, POST, DELETE · GET | `?type=`/`?status=` filter the list; the crop is served from local storage (biometric data) |
+| `/assets/:uuid/detections/:detectionUuid/confirm` · `/reject` · `/assets/:uuid/detections/review-bulk` | POST · POST · POST | Human review verdict, `UPDATE_DETECTION`. Bulk answers `{total, created, failed}`. ⚠️ `review-bulk` must be registered **before** `/detections/:detectionUuid` — same shape, and Vert.x matches in registration order |
+| `/detections` | GET | 🟢 Cross-asset review queue: `?status=PENDING&type=objectdetection`. The response field is `reviewStatus`, not `status` — the latter is the creator/editor audit block |
 | `/assets/:uuid/transcripts` · `/transcripts/:transcriptUuid` | POST, GET · GET, POST, DELETE | |
 | `/assets/:uuid/node-results` · `/node-results/:nodeResultUuid` | POST, GET · GET, DELETE | Cortex node result ledger |
 | `/assets/:uuid/json-comps` · `/json-comps/:compUuid` | POST, GET · GET, DELETE | |

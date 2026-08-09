@@ -366,11 +366,21 @@ descriptor's enum — never an edit to `FilterNode`. Two seam methods carry the 
 
 | Kind | Input ports | Output ports |
 |---|---|---|
-| `hash-dedup` | `hash : hash/*` | — |
+| `hash-dedup` | `hash : hash/*` | `duplicate : media/*` *(selective)*, `original : scalar/string` |
 | `fingerprint-dedup` | `fingerprint : hash/fingerprint` | — |
-| `fingerprint-dedup-apply` | `hash : hash/*` | — |
+| `fingerprint-dedup-apply` | `hash : hash/*` | `confirmed_dup : media/*` *(selective)*, `keep_path : scalar/string` |
+| `move` | `media : media/*` | `moved : scalar/boolean`, `path : scalar/string`, `flag : scalar/string` |
+| `assign` | `media : media/*` | `assigned : scalar/boolean`, `target : scalar/string` |
 | `s3-sink` | `artifacts : artifact/*` **MANY** | `result : struct/json`, `count : scalar/integer`, `flag : scalar/string` |
 | `tag` | `media : media/*`, `text : text/*` *(opt)*, `number : scalar/number` *(opt)*, `flag : scalar/boolean` *(opt)*, `struct : struct/*` *(opt)*, `labels : scalar/string` *(MANY, opt)* | `applied : struct/json`, `count : scalar/integer` |
+
+Both dedup nodes gained a **selective** media port in the supersede: silence on it is the "do not
+act" signal, exactly as a filter's bucket ports work, and wiring it into `move` is what relocates the
+file. Neither node moves anything itself any more.
+
+⚠️ `move`'s `path` is a `scalar/string`, deliberately not `artifact/file`. That family means "a file
+this node produced", and typing a relocated original as one would make it an upload candidate for a
+downstream `s3-sink`.
 
 `tag` writes into the catalog rather than producing bytes, which is why it is an `OUTPUT` node with
 outputs: `applied` and `count` describe what it did, so a downstream node can branch on whether an

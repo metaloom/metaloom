@@ -2,7 +2,6 @@ package io.metaloom.cortex.node.dedup;
 
 import static io.metaloom.cortex.node.dedup.assertj.DedupNodeAssertions.assertThat;
 
-import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Test;
@@ -17,19 +16,25 @@ public class DedupNodeOptionsValidationTest {
 		assertThat(options).isValid();
 	}
 
+	/**
+	 * No keeper-exclude folder is the default, and it means the check is simply off.
+	 *
+	 * <p>
+	 * This replaces the old {@code dupFolder} assertions. That option had a default of {@code duplicates} and could not be null, because the node
+	 * moved files into it; the relocation now happens on a downstream {@code move} node, so the only folder these options still care about is the one
+	 * a keeper must <b>not</b> be in - and having none of those is perfectly normal.
+	 * </p>
+	 */
 	@Test
-	public void testCustomDupFolderValid() {
-		DedupNodeOptions options = new DedupNodeOptions();
-		options.setDupFolder(Paths.get("custom/duplicates"));
-		assertThat(options)
-			.isValid().hasDupFolder(Paths.get("custom/duplicates"));
+	public void testNoKeeperExcludeFolderByDefault() {
+		assertThat(new DedupNodeOptions()).isValid().hasNoKeepExcludeFolder();
 	}
 
 	@Test
-	public void testNullDupFolderInvalid() {
+	public void testACustomKeeperExcludeFolderIsValid() {
 		DedupNodeOptions options = new DedupNodeOptions();
-		options.setDupFolder(null);
-		assertThat(options).isInvalid().hasErrorCount(1).hasError("dupFolder must not be null");
+		options.setKeepExcludeFolder(Paths.get("/data/trash"));
+		assertThat(options).isValid().hasKeepExcludeFolder(Paths.get("/data/trash"));
 	}
 
 	@Test
@@ -42,11 +47,11 @@ public class DedupNodeOptionsValidationTest {
 	@Test
 	public void testValidationResultDirect() {
 		DedupNodeOptions options = new DedupNodeOptions();
-		options.setDupFolder(null);
-		
+		options.setTimeoutMs(-1);
+
 		ValidationResult result = options.validate();
-		assertThat(result).isInvalid().hasErrorCount(1).hasError("dupFolder must not be null");
-		
+		assertThat(result).isInvalid().hasErrorCount(1).hasError("timeoutMs must be non-negative");
+
 		DedupNodeOptions validOptions = new DedupNodeOptions();
 		ValidationResult validResult = validOptions.validate();
 		assertThat(validResult).isValid().hasNoErrors();

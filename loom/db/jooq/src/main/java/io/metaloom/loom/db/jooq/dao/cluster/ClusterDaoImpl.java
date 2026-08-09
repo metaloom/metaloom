@@ -27,7 +27,7 @@ import org.jooq.TableRecord;
 import org.jooq.impl.DSL;
 
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
-import io.metaloom.loom.db.jooq.enums.JooqClusterStatus;
+import io.metaloom.loom.db.jooq.enums.JooqReviewStatus;
 import io.metaloom.loom.db.jooq.tables.JooqCluster;
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
@@ -102,7 +102,7 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 	public int deleteStalePending(UUID assetUuid, String nodeKind, Collection<Integer> keptIndices) {
 		Condition condition = CLUSTER.ASSET_UUID.eq(assetUuid)
 			.and(CLUSTER.NODE_KIND.eq(nodeKind))
-			.and(CLUSTER.STATUS.eq(JooqClusterStatus.PENDING));
+			.and(CLUSTER.STATUS.eq(JooqReviewStatus.PENDING));
 		if (keptIndices != null && !keptIndices.isEmpty()) {
 			condition = condition.and(CLUSTER.CLUSTER_INDEX.notIn(keptIndices));
 		}
@@ -271,7 +271,7 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 					.fetchOne(PERSON.UUID);
 			}
 			tx.update(CLUSTER)
-				.set(CLUSTER.STATUS, JooqClusterStatus.CONFIRMED)
+				.set(CLUSTER.STATUS, JooqReviewStatus.CONFIRMED)
 				.set(CLUSTER.PERSON_UUID, resolvedPerson)
 				.set(CLUSTER.EDITED, LocalDateTime.now(ZoneOffset.UTC))
 				.set(CLUSTER.EDITOR_UUID, editorUuid)
@@ -283,8 +283,8 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 		});
 	}
 
-	private static JooqClusterStatus status(String status) {
-		return status == null ? JooqClusterStatus.PENDING : JooqClusterStatus.lookupLiteral(status);
+	private static JooqReviewStatus status(String status) {
+		return status == null ? JooqReviewStatus.PENDING : JooqReviewStatus.lookupLiteral(status);
 	}
 
 	private ClusterMember mapMember(Record r) {

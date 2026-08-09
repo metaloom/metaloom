@@ -131,6 +131,8 @@ shadows the base method — do not copy it.
 | `tag` | `PUT assets/:uuid/tags` → `tag` + `tag_asset` (resolve-or-create on `(name, collection)`, whole set in one transaction, each placement stamped with `node_kind`/`node_id`/`producer_version`/`confidence`) **+** `asset_json_comp` (`schemaType=tags`, `variant` = node id) recording what it applied | `bulkTagAsset`, `createAssetJsonComp` |
 | `s3-sink` | one `asset` **per uploaded artifact** (`origin` = the `s3://` URI) + `asset_json_comp` (`schemaType=s3-artifact`, `variant` = node id) on the source asset | `createAsset`, `createAssetJsonComp` |
 | `fingerprint-dedup` | `dedup-groups` → `dedup_group` + `dedup_group_member` | `createDedupGroup` |
+| `move` | `binaries/:uuid` update → `asset_location` (path, and `library_uuid`/`pool_uuid` when the target names one) **+** `assets/:uuid` update → `asset.filename` for filesystem destinations | `updateBinary`, `updateAsset` |
+| `assign` | `collections/:uuid/assets` or `libraries/:uuid/assets` → `collection_asset` / `library_asset` | `addCollectionAsset`, `addLibraryAsset` |
 | `thumbnail`, `tts`, `imagegen`, `videogen`, `depthmap`, `sam2`, `watermark`, `sha512-dedup`, `fingerprint-dedup-apply` | **ledger only** | — |
 
 `schemaType` values in use: `caption`, `video-caption`, `face-description`, `llm`, `vlm`, `ocr`,
@@ -214,6 +216,8 @@ Port ids only; content types and cardinality are in
 | `fingerprint-dedup` | `FingerprintDedupNode` · dedup | video | — | `dedup_group` | — |
 | `fingerprint-dedup-apply` | `FingerprintDedupApplyNode` · dedup | any with SHA-512 | — (moves files) | ledger only | — |
 | `s3-sink` | `S3SinkNode` · s3-sink | any (`artifacts` edge is what matters) | `artifacts` (MANY) → `result`, `count`, `flag` | asset/artifact + `asset_json_comp` | S3 |
+| `move` | `MoveNode` · relocate | any local file | `media` → `moved`, `path`, `flag` | `asset_location` (+ `asset.filename`) | none for FOLDER; Loom for POOL/LIBRARY; S3 for the bucket target |
+| `assign` | `AssignNode` · relocate | any known to Loom | `media` → `assigned`, `target` | `collection_asset` / `library_asset` | Loom |
 
 Notes worth knowing:
 
@@ -260,6 +264,14 @@ Notes worth knowing:
 - **`metadata` and `tika` are complements, not alternatives.** `tika` extracts the document body;
   `metadata` reads what the file says about itself. Both may run on the same asset; their components
   are keyed by `node_kind` so they never collide.
+- **`move` is the only node that can destroy data, and it is built so that it almost cannot.** Exactly
+  one method in the tree unlinks a source file (`LocalMover`), it is reachable only after a verify
+  returned true, and it is gated behind `sourcePolicy: DELETE_AFTER_VERIFY` which is not the default.
+  With the default the node is a copier and its `flag` port says `COPIED`, because reporting a copy as
+  a move is how a cold-tier run silently fails to reclaim anything.
+- **`move` and `assign` are two kinds on purpose.** A collection has no path and no bytes, so adding
+  an asset to one is a join row, not a relocation. One kind doing either depending on a parameter
+  would be a node nobody could reason about - and the failure modes are not comparable.
 - **Two sidecars serve `imagegen`**: `ideogram-sidecar` (`9200`, SDXL-Turbo, non-commercial weights)
   and `mage-flow-sidecar` (`9210`, MIT weights). Same HTTP contract; pick via the `port` option.
 
@@ -423,33 +435,33 @@ Avro indexes instead and `s3-sink` dedups remotely via `OverwritePolicy`.
 flowchart TD
   M["cortex/nodes/&lt;name&gt;/core<br/>XNodeModule"]
   M -->|"@Binds @IntoSet FilesystemNode"| S["Set&lt;FilesystemNode&gt;<br/>(legacy CLI)"]
-  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>37 entries"]
+  M -->|"@Binds @IntoMap @StringKey(kind)"| K["Map&lt;String, Provider&lt;FilesystemNode&gt;&gt;<br/>39 entries"]
   NC["cortex/cli<br/>NodeCollectionModule<br/>(@Module includes = node modules)"] --> M
   K --> R["RegistryNodeRegistrar.registerAll()"]
   SRC["filesystem-source · asset-source<br/>+ s3-source when s3Support.isActive()<br/>+ gdrive-source / onedrive-source per configured provider"] --> R
-  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>38 kinds (37 without S3)"]
+  R -->|"factory.register(kind, def -&gt; ...)"| F["RegistryNodeFactory<br/>40 kinds (39 without S3)"]
   F --> W["registeredTypes() → announced nodeWhitelist"]
   F --> NT["NodeTaskRunner<br/>createNode(def)"]
   NT -->|"adapt()"| A["CortexNodeAdapter"]
   A --> P["AbstractMediaNode.process()"]
-  D["loom-shared/node-model<br/>generated node-descriptors.json → 43 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
+  D["loom-shared/node-model<br/>generated node-descriptors.json → 45 kinds<br/>(ServiceLoader)"] --> V["PortGraphAnalyzer / UI palette"]
 ```
 
 ### 5.1 Executable kinds — the exact numbers
 
-- **38** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
+- **40** `@Binds @IntoMap @StringKey` bindings into `Map<String, Provider<FilesystemNode<?,?>>>`:
   `sha512`, `sha256`, `md5`, `chunk-hash`, `sha512-dedup`, `hash-dedup`, `fingerprint-dedup`,
   `fingerprint-dedup-apply`, `thumbnail`, `fingerprint`, `ocr`, `facedetect`, `objectdetect`, `tika`, `metadata`,
   `llm`, `vlm`, `scene-detection`, `quality`, `captioning`, `imagegen`, `videogen`, `consistency`,
   `whisper`, `tts`, `sentiment`, `translate`, `guard`, `script`, `depthmap`, `sam2`, `scene-layout`,
-  `dominant-color`, `watermark`, `image-manipulation`, `filter`, `tag`, `s3-sink`.
+  `dominant-color`, `watermark`, `image-manipulation`, `filter`, `tag`, `s3-sink`, `move`, `assign`.
   All aggregated by `cortex/cli/.../dagger/NodeCollectionModule.java`.
 - **+3** source kinds registered directly in `RegistryNodeRegistrar.registerAll()`:
   `filesystem-source` and `asset-source` always, `s3-source` **only when `s3Support.isActive()`**,
   and `gdrive-source` / `onedrive-source` **per provider**, only when that cloud's credentials are
   configured. The gate is per provider rather than per module, which is the reason the two clouds
   are two kinds sharing one implementation rather than one kind with a `provider` parameter.
-- **Total runnable: 40 with S3 configured, 39 without.**
+- **Total runnable: 42 with S3 configured, 41 without.**
 
 `hash-dedup` and `sha512-dedup` are two `@StringKey`s onto the same `HashDedupNode` — the descriptor
 advertises `hash-dedup`, the class's `name()` returns `sha512-dedup`, and the alias is what keeps the
@@ -460,7 +472,7 @@ native transitive deps, so merely booting a worker must not construct them.
 
 ### 5.2 Descriptors
 
-`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **43 advertised kinds.** Since the
+`NodeDescriptorProvider` (ServiceLoader, `loom-shared/node-model`): **45 advertised kinds.** Since the
 `d9bbc2dc` refactor the contracts are one generated `node-descriptors.json` served by
 `GeneratedNodeDescriptorProvider` (+ `OrphanNodeDescriptorProvider`), harvested at build time from
 the annotated node classes and regenerated with
@@ -664,7 +676,7 @@ Some suites need the pooled test DB — run `./setup-pool.sh` first (and again a
 | `XNodePipelineTest extends AbstractNodeChainTest` | same | adapter integration: completion/tracking events, output chaining into `CapturingNode`, disabled + dry-run skip |
 | `*NodeIntegrationTest` | `integration-test/.../node/` | real in-process Loom (REST + pooled DB), real file, real `LoomHttpClient`, payload readable back via REST |
 | `NodeSpecGoldenTest` | `integration-test/.../node/` | every `@NodeSpec` class is in the committed `node-descriptors.json`, and the resource is regenerated from it |
-| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 43 advertised kinds, no duplicates |
+| `NodeDescriptorServiceLoaderTest` | `loom-shared/node-model` | 2 descriptor providers, 45 advertised kinds, no duplicates |
 
 `AbstractNodeChainTest` lives in the **`cortex/pipeline-core` test-jar** (`io.metaloom.cortex.pipeline.test`)
 along with `StubLoomMedia`, `StubFilesystemNode`, `CapturingNode`, `FixedOutputNode`,
@@ -867,8 +879,10 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 
 ---
 
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
+_Git HEAD revision: `98a6dbe1`_
+_Last updated: 2026-08-08 (the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
+
+_Previously: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
 all four `filterBy` values are implemented. Earlier the same day: added the routing row for
 `features/facedetection/FACE_WORKFLOW.md`, which owns the face identity loop — and recorded that the
 `faceClusterEPS` / `faceClusterMinimum` options listed in §5 here are now read by `FaceClusterer`, and `facedescription` is bound and runnable). Previously 2026-08-05 (V2.71 gave tag placements their own identity and provenance, so the node stamps every write with its node id and the server scopes withdrawals to it. Earlier the same day: the `tag` node moved onto the bulk route `PUT /assets/:uuid/tags` —

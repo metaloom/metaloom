@@ -1,9 +1,19 @@
 import { API_BASE_URL } from "./config";
 import type { PagingInfo } from "./paging";
 
+/** The three review verdicts, mirroring the `review_status` Postgres enum. */
+export type ReviewStatus = "PENDING" | "CONFIRMED" | "REJECTED";
+
 export interface DetectionResponse {
   uuid: string;
   type: string;
+  /**
+   * The detected class, e.g. "dog". Null for a face — `facedetect` has no classes to report.
+   *
+   * This is what the model said. A reviewer's correction goes to `correctedLabel` instead, so the
+   * model's own answer survives as the training signal.
+   */
+  label?: string;
   frameNumber: number;
   bboxX: number;
   bboxY: number;
@@ -12,12 +22,35 @@ export interface DetectionResponse {
   confidence: number;
   assetUuid: string;
   meta?: Record<string, unknown>;
+  /**
+   * Review verdict.
+   *
+   * Named `reviewStatus` rather than `status` because `status` below is already taken by the
+   * creator/editor audit block every response carries.
+   */
+  reviewStatus?: ReviewStatus;
+  reviewedAt?: string;
+  correctedLabel?: string;
   status?: {
     creator?: { uuid: string; name?: string };
     created?: string;
     editor?: { uuid: string; name?: string };
     edited?: string;
   };
+}
+
+export interface DetectionConfirmRequest {
+  correctedLabel?: string;
+}
+
+export interface DetectionReviewItem {
+  uuid: string;
+  status: ReviewStatus;
+  correctedLabel?: string;
+}
+
+export interface DetectionBulkReviewRequest {
+  reviews: DetectionReviewItem[];
 }
 
 export interface DetectionListResponse {
@@ -161,6 +194,100 @@ export async function bulkCreateDetections(
     }
   );
   return handleResponse<DetectionBulkResponse>(res);
+}
+
+/**
+ * Confirm a detection: the producer found something real here.
+ *
+ * Pass `correctedLabel` when the box was right but the class was wrong. That is still a
+ * confirmation — the producer's own `label` is kept alongside the correction.
+ */
+export async function confirmDetection(
+  token: string,
+  assetUuid: string,
+  detectionUuid: string,
+  request?: DetectionConfirmRequest
+): Promise<DetectionResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${assetUuid}/detections/${detectionUuid}/confirm`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request ?? {}),
+    }
+  );
+  return handleResponse<DetectionResponse>(res);
+}
+
+/**
+ * Reject a detection as a false positive.
+ *
+ * The row is kept, not deleted: it is the record that the producer was wrong here, which is what
+ * stops the next run presenting the same box again as new.
+ */
+export async function rejectDetection(
+  token: string,
+  assetUuid: string,
+  detectionUuid: string
+): Promise<DetectionResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${assetUuid}/detections/${detectionUuid}/reject`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+    }
+  );
+  return handleResponse<DetectionResponse>(res);
+}
+
+/**
+ * Record many verdicts on one asset in a single request.
+ *
+ * Keyboard review outruns per-item HTTP badly enough that one request per keystroke either lags
+ * behind the reviewer or drops decisions, so this is the shape the review screen uses.
+ *
+ * A bad item is counted in `failed` and skipped rather than failing the batch.
+ */
+export async function bulkReviewDetections(
+  token: string,
+  assetUuid: string,
+  request: DetectionBulkReviewRequest
+): Promise<DetectionBulkResponse> {
+  const res = await fetch(
+    `${API_BASE_URL}/assets/${assetUuid}/detections/review-bulk`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify(request),
+    }
+  );
+  return handleResponse<DetectionBulkResponse>(res);
+}
+
+/**
+ * The cross-asset review queue.
+ *
+ * Unlike {@link listAssetDetections} this spans every asset, which is the one question that cannot
+ * be asked of a single one: what is still waiting to be reviewed.
+ */
+export async function listDetections(
+  token: string,
+  status?: ReviewStatus,
+  type?: string
+): Promise<DetectionListResponse> {
+  const params = new URLSearchParams();
+  if (status) {
+    params.set("status", status);
+  }
+  if (type) {
+    params.set("type", type);
+  }
+  const query = params.toString();
+  const res = await fetch(`${API_BASE_URL}/detections${query ? `?${query}` : ""}`, {
+    method: "GET",
+    headers: authHeaders(token),
+  });
+  return handleResponse<DetectionListResponse>(res);
 }
 
 /**
