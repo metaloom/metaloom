@@ -6,7 +6,6 @@ import io.metaloom.loom.db.jooq.dao.annotation.AnnotationDaoImpl;
 import io.metaloom.loom.db.jooq.dao.asset.AssetDaoImpl;
 import io.metaloom.loom.db.jooq.dao.asset.AssetNodeResultDaoImpl;
 import io.metaloom.loom.db.jooq.dao.asset.comp.AssetComponentDaoImpl;
-import io.metaloom.loom.db.jooq.dao.asset.location.AssetLocationDaoImpl;
 import io.metaloom.loom.db.jooq.dao.asset.binary.AssetBinaryDaoImpl;
 import io.metaloom.loom.db.jooq.dao.attachment.AttachmentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.blacklist.BlacklistDaoImpl;
@@ -45,7 +44,6 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
-import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
@@ -110,9 +108,6 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract io.metaloom.loom.db.model.dedup.DedupGroupDao dedupGroupDao(io.metaloom.loom.db.jooq.dao.dedup.DedupGroupDaoImpl dao);
-
-	@Binds
-	abstract AssetLocationDao assetLocationDao(AssetLocationDaoImpl dao);
 
 	@Binds
 	abstract AssetBinaryDao assetBinaryDao(AssetBinaryDaoImpl dao);

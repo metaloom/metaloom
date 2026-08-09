@@ -4,7 +4,6 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
-import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
@@ -57,8 +56,6 @@ public interface DaoCollection {
 	TokenDao tokenDao();
 
 	// Asset
-
-	AssetLocationDao assetLocationDao();
 
 	AssetBinaryDao assetBinaryDao();
 

@@ -295,8 +295,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | Permission | `PermissionDao` | `user/role/token_permission` | `PermissionDaoTest` (5 tests, grant + group inheritance + isolation) | `AclCascadeTest` |
 | Token | `TokenDao` | `token` | `TokenDaoTest` CRUD | — |
 | Asset | `AssetDao` | `asset` | `AssetDaoTest` CRUD +5 (meta) | `AssetCascadeTest` |
-| AssetLocation | `AssetLocationDao` | `asset_location` | `AssetLocationDaoTest` CRUD +1 | `AssetCascadeTest` |
-| AssetBinary | `AssetBinaryDao` | **`asset_location`** (REST "binary" view; `getTypeName()` = "Asset Locations") | — | — |
+| AssetBinary | `AssetBinaryDao` | `asset_location` (`getTypeName()` = "Asset Locations") | `AssetBinaryDaoTest` CRUD +7 | `AssetCascadeTest` |
 | AssetComponent | `AssetComponentDao` | 9 `asset_*_comp` tables | `AssetComponentKeyTest` (8), `AssetTranscriptCompDaoTest` (5), `AssetFingerprintSegmentCompDaoTest` (8), `AssetJsonCompDaoTest` (13) | `AssetCascadeTest` |
 | AssetNodeResult | `AssetNodeResultDao` | `asset_node_result` | `AssetNodeResultDaoTest` (8) | `AssetCascadeTest` |
 | AssetPool | `AssetPoolDao` | `asset_pool` | `AssetPoolDaoTest` CRUD +2 (fs/S3 shapes, `library.pool_uuid` RESTRICT) | own |
@@ -378,7 +377,13 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
   this reason. `RoleDaoImpl.setPermissions` is the simpler, single-method form.
 - **Not every DAO extends `CRUDDao`** (table above) — `CRUDDaoTestcases` cannot be applied to those.
 - **`AssetBinaryDao` maps to `asset_location`, not `attachment_binary`** — "binary" is the REST name
-  for a location.
+  for a location. It is the *only* DAO over that table: `AssetLocationDao`/`AssetLocation` were a
+  second, partial DAO over the same rows (same `getTable()`, same `getTypeName()`, and missing
+  `state`/`license`/`locked_by_uuid`) and were removed. The REST and GraphQL layers still expose both
+  *views* of a row — `AssetLocationResponse` and `AssetBinaryResponse` — built by
+  `AssetLocationModelBuilder` and `AssetBinaryModelBuilder` from the same `AssetBinary`. Both are
+  inherited by `LoomModelBuilder`, so the location builder's methods carry "location" in their names
+  (`toLocationResponse`, `locationFilekey`, …) to stay clear of the binary builder's erasure.
 - **`asset` is keyed by `uuid` since V2.46**; `sha512sum` is `NOT NULL UNIQUE`, not the PK.
 - **Node writes go through `upsert()`, not `store()`** — the natural-key `UNIQUE` constraint plus the
   excluded audit columns are what makes a re-run idempotent without losing first-write provenance.
@@ -389,6 +394,12 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 - **A status/state column typed by an enum is typed by a `forcedType`, not by the POJO setter.**
   jOOQ's default record mapper would coerce an unknown string to `null` and say nothing; the
   converter throws. The three pipeline columns are the pattern to copy.
+- 🔴 **A POJO field the default record mapper cannot name is dropped without a word.** The mapper
+  camel-cases the *column* (`filekey_stdev` → `filekeyStdev`) and looks for a member of that name;
+  `AssetBinaryImpl.filekeyStDev` matched nothing, so the column was never written and always read
+  back as the primitive default — the file key the REST layer hands out carried `stDev` 0 for as long
+  as the column has existed. Name POJO fields by camel-casing the column, and prove a column round
+  trips in the DAO test rather than assuming the mapper found it.
 - **Generated tsvector/trigram columns are excluded from codegen** — reach them with `DSL.field()`.
 - **A `loom_permission` value added by `ALTER TYPE … ADD VALUE` cannot be used in the same
   migration** (Flyway wraps each in one transaction). Seed grants belong in a later migration —
@@ -477,7 +488,9 @@ Schema current through **`V2.74`**. Work items live in
 - [x] `AssetPoolDaoTest` — CRUD over both pool shapes plus the `library.pool_uuid` RESTRICT from V2.63
 - [ ] `DetectionDaoTest` — no DAO-level coverage
 - [x] `ChatDaoTest` — CRUD plus a deep-equality `messages` round-trip and the V2.52 `chat_session.chat_uuid` SET NULL detach
-- [ ] `AssetBinaryDaoTest` — no coverage
+- [x] `AssetBinaryDaoTest` — CRUD plus `loadPrimaryByAssetUuid` (oldest-first, uuid tie-break),
+  `loadAllByAssetUuid`, `loadByAssetAndLibrary`, `countByPoolAndPath` (null-pool and pooled),
+  `deleteByAssetUuid`, and a full-column round trip; the duplicate `AssetLocationDao` is gone
 - [ ] `AnnotationDaoTest` does not implement `CRUDDaoTestcases`
 - [ ] Delete-cascade tests missing for Library, Space, Token, Blacklist, Attachment, Detection, MemoryEntry, MemoryDenyRule; for AssetPool only the `library.pool_uuid` RESTRICT is covered — `asset_location.pool_uuid` and `attachment_binary.pool_uuid` are not
 - [ ] `vector_config` (V2.6) has a generated table but no DAO
@@ -486,7 +499,11 @@ Schema current through **`V2.74`**. Work items live in
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
 _Git HEAD revision: `716953c0`_
-_Last updated: 2026-08-07 (the three pipeline status/state columns are typed via `forcedTypes` converters that reject an unknown value naming the column; `generate.sh` now stages codegen in `target/` and is no longer destructive; V2.77 normalises `pipeline_run_item.state`. Earlier: added `ChatDaoTest`: CRUD over `ChatDao` plus a deep-equality round-trip of the
+_Last updated: 2026-08-09 (`AssetBinaryDaoTest` added — CRUD plus every non-CRUD method of
+`AssetBinaryDao`; the duplicate `AssetLocationDao`/`AssetLocation` pair over the same
+`asset_location` table was deleted and its callers routed through `AssetBinaryDao`, which grew the
+`state`/`license`/`locked_by_uuid` accessors it had been missing; the test also caught
+`filekey_stdev` never round-tripping because the POJO field was spelled `filekeyStDev`. Earlier: the three pipeline status/state columns are typed via `forcedTypes` converters that reject an unknown value naming the column; `generate.sh` now stages codegen in `target/` and is no longer destructive; V2.77 normalises `pipeline_run_item.state`. Earlier: added `ChatDaoTest`: CRUD over `ChatDao` plus a deep-equality round-trip of the
 `chat.messages` transcript through `JsonArrayConverter`, the empty-transcript default, and the V2.52
 `chat_session.chat_uuid` ON DELETE SET NULL detach with an untouched second chat/session pair as the
 cascade control. Earlier: fixed the fixture's reaction types - they stored a mime type in a column the REST layer reads with ReactionType.valueOf, so every read of a fixture reaction was a 500; ReactionEndpointTest now guards it. V2.74 finished the asset-delete cascades - comments, reactions and library membership - leaving only two intentional SET NULLs; V2.73 cascaded `collection_asset`, `asset_task` and `asset_user_meta` from the asset, so an asset that is filed or referenced can be deleted at last; V2.72 made the `tag_asset` links cascade both ways; V2.71 gave `tag_asset` a surrogate PK, a `NULLS NOT DISTINCT` placement key and provenance columns — one tag may now sit on an asset several times and every placement names its writer. Also added the transaction gotcha — inside `ctx().transaction(...)` only `cfg.dsl()` is in the transaction — and `TagDao.bulkTagAsset` as its reference. Earlier: migrations to V2.63, pooled test DBs, DAO/test matrix rebuilt from the actual classes.)_

@@ -4,7 +4,6 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
-import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
@@ -70,10 +69,6 @@ public interface DaoProvider extends DaoCollection {
 
 	default AssetDao assetDao() {
 		return daos().assetDao();
-	}
-
-	default AssetLocationDao assetLocationDao() {
-		return daos().assetLocationDao();
 	}
 
 	default AssetBinaryDao assetBinaryDao() {

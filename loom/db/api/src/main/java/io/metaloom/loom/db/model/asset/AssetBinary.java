@@ -50,6 +50,33 @@ public interface AssetBinary extends CUDElement<AssetBinary>, Taggable, MetaElem
 
 	AssetBinary setMimeType(String mimeType);
 
+	/**
+	 * The current state of the location, e.g. whether the binary is present or has gone missing.
+	 *
+	 * @return the state, or null when nothing has recorded one
+	 */
+	String getState();
+
+	AssetBinary setState(String state);
+
+	/**
+	 * The license which applies to the binary at this location.
+	 *
+	 * @return the license, or null when none is recorded
+	 */
+	String getLicense();
+
+	AssetBinary setLicense(String license);
+
+	/**
+	 * The user currently holding a lock on this location.
+	 *
+	 * @return the user uuid, or null when the location is unlocked
+	 */
+	UUID getLockedByUuid();
+
+	AssetBinary setLockedByUuid(UUID lockedByUuid);
+
 	Long getFilekeyInode();
 
 	AssetBinary setFilekeyInode(Long inode);

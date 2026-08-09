@@ -215,46 +215,6 @@ and add a backend spec that uploads real bytes end to end.
 
 ---
 
-## Task 7: E2E for the debug preview renderers
-
-**Argumentation Summary:** `384fe94e` ("Update color handling, debug preview handling") added 93
-lines to [NodeResultDetail.tsx](../../loom-ui/src/features/pipeline/NodeResultDetail.tsx) and
-rewrote `resultRenderers.ts`, shipping four new testids — `result-element-previews`,
-`result-image-note`, `result-media-path`, `node-result-more` — **none of which any spec references**.
-The commit added `nodeColors.test.ts` and `resultRenderers.test.ts` (vitest), which cover the pure
-mapping functions but not the rendering: whether a MANY-port element grid actually paints, whether a
-missing binary degrades to the note rather than a broken `<img>`, whether "more" expands. This is the
-exact surface the [MANY-port preview gotcha](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) describes, and
-the preceding commit `81ad0fb4` set the standard by shipping three specs alongside its feature.
-
-**Improvement Summary:** Extend `pipeline-node-results-mocked.spec.ts` to render each result shape
-against the fixtures already in `loom-ui/scripts/fixtures/`.
-
-```
-1. Extend loom-ui/e2e/pipeline-node-results-mocked.spec.ts, reusing the payload shapes in
-   loom-ui/scripts/fixtures/manifest.json and scripts/fixtures/nodes/*/fixture.json so the spec and
-   the screenshot capture stay in agreement:
-     - a MANY-port result with N element previews renders `result-element-previews` with N tiles
-       (use the objectdetect fixture -- 30+ detections -- and assert the collapse threshold).
-     - `node-result-more` expands the collapsed remainder and the count in the label matches.
-     - an element whose binary 404s renders `result-image-note`, not a broken image.
-     - a non-image media result renders `result-media-path` with the path text.
-     - `result-preview-skipped` (already covered) still holds -- keep the existing case.
-2. If the render depends on a node descriptor kind, drive it from the NodeRegistry mock the sibling
-   pipeline specs already install rather than adding a second fixture source.
-3. Record in ../loom/ui/LOOM_UI_PIPELINE_EDITOR.md which result shapes now have E2E coverage.
-```
-
-**References:** commit `384fe94e` ·
-[NodeResultDetail.tsx](../../loom-ui/src/features/pipeline/NodeResultDetail.tsx) ·
-[resultRenderers.ts](../../loom-ui/src/features/pipeline/resultRenderers.ts) ·
-[pipeline-node-results-mocked.spec.ts](../../loom-ui/e2e/pipeline-node-results-mocked.spec.ts)
-
-**Test Requirements:** Four new cases in the existing spec.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/pipeline-node-results-mocked.spec.ts`
-
----
-
 ## Task 8: E2E for detection review and the face panels
 
 **Argumentation Summary:** The detection review workflow — the human-in-the-loop step that makes

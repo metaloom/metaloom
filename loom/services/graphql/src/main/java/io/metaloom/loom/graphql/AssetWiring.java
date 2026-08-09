@@ -14,8 +14,8 @@ import io.metaloom.loom.db.model.asset.AssetComponent;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
-import io.metaloom.loom.db.model.asset.AssetLocation;
-import io.metaloom.loom.db.model.asset.AssetLocationDao;
+import io.metaloom.loom.db.model.asset.AssetBinary;
+import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.utils.hash.SHA512;
@@ -26,12 +26,12 @@ import io.metaloom.utils.hash.SHA512;
 public class AssetWiring extends AbstractDomainWiring {
 
 	private final AssetDao assetDao;
-	private final AssetLocationDao locationDao;
+	private final AssetBinaryDao locationDao;
 	private final AssetComponentDao componentDao;
 
 	public AssetWiring(DaoCollection daos) {
 		this.assetDao = daos.assetDao();
-		this.locationDao = daos.assetLocationDao();
+		this.locationDao = daos.assetBinaryDao();
 		this.componentDao = daos.assetComponentDao();
 	}
 
@@ -55,25 +55,25 @@ public class AssetWiring extends AbstractDomainWiring {
 			return assetDao.findAll().collect(Collectors.toList());
 		};
 
-		DataFetcher<AssetLocation> assetLocationFetcher = env -> {
+		DataFetcher<AssetBinary> assetLocationFetcher = env -> {
 			requirePermission(env, Permission.READ_ASSET_LOCATION);
 			return locationDao.load(uuidArg(env, "uuid"));
 		};
 
-		DataFetcher<List<? extends AssetLocation>> assetLocationsFetcher = env -> {
+		DataFetcher<List<? extends AssetBinary>> assetLocationsFetcher = env -> {
 			requirePermission(env, Permission.READ_ASSET_LOCATION);
 			UUID assetUuid = uuidArg(env, "assetUuid");
 			if (assetUuid != null) {
-				return orEmpty(locationDao.findForAsset(assetUuid));
+				return orEmpty(locationDao.loadAllByAssetUuid(assetUuid));
 			}
 			return locationDao.findAll().collect(Collectors.toList());
 		};
 
 		// Asset field resolvers
-		DataFetcher<List<? extends AssetLocation>> locationsFetcher = env -> {
+		DataFetcher<List<? extends AssetBinary>> locationsFetcher = env -> {
 			requirePermission(env, Permission.READ_ASSET_LOCATION);
 			Asset asset = env.getSource();
-			return orEmpty(locationDao.findForAsset(asset.getUuid()));
+			return orEmpty(locationDao.loadAllByAssetUuid(asset.getUuid()));
 		};
 
 		DataFetcher<List<AssetImageComp>> imageCompsFetcher = env -> {
@@ -108,10 +108,10 @@ public class AssetWiring extends AbstractDomainWiring {
 			return asset.getMD5() != null ? asset.getMD5().toString() : null;
 		};
 
-		// AssetLocation field resolvers
+		// AssetLocation field resolvers (the GraphQL type name; the row is an AssetBinary)
 		DataFetcher<Asset> locationAssetFetcher = env -> {
 			requirePermission(env, Permission.READ_ASSET);
-			AssetLocation location = env.getSource();
+			AssetBinary location = env.getSource();
 			return location.getAssetUuid() == null ? null : assetDao.load(location.getAssetUuid());
 		};
 

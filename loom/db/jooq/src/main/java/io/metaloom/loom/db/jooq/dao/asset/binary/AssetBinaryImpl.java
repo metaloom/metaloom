@@ -17,9 +17,19 @@ public class AssetBinaryImpl extends AbstractEditableElement<AssetBinary> implem
 
 	private String mimeType;
 
+	private String state;
+
+	private String license;
+
+	private UUID lockedByUuid;
+
 	private Long filekeyInode;
 
-	private long filekeyStDev;
+	// Spelled the way jOOQ camel-cases the column: "filekey_stdev" -> "filekeyStdev". The field used
+	// to be "filekeyStDev", which matched nothing, so the column was silently dropped on write and
+	// read back as the primitive default - the file key the REST layer hands out always carried
+	// stDev 0. Boxed for the same reason getFilekeyInode is: the column is nullable.
+	private Long filekeyStdev;
 
 	private Long filekeyEdate;
 
@@ -81,6 +91,39 @@ public class AssetBinaryImpl extends AbstractEditableElement<AssetBinary> implem
 	}
 
 	@Override
+	public String getState() {
+		return state;
+	}
+
+	@Override
+	public AssetBinary setState(String state) {
+		this.state = state;
+		return this;
+	}
+
+	@Override
+	public String getLicense() {
+		return license;
+	}
+
+	@Override
+	public AssetBinary setLicense(String license) {
+		this.license = license;
+		return this;
+	}
+
+	@Override
+	public UUID getLockedByUuid() {
+		return lockedByUuid;
+	}
+
+	@Override
+	public AssetBinary setLockedByUuid(UUID lockedByUuid) {
+		this.lockedByUuid = lockedByUuid;
+		return this;
+	}
+
+	@Override
 	public Long getFilekeyInode() {
 		return filekeyInode;
 	}
@@ -93,12 +136,12 @@ public class AssetBinaryImpl extends AbstractEditableElement<AssetBinary> implem
 
 	@Override
 	public Long getFilekeyStDev() {
-		return filekeyStDev;
+		return filekeyStdev;
 	}
 
 	@Override
 	public AssetBinary setFilekeyStDev(Long stDev) {
-		this.filekeyStDev = stDev;
+		this.filekeyStdev = stDev;
 		return this;
 	}
 

@@ -19,7 +19,7 @@ asset data with nested component and location information.
 - **Asset queries** - fetch assets by UUID or list all
 - **Nested data** - image/video/audio components, locations, hashes
 - **Custom `Long` scalar** - for file sizes exceeding 32-bit range
-- **DAO integration** - wired to `DaoCollection` (AssetDao, AssetLocationDao, AssetComponentDao)
+- **DAO integration** - wired to `DaoCollection` (AssetDao, AssetBinaryDao, AssetComponentDao)
 - **Unit tests** - with mocked DAOs
 
 ## Schema Summary

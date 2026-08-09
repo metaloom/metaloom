@@ -10,7 +10,7 @@ import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.core.dagger.LoomCoreComponent;
 import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.asset.Asset;
-import io.metaloom.loom.db.model.asset.AssetLocation;
+import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.attachment.Attachment;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.chat.Chat;
@@ -54,7 +54,7 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 
 		// Add Assets to library
 		Asset asset = createAsset(library, user);
-		AssetLocation assetLocation = createAssetLocation(library, asset, user);
+		AssetBinary assetLocation = createAssetLocation(library, asset, user);
 
 		// Additional assets for richer MCP tool testing
 		Asset videoAsset = createNamedAsset(user, "drone_cityscape.mp4", "video/mp4",
@@ -273,10 +273,10 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		return attachment;
 	}
 
-	private AssetLocation createAssetLocation(Library library, Asset asset, User user) {
-		AssetLocation assetLocation = assetLocationDao().createAssetLocation("blume.mp4", asset.getUuid(), user.getUuid(), library.getUuid());
+	private AssetBinary createAssetLocation(Library library, Asset asset, User user) {
+		AssetBinary assetLocation = assetBinaryDao().createAssetBinary("blume.mp4", asset.getUuid(), user.getUuid(), library.getUuid());
 		assetLocation.setUuid(ASSET_LOCATION_UUID);
-		assetLocationDao().store(assetLocation);
+		assetBinaryDao().store(assetLocation);
 		return assetLocation;
 	}
 

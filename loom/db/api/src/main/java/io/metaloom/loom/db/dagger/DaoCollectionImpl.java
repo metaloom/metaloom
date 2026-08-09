@@ -8,7 +8,6 @@ import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetNodeResultDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
-import io.metaloom.loom.db.model.asset.AssetLocationDao;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
@@ -55,7 +54,6 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AssetComponentDao> assetComponentDao;
 	private final Lazy<AssetNodeResultDao> assetNodeResultDao;
 	private final Lazy<io.metaloom.loom.db.model.dedup.DedupGroupDao> dedupGroupDao;
-	private final Lazy<AssetLocationDao> assetLocationDao;
 	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
 	private final Lazy<CollectionDao> collectionDao;
@@ -92,7 +90,7 @@ public class DaoCollectionImpl implements DaoCollection {
 
 	@Inject
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
-		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetLocationDao> assetLocationDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
+		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
 		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao,
 		Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
@@ -115,7 +113,6 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.assetNodeResultDao = assetNodeResultDao;
 		this.dedupGroupDao = dedupGroupDao;
 		this.permissionDao = permissionDao;
-		this.assetLocationDao = assetLocationDao;
 		this.assetBinaryDao = assetBinaryDao;
 		this.libraryDao = libraryDao;
 		this.collectionDao = collectionDao;
@@ -148,11 +145,6 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.cortexInstanceDao = cortexInstanceDao;
 		this.nodeDescriptorDao = nodeDescriptorDao;
 		this.loomDao = loomDao;
-	}
-
-	@Override
-	public AssetLocationDao assetLocationDao() {
-		return assetLocationDao.get();
 	}
 
 	@Override

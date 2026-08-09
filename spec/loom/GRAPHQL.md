@@ -191,8 +191,8 @@ DAO. Because the permission check precedes DAO access, permission tests need no 
 | Field | DAO call |
 |-------|----------|
 | `asset` / `assetBySha512` / `assets` | `AssetDao.load(UUID)` / `loadBySHA512(SHA512)` / `findAll()` |
-| `assetLocations` | `AssetLocationDao.findForAsset(UUID)` when `assetUuid` given, else `findAll()` |
-| `Asset.locations` | `AssetLocationDao.findForAsset(asset.getUuid())` (indexed lookup, no in-memory filter) |
+| `assetLocations` | `AssetBinaryDao.loadAllByAssetUuid(UUID)` when `assetUuid` given, else `findAll()` |
+| `Asset.locations` | `AssetBinaryDao.loadAllByAssetUuid(asset.getUuid())` (indexed lookup, no in-memory filter) |
 | `Asset.{image,video,audio}Components` | `AssetComponentDao.load{Image,Video,Audio}Comps(UUID)` |
 | `user` / `userByUsername` / `users` | `UserDao.load` / `loadByUsername` / `findAll` |
 | `group*` / `role*` | `GroupDao` / `RoleDao` `load` / `loadByName` / `findAll` |
@@ -404,7 +404,7 @@ is always registered at the fixed path and there is no depth/complexity limiting
   `.collect(Collectors.toList())`. There is no pagination on the list queries.
 - **N+1 remains.** Every relation on a list element fires its own DAO call
   (`assets { locations imageComponents }` = one call per asset per relation). `Asset.locations` uses
-  the indexed `findForAsset(UUID)`, but the per-element fan-out is unchanged. Fix = DataLoader.
+  the indexed `loadAllByAssetUuid(UUID)`, but the per-element fan-out is unchanged. Fix = DataLoader.
 - **Non-null lists amplify denials.** A `FORBIDDEN` on `[T!]!` null-propagates to the nearest
   nullable parent, so a partially unauthorized query can return `data: { asset: null }`.
 - **HTTP 200 on GraphQL errors.** Clients must inspect the `errors` array, not the status code.
@@ -517,4 +517,5 @@ N+1 without DataLoader, and field-level rather than endpoint-level authorization
 ---
 
 _Git HEAD revision: `2e5981cb`_
-_Last updated: 2026-08-01 (Verified against the code: the GraphQL service is registered and reachable at `POST /api/v1/graphql`; corrected the CORS, DAO-mapping, config and test claims.)_
+_Last updated: 2026-08-09 (`AssetLocationDao` was deleted; the location fetchers now call
+`AssetBinaryDao.loadAllByAssetUuid`. The `AssetLocation` GraphQL type name is unchanged. Earlier: Verified against the code: the GraphQL service is registered and reachable at `POST /api/v1/graphql`; corrected the CORS, DAO-mapping, config and test claims.)_

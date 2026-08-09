@@ -27,8 +27,8 @@ import io.metaloom.loom.db.model.asset.AssetAudioComp;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
-import io.metaloom.loom.db.model.asset.AssetLocation;
-import io.metaloom.loom.db.model.asset.AssetLocationDao;
+import io.metaloom.loom.db.model.asset.AssetBinary;
+import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.utils.hash.SHA512;
@@ -42,7 +42,7 @@ public class LoomGraphQLProviderTest {
 
 	private DaoCollection daos;
 	private AssetDao assetDao;
-	private AssetLocationDao locationDao;
+	private AssetBinaryDao locationDao;
 	private AssetComponentDao componentDao;
 	private LoomGraphQLProvider provider;
 
@@ -50,18 +50,18 @@ public class LoomGraphQLProviderTest {
 	void setup() {
 		daos = mock(DaoCollection.class);
 		assetDao = mock(AssetDao.class);
-		locationDao = mock(AssetLocationDao.class);
+		locationDao = mock(AssetBinaryDao.class);
 		componentDao = mock(AssetComponentDao.class);
 
 		when(daos.assetDao()).thenReturn(assetDao);
-		when(daos.assetLocationDao()).thenReturn(locationDao);
+		when(daos.assetBinaryDao()).thenReturn(locationDao);
 		when(daos.assetComponentDao()).thenReturn(componentDao);
 
 		// Default stubs
 		when(assetDao.load(any())).thenReturn(null);
 		doReturn(Stream.empty()).when(assetDao).findAll();
 		doReturn(Stream.empty()).when(locationDao).findAll();
-		when(locationDao.findForAsset(any())).thenReturn(Collections.emptyList());
+		when(locationDao.loadAllByAssetUuid(any())).thenReturn(Collections.emptyList());
 		when(componentDao.loadImageComps(any())).thenReturn(Collections.emptyList());
 		when(componentDao.loadVideoComps(any())).thenReturn(Collections.emptyList());
 		when(componentDao.loadAudioComps(any())).thenReturn(Collections.emptyList());
@@ -155,7 +155,7 @@ public class LoomGraphQLProviderTest {
 		when(componentDao.loadVideoComps(ASSET_UUID)).thenReturn(Collections.emptyList());
 		when(componentDao.loadAudioComps(ASSET_UUID)).thenReturn(Collections.emptyList());
 
-		AssetLocation location = mock(AssetLocation.class);
+		AssetBinary location = mock(AssetBinary.class);
 		UUID locationUuid = UUID.randomUUID();
 		UUID libraryUuid = UUID.randomUUID();
 		when(location.getUuid()).thenReturn(locationUuid);
@@ -163,7 +163,7 @@ public class LoomGraphQLProviderTest {
 		when(location.getAssetUuid()).thenReturn(ASSET_UUID);
 		when(location.getLibraryUuid()).thenReturn(libraryUuid);
 		when(location.getMimeType()).thenReturn("application/pdf");
-		when(locationDao.findForAsset(ASSET_UUID)).thenReturn(List.of(location));
+		when(locationDao.loadAllByAssetUuid(ASSET_UUID)).thenReturn(List.of(location));
 
 		String query = "{ asset(uuid: \"" + ASSET_UUID + "\") { uuid locations { path mimeType } } }";
 		ExecutionResult result = execute(query);
@@ -215,11 +215,11 @@ public class LoomGraphQLProviderTest {
 		Asset asset = mockAsset(ASSET_UUID, "doc.pdf", "application/pdf", 3000L);
 		when(assetDao.load(ASSET_UUID)).thenReturn(asset);
 
-		AssetLocation location = mock(AssetLocation.class);
+		AssetBinary location = mock(AssetBinary.class);
 		when(location.getUuid()).thenReturn(UUID.randomUUID());
 		when(location.getPath()).thenReturn("/data/files/doc.pdf");
 		when(location.getAssetUuid()).thenReturn(ASSET_UUID);
-		when(locationDao.findForAsset(ASSET_UUID)).thenReturn(List.of(location));
+		when(locationDao.loadAllByAssetUuid(ASSET_UUID)).thenReturn(List.of(location));
 
 		// User may read assets but not asset locations.
 		GraphQLPermissionChecker checker = perm -> perm == Permission.READ_ASSET;

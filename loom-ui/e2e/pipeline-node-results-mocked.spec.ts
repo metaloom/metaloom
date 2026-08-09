@@ -1,4 +1,7 @@
 import { test, expect, Page } from "@playwright/test";
+import { fileURLToPath } from "url";
+import path from "path";
+import fs from "fs";
 
 /**
  * Mocked tests for per-node result inspection.
@@ -15,13 +18,60 @@ const PIPELINE_NAME = "Quick Hash";
 const RUN_UUID = "run-0000-0000-0000-000000000001";
 const ITEM_UUID = "item-0000-0000-0000-000000000001";
 
+/**
+ * The payloads a real node produced.
+ *
+ * `scripts/fixtures/` is written by `DocsFixtureGenerator` (integration-test) and is what
+ * `scripts/capture-debug-screenshots.mjs` photographs. Reading it here rather than hand-writing a
+ * 33-element detection port is the whole point: the spec and the documentation screenshots then
+ * cannot describe two different renderings of the same payload, and a node whose output shape
+ * changes breaks this spec instead of silently ageing the pictures.
+ */
+const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../scripts/fixtures");
+const OBJECTDETECT = JSON.parse(
+  fs.readFileSync(path.join(FIXTURES, "nodes/objectdetect/fixture.json"), "utf8"),
+) as {
+  outputs: Record<string, { contentType: string; cardinality: string; elements: unknown[] }>;
+  previews: Record<string, { file: string; mimeType: string; width: number; height: number; markdown?: string }>;
+};
+
+/** Ports the objectdetect node wrote, in the order the strip will list them. */
+const DETECT_PORTS = Object.keys(OBJECTDETECT.outputs);
+/** How many detections the fixture carries — 33, one preview crop each. */
+const DETECTION_COUNT = OBJECTDETECT.outputs.detections.elements.length;
+/** Ports shown before `NodeResultStrip` collapses the rest into "+n more". */
+const MAX_STRIP_ROWS = 3;
+
 const DEFINITION = {
   nodes: [
     { id: "src", type: "filesystem-source", label: "Source", position: { x: 0, y: 0 }, data: {} },
     { id: "sha512", type: "sha512", label: "SHA-512", position: { x: 260, y: 0 }, data: {} },
+    { id: "det", type: "objectdetect", label: "Objects", position: { x: 520, y: 0 }, data: {} },
   ],
-  edges: [{ id: "e1", source: "src", target: "sha512" }],
+  edges: [
+    { id: "e1", source: "src", target: "sha512" },
+    { id: "e2", source: "src", target: "det" },
+  ],
 };
+
+/** The URL the tasks route advertises for one preview key, exactly as `PipelineModelBuilder` builds it. */
+function previewUrl(taskUuid: string, key: string): string {
+  return `/api/v1/pipelines/${PIPELINE_UUID}/runs/${RUN_UUID}/items/${ITEM_UUID}`
+    + `/tasks/${taskUuid}/previews/${encodeURIComponent(key)}`;
+}
+
+/**
+ * The fixture's preview metadata, with the `file` reference swapped for the URL the server would
+ * have published. Keys are `portId` and `portId#seq` — the per-element crops live in the same map
+ * as the port-level frame, which is what `NodeResultDetail` walks to build the tile grid.
+ */
+function detectPreviews(taskUuid: string): Record<string, unknown> {
+  const previews: Record<string, unknown> = {};
+  for (const [key, { file: _file, ...meta }] of Object.entries(OBJECTDETECT.previews)) {
+    previews[key] = { ...meta, url: previewUrl(taskUuid, key) };
+  }
+  return previews;
+}
 
 function pipeline() {
   return {
@@ -114,6 +164,15 @@ const TASKS = [
       faces: { markdown: "| # | confidence |\n|---|---|\n| 0 | 0.93 |\n| 1 | 0.71 |" },
     },
   },
+  {
+    // Verbatim from the objectdetect fixture: four ports, one of them a MANY detection port with
+    // 33 encoded-JSON elements and a preview crop per element.
+    uuid: "task-3", itemUuid: ITEM_UUID, runUuid: RUN_UUID,
+    nodeId: "det", nodeKind: "objectdetect", elementSeq: 0,
+    state: "DONE", attempt: 1, maxAttempts: 3, durationMs: 2732,
+    outputs: OBJECTDETECT.outputs,
+    previews: detectPreviews("task-3"),
+  },
 ];
 
 async function mockBackend(page: Page) {
@@ -147,7 +206,24 @@ async function mockBackend(page: Page) {
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data: TASKS }) });
   });
 
+  // Real JPEG bytes for every preview the fixture wrote, port-level and per-element alike. Without
+  // them the catch-all above answers an <img> with JSON and every picture in this spec is broken —
+  // which would make "the preview binary is gone" indistinguishable from the happy path.
+  for (const [key, { file }] of Object.entries(OBJECTDETECT.previews)) {
+    const bytes = fs.readFileSync(path.join(FIXTURES, "nodes/objectdetect", file));
+    await page.route(`**/previews/${encodeURIComponent(key)}`, route =>
+      route.fulfill({ status: 200, contentType: "image/jpeg", body: bytes }));
+  }
+  const thumbBytes = fs.readFileSync(path.join(FIXTURES, "thumbnail-grid.jpg"));
+  await page.route("**/previews/thumb", route =>
+    route.fulfill({ status: 200, contentType: "image/jpeg", body: thumbBytes }));
+
   return { calls };
+}
+
+/** Whether the browser actually decoded an image, as opposed to painting a broken-image frame. */
+async function loaded(image: import("@playwright/test").Locator): Promise<boolean> {
+  return image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0);
 }
 
 async function loginAndOpenEditor(page: Page) {
@@ -340,6 +416,130 @@ test.describe("Pipeline node results – mocked", () => {
     await expect(page.getByTestId("result-tab-json")).toBeVisible();
     await expect(page.getByTestId("result-tab-raw")).toBeVisible();
     await expect(page.getByTestId("result-tab-markdown")).toHaveCount(0);
+    await expect(page.getByTestId("result-tab-image")).toHaveCount(0);
+  });
+
+  test("a MANY detection port draws one preview tile per element, uncollapsed", async ({ page }) => {
+    await mockBackend(page);
+    await loginAndOpenEditor(page);
+
+    await page.getByTestId("pipeline-debug-toggle").click();
+    await inspectTheItem(page);
+    await closeDrawer(page);
+
+    await clickPort(page, "det", "detections");
+    await expect(page.getByTestId("pipeline-result-detail")).toBeVisible({ timeout: 5_000 });
+    // The node described its own output, so Markdown opens first; the crops live behind Image.
+    await expect(page.getByTestId("result-view-markdown")).toBeVisible();
+    await page.getByTestId("result-tab-image").click();
+
+    const grid = page.getByTestId("result-element-previews");
+    await expect(grid).toBeVisible({ timeout: 5_000 });
+    // One tile per element and no cap: the grid is the answer to "which 33 things did it find",
+    // so a threshold that quietly dropped the tail would be worse than not drawing it at all.
+    // If a collapse is ever introduced here, this count is what has to be updated with it.
+    await expect(grid.locator("img")).toHaveCount(DETECTION_COUNT);
+    await expect(page.getByTestId(`result-element-preview-${DETECTION_COUNT - 1}`)).toBeAttached();
+
+    // The tiles are real bytes off the preview route, not alt text where a picture should be.
+    expect(await loaded(page.getByTestId("result-element-preview-0"))).toBe(true);
+    expect(await loaded(page.getByTestId(`result-element-preview-${DETECTION_COUNT - 1}`))).toBe(true);
+
+    // The port-level frame carries the boxes; the crops carry the identities. Both, or the Image
+    // tab is only half of what it claims to be.
+    await expect(page.getByTestId("result-view-image").locator("img").first())
+      .toHaveAttribute("src", /\/previews\/detections$/);
+    expect(await page.getByTestId("result-view-image")
+      .locator("[data-testid^='result-detection-box-']").count()).toBeGreaterThan(0);
+  });
+
+  test("the result strip collapses past three ports and counts the remainder", async ({ page }) => {
+    await mockBackend(page);
+    await loginAndOpenEditor(page);
+
+    await page.getByTestId("pipeline-debug-toggle").click();
+    await inspectTheItem(page);
+    await closeDrawer(page);
+
+    const card = page.getByTestId("pipeline-node-det");
+    await expect(card.getByTestId("node-result-strip")).toBeVisible({ timeout: 5_000 });
+
+    // A card has to stay a card, so the strip shows three ports and says how many it kept back.
+    const hidden = DETECT_PORTS.length - MAX_STRIP_ROWS;
+    expect(hidden).toBeGreaterThan(0);
+    await expect(card.locator("[data-testid^='node-result-port-']")).toHaveCount(MAX_STRIP_ROWS);
+    await expect(card.getByTestId("node-result-more")).toHaveText(`+${hidden} more`);
+
+    for (const portId of DETECT_PORTS.slice(0, MAX_STRIP_ROWS)) {
+      await expect(card.getByTestId(`node-result-port-${portId}`)).toBeVisible();
+    }
+    for (const portId of DETECT_PORTS.slice(MAX_STRIP_ROWS)) {
+      await expect(card.getByTestId(`node-result-port-${portId}`)).toHaveCount(0);
+    }
+
+    // The label is a count, not a control: it does not expand, and the remaining ports are read
+    // from the Results tab of the sidebar instead. Clicking it must not select the node either,
+    // which is what would happen if the row swallowed the event and the card did not.
+    await card.getByTestId("node-result-more").dispatchEvent("click");
+    await expect(card.getByTestId(`node-result-port-${DETECT_PORTS[MAX_STRIP_ROWS]}`)).toHaveCount(0);
+  });
+
+  test("a preview that cannot be shown says so rather than showing a broken picture", async ({ page }) => {
+    await mockBackend(page);
+    // Registered last, so it wins over the bytes route: the metadata still promises an image and
+    // 512×288, but the binary behind it is gone — an expired run directory, typically.
+    await page.route("**/previews/thumb", route =>
+      route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ message: "Not found" }) }));
+    await loginAndOpenEditor(page);
+
+    await page.getByTestId("pipeline-debug-toggle").click();
+    await inspectTheItem(page);
+    await closeDrawer(page);
+
+    await clickPort(page, "src", "thumb");
+    await expect(page.getByTestId("result-view-image")).toBeVisible({ timeout: 5_000 });
+
+    // What survives the 404 is the note: the dimensions the server recorded, and the statement
+    // that this was only ever a reduced copy. The <img> itself has no onError fallback today, so
+    // it is the note that has to carry the information — assert it does.
+    const note = page.getByTestId("result-image-note");
+    await expect(note).toBeVisible();
+    await expect(note).toContainText("512×288");
+    expect(await loaded(page.getByTestId("result-view-image").locator("img"))).toBe(false);
+    // Nothing per-element was written for this port, so no empty grid is drawn.
+    await expect(page.getByTestId("result-element-previews")).toHaveCount(0);
+
+    await page.getByTestId("pipeline-result-detail-close").click();
+    await expect(page.getByTestId("pipeline-result-detail")).toBeHidden();
+
+    // The other way a preview goes missing: the worker declined to make one. That is a different
+    // statement from "the port emitted nothing", and the detail view makes it in words.
+    await clickPort(page, "src", "huge");
+    await expect(page.getByTestId("pipeline-result-detail")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("result-tab-image")).toHaveCount(0);
+    await expect(page.getByTestId("result-preview-skipped")).toContainText("98304 bytes");
+    // Raw is the verbatim payload and nothing else, so the note steps aside there.
+    await page.getByTestId("result-tab-raw").click();
+    await expect(page.getByTestId("result-preview-skipped")).toHaveCount(0);
+  });
+
+  test("a media port shows the path it carried, since the browser cannot open it", async ({ page }) => {
+    await mockBackend(page);
+    await loginAndOpenEditor(page);
+
+    await page.getByTestId("pipeline-debug-toggle").click();
+    await inspectTheItem(page);
+    await closeDrawer(page);
+
+    await clickPort(page, "src", "media");
+
+    // A playable value on a `media/*` port opens the player first — and the player is a statement,
+    // because the value is a path on the worker that holds the file.
+    await expect(page.getByTestId("result-view-media")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("result-media-path"))
+      .toHaveText("/media/library/holiday-clip.mp4");
+    await expect(page.getByTestId("result-view-media").locator("video, audio")).toHaveCount(0);
+    // No preview was written for this port, so there is nothing to show as an image.
     await expect(page.getByTestId("result-tab-image")).toHaveCount(0);
   });
 

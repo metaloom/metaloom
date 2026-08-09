@@ -157,7 +157,7 @@ All in `loom-ui/src/features/pipeline/PipelineEditor.tsx` unless noted. Line num
 | `contentTypes.ts` | — | Mirror of Java `ContentTypeLattice`: `family`, `isAssignable`, `isProvisional`, `FAMILY_COLORS` |
 | `resultRenderers.ts` | — | `previewKind` / `summarizePayload` / `payloadToMarkdownTable`. Switches on the **content-type family**, never the node kind, so an unreleased node still renders |
 | `NodeResultStrip.tsx` | — | The per-port readout on a node card. Sums element counts across a fan-out's tasks; caps at 3 ports with a `+n more` |
-| `NodeResultDetail.tsx` | — | The enlarged view. `viewersFor()` is exported and unit-tested: it decides which tabs a port can offer and in what order |
+| `NodeResultDetail.tsx` | — | The enlarged view. `viewersFor()` is exported and unit-tested: it decides which tabs a port can offer and in what order. Its Image tab draws the port-level frame with `detectionRegions` boxes over it plus **one uncapped tile per element** (`portId#seq` previews) — unlike the strip, this grid does not collapse |
 | `portResolvers.ts` | — | Mirrors of `ScriptPortResolver` / `PromptPortResolver` for `dynamicPorts` kinds |
 | `pipelineDiff.ts` / `PipelineVersionDiff.tsx` | — | Node/edge diff between two versions |
 | `types/nodeDescriptors.ts` | — | `NodeDescriptor`, `PortSpec`, `PortGroup`, `ContentType`, `NodeParameter` |
@@ -438,6 +438,14 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
   the bottom-right of the canvas, so a right-hand node's result rows are covered — even a forced
   click is received by the minimap. `e2e/pipeline-node-results-mocked.spec.ts` uses
   `dispatchEvent("click")`, which still bubbles into React's handler.
+- **A mocked spec whose catch-all answers `**/api/v1/**` with JSON serves that JSON to `<img>` too.**
+  Every preview is then a broken picture, and an assertion that a preview *renders* passes on a port
+  whose bytes were never fetched. `pipeline-node-results-mocked.spec.ts` routes real fixture JPEGs
+  and checks `naturalWidth > 0`, which is the only thing that tells a painted preview apart from a
+  missing one.
+- **`node-result-more` is a count, not an expander.** There is no way to reach a node's fourth port
+  from the canvas; the Results tab of the sidebar lists them all. A spec that clicks it and waits
+  for the remainder waits forever.
 - **`page.routeWebSocket` must be awaited before the page navigates.** It returns a promise, and a
   route registered after the app has already opened its socket intercepts nothing — the helper's
   `sockets` array then stays empty forever and `waitForSocket` times out. Every events spec
@@ -524,7 +532,7 @@ yarn playwright test e2e/pipeline-crud-mocked.spec.ts
 | `e2e/pipeline-versions-mocked.spec.ts`, `pipeline-versions.spec.ts`, `pipeline-diff-backend.spec.ts` | Version badge, restore, diff |
 | `e2e/pipeline-events-mocked.spec.ts` | Node pulsing / last-result tinting from WS frames; `NODE_STATS` counters rendering **only** in debug mode, and `activeCount` driving the pulse |
 | `e2e/pipeline-run-pause-mocked.spec.ts` | Pause → Resume swap, both POSTs, Cancel surviving `PAUSED`, and a `RUN_PAUSED` frame flipping the control with no local click |
-| `e2e/pipeline-node-results-mocked.spec.ts` | Selecting an item fetches its tasks and paints per-port results; results hidden with debug off; the inspected-item chip clears them; the Results tab shows a FAILED node's error, retry count and (retained) outputs; thumbnails for produced images and a marker for a capped one; the detail view opening on a node-authored description, on an image, and offering no pointless table for a scalar |
+| `e2e/pipeline-node-results-mocked.spec.ts` | Selecting an item fetches its tasks and paints per-port results; results hidden with debug off; the inspected-item chip clears them; the Results tab shows a FAILED node's error, retry count and (retained) outputs; thumbnails for produced images and a marker for a capped one; the detail view opening on a node-authored description, on an image, and offering no pointless table for a scalar. **Result shapes with E2E coverage** (payloads read from `loom-ui/scripts/fixtures/`, so the spec and the documentation screenshots cannot drift apart): a MANY `detection/*` port drawing one *loaded* tile per element with no cap plus the box overlay; the strip collapsing past three ports into `+n more` with the hidden ports absent and the label inert; a 404 preview binary leaving `result-image-note` (and its recorded dimensions) as what carries the information; a capped preview naming its reason on every tab but Raw; a `media/*` path rendering as `result-media-path` with no player |
 | `src/api/pipelineRunControls.test.ts` | pause/resume/cancel clients: path, verb, bearer header, uuid encoding, and the server message surviving into the thrown error |
 | `src/api/pipelineBreakpoints.test.ts` | The four breakpoint clients, and the asymmetry that matters: a **read** degrades to "nothing armed, nothing held" because a run whose engine is gone genuinely is holding nothing, while a **write** throws and carries the server's message |
 | `e2e/pipeline-breakpoints-mocked.spec.ts` | Gutter only in debug mode; arm/disarm sending the whole set; arming not selecting the node; a `NODE_BREAKPOINT_HELD` frame ringing the node with no click and clearing the pulse; the hold loading the stopped item's results; the transport appearing only once something is held; Step and Continue reaching their routes; a release frame clearing the ring; a run started armed carrying `breakpoints[]`; debug off carrying none; and a run already stopped being adopted on open |
@@ -552,9 +560,10 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 `pipeline-inspected-item`, `node-result-strip`, `node-result-port-<portId>` (with
 `data-content-type` / `data-empty`), `node-result-task` (`data-state`), `node-result-error`,
 `node-result-attempts`, `node-result-dead-letter`, `node-results-no-item|empty`,
-`node-result-thumb-<portId>`, `node-result-preview-skipped-<portId>`,
+`node-result-thumb-<portId>`, `node-result-preview-skipped-<portId>`, `node-result-more`,
 `pipeline-result-detail[-close]`, `result-tab-{image|markdown|media|json|raw}`,
-`result-view-{…}`,
+`result-view-{…}`, `result-image-note`, `result-media-path`, `result-preview-skipped`,
+`result-detection-box-<id>`, `result-element-previews`, `result-element-preview-<seq>`,
 `pipeline-run-item` (now also `data-selected`),
 `pipeline-run-detail-drawer|close`, `pipeline-run-item[-error]`,
 `pipeline-run-items-loading|empty`, `pipeline-log-status`.
@@ -585,4 +594,6 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 ---
 
 _Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-04 (Debugging phase 5 — editing a held node's settings as a run-scoped draft, re-executing it, Save to pipeline, and the attempt selector. Earlier: phases 1–4 — run pause/resume, debug mode, NODE_STATS counters, per-node result inspection, previews, the enlarged detail view, and breakpoints + stepping)_
+_Last updated: 2026-08-09 (E2E coverage for the debug preview renderers: element-preview grid,
+strip collapse, missing/capped previews, media paths — driven from `loom-ui/scripts/fixtures/`.
+Earlier: Debugging phase 5 — editing a held node's settings as a run-scoped draft, re-executing it, Save to pipeline, and the attempt selector. Earlier: phases 1–4 — run pause/resume, debug mode, NODE_STATS counters, per-node result inspection, previews, the enlarged detail view, and breakpoints + stepping)_

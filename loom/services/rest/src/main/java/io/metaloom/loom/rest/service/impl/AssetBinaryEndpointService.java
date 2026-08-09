@@ -53,9 +53,9 @@ public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<Asse
 	private final BinaryStorageResolver storageResolver;
 
 	@Inject
-	public AssetBinaryEndpointService(AssetBinaryDao assetLocationDao, DaoCollection daos, LoomModelBuilder modelBuilder,
+	public AssetBinaryEndpointService(AssetBinaryDao assetBinaryDao, DaoCollection daos, LoomModelBuilder modelBuilder,
 		LoomModelValidator validator, BinaryStorageResolver storageResolver) {
-		super(assetLocationDao, daos, modelBuilder, validator);
+		super(assetBinaryDao, daos, modelBuilder, validator);
 		this.storageResolver = storageResolver;
 	}
 

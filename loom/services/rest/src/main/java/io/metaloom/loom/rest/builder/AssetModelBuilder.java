@@ -12,7 +12,7 @@ import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
 import io.metaloom.loom.db.model.asset.AssetGeoComp;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
-import io.metaloom.loom.db.model.asset.AssetLocation;
+import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
 import io.metaloom.loom.db.model.tag.AssetTag;
 import io.metaloom.loom.db.page.Page;
@@ -88,8 +88,8 @@ public interface AssetModelBuilder extends ModelBuilder, UserModelBuilder, Asset
 			.map(this::toDocumentInfo).collect(Collectors.toList());
 		response.setDocumentComponents(docList);
 
-		List<AssetLocation> locations = daos().assetLocationDao().findForAsset(assetUuid);
-		List<AssetLocationResponse> locationModels = locations.stream().map(this::toResponse).collect(Collectors.toList());
+		List<AssetBinary> locations = daos().assetBinaryDao().loadAllByAssetUuid(assetUuid);
+		List<AssetLocationResponse> locationModels = locations.stream().map(this::toLocationResponse).collect(Collectors.toList());
 		response.setLocations(locationModels);
 
 		response.setTags(assetTags(asset));

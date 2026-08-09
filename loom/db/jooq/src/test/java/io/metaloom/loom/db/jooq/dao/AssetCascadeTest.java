@@ -23,13 +23,13 @@ import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
+import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
 import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
 import io.metaloom.loom.db.model.asset.AssetGeoComp;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
 import io.metaloom.loom.db.model.asset.AssetJsonComp;
-import io.metaloom.loom.db.model.asset.AssetLocation;
 import io.metaloom.loom.db.model.asset.AssetNodeResult;
 import io.metaloom.loom.db.model.asset.AssetSegmentComp;
 import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
@@ -140,8 +140,8 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		Dependents d = new Dependents();
 
 		// asset_location (V2.10)
-		AssetLocation location = assetLocationDao().createAssetLocation("/pool/" + seed + ".jpg", assetUuid, ADMIN_UUID, LIBRARY_UUID);
-		assetLocationDao().store(location);
+		AssetBinary location = assetBinaryDao().createAssetBinary("/pool/" + seed + ".jpg", assetUuid, ADMIN_UUID, LIBRARY_UUID);
+		assetBinaryDao().store(location);
 		d.location = location.getUuid();
 
 		// The nine typed components (V2.38–V2.42)
@@ -254,7 +254,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 	}
 
 	private void assertGone(Dependents d) {
-		assertNull(assetLocationDao().load(d.location), "asset_location must cascade with the asset");
+		assertNull(assetBinaryDao().load(d.location), "asset_location must cascade with the asset");
 		assertNull(comp().loadGeoComp(d.geo), "asset_geo_comp must cascade with the asset");
 		assertNull(comp().loadDocComp(d.doc), "asset_doc_comp must cascade with the asset");
 		assertNull(comp().loadImageComp(d.image), "asset_image_comp must cascade with the asset");
@@ -277,7 +277,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 	}
 
 	private void assertPresent(Dependents d) {
-		assertNotNull(assetLocationDao().load(d.location), "asset_location of the other asset must survive");
+		assertNotNull(assetBinaryDao().load(d.location), "asset_location of the other asset must survive");
 		assertNotNull(comp().loadGeoComp(d.geo), "asset_geo_comp of the other asset must survive");
 		assertNotNull(comp().loadDocComp(d.doc), "asset_doc_comp of the other asset must survive");
 		assertNotNull(comp().loadImageComp(d.image), "asset_image_comp of the other asset must survive");

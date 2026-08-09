@@ -266,12 +266,13 @@ erDiagram
     asset ||--o{ attachment : "asset_uuid (nullable)"
 ```
 
-- The REST "binary" **is the `asset_location` table**. `AssetBinaryDao`/`AssetBinaryDaoImpl` and
-  `AssetLocationDao`/`AssetLocationDaoImpl` are two DAOs over the *same* table; only the binary one is
-  exposed over REST and there is no `/api/v1/locations` endpoint. ⚠️ Only `AssetLocationDao` has a DAO
-  test (`AssetLocationDaoTest`); the REST-facing `AssetBinaryDao` — including
-  `loadPrimaryByAssetUuid`, `loadByAssetAndLibrary` and the `countByPoolAndPath` the reclaimer depends
-  on — is covered only indirectly through endpoint tests (G16).
+- The REST "binary" **is the `asset_location` table**, and `AssetBinaryDao`/`AssetBinaryDaoImpl` is the
+  only DAO over it. There is no `/api/v1/locations` endpoint; the `AssetLocationResponse` view is
+  reached through `GET /assets/:uuid` and through GraphQL, both built from the same `AssetBinary`.
+  `AssetLocationDao`/`AssetLocationDaoImpl` used to be a second, partial DAO over the same rows and
+  were deleted — see [../../loom/PERSISTENCE.md](../../loom/PERSISTENCE.md) §Gotchas.
+  `AssetBinaryDaoTest` covers `loadPrimaryByAssetUuid`, `loadAllByAssetUuid`, `loadByAssetAndLibrary`,
+  the `countByPoolAndPath` the reclaimer depends on, and `deleteByAssetUuid`.
 - V2.20 added `UNIQUE (asset_uuid)` ("one binary per asset"); **V2.48 dropped it** for
   `UNIQUE (library_uuid, path)`, restoring many-locations-per-asset. The REST layer matches: §2.2.
 - **V2.63** added `library.pool_uuid` and `attachment_binary.pool_uuid`, plus index
@@ -369,7 +370,6 @@ registers the artefact as a new asset — see that plan's §7 B5.
 | **G13** | Attachment bytes and cascade-deleted asset bytes are not reclaimed | §3.3/§3.4 |
 | **G14** | Attachment provenance (V2.44) is invisible to REST | `node_kind`, `variant`, `run_uuid` … exist in the DB and are not mapped. Plan Phase A |
 | **G15** | Pool edits need a restart | `BinaryStorageResolver` caches one backend per pool uuid and never evicts |
-| **G16** | `AssetBinaryDao` has no DAO test | The REST-facing DAO over `asset_location` — including the reclaimer's `countByPoolAndPath` — is only exercised through endpoint tests. `AssetLocationDaoTest` covers the *other* DAO over the same table ([../../guidelines/CODING.md](../../guidelines/CODING.md) requires DAO + delete-cascade tests) |
 
 ### 8.3 Missing use cases (nothing built)
 
@@ -405,7 +405,7 @@ cd loom-ui && npx vitest run src/api/binaries.test.ts          # URL/verb assert
 | `S3LocatorTest` | `loom/services/s3` | 🔴 The `s3://bucket/key` grammar — a contract with Cortex's `S3Uri`, not a formatting preference |
 | `ByteRangeTest` | `loom/services/rest` | The ranges a `<video>` element actually sends |
 | `AssetBinaryEndpointTest` | `loom/core` | `/binaries` + `/assets/:uuid/binary` CRUD, paging, 403s. Extends `AbstractCRUDEndpointTest`; fixture UUID is `ASSET_LOCATION_UUID` |
-| `AssetLocationDaoTest` | `loom/db/jooq` | The *non*-REST DAO over `asset_location` (see G16) |
+| `AssetBinaryDaoTest` | `loom/db/jooq` | The DAO over `asset_location`: CRUD plus multi-location semantics — oldest-first primary with a uuid tie-break, per-library isolation, `countByPoolAndPath` for null and real pools, `deleteByAssetUuid` |
 | `assets-backend.spec.ts` | `loom-ui/e2e` | End-to-end byte routes against a live server |
 | `binaries.test.ts` | `loom-ui` (vitest, node env) | `uploadAssetBinary` / `fetchAssetBinaryBlob` / `createAssetBinaryMeta` build the right URLs and verbs |
 | `library-thumbnails-mocked.spec.ts` | `loom-ui/e2e` | The grid points `<img src>` at `/binary/data` for images only |
@@ -444,8 +444,8 @@ group+role, never a direct user grant ([../permissions/PERMISSIONS.md](../permis
 | `AttachmentEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | `/api/v1/attachments` (upload at the base path, `/:uuid/data` download) |
 | `AssetBinaryModelBuilder` | `io.metaloom.loom.rest.builder` | `AssetBinary` → `AssetBinaryResponse`; picks `s3` vs `filesystem` + `storageType` **from the locator** |
 | `LibraryModelBuilder` | `io.metaloom.loom.rest.builder` | Deliberately leaves `storageType` null — `LibraryEndpointService` fills it via the resolver |
-| `AssetBinaryDao` / `AssetBinaryDaoImpl` | `io.metaloom.loom.db.model.asset` / `…jooq.dao.asset.binary` | Maps to **`asset_location`**; cardinality contract: `loadPrimaryByAssetUuid`, `loadAllByAssetUuid`, `loadByAssetAndLibrary`, `countByPoolAndPath`, `deleteByAssetUuid`. No DAO test (G16) |
-| `AssetLocationDao` / `AssetLocationDaoImpl` | `io.metaloom.loom.db.model.asset` / `…jooq.dao.asset.location` | Second DAO over the same table (`findForAsset`), not exposed over REST |
+| `AssetBinaryDao` / `AssetBinaryDaoImpl` | `io.metaloom.loom.db.model.asset` / `…jooq.dao.asset.binary` | The only DAO over **`asset_location`**; cardinality contract: `loadPrimaryByAssetUuid`, `loadAllByAssetUuid`, `loadByAssetAndLibrary`, `countByPoolAndPath`, `deleteByAssetUuid` |
+| `AssetLocationModelBuilder` | `io.metaloom.loom.rest.builder` | `AssetBinary` → `AssetLocationResponse` (state/license/lock). Method names carry "location" because `LoomModelBuilder` inherits it alongside `AssetBinaryModelBuilder` |
 | `AssetEventPublisher` / `AssetPipelineTrigger` | `io.metaloom.loom.rest.service.impl` | `loom.asset.created` → auto-run a mime-matched pipeline after upload |
 | `SourceOptionsResolver` | `io.metaloom.loom.rest.service.impl` | `mediaUuids` → `path` (one) or `pathGlobs` (many) source options |
 | `DaoAssetSink` | `io.metaloom.loom.rest.service.impl` | Persists node outputs — hashes only; `warnAboutUnmapped` logs the rest |
@@ -586,8 +586,6 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 
 - [ ] **G2** Cortex artefact write-back — [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
       Phase B. The endpoints and client methods exist; no node calls them
-- [ ] **G16** Add an `AssetBinaryDaoTest` covering the cardinality contract, `countByPoolAndPath` and the
-      asset delete-cascade, per [../../guidelines/CODING.md](../../guidelines/CODING.md)
 - [ ] **G14** Expose attachment provenance (V2.44 columns) through REST — plan Phase A
 - [ ] **G13** Reclaim attachment bytes, and bytes behind a cascade-deleted asset (§3.3)
 - [ ] **G15** Invalidate the `BinaryStorageResolver` cache when a pool is edited, or surface the restart
@@ -602,4 +600,7 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 
 ---
 _Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Last updated: 2026-08-09 (G16 closed: `AssetBinaryDaoTest` covers the cardinality contract,
+`countByPoolAndPath` for both the null-pool and pooled cases, and `deleteByAssetUuid`; the duplicate
+`AssetLocationDao` over the same table was deleted and `AssetBinary` grew the
+`state`/`license`/`locked_by_uuid` accessors it had been missing. Earlier: reference sweep — no content changes)_
