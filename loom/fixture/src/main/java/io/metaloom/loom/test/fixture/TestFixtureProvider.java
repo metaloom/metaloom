@@ -297,13 +297,19 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 
 	private User setupACL() {
 
+		// One instant for both columns, not two calls. A never-edited row should read
+		// edited == created, and taking the two timestamps separately in this order wrote
+		// edited BEFORE created - invisible whenever both land in the same millisecond, and an
+		// edited < created violation whenever they straddle one.
+		Instant now = Instant.now();
+
 		// User
 		User adminUser = userDao().createAdmin();
 		adminUser.setUuid(ADMIN_UUID);
 		adminUser.setCreator(adminUser);
 		adminUser.setEditor(adminUser);
-		adminUser.setEdited(Instant.now());
-		adminUser.setCreated(Instant.now());
+		adminUser.setEdited(now);
+		adminUser.setCreated(now);
 		adminUser.setPasswordHash(authService.encodePassword("finger"));
 		userDao().store(adminUser);
 
@@ -327,8 +333,8 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		joeDoeUser.setUuid(USER_UUID);
 		joeDoeUser.setCreator(adminUser);
 		joeDoeUser.setEditor(adminUser);
-		joeDoeUser.setEdited(Instant.now());
-		joeDoeUser.setCreated(Instant.now());
+		joeDoeUser.setEdited(now);
+		joeDoeUser.setCreated(now);
 		joeDoeUser.setPasswordHash(authService.encodePassword("finger"));
 		userDao().store(joeDoeUser);
 		permissionDao().grantUserPermission(joeDoeUser.getUuid(), Permission.READ_USER, "test");

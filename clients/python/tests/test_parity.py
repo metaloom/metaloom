@@ -35,9 +35,11 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 
 #: The Java client's method count, as a tripwire: a new method added there should
 #: fail this test rather than quietly leave the Python client behind.
-#: 244 abstract declarations plus 32 ``default`` overloads. Cross-checked both ways
+#: 249 abstract declarations plus 36 ``default`` overloads. Cross-checked both ways
 #: against ``LoomHttpClientImpl``, which implements exactly these.
-EXPECTED_JAVA_METHOD_COUNT = 277
+#: Counted by distinct method *name*, so a set of overloads contributes one - which is
+#: why ``tools/generate_models.py`` reports a different number and this one wins.
+EXPECTED_JAVA_METHOD_COUNT = 285
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -45,20 +47,12 @@ EXPECTED_JAVA_METHOD_COUNT = 277
 #:
 #: * STALE SPEC -- the server registers the route, but ``LoomOpenAPI.generate()`` never
 #:   constructs the endpoint that owns it, so it is absent from ``openapi.json``.
-#:   ``SearchEndpoint`` and ``SimilarityIndexEndpoint`` are missing from that list while
-#:   being registered on the real router. The client is right and the description is
-#:   incomplete. (``DedupGroupEndpoint`` used to be here too and has since been added to
-#:   ``LoomOpenAPI``.)
+#:   (``DedupGroupEndpoint``, ``SearchEndpoint`` and ``SimilarityIndexEndpoint`` were all
+#:   here once and have since been added to ``LoomOpenAPI``; the category stays because
+#:   the failure mode recurs whenever an endpoint is wired in ``EndpointModule`` alone.)
 #: * DEAD ROUTE -- no endpoint implements it at all, so the call really does 404. These
 #:   exist because the Java client has them, and full parity was the goal.
 KNOWN_UNLISTED_PATHS = {
-    # STALE SPEC: SearchEndpoint likewise.
-    "search/results": "stale spec",
-    "search/assets": "stale spec",
-    "search/suggestions": "stale spec",
-    "search/status": "stale spec",
-    # STALE SPEC: SimilarityIndexEndpoint likewise.
-    "similarity-index/rebuild": "stale spec",
     # DEAD ROUTE: there is no AssetLocationEndpoint in the server at all. The Java
     # client's AssetLocationMethods have the same problem; kept for parity.
     "locations": "dead route",

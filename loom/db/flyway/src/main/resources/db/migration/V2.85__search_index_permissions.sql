@@ -1,0 +1,22 @@
+-- Operating the search indices: GET /api/v1/search-indices and the job routes beneath it.
+--
+-- Until now the index maintenance routes (/vector-index/rebuild, /vector-index/sync,
+-- /similarity-index/rebuild) were gated on UPDATE_ASSET and READ_ASSET, which was a placeholder and
+-- is recorded as an open question in the search build plan. It conflates two unrelated authorities:
+-- "may edit the metadata of an asset" is a content-editor's permission, while "may drop the face
+-- embedding index" is an operator's. A newsroom editor who can retag a photo should not be able to
+-- empty the index that near-duplicate detection depends on.
+--
+-- Split in two because reading is safe and acting is not. READ_SEARCH_INDEX exposes sizes, backlogs,
+-- the producing embedding model and job history — the operator dashboard — and mutates nothing.
+-- MANAGE_SEARCH_INDEX starts a reindex, a delta sync or a drop. Each of those is safe in the sense
+-- that no source data is lost (every index here is a declared, rebuildable cache of Postgres), but a
+-- reindex walks the whole corpus and a drop makes similarity queries answer nothing until it
+-- finishes, so it is a permission an administrator hands out deliberately.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it —
+-- which is why the grant for existing installations is V2.86 rather than the bottom of this file.
+-- Nothing else may go in this file.
+ALTER TYPE loom_permission ADD VALUE IF NOT EXISTS 'READ_SEARCH_INDEX';
+ALTER TYPE loom_permission ADD VALUE IF NOT EXISTS 'MANAGE_SEARCH_INDEX';

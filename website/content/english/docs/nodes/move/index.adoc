@@ -50,10 +50,11 @@ file lands beside it as `clip_1.mp4`, or the item is skipped, or the step fails 
 There is no "overwrite" setting, because a name collision in a trash folder is very often a
 completely different file that happens to share a name.
 
-**It keeps the original unless you say otherwise.** By default the node copies and leaves the source
-in place — and says so: the `flag` port reads `COPIED` rather than `MOVED`. Removing the original is
-something you switch on, and even then it only happens after the destination has been checked to hold
-the same content.
+**It only ever removes an original after checking the copy.** Within one disk the file is renamed, so
+there is only ever one copy of it and nothing is deleted — the `flag` port reads `MOVED`. Across
+disks the bytes have to be written a second time, and there the node keeps the original by default
+and says so: the `flag` reads `COPIED`. Removing it is something you switch on, and even then it
+happens only after the destination has been checked to hold the same content.
 
 **It does not silently spend an hour copying.** Moving a file within one disk is instant. Moving it
 to a different disk is a full copy of every byte, and for a 40 GB video that is a very different
@@ -65,6 +66,9 @@ image::verify-then-delete.svg[The order of operations when a file crosses to ano
 
 == Settings
 
+.The node's settings in the pipeline editor
+image::config.png["The Move settings panel: Target, Target Folder, Layout, On Conflict and 10 more settings",role="ml-panel-shot"]
+
 [cols="1,1,2"]
 |===
 | Setting | Default | What it does
@@ -74,7 +78,7 @@ image::verify-then-delete.svg[The order of operations when a file crosses to ano
 | Layout | Mirror | `Flat` puts everything in one directory; `Mirror` keeps the folder structure the file already had; `Date` files it under year and month. Storage, library and bucket targets always use the system's own layout so the file can be found again
 | On conflict | Add a suffix | Add a suffix, skip the item, or fail the step. Never overwrite
 | Across disks | Skip | Skip, copy, or fail when the destination is on another disk
-| Original file | Keep | Keep it, or remove it once the destination has been verified
+| Original file | Keep | Keep it, or remove it once the destination has been verified. Only applies to a copy across disks or to a bucket — a move within one disk is a rename, which leaves no original behind
 | Verify | Full checksum | Full checksum, or size only. What has to match before the original may be removed
 | Update the record | On | Record the new location on the asset
 | Dry run | Off | Report what would happen and touch nothing
@@ -110,6 +114,17 @@ move alongside everything else that touched the asset.
 
 If the file moves to a bucket, the record holds an `s3://` reference and the file name is deliberately
 left alone — it is a local path, and pointing it at a bucket would break everything that reads it.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node, sending a photograph to a `trash` folder.
+
+image::debug.png["The move node after a run, with the values it emitted on each port",role=img-fluid]
+
+The strip on the card lists what each output port carried — `moved`, `path`, `flag`. `path` is where
+the file is now, and it is the port to read when you need to know that; `flag` reads `MOVED` here
+because the destination was on the same disk, so relocating the file was a rename.
 
 == Good to know
 

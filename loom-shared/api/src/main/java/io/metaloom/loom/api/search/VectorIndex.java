@@ -74,8 +74,62 @@ public interface VectorIndex {
 	 * This is the operation behind both "we changed the embedding model" and "we changed the index backend", and the reason neither needs a data
 	 * migration. Takes a stream because a full rebuild walks every embedding in the system and must not need them all in memory.
 	 * </p>
+	 *
+	 * <p>
+	 * ⚠️ This replaces <b>every</b> space. To reindex one space without touching its neighbours, use {@link #drop(VectorSpace)} followed by
+	 * {@link #indexAll(List)}.
+	 * </p>
 	 */
 	void rebuild(Stream<VectorRecord> all);
+
+	/**
+	 * Remove every vector belonging to one space, leaving the other spaces in the same backend intact.
+	 *
+	 * <p>
+	 * This is what makes a per-space reindex possible at all. One backend holds several spaces at once - face vectors beside search-text vectors, an old
+	 * model beside its replacement - and {@link #rebuild(Stream)} clears all of them, so reindexing faces through it would silently empty the text
+	 * index. Retiring a superseded model is the same operation.
+	 * </p>
+	 *
+	 * <p>
+	 * Implementations that delete logically (Lucene does) will not release disk space until a merge; that is expected and is why {@link IndexStatus}
+	 * reports {@code deletedCount} alongside {@code sizeBytes}.
+	 * </p>
+	 */
+	void drop(VectorSpace space);
+
+	/**
+	 * State of the backend as a whole: how many vectors it holds across every space, how many are deleted but not yet merged away, and how much disk it
+	 * occupies. Never throws - like {@link #isAvailable()} this is called precisely when something is broken.
+	 */
+	IndexStatus status();
+
+	/**
+	 * How many vectors the backend holds in one space. Separate from {@link #status()} because size on disk has no per-space meaning - segments
+	 * interleave the spaces - so only the document count is populated here.
+	 */
+	IndexStatus status(VectorSpace space);
+
+	/**
+	 * Every embedding uuid the index currently knows about, across all spaces.
+	 *
+	 * <p>
+	 * The input to the orphan sweep. {@code embedding} rows cascade away with their asset and leave no tombstone, so an index that missed the delete
+	 * hook - because it was disabled, or the process died between the two writes - keeps answering with vectors whose rows are gone. Diffing this
+	 * against the table is the only way to find them.
+	 * </p>
+	 *
+	 * <p>
+	 * Deliberately unscoped: implementations are expected to answer it from an identifier dictionary rather than by loading and filtering every
+	 * document, and such a dictionary is not partitioned by space. It may include uuids of documents already deleted but not yet merged away, so
+	 * callers must treat the result as a superset and tolerate deleting something twice.
+	 * </p>
+	 *
+	 * <p>
+	 * The caller must close the stream.
+	 * </p>
+	 */
+	Stream<UUID> streamIndexedEmbeddingUuids();
 
 	/** Flush pending writes to disk. */
 	void commit();

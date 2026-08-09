@@ -3,13 +3,14 @@
 How Loom talks to PostgreSQL: the DAO contracts, the jOOQ implementation, the Flyway migration
 chain and the test setup. **What** the entities mean is in [DOMAIN.md](DOMAIN.md); **open gaps and
 their work items** are in [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) and
-[../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md). This file does not repeat
-either.
+[DATABASE_TASKS.md](../tasks/DATABASE_TASKS.md). This file does not repeat either.
 
 Related: [../guidelines/CODING.md](../guidelines/CODING.md) (definition of done: DAO test +
 delete-cascade test per entity) · [RESTAPI.md](RESTAPI.md) · [CONFIGURATION.md](CONFIGURATION.md) ·
 [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) ·
-[../features/search/SEARCH.md](../features/search/SEARCH.md)
+[../features/search/SEARCH.md](../features/search/SEARCH.md) ·
+[../features/db/DB_INTEGRITY.md](../features/db/DB_INTEGRITY.md) (the invariants this schema relies on
+but does not enforce, and the checks that look for them)
 
 ## Modules
 
@@ -25,7 +26,7 @@ delete-cascade test per entity) · [RESTAPI.md](RESTAPI.md) · [CONFIGURATION.md
 ```mermaid
 graph TD
   API["loom-db-api<br/>Dao / CRUDDao / DaoCollection<br/>model + DAO interfaces"]
-  FLY["loom-db-flyway<br/>V1 … V2.74"]
+  FLY["loom-db-flyway<br/>V1 … V2.84"]
   GEN["loom-db-jooq-gen<br/>LoomJooqStrategy"]
   JOOQ["loom-db-jooq<br/>AbstractJooqDao + *DaoImpl<br/>src/jooq/java (generated)"]
   MEM["loom-db-memory<br/>(vestigial)"]
@@ -138,7 +139,7 @@ and `FILE_SIZE` (`SizeFilterKey "size"`). Add new keys there and handle them in 
 ## Flyway migrations
 
 `loom/db/flyway/src/main/resources/db/migration/` — PostgreSQL only, `validateMigrationNaming=true`.
-There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.74`.
+There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.84`.
 
 | Migration | Change |
 |---|---|
@@ -214,6 +215,18 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.74`.
 | `V2.72__tag_asset_cascade` | Both `tag_asset` foreign keys become `ON DELETE CASCADE`. Deleting an asset drops its tag assignments, deleting a tag drops them everywhere, and neither touches the object on the other side. Until then a tagged asset could not be deleted at all - the FK violation surfaced as a 500 |
 | `V2.71__tag_asset_placements` | `tag_asset` gains a surrogate `uuid` PK, `UNIQUE NULLS NOT DISTINCT (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY)` and provenance (`node_kind` default `manual`, `node_id`, `producer_version`, `confidence`, `created`, `creator_uuid`). One tag may now sit on one asset several times - once per face, once per timecode - and every placement says who put it there. 🔴 Needs **PostgreSQL 15+** for `NULLS NOT DISTINCT`; without it an asset-level tag would re-attach on every write, since NULL region columns never conflict under the default semantics |
 | `V2.70__add_notification` | `notification` — the per-user inbox, plus `READ/UPDATE/DELETE_NOTIFICATION` enum values (no CREATE — dispatch is server-side). `type` is varchar + CHECK, not an enum. Fan-out is one row per recipient at dispatch time. Partial index on unread + one index per subject FK |
+| `V2.64__fix_role_permission_key` | Drops `role_permission.resource` and the unique index the narrower `PRIMARY KEY (role_uuid, permission)` made unreachable. Permissions are global; a column that looks like a scope but scopes nothing invites grants that confer more authority than they appear to. `user_permission` / `token_permission` have the worse variant of the same defect and are deliberately left for their own change |
+| `V2.65__search_metadata_json_comp` | `search_extract_json_text` learns `schema_type = 'metadata'`. The function is a whitelist, so a photo's title, caption, keywords and creator were stored but unfindable. Only authored, human-readable fields are indexed — camera settings and GPS would dilute the tsvector |
+| `V2.66__add_node_descriptor` | `node_descriptor` — the node contracts workers announce over `NODE_REGISTRATION`. Keyed by `uuid` with `node_id UNIQUE` (like `cortex_instance`) so `CRUDDao` can address it. Spec knowledge is durable, worker presence is live: rows survive a disconnect and are removed only by an admin |
+| `V2.67__pipeline_node_task_previews` | `previews jsonb` — opt-in, run-scoped renderings of what a node emitted, so a port carrying an absolute path on a worker is still inspectable. Pruned with the run; `attachment` deliberately not used, it is catalogue state |
+| `V2.68__pipeline_node_task_generation` | `generation` — the idempotency key grows a fourth column so re-executing a node at a breakpoint keeps each attempt side by side instead of overwriting the comparison |
+| `V2.76__mcp_pipeline_permissions` | `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` enum values only — letting an agent design a pipeline is a separate trust decision from letting a user do it |
+| `V2.78__rating_reaction_type` | The workflow star rating gets its own `RATING` reaction type. It had borrowed `SATISFIED`, and the `UNIQUE (creator_uuid, type, asset_uuid)` index made a rating and a genuine reaction the same row — so rating an asset silently overwrote a person's reaction to it, and vice versa |
+| `V2.79__cluster_review_model` | Makes `cluster` machine-writable and human-reviewable: nullable audit columns (V2.47 skipped this table, so a worker physically could not insert one), the shared provenance block, `asset_uuid`/`cluster_index` producer key, `centroid`/`model`/`dimensions`, the `cluster_status` enum and a `person_uuid` link — the first relation between the two competing models of "a person". Also replaces the global `UNIQUE (name)` from V2.12 with `UNIQUE (type, name) WHERE name IS NOT NULL` |
+| `V2.81__detection_review_state` | Review state on `detection` (`status`, `reviewed_at`, `reviewer_uuid`, `corrected_label`) plus both review-queue indexes. Renames `cluster_status` → **`review_status`**: one shared vocabulary rather than three identical enums (`ALTER TYPE … RENAME` is catalog-only and transactional, unlike `ADD VALUE`). A node upsert must not clear a non-`PENDING` verdict — enforced in `DetectionDaoImpl.upsertDetection` |
+| `V2.82__execute_mcp_node_permission` | `EXECUTE_MCP_NODE` enum value only. Separate from the V2.76 trio: designing a pipeline is a different trust decision from spending compute |
+| `V2.83__adhoc_pipeline_run` | Ad-hoc ("pipelineless") runs — `pipeline_run.pipeline_uuid` becomes nullable and a `kind varchar + CHECK` discriminator (`PIPELINE`/`ADHOC`) pairs the two, so no consumer has to defend against the impossible third state. The definition rides in `pipeline_run.meta.definition`; the run row is the record |
+| `V2.84__read_metric_permission` | `READ_METRIC` enum value only — gates `GET /api/v1/metrics` on the app port. The unauthenticated Prometheus scrape on the monitoring port is unaffected |
 
 ### Migration patterns
 
@@ -306,7 +319,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | Tag | `TagDao` | `tag`(+joins) | `TagDaoTest` CRUD +9 (natural-key resolve, placement upsert, `bulkTagAsset` incl. a rollback probe); `TagPlacementDaoTest` (8: multi-placement, provenance, first-author-wins); `TagUserRatingDaoTest` (3) | own |
 | Embedding | `EmbeddingDao` | `embedding`, `embedding_cluster` | `EmbeddingDaoTest` CRUD +4 (two models side by side, same-model upsert, dirty/markSynced, derived dimensions) | `ClusterDaoTest`, `AssetCascadeTest` |
 | Cluster | `ClusterDao` | `cluster`(+joins) | `ClusterDaoTest` CRUD +1 | own |
-| Detection | `DetectionDao` | `detection` | — | `AssetCascadeTest` (asset side only) |
+| Detection | `DetectionDao` | `detection` | `DetectionDaoTest` CRUD +11 (provenance/geometry round trip, `detection_unique_key` from both sides, run/task SET NULL, the V2.81 review columns); `DetectionUpsertReviewTest` (4: a re-run never clears a verdict) | `DetectionDaoTest`, `AssetCascadeTest` |
 | Person | `PersonDao` | `person`, `person_image` | `PersonDaoTest` CRUD +2 | own |
 | Blacklist | `BlacklistDao` | `blacklist` | `BlacklistDaoTest` CRUD | — |
 | Annotation | `AnnotationDao` | `annotation`(+joins) | ⚠️ `AnnotationDaoTest` (2) — no CRUD contract | own |
@@ -319,7 +332,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | PipelineRunItem | `PipelineRunItemDao` | `pipeline_run_item` | `PipelineRunItemDaoTest` CRUD +6 | own |
 | PipelineNodeTask | `PipelineNodeTaskDao` | `pipeline_node_task` | `PipelineNodeTaskDaoTest` CRUD +10 | own |
 | CortexInstance | `CortexInstanceDao` | `cortex_instance`(+node_kind) | `CortexInstanceDaoTest` CRUD +4 | own |
-| Chat | `ChatDao` | `chat` | — | — |
+| Chat | `ChatDao` | `chat` | `ChatDaoTest` CRUD +2 (`messages` deep-equality round trip, empty-transcript default) | `ChatDaoTest` (V2.52 `chat_session.chat_uuid` SET NULL) |
 | ChatSession | `ChatSessionDao` | `chat_session`(+skill, +context_ref) | `ChatSessionDaoTest` CRUD +6 | own |
 | Skill | `SkillDao` | `skill` | `SkillDaoTest` CRUD +6 | `SkillVersionDaoTest` |
 | SkillVersion | `SkillVersionDao` | `skill_version` | `SkillVersionDaoTest` CRUD +4 | own |
@@ -350,6 +363,25 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 (provider `localhost:7543`, Postgres `localhost:15432`, `sa`/`sa`) — no env override exists.
 
 ## Conventions and gotchas
+
+- **The invariants this layer cannot enforce are checked from outside.**
+  [../features/db/DB_INTEGRITY.md](../features/db/DB_INTEGRITY.md) owns 29 named checks over the
+  things Postgres will not catch: the five `*_uuid` columns declared without a foreign key, the
+  polymorphic references that cannot have one, `varchar` columns the REST layer reads through
+  `Enum.valueOf`, and the `CHECK` constraints a backfill can be written around. `CRUDDaoTestcases`
+  runs them after every create, update and delete, so a DAO change that corrupts something surfaces
+  at the DAO rather than three layers away.
+- 🔴 **`created` and `edited` are written from two different clocks.** Both are
+  `timestamp WITHOUT TIME ZONE`. The SQL default is `now()`, which is the database session's local
+  wall clock; a row written through a DAO carries a Java `Instant` converted by jOOQ. On a non-UTC
+  deployment those disagree by a whole offset - legitimately and systematically - so a row's
+  timestamps cannot be compared against `now()` with any precision, and no check tries to.
+  `AbstractJooqDao.setCreatorEditor` also calls `Instant.now()` **twice**, so a fresh row has
+  `edited` microseconds after `created`, while `NotificationDaoImpl`, `CortexInstanceDaoImpl` and
+  `NodeDescriptorRecordDaoImpl` capture one instant for both and produce `edited == created`. Both
+  are correct: only `edited < created` is a defect. A writer that sets `edited` before `created`
+  produces one intermittently - the fixture did exactly that until 2026-08-09, invisibly, because
+  both calls usually landed in the same millisecond.
 
 - **`./setup-pool.sh` is not optional.** DAO tests lease from the `loom-dev` pool; without it they
   fail with "Pool not found {loom-dev}", and after a migration change a stale pool silently tests
@@ -437,6 +469,8 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 | Generated tables | `loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/tables/` |
 | Codegen strategy / config | `loom/db/jooq-gen/.../LoomJooqStrategy.java`, `loom/db/jooq/pom.xml` (`generate` profile), `loom/db/jooq/generate.sh` |
 | Migrations | `loom/db/flyway/src/main/resources/db/migration/` |
+| Integrity checks | `loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/integrity/`, contract in `loom/db/api/.../db/integrity/` |
+| `assertIntegrity()` in tests | `loom/db/api-test/src/main/java/io/metaloom/loom/db/DbIntegrityAsserts.java` |
 | Flyway helpers | `loom/db/flyway/src/main/java/io/metaloom/loom/db/flyway/` |
 | DAO tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/` (+ `.../perm/`, `.../search/`) |
 | Shared test contract | `loom/db/api-test/src/main/java/io/metaloom/loom/db/` |
@@ -468,8 +502,9 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
 
 ## Progress Assessment
 
-Schema current through **`V2.74`**. Work items live in
-[PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) / [../features/db/DATABASE_TASKS.md](../features/db/DATABASE_TASKS.md).
+Schema current through **`V2.84`**. Work items live in
+[PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) (DAO/test gaps) /
+[DATABASE_TASKS.md](../tasks/DATABASE_TASKS.md) (schema gaps).
 
 - [x] jOOQ DAO layer, generated tables committed, Dagger registry (39 DAOs)
 - [x] Flyway chain `V1`–`V2.74`, migration naming validated
@@ -484,6 +519,8 @@ Schema current through **`V2.74`**. Work items live in
 - [x] `PermissionDaoTest` grown from a non-nullity smoke test to grant/inheritance/isolation coverage
 - [x] Asset and ACL delete-cascade suites (`AssetCascadeTest`, `AclCascadeTest`)
 - [x] `RoleDaoTest` — `role_permission` binding plus CRUD and both `loadByName` branches
+- [x] Database integrity checks: 29 named checks, asserted after every `CRUDDaoTestcases` write and
+  in both cascade suites — see [../features/db/DB_INTEGRITY.md](../features/db/DB_INTEGRITY.md)
 - [ ] `SpaceDaoTest` — **empty class, zero tests**
 - [x] `AssetPoolDaoTest` — CRUD over both pool shapes plus the `library.pool_uuid` RESTRICT from V2.63
 - [x] `DetectionDaoTest` — CRUD plus the `V2.43` contract: a full provenance/geometry round trip,
@@ -502,8 +539,18 @@ Schema current through **`V2.74`**. Work items live in
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 
-_Git HEAD revision: `716953c0`_
-_Last updated: 2026-08-09 (`AssetBinaryDaoTest` added — CRUD plus every non-CRUD method of
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (`V2.87` adds `READ_DB_INTEGRITY`, and the database integrity check
+subsystem lands beside this layer: 29 named checks over the invariants the schema relies on but does
+not enforce, wired into `CRUDDaoTestcases` and both cascade suites. Owned by
+[../features/db/DB_INTEGRITY.md](../features/db/DB_INTEGRITY.md). Two defects it found on its first
+run are fixed here: `TestFixtureProvider` wrote `edited` before `created`, and `ReactionDaoTest`
+stored values `ReactionType.valueOf` cannot read. Also documents the two-clock problem between
+`DEFAULT now()` and a Java `Instant`. Earlier: schema currency swept to `V2.84`: added the twelve migration rows the
+table was missing (`V2.64`–`V2.68`, `V2.76`, `V2.78`, `V2.79`, `V2.81`–`V2.84`), corrected the
+`Detection` and `Chat` rows of the DAO↔test matrix — both have suites the matrix still listed as
+absent — and repointed the two links to `DATABASE_TASKS.md`, which lives in `spec/tasks/`, not
+`spec/features/db/`. Earlier: `AssetBinaryDaoTest` added — CRUD plus every non-CRUD method of
 `AssetBinaryDao`; the duplicate `AssetLocationDao`/`AssetLocation` pair over the same
 `asset_location` table was deleted and its callers routed through `AssetBinaryDao`, which grew the
 `state`/`license`/`locked_by_uuid` accessors it had been missing; the test also caught

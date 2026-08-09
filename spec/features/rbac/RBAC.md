@@ -260,6 +260,7 @@ Role, Skill, User) implement the security contract.
 | `AbstractEndpointService` | `…rest.service` | `checkPerm(...)`; throws 403 `MISSING_PERM` |
 | `AbstractCRUDEndpointService` | `…rest.service` | Generic guarded create/load/list/update/delete |
 | `SearchEndpointService` | `…rest.service.impl` | Predicate-based partial filtering (`READ_SEARCH` + per-type `READ_*`) |
+| `SearchIndexEndpointService` | `…rest.service.impl` | Read/act split (`READ_SEARCH_INDEX` vs `MANAGE_SEARCH_INDEX`), plus a capability check the permission cannot express: an action outside the index's `supportedActions` is a 400 even for a holder of `MANAGE_SEARCH_INDEX` |
 | `GraphQLPermissionChecker` | `io.metaloom.loom.graphql` (loom/services/graphql) | Injected field-level checker |
 | `AbstractDomainWiring` | `io.metaloom.loom.graphql` | `requirePermission(env, perm)`; `UNAUTHENTICATED`/`FORBIDDEN` |
 | `MCPToolRegistry` | `io.metaloom.loom.mcp.tool` (loom/services/mcp) | Parallel, string-based MCP permission check |
@@ -377,4 +378,4 @@ Permission enforcement itself has no configuration switches.
       them into `spec/features/permissions/PERMISSIONS.md` and leave RBAC.md as a stub redirect.**
 
 _Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-09 (`READ_METRIC` added by `V2.84`; the "six unused constants" note corrected to five — `READ_CORTEX_INSTANCE` is checked by `NodeDescriptorEndpoint`). Earlier: 2026-08-02 (role permissions are administrable over REST; `V2.64` dropped `role_permission.resource`; permission cache gained an invalidation API)_
+_Last updated: 2026-08-09 (`READ_DB_INTEGRITY` added by `V2.87` - a read-only operator permission over the database integrity report, deliberately not folded into `READ_METRIC` because the report names individual rows. Earlier the same day: `READ_SEARCH_INDEX` / `MANAGE_SEARCH_INDEX` added by `V2.85`, granted to the existing admin role by `V2.86` — the read/act split over the search indices, replacing the `UPDATE_ASSET` gate the maintenance routes carried. Earlier the same day: `READ_METRIC` added by `V2.84`; the "six unused constants" note corrected to five — `READ_CORTEX_INSTANCE` is checked by `NodeDescriptorEndpoint`). Earlier: 2026-08-02 (role permissions are administrable over REST; `V2.64` dropped `role_permission.resource`; permission cache gained an invalidation API)_

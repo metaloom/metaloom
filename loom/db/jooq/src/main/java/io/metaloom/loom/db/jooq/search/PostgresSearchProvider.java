@@ -1,8 +1,13 @@
 package io.metaloom.loom.db.jooq.search;
 
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.nullsLast;
+import static java.util.Comparator.reverseOrder;
+
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -25,6 +30,7 @@ import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.api.options.SearchOptions;
 import io.metaloom.loom.api.search.FacetBucket;
+import io.metaloom.loom.api.search.RankFusion;
 import io.metaloom.loom.api.search.SearchCapability;
 import io.metaloom.loom.api.search.SearchEntityType;
 import io.metaloom.loom.api.search.SearchHit;
@@ -34,6 +40,10 @@ import io.metaloom.loom.api.search.SearchProviderInfo;
 import io.metaloom.loom.api.search.SearchRequest;
 import io.metaloom.loom.api.search.SearchResult;
 import io.metaloom.loom.api.search.SearchSuggestion;
+import io.metaloom.loom.api.search.TextEmbedder;
+import io.metaloom.loom.api.search.VectorHit;
+import io.metaloom.loom.api.search.VectorIndex;
+import io.metaloom.loom.api.search.VectorQuery;
 
 /**
  * Search backed by PostgreSQL full-text search plus {@code pg_trgm}, over the {@code search_document} table.
@@ -62,7 +72,7 @@ public class PostgresSearchProvider implements SearchProvider {
 
 	public static final String NAME = "postgres";
 
-	private static final Set<SearchCapability> CAPABILITIES = EnumSet.of(
+	private static final Set<SearchCapability> LEXICAL_CAPABILITIES = EnumSet.of(
 		SearchCapability.LEXICAL,
 		SearchCapability.PHRASE,
 		SearchCapability.FUZZY,
@@ -71,14 +81,36 @@ public class PostgresSearchProvider implements SearchProvider {
 		SearchCapability.EXACT_TOTAL,
 		SearchCapability.SUGGEST);
 
+	/** Value of {@code matchedIn} on a hit only the vector ranker found, so "why is this here?" has an answer. */
+	public static final String MATCHED_IN_SEMANTIC = "semantic";
+
+	/**
+	 * The lexical relevance expression, shared by the ranking query and the hybrid candidate query so the two cannot drift into ranking differently.
+	 *
+	 * <p>
+	 * {@code ts_rank_cd} normalization flag 32 is {@code rank/(rank+1)}, which bounds the score into {@code [0,1)} and so makes it commensurable with
+	 * {@code similarity()}. Without it the blend is meaningless. Its five placeholders must be bound in the order {@link #scoreBinds(String)} returns.
+	 * </p>
+	 */
+	private static final String SCORE_EXPRESSION = "greatest("
+		+ "ts_rank_cd(text_search, websearch_to_tsquery('simple', ?), 32),"
+		+ "ts_rank_cd(text_search_en, websearch_to_tsquery(?::regconfig, ?), 32)"
+		+ ") + ? * similarity(trgm_text, ?)";
+
 	private final DSLContext ctx;
 
 	private final SearchOptions options;
 
+	private final TextEmbedder embedder;
+
+	private final VectorIndex vectorIndex;
+
 	@Inject
-	public PostgresSearchProvider(DSLContext ctx, SearchOptions options) {
+	public PostgresSearchProvider(DSLContext ctx, SearchOptions options, TextEmbedder embedder, VectorIndex vectorIndex) {
 		this.ctx = ctx;
 		this.options = options;
+		this.embedder = embedder;
+		this.vectorIndex = vectorIndex;
 	}
 
 	@Override
@@ -97,47 +129,58 @@ public class PostgresSearchProvider implements SearchProvider {
 		}
 	}
 
+	/**
+	 * What this deployment can do, computed rather than constant.
+	 *
+	 * <p>
+	 * The vector half depends on two things outside this class - an embedding host that answers, and a vector index that is open - and either can be
+	 * absent or fail at runtime. Recomputing means {@code /search/status} tells the truth after the embedding host goes down, so the UI's mode toggle
+	 * disappears instead of offering a mode that now 400s.
+	 * </p>
+	 */
 	@Override
 	public Set<SearchCapability> capabilities() {
-		return CAPABILITIES;
+		Set<SearchCapability> capabilities = EnumSet.copyOf(LEXICAL_CAPABILITIES);
+		if (semanticReady()) {
+			capabilities.add(SearchCapability.SEMANTIC);
+			capabilities.add(SearchCapability.HYBRID);
+		}
+		return capabilities;
+	}
+
+	/** True when a query can actually be embedded and matched against an index right now. Never throws. */
+	private boolean semanticReady() {
+		try {
+			return options.isSemanticEnabled() && embedder.isAvailable() && vectorIndex.isAvailable();
+		} catch (Exception e) {
+			log.debug("Semantic readiness check failed", e);
+			return false;
+		}
 	}
 
 	@Override
 	public SearchResult search(SearchRequest request) {
-		long started = System.currentTimeMillis();
 		validate(request);
+		if (request.getMode() != SearchMode.LEXICAL) {
+			return fusedSearch(request);
+		}
+		return lexicalSearch(request);
+	}
 
+	private SearchResult lexicalSearch(SearchRequest request) {
+		long started = System.currentTimeMillis();
 		String term = request.getQuery().trim();
 		List<Object> binds = new ArrayList<>();
 		StringBuilder where = new StringBuilder();
 
-		// Matching: exact tokens, stemmed tokens, or a close-enough trigram match on title/subtitle.
-		// The trigram branch uses the % operator rather than similarity() >= x so that the GIN trigram
-		// index can be used; its threshold comes from pg_trgm.similarity_threshold, which is why the
-		// query below runs inside a transaction that sets it (see runSearch).
-		where.append("(text_search @@ websearch_to_tsquery('simple', ?)")
-			.append(" OR text_search_en @@ websearch_to_tsquery(?::regconfig, ?)")
-			.append(" OR (trgm_text % ?::text))");
-		binds.add(term);
-		binds.add(options.getTsConfig());
-		binds.add(term);
-		binds.add(term);
-
+		appendMatch(where, binds, term);
 		appendFilters(request, where, binds);
 
-		// ts_rank_cd normalization flag 32 is rank/(rank+1), which bounds the score into [0,1) and so
-		// makes it commensurable with similarity(). Without it the blend below is meaningless.
-		String score = "greatest("
-			+ "ts_rank_cd(text_search, websearch_to_tsquery('simple', ?), 32),"
-			+ "ts_rank_cd(text_search_en, websearch_to_tsquery(?::regconfig, ?), 32)"
-			+ ") + ? * similarity(trgm_text, ?)";
-		List<Object> scoreBinds = List.of(term, options.getTsConfig(), term, options.getTrigramWeight(), term);
-
-		List<Object> selectBinds = new ArrayList<>(scoreBinds);
+		List<Object> selectBinds = new ArrayList<>(scoreBinds(term));
 		selectBinds.addAll(binds);
 
 		String sql = "SELECT entity_type, entity_uuid, asset_uuid, title, subtitle, mime_type, size,"
-			+ " time_from, sort_date, " + score + " AS score, count(*) OVER () AS total_hits"
+			+ " time_from, sort_date, " + SCORE_EXPRESSION + " AS score, count(*) OVER () AS total_hits"
 			+ " FROM search_document WHERE " + where
 			+ " ORDER BY " + orderBy(request.getSort())
 			+ " LIMIT ? OFFSET ?";
@@ -164,6 +207,284 @@ public class PostgresSearchProvider implements SearchProvider {
 
 		result.setTookMs(System.currentTimeMillis() - started);
 		return result;
+	}
+
+	// --- Semantic and hybrid ----------------------------------------------------------------------
+
+	/** One row of {@code search_document}, identified the way its primary key identifies it. */
+	private record EntityKey(String type, UUID uuid) {
+	}
+
+	/**
+	 * Rank by meaning ({@code SEMANTIC}) or by both rankers fused ({@code HYBRID}).
+	 *
+	 * <p>
+	 * <b>Why fusion happens in Java rather than in one SQL statement.</b> The design sketch in the spec assumed pgvector, which would put the vectors in
+	 * a table and let a single {@code FULL OUTER JOIN} do the work. These vectors live in the {@code VectorIndex} instead - outside Postgres, behind the
+	 * same SPI the face vectors use - which costs one extra round trip and buys the thing that decision was made for: no {@code CREATE EXTENSION}, so
+	 * nothing here can break {@code generate.sh}, {@code setup-pool.sh} or a stock Postgres image. Both rankers are capped at
+	 * {@code LOOM_SEARCH_VECTOR_TOPK}, so the fused set is bounded and small enough that sorting it in memory is not the cost that matters.
+	 * </p>
+	 *
+	 * <p>
+	 * <b>Totals are honest about being capped.</b> Neither ranker is exhaustive here, so {@code totalExact} is false and the count describes the
+	 * candidate pool, not the corpus. Reporting an exact total would require running the lexical query twice for a number the ranking cannot honour.
+	 * </p>
+	 */
+	private SearchResult fusedSearch(SearchRequest request) {
+		long started = System.currentTimeMillis();
+		String term = request.getQuery().trim();
+		boolean hybrid = request.getMode() == SearchMode.HYBRID;
+		int topK = options.getVectorTopK();
+
+		List<EntityKey> vectorRanked = vectorRanking(term, topK);
+		List<EntityKey> lexicalRanked = hybrid ? lexicalRanking(request, term, topK) : List.of();
+
+		List<RankFusion.Fused<EntityKey>> fused = RankFusion.rrf(options.getRrfK(), List.of(
+			new RankFusion.WeightedRanking<>(lexicalRanked, hybrid ? options.getRrfWeightLexical() : 0),
+			new RankFusion.WeightedRanking<>(vectorRanked, options.getRrfWeightVector())));
+
+		// Filters are applied while hydrating rather than inside either ranker: the vector index knows
+		// nothing about mime types or tags, so the only place both rankers' candidates can be filtered by
+		// the same predicate is against search_document, once they are back together.
+		Map<EntityKey, Record> rows = hydrate(request, fused.stream().map(RankFusion.Fused::key).toList());
+
+		SearchResult result = new SearchResult().setProviderName(NAME).setTotalExact(false);
+		List<Record> surviving = new ArrayList<>();
+		List<Double> scores = new ArrayList<>();
+		for (RankFusion.Fused<EntityKey> entry : fused) {
+			Record row = rows.get(entry.key());
+			if (row != null) {
+				surviving.add(row);
+				scores.add(entry.score());
+			}
+		}
+		result.setTotalHits(surviving.size());
+		reorder(surviving, scores, request.getSort());
+
+		Set<EntityKey> vectorOnly = new LinkedHashSet<>(vectorRanked);
+		lexicalRanked.forEach(vectorOnly::remove);
+
+		int from = Math.min(request.getOffset(), surviving.size());
+		int to = Math.min(from + effectiveLimit(request), surviving.size());
+		for (int i = from; i < to; i++) {
+			SearchHit hit = toHit(surviving.get(i)).setScore(scores.get(i));
+			if (vectorOnly.contains(new EntityKey(hit.getType().id(), hit.getUuid()))) {
+				// Nothing in the text matched the words the user typed, so a lexical "matched in body" would
+				// be a lie and ts_headline has nothing to highlight. Say what actually found it.
+				hit.setMatchedIn(MATCHED_IN_SEMANTIC);
+			}
+			result.addHit(hit);
+		}
+
+		if (request.isHighlight() && options.isHighlightEnabled() && !result.getHits().isEmpty()) {
+			enrichFused(result.getHits(), term);
+		}
+		if (!request.getFacets().isEmpty()) {
+			// Counted over the candidate pool, which is what the result set is. A corpus-wide count would
+			// disagree with a capped ranking and invite the user to filter to something with no hits in it.
+			result.setFacets(candidateFacets(request, surviving));
+			result.addWarning("Facet counts in " + request.getMode() + " mode describe the ranked candidates, not the whole catalog.");
+		}
+
+		result.setTookMs(System.currentTimeMillis() - started);
+		return result;
+	}
+
+	/**
+	 * Apply a non-relevance sort to the fused candidates, keeping each row with its score.
+	 *
+	 * <p>
+	 * The lexical path sorts in SQL, which fusion cannot: the order it produces is the fusion's own. Without this the UI's sort control would be
+	 * silently ignored in {@code SEMANTIC} and {@code HYBRID} - a visible widget that does nothing, which reads as a bug in the ranking rather than a
+	 * missing feature. Note what it sorts: the top {@code topK} candidates, not the catalog, so "newest" means the newest of the best matches.
+	 * </p>
+	 */
+	private void reorder(List<Record> rows, List<Double> scores, io.metaloom.loom.api.search.SearchSortMode sort) {
+		if (sort == io.metaloom.loom.api.search.SearchSortMode.RELEVANCE || rows.size() < 2) {
+			return;
+		}
+		List<Integer> order = new ArrayList<>();
+		for (int i = 0; i < rows.size(); i++) {
+			order.add(i);
+		}
+		Comparator<Integer> comparator = switch (sort) {
+			case NEWEST -> Comparator.comparing(i -> rows.get(i).get("sort_date", Timestamp.class), nullsLast(reverseOrder()));
+			case OLDEST -> Comparator.comparing(i -> rows.get(i).get("sort_date", Timestamp.class), nullsLast(naturalOrder()));
+			case NAME -> Comparator.comparing(i -> rows.get(i).get("title", String.class), nullsLast(naturalOrder()));
+			case SIZE -> Comparator.comparing(i -> rows.get(i).get("size", Long.class), nullsLast(reverseOrder()));
+			// Unreachable: RELEVANCE returned above. Kept exhaustive so a new sort mode fails to compile.
+			case RELEVANCE -> Comparator.comparingInt(i -> i);
+		};
+		// Ties fall back to the fused order, so paging stays stable for rows sharing a date, name or size.
+		order.sort(comparator.thenComparingInt(i -> i));
+
+		List<Record> sortedRows = new ArrayList<>(rows.size());
+		List<Double> sortedScores = new ArrayList<>(scores.size());
+		for (int index : order) {
+			sortedRows.add(rows.get(index));
+			sortedScores.add(scores.get(index));
+		}
+		rows.clear();
+		rows.addAll(sortedRows);
+		scores.clear();
+		scores.addAll(sortedScores);
+	}
+
+	/**
+	 * Embed the query and ask the vector index for its nearest documents.
+	 *
+	 * <p>
+	 * Every vector belongs to an asset, so hits resolve to {@code entity_type = 'asset'}. That is a real limit rather than an oversight: the corpus is
+	 * the per-asset document, and a tag or collection has no asset to embed. Lexical search still finds those by name, which is why {@code HYBRID} is
+	 * the mode worth defaulting to.
+	 * </p>
+	 */
+	private List<EntityKey> vectorRanking(String term, int topK) {
+		float[] queryVector;
+		try {
+			queryVector = embedder.embed(term);
+		} catch (Exception e) {
+			// The capability said this would work, so a failure here is an outage, not a bad request, and
+			// must not be answered with an empty list - "no matches" and "the ranker is down" are opposites.
+			log.error("Failed to embed the search term", e);
+			throw new LoomRestException(503, LoomRestErrorCode.SEARCH_UNAVAILABLE,
+				"The embedding host could not be reached, so semantic search is unavailable right now.");
+		}
+		List<VectorHit> hits;
+		try {
+			hits = vectorIndex.query(new VectorQuery(embedder.space(), queryVector, topK, (float) options.getVectorMinScore(), null));
+		} catch (Exception e) {
+			log.error("The vector index query failed", e);
+			throw new LoomRestException(503, LoomRestErrorCode.SEARCH_UNAVAILABLE,
+				"The vector index could not be queried, so semantic search is unavailable right now.");
+		}
+		List<EntityKey> ranked = new ArrayList<>(hits.size());
+		for (VectorHit hit : hits) {
+			if (hit.assetUuid() != null) {
+				// Duplicates are left in: RankFusion collapses an asset's repeated appearances to its best
+				// rank, which is exactly the wanted behaviour if an asset ever carries several vectors.
+				ranked.add(new EntityKey(SearchEntityType.ASSET.id(), hit.assetUuid()));
+			}
+		}
+		return ranked;
+	}
+
+	/** The lexical ranking as positions rather than scores - RRF reads only the order. */
+	private List<EntityKey> lexicalRanking(SearchRequest request, String term, int topK) {
+		List<Object> binds = new ArrayList<>();
+		StringBuilder where = new StringBuilder();
+		appendMatch(where, binds, term);
+		appendFilters(request, where, binds);
+
+		List<Object> selectBinds = new ArrayList<>(scoreBinds(term));
+		selectBinds.addAll(binds);
+		selectBinds.add(topK);
+
+		Result<Record> records = runSearch("SELECT entity_type, entity_uuid, " + SCORE_EXPRESSION + " AS score"
+			+ " FROM search_document WHERE " + where + " ORDER BY score DESC, entity_uuid LIMIT ?", selectBinds.toArray(), term);
+
+		List<EntityKey> ranked = new ArrayList<>(records.size());
+		for (Record record : records) {
+			ranked.add(new EntityKey(record.get("entity_type", String.class), record.get("entity_uuid", UUID.class)));
+		}
+		return ranked;
+	}
+
+	/**
+	 * Fetch the display columns for the fused candidates, dropping any the request's filters exclude.
+	 *
+	 * <p>
+	 * The pair list travels as two parallel arrays through {@code unnest}, which keeps the whole thing to two bind parameters no matter how many
+	 * candidates there are - an {@code IN} list of tuples would build SQL that grows with {@code topK}.
+	 * </p>
+	 */
+	private Map<EntityKey, Record> hydrate(SearchRequest request, List<EntityKey> keys) {
+		Map<EntityKey, Record> out = new LinkedHashMap<>();
+		if (keys.isEmpty()) {
+			return out;
+		}
+		String[] types = new String[keys.size()];
+		UUID[] uuids = new UUID[keys.size()];
+		for (int i = 0; i < keys.size(); i++) {
+			types[i] = keys.get(i).type();
+			uuids[i] = keys.get(i).uuid();
+		}
+		List<Object> binds = new ArrayList<>();
+		binds.add(types);
+		binds.add(uuids);
+		StringBuilder where = new StringBuilder("(entity_type, entity_uuid) IN"
+			+ " (SELECT t, u FROM unnest(?::varchar[], ?::uuid[]) AS candidate(t, u))");
+		appendFilters(request, where, binds);
+
+		Result<Record> records = runSearch("SELECT entity_type, entity_uuid, asset_uuid, title, subtitle, mime_type, size,"
+			+ " time_from, sort_date, lang, 0::float8 AS score FROM search_document WHERE " + where, binds.toArray(), request.getQuery());
+		for (Record record : records) {
+			out.put(new EntityKey(record.get("entity_type", String.class), record.get("entity_uuid", UUID.class)), record);
+		}
+		return out;
+	}
+
+	/** Facets over the candidate rows already in hand - no second query, and no count the ranking cannot honour. */
+	private Map<String, List<FacetBucket>> candidateFacets(SearchRequest request, List<Record> rows) {
+		Map<String, List<FacetBucket>> out = new LinkedHashMap<>();
+		for (String facet : request.getFacets()) {
+			String column = switch (facet) {
+				case "mime_type", "mime" -> "mime_type";
+				case "entity_type", "type" -> "entity_type";
+				case "lang" -> "lang";
+				default -> null;
+			};
+			if (column == null) {
+				continue;
+			}
+			Map<String, Long> counts = new LinkedHashMap<>();
+			for (Record row : rows) {
+				String value = row.get(column, String.class);
+				if (value != null && !value.isBlank()) {
+					counts.merge(value, 1L, (a, b) -> a + b);
+				}
+			}
+			out.put(facet, counts.entrySet().stream()
+				.sorted(Map.Entry.<String, Long> comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+				.limit(50)
+				.map(entry -> new FacetBucket(entry.getKey(), entry.getValue()))
+				.toList());
+		}
+		return out;
+	}
+
+	/**
+	 * Highlight the hits that have something to highlight.
+	 *
+	 * <p>
+	 * A hit found only by the vector ranker contains none of the typed words by definition, so {@code ts_headline} would return an empty fragment and
+	 * the {@code CASE} in {@link #enrich} would relabel it {@code fuzzy}, overwriting the accurate {@code semantic}. Skipping those keeps the label.
+	 * </p>
+	 */
+	private void enrichFused(List<SearchHit> hits, String term) {
+		List<SearchHit> lexical = hits.stream().filter(hit -> !MATCHED_IN_SEMANTIC.equals(hit.getMatchedIn())).toList();
+		if (!lexical.isEmpty()) {
+			enrich(lexical, term);
+		}
+	}
+
+	/** Why semantic search is off, in the terms of the thing an operator has to change. */
+	private String semanticUnavailableReason() {
+		if (!options.isSemanticEnabled()) {
+			return "it is disabled (LOOM_SEARCH_SEMANTIC_ENABLED=false).";
+		}
+		try {
+			if (!embedder.isAvailable()) {
+				return "the embedding host (LOOM_SEARCH_EMBED_URL) is not reachable.";
+			}
+			if (!vectorIndex.isAvailable()) {
+				return "the vector index (LOOM_VECTOR_INDEX_PROVIDER) is not available.";
+			}
+		} catch (Exception e) {
+			return "the embedding host or vector index could not be checked.";
+		}
+		return "it is not available.";
 	}
 
 	@Override
@@ -210,7 +531,7 @@ public class PostgresSearchProvider implements SearchProvider {
 	public SearchProviderInfo info() {
 		SearchProviderInfo info = new SearchProviderInfo()
 			.setProvider(NAME)
-			.setCapabilities(new LinkedHashSet<>(CAPABILITIES));
+			.setCapabilities(new LinkedHashSet<>(capabilities()));
 		try {
 			info.setDocumentCount(ctx.fetchOne("SELECT count(*) AS c FROM search_document").get("c", Long.class));
 			info.setAvailable(true);
@@ -256,9 +577,12 @@ public class PostgresSearchProvider implements SearchProvider {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS,
 				"The search term must not exceed " + SearchRequest.MAX_QUERY_LENGTH + " characters.");
 		}
-		if (request.getMode() != SearchMode.LEXICAL) {
+		if (request.getMode() != SearchMode.LEXICAL && !semanticReady()) {
+			// Still a 400 naming the reason, never a silent lexical answer wearing a semantic label. The
+			// reason is specific because the three causes need three different fixes.
 			throw new LoomRestException(400, LoomRestErrorCode.SEARCH_UNSUPPORTED,
-				"The " + NAME + " search provider supports only " + SearchMode.LEXICAL + " mode. Requested: " + request.getMode() + ".");
+				"The " + NAME + " search provider cannot serve " + request.getMode() + " mode: " + semanticUnavailableReason()
+					+ " Only " + SearchMode.LEXICAL + " mode is available.");
 		}
 		if (request.getOffset() < 0) {
 			throw new LoomRestException(400, LoomRestErrorCode.BAD_QUERY_PARAMS, "The offset must not be negative.");
@@ -269,6 +593,30 @@ public class PostgresSearchProvider implements SearchProvider {
 				"The " + NAME + " search provider does not support paging past offset " + options.getMaxOffset()
 					+ ". Narrow the query instead.");
 		}
+	}
+
+	/**
+	 * The match predicate: exact tokens, stemmed tokens, or a close-enough trigram match on title/subtitle.
+	 *
+	 * <p>
+	 * The trigram branch uses the {@code %} operator rather than {@code similarity() >= x} so that the GIN trigram index can be used; its threshold
+	 * comes from {@code pg_trgm.similarity_threshold}, which is why every query built on this runs inside the transaction that sets it (see
+	 * {@link #runSearch}).
+	 * </p>
+	 */
+	private void appendMatch(StringBuilder where, List<Object> binds, String term) {
+		where.append("(text_search @@ websearch_to_tsquery('simple', ?)")
+			.append(" OR text_search_en @@ websearch_to_tsquery(?::regconfig, ?)")
+			.append(" OR (trgm_text % ?::text))");
+		binds.add(term);
+		binds.add(options.getTsConfig());
+		binds.add(term);
+		binds.add(term);
+	}
+
+	/** Binds for {@link #SCORE_EXPRESSION}, in the order its placeholders appear. */
+	private List<Object> scoreBinds(String term) {
+		return List.of(term, options.getTsConfig(), term, options.getTrigramWeight(), term);
 	}
 
 	private void appendFilters(SearchRequest request, StringBuilder where, List<Object> binds) {

@@ -17,14 +17,16 @@
 
 /**
  * `view: "run-detail"` shoots the node detail sidebar's Results tab instead of the node card. Only
- * `dedup` needs it, and for a structural reason: its kinds declare no output ports at all, so
- * `NodeResultStrip` renders nothing and the card is a title with an empty body. The Results tab at
- * least states that the node ran, how long it took and that it produced nothing — which is the node's
- * actual shape, not a gap in the picture.
+ * `dedup` uses it. It was structural: its kinds declared no output ports at all, so `NodeResultStrip`
+ * rendered nothing and the card was a title with an empty body, and the Results tab at least stated
+ * that the node ran and how long it took. Since `8bc46dbd` the dedup nodes report the duplicate and
+ * its original on two ports and leave the relocating to a `move` node, so the card would now draw
+ * something — the page keeps the Results tab until its fixture and picture are regenerated together.
  *
  * @type {{page: string, kind: string, alsoKinds?: string[], nodeData?: object, view?: "card" | "run-detail"}[]}
  */
 export const PAGES = [
+  { page: "assign", kind: "assign" },
   { page: "captioning", kind: "captioning" },
   { page: "consistency", kind: "consistency" },
   { page: "dedup", kind: "hash-dedup", alsoKinds: ["fingerprint-dedup", "fingerprint-dedup-apply"], view: "run-detail" },
@@ -54,6 +56,7 @@ export const PAGES = [
   { page: "imagegen", kind: "imagegen" },
   { page: "llm", kind: "llm" },
   { page: "metadata", kind: "metadata" },
+  { page: "move", kind: "move" },
   { page: "objectdetect", kind: "objectdetect" },
   { page: "ocr", kind: "ocr" },
   { page: "onedrive-source", kind: "onedrive-source" },

@@ -830,10 +830,10 @@ and the demo blockers recorded below are now closed.
 
 - [x] `NodeDescriptorGenerator` writes the endpoint-shaped snapshot; `ExampleGenerator` drives it
 - [x] `NodeDescriptorGeneratorTest` pins kind coverage and the port-model field names
-- [x] 34 kinds / 39 content types (8 families) staged; graceful degradation on an unknown kind or type
+- [x] 45 kinds / 40 content types (8 families) staged; graceful degradation on an unknown kind or type
 - [x] ~~The Loom write-back sink has no descriptor provider~~ — not a gap: persisting to Loom is a
-      per-node `syncToLoom` flag, so there is no sink kind to register. The only `OUTPUT` kinds are
-      `s3-sink` and the three dedup nodes, and that is correct
+      per-node `syncToLoom` flag, so there is no sink kind to register. The `OUTPUT` kinds are
+      `s3-sink`, the three dedup nodes and `move` / `assign`, and that is correct
 - [ ] Staging is a manual `cp` — the snapshot can go stale against `loom/doc`'s generated copy with
       nothing failing. A `build.sh` freshness check (or a Maven step that copies it) would close this
 - [x] `filter`'s three fixed output ports are mirrored (`withResolvedPorts`) — without them the kind
@@ -890,5 +890,5 @@ and the demo blockers recorded below are now closed.
       gap [NODE_DATA_TYPES.md § 10](../features/pipeline/NODE_DATA_TYPES.md) records for the UI mirror
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (restaged node-descriptors.json — 45 kinds / 40 content types)_

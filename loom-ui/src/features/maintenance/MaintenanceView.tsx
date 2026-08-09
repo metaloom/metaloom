@@ -4,43 +4,11 @@ import {
   BuildOutlined, StorageOutlined, MemoryOutlined, UpdateOutlined, HistoryOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
+import StatusChip, { type Tone } from "../../components/StatusChip";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { getHealth, HealthCheckResponse } from "../../api/health";
 import { getInfo, InfoResponse } from "../../api/info";
-
-// Visual state for a status chip: which token palette to paint it with.
-type Tone = "green" | "amber" | "red" | "neutral";
-
-function toneStyles(tone: Tone) {
-  switch (tone) {
-    case "green":
-      return { bgcolor: "rgba(52,213,138,0.15)", color: tokens.accent.green };
-    case "amber":
-      return { bgcolor: "rgba(245,166,35,0.15)", color: tokens.accent.amber };
-    case "red":
-      return { bgcolor: "rgba(240,84,110,0.15)", color: tokens.accent.red };
-    case "neutral":
-    default:
-      return { bgcolor: tokens.bg.overlay, color: tokens.text.tertiary };
-  }
-}
-
-function StatusChip({ label, tone, testId }: { label: string; tone: Tone; testId?: string }) {
-  return (
-    <Chip
-      label={label}
-      size="small"
-      data-testid={testId}
-      sx={{
-        ...toneStyles(tone),
-        fontWeight: 600,
-        fontSize: "0.72rem",
-        height: 22,
-      }}
-    />
-  );
-}
 
 // Cards that have no backend metric yet — rendered but gated as "no metric".
 const gatedItems = [

@@ -115,6 +115,13 @@ Persistence, storage and the pluggable index are specified in
 the ANN index is a rebuildable cache behind the `VectorIndex` SPI, keyed by
 `(type, model, dimensions)` so the recognition model can change without invalidating what is stored.
 
+Operationally the face space appears at **`/admin/indices`** as its own row, named by the model that
+produced it — with its backlog, its indexed-vs-recorded counts, and per-space reindex / delta sync /
+drop. Per-space matters here: one Lucene directory holds the face vectors beside the search-text
+ones, and until `VectorIndex.drop(space)` existed a face reindex would have emptied both. Retiring a
+superseded recognition model is `DROP` on the old row.
+See [../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md).
+
 ### 1.3 Clustering — built
 
 | Thing | State |

@@ -37,6 +37,7 @@ from .health import HealthMethods
 from .info import InfoMethods
 from .json_comp import JsonCompMethods
 from .library import LibraryMethods
+from .db_integrity import DbIntegrityMethods
 from .metrics import MetricsMethods
 from .node_result import NodeResultMethods
 from .node_run import NodeRunMethods
@@ -45,6 +46,7 @@ from .pipeline import PipelineMethods
 from .reaction import ReactionMethods
 from .role import RoleMethods
 from .search import SearchMethods
+from .search_index import SearchIndexMethods
 from .segment_comp import SegmentCompMethods
 from .similarity import SimilarityMethods
 from .skill import SkillMethods
@@ -83,12 +85,14 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     JsonCompMethods,
     LibraryMethods,
     MetricsMethods,
+    DbIntegrityMethods,
     NodeResultMethods,
     NodeRunMethods,
     PersonMethods,
     PipelineMethods,
     ReactionMethods,
     RoleMethods,
+    SearchIndexMethods,
     SearchMethods,
     SegmentCompMethods,
     SimilarityMethods,
@@ -128,12 +132,14 @@ __all__ = [
     "JsonCompMethods",
     "LibraryMethods",
     "MetricsMethods",
+    "DbIntegrityMethods",
     "NodeResultMethods",
     "NodeRunMethods",
     "PersonMethods",
     "PipelineMethods",
     "ReactionMethods",
     "RoleMethods",
+    "SearchIndexMethods",
     "SearchMethods",
     "SegmentCompMethods",
     "SimilarityMethods",

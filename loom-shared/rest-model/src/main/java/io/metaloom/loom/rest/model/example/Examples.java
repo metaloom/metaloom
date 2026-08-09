@@ -24,6 +24,7 @@ import io.metaloom.loom.rest.model.group.GroupExamples;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompExamples;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompExamples;
 import io.metaloom.loom.rest.model.library.LibraryExamples;
+import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityExamples;
 import io.metaloom.loom.rest.model.metrics.MetricsExamples;
 import io.metaloom.loom.rest.model.noderesult.NodeResultExamples;
 import io.metaloom.loom.rest.model.noderun.NodeRunExamples;
@@ -34,6 +35,7 @@ import io.metaloom.loom.rest.model.space.SpaceExamples;
 import io.metaloom.loom.rest.model.reaction.ReactionExamples;
 import io.metaloom.loom.rest.model.role.RoleExamples;
 import io.metaloom.loom.rest.model.search.SearchExamples;
+import io.metaloom.loom.rest.model.searchindex.SearchIndexExamples;
 import io.metaloom.loom.rest.model.tag.TagExamples;
 import io.metaloom.loom.rest.model.task.TaskExamples;
 import io.metaloom.loom.rest.model.token.TokenExamples;
@@ -71,6 +73,7 @@ public interface Examples extends
 	SpaceExamples,
 	LibraryExamples,
 	MetricsExamples,
+	DbIntegrityExamples,
 	PersonExamples,
 	PipelineExamples,
 	ProcessorExamples,
@@ -79,6 +82,7 @@ public interface Examples extends
 	FingerprintCompExamples,
 	SegmentCompExamples,
 	SearchExamples,
+	SearchIndexExamples,
 	TranscriptExamples {
 
 	default Example deleteResponseExample() {

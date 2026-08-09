@@ -40,6 +40,7 @@ import io.metaloom.loom.rest.endpoint.impl.HealthEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MeEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.DbIntegrityEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MetricsEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
@@ -54,6 +55,9 @@ import io.metaloom.loom.rest.endpoint.impl.NodeRunEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NotificationEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SkillEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.SearchEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.SearchIndexEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.SimilarityIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.VectorIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TaskEndpoint;
@@ -245,6 +249,7 @@ public class LoomOpenAPI {
 		endpoints.add(new LoginEndpoint(deps, null));
 		endpoints.add(new MeEndpoint(null, deps, examples));
 		endpoints.add(new MetricsEndpoint(null, examples, deps));
+		endpoints.add(new DbIntegrityEndpoint(null, examples, deps));
 		endpoints.add(new NodeDescriptorEndpoint(null, null, deps));
 		endpoints.add(new OAuth2Endpoint(deps, null));
 		endpoints.add(new PersonEndpoint(null, deps, examples));
@@ -258,6 +263,12 @@ public class LoomOpenAPI {
 		endpoints.add(new NotificationEndpoint(null, deps, examples));
 		endpoints.add(new SkillEndpoint(null, deps, examples));
 		endpoints.add(new SpaceEndpoint(null, deps, examples));
+		// Search, similarity-index and search-indices were absent here while being wired in
+		// EndpointModule, so openapi.json silently omitted five live routes and the Python client
+		// parity test carried them as known exceptions. They are documented like every other route.
+		endpoints.add(new SearchEndpoint(null, deps, examples));
+		endpoints.add(new SearchIndexEndpoint(null, deps, examples));
+		endpoints.add(new SimilarityIndexEndpoint(null, deps));
 		endpoints.add(new VectorIndexEndpoint(null, deps));
 		endpoints.add(new TagEndpoint(null, deps, examples));
 		endpoints.add(new TaskEndpoint(null, null, null, deps, examples));

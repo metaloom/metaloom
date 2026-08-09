@@ -260,4 +260,107 @@ public class LoomOptionsValidationTest {
 		options.getDatabase().setPassword("  ");
 		assertTrue(!errorsOf(options).get(0).contains("  "), "Secret value must not appear in the message");
 	}
+
+	// -- Search --------------------------------------------------------------
+
+	@Test
+	public void testUnknownSearchProvider() {
+		LoomOptions options = validOptions();
+		options.getSearch().setProvider("solr");
+		assertSingleError(options, "search.provider");
+	}
+
+	@Test
+	public void testSearchDefaultLimitAboveMaxLimit() {
+		LoomOptions options = validOptions();
+		options.getSearch().setDefaultLimit(200).setMaxLimit(100);
+		assertSingleError(options, "search.defaultLimit");
+	}
+
+	@Test
+	public void testSearchTrigramThresholdOutOfRange() {
+		LoomOptions options = validOptions();
+		options.getSearch().setTrigramThreshold(1.5d);
+		assertSingleError(options, "search.trigramThreshold");
+	}
+
+	@Test
+	public void testBlankSearchTsConfig() {
+		LoomOptions options = validOptions();
+		options.getSearch().setTsConfig("");
+		assertSingleError(options, "search.tsConfig");
+	}
+
+	@Test
+	public void testDisabledSearchSkipsItsOwnValidation() {
+		LoomOptions options = validOptions();
+		options.getSearch().setEnabled(false).setProvider("solr").setTsConfig("");
+		options.validate();
+	}
+
+	// -- Semantic search -----------------------------------------------------
+
+	@Test
+	public void testSemanticDefaultsAreValidBecauseSemanticIsOff() {
+		// Nothing about the embedding host is required until someone asks for semantic search. An operator
+		// who never turns it on must not have to configure it to boot.
+		validOptions().validate();
+	}
+
+	@Test
+	public void testSemanticWithoutAnEmbeddingHost() {
+		LoomOptions options = validOptions();
+		options.getSearch().setSemanticEnabled(true).setEmbedModel("nomic-embed-text");
+		assertSingleError(options, "search.embedUrl");
+	}
+
+	@Test
+	public void testSemanticWithoutAModelName() {
+		LoomOptions options = validOptions();
+		options.getSearch().setSemanticEnabled(true).setEmbedUrl("http://127.0.0.1:8090/v1");
+		assertSingleError(options, "search.embedModel");
+	}
+
+	@Test
+	public void testSemanticRejectsAZeroDimension() {
+		LoomOptions options = semanticOptions();
+		options.getSearch().setEmbedDimensions(0);
+		assertSingleError(options, "search.embedDimensions");
+	}
+
+	@Test
+	public void testSemanticRejectsAScoreFloorOutsideTheUnitRange() {
+		LoomOptions options = semanticOptions();
+		options.getSearch().setVectorMinScore(1.5d);
+		assertSingleError(options, "search.vectorMinScore");
+	}
+
+	@Test
+	public void testSemanticRejectsANonPositiveRrfConstant() {
+		LoomOptions options = semanticOptions();
+		options.getSearch().setRrfK(0);
+		assertSingleError(options, "search.rrfK");
+	}
+
+	@Test
+	public void testSemanticRejectsTwoZeroFusionWeights() {
+		// Both zero would score every candidate 0 and return an arbitrary order rather than an empty result -
+		// a plausible-looking ranking with no meaning behind it.
+		LoomOptions options = semanticOptions();
+		options.getSearch().setRrfWeightLexical(0).setRrfWeightVector(0);
+		assertSingleError(options, "search.rrfWeightVector");
+	}
+
+	@Test
+	public void testSemanticAcceptsOneZeroFusionWeight() {
+		LoomOptions options = semanticOptions();
+		options.getSearch().setRrfWeightLexical(0);
+		options.validate();
+	}
+
+	private LoomOptions semanticOptions() {
+		LoomOptions options = validOptions();
+		options.getSearch().setSemanticEnabled(true).setEmbedUrl("http://127.0.0.1:8090/v1").setEmbedModel("nomic-embed-text");
+		return options;
+	}
 }

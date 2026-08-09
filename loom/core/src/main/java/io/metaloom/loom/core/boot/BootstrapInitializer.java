@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.agent.sandbox.SandboxReaper;
+import io.metaloom.loom.rest.search.IndexJobRegistry;
+import io.metaloom.loom.rest.search.SearchEmbeddingDrainer;
 import io.metaloom.loom.rest.vector.EmbeddingIndexDrainer;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.mcp.MCPService;
@@ -53,6 +55,10 @@ public class BootstrapInitializer {
 
 	private final EmbeddingIndexDrainer embeddingIndexDrainer;
 
+	private final SearchEmbeddingDrainer searchEmbeddingDrainer;
+
+	private final IndexJobRegistry indexJobRegistry;
+
 	private final DataSource dataSource;
 
 	@Inject
@@ -60,7 +66,7 @@ public class BootstrapInitializer {
 		MonitoringService monitoringService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
 		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper, EmbeddingIndexDrainer embeddingIndexDrainer,
-		DataSource dataSource) {
+		SearchEmbeddingDrainer searchEmbeddingDrainer, IndexJobRegistry indexJobRegistry, DataSource dataSource) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
@@ -74,6 +80,8 @@ public class BootstrapInitializer {
 		this.assetPipelineTrigger = assetPipelineTrigger;
 		this.sandboxReaper = sandboxReaper;
 		this.embeddingIndexDrainer = embeddingIndexDrainer;
+		this.searchEmbeddingDrainer = searchEmbeddingDrainer;
+		this.indexJobRegistry = indexJobRegistry;
 		this.dataSource = dataSource;
 	}
 
@@ -166,6 +174,7 @@ public class BootstrapInitializer {
 
 		try {
 			embeddingIndexDrainer.start();
+			searchEmbeddingDrainer.start();
 		} catch (Exception e) {
 			log.warn("Error while starting the vector index drain — continuing startup", e);
 		}
@@ -186,6 +195,11 @@ public class BootstrapInitializer {
 	public void deinit() {
 		sandboxReaper.stop();
 		embeddingIndexDrainer.stop();
+		searchEmbeddingDrainer.stop();
+		// Releases the index-job worker pool. A job still running at shutdown is abandoned rather
+		// than awaited - every one of them is restartable work over derived data, so the right
+		// trade is a prompt shutdown and a button press afterwards.
+		indexJobRegistry.close();
 		monitoringService.stop();
 		mcpService.stop();
 		restService.stop();

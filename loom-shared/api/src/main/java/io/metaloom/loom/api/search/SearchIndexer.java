@@ -30,5 +30,22 @@ public interface SearchIndexer {
 	/** Remove every document derived from the given asset, including its transcript/segment/detection children. */
 	void deleteByAsset(UUID assetUuid);
 
+	/**
+	 * Rebuild every document from the source tables, replacing whatever is there.
+	 *
+	 * <p>
+	 * The repair path, and the only one an operator has when the index and the sources have drifted. Every indexer needs one: the trigger-maintained
+	 * Postgres index can still be repaired by re-running the refresh functions, and an external index needs it after a mapping change.
+	 * </p>
+	 *
+	 * <p>
+	 * ⚠️ Deliberately reports no intermediate progress. The Postgres implementation is a single SQL call that either finishes or does not, so a caller
+	 * driving a progress bar has to treat the total as unknown.
+	 * </p>
+	 *
+	 * @return how many documents the rebuild produced
+	 */
+	long rebuild();
+
 	IndexStatus status();
 }

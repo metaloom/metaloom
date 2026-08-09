@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.options.DatabaseOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.dagger.DaoProvider;
+import io.metaloom.loom.db.integrity.DbIntegrityService;
 import io.metaloom.loom.test.LoomProviderExtension;
 
 public class JooqTestContext implements BeforeEachCallback, AfterEachCallback, DaoProvider {
@@ -56,6 +57,10 @@ public class JooqTestContext implements BeforeEachCallback, AfterEachCallback, D
 
 	public DSLContext ctx() {
 		return component.context();
+	}
+
+	public DbIntegrityService dbIntegrity() {
+		return component.dbIntegrity();
 	}
 
 }

@@ -5,15 +5,19 @@ import static io.metaloom.loom.db.jooq.tables.JooqEmbedding.EMBEDDING;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
+import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Table;
 import org.jooq.TableRecord;
+import org.jooq.impl.DSL;
 
 import io.metaloom.loom.db.jooq.AbstractJooqDao;
 import io.metaloom.loom.db.jooq.tables.JooqEmbedding;
@@ -103,6 +107,71 @@ public class EmbeddingDaoImpl extends AbstractJooqDao<Embedding> implements Embe
 			.orderBy(EMBEDDING.UUID.asc())
 			.fetchStreamInto(EmbeddingImpl.class)
 			.map(e -> (Embedding) e);
+	}
+
+	@Override
+	public List<EmbeddingSpaceStats> listSpaces() {
+		Field<Integer> total = DSL.count().as("total");
+		// count(CASE WHEN dirty THEN 1 END) rather than a second query: one group-by pass over
+		// idx_embedding_type_model answers both numbers, and they are then guaranteed consistent with each other.
+		Field<Integer> dirty = DSL.count(DSL.when(EMBEDDING.DIRTY.isTrue(), 1)).as("dirty");
+		return ctx().select(EMBEDDING.TYPE, EMBEDDING.MODEL, EMBEDDING.DIMENSIONS, total, dirty)
+			.from(EMBEDDING)
+			.groupBy(EMBEDDING.TYPE, EMBEDDING.MODEL, EMBEDDING.DIMENSIONS)
+			.orderBy(EMBEDDING.TYPE.asc(), EMBEDDING.MODEL.asc(), EMBEDDING.DIMENSIONS.asc())
+			.fetch()
+			.map(record -> new EmbeddingSpaceStats(
+				record.get(EMBEDDING.TYPE),
+				record.get(EMBEDDING.MODEL),
+				record.get(EMBEDDING.DIMENSIONS) == null ? 0 : record.get(EMBEDDING.DIMENSIONS),
+				record.get(total),
+				record.get(dirty)));
+	}
+
+	@Override
+	public Stream<Embedding> streamAll(String type, String model, int dimensions) {
+		return ctx().selectFrom(EMBEDDING)
+			.where(spaceCondition(type, model, dimensions))
+			.orderBy(EMBEDDING.UUID.asc())
+			.fetchStreamInto(EmbeddingImpl.class)
+			.map(e -> (Embedding) e);
+	}
+
+	@Override
+	public List<Embedding> findDirty(String type, String model, int dimensions, int limit) {
+		return ctx().selectFrom(EMBEDDING)
+			.where(spaceCondition(type, model, dimensions).and(EMBEDDING.DIRTY.isTrue()))
+			.orderBy(EMBEDDING.SYNCED_AT.asc())
+			.limit(limit)
+			.fetchInto(EmbeddingImpl.class)
+			.stream()
+			.map(e -> (Embedding) e)
+			.toList();
+	}
+
+	@Override
+	public Set<UUID> filterExisting(Collection<UUID> uuids) {
+		if (uuids == null || uuids.isEmpty()) {
+			return Set.of();
+		}
+		return Set.copyOf(ctx().select(EMBEDDING.UUID)
+			.from(EMBEDDING)
+			.where(EMBEDDING.UUID.in(uuids))
+			.fetchInto(UUID.class));
+	}
+
+	/**
+	 * Match exactly one vector space.
+	 *
+	 * <p>
+	 * {@code model} is compared against the empty string when the caller passes null, mirroring the {@code NOT NULL DEFAULT ''} on the column - a
+	 * {@code = NULL} would silently match nothing and make the space with no recorded model unreachable rather than merely unnamed.
+	 * </p>
+	 */
+	private static Condition spaceCondition(String type, String model, int dimensions) {
+		return EMBEDDING.TYPE.eq(type)
+			.and(EMBEDDING.MODEL.eq(model == null ? "" : model))
+			.and(EMBEDDING.DIMENSIONS.eq(dimensions));
 	}
 
 	@Override

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.api.options.SearchOptions;
+import io.metaloom.loom.api.search.NoopTextEmbedder;
 import io.metaloom.loom.api.search.SearchEntityType;
 import io.metaloom.loom.api.search.SearchHit;
 import io.metaloom.loom.api.search.SearchMode;
@@ -47,7 +48,7 @@ public class SearchQueryBehaviourTest extends AbstractJooqTest {
 	@BeforeEach
 	public void setupProvider() {
 		options = new SearchOptions();
-		provider = new PostgresSearchProvider(ctx(), options);
+		provider = new PostgresSearchProvider(ctx(), options, new NoopTextEmbedder("semantic search is off in this test"), new InMemoryVectorIndex());
 	}
 
 	private DSLContext ctx() {

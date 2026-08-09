@@ -12,11 +12,39 @@ import org.junit.jupiter.api.Test;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.page.Page;
 
-public interface CRUDDaoTestcases<DAO extends CRUDDao<T>, T extends Element<T>> extends FixtureElementProvider {
+public interface CRUDDaoTestcases<DAO extends CRUDDao<T>, T extends Element<T>>
+	extends FixtureElementProvider, DbIntegrityAsserts {
 
 	DAO getDao();
 
 	T createElement(User user, int i);
+
+	/**
+	 * Whether these testcases assert database integrity after each write.
+	 *
+	 * <p>
+	 * On by default, which is what makes this contract worth more than the sum of its assertions:
+	 * roughly fifty DAO test classes inherit it, so every store, update and delete in the suite is
+	 * also asking whether it left the database self-consistent. A cascade that orphans a search
+	 * document, a write that inverts an audit timestamp, a status column written with the wrong
+	 * spelling - all of them surface at the DAO that caused them rather than three layers away.
+	 * </p>
+	 *
+	 * <p>
+	 * Override to {@code false} only with a comment explaining which invariant the DAO legitimately
+	 * breaks, and prefer {@link #ignoredIntegrityChecks()} first - silencing one code keeps the other
+	 * twenty-eight working.
+	 * </p>
+	 */
+	default boolean integrityCheckEnabled() {
+		return true;
+	}
+
+	private void checkIntegrity() {
+		if (integrityCheckEnabled()) {
+			assertIntegrity();
+		}
+	}
 
 	@Test
 	default void testCreate() {
@@ -37,6 +65,7 @@ public interface CRUDDaoTestcases<DAO extends CRUDDao<T>, T extends Element<T>> 
 		T loaded = dao.load(ref.get());
 		assertNotNull(loaded);
 		assertCreate(loaded);
+		checkIntegrity();
 	}
 
 	@Test
@@ -51,6 +80,9 @@ public interface CRUDDaoTestcases<DAO extends CRUDDao<T>, T extends Element<T>> 
 		// Now assert deletion
 		dao.delete(element);
 		assertNull(dao.load(element.getUuid()), "The library should be deleted.");
+		// A delete is where an over- or under-reaching cascade shows up, so this is the most
+		// valuable of the three placements.
+		checkIntegrity();
 	}
 
 	@Test
@@ -69,7 +101,7 @@ public interface CRUDDaoTestcases<DAO extends CRUDDao<T>, T extends Element<T>> 
 		// Load and assert update was persisted
 		T updatedElement = dao.load(element.getUuid());
 		assertUpdate(updatedElement);
-
+		checkIntegrity();
 	}
 
 	void assertCreate(T createdElement);
@@ -92,6 +124,11 @@ public interface CRUDDaoTestcases<DAO extends CRUDDao<T>, T extends Element<T>> 
 		assertNotNull(element.getUuid());
 	}
 
+	/**
+	 * No integrity assertion here on purpose. This stores 1024 rows through the same code path
+	 * {@link #testCreate()} already covers, so the sweep would tell us nothing new - and it is the one
+	 * place in the contract where the cost would not obviously be free.
+	 */
 	@Test
 	default void testLoadPage() {
 		long before = getDao().count();

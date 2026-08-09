@@ -10,8 +10,11 @@ import dagger.Module;
 import dagger.Provides;
 import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.api.options.SearchOptions;
+import io.metaloom.loom.api.search.NoopTextEmbedder;
 import io.metaloom.loom.api.search.SearchIndexer;
 import io.metaloom.loom.api.search.SearchProvider;
+import io.metaloom.loom.api.search.TextEmbedder;
+import io.metaloom.loom.core.search.OpenAiTextEmbedder;
 import io.metaloom.loom.db.jooq.search.NoopSearchIndexer;
 import io.metaloom.loom.db.jooq.search.NoopSearchProvider;
 import io.metaloom.loom.db.jooq.search.PostgresSearchProvider;
@@ -60,6 +63,41 @@ public class SearchModule {
 		} catch (Exception e) {
 			log.error("Search provider '{}' failed to start; search will be unavailable", provider, e);
 			return new NoopSearchProvider("The configured search provider failed to start: " + e.getMessage());
+		}
+	}
+
+	/**
+	 * Binds the text embedder behind semantic search.
+	 *
+	 * <p>
+	 * Same stance as the provider above: a missing or unreachable embedding host degrades to {@link NoopTextEmbedder}, never a boot failure. The
+	 * consequence is visible rather than silent - the provider then advertises neither {@code SEMANTIC} nor {@code HYBRID}, those modes answer 400 with
+	 * the reason, and the UI's mode toggle stays hidden.
+	 * </p>
+	 *
+	 * <p>
+	 * Availability is probed once here, at boot, because the probe costs a real embedding call. {@code PostgresSearchProvider} re-checks per request,
+	 * so a host that dies later still retracts the capability.
+	 * </p>
+	 */
+	@Provides
+	@Singleton
+	public TextEmbedder textEmbedder(SearchOptions options) {
+		if (!options.isEnabled() || !options.isSemanticEnabled()) {
+			return new NoopTextEmbedder("Semantic search is disabled (LOOM_SEARCH_SEMANTIC_ENABLED=false).");
+		}
+		try {
+			OpenAiTextEmbedder embedder = new OpenAiTextEmbedder(options);
+			if (!embedder.isAvailable()) {
+				log.warn("The embedding host at {} did not answer a probe request; semantic search will be unavailable", options.getEmbedUrl());
+				return new NoopTextEmbedder("The embedding host (" + options.getEmbedUrl() + ") did not answer.");
+			}
+			log.info("Semantic search ready: model {} ({} dimensions) at {}", options.getEmbedModel(), options.getEmbedDimensions(),
+				options.getEmbedUrl());
+			return embedder;
+		} catch (Exception e) {
+			log.error("The embedding host could not be initialised; semantic search will be unavailable", e);
+			return new NoopTextEmbedder("The embedding host could not be initialised: " + e.getMessage());
 		}
 	}
 

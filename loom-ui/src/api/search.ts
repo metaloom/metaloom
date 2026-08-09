@@ -9,8 +9,20 @@ import type {
 
 // ── Types matching the Loom REST API search models ────────────────────
 
-/** Which field produced the match. Derived server-side while building the snippet. */
-export type SearchMatchedIn = "title" | "subtitle" | "body" | "keywords" | "fuzzy";
+/**
+ * Which field produced the match. Derived server-side while building the snippet.
+ *
+ * `semantic` is the odd one out: it means no field matched the typed words at all and the vector
+ * ranker found the hit by meaning. Such a hit carries no `highlights`, because there is nothing in
+ * the text to highlight — treat a missing snippet as expected there rather than as a server bug.
+ */
+export type SearchMatchedIn =
+  | "title"
+  | "subtitle"
+  | "body"
+  | "keywords"
+  | "fuzzy"
+  | "semantic";
 
 export interface SearchHitResponse {
   /** Lowercase entity id — the field is `type`, not `entityType`. */

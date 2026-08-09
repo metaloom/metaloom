@@ -139,6 +139,43 @@ public class LuceneSimilarityIndexTest {
 			.extracting(SimilarityHit::assetUuid).containsExactly(assetNear);
 	}
 
+	@Test
+	public void shouldDropOneAlgorithmAndLeaveTheOthersIntact() {
+		// Same reason drop(VectorSpace) exists on the sibling SPI: rebuild() clears everything, so
+		// retiring one fingerprint algorithm needed a scoped operation of its own.
+		index.index(assetNear, "sha-near", ALGO, base);
+		index.index(assetFar, "sha-far", "other-algo", base);
+
+		index.drop(ALGO);
+
+		assertThat(index.query(ALGO, base, 10, THRESHOLD)).isEmpty();
+		assertThat(index.query("other-algo", base, 10, THRESHOLD))
+			.extracting(SimilarityHit::assetUuid).containsExactly(assetFar);
+	}
+
+	@Test
+	public void shouldReportCountsPerAlgorithmAndBytesForTheBackend() {
+		index.index(assetNear, "sha-near", ALGO, base);
+		index.index(assetFar, "sha-far", "other-algo", base);
+		index.commit();
+
+		assertThat(index.status(ALGO).getDocumentCount()).isEqualTo(1);
+		assertThat(index.status().getDocumentCount()).isEqualTo(2);
+		assertThat(index.status().getSizeBytes()).isPositive();
+		assertThat(index.providerName()).isEqualTo("lucene");
+	}
+
+	@Test
+	public void shouldEnumerateIndexedAssetUuidsForTheOrphanSweep() {
+		index.index(assetNear, "sha-near", ALGO, base);
+		index.index(assetFar, "sha-far", ALGO, far);
+		index.commit();
+
+		try (Stream<UUID> uuids = index.streamIndexedAssetUuids()) {
+			assertThat(uuids.toList()).contains(assetNear, assetFar);
+		}
+	}
+
 	/**
 	 * Build a valid v2 fingerprint hex: 2 bytes version, 1 pad, 2 bytes vector size (256), 1 pad, then 32 bytes of bit data.
 	 */

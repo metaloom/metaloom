@@ -1,13 +1,20 @@
 package io.metaloom.loom.vector.lucene;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -21,10 +28,14 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -34,9 +45,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.metaloom.loom.api.search.IndexStatus;
 import io.metaloom.loom.api.search.VectorHit;
 import io.metaloom.loom.api.search.VectorIndex;
 import io.metaloom.loom.api.search.VectorQuery;
@@ -240,13 +253,7 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		} catch (IOException e) {
 			log.warn("Vector query failed: {}", e.getMessage());
 		} finally {
-			if (searcher != null) {
-				try {
-					searcherManager.release(searcher);
-				} catch (IOException e) {
-					log.warn("Failed to release searcher: {}", e.getMessage());
-				}
-			}
+			release(searcher);
 		}
 		return hits;
 	}
@@ -291,6 +298,191 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 			log.error("Failed to rebuild vector index: {}", e.getMessage(), e);
 		} finally {
 			writeLock.unlock();
+		}
+	}
+
+	@Override
+	public void drop(VectorSpace space) {
+		if (!available || space == null) {
+			return;
+		}
+		writeLock.lock();
+		try {
+			writer.deleteDocuments(spaceQuery(space));
+			writer.commit();
+			searcherManager.maybeRefresh();
+			log.info("Dropped every vector in space {} from the index at {}", space.key(), indexPath);
+		} catch (IOException e) {
+			log.error("Failed to drop vector space {}: {}", space.key(), e.getMessage(), e);
+		} finally {
+			writeLock.unlock();
+		}
+	}
+
+	/**
+	 * A filter matching exactly the documents of one space.
+	 *
+	 * <p>
+	 * The dimension needs its own clause. It is carried structurally by the k-NN field name rather than as a filter term, so a type + model match alone
+	 * would also select a same-named model of a different length - which is precisely the pair {@link VectorSpace} exists to keep apart. A
+	 * {@link FieldExistsQuery} on the dimension-suffixed field restores that distinction without adding a field to every document.
+	 * </p>
+	 */
+	private static Query spaceQuery(VectorSpace space) {
+		return new BooleanQuery.Builder()
+			.add(new TermQuery(new Term(TYPE_FIELD, space.type())), Occur.FILTER)
+			.add(new TermQuery(new Term(MODEL_FIELD, space.model())), Occur.FILTER)
+			.add(new FieldExistsQuery(vectorField(space.dimensions())), Occur.FILTER)
+			.build();
+	}
+
+	@Override
+	public IndexStatus status() {
+		IndexStatus status = new IndexStatus().setHealthy(available);
+		if (!available) {
+			return status.setDetail("The vector index directory could not be opened at " + indexPath);
+		}
+		try {
+			IndexWriter.DocStats stats = writer.getDocStats();
+			status.setDocumentCount(stats.numDocs);
+			status.setDeletedCount((long) stats.maxDoc - stats.numDocs);
+			status.setSizeBytes(directorySize());
+		} catch (Exception e) {
+			// Status is read precisely when something is wrong, so a failure here reports rather than throws.
+			log.warn("Could not read vector index status: {}", e.getMessage());
+			status.setHealthy(false).setDetail(e.getMessage());
+		}
+		return status;
+	}
+
+	@Override
+	public IndexStatus status(VectorSpace space) {
+		IndexStatus status = new IndexStatus().setHealthy(available);
+		if (!available || space == null) {
+			return status;
+		}
+		IndexSearcher searcher = null;
+		try {
+			searcherManager.maybeRefresh();
+			searcher = searcherManager.acquire();
+			status.setDocumentCount(searcher.count(spaceQuery(space)));
+		} catch (IOException e) {
+			log.warn("Could not count vectors in space {}: {}", space.key(), e.getMessage());
+			status.setHealthy(false).setDetail(e.getMessage());
+		} finally {
+			release(searcher);
+		}
+		return status;
+	}
+
+	/**
+	 * Sum of every file in the index directory.
+	 *
+	 * <p>
+	 * A concurrent merge can unlink a file between listing it and measuring it, so a missing file is skipped rather than failing the whole read - the
+	 * number is an operator-facing estimate, not an accounting figure.
+	 * </p>
+	 */
+	private long directorySize() throws IOException {
+		long bytes = 0;
+		for (String file : directory.listAll()) {
+			try {
+				bytes += directory.fileLength(file);
+			} catch (FileNotFoundException | NoSuchFileException e) {
+				// Merged away while we were looking at it.
+			}
+		}
+		return bytes;
+	}
+
+	/**
+	 * Walk the {@code embedding_uuid} term dictionary.
+	 *
+	 * <p>
+	 * The terms are read rather than the stored fields because the alternative - loading every document to read one string back out - decompresses the
+	 * whole stored-field block per document, which on a multi-million-vector index is the difference between a sweep an operator can run and one they
+	 * cannot. The consequence is that terms of deleted-but-unmerged documents are still visible; the caller is told to expect a superset, and deleting
+	 * an already-deleted document is a no-op, so filtering them here would cost a per-document liveDocs lookup to prevent nothing.
+	 * </p>
+	 */
+	@Override
+	public Stream<UUID> streamIndexedEmbeddingUuids() {
+		if (!available) {
+			return Stream.empty();
+		}
+		IndexSearcher searcher;
+		try {
+			searcherManager.maybeRefresh();
+			searcher = searcherManager.acquire();
+		} catch (IOException e) {
+			log.warn("Could not open a reader to enumerate indexed embeddings: {}", e.getMessage());
+			return Stream.empty();
+		}
+		IndexSearcher acquired = searcher;
+		try {
+			List<Stream<UUID>> perLeaf = new ArrayList<>();
+			for (LeafReaderContext leaf : acquired.getIndexReader().leaves()) {
+				Terms terms = leaf.reader().terms(EMBEDDING_FIELD);
+				if (terms != null) {
+					perLeaf.add(termStream(terms));
+				}
+			}
+			return perLeaf.stream().flatMap(s -> s).onClose(() -> release(acquired));
+		} catch (IOException e) {
+			log.warn("Could not enumerate indexed embeddings: {}", e.getMessage());
+			release(acquired);
+			return Stream.empty();
+		}
+	}
+
+	private static Stream<UUID> termStream(Terms terms) throws IOException {
+		TermsEnum iterator = terms.iterator();
+		Iterator<UUID> uuids = new Iterator<>() {
+
+			private UUID next = advance();
+
+			private UUID advance() {
+				try {
+					BytesRef term;
+					while ((term = iterator.next()) != null) {
+						try {
+							return UUID.fromString(term.utf8ToString());
+						} catch (IllegalArgumentException e) {
+							// A term that is not a uuid cannot correspond to an embedding row; skip it rather than abort the sweep.
+						}
+					}
+				} catch (IOException e) {
+					log.warn("Failed while walking the embedding term dictionary: {}", e.getMessage());
+				}
+				return null;
+			}
+
+			@Override
+			public boolean hasNext() {
+				return next != null;
+			}
+
+			@Override
+			public UUID next() {
+				if (next == null) {
+					throw new NoSuchElementException();
+				}
+				UUID current = next;
+				next = advance();
+				return current;
+			}
+		};
+		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(uuids, Spliterator.ORDERED | Spliterator.NONNULL), false);
+	}
+
+	private void release(IndexSearcher searcher) {
+		if (searcher == null) {
+			return;
+		}
+		try {
+			searcherManager.release(searcher);
+		} catch (IOException e) {
+			log.warn("Failed to release searcher: {}", e.getMessage());
 		}
 	}
 

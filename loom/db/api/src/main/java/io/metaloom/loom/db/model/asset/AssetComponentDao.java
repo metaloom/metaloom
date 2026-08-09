@@ -1,7 +1,10 @@
 package io.metaloom.loom.db.model.asset;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import io.metaloom.loom.db.Dao;
 
@@ -196,6 +199,23 @@ public interface AssetComponentDao extends Dao {
 	 * </p>
 	 */
 	List<AssetFingerprintComp> findByAlgorithm(String algorithm);
+
+	/**
+	 * The same rows as {@link #findByAlgorithm(String)}, streamed.
+	 *
+	 * <p>
+	 * The similarity index takes a {@link java.util.stream.Stream} for its rebuild precisely so a corpus larger than memory can be walked; loading the
+	 * list first defeats that. Use this for the rebuild and the list only when the whole set is genuinely wanted at once. The caller must close the
+	 * stream.
+	 * </p>
+	 */
+	Stream<AssetFingerprintComp> streamByAlgorithm(String algorithm);
+
+	/** How many fingerprint components exist for one algorithm - the total a rebuild reports progress against. */
+	long countByAlgorithm(String algorithm);
+
+	/** Which of the given assets still have a fingerprint component for this algorithm. The batched test behind the index orphan sweep. */
+	Set<UUID> filterExistingFingerprintAssets(String algorithm, Collection<UUID> assetUuids);
 
 	// Segment
 	AssetSegmentComp createSegmentComp(UUID userUuid, UUID assetUuid, String nodeKind);

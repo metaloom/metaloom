@@ -244,6 +244,13 @@ against the **packaged** shaded `cortex/cli` JAR and image — rebuild both afte
 | `LOOM_SIMILARITY_ENABLED` | off | 🔴 When false, `NoopSimilarityIndex` is bound and the similarity routes answer **503** — deliberately, so `fingerprint-dedup` fails loudly rather than producing an empty queue |
 | `LOOM_SIMILARITY_INDEX_PATH` / `_ALGORITHM` / `_TOPK` / `_SCORE_THRESHOLD` | — | Shape the candidate set the reviewer sees |
 
+The fingerprint index has an operator surface at **`/admin/indices`** — size, indexed vs. recorded
+fingerprint counts, reindex, and an orphan sweep for entries left behind by assets deleted while the
+index was off. Note it has **no freshness flag**: `asset_fingerprint_comp` records nothing about
+whether a row was indexed, so the backlog shown there is inferred from the gap between the two counts
+and a delta sync can only remove, never add. Anything missing is a reindex.
+See [../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md).
+
 Node options (`fingerprint-dedup`: `algorithm`, `scoreThreshold`, `topK`, `allowPartial`,
 `abortOnLargerDup`; apply: `dupFolder`) are documented in
 [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §4. ⚠️ Only `enabled` and `dupFolder`

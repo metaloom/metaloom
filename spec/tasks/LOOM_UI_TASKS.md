@@ -29,21 +29,6 @@ For the backend suite I compared against a worktree at ce41aaf1: 16 pre-existing
 
 ## 0. Audit findings — the four questions
 
-### 0.2 Can semantic search / boolean / term search be run in the UI?
-
-**No, for three different reasons.**
-
-| Mode | Backend | UI |
-|------|---------|-----|
-| **Boolean / phrase / negation** | Built. `PostgresSearchProvider` uses `websearch_to_tsquery`, so `"quoted phrase"`, `or` and `-negation` all work today ([PostgresSearchProvider.java:118](../../loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/search/PostgresSearchProvider.java)) | **Unreachable** — no client, no input routes to `?q=` |
-| **Term / typeahead** | Built — `GET /search/suggestions` (trigram, `similarity()`-ordered) | Unreachable |
-| **Faceted / filtered** | Built — `?types= &mime= &library= &space= &collection= &tag= &lang= &from= &to= &facets= &highlight= &sort=` | Unreachable |
-| **Semantic (`mode=SEMANTIC`)** | Partial — enum + capability + `?profile=` are built; the **ranker is not**. `mode=SEMANTIC` returns **400** naming the provider, deliberately — never a silent lexical fallback | Nothing to expose yet |
-
-So: boolean/term search is a **UI wiring gap** (Task 1); semantic search is a **backend gap** tracked
-in [../features/search/SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) §5–6 and
-[../concept/SEARCH_PLAN.md](../concept/SEARCH_PLAN.md) Phase 3 — **do not build UI for it until the
-ranker lands**; `GET /search/status` is the honest gate (Task 1 step 6).
 
 ### 0.3 Is Upload covered by E2E?
 
@@ -190,7 +175,10 @@ ratchet test (`loom-ui/src/testCoverage.test.ts` or similar). `cd loom-ui && npm
 
 ---
 
-## Task 10: Refresh the stale counts in LOOM_UI.md
+## Task 10: Refresh the stale counts in LOOM_UI.md — 🔨 partly closed
+
+**Status:** steps 1-4 landed with the search index admin screen (2026-08-09): §3, §5, §8.2 and §10
+were recounted against the tree and the new modules added. Steps 5-7 remain.
 
 **Argumentation Summary:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) states figures that the
 tree has outgrown, and those figures are how an agent decides whether a spec already exists before
@@ -208,11 +196,12 @@ the code — this is the accumulated debt from several changes that were not.
 §13.
 
 ```
-1. §3 project structure -- correct the api/ and e2e/ counts.
-2. §8.1 -- correct "18 test files" to the real count and complete both rows of the table.
-3. §8.2 -- correct 64/32/29 to the real counts; the legacy-name row still lists three files, verify.
-4. §10 key components -- add MemoryView, ProfileView, NodeResultDetail, NodeResultStrip,
-   UploadView/UploadContext (only UploadContext is mentioned today, in §6).
+1. [x] §3 project structure -- api/ and e2e/ counts recounted (41 modules / 22 co-located tests /
+       87 specs) and `StatusChip` added to the components line.
+2. [ ] §8.1 -- correct "18 test files" to the real count and complete both rows of the table.
+3. [x] §8.2 -- 87 specs / 53 mocked / 31 backend / 3 legacy.
+4. [x] §10 key components -- `StatusChip` and `SearchIndicesAdmin` added. MemoryView, ProfileView,
+       NodeResultDetail, NodeResultStrip and UploadView/UploadContext are still missing.
 5. §13.4 Testing -- add "search UI has no tests" once Task 1 lands, or strike it once it does.
 6. Add the §0.1 finding of THIS file to §11.2 gotchas: "a list view's search box filters the first
    25 rows only" -- until Task 2 lands it is the single most surprising behaviour in the UI.
@@ -303,6 +292,9 @@ the mocked suite in CI.
 
 ---
 
-_Git HEAD revision: `566a2cf3`_
-_Last updated: 2026-08-09 (Task 12 closed — `GET /api/v1/metrics`, the monitoring dashboard rebuilt on it, the workflow face/person/VLM panes on the server, and `src/mock/` deleted. Earlier the same day: Task 8 closed — detection review and face panel E2E; the 172/62 testid
-measurement in §0.4 remains the 2026-08-06 baseline)_
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (Task 10 partly closed — §3, §8.2 and §10 of LOOM_UI.md recounted and
+extended while adding the search index admin screen at `/admin/indices`; §8.1 still owed. Earlier the
+same day: Task 12 closed — `GET /api/v1/metrics`, the monitoring dashboard rebuilt on it, the workflow
+face/person/VLM panes on the server, and `src/mock/` deleted. Earlier: Task 8 closed — detection review
+and face panel E2E; the 172/62 testid measurement in §0.4 remains the 2026-08-06 baseline)_

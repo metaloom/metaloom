@@ -54,6 +54,8 @@ operating the installation.
 * *Cortex* — live monitoring of connected Cortex worker daemons
 * *Monitoring* — rolling metrics dashboards
 * *Spaces* — tenant/project separation
+* *Indices* — the state of the search, face and duplicate indices, with reindex and sync controls.
+  See link:../loom/search-indices/[Search Indices]
 * *Memory Denylist* — regex guardrails for what the agent may never store
 * *ACL* — a sub-group holding *Users*, *Groups*, *Permissions*, *API Keys* and *Blacklist*, i.e. every
   screen that decides who may do what
@@ -162,6 +164,36 @@ never turns into an error.
 Search results respect your permissions. If your account cannot read a particular kind of content,
 those results are left out and a note above the results says so — rather than silently returning less
 than you asked for.
+====
+
+=== Searching by Meaning
+
+If your administrator has enabled it, the results page offers a second and third way to search,
+shown as *Lexical*, *Semantic* and *Hybrid* next to the search box. If you do not see those buttons,
+only the word matching described above is available on your installation.
+
+* *Lexical* is the default and the one described above: it finds the words you typed.
+* *Semantic* finds material that is _about_ what you typed, whether or not it uses the same words.
+  Searching for `bicycle` will turn up a clip whose transcript only ever says "cycling", and a
+  search for `winter holiday` can surface footage described as "snow, cabins and mulled wine".
+* *Hybrid* runs both and merges the two rankings. Material that both agree on rises to the top.
+  This is usually the one you want: it keeps the precision of an exact word match while still
+  catching the things worded differently.
+
+A semantic result has no highlighted excerpt, because there is no matching word to highlight — it is
+marked as a meaning-based match instead. Result counts are approximate in these two modes: both
+rankings are cut off at a fixed depth, so the number shown describes the best matches rather than
+every document in the catalogue.
+
+Semantic search reads the text Loom holds about an asset — transcripts, extracted text, captions,
+tags and filenames. It cannot yet find a photo purely from what is depicted in it if nothing has ever
+been written or transcribed about that photo.
+
+[NOTE]
+====
+Newly added material becomes findable by meaning a short time after it is imported, because each item
+has to be processed once before it can be matched this way. Word search is available immediately. An
+administrator can see how many items are still waiting.
 ====
 
 === When Search Is Turned Off

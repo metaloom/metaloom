@@ -33,10 +33,11 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 - [x] Trigger-maintained search index — V2.57–V2.59
 - [x] Dedup review model — V2.61–V2.62
 - [x] Webhooks removed (`webhook` table + `loom_events` enum dropped) — V2.55
-- [x] `embedding.vector` ANN — **closed for face similarity (V2.75)**: the column is the system of record
+- [x] `embedding.vector` ANN — **closed, and for text search too**: the column is the system of record
       and the index lives outside Postgres behind `VectorIndex` (Lucene HNSW today), so no Postgres
-      extension is involved. pgvector remains the plan for text→media hybrid ranking only
-      (`spec/features/search/SEMANTIC_SEARCH.md` §2)
+      extension is involved anywhere. Text→text semantic search shipped on that same SPI rather than on
+      pgvector, so **no `CREATE EXTENSION vector` is planned** (`spec/features/search/SEMANTIC_SEARCH.md`
+      §0.4; §2 is retained as superseded rationale)
 - [ ] `asset_doc_comp` has no producer — OCR/Tika still write `asset_json_comp`; the table is the
       documented graduation path and is deliberately not read by search (V2.58)
 - [ ] Row-level ACL: `search_document.library_uuids` / `space_uuids` / `collection_uuids` are written
@@ -139,10 +140,10 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
 | **Detection** | `detection` | Object/face instance in a frame: `type`, indexed `label`, `frame_number`, `detection_index`, `time_from`, `bbox_x/y/width/height` **normalized 0–1** (the single geometry convention), `confidence`. UNIQUE `(asset_uuid, node_kind, frame_number, detection_index)`. Carries a human verdict: `status review_status` (default `PENDING`), `reviewed_at`, `reviewer_uuid`, `corrected_label` — `reviewer_uuid` is deliberately **not** `editor_uuid`, which the producing node touches on every re-run, and `corrected_label` sits beside `label` rather than replacing it, so what the model said survives as training signal. An upsert preserves all four unless `producer_version` changed, in which case they reset to `PENDING`. | → Asset (CASCADE); → User (reviewer, no cascade); ← Embedding, ← Attachment (face crop) | V2.27 → rewritten V2.43; review state V2.81 |
-| **Embedding** | `embedding`, `embedding_cluster` | Vector extracted from an asset: `type` (free-text, e.g. `face`, `clip`), `model` (NOT NULL, e.g. `inspireface-r18`), `dimensions`, `vector real[]`, `frame_number`, `subject_index`, `time_from`/`time_to`, plus the index-export columns `dirty`/`synced_at`/`index_version`/`normalized`. Geometry is **not** duplicated here — it lives on the linked detection. UNIQUE `(asset_uuid, node_kind, type, **model**, frame_number, subject_index)` — `model` is in the key so a model upgrade **adds** rows beside the old ones instead of overwriting them. CHECK `array_length(vector,1) = dimensions`. This table is the **system of record**; ANN search is a derived, rebuildable index behind the `VectorIndex` SPI. Written by `FacedetectNode`. | → Asset, → Detection (both CASCADE); ↔ Cluster | V2.12 → rewritten V2.43; `embedding_cluster` cascade V2.51; index contract + `model` in key V2.75 |
+| **Embedding** | `embedding`, `embedding_cluster` | Vector extracted from an asset: `type` (free-text, e.g. `face`, `clip`), `model` (NOT NULL, e.g. `inspireface-r18`), `dimensions`, `vector real[]`, `frame_number`, `subject_index`, `time_from`/`time_to`, plus the index-export columns `dirty`/`synced_at`/`index_version`/`normalized`. Geometry is **not** duplicated here — it lives on the linked detection. UNIQUE `(asset_uuid, node_kind, type, **model**, frame_number, subject_index)` — `model` is in the key so a model upgrade **adds** rows beside the old ones instead of overwriting them. CHECK `array_length(vector,1) = dimensions`. This table is the **system of record**; ANN search is a derived, rebuildable index behind the `VectorIndex` SPI. Written by `FacedetectNode` (`type='face'`) and by `SearchEmbeddingService` (`node_kind='search'`, `type='text'`, one row per asset), which embeds the asset's `search_document` text so semantic search has a corpus. ⚠️ `asset_uuid` is NOT NULL, so only asset-owned documents can be embedded — semantic hits are always assets. | → Asset, → Detection (both CASCADE); ↔ Cluster | V2.12 → rewritten V2.43; `embedding_cluster` cascade V2.51; index contract + `model` in key V2.75 |
 | **Cluster** | `cluster`, `embedding_cluster`, `tag_cluster`, `collection_cluster` | Group of embeddings by similarity: `name` (UNIQUE), `type` (e.g. `person`). | ← Embedding; ↔ Tag, Collection | V2.12 |
 | **Person** | `person`, `person_image` | Named identity (`firstname`, `lastname`, `alias`) with an image gallery and a primary image. | → Asset (images) | V2.26 |
-| **Vector Config** | `vector_config` | Named weight definition for building custom vector indices. **No DAO, no code references.** | — | V2.6 |
+| **Vector Config** | `vector_config` | Named weight definition for building custom vector indices. **No DAO, no code references** — hybrid-ranking weights live in `LOOM_SEARCH_RRF_*` env vars instead, so `?profile=` still reaches nothing (`SEMANTIC_SEARCH.md` §6). | — | V2.6 |
 
 ### 6. Agent
 
@@ -183,7 +184,7 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 
 | Entity | Table(s) | Purpose | Key relations | Since |
 |--------|----------|---------|---------------|-------|
-| **Search Document** | `search_document` | Materialized, weighted, ACL-projected index. PK `(entity_type, entity_uuid)` for `asset`, `transcript`, `annotation`, `tag`, `person`, `collection`, `library`, `cluster`. Weighted fields `title` (A) / `subtitle` (B) / `body` (C) / `keywords` (D) feed two generated tsvectors (`text_search` simple, `text_search_en` english) plus a bounded `trgm_text` for typeahead. Maintained **only by triggers** (V2.59). | → Asset (CASCADE — one delete removes the asset and every derived transcript/annotation document) | V2.58 |
+| **Search Document** | `search_document` | Materialized, weighted, ACL-projected index. PK `(entity_type, entity_uuid)` for `asset`, `transcript`, `annotation`, `tag`, `person`, `collection`, `library`, `cluster`. Weighted fields `title` (A) / `subtitle` (B) / `body` (C) / `keywords` (D) feed two generated tsvectors (`text_search` simple, `text_search_en` english) plus a bounded `trgm_text` for typeahead. Maintained **only by triggers** (V2.59). Also the **semantic corpus**: its `title`/`keywords`/`body` are what `SearchEmbeddingService` embeds, and `synced_at` versus `embedding.edited` is the staleness signal that triggers re-embedding. | → Asset (CASCADE — one delete removes the asset and every derived transcript/annotation document) | V2.58 |
 | **Search Document Deleted** | `search_document_deleted` | Delete tombstones for an external indexer. Unused by the Postgres provider. | — | V2.58 |
 
 Support routines live in the same migrations: `search_extract_json_text` (whitelist over

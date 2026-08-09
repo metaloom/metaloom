@@ -26,6 +26,7 @@ import io.metaloom.loom.rest.endpoint.impl.HealthEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MeEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.DbIntegrityEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MetricsEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
 import io.metaloom.loom.rest.endpoint.impl.PersonEndpoint;
@@ -43,6 +44,7 @@ import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DedupGroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DetectionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SearchEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.SearchIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SimilarityIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.VectorIndexEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.TagEndpoint;
@@ -94,9 +96,11 @@ public class EndpointModule {
 		TokenEndpoint tokenEndpoint,
 		MeEndpoint meEndpoint,
 		MetricsEndpoint metricsEndpoint,
+		DbIntegrityEndpoint dbIntegrityEndpoint,
 		NodeDescriptorEndpoint nodeDescriptorEndpoint,
 		DedupGroupEndpoint dedupGroupEndpoint,
 		SimilarityIndexEndpoint similarityIndexEndpoint,
+		SearchIndexEndpoint searchIndexEndpoint,
 		VectorIndexEndpoint vectorIndexEndpoint) {
 		return new HashSet<>(Arrays.asList(
 			userEndpoint,
@@ -130,12 +134,14 @@ public class EndpointModule {
 			oauth2Endpoint,
 			restInfoEndpoint,
 			searchEndpoint,
+			searchIndexEndpoint,
 			attachmentEndpoint,
 			commentEndpoint,
 			reactionEndpoint,
 			tokenEndpoint,
 			meEndpoint,
 			metricsEndpoint,
+			dbIntegrityEndpoint,
 			nodeDescriptorEndpoint,
 			dedupGroupEndpoint,
 			similarityIndexEndpoint,

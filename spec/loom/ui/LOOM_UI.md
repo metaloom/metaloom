@@ -76,8 +76,8 @@ Scripts: `dev`, `build` (`tsc && vite build`), `preview`, `test` / `test:watch` 
 ```
 loom-ui/
 ├── src/
-│   ├── api/          # 38 REST/WS client modules + 20 co-located *.test.ts (§5)
-│   ├── components/   # Shared: Title, EmptyState, ListPaging, MediaPlaceholder, AssetThumbnail
+│   ├── api/          # 41 REST/WS client modules + 22 co-located *.test.ts (§5)
+│   ├── components/   # Shared: Title, EmptyState, ListPaging, MediaPlaceholder, AssetThumbnail, StatusChip
 │   ├── context/      # Auth, Space, NodeRegistry, Search, Theme, Toast, Notification, Layout (§6)
 │   ├── features/     # One directory per UI area (§4.2)
 │   ├── hooks/        # usePagedList + the pure pagedList helpers it is built from (§11.3)
@@ -88,7 +88,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 84 Playwright specs (§8.2)
+├── e2e/              # 87 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -162,8 +162,10 @@ graph TD
 | `*` | `<Navigate to="/" replace />` | `layout/AppShell.tsx` |
 
 `AdminArea` nests: `spaces`, `users`, `groups`, `permissions`, `api-keys`, `blacklist`,
-`memory-denylist` — all seven screens are defined **inside the single
-`AdminArea.tsx` file** (~1.5k lines), not as separate modules.
+`memory-denylist`, `indices`. The first seven are defined **inside the single
+`AdminArea.tsx` file** (~1.6k lines); `indices` is **not** — it is
+`features/admin/SearchIndicesAdmin.tsx`, and `AdminArea` carries only its `ADMIN_TABS` entry and
+its `<Route>`. New admin screens should follow that shape rather than growing the shared file.
 
 `FaceDetectionManagement`, `ClustersPanel`, `PersonsPanel` and `ReactionsPanel` have **no
 route of their own** — they are mounted as panels from `DetectionManagement` / asset detail.
@@ -184,6 +186,12 @@ MANAGEMENT  Asset Pools · Pipelines · Cortex · Monitoring · Spaces (/admin/s
             Memory Denylist (/admin/memory-denylist)
             └── ACL ▾   Users · Groups · Permissions · API Keys · Blacklist
 ```
+
+`/admin/indices` (search index operation) and `/admin/db-integrity` (the database integrity report)
+have **no sidebar entry of their own** — like `permissions`, `api-keys` and the rest, they are
+reached through the `AdminArea` tab bar after entering via Spaces. An E2E spec deep-links instead of
+clicking, which is why `search-indices-mocked.spec.ts` and `db-integrity-mocked.spec.ts` call
+`page.goto("/ui/admin/…")` and then sign in.
 
 `/profile` is reached from the avatar menu in the sidebar header (which also holds Logout);
 `/maintenance` has **no nav entry at all** and is URL-only.
@@ -254,7 +262,9 @@ export const API_BASE_URL =
 | `assets.ts` | `/assets`, `/assets/:uuid`, `/assets/upload`, `/assets/bulk/{create,update}`, `/assets/:uuid/binary/data` (`assetBinaryUrl`) |
 | `binaries.ts` | `/assets/:uuid/binary`, `/assets/:uuid/binary/data` |
 | `libraries.ts` · `collections.ts` · `spaces.ts` | `/libraries` · `/collections` · `/spaces` |
-| `search.ts` | `/search/{results,assets,suggestions,status}` — the only client with a typed error (`SearchApiError`, carries `status`) |
+| `search.ts` | `/search/{results,assets,suggestions,status}` — one of two clients with a typed error (`SearchApiError`, carries `status`) |
+| `dbIntegrity.ts` | `/db-integrity[/checks]` — the database integrity report and its catalogue. Pure helpers `failuresAtLeast`, `severityCounts`, `groupByCategory` and `integrityQuery` are unit-tested in `dbIntegrity.test.ts`; `failuresAtLeast` counts a check that *could not run* as a failure, which is the one distinction this screen must not lose |
+| `searchIndices.ts` | `/search-indices[/:id[/jobs[/:jobUuid]]]` — the admin surface over the lexical, vector and fingerprint indices. Carries `SearchIndexApiError` (`status`) so a 403 is distinguishable from a failed poll, plus the pure helpers `formatBytes`, `jobProgress`, `indexTone`, `indexStateLabel` (unit-tested in `searchIndices.test.ts`) |
 | `tags.ts` | `/tags`, `/tags/:uuid/rating`, `/assets/:uuid/tags[/:tagUuid]` |
 | `tasks.ts` | `/tasks`, `/assets/:uuid/tasks[/:taskUuid]`, `/tasks/:uuid/assignees[/users/:uuid\|/groups/:uuid]` |
 | `notifications.ts` | `/notifications[?unread=true]`, `/notifications/:uuid`, `/notifications/read-all` |
@@ -538,11 +548,11 @@ tasks attached to assets with priority/status/due dates.
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-86 specs in two flavours, distinguished by filename suffix:
+87 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (52) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (53) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (31) | **Yes** | Real Loom server with demo data |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
@@ -616,6 +626,7 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `LayoutContext` / `useLayout` | `src/context/LayoutContext.tsx` | Sidebar collapse (not persisted) |
 | `tokens` / `buildTheme` / `setActiveTokens` | `src/theme/index.ts` | Design tokens + MUI theme (no `tokens.ts`) |
 | `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (§7.5) |
+| `StatusChip` / `Tone` / `toneStyles` | `src/components/StatusChip.tsx` | green/amber/red/neutral status pill. Extracted from `MaintenanceView` so the two operator screens paint the same states the same colour |
 | `ListPaging` | `src/components/ListPaging.tsx` | "Showing X of Y" + load-more button for a paged list (§11.3) |
 | `AssetThumbnail` / `MediaPlaceholder` | `src/components/` | Cookie-authenticated preview `<img>` with fallback (§7.2) |
 | `Title` | `src/components/Title.tsx` | Page heading |
@@ -627,7 +638,9 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `login` / `getMe` / `decodeJwt` | `src/api/auth.ts` | Auth calls + JWT claim decode |
 | `API_BASE_URL` | `src/api/config.ts` | REST base (§5) |
 | `ProfileView` | `src/features/profile/ProfileView.tsx` | Own user record (name, email), language and theme mode. The uuid comes from `useAuth().userUuid` — the view does not decode the JWT itself. Save `POST`s **only the fields that differ** from the loaded user, so it never clobbers fields the screen does not show; a rejected save keeps the edits, renders `profile-error` and leaves the form editable |
-| `AdminArea` | `src/features/admin/AdminArea.tsx` | All seven admin screens in one file |
+| `AdminArea` | `src/features/admin/AdminArea.tsx` | Seven admin screens in one file, plus the tab and route for the eighth |
+| `DbIntegrityAdmin` | `src/features/admin/DbIntegrityAdmin.tsx` | `/admin/db-integrity`. Runs the integrity checks on demand — deliberately **not** polled, unlike the index screen next door: there is no background job to watch and a sweep is real database work. Groups findings by category, omits categories with nothing in them, and renders a check that threw as "Did not run" rather than as a pass |
+| `SearchIndicesAdmin` | `src/features/admin/SearchIndicesAdmin.tsx` | `/admin/indices`. Groups indices under their storage backend (size is per backend — Lucene segments interleave the vector spaces, so there is no per-index byte figure). Action buttons are driven by each index's `supportedActions`, never hardcoded. Polls at 2 s while a job runs and 15 s otherwise, keeping the last good snapshot on a failed poll |
 | `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Media, timeline, annotations, comments, reactions, tasks, transcripts, faces, tags |
 | `VideoTimeline` / `ZoomableImage` | `src/features/assetDetail/` | Marker timeline · pan/zoom viewer |
 | `PipelineEditor` | `src/features/pipeline/PipelineEditor.tsx` | ~3.7k lines — see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) |
@@ -788,6 +801,10 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `566a2cf3`_
-_Last updated: 2026-08-09 (§7.7 rewritten — `src/mock/` is gone and the monitoring dashboard reads `GET /metrics`; §13.3 updated. Earlier the same day: detection review + face panel E2E coverage; panel-switcher navigation
-spelled out in §4.2; `page.route` priority gotcha in §8.2; test counts refreshed)_
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (database integrity admin screen — `/admin/db-integrity`,
+`api/dbIntegrity.ts`, `DbIntegrityAdmin.tsx`, 9 vitest cases and 7 Playwright cases; the feature is
+owned by [../../features/db/DB_INTEGRITY.md](../../features/db/DB_INTEGRITY.md). Earlier the same
+day: search index admin screen — `/admin/indices`, `api/searchIndices.ts`,
+the extracted `StatusChip`, and the note that a new admin screen gets its own file rather than
+growing `AdminArea.tsx`; §3, §5, §8.2 and §10 updated, counts recounted against the tree)_

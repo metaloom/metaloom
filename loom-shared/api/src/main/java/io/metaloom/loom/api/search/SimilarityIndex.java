@@ -84,9 +84,41 @@ public interface SimilarityIndex {
 	 */
 	void rebuildFromHex(Stream<HexFingerprint> all);
 
+	/**
+	 * Remove every vector indexed under one algorithm, leaving any other algorithm intact.
+	 *
+	 * <p>
+	 * The counterpart to {@link io.metaloom.loom.api.search.VectorIndex#drop(VectorSpace)}: {@link #rebuild(Stream)} clears the whole index, so an
+	 * operator retiring one fingerprint algorithm needs a way to do that without discarding the others.
+	 * </p>
+	 */
+	void drop(String algorithm);
+
+	/**
+	 * State of the backend: how many fingerprints it holds, how many are deleted but not yet merged away, and how much disk it occupies. Never throws.
+	 */
+	IndexStatus status();
+
+	/** How many fingerprints the index holds for one algorithm. Only the document count is populated - disk size has no per-algorithm meaning. */
+	IndexStatus status(String algorithm);
+
+	/**
+	 * Every asset uuid the index currently knows about.
+	 *
+	 * <p>
+	 * The input to the orphan sweep, for the same reason as {@link io.metaloom.loom.api.search.VectorIndex#streamIndexedEmbeddingUuids()}:
+	 * {@code asset_fingerprint_comp} cascades away with its asset and leaves no tombstone. May include already-deleted-but-unmerged documents, so treat
+	 * it as a superset. The caller must close the stream.
+	 * </p>
+	 */
+	Stream<UUID> streamIndexedAssetUuids();
+
 	/** Flush pending writes to disk. */
 	void commit();
 
 	/** False when disabled or the index directory is unavailable — callers must degrade gracefully (never silently). */
 	boolean isAvailable();
+
+	/** A short name for the bound backend, e.g. {@code lucene} or {@code none}, for status reporting. */
+	String providerName();
 }

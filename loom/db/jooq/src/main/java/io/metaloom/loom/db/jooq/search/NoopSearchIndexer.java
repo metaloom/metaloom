@@ -66,9 +66,27 @@ public class NoopSearchIndexer implements SearchIndexer {
 		try {
 			long count = ctx.fetchOne("SELECT count(*) AS c FROM search_document").get("c", Long.class);
 			return new IndexStatus().setHealthy(true).setDocumentCount(count)
+				.setSizeBytes(sizeBytes())
 				.setDetail("Maintained synchronously by database triggers.");
 		} catch (Exception e) {
 			return new IndexStatus().setHealthy(false).setDetail(e.getMessage());
+		}
+	}
+
+	/**
+	 * On-disk footprint of the index.
+	 *
+	 * <p>
+	 * {@code pg_total_relation_size} rather than {@code pg_relation_size}: the two generated {@code tsvector} columns and the trigram column each carry
+	 * a GIN index that together dominate the heap, and an operator asking "how big is the search index" means all of it. Reported as 0 rather than
+	 * failing the status read if the function is unavailable.
+	 * </p>
+	 */
+	private long sizeBytes() {
+		try {
+			return ctx.fetchOne("SELECT pg_total_relation_size('search_document') AS b").get("b", Long.class);
+		} catch (Exception e) {
+			return 0;
 		}
 	}
 
@@ -83,6 +101,7 @@ public class NoopSearchIndexer implements SearchIndexer {
 	 *
 	 * @return the number of documents in the index afterwards
 	 */
+	@Override
 	public long rebuild() {
 		return ctx.fetchOne("SELECT search_document_rebuild() AS c").get("c", Long.class);
 	}

@@ -40,6 +40,12 @@ import io.metaloom.cortex.node.objectdetect.video.VideoObjectScanner;
 import io.metaloom.cortex.node.ocr.OCRNode;
 import io.metaloom.cortex.node.ocr.OCRNodeModule;
 import io.metaloom.cortex.node.ocr.OCRNodeOptions;
+import io.metaloom.cortex.node.relocate.FolderDestination;
+import io.metaloom.cortex.node.relocate.LoomLocationWriter;
+import io.metaloom.cortex.node.relocate.MoveDestination;
+import io.metaloom.cortex.node.relocate.MoveNode;
+import io.metaloom.cortex.node.relocate.MoveNodeOptions;
+import io.metaloom.cortex.node.relocate.MoveTarget;
 import io.metaloom.cortex.node.script.ScriptNode;
 import io.metaloom.cortex.node.script.ScriptNodeOptions;
 import io.metaloom.cortex.node.script.engine.js.GraalJsScriptEngine;
@@ -426,6 +432,35 @@ public class DocsFixtureGenerator {
 			return new Outcome(node.process(ctx), env.displayPath(media), nodeDef);
 		}));
 
+		recipes.add(simple("move", Requirement.offline(), env -> {
+			// The trash case, at the shipped defaults: FOLDER, MIRROR, never overwrite, keep the source.
+			//
+			// The flag on the card reads MOVED rather than COPIED, and that is correct: `sourcePolicy`
+			// only decides whether a *cross-device copy* unlinks the original. Within one filesystem
+			// LocalMover renames, which removes the source by definition — the parameter is documented
+			// as ignored on that path. So the library file is gone when process() returns, and
+			// displayPath() below re-links it from the corpus, which is also what keeps a re-run honest.
+			Path root = env.libraryRoot();
+			// A file left by the previous run would collide, and the conflict policy would land this one
+			// beside it as `…_1.jpeg`. Clearing the folder is what keeps the picture reproducible.
+			deleteRecursively(root.resolve("trash"));
+
+			JsonObject nodeDef = new JsonObject()
+				.put("id", "move")
+				.put("target", "FOLDER")
+				.put("targetFolder", "trash")
+				// Without a source root a relative target folder resolves against the working directory,
+				// and MIRROR has nothing to be relative to and silently degrades to FLAT.
+				.put("sourceRoot", root.toString());
+			MoveNode node = new MoveNode(null, env.cortexOptions("move"), new MoveNodeOptions(),
+				Map.of(MoveTarget.FOLDER, (Provider<MoveDestination>) FolderDestination::new),
+				new LoomLocationWriter(), null);
+			node.configure(nodeDef);
+			node.initialize();
+			var media = env.image1();
+			return new Outcome(node.process(NodeContext.create(env.media(media))), env.displayPath(media), nodeDef);
+		}));
+
 		recipes.add(SourceRecipes.filesystemSource());
 		recipes.add(SourceRecipes.driveSource("gdrive-source", io.metaloom.cortex.cloud.CloudProviderId.GDRIVE));
 		recipes.add(SourceRecipes.driveSource("onedrive-source", io.metaloom.cortex.cloud.CloudProviderId.ONEDRIVE));
@@ -448,6 +483,18 @@ public class DocsFixtureGenerator {
 		recipes.add(VisionRecipes.facedescription(PACK));
 
 		return recipes;
+	}
+
+	/** Clear a directory the move recipe writes into, so a re-run photographs the same move. */
+	private static void deleteRecursively(Path dir) throws java.io.IOException {
+		if (!Files.exists(dir)) {
+			return;
+		}
+		try (Stream<Path> walk = Files.walk(dir)) {
+			for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+				Files.delete(path);
+			}
+		}
 	}
 
 	/** A small solid mark, so the watermark node has something real to composite. */

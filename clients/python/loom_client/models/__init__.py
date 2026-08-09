@@ -151,6 +151,12 @@ from .comment import (
     CommentResponse,
     CommentUpdateRequest,
 )
+from .dbintegrity import (
+    DbIntegrityCheckListResponse,
+    DbIntegrityCheckModel,
+    DbIntegrityCheckResultModel,
+    DbIntegrityReportResponse,
+)
 from .dedup import (
     DedupGroupCreateRequest,
     DedupGroupListResponse,
@@ -352,6 +358,14 @@ from .search import (
     SearchSuggestionListResponse,
     SearchSuggestionResponse,
 )
+from .searchindex import (
+    IndexJobCreateRequest,
+    IndexJobListResponse,
+    IndexJobResponse,
+    SearchIndexBackendResponse,
+    SearchIndexListResponse,
+    SearchIndexResponse,
+)
 from .segmentcomp import (
     SegmentCompCreateRequest,
     SegmentCompListResponse,
@@ -508,6 +522,10 @@ __all__ = [
     "ConsistencyInfo",
     "CreatorEditorResponse",
     "CreatorEditorStatus",
+    "DbIntegrityCheckListResponse",
+    "DbIntegrityCheckModel",
+    "DbIntegrityCheckResultModel",
+    "DbIntegrityReportResponse",
     "DedupGroupCreateRequest",
     "DedupGroupListResponse",
     "DedupGroupMemberModel",
@@ -549,6 +567,9 @@ __all__ = [
     "HashInfo",
     "HealthCheckResponse",
     "ImageInfo",
+    "IndexJobCreateRequest",
+    "IndexJobListResponse",
+    "IndexJobResponse",
     "JsonCompCreateRequest",
     "JsonCompListResponse",
     "JsonCompResponse",
@@ -655,6 +676,9 @@ __all__ = [
     "RunItemState",
     "SearchFacetResponse",
     "SearchHitResponse",
+    "SearchIndexBackendResponse",
+    "SearchIndexListResponse",
+    "SearchIndexResponse",
     "SearchMetaInfo",
     "SearchResultResponse",
     "SearchStatusResponse",

@@ -14,8 +14,14 @@ import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.user.User;
 
 /**
- * The DAO layer holds {@code reaction.type} as a plain {@link String} on purpose — the enum boundary is REST, not here — so these cases deliberately
- * store types that are not {@link ReactionType} constants.
+ * The DAO layer holds {@code reaction.type} as a plain {@link String}, because the enum boundary is REST rather than persistence. That is not licence
+ * to store arbitrary strings here: {@code ReactionModelBuilder.toResponse} reads the column back with {@link ReactionType#valueOf}, so a row whose
+ * type is not a constant makes every REST read of that row a 500. The fixture once stored an asset's mime type in this column and did exactly that.
+ *
+ * <p>
+ * So these cases store real {@link ReactionType} names. {@code INVALID_REACTION_TYPE} in the integrity checks is what noticed they did not, and is
+ * what will notice again.
+ * </p>
  */
 public class ReactionDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<ReactionDao, Reaction> {
 
@@ -26,22 +32,26 @@ public class ReactionDaoTest extends AbstractJooqTest implements CRUDDaoTestcase
 
 	@Override
 	public Reaction createElement(User user, int i) {
-		return getDao().createReaction(user, "type_" + i);
+		// Cycled rather than fixed, so paging gets a spread. The UNIQUE indexes are on
+		// (creator_uuid, type, <subject>_uuid) and every subject here is NULL, which Postgres counts
+		// as distinct - so repeats across 1024 rows do not collide.
+		ReactionType type = ReactionType.values()[i % ReactionType.values().length];
+		return getDao().createReaction(user, type.name());
 	}
 
 	@Override
 	public void assertCreate(Reaction createdElement) {
-		assertEquals("type_0", createdElement.getType());
+		assertEquals(ReactionType.values()[0].name(), createdElement.getType());
 	}
 
 	@Override
 	public void assertUpdate(Reaction updatedElement) {
-		assertEquals("new", updatedElement.getType());
+		assertEquals(ReactionType.THUMBSDOWN.name(), updatedElement.getType());
 	}
 
 	@Override
 	public void updateElement(Reaction reaction) {
-		reaction.setType("new");
+		reaction.setType(ReactionType.THUMBSDOWN.name());
 	}
 
 	/**

@@ -48,6 +48,8 @@
     "name" : "comments",
     "description" : "Comments and their reactions"
   }, {
+    "name" : "db-integrity"
+  }, {
     "name" : "dedup-groups"
   }, {
     "name" : "detections",
@@ -111,8 +113,14 @@
     "name" : "roles",
     "description" : "Roles of the RBAC model"
   }, {
+    "name" : "search"
+  }, {
+    "name" : "search-indices"
+  }, {
     "name" : "sessions",
     "description" : "Files of a chat's coding sandbox session"
+  }, {
+    "name" : "similarity-index"
   }, {
     "name" : "skills",
     "description" : "Agent skills, the published skill library and installs"
@@ -16664,6 +16672,171 @@
         }
       } ]
     },
+    "/api/v1/db-integrity" : {
+      "description" : "Run the database integrity checks and report the findings. Filter with ?check=, ?category=, ?severity= and ?limit=",
+      "get" : {
+        "tags" : [ "db-integrity" ],
+        "summary" : "Run the database integrity checks and report the findings. Filter with ?check=, ?category=, ?severity= and ?limit=",
+        "description" : "Run the database integrity checks and report the findings. Filter with ?check=, ?category=, ?severity= and ?limit=",
+        "operationId" : "getDbintegrity",
+        "responses" : {
+          "200" : {
+            "description" : "A database integrity report",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "timestamp" : "2026-08-09T11:24:07Z",
+                  "durationMs" : 312,
+                  "checksRun" : 29,
+                  "findingCount" : 2,
+                  "clean" : false,
+                  "results" : [ {
+                    "check" : {
+                      "code" : "DANGLING_SEARCH_DOCUMENT",
+                      "category" : "DANGLING",
+                      "severity" : "ERROR",
+                      "table" : "search_document",
+                      "column" : "entity_uuid",
+                      "description" : "A search document points at an entity that no longer exists, so a search can return a hit that resolves to nothing."
+                    },
+                    "count" : 2,
+                    "samples" : [ "6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60 (entity_type=asset)", "8a2e9c4d-77b1-42aa-9d31-5b6c7d8e9f01 (entity_type=asset)" ],
+                    "durationMs" : 4
+                  }, {
+                    "check" : {
+                      "code" : "TIMESTAMP_EDITED_BEFORE_CREATED",
+                      "category" : "TIMESTAMP",
+                      "severity" : "ERROR",
+                      "table" : "(every audited table)",
+                      "column" : "edited",
+                      "description" : "A row was edited before it was created."
+                    },
+                    "count" : 0,
+                    "samples" : [ ],
+                    "durationMs" : 7
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/db-integrity/checks" : {
+      "description" : "List the registered database integrity checks without running any of them",
+      "get" : {
+        "tags" : [ "db-integrity" ],
+        "summary" : "List the registered database integrity checks without running any of them",
+        "description" : "List the registered database integrity checks without running any of them",
+        "operationId" : "getDbintegrityChecks",
+        "responses" : {
+          "200" : {
+            "description" : "The integrity check catalogue",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "checks" : [ {
+                    "code" : "DANGLING_SEARCH_DOCUMENT",
+                    "category" : "DANGLING",
+                    "severity" : "ERROR",
+                    "table" : "search_document",
+                    "column" : "entity_uuid",
+                    "description" : "A search document points at an entity that no longer exists, so a search can return a hit that resolves to nothing."
+                  }, {
+                    "code" : "TIMESTAMP_EDITED_BEFORE_CREATED",
+                    "category" : "TIMESTAMP",
+                    "severity" : "ERROR",
+                    "table" : "(every audited table)",
+                    "column" : "edited",
+                    "description" : "A row was edited before it was created."
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/dedup-groups" : {
       "description" : "Create or update a candidate duplicate group. Used by the fingerprint-dedup discovery node; upserts the pending group for the same keep asset and algorithm. Answers 201 for a new proposal, or 200 with the existing decision when the same candidate set was already confirmed or rejected.",
       "get" : {
@@ -22222,7 +22395,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "0de9f0da-77a7-4272-8f0a-26e0647ac4fc",
+                    "versionUuid" : "fe225142-6425-4f6a-a515-265e630bd697",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22249,7 +22422,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "50ffcb9d-6fce-4dbc-9596-cd54c4240aca",
+                    "versionUuid" : "072b6a0b-bcc5-4226-b0d5-cf6872479f0f",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22356,7 +22529,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "1d8ae557-03bd-46dd-a623-1402bc986b54",
+                  "versionUuid" : "7179a6ff-3a49-4cb5-884d-cb868b8b5676",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22442,7 +22615,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "651f3b0f-ff59-4e06-bead-de888e3c743c",
+                  "versionUuid" : "03cfef49-71e7-42e0-a67a-4364914e2490",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22549,7 +22722,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "99c59d75-e6d5-4c83-a226-fc1aed87b62d",
+                  "versionUuid" : "843e96cb-7498-4641-9675-aa92e2cd59fd",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22711,7 +22884,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "7f1aba0c-ecc3-4ac3-b7e7-639a9c35305b",
+                  "runUuid" : "ce1c5103-77dd-4586-8ead-119d05797133",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -22837,11 +23010,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "f4fafe62-086d-4aab-8a08-143f8d5b1c27",
-                    "pipelineUuid" : "496a2447-0aba-4268-a8c2-fe1d7e226f7a",
+                    "uuid" : "a4c905f6-7d0e-44e4-b761-2e5fdccb86fe",
+                    "pipelineUuid" : "a21b44ac-46d8-4f83-b5a7-12f914ac9f5d",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T13:45:27.432765458Z",
-                    "finished" : "2026-08-09T13:45:27.433064648Z",
+                    "started" : "2026-08-09T17:44:52.526309018Z",
+                    "finished" : "2026-08-09T17:44:52.526423648Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22850,11 +23023,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "3a342f20-9df4-4b41-8ae7-a2e92ac12bfe",
-                    "pipelineUuid" : "2d4772af-0b73-444b-b433-8150ccc1714e",
+                    "uuid" : "fd5529f1-8dc1-4c72-9ebe-fc33177dae7f",
+                    "pipelineUuid" : "156f54ca-b397-4189-9acd-1b82dcaa9536",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T13:45:27.433422569Z",
-                    "finished" : "2026-08-09T13:45:27.433433029Z",
+                    "started" : "2026-08-09T17:44:52.526562808Z",
+                    "finished" : "2026-08-09T17:44:52.526567278Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22947,11 +23120,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "ff3c566c-9994-499b-8a6e-7ca6042f4043",
-                  "pipelineUuid" : "c3d823cc-98e2-43d9-a0e2-7e9a1e09b2dc",
+                  "uuid" : "d6632136-d691-4644-8584-c52ce3541c46",
+                  "pipelineUuid" : "fd749069-616b-4355-ba8b-01c3cc7e6489",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-09T13:45:27.436286790Z",
-                  "finished" : "2026-08-09T13:45:27.436304820Z",
+                  "started" : "2026-08-09T17:44:52.527529990Z",
+                  "finished" : "2026-08-09T17:44:52.527536580Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -23441,16 +23614,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "99d2dff2-8c48-4bd6-b6b8-0fb57459c220",
-                    "runUuid" : "6967a890-bdaf-44c7-b147-c5d7ffcb0799",
+                    "uuid" : "7c89fb75-092b-4cf4-8064-0711a925d4ec",
+                    "runUuid" : "87f52000-baea-44f5-a9b6-5461528bee3b",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "e3d8d905-8116-42e5-860b-cddb856b74fe",
-                    "runUuid" : "3dfc70f5-3b89-4631-8f46-40e555ed63bb",
+                    "uuid" : "b2fdc2f4-dcee-4a19-8996-3e0edfcb9998",
+                    "runUuid" : "87de1352-f1c2-4096-b800-7829bd84fdf1",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -23551,9 +23724,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "4c4a1fd8-3676-4d3d-aa05-fbd4ab4c9000",
-                    "itemUuid" : "a41fb03f-4fc2-46bb-9aae-e203c90c93b7",
-                    "runUuid" : "34b5d595-e72e-4dcf-b2e5-41c2abfba504",
+                    "uuid" : "7aa1a3bf-641d-4448-aedf-7c1d825323e8",
+                    "itemUuid" : "f8ddfb74-ba17-4da8-99a2-5caf7bcd1504",
+                    "runUuid" : "ac9f067c-1da4-4618-8859-4c2c5f5fcdc9",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -24219,7 +24392,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "26877928-4b18-44ff-beb6-cb1beb774583",
+                    "versionUuid" : "8b6637ce-9f12-42d1-9c08-4ed54d9bf768",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24246,7 +24419,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "ddae32b6-fd24-4d32-8297-016f9f53e2c7",
+                    "versionUuid" : "2c92ab77-c323-4aaf-b42c-5a3bcabe26c9",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24357,7 +24530,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "201da6ad-0220-4f26-b76c-f2cc8a5fc243",
+                  "versionUuid" : "e10db42f-a76d-4db6-9538-cdb4a6a4f030",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24482,7 +24655,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "d5915b75-6084-4471-8770-148a9e0d6c5f",
+                  "versionUuid" : "ca49a67b-2941-409b-9bbf-c4cb4f90127d",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",
@@ -26429,6 +26602,1352 @@
         }
       } ]
     },
+    "/api/v1/search-indices" : {
+      "description" : "List every search index with its state, model, size and backlog, plus the storage backends they live in",
+      "get" : {
+        "tags" : [ "search-indices" ],
+        "summary" : "List every search index with its state, model, size and backlog, plus the storage backends they live in",
+        "description" : "List every search index with its state, model, size and backlog, plus the storage backends they live in",
+        "operationId" : "getSearchindices",
+        "responses" : {
+          "200" : {
+            "description" : "The search index list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "id" : "lexical",
+                    "kind" : "LEXICAL",
+                    "backendId" : "lexical",
+                    "label" : "Lexical search documents",
+                    "enabled" : true,
+                    "available" : true,
+                    "reason" : "Maintained synchronously by database triggers.",
+                    "documentCount" : 41286,
+                    "indexedCount" : 41286,
+                    "pendingCount" : 0,
+                    "supportedActions" : [ "REINDEX" ]
+                  }, {
+                    "id" : "vector-face-inspireface-r18-512",
+                    "kind" : "VECTOR",
+                    "backendId" : "vector",
+                    "label" : "Face embeddings",
+                    "type" : "face",
+                    "model" : "inspireface-r18",
+                    "dimensions" : 512,
+                    "enabled" : true,
+                    "available" : true,
+                    "documentCount" : 128402,
+                    "indexedCount" : 127590,
+                    "pendingCount" : 812,
+                    "supportedActions" : [ "REINDEX", "DELTA_SYNC", "DROP" ]
+                  }, {
+                    "id" : "vector-text-nomic-embed-text-v1-5-768",
+                    "kind" : "VECTOR",
+                    "backendId" : "vector",
+                    "label" : "Semantic text embeddings",
+                    "type" : "text",
+                    "model" : "nomic-embed-text-v1.5",
+                    "dimensions" : 768,
+                    "enabled" : true,
+                    "available" : false,
+                    "reason" : "The vector index is configured but could not be opened.",
+                    "documentCount" : 0,
+                    "indexedCount" : 0,
+                    "pendingCount" : 41286,
+                    "supportedActions" : [ "REINDEX", "DELTA_SYNC", "DROP" ]
+                  }, {
+                    "id" : "fingerprint",
+                    "kind" : "FINGERPRINT",
+                    "backendId" : "fingerprint",
+                    "label" : "Duplicate fingerprints",
+                    "algorithm" : "metaloom-multisector-v1",
+                    "enabled" : true,
+                    "available" : true,
+                    "documentCount" : 9140,
+                    "indexedCount" : 9140,
+                    "pendingCount" : 0,
+                    "supportedActions" : [ "REINDEX", "DELTA_SYNC", "DROP" ]
+                  } ],
+                  "backends" : [ {
+                    "id" : "lexical",
+                    "provider" : "postgres",
+                    "enabled" : true,
+                    "available" : true,
+                    "documentCount" : 41286,
+                    "deletedCount" : 0,
+                    "sizeBytes" : 612368384
+                  }, {
+                    "id" : "vector",
+                    "provider" : "lucene",
+                    "enabled" : true,
+                    "available" : true,
+                    "documentCount" : 128402,
+                    "deletedCount" : 3100,
+                    "sizeBytes" : 1476395008
+                  }, {
+                    "id" : "fingerprint",
+                    "provider" : "lucene",
+                    "enabled" : true,
+                    "available" : true,
+                    "documentCount" : 9140,
+                    "deletedCount" : 0,
+                    "sizeBytes" : 37748736
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search-indices/{id}" : {
+      "description" : "Read the state of one search index",
+      "get" : {
+        "tags" : [ "search-indices" ],
+        "summary" : "Read the state of one search index",
+        "description" : "Read the state of one search index",
+        "operationId" : "getSearchindicesById",
+        "responses" : {
+          "200" : {
+            "description" : "The search index response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "id" : "vector-face-inspireface-r18-512",
+                  "kind" : "VECTOR",
+                  "backendId" : "vector",
+                  "label" : "Face embeddings",
+                  "type" : "face",
+                  "model" : "inspireface-r18",
+                  "dimensions" : 512,
+                  "enabled" : true,
+                  "available" : true,
+                  "documentCount" : 128402,
+                  "indexedCount" : 127590,
+                  "pendingCount" : 812,
+                  "supportedActions" : [ "REINDEX", "DELTA_SYNC", "DROP" ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "id",
+        "in" : "path",
+        "description" : "UUID of the referenced id",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/search-indices/{id}/jobs" : {
+      "description" : "List the recent maintenance jobs for one index, newest first",
+      "get" : {
+        "tags" : [ "search-indices" ],
+        "summary" : "List the recent maintenance jobs for one index, newest first",
+        "description" : "List the recent maintenance jobs for one index, newest first",
+        "operationId" : "getSearchindicesByIdJobs",
+        "responses" : {
+          "200" : {
+            "description" : "The index job list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "indexId" : "vector-face-inspireface-r18-512",
+                    "action" : "REINDEX",
+                    "state" : "RUNNING",
+                    "processed" : 18420,
+                    "total" : 128402,
+                    "removed" : 0,
+                    "startedAt" : 1.7862705E9
+                  }, {
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "indexId" : "vector-face-inspireface-r18-512",
+                    "action" : "DELTA_SYNC",
+                    "state" : "SUCCEEDED",
+                    "processed" : 812,
+                    "total" : 812,
+                    "removed" : 4,
+                    "startedAt" : 1.786266E9,
+                    "finishedAt" : 1.786266012E9
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "search-indices" ],
+        "summary" : "Start a maintenance job (REINDEX, DELTA_SYNC or DROP) against one index. Answers 202 with a job to poll",
+        "description" : "Start a maintenance job (REINDEX, DELTA_SYNC or DROP) against one index. Answers 202 with a job to poll",
+        "operationId" : "postSearchindicesByIdJobs",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "action" : "REINDEX"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "202" : {
+            "description" : "The accepted index job",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "indexId" : "vector-face-inspireface-r18-512",
+                  "action" : "REINDEX",
+                  "state" : "RUNNING",
+                  "processed" : 18420,
+                  "total" : 128402,
+                  "removed" : 0,
+                  "startedAt" : 1.7862705E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "id",
+        "in" : "path",
+        "description" : "UUID of the referenced id",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/search-indices/{id}/jobs/{jobUuid}" : {
+      "description" : "Read one maintenance job and its progress",
+      "get" : {
+        "tags" : [ "search-indices" ],
+        "summary" : "Read one maintenance job and its progress",
+        "description" : "Read one maintenance job and its progress",
+        "operationId" : "getSearchindicesByIdJobsByJobUuid",
+        "responses" : {
+          "202" : {
+            "description" : "The accepted index job",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "indexId" : "vector-face-inspireface-r18-512",
+                  "action" : "REINDEX",
+                  "state" : "RUNNING",
+                  "processed" : 18420,
+                  "total" : 128402,
+                  "removed" : 0,
+                  "startedAt" : 1.7862705E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "search-indices" ],
+        "summary" : "Ask a running maintenance job to stop at its next item boundary",
+        "description" : "Ask a running maintenance job to stop at its next item boundary",
+        "operationId" : "deleteSearchindicesByIdJobsByJobUuid",
+        "responses" : {
+          "202" : {
+            "description" : "The accepted index job",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "indexId" : "vector-face-inspireface-r18-512",
+                  "action" : "REINDEX",
+                  "state" : "RUNNING",
+                  "processed" : 18420,
+                  "total" : 128402,
+                  "removed" : 0,
+                  "startedAt" : 1.7862705E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "id",
+        "in" : "path",
+        "description" : "UUID of the referenced id",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "jobUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced job",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/search/assets" : {
+      "description" : "Search assets only",
+      "get" : {
+        "tags" : [ "search" ],
+        "summary" : "Search assets only",
+        "description" : "Search assets only",
+        "operationId" : "getSearchAssets",
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "description" : "Opaque cursor from a previous response. Wins over offset",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : ""
+        }, {
+          "name" : "types",
+          "in" : "query",
+          "description" : "Comma separated entity types to search",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "asset,transcript,tag"
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Result offset. Capped per provider; prefer the returned cursor when present",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "0"
+        }, {
+          "name" : "mime",
+          "in" : "query",
+          "description" : "Restrict to a mime type prefix",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "image/"
+        }, {
+          "name" : "profile",
+          "in" : "query",
+          "description" : "Named search profile (vector_config row). Reserved for hybrid search",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "default"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Result ordering",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "RELEVANCE"
+        }, {
+          "name" : "collection",
+          "in" : "query",
+          "description" : "Restrict to a collection",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "space",
+          "in" : "query",
+          "description" : "Restrict to a space",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "facets",
+          "in" : "query",
+          "description" : "Comma separated facets to compute",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "mime_type,entity_type"
+        }, {
+          "name" : "mode",
+          "in" : "query",
+          "description" : "Matching mode. Providers without the capability reject the request rather than silently degrading",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "LEXICAL"
+        }, {
+          "name" : "q",
+          "in" : "query",
+          "description" : "The search term. Supports \"quoted phrases\", or, and -negation",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "aurora"
+        }, {
+          "name" : "highlight",
+          "in" : "query",
+          "description" : "Return match snippets",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "true"
+        }, {
+          "name" : "library",
+          "in" : "query",
+          "description" : "Restrict to a library",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Only elements first seen at or after this instant",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "2026-01-01T00:00:00Z"
+        }, {
+          "name" : "tag",
+          "in" : "query",
+          "description" : "Comma separated tag names the asset must carry",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "nightscape"
+        }, {
+          "name" : "to",
+          "in" : "query",
+          "description" : "Only elements first seen at or before this instant",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "2026-12-31T23:59:59Z"
+        }, {
+          "name" : "lang",
+          "in" : "query",
+          "description" : "Restrict to a language tag",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "en"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The search result response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "type" : "asset",
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "score" : 0.87,
+                    "title" : "aurora_timelapse.mp4",
+                    "subtitle" : "/mnt/media/2026/aurora_timelapse.mp4",
+                    "matchedIn" : "title",
+                    "highlights" : [ "<b>aurora</b> timelapse" ],
+                    "mimeType" : "video/mp4",
+                    "size" : 184320000
+                  }, {
+                    "type" : "transcript",
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "score" : 0.41,
+                    "title" : "aurora_timelapse.mp4",
+                    "subtitle" : "en whisper-large-v3",
+                    "matchedIn" : "body",
+                    "highlights" : [ "the northern lights above <b>aurora</b> bay" ],
+                    "timeFromMs" : 0
+                  } ],
+                  "facets" : { },
+                  "_metainfo" : {
+                    "totalHits" : 2,
+                    "totalExact" : true,
+                    "perPage" : 25,
+                    "offset" : 0,
+                    "tookMs" : 12,
+                    "provider" : "postgres",
+                    "capabilities" : [ "LEXICAL", "PHRASE", "FUZZY", "HIGHLIGHT", "FACETS", "EXACT_TOTAL", "SUGGEST" ],
+                    "warnings" : [ ]
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search/results" : {
+      "description" : "Search across assets, transcripts, tags, annotations, persons, collections, libraries and clusters",
+      "get" : {
+        "tags" : [ "search" ],
+        "summary" : "Search across assets, transcripts, tags, annotations, persons, collections, libraries and clusters",
+        "description" : "Search across assets, transcripts, tags, annotations, persons, collections, libraries and clusters",
+        "operationId" : "getSearchResults",
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "description" : "Opaque cursor from a previous response. Wins over offset",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : ""
+        }, {
+          "name" : "types",
+          "in" : "query",
+          "description" : "Comma separated entity types to search",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "asset,transcript,tag"
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Result offset. Capped per provider; prefer the returned cursor when present",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "0"
+        }, {
+          "name" : "mime",
+          "in" : "query",
+          "description" : "Restrict to a mime type prefix",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "image/"
+        }, {
+          "name" : "profile",
+          "in" : "query",
+          "description" : "Named search profile (vector_config row). Reserved for hybrid search",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "default"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Result ordering",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "RELEVANCE"
+        }, {
+          "name" : "collection",
+          "in" : "query",
+          "description" : "Restrict to a collection",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "space",
+          "in" : "query",
+          "description" : "Restrict to a space",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "facets",
+          "in" : "query",
+          "description" : "Comma separated facets to compute",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "mime_type,entity_type"
+        }, {
+          "name" : "mode",
+          "in" : "query",
+          "description" : "Matching mode. Providers without the capability reject the request rather than silently degrading",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "LEXICAL"
+        }, {
+          "name" : "q",
+          "in" : "query",
+          "description" : "The search term. Supports \"quoted phrases\", or, and -negation",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "aurora"
+        }, {
+          "name" : "highlight",
+          "in" : "query",
+          "description" : "Return match snippets",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "true"
+        }, {
+          "name" : "library",
+          "in" : "query",
+          "description" : "Restrict to a library",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Only elements first seen at or after this instant",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "2026-01-01T00:00:00Z"
+        }, {
+          "name" : "tag",
+          "in" : "query",
+          "description" : "Comma separated tag names the asset must carry",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "nightscape"
+        }, {
+          "name" : "to",
+          "in" : "query",
+          "description" : "Only elements first seen at or before this instant",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "2026-12-31T23:59:59Z"
+        }, {
+          "name" : "lang",
+          "in" : "query",
+          "description" : "Restrict to a language tag",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "en"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The search result response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "type" : "asset",
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "score" : 0.87,
+                    "title" : "aurora_timelapse.mp4",
+                    "subtitle" : "/mnt/media/2026/aurora_timelapse.mp4",
+                    "matchedIn" : "title",
+                    "highlights" : [ "<b>aurora</b> timelapse" ],
+                    "mimeType" : "video/mp4",
+                    "size" : 184320000
+                  }, {
+                    "type" : "transcript",
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "score" : 0.41,
+                    "title" : "aurora_timelapse.mp4",
+                    "subtitle" : "en whisper-large-v3",
+                    "matchedIn" : "body",
+                    "highlights" : [ "the northern lights above <b>aurora</b> bay" ],
+                    "timeFromMs" : 0
+                  } ],
+                  "facets" : { },
+                  "_metainfo" : {
+                    "totalHits" : 2,
+                    "totalExact" : true,
+                    "perPage" : 25,
+                    "offset" : 0,
+                    "tookMs" : 12,
+                    "provider" : "postgres",
+                    "capabilities" : [ "LEXICAL", "PHRASE", "FUZZY", "HIGHLIGHT", "FACETS", "EXACT_TOTAL", "SUGGEST" ],
+                    "warnings" : [ ]
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search/status" : {
+      "description" : "Report which search backend is bound, whether it is available and what it can do",
+      "get" : {
+        "tags" : [ "search" ],
+        "summary" : "Report which search backend is bound, whether it is available and what it can do",
+        "description" : "Report which search backend is bound, whether it is available and what it can do",
+        "operationId" : "getSearchStatus",
+        "responses" : {
+          "200" : {
+            "description" : "The search status response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "provider" : "postgres",
+                  "available" : true,
+                  "capabilities" : [ "LEXICAL", "PHRASE", "FUZZY", "HIGHLIGHT", "FACETS", "EXACT_TOTAL", "SUGGEST" ],
+                  "documentCount" : 12483,
+                  "dirtyCount" : 0
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search/suggestions" : {
+      "description" : "Typeahead suggestions for a partial search term",
+      "get" : {
+        "tags" : [ "search" ],
+        "summary" : "Typeahead suggestions for a partial search term",
+        "description" : "Typeahead suggestions for a partial search term",
+        "operationId" : "getSearchSuggestions",
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "description" : "Opaque cursor from a previous response. Wins over offset",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : ""
+        }, {
+          "name" : "types",
+          "in" : "query",
+          "description" : "Comma separated entity types to search",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "asset,transcript,tag"
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Result offset. Capped per provider; prefer the returned cursor when present",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "0"
+        }, {
+          "name" : "mime",
+          "in" : "query",
+          "description" : "Restrict to a mime type prefix",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "image/"
+        }, {
+          "name" : "profile",
+          "in" : "query",
+          "description" : "Named search profile (vector_config row). Reserved for hybrid search",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "default"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Result ordering",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "RELEVANCE"
+        }, {
+          "name" : "collection",
+          "in" : "query",
+          "description" : "Restrict to a collection",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "space",
+          "in" : "query",
+          "description" : "Restrict to a space",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "facets",
+          "in" : "query",
+          "description" : "Comma separated facets to compute",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "mime_type,entity_type"
+        }, {
+          "name" : "mode",
+          "in" : "query",
+          "description" : "Matching mode. Providers without the capability reject the request rather than silently degrading",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "LEXICAL"
+        }, {
+          "name" : "q",
+          "in" : "query",
+          "description" : "The search term. Supports \"quoted phrases\", or, and -negation",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "aurora"
+        }, {
+          "name" : "highlight",
+          "in" : "query",
+          "description" : "Return match snippets",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "true"
+        }, {
+          "name" : "library",
+          "in" : "query",
+          "description" : "Restrict to a library",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Only elements first seen at or after this instant",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "2026-01-01T00:00:00Z"
+        }, {
+          "name" : "tag",
+          "in" : "query",
+          "description" : "Comma separated tag names the asset must carry",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "nightscape"
+        }, {
+          "name" : "to",
+          "in" : "query",
+          "description" : "Only elements first seen at or before this instant",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "2026-12-31T23:59:59Z"
+        }, {
+          "name" : "lang",
+          "in" : "query",
+          "description" : "Restrict to a language tag",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "en"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The search suggestion response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "text" : "aurora_timelapse.mp4",
+                    "type" : "asset",
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "score" : 0.62
+                  }, {
+                    "text" : "aurora",
+                    "type" : "tag",
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "score" : 0.55
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{uuid}/download" : {
       "description" : "Download a file from the chat's live coding-session workspace",
       "get" : {
@@ -26641,6 +28160,57 @@
           "format" : "uuid"
         }
       } ]
+    },
+    "/api/v1/similarity-index/rebuild" : {
+      "description" : "Rebuild the fingerprint similarity index from the stored fingerprint components",
+      "post" : {
+        "tags" : [ "similarity-index" ],
+        "summary" : "Rebuild the fingerprint similarity index from the stored fingerprint components",
+        "description" : "Rebuild the fingerprint similarity index from the stored fingerprint components",
+        "operationId" : "postSimilarityindexRebuild",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "/api/v1/skills" : {
       "description" : "Create a new skill",

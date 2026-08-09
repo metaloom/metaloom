@@ -292,8 +292,10 @@ plus a mocked list spec asserting the raw vector is never rendered.
   cluster→collection assignment and cluster merge are all unbuildable in the UI today.
 * **No top-level `/api/v1/detections`** — detections exist only as an asset sub-resource, so a
   global detection browser is not possible via REST.
-* **`POST /api/v1/similarity-index/rebuild`** (`SimilarityIndexEndpoint`, perceptual fingerprint
-  k-NN) has no UI consumer. If an operator action is wanted it belongs on the maintenance screen —
-  see [TASK_UI_SYSTEM.md](TASK_UI_SYSTEM.md), not here.
+* ~~**`POST /api/v1/similarity-index/rebuild`** has no UI consumer.~~ **Closed** — it landed on
+  `/admin/indices` rather than the maintenance screen, alongside the lexical and embedding indices,
+  because all three fail the same three ways and an operator reasons about them together. The
+  fingerprint route itself is now a deprecated delegate; the UI calls `/api/v1/search-indices`.
+  See [../../features/search/SEARCH_INDEX_ADMIN.md](../../features/search/SEARCH_INDEX_ADMIN.md).
 _Git HEAD revision: `566a2cf3`_
 _Last updated: 2026-08-09 (Task 1 closed — the workflow face/person seed and the hardcoded VLM string are gone; `src/mock/` deleted. Earlier the same day: detection review + face panel E2E coverage recorded as closed)_

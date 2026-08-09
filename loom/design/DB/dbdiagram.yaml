@@ -3,18 +3,33 @@ Project LOOM {
     # MetaLoom - Loom 1.0 Database model
 
     Reflects the schema produced by the Flyway migrations
-    (loom/db/flyway/.../db/migration) up to and including V2.50.
+    (loom/db/flyway/.../db/migration) up to and including V2.84.
     Regenerate this file from the migrations when the schema changes;
     do not hand-edit it to describe a design that is not yet migrated.
 
-    Asset result model (V2.38-V2.47), see spec/features/db/DATABASE_TASKS.md:
+    Asset result model (V2.38-V2.47), see spec/tasks/DATABASE_TASKS.md:
       - typed component tables carry the shared component contract:
         node_kind / node_id / producer_version / run_uuid / task_uuid /
         confidence, plus UNIQUE (asset_uuid, node_kind, <discriminators>).
         A node that runs again replaces its own row instead of appending.
+        Since V2.71/V2.79 tag_asset and cluster carry the same block.
       - asset_json_comp is the generic sink for results with no query
         requirement.
       - asset_node_result is the node-agnostic per-asset processing ledger.
+
+    Review model (V2.61 dedup_group, V2.79 cluster, V2.81 detection), see
+    spec/tasks/DATABASE_TASKS.md section 3.1: a node proposes with
+    status PENDING, a human confirms or rejects, and the verdict survives the
+    next run of the node that proposed it. review_status is the shared enum;
+    dedup_status is the one pre-existing duplicate, left alone deliberately.
+
+    Search (V2.58/V2.59): search_document is a materialized index maintained by
+    triggers on the source tables, NOT by the DAO layer - storeBatch() bypasses
+    per-element hooks, which is why the triggers exist.
+
+    Vector search (V2.75): Postgres is the system of record for embeddings and
+    an external ANN index is fed from it through dirty/synced_at/index_version.
+    There is no pgvector extension and no ANN index in this schema.
   '''
 }
 
@@ -81,13 +96,13 @@ Table role as R [headercolor: #16a085] {
 
 Table role_permission [headercolor: #24BAB1] {
   role_uuid uuid [ref: > R.uuid, note: "ON DELETE CASCADE"]
-  resource varchar [not null]
-  permission loom_permission [not null, note: "Permission granted to the resource"]
+  permission loom_permission [not null, note: "Permission granted by the role"]
 
   Indexes {
     (role_uuid, permission) [pk]
-    (role_uuid, resource, permission) [unique]
   }
+
+  note: "V2.64 dropped the 'resource' column and the (role_uuid, resource, permission) unique index the narrower primary key made unreachable. Permissions are global: READ_ASSET means read every asset."
 }
 
 Table user_permission [headercolor: #24BAB1] {
@@ -96,9 +111,11 @@ Table user_permission [headercolor: #24BAB1] {
   permission loom_permission [not null]
 
   Indexes {
-    (user_uuid) [pk, note: "One direct-grant row per user (grant test perms via group+role)"]
-    (user_uuid, resource, permission) [unique]
+    (user_uuid) [pk, note: "DEFECT: one direct-grant row per user, ever - a second INSERT is a PK violation, not an added permission. Grant test perms via group+role"]
+    (user_uuid, resource, permission) [unique, note: "Unreachable behind the narrower PK"]
   }
+
+  note: "V2.64 fixed the same defect on role_permission and deliberately left this table and token_permission alone; see DATABASE_TASKS.md Task 15."
 }
 
 Table token_permission [headercolor: #24BAB1] {
@@ -107,8 +124,8 @@ Table token_permission [headercolor: #24BAB1] {
   permission loom_permission [not null]
 
   Indexes {
-    (token_uuid) [pk]
-    (token_uuid, resource, permission) [unique]
+    (token_uuid) [pk, note: "Same defect as user_permission: one direct grant per token, ever"]
+    (token_uuid, resource, permission) [unique, note: "Unreachable behind the narrower PK"]
   }
 }
 
@@ -193,8 +210,9 @@ Table tag_user_meta as TUM {
 }
 
 Table tag_asset {
-  tag_uuid uuid [ref: > T.uuid, not null]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  uuid uuid [pk, default: `uuid_generate_v4()`, note: "Surrogate PK since V2.71"]
+  tag_uuid uuid [ref: > T.uuid, not null, note: "ON DELETE CASCADE (V2.72)"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE (V2.72)"]
 
   // Spatial / temporal placement of the tag on the asset
   time_from int
@@ -204,11 +222,21 @@ Table tag_asset {
   areaWidth int
   areaHeight int
 
+  // Provenance (V2.71) - who put the tag here
+  node_kind varchar [not null, default: "manual"]
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  confidence real
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "NULL when written by a worker"]
+
   Indexes {
-    (tag_uuid, asset_uuid) [pk]
+    (tag_uuid, asset_uuid, time_from, time_to, areaStartX, areaStartY) [unique, note: "UNIQUE NULLS NOT DISTINCT (V2.71) - needs PostgreSQL 15+, or an asset-level tag re-attaches on every write"]
+    (asset_uuid)
+    (asset_uuid, node_id)
   }
 
-  note: "Store tag <-> asset reference"
+  note: "Tag <-> asset placements. V2.71 replaced PRIMARY KEY (tag_uuid, asset_uuid) - which allowed one placement per asset and defeated the region columns beside it - with a surrogate key: one tag may now sit on an asset once per face and once per timecode."
 }
 
 Table tag_collection {
@@ -222,7 +250,7 @@ Table tag_collection {
 
 Table tag_cluster {
   tag_uuid uuid [ref: > T.uuid, not null]
-  cluster_uuid uuid [ref: > CLUSTER.uuid, not null]
+  cluster_uuid uuid [ref: > CLUSTER.uuid, not null, note: "ON DELETE CASCADE (V2.79)"]
 
   Indexes {
     (tag_uuid, cluster_uuid) [pk]
@@ -284,6 +312,8 @@ Table asset_location as ASSET_LOC [headercolor: #16a085] {
   path varchar [not null, note: "Currently known path in the filesystem"]
 
   // Filekey used by the filesystem scanner to identify the file
+  // OPEN DEFECT: all four are int while ino_t is 64-bit and the Java model is Long
+  // (DB_SCHEMA_FEEDBACK.md 2.4 / DATABASE_TASKS.md Task 17)
   filekey_inode int
   filekey_stdev int
   filekey_edate_nano int
@@ -303,6 +333,7 @@ Table asset_location as ASSET_LOC [headercolor: #16a085] {
   Indexes {
     (path)
     (library_uuid, path) [unique, note: "The natural key (V2.48)"]
+    (pool_uuid, path) [note: "Added V2.63"]
   }
 
   note: "Media found by the scanner. Several locations may share one asset - the same content can live at several paths and in several libraries. V2.20 had constrained this to one row per asset, which contradicted the table's purpose; V2.48 replaced that with the (library_uuid, path) key."
@@ -354,7 +385,7 @@ Table asset_remix {
 }
 
 Table asset_user_meta as AUM [headercolor: #16A085] {
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE (V2.73)"]
   user_uuid uuid [ref: > U.uuid, not null]
   meta jsonb [note: "Custom meta properties"]
 
@@ -366,7 +397,7 @@ Table asset_user_meta as AUM [headercolor: #16A085] {
 }
 
 Table asset_task {
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE (V2.73)"]
   task_uuid uuid [ref: > TASK.uuid, not null, note: "ON DELETE CASCADE"]
 
   Indexes {
@@ -781,6 +812,12 @@ Table detection as DETECTION [headercolor: #16A085] {
   confidence real [default: 0, not null]
   meta jsonb [note: "e.g. gender, age, face angle"]
 
+  // Review state (V2.79/V2.81) - the human verdict on a machine proposal
+  status review_status [default: "PENDING", not null, note: "Reset to PENDING by an upsert whose producer_version differs from the stored one"]
+  reviewed_at timestamp
+  reviewer_uuid uuid [ref: > U.uuid, note: "Who decided; may differ from editor_uuid"]
+  corrected_label varchar [note: "Human correction of 'label' - the detection is right, the class is wrong"]
+
   created timestamp [default: `now()`, not null]
   creator_uuid uuid [ref: > U.uuid, note: "NULL when written by a worker"]
   edited timestamp [default: `now()`, not null]
@@ -791,9 +828,11 @@ Table detection as DETECTION [headercolor: #16A085] {
     (asset_uuid)
     (type)
     (label)
+    (asset_uuid, type, status) [note: "The per-asset review queue (V2.81)"]
+    (status, type) [note: "The cross-asset review queue - it cannot use the index above (V2.81)"]
   }
 
-  note: "Object and face detections within assets. Keyed so a re-run replaces rather than duplicating a whole frame's worth of detections."
+  note: "Object and face detections within assets. Keyed so a re-run replaces rather than duplicating a whole frame's worth of detections - but DetectionDaoImpl.upsertDetection excludes status/reviewed_at/reviewer_uuid/corrected_label from the DO UPDATE set, so a re-run never clears a human verdict."
 }
 
 Table embedding as EMBEDDING [headercolor: #16A085] {
@@ -807,10 +846,16 @@ Table embedding as EMBEDDING [headercolor: #16A085] {
   task_uuid uuid [ref: > pipeline_node_task.uuid]
   confidence real
 
-  type varchar [not null, note: "Type of the embedding (e.g. dlib_facemark, inspireface)"]
-  model varchar [note: "Readable mirror of producer_version"]
-  dimensions int [not null, note: "Length of vector; guards against comparing across models"]
-  vector real[] [not null, note: "Plain PG array, not pgvector. OPEN DECISION: in-Postgres ANN vs external index fed via vector_config - see DB_SCHEMA_FEEDBACK.md 4.2"]
+  type varchar [not null, note: "Type of the embedding (e.g. dlib_facemark, inspireface). Free text - there is deliberately no EmbeddingType enum"]
+  model varchar [not null, default: "", note: "In the unique key since V2.75, so a model upgrade adds rows beside the old ones instead of overwriting them"]
+  dimensions int [not null, note: "CHECK array_length(vector,1) = dimensions (V2.75)"]
+  vector real[] [not null, note: "Plain PG array. ANN lives OUTSIDE Postgres behind the VectorIndex SPI - no pgvector extension is involved (V2.75)"]
+  normalized boolean [default: false, not null, note: "Whether the vector is L2-normalized, so a consumer need not guess"]
+
+  // External-index exporter contract (V2.75), mirroring search_document
+  dirty boolean [default: true, not null, note: "Needs (re)indexing"]
+  synced_at timestamp [default: `now()`, not null]
+  index_version int [default: 1, not null]
 
   detection_uuid uuid [ref: > DETECTION.uuid, note: "The detection this vector came from; ON DELETE CASCADE. NULL for whole-image / audio-window embeddings"]
   frame_number int [default: 0, not null]
@@ -825,38 +870,68 @@ Table embedding as EMBEDDING [headercolor: #16A085] {
   editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
-    (asset_uuid, node_kind, type, frame_number, subject_index) [unique]
+    (asset_uuid, node_kind, type, model, frame_number, subject_index) [unique, note: "V2.75 added 'model': without it, re-running a node under a new embedding model upserted over the old model's vector, making a model upgrade destructive and irreversible"]
     (asset_uuid)
     (detection_uuid)
+    (type, model)
+    (synced_at) [note: "Partial index WHERE dirty (the exporter's queue)"]
   }
 
-  note: "V2.43 dropped the duplicated absolute-pixel geometry (areaStartX/...) - the region lives on the linked detection, in one convention. fromTime/toTime became time_from/time_to."
+  note: "V2.43 dropped the duplicated absolute-pixel geometry (areaStartX/...) - the region lives on the linked detection, in one convention. fromTime/toTime became time_from/time_to. V2.75 made this table the system of record an external ANN index is derived from."
 }
 
 Table cluster as CLUSTER [headercolor: #16A085] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
-  name varchar [unique, not null, note: "e.g. name of a person"]
+  name varchar [note: "Nullable since V2.79 - a machine proposal has no name until a human gives it one"]
   meta jsonb
   type varchar [not null, note: "e.g. person"]
 
+  // Provenance (V2.79) - the same block every other producer table carries
+  node_kind varchar
+  node_id varchar
+  producer_version varchar [not null, default: ""]
+  run_uuid uuid [ref: > pipeline_run.uuid, note: "ON DELETE SET NULL"]
+  task_uuid uuid [ref: > pipeline_node_task.uuid, note: "ON DELETE SET NULL"]
+
+  asset_uuid uuid [ref: > ASSET.uuid, note: "The asset a per-asset cluster describes; ON DELETE CASCADE"]
+  cluster_index int [default: 0, not null, note: "Ordinal within (asset, node_kind)"]
+
+  // Review state (V2.79)
+  status review_status [default: "PENDING", not null]
+  person_uuid uuid [ref: > PERSON.uuid, note: "Set when a human confirms the proposal is a known person; ON DELETE SET NULL - deleting a person must not erase the review record"]
+
+  score real
+  centroid real[] [note: "Representative vector of the cluster"]
+  model varchar
+  dimensions int
+
   created timestamp [default: `now()`, not null]
-  creator_uuid uuid [ref: > U.uuid, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "NULLABLE since V2.79 - V2.47 skipped this table, so a Cortex worker physically could not insert a cluster"]
   edited timestamp [default: `now()`, not null]
-  editor_uuid uuid [ref: > U.uuid, not null]
+  editor_uuid uuid [ref: > U.uuid]
 
   Indexes {
-    (name) [unique]
+    (type, name) [unique, note: "PARTIAL: WHERE name IS NOT NULL (V2.79). V2.12 had a global UNIQUE (name), so a person cluster and a visual-similarity cluster could not share a name"]
+    (asset_uuid, node_kind, cluster_index) [unique, note: "The producer key (V2.79)"]
+    (status)
+    (type, status)
+    (asset_uuid)
+    (person_uuid)
   }
 
-  note: "Generic cluster aggregating multiple embeddings (e.g. a person, or visually-similar media)."
+  note: "Generic cluster aggregating multiple embeddings (e.g. a person, or visually-similar media). V2.79 turned it into a machine-writable, human-reviewable identity proposal and gave it the first relation to 'person' - the two had modelled the same concept with no link between them."
 }
 
 Table embedding_cluster {
   embedding_uuid uuid [ref: > EMBEDDING.uuid, not null]
-  cluster_uuid uuid [ref: > CLUSTER.uuid, not null]
+  cluster_uuid uuid [ref: > CLUSTER.uuid, not null, note: "ON DELETE CASCADE (V2.51) - a cluster with members could not be deleted at all"]
+  confidence real [note: "Membership strength (V2.79)"]
+  origin varchar [default: "AUTO", not null, note: "CHECK: AUTO or MANUAL - was this member clustered by a node or moved by a human"]
+  created timestamp [default: `now()`, not null]
 
   Indexes {
     (embedding_uuid, cluster_uuid) [pk]
+    (cluster_uuid)
   }
 }
 
@@ -877,6 +952,51 @@ tablegroup DetectionEmbedding {
   cluster
   embedding_cluster
   collection_cluster
+}
+
+//// ==========================================================================
+//// Dedup review (V2.61)
+//// ==========================================================================
+
+Table dedup_group as DEDUP [headercolor: #B07C4B] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  algorithm varchar [not null, note: "Fingerprint algorithm the similarity was computed with, e.g. metaloom-multisector-v1"]
+  status dedup_status [default: "PENDING", not null, note: "PENDING (awaiting review), CONFIRMED (the apply node may act) or REJECTED (never act)"]
+  keep_asset_uuid uuid [ref: > ASSET.uuid, note: "Denormalised pointer to the KEEP member; ON DELETE SET NULL. The authoritative KEEP is the member with role = KEEP"]
+  score real [note: "Representative (minimum member) similarity score"]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "NULL when machine-created by the discovery node"]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
+  Indexes {
+    (status)
+  }
+
+  note: "A candidate duplicate set (one KEEP + N DUP members) found via fingerprint similarity, awaiting or holding a human decision. The first table to carry the review model V2.79 and V2.81 later generalised."
+}
+
+Table dedup_group_member {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  group_uuid uuid [ref: > DEDUP.uuid, not null, note: "ON DELETE CASCADE"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE"]
+  role varchar [not null, note: "CHECK: KEEP (the asset to keep) or DUP (a candidate duplicate to move)"]
+  score real
+  size bigint [note: "File size snapshot at discovery time; apply re-verifies live"]
+  zero_chunk_count bigint [note: "Completeness snapshot at discovery time; 0 means complete"]
+
+  Indexes {
+    (group_uuid, asset_uuid) [unique]
+    (asset_uuid)
+    (group_uuid)
+  }
+}
+
+tablegroup DedupReview {
+  dedup_group
+  dedup_group_member
 }
 
 //// ==========================================================================
@@ -933,8 +1053,8 @@ Table collection as COLLECTION [headercolor: #16A085] {
 }
 
 Table collection_asset {
-  collection_uuid uuid [ref: > COLLECTION.uuid, not null]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  collection_uuid uuid [ref: > COLLECTION.uuid, not null, note: "ON DELETE CASCADE (V2.80) - V2.8 created it as a plain reference, so deleting a non-empty collection failed with an FK violation"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE (V2.73)"]
 
   Indexes {
     (collection_uuid, asset_uuid) [pk]
@@ -948,6 +1068,7 @@ Table library as LIB [headercolor: #16a085] {
   name varchar [not null]
   meta jsonb
   description varchar
+  pool_uuid uuid [ref: > asset_pool.uuid, note: "Storage pool for uploads (V2.63); ON DELETE RESTRICT. NULL = legacy local upload dir"]
 
   created timestamp [default: `now()`, not null]
   creator_uuid uuid [ref: > U.uuid, not null]
@@ -956,8 +1077,8 @@ Table library as LIB [headercolor: #16a085] {
 }
 
 Table library_asset {
-  library_uuid uuid [ref: > LIB.uuid, not null]
-  asset_uuid uuid [ref: > ASSET.uuid, not null]
+  library_uuid uuid [ref: > LIB.uuid, not null, note: "Plain reference on purpose: a library must not be deleted out from under the assets in it"]
+  asset_uuid uuid [ref: > ASSET.uuid, not null, note: "ON DELETE CASCADE (V2.74)"]
 
   Indexes {
     (library_uuid, asset_uuid) [pk]
@@ -1023,6 +1144,7 @@ tablegroup CollectionLibraryProject {
 Table attachment_binary {
   sha512sum varchar [pk, note: "Content identity of the attachment binary"]
   size bigint [not null]
+  pool_uuid uuid [ref: > asset_pool.uuid, note: "Storage pool holding the bytes (V2.63); ON DELETE RESTRICT"]
 
   Indexes {
     (sha512sum) [unique]
@@ -1035,6 +1157,7 @@ Table attachment {
 
   embedding_uuid uuid [ref: > EMBEDDING.uuid, note: "ON DELETE CASCADE"]
   asset_uuid uuid [ref: > ASSET.uuid, note: "ON DELETE CASCADE (V2.44)"]
+  detection_uuid uuid [ref: > DETECTION.uuid, note: "The detection this crop depicts (V2.79); ON DELETE CASCADE"]
 
   mime_type varchar [not null]
   type attachment_type [not null]
@@ -1058,7 +1181,9 @@ Table attachment {
   Indexes {
     (uuid) [pk]
     (asset_uuid, type, node_kind, variant) [unique, note: "PARTIAL: WHERE asset_uuid IS NOT NULL AND node_kind IS NOT NULL"]
+    (detection_uuid, type, node_kind, variant) [unique, note: "PARTIAL: WHERE detection_uuid IS NOT NULL (V2.79). An asset has many face crops, one per detection, so the asset-keyed index above cannot serve them"]
     (asset_uuid)
+    (detection_uuid)
   }
 
   note: "Sink for derived binaries: thumbnails, contact sheets, poster frames, proxies. The two targets are NOT alternatives - an EMBEDDING_ATTACHMENT carries both the embedding it depicts and the asset that embedding came from, so there is deliberately no exactly-one-target constraint."
@@ -1151,8 +1276,61 @@ Table task as TASK [headercolor: #16A085] {
   editor_uuid uuid [ref: > U.uuid, not null]
 }
 
+Table task_assignee {
+  task_uuid uuid [ref: > TASK.uuid, not null, note: "ON DELETE CASCADE"]
+  user_uuid uuid [ref: > U.uuid, note: "ON DELETE CASCADE. NULL when this row assigns to a group"]
+  group_uuid uuid [ref: > G.uuid, note: "ON DELETE CASCADE. Membership is resolved on read, not snapshotted, so adding someone to the group hands them the task"]
+  assigned timestamp [default: `now()`, not null]
+  assigner_uuid uuid [ref: > U.uuid, note: "Who made the assignment; ON DELETE SET NULL. This is what lets a notification say who assigned you"]
+
+  Indexes {
+    (task_uuid, user_uuid) [unique, note: "PARTIAL: WHERE user_uuid IS NOT NULL"]
+    (task_uuid, group_uuid) [unique, note: "PARTIAL: WHERE group_uuid IS NOT NULL"]
+    (user_uuid)
+    (group_uuid)
+  }
+
+  note: "Who is responsible for a task (V2.69): a user or a group, one target per row, CHECK num_nonnulls(user_uuid, group_uuid) = 1. NO primary key - a PK cannot hold nullable columns, so uniqueness is the two partial indexes above, which is also what makes assign idempotent."
+}
+
+Table notification [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  recipient_uuid uuid [ref: > U.uuid, not null, note: "Always a concrete user, never a group; ON DELETE CASCADE"]
+  type varchar [not null, note: "CHECK: TASK_ASSIGNED, TASK_UNASSIGNED, TASK_STATUS_CHANGED, TASK_COMMENT, COMMENT_REPLY, PIPELINE_RUN_FAILED, NODE_RUN_COMPLETED (V2.83). varchar + CHECK rather than an enum because this list churns and Postgres cannot drop an enum value"]
+  read boolean [default: false, not null]
+  read_at timestamp [note: "NULL while unread"]
+  title varchar [not null, note: "Pre-rendered at dispatch, so the inbox does not have to re-resolve deleted subjects at read time"]
+  body varchar
+
+  // Subject (whichever applies) - all ON DELETE CASCADE
+  task_uuid uuid [ref: > TASK.uuid]
+  comment_uuid uuid [ref: > COMMENT.uuid]
+  pipeline_run_uuid uuid [ref: > pipeline_run.uuid]
+  asset_uuid uuid [ref: > ASSET.uuid]
+
+  via_group_uuid uuid [ref: > G.uuid, note: "The group through which the recipient was reached; explanatory only. ON DELETE SET NULL"]
+
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, note: "The ACTOR whose action produced this, NOT the recipient. NULL for machine-generated events such as a failed run"]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
+  Indexes {
+    (recipient_uuid, created) [note: "Two indexes in the schema: this one, plus a partial WHERE read = false for the unread inbox"]
+    (task_uuid)
+    (comment_uuid)
+    (pipeline_run_uuid)
+    (asset_uuid)
+  }
+
+  note: "One durable inbox entry for one user (V2.70). A group notification is fanned out to one row per member at dispatch time - the audience is resolved when the event happens, not when the inbox is read. Nothing prunes this table automatically."
+}
+
 tablegroup Task {
   task
+  task_assignee
+  notification
 }
 
 //// ==========================================================================
@@ -1172,7 +1350,7 @@ Table comment as COMMENT [headercolor: #16A085] {
 
   // Comment target (one of)
   task_uuid uuid [ref: > TASK.uuid, note: "ON DELETE CASCADE"]
-  asset_uuid uuid [ref: > ASSET.uuid]
+  asset_uuid uuid [ref: > ASSET.uuid, note: "ON DELETE CASCADE (V2.74)"]
   annotation_uuid uuid [ref: > ANNOTATION.uuid, note: "ON DELETE CASCADE (V2.48)"]
 
   note: "Stores comments on tasks, annotations, assets."
@@ -1180,7 +1358,7 @@ Table comment as COMMENT [headercolor: #16A085] {
 
 Table reaction as REACTION [headercolor: #16A085] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
-  type varchar [note: "e.g. thumbsup"]
+  type varchar [note: "ReactionType.name(); read back with valueOf, so any other string makes every REST read of the row a 500. RATING is the workflow star rating (V2.78)"]
   rating int
   meta jsonb
 
@@ -1190,15 +1368,16 @@ Table reaction as REACTION [headercolor: #16A085] {
   editor_uuid uuid [ref: > U.uuid, not null]
 
   // Reaction target (one of)
-  asset_uuid uuid [ref: > ASSET.uuid]
+  asset_uuid uuid [ref: > ASSET.uuid, note: "ON DELETE CASCADE (V2.74)"]
   task_uuid uuid [ref: > TASK.uuid, note: "ON DELETE CASCADE"]
   comment_uuid uuid [ref: > COMMENT.uuid, note: "ON DELETE CASCADE"]
   annotation_uuid uuid [ref: > ANNOTATION.uuid, note: "ON DELETE CASCADE (V2.48)"]
 
   Indexes {
-    (creator_uuid, type, asset_uuid) [unique]
+    (creator_uuid, type, asset_uuid) [unique, note: "One reaction of each kind per user per asset - and, since V2.78, one RATING that no longer collides with a real reaction"]
     (creator_uuid, type, comment_uuid) [unique]
     (creator_uuid, type, annotation_uuid) [unique]
+    (asset_uuid, type) [note: "The filter node's read (V2.78)"]
   }
 
   note: "Stores social reactions on multiple elements"
@@ -1273,8 +1452,9 @@ Table pipeline_version [headercolor: #4B82B0] {
 
 Table pipeline_run [headercolor: #4B82B0] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
-  pipeline_uuid uuid [ref: > pipeline.uuid, not null, note: "ON DELETE CASCADE"]
-  pipeline_version int [default: 1, not null]
+  pipeline_uuid uuid [ref: > pipeline.uuid, note: "ON DELETE CASCADE. NULLABLE since V2.83: an ad-hoc run never belonged to a pipeline"]
+  kind varchar [default: "PIPELINE", not null, note: "CHECK: PIPELINE or ADHOC (V2.83). A second CHECK pairs it with pipeline_uuid, so the impossible third state cannot be stored. An ADHOC run carries its definition in meta.definition"]
+  pipeline_version int [default: 1, not null, note: "The bare version number, NOT a foreign key to pipeline_version - see DATABASE_TASKS.md Task 16"]
   started timestamp [default: `now()`, not null]
   finished timestamp
   status varchar [default: "PENDING", not null, note: "PENDING, RUNNING, SUCCESS, FAILED, PARTIAL, CANCELLED"]
@@ -1296,9 +1476,10 @@ Table pipeline_run [headercolor: #4B82B0] {
     (pipeline_uuid)
     (started)
     (status)
+    (creator_uuid, started) [note: "Partial index WHERE kind = 'ADHOC' (V2.83) - 'my recent ad-hoc runs'"]
   }
 
-  note: "History of pipeline executions"
+  note: "History of pipeline executions, including ad-hoc runs that execute a definition submitted with the request rather than one from the catalog (V2.83)."
 }
 
 Table pipeline_run_item [headercolor: #4B82B0] {
@@ -1306,7 +1487,7 @@ Table pipeline_run_item [headercolor: #4B82B0] {
   run_uuid uuid [ref: > pipeline_run.uuid, not null, note: "ON DELETE CASCADE"]
   item_seq bigint [not null, note: "Discovery order; idempotent re-delivery key"]
   media_path varchar [not null]
-  sha512 varchar [note: "Once a hashing node has produced one"]
+  sha512 varchar [note: "Once a hashing node has produced one. No FK and no index to asset - the seam between run history and catalog is an unconstrained string; see DATABASE_TASKS.md Task 16"]
   size_bytes bigint [note: "-1 when unknown"]
   state varchar [default: "PENDING", not null, note: "PENDING, RUNNING, SUCCESS, FAILED, SKIPPED"]
   error_message varchar
@@ -1333,16 +1514,19 @@ Table pipeline_node_task [headercolor: #4B82B0] {
   run_uuid uuid [ref: > pipeline_run.uuid, not null, note: "Denormalised; ON DELETE CASCADE"]
   node_id varchar [not null, note: "Graph-local node id"]
   node_kind varchar [not null, note: "Routes the task to a capable worker"]
+  element_seq int [default: 0, not null, note: "Which element of a fanned-out sequence this execution covers; 0 when the node runs once per item (V2.60)"]
+  generation int [default: 0, not null, note: "Which attempt at this execution the row records; counts up per operator-requested re-execution at a breakpoint, so 'before' and 'after' sit side by side (V2.68)"]
   state varchar [default: "PENDING", not null, note: "PENDING, RUNNING, COMPLETED, FAILED, SKIPPED, DEAD_LETTER"]
   attempt int [default: 0, not null]
   max_attempts int [default: 1, not null]
-  leased_by varchar [note: "Processor node id currently holding the task"]
+  leased_by varchar [note: "Processor node id currently holding the task. A soft reference to cortex_instance.node_id, not a foreign key - see DATABASE_TASKS.md Task 16"]
   lease_expires_at timestamp
   started timestamp
   finished timestamp
   duration_ms bigint
   error_message varchar
   outputs jsonb [note: "Node outputs consumed by downstream nodes"]
+  previews jsonb [note: "Opt-in per-run debugging previews keyed by output port id (V2.67). Run-scoped and pruned with the run - never catalogue state. NULL when the run did not ask for them"]
   meta jsonb
 
   created timestamp [default: `now()`, not null]
@@ -1351,13 +1535,13 @@ Table pipeline_node_task [headercolor: #4B82B0] {
   editor_uuid uuid [ref: > U.uuid, not null]
 
   Indexes {
-    (item_uuid, node_id) [unique, note: "Idempotency key: a node runs at most once per item"]
+    (item_uuid, node_id, element_seq, generation) [unique, note: "Idempotency key, widened by V2.60 (port fan-out) and V2.68 (re-execution)"]
     (item_uuid)
     (run_uuid, state)
     (lease_expires_at) [note: "Partial index WHERE state = 'RUNNING' (lease reaper)"]
   }
 
-  note: "One node execution against one media item"
+  note: "One node execution against one media item. MISSING INDEX: worker dispatch asks for PENDING tasks by node_kind and no index serves it - see DATABASE_TASKS.md Task 18. Largest table in the schema; V2.60 and V2.68 both multiplied its rows per run."
 }
 
 Table cortex_instance [headercolor: #4B82B0] {
@@ -1393,6 +1577,41 @@ Table cortex_instance_node_kind [headercolor: #4B82B0] {
   note: "Per-worker node-kind whitelist/blacklist entries"
 }
 
+Table node_descriptor [headercolor: #4B82B0] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  node_id varchar [unique, not null, note: "The node TYPE id (whisper, acme-nsfw). NOT the graph-instance id of asset_node_result.node_id, and NOT the worker id of cortex_instance.node_id - three different things wear this name"]
+  version varchar [note: "The active contract version: the LOWEST announced by any worker offering this node"]
+  descriptor jsonb [not null, note: "The full announced NodeDescriptor JSON, so rehydrating at boot needs no worker"]
+  body_hash varchar [not null, note: "SHA-256 of the canonical, key-sorted contract body"]
+  source varchar [not null, note: "CHECK: ANNOUNCED. BUILTIN contracts are never persisted - they are recomputed from the classpath at every boot"]
+  status varchar [not null, note: "CHECK: ACTIVE, or CONFLICTED when workers announce the same version with different bodies"]
+  first_seen timestamp [default: `now()`, not null]
+  last_announced timestamp [default: `now()`, not null, note: "NOT liveness - availability is read from cortex_instance.last_seen through node_descriptor_instance"]
+  meta jsonb
+
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid]
+
+  note: "A node contract announced by a Cortex worker (V2.66), kept so the node stays authorable while no worker is online. Spec knowledge is durable, worker presence is live: rows are removed only by an explicit admin action."
+}
+
+Table node_descriptor_instance [headercolor: #4B82B0] {
+  node_id varchar [not null, note: "The node TYPE id. Deliberately NOT a foreign key to node_descriptor: a worker also claims built-in node ids, whose contracts are never persisted"]
+  instance_uuid uuid [ref: > cortex_instance.uuid, not null, note: "ON DELETE CASCADE"]
+  version varchar
+  body_hash varchar [not null]
+  last_announced timestamp [default: `now()`, not null]
+
+  Indexes {
+    (node_id, instance_uuid) [pk]
+    (node_id)
+  }
+
+  note: "Which worker claims which node contract, and at which version"
+}
+
 tablegroup Pipeline {
   pipeline
   pipeline_version
@@ -1401,16 +1620,19 @@ tablegroup Pipeline {
   pipeline_node_task
   cortex_instance
   cortex_instance_node_kind
+  node_descriptor
+  node_descriptor_instance
 }
 
 //// ==========================================================================
 //// Chat / Skill (agent)
 //// ==========================================================================
 
-Table chat [headercolor: #16A085] {
+Table chat as CHAT [headercolor: #16A085] {
   uuid uuid [pk, default: `uuid_generate_v4()`]
   title varchar [not null]
-  messages jsonb [default: `'[]'`, not null, note: "role, content, metadata, asset references"]
+  messages jsonb [default: `'[]'`, not null, note: "role, content, metadata, asset references. A JSON ARRAY - the only column mapped by JsonArrayConverter"]
+  space_uuid uuid [ref: > PROJECT.uuid, note: "Space the chat originates from (V2.53); scopes space-level agent memory. ON DELETE SET NULL"]
   meta jsonb
 
   created timestamp [default: `now()`, not null]
@@ -1418,7 +1640,113 @@ Table chat [headercolor: #16A085] {
   edited timestamp [default: `now()`, not null]
   editor_uuid uuid [ref: > U.uuid, not null]
 
+  Indexes {
+    (space_uuid)
+  }
+
   note: "LLM chat sessions with message history"
+}
+
+Table chat_session as CHAT_SESSION [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  chat_uuid uuid [ref: > CHAT.uuid, note: "The owning chat; ON DELETE SET NULL so a published session survives the chat"]
+  name varchar [not null, note: "AI-generated on first use, user-editable"]
+  description varchar [note: "AI-generated on first use, user-editable"]
+  tags text[] [default: `'{}'`, not null]
+  published boolean [default: false, not null, note: "Visible in the shared session library"]
+
+  // Filesystem snapshot of the session's /session directory
+  pool_uuid uuid [ref: > asset_pool.uuid, note: "ON DELETE SET NULL"]
+  blob_path varchar [note: "Path of the /session tarball within the pool"]
+  fs_size bigint
+  fs_sha256 varchar
+
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (published)
+    (creator_uuid)
+  }
+
+  note: "Publishable record behind one chat (V2.52): transcript-derived name/description, tags, publish flag and a /session filesystem snapshot"
+}
+
+Table chat_session_skill {
+  session_uuid uuid [ref: > CHAT_SESSION.uuid, not null, note: "ON DELETE CASCADE"]
+  skill_uuid uuid [ref: > skill.uuid, not null, note: "ON DELETE CASCADE"]
+  skill_version integer [not null, note: "Pins skill_version.version_number"]
+
+  Indexes {
+    (session_uuid, skill_uuid) [pk]
+  }
+}
+
+Table chat_session_context_ref {
+  session_uuid uuid [ref: > CHAT_SESSION.uuid, not null, note: "ON DELETE CASCADE"]
+  source_session_uuid uuid [ref: > CHAT_SESSION.uuid, not null, note: "ON DELETE CASCADE"]
+  include_chat_history boolean [default: false, not null]
+  include_skills boolean [default: false, not null]
+  include_filesystem boolean [default: false, not null]
+  ordinal integer [default: 0, not null]
+
+  Indexes {
+    (session_uuid, source_session_uuid) [pk]
+    (source_session_uuid)
+  }
+
+  note: "Live references from a session to other published sessions, with per-part toggles"
+}
+
+Table memory_entry [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  scope memory_scope [not null]
+  scope_uuid uuid [not null, note: "user.uuid, group.uuid or project.uuid depending on scope; intentionally NO foreign key since it spans three tables"]
+  memory_id varchar [not null, note: "Path-like id relative to the scope, e.g. projects/loom-db.md"]
+  title varchar
+  body text [not null, note: "Markdown body without frontmatter; the header is rendered from the columns"]
+  size integer [default: 0, not null, note: "Byte length of body, denormalized so a scope quota is a single SUM()"]
+  sha256 varchar [not null, note: "Digest of the rendered file; lets a session container skip unchanged files"]
+  version integer [default: 1, not null]
+  session_name varchar [note: "Name of the chat session that last wrote this entry"]
+  chat_uuid uuid [ref: > CHAT.uuid, note: "ON DELETE SET NULL"]
+
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (scope, scope_uuid, memory_id) [unique]
+    (scope, scope_uuid)
+  }
+
+  note: "Agent memory bank (V2.53): scoped markdown notes addressed by a path-like id"
+}
+
+Table memory_deny_rule [headercolor: #16A085] {
+  uuid uuid [pk, default: `uuid_generate_v4()`]
+  name varchar [unique, not null]
+  pattern varchar [not null, note: "Java regular expression matched against the note body and title"]
+  message varchar [not null, note: "Returned to the agent on rejection; must explain the problem without echoing the matched text"]
+  enabled boolean [default: true, not null, note: "Disabled rules are kept for reference but never matched"]
+
+  meta jsonb
+  created timestamp [default: `now()`, not null]
+  creator_uuid uuid [ref: > U.uuid, not null]
+  edited timestamp [default: `now()`, not null]
+  editor_uuid uuid [ref: > U.uuid, not null]
+
+  Indexes {
+    (name) [unique]
+    (enabled)
+  }
+
+  note: "Instance-wide denylist of regular expressions that must never reach the agent memory bank (V2.54)"
 }
 
 Table skill [headercolor: #16A085] {
@@ -1465,8 +1793,91 @@ Table skill_version [headercolor: #16A085] {
 
 tablegroup Agent {
   chat
+  chat_session
+  chat_session_skill
+  chat_session_context_ref
   skill
   skill_version
+  memory_entry
+  memory_deny_rule
+}
+
+//// ==========================================================================
+//// Search index (V2.58/V2.59)
+////
+//// Maintained by TRIGGERS on the source tables, not by the DAO layer:
+//// storeBatch() uses ctx().batchInsert and bypasses per-element hooks, so a
+//// callback-maintained index would miss every batched write.
+//// ==========================================================================
+
+Table search_document [headercolor: #7C4BB0] {
+  entity_type varchar [not null, note: "asset, tag, collection, ... - part of the key, so one row per searchable entity"]
+  entity_uuid uuid [not null]
+  asset_uuid uuid [ref: > ASSET.uuid, note: "ON DELETE CASCADE - how an asset delete removes its search rows"]
+
+  title text [default: "", not null, note: "tsvector weight A"]
+  subtitle text [default: "", not null, note: "weight B"]
+  body text [default: "", not null, note: "weight C"]
+  keywords text [default: "", not null, note: "weight D"]
+  body_truncated boolean [default: false, not null, note: "Body was cut at the cap. A tsvector is limited to 1MB and lexeme positions to 16383, so a book-sized Tika extraction must be truncated or the write fails"]
+
+  lang varchar [default: "", not null]
+  mime_type varchar
+  size bigint
+  time_from bigint
+  sort_date timestamp
+
+  library_uuids uuid[] [default: `'{}'`, not null, note: "Reserved ACL projection - populated, read by nothing until row-level ACL lands"]
+  space_uuids uuid[] [default: `'{}'`, not null]
+  collection_uuids uuid[] [default: `'{}'`, not null]
+  tag_names text[] [default: `'{}'`, not null]
+
+  text_search tsvector [note: "GENERATED ALWAYS AS setweight(to_tsvector('simple', ...)) STORED. Excluded from jOOQ codegen - never write it"]
+  text_search_en tsvector [note: "Same, with the english (stemmed) configuration"]
+  trgm_text text [note: "GENERATED, bounded trigram source over title+subtitle. Backs typo tolerance and typeahead"]
+
+  // Outbox for an external index
+  index_version int [default: 1, not null]
+  synced_at timestamp [default: `now()`, not null]
+  dirty boolean [default: true, not null, note: "Unused by the Postgres provider, which queries this table directly"]
+  es_synced_at timestamp
+  error text
+
+  Indexes {
+    (entity_type, entity_uuid) [pk]
+    (text_search) [type: gin]
+    (text_search_en) [type: gin]
+    (trgm_text) [type: gin, note: "gin_trgm_ops"]
+    (asset_uuid)
+    (entity_type)
+    (mime_type)
+    (sort_date)
+    (library_uuids) [type: gin]
+    (space_uuids) [type: gin]
+    (collection_uuids) [type: gin]
+    (tag_names) [type: gin]
+    (synced_at) [note: "Partial index WHERE dirty"]
+  }
+
+  note: "Materialized search index, one row per searchable entity. search_extract_json_text is a WHITELIST of asset_json_comp schema_types (V2.58, extended by V2.65): a JSON component nobody added a branch for is stored and silently unfindable."
+}
+
+Table search_document_deleted [headercolor: #7C4BB0] {
+  entity_type varchar [not null]
+  entity_uuid uuid [not null]
+  deleted_at timestamp [default: `now()`, not null]
+
+  Indexes {
+    (entity_type, entity_uuid) [pk]
+    (deleted_at)
+  }
+
+  note: "Delete tombstones for external index sync. Drained and pruned by the indexer; unused by the Postgres provider, which never drains it."
+}
+
+tablegroup Search {
+  search_document
+  search_document_deleted
 }
 
 //// ==========================================================================
@@ -1532,6 +1943,33 @@ Enum attachment_type {
   WAVEFORM
   PROXY
   EXTRACTED_AUDIO
+
+  // Added V2.79
+  FACE_CROP
+}
+
+// The shared review vocabulary: a node proposes, a human decides.
+// Created as cluster_status by V2.79 and renamed by V2.81, which is catalog-only
+// and transactional - unlike ALTER TYPE ... ADD VALUE. Used by cluster.status
+// and detection.status. Do not create a second, structurally identical enum.
+Enum review_status {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+// The one pre-existing duplicate of review_status (V2.61). Left alone
+// deliberately: dedup_group is shipped and folding it in would rewrite the table.
+Enum dedup_status {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+Enum memory_scope {
+  USER
+  GROUP
+  SPACE
 }
 
 Enum loom_permission {
@@ -1707,4 +2145,53 @@ Enum loom_permission {
   // Skill Version
   READ_SKILL_VERSION
   RESTORE_SKILL_VERSION
+
+  // Chat Session (V2.52)
+  CREATE_CHAT_SESSION
+  READ_CHAT_SESSION
+  UPDATE_CHAT_SESSION
+  DELETE_CHAT_SESSION
+
+  // Agent memory (V2.53)
+  CREATE_MEMORY
+  READ_MEMORY
+  UPDATE_MEMORY
+  DELETE_MEMORY
+
+  // Memory deny rule (V2.54)
+  CREATE_MEMORY_DENY_RULE
+  READ_MEMORY_DENY_RULE
+  UPDATE_MEMORY_DENY_RULE
+  DELETE_MEMORY_DENY_RULE
+
+  // Search (V2.57)
+  READ_SEARCH
+
+  // Dedup (V2.62)
+  CREATE_DEDUP
+  READ_DEDUP
+  UPDATE_DEDUP
+  DELETE_DEDUP
+
+  // Notification (V2.70) - no CREATE: dispatch is server-side
+  READ_NOTIFICATION
+  UPDATE_NOTIFICATION
+  DELETE_NOTIFICATION
+
+  // MCP pipeline authoring (V2.76) - letting an agent DESIGN a pipeline is a
+  // different trust decision from letting a user do it
+  CREATE_MCP_PIPELINE
+  UPDATE_MCP_PIPELINE
+  VALIDATE_MCP_PIPELINE
+
+  // Ad-hoc node execution (V2.82) - separate again, because this one SPENDS COMPUTE
+  EXECUTE_MCP_NODE
+
+  // Metric catalog on the app REST port (V2.84). The Prometheus scrape on the
+  // monitoring port stays unauthenticated and network-gated
+  READ_METRIC
+
+  // NOTE: the four *_WEBHOOK values were removed by V2.55, which had to rename the
+  // type, rebuild it from pg_enum and re-type three columns inside a DO block to do
+  // it. That is why new churning value lists use varchar + CHECK instead.
 }

@@ -183,7 +183,7 @@ public class EmbeddingIndexSyncService {
 	 * this runs over whatever is in the table, including rows written before that constraint existed.
 	 * </p>
 	 */
-	static VectorRecord toRecord(Embedding embedding) {
+	public static VectorRecord toRecord(Embedding embedding) {
 		if (embedding == null || embedding.getUuid() == null) {
 			return null;
 		}

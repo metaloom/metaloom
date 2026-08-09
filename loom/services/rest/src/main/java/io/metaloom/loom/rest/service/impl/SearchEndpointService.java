@@ -26,6 +26,7 @@ import io.metaloom.loom.api.search.SearchProviderInfo;
 import io.metaloom.loom.api.search.SearchRequest;
 import io.metaloom.loom.api.search.SearchResult;
 import io.metaloom.loom.api.search.SearchSuggestion;
+import io.metaloom.loom.db.jooq.search.SearchEmbeddingService;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
@@ -85,10 +86,14 @@ public class SearchEndpointService extends AbstractEndpointService {
 
 	private final SearchProvider provider;
 
+	private final SearchEmbeddingService embeddingService;
+
 	@Inject
-	public SearchEndpointService(SearchProvider provider, LoomModelBuilder modelBuilder, LoomModelValidator validator) {
+	public SearchEndpointService(SearchProvider provider, SearchEmbeddingService embeddingService, LoomModelBuilder modelBuilder,
+		LoomModelValidator validator) {
 		super(modelBuilder, validator);
 		this.provider = provider;
+		this.embeddingService = embeddingService;
 	}
 
 	/**
@@ -162,7 +167,9 @@ public class SearchEndpointService extends AbstractEndpointService {
 				.setReason(info.getReason())
 				.setCapabilities(info.getCapabilities().stream().map(Enum::name).toList())
 				.setDocumentCount(info.getDocumentCount())
-				.setDirtyCount(info.getDirtyCount())
+				// The lexical index is trigger-maintained and so never lags; the embedding backlog is the
+				// only thing here that can, and it is what an operator watching a fresh import needs to see.
+				.setDirtyCount(embeddingService.isReady() ? embeddingService.pendingCount() : info.getDirtyCount())
 				.setLastSyncedAt(info.getLastSyncedAt()));
 		});
 	}

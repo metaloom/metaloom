@@ -126,6 +126,8 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
+import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityCheckListResponse;
+import io.metaloom.loom.rest.model.dbintegrity.DbIntegrityReportResponse;
 import io.metaloom.loom.rest.model.metrics.MetricsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
@@ -741,6 +743,35 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 			request.addQueryParameter("prefix", prefix);
 		}
 		return request;
+	}
+
+	@Override
+	public LoomClientHttpRequest<DbIntegrityReportResponse> loadDbIntegrityReport() {
+		return getRequest("db-integrity", DbIntegrityReportResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<DbIntegrityReportResponse> loadDbIntegrityReport(String check, String category,
+		String severity) {
+		// Query parameters, not a path suffix: getRequest encodes what it is given as a path, so an
+		// inlined "?check=" arrives as %3Fcheck= and 404s.
+		LoomClientHttpRequest<DbIntegrityReportResponse> request = getRequest("db-integrity",
+			DbIntegrityReportResponse.class);
+		if (check != null) {
+			request.addQueryParameter("check", check);
+		}
+		if (category != null) {
+			request.addQueryParameter("category", category);
+		}
+		if (severity != null) {
+			request.addQueryParameter("severity", severity);
+		}
+		return request;
+	}
+
+	@Override
+	public LoomClientHttpRequest<DbIntegrityCheckListResponse> loadDbIntegrityChecks() {
+		return getRequest("db-integrity/checks", DbIntegrityCheckListResponse.class);
 	}
 
 	@Override
@@ -1923,6 +1954,39 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> rebuildSimilarityIndex() {
 		return postRequest("similarity-index/rebuild", NoResponse.class);
+	}
+
+	// SEARCH INDEX ADMIN
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.searchindex.SearchIndexListResponse> listSearchIndices() {
+		return getRequest("search-indices", io.metaloom.loom.rest.model.searchindex.SearchIndexListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.searchindex.SearchIndexResponse> loadSearchIndex(String indexId) {
+		return getRequest("search-indices/" + indexId, io.metaloom.loom.rest.model.searchindex.SearchIndexResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.searchindex.IndexJobListResponse> listSearchIndexJobs(String indexId) {
+		return getRequest("search-indices/" + indexId + "/jobs", io.metaloom.loom.rest.model.searchindex.IndexJobListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.searchindex.IndexJobResponse> createSearchIndexJob(String indexId,
+		io.metaloom.loom.rest.model.searchindex.IndexJobCreateRequest request) {
+		return postRequest("search-indices/" + indexId + "/jobs", request, io.metaloom.loom.rest.model.searchindex.IndexJobResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.searchindex.IndexJobResponse> loadSearchIndexJob(String indexId, UUID jobUuid) {
+		return getRequest("search-indices/" + indexId + "/jobs/" + jobUuid, io.metaloom.loom.rest.model.searchindex.IndexJobResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<io.metaloom.loom.rest.model.searchindex.IndexJobResponse> cancelSearchIndexJob(String indexId, UUID jobUuid) {
+		return deleteRequest("search-indices/" + indexId + "/jobs/" + jobUuid, io.metaloom.loom.rest.model.searchindex.IndexJobResponse.class);
 	}
 
 	// DEDUP REVIEW GROUPS

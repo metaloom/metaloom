@@ -17,6 +17,8 @@ import {
 } from "@mui/icons-material";
 import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
+import SearchIndicesAdmin from "./SearchIndicesAdmin";
+import DbIntegrityAdmin from "./DbIntegrityAdmin";
 import { listBlacklists, createBlacklist, deleteBlacklist, BlacklistResponse } from "../../api/blacklist";
 import {
   listMemoryDenyRules, createMemoryDenyRule, updateMemoryDenyRule, deleteMemoryDenyRule,
@@ -995,6 +997,15 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   // One, not four: metrics are produced by the running instance, so there is nothing to create,
   // edit or delete. This gates the monitoring screen's read of `GET /metrics`.
   Metrics: ["READ_METRIC"],
+  // Read shows sizes, backlogs and which embedding model produced an index; manage runs a
+  // reindex, a delta sync or a drop. Split because reading is safe and acting is not — and
+  // deliberately not folded into Asset, which is what used to gate a rebuild: being able to
+  // edit an asset should not imply being able to empty the face index.
+  "Search index": ["READ_SEARCH_INDEX", "MANAGE_SEARCH_INDEX"],
+  // One, not four: the report is computed from the database on every request, so there is nothing
+  // to create, edit or delete. Separate from Metrics because it names the uuids of rows that are
+  // wrong — a read of the catalogue rather than of a counter.
+  "Database integrity": ["READ_DB_INTEGRITY"],
 };
 
 function ApiKeysAdmin() {
@@ -1533,6 +1544,8 @@ export default function AdminArea() {
     { label: t("admin.tab.apiKeys"), path: "/admin/api-keys" },
     { label: t("admin.tab.blacklist"), path: "/admin/blacklist" },
     { label: t("admin.tab.memoryDenylist"), path: "/admin/memory-denylist" },
+    { label: t("admin.tab.searchIndices"), path: "/admin/indices" },
+    { label: t("admin.tab.dbIntegrity"), path: "/admin/db-integrity" },
   ];
 
   const tabIdx = ADMIN_TABS.findIndex(tab => location.pathname === tab.path);
@@ -1566,6 +1579,8 @@ export default function AdminArea() {
           <Route path="api-keys" element={<ApiKeysAdmin />} />
           <Route path="blacklist" element={<BlacklistAdmin />} />
           <Route path="memory-denylist" element={<MemoryDenylistAdmin />} />
+          <Route path="indices" element={<SearchIndicesAdmin />} />
+          <Route path="db-integrity" element={<DbIntegrityAdmin />} />
         </Routes>
       </Box>
     </Box>

@@ -217,6 +217,11 @@ public enum RolePermission {
 	// because search is cross-entity by construction.
 	READ_SEARCH,
 
+	// Search index operation. Gate on /api/v1/search-indices. Reading reports sizes, backlogs and
+	// the producing embedding model; managing runs a reindex, a delta sync or a drop.
+	READ_SEARCH_INDEX,
+	MANAGE_SEARCH_INDEX,
+
 	// Deduplication review. Gate on /api/v1/dedup-groups and /api/v1/assets/:uuid/dedup-groups.
 	// The discovery node creates PENDING groups (CREATE_DEDUP); a reviewer confirms/denies
 	// (UPDATE_DEDUP); the apply node reads CONFIRMED groups (READ_DEDUP).
@@ -229,6 +234,10 @@ public enum RolePermission {
 	// No CREATE_NOTIFICATION - notifications are dispatched server-side, never posted.
 	READ_NOTIFICATION,
 	UPDATE_NOTIFICATION,
-	DELETE_NOTIFICATION;
+	DELETE_NOTIFICATION,
+
+	// The database integrity report. Gate on /api/v1/db-integrity.
+	// Read only - the report is computed per request, so there is nothing to create, edit or delete.
+	READ_DB_INTEGRITY;
 
 }

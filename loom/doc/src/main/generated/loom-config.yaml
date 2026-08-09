@@ -100,6 +100,21 @@ search:
   trigramWeight: 0.35
   bodyMaxBytes: 524288
   tsConfig: "english"
+  semanticEnabled: false
+  embedUrl: ""
+  embedModel: ""
+  embedApiKey: ""
+  embedDimensions: 768
+  embedTimeoutMs: 10000
+  embedBatchSize: 16
+  embedMaxChars: 8000
+  embedSyncIntervalMs: 15000
+  vectorType: "text"
+  vectorTopK: 200
+  vectorMinScore: 0.0
+  rrfK: 60
+  rrfWeightLexical: 1.0
+  rrfWeightVector: 1.0
 similarity:
   enabled: false
   indexPath: "similarity-index"

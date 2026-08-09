@@ -192,6 +192,68 @@ public class LuceneVectorIndexTest {
 	}
 
 	@Test
+	public void shouldDropOneSpaceAndLeaveItsNeighboursIntact() {
+		// The regression this whole SPI addition exists to prevent. One directory holds every space,
+		// and rebuild() clears all of them - so before drop(space) existed, reindexing the face
+		// vectors would silently have emptied the search-text vectors sharing the index.
+		VectorSpace other = new VectorSpace("text", "nomic-embed-text-v1.5", DIM);
+		VectorRecord face = record(SPACE, base);
+		VectorRecord text = record(other, base);
+		index.indexAll(List.of(face, text));
+
+		index.drop(SPACE);
+
+		assertThat(index.query(new VectorQuery(SPACE, near, 10, THRESHOLD))).isEmpty();
+		assertThat(index.query(new VectorQuery(other, near, 10, THRESHOLD)))
+			.extracting(VectorHit::embeddingUuid)
+			.containsExactly(text.embeddingUuid());
+	}
+
+	@Test
+	public void shouldNotDropASameNamedModelOfADifferentLength() {
+		// The dimension is carried by the k-NN field name rather than a filter term, so a
+		// type+model match alone would take both. That pair is exactly what VectorSpace exists to
+		// keep apart, so the drop has to discriminate on length too.
+		VectorSpace small = new VectorSpace(TYPE, MODEL, 128);
+		VectorRecord large = record(SPACE, base);
+		VectorRecord smallRecord = record(small, filled(128, 0.1f));
+		index.indexAll(List.of(large, smallRecord));
+
+		index.drop(SPACE);
+
+		assertThat(index.status(SPACE).getDocumentCount()).isZero();
+		assertThat(index.status(small).getDocumentCount()).isEqualTo(1);
+	}
+
+	@Test
+	public void shouldReportCountsPerSpaceAndBytesPerBackend() {
+		VectorSpace other = new VectorSpace("text", "nomic-embed-text-v1.5", DIM);
+		index.indexAll(List.of(record(SPACE, base), record(SPACE, far), record(other, base)));
+
+		assertThat(index.status(SPACE).getDocumentCount()).isEqualTo(2);
+		assertThat(index.status(other).getDocumentCount()).isEqualTo(1);
+
+		// Size is a property of the directory, not of a space: the segments interleave them, so
+		// there is no per-space byte figure to report and the backend total is what an operator gets.
+		assertThat(index.status().getDocumentCount()).isEqualTo(3);
+		assertThat(index.status().getSizeBytes()).isPositive();
+		assertThat(index.status().isHealthy()).isTrue();
+	}
+
+	@Test
+	public void shouldEnumerateIndexedEmbeddingUuidsForTheOrphanSweep() {
+		VectorRecord first = record(SPACE, base);
+		VectorRecord second = record(new VectorSpace("text", "m", DIM), base);
+		index.indexAll(List.of(first, second));
+
+		try (Stream<UUID> uuids = index.streamIndexedEmbeddingUuids()) {
+			// Unscoped on purpose - the sweep diffs against the whole embedding table, and an orphan
+			// is an orphan regardless of the space it sat in.
+			assertThat(uuids.toList()).contains(first.embeddingUuid(), second.embeddingUuid());
+		}
+	}
+
+	@Test
 	public void shouldReportUnavailableWithoutThrowing() {
 		index.close();
 		// Callers ask this precisely when something is broken, so it must answer rather than throw - and

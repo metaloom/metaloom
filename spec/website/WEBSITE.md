@@ -341,7 +341,7 @@ generated diagram:
   are not one-to-one: `hash/` covers four kinds, `dedup/` three, and `loom-fetch` is a kind with no
   page (recorded in `UNDOCUMENTED_KINDS` with the reason).
 * **Config panels need no fixtures at all**, which is why they are a separate script — coupling them
-  to the debug loop would make all 34 wait on 34 fixtures. They can be regenerated on a bare
+  to the debug loop would make all 39 wait on 39 fixtures. They can be regenerated on a bare
   checkout after `npm install`.
 * **The panel is 280 px wide in the product and up to two thousand tall.** It is photographed at that
   width and shown inside a scrolling frame (`.ml-panel-shot` in `custom.less`). Do **not** widen it
@@ -395,16 +395,22 @@ mvn -o -pl integration-test test -Dtest=DocsFixtureGenerator -Dloom.regenerateDo
      outranks the result state — this is what caught the TTS sidecar running out of VRAM;
   4. **every port empty.** Whisper answered `{"segments":[]}` for a video with no audio stream at
      all: green, one port, a well-formed payload, and nothing in it. Nothing above catches that.
-* **One family legitimately emits nothing**, and says so. The dedup nodes declare no output ports
-  at all — their effect is a filesystem move and a ledger row — so their recipe sets
-  `emitsNoPorts()` and the two empty-output checks stand down for it. That is a claim about the
-  node's port declaration, not a way past a failing run: the state check and the `flag` check still
-  apply, and the recipe additionally **verifies the move happened**, because every early exit in
-  that node also returns SUCCESS with nothing.
-* **`dedup` needs a database, so it has its own generator.** `DocsLoomFixtureGenerator` extends
-  `AbstractNodeIntegrationTest` and boots a real Loom; `HashDedupNode.compute` opens with
+* **`emitsNoPorts()` exists for a node that legitimately emits nothing**, and nothing sets it today.
+  The dedup nodes used to: they declared no output ports at all, because their effect was a
+  filesystem move and a ledger row. Since `8bc46dbd` they report the duplicate and its original on
+  two ports and leave the relocating to a `move` node, so the ordinary checks apply to them again.
+  The flag is worth keeping — opting in is a claim about a node's port declaration, not a way past a
+  failing run, since the state check and the `flag` check still apply either way.
+* **Two kinds need a database, so they have their own generator.** `DocsLoomFixtureGenerator` extends
+  `AbstractNodeIntegrationTest` and boots a real Loom. `HashDedupNode.compute` opens with
   `if (isOfflineMode()) return ctx.skipped("offline mode")`, because the question it answers is a
-  query. Keeping it separate is what lets the other thirty recipes stay runnable with no database.
+  query; `AssignNode` writes a membership row, which is the whole of what it does. Keeping them
+  separate is what lets the other thirty recipes stay runnable with no database.
+* **`move` runs offline and relocates a real file.** It sends the corpus photograph to
+  `/tmp/loom-docs-library/trash/`, having cleared that folder first so a re-run photographs the same
+  move rather than a `…_1.jpeg` beside the last one. The library file is genuinely gone afterwards —
+  within one filesystem `LocalMover` renames, so `sourcePolicy: KEEP` does not apply and the `flag`
+  reads `MOVED` — and `FixtureEnv.inLibrary` re-links it from the corpus on the next call.
 * **Not every corpus file has what a node needs.** Every video in the test corpus is silent — video
   stream only — and the one recording with speech, `jfk.webm`, is Opus in WebM with no container
   duration, which `AudioExtractor` turned into zero samples. `FixtureEnv.speechWav()` remuxes that
@@ -432,7 +438,7 @@ mvn -o -pl integration-test test -Dtest=DocsFixtureGenerator -Dloom.regenerateDo
   | A ggml Whisper model on disk | `whisper.cpp/models/download-ggml-model.sh` | `whisper` |
   | LTX-2 sidecar, :9220 | `sidecars/ltx2-sidecar/{setup,run}.sh` | `videogen` |
   | A YOLO ONNX model + class names | yolo4j ships `YOLOv11n_voc.onnx` / `voc.names` | `objectdetect` |
-  | A Loom server on the pooled test DB | `./setup-pool.sh`, then `DocsLoomFixtureGenerator` | `dedup` |
+  | A Loom server on the pooled test DB | `./setup-pool.sh`, then `DocsLoomFixtureGenerator` | `dedup`, `assign` |
 
 * **The vision requirement checks for multimodality, not for a server.** A text-only model on the
   right port answers every request these three nodes make — it just answers them without having seen
@@ -1009,5 +1015,5 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (assign/move node pictures; fixture generator now covers both)_

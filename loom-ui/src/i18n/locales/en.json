@@ -618,7 +618,9 @@
       "permissions": "Permissions",
       "apiKeys": "API Keys",
       "blacklist": "Blacklist",
-      "memoryDenylist": "Memory Denylist"
+      "memoryDenylist": "Memory Denylist",
+      "searchIndices": "Indices",
+      "dbIntegrity": "Database integrity"
     },
     "spaces": {
       "title": "Spaces",
@@ -840,7 +842,10 @@
         "UPDATE_MEMORY_DENY_RULE": "Edit existing memory deny rules — patterns the agent must never store.",
         "MANAGE_CORTEX_INSTANCE": "Manage registered Cortex workers — approve, configure and remove processing instances.",
         "READ_CORTEX_INSTANCE": "View registered Cortex workers and their state.",
-        "READ_METRIC": "Read the instance metrics — pipeline throughput, task latency, worker health. Needed to open the monitoring dashboard."
+        "READ_METRIC": "Read the instance metrics — pipeline throughput, task latency, worker health. Needed to open the monitoring dashboard.",
+        "READ_SEARCH_INDEX": "Read the state of the search indices — size, backlog, embedding model and job history. Changes nothing.",
+        "MANAGE_SEARCH_INDEX": "Reindex, delta-sync or drop a search index. No source data is lost — every index is rebuildable — but a drop leaves that index answering nothing until it is refilled.",
+        "READ_DB_INTEGRITY": "Read the database integrity report — which internal consistency rules the catalogue currently holds and which it does not. The report names the identifiers of affected records, so it reveals a little about what is stored."
       },
       "dialog": {
         "create": "Create Role",
@@ -927,6 +932,82 @@
         "patternHelp": "Java regex. Cover several phrases in one rule with alternation, e.g. (?i)\\b(alpha|beta)\\b",
         "message": "Rejection message",
         "messageHelp": "Shown to the agent when a note is rejected. Explain what to do instead; never repeat the matched text."
+      }
+    },
+    "searchIndices": {
+      "title": "Search indices",
+      "subtitle": "State, size and backlog of every index, with reindex, delta sync and drop.",
+      "backend": {
+        "lexical": "Lexical index (PostgreSQL)",
+        "vector": "Embedding vector index",
+        "fingerprint": "Fingerprint index"
+      },
+      "column": {
+        "index": "Index",
+        "source": "Model / algorithm",
+        "records": "Records",
+        "indexed": "Indexed",
+        "pending": "Pending",
+        "state": "State",
+        "actions": "Actions"
+      },
+      "state": {
+        "healthy": "Healthy",
+        "behind": "Behind",
+        "drifted": "Drifted",
+        "working": "Working",
+        "unavailable": "Unavailable",
+        "disabled": "Disabled"
+      },
+      "action": {
+        "reindex": "Reindex",
+        "delta_sync": "Delta sync",
+        "drop": "Drop"
+      },
+      "cancel": "Cancel job",
+      "cancelRequested": "The job will stop at its next item.",
+      "jobStarted": "Started {{action}} on {{index}}.",
+      "jobFailed": "The job could not be started: {{error}}",
+      "refreshFailed": "Could not refresh the index state: {{error}}",
+      "removed": "{{count}} removed",
+      "deleted": "{{count}} deleted, not yet merged",
+      "deletedHint": "Deletes are logical, so the space they held is only released on the next merge.",
+      "dropTitle": "Drop this index?",
+      "dropBody": "Queries against {{index}} will return nothing until it is rebuilt. The source data in the database is not touched, so a reindex restores it in full.",
+      "dropAction": "Drop index",
+      "emptyTitle": "No search indices",
+      "emptyDescription": "No index backend is configured on this instance.",
+      "forbiddenTitle": "Not permitted",
+      "forbiddenDescription": "Reading the search indices needs the READ_SEARCH_INDEX permission."
+    },
+    "dbIntegrity": {
+      "title": "Database integrity",
+      "subtitle": "Invariants the database cannot enforce on its own. Run this after an operation to see whether it left anything inconsistent.",
+      "run": "Run checks",
+      "errors": "{{count}} errors",
+      "warnings": "{{count}} warnings",
+      "ran": "{{checks}} checks ran in {{duration}} ms, {{findings}} offending rows found",
+      "cleanTitle": "Nothing to report",
+      "cleanDescription": "All {{checks}} checks passed. The database holds every invariant that is checked.",
+      "refreshFailed": "Could not run the checks: {{error}}",
+      "forbiddenTitle": "Not permitted",
+      "forbiddenDescription": "You need the database integrity permission to view this report. Ask an administrator to grant it.",
+      "toggleSamples": "Show affected rows",
+      "checkFailed": "Did not run",
+      "checkFailedDetail": "This check could not run, so nothing is known about the invariant it covers: {{error}}",
+      "andMore": "... and {{count}} more",
+      "category": {
+        "DANGLING": "Dangling references",
+        "TIMESTAMP": "Timestamps",
+        "MANDATORY_FIELD": "Missing values",
+        "VOCABULARY": "Unknown values",
+        "CARDINALITY": "Row counts and constraints"
+      },
+      "column": {
+        "check": "Check",
+        "location": "Where",
+        "rows": "Rows",
+        "severity": "Severity"
       }
     }
   },

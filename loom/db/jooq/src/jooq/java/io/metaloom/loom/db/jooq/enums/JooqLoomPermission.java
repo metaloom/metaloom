@@ -291,7 +291,13 @@ public enum JooqLoomPermission implements EnumType {
 
     EXECUTE_MCP_NODE("EXECUTE_MCP_NODE"),
 
-    READ_METRIC("READ_METRIC");
+    READ_METRIC("READ_METRIC"),
+
+    READ_SEARCH_INDEX("READ_SEARCH_INDEX"),
+
+    MANAGE_SEARCH_INDEX("MANAGE_SEARCH_INDEX"),
+
+    READ_DB_INTEGRITY("READ_DB_INTEGRITY");
 
     private final String literal;
 

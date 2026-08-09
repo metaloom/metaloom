@@ -609,7 +609,9 @@
       "permissions": "Berechtigungen",
       "apiKeys": "API-Schlüssel",
       "blacklist": "Sperrliste",
-      "memoryDenylist": "Gedächtnis-Sperrliste"
+      "memoryDenylist": "Gedächtnis-Sperrliste",
+      "searchIndices": "Indizes",
+      "dbIntegrity": "Datenbank-Integrität"
     },
     "spaces": {
       "title": "Spaces",
@@ -831,7 +833,10 @@
         "UPDATE_MEMORY_DENY_RULE": "Bestehende Memory-Sperrregeln bearbeiten — Muster, die der Agent niemals speichern darf.",
         "MANAGE_CORTEX_INSTANCE": "Registrierte Cortex-Worker verwalten — Verarbeitungsinstanzen freigeben, konfigurieren und entfernen.",
         "READ_CORTEX_INSTANCE": "Registrierte Cortex-Worker und deren Status ansehen.",
-        "READ_METRIC": "Instanz-Metriken lesen — Pipeline-Durchsatz, Task-Latenz, Worker-Zustand. Nötig, um das Monitoring-Dashboard zu öffnen."
+        "READ_METRIC": "Instanz-Metriken lesen — Pipeline-Durchsatz, Task-Latenz, Worker-Zustand. Nötig, um das Monitoring-Dashboard zu öffnen.",
+        "READ_SEARCH_INDEX": "Zustand der Suchindizes lesen — Größe, Rückstand, Embedding-Modell und Auftragsverlauf. Verändert nichts.",
+        "MANAGE_SEARCH_INDEX": "Einen Suchindex neu aufbauen, abgleichen oder leeren. Es gehen keine Quelldaten verloren — jeder Index ist wiederherstellbar — aber nach dem Leeren liefert er nichts, bis er neu gefüllt ist.",
+        "READ_DB_INTEGRITY": "Den Bericht zur Datenbank-Integrität lesen — welche internen Konsistenzregeln der Katalog derzeit einhält und welche nicht. Der Bericht nennt die Kennungen betroffener Datensätze und gibt damit etwas über den Inhalt preis."
       },
       "dialog": {
         "create": "Rolle erstellen",
@@ -918,6 +923,82 @@
         "patternHelp": "Java-Regex. Mehrere Begriffe lassen sich per Alternation in einer Regel abdecken, z. B. (?i)\\b(alpha|beta)\\b",
         "message": "Ablehnungsmeldung",
         "messageHelp": "Wird dem Agenten bei einer Ablehnung angezeigt. Erkläre die Alternative; wiederhole niemals den gefundenen Text."
+      }
+    },
+    "searchIndices": {
+      "title": "Suchindizes",
+      "subtitle": "Zustand, Größe und Rückstand jedes Index, mit Neuaufbau, Delta-Abgleich und Leeren.",
+      "backend": {
+        "lexical": "Lexikalischer Index (PostgreSQL)",
+        "vector": "Embedding-Vektorindex",
+        "fingerprint": "Fingerprint-Index"
+      },
+      "column": {
+        "index": "Index",
+        "source": "Modell / Algorithmus",
+        "records": "Datensätze",
+        "indexed": "Indiziert",
+        "pending": "Ausstehend",
+        "state": "Zustand",
+        "actions": "Aktionen"
+      },
+      "state": {
+        "healthy": "In Ordnung",
+        "behind": "Im Rückstand",
+        "drifted": "Abweichend",
+        "working": "Läuft",
+        "unavailable": "Nicht verfügbar",
+        "disabled": "Deaktiviert"
+      },
+      "action": {
+        "reindex": "Neu aufbauen",
+        "delta_sync": "Delta-Abgleich",
+        "drop": "Leeren"
+      },
+      "cancel": "Auftrag abbrechen",
+      "cancelRequested": "Der Auftrag stoppt beim nächsten Element.",
+      "jobStarted": "{{action}} für {{index}} gestartet.",
+      "jobFailed": "Der Auftrag konnte nicht gestartet werden: {{error}}",
+      "refreshFailed": "Der Indexzustand konnte nicht aktualisiert werden: {{error}}",
+      "removed": "{{count}} entfernt",
+      "deleted": "{{count}} gelöscht, noch nicht zusammengeführt",
+      "deletedHint": "Löschungen sind logisch; der belegte Platz wird erst beim nächsten Merge frei.",
+      "dropTitle": "Diesen Index leeren?",
+      "dropBody": "Abfragen gegen {{index}} liefern nichts, bis der Index neu aufgebaut ist. Die Quelldaten in der Datenbank bleiben unangetastet, ein Neuaufbau stellt ihn vollständig wieder her.",
+      "dropAction": "Index leeren",
+      "emptyTitle": "Keine Suchindizes",
+      "emptyDescription": "Auf dieser Instanz ist kein Index-Backend konfiguriert.",
+      "forbiddenTitle": "Nicht berechtigt",
+      "forbiddenDescription": "Zum Lesen der Suchindizes wird die Berechtigung READ_SEARCH_INDEX benötigt."
+    },
+    "dbIntegrity": {
+      "title": "Datenbank-Integrität",
+      "subtitle": "Zusicherungen, die die Datenbank nicht selbst durchsetzen kann. Nach einer Aktion ausführen, um zu sehen, ob sie etwas inkonsistent hinterlassen hat.",
+      "run": "Prüfungen ausführen",
+      "errors": "{{count}} Fehler",
+      "warnings": "{{count}} Warnungen",
+      "ran": "{{checks}} Prüfungen in {{duration}} ms, {{findings}} betroffene Zeilen gefunden",
+      "cleanTitle": "Nichts zu melden",
+      "cleanDescription": "Alle {{checks}} Prüfungen bestanden. Die Datenbank hält jede geprüfte Zusicherung ein.",
+      "refreshFailed": "Prüfungen konnten nicht ausgeführt werden: {{error}}",
+      "forbiddenTitle": "Nicht berechtigt",
+      "forbiddenDescription": "Für diesen Bericht wird die Berechtigung für die Datenbank-Integrität benötigt. Bitte von einer Administratorin oder einem Administrator vergeben lassen.",
+      "toggleSamples": "Betroffene Zeilen anzeigen",
+      "checkFailed": "Nicht ausgeführt",
+      "checkFailedDetail": "Diese Prüfung konnte nicht ausgeführt werden. Über die abgedeckte Zusicherung ist daher nichts bekannt: {{error}}",
+      "andMore": "... und {{count}} weitere",
+      "category": {
+        "DANGLING": "Verwaiste Verweise",
+        "TIMESTAMP": "Zeitstempel",
+        "MANDATORY_FIELD": "Fehlende Werte",
+        "VOCABULARY": "Unbekannte Werte",
+        "CARDINALITY": "Zeilenanzahl und Constraints"
+      },
+      "column": {
+        "check": "Prüfung",
+        "location": "Wo",
+        "rows": "Zeilen",
+        "severity": "Schweregrad"
       }
     }
   },

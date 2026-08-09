@@ -83,7 +83,7 @@ graph TB
         ENG["loom/pipeline: PipelineRunEngine<br/>owns the DAG, dispatches tasks"]
         DB[("PostgreSQL<br/>jOOQ + Flyway")]
         AG["loom/agent: chat, memory, sandbox"]
-        SR["search: PostgresSearchProvider<br/>similarity: LuceneSimilarityIndex"]
+        SR["search: PostgresSearchProvider (+RRF semantic)<br/>similarity: LuceneSimilarityIndex<br/>vectors: LuceneVectorIndex"]
         REST --- ENG
         REST --- AG
         REST --- SR
@@ -119,7 +119,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-127 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+131 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -192,7 +192,6 @@ spec/
 │                                      #   surface; recommends a bounded filter DSL. §7 flags the
 │                                      #   two-whitelists hazard with search_extract_json_text
 ├── features/                          # Cross-cutting features (span Loom + Cortex + UI)
-│   ├── DB_SCHEMA_FEEDBACK.md          # Schema audit vs. node results; resolved items marked in place
 │   ├── chat/
 │   │   ├── CHAT_MEMORY_PLAN.md        # 🟢 Agent memory bank (scoped markdown notes)
 │   │   ├── CHAT_SESSIONS_CONCEPT.md   # 🟡 Sessions shipped (V2.52 + DAO + endpoints + UI);
@@ -202,8 +201,16 @@ spec/
 │   ├── cli/
 │   │   └── CLI_PLAN.md                # 🟢 The top-level cli/ module (native image)
 │   ├── db/
-│   │   └── DATABASE_TASKS.md          # Schema work for node-result persistence (V2.38–V2.50)
-│   │                                  #   (⚠️ facedetection/FACE_WORKFLOW.md moved 2026-08-07 to
+│   │   ├── DB_SCHEMA_FEEDBACK.md      # Schema audit vs. node results; resolved items marked in place
+│   │   └── DB_INTEGRITY.md            # 🟢 BUILT: the database integrity checks — 29 named checks over
+│   │                                  #   the invariants Postgres cannot enforce (the 5 uuid columns
+│   │                                  #   with no FK, polymorphic refs, varchar-as-enum, CHECKs a
+│   │                                  #   backfill can be written around). GET /api/v1/db-integrity,
+│   │                                  #   an admin tab, and assertIntegrity() after every
+│   │                                  #   CRUDDaoTestcases write. §"Deliberately not checked" is
+│   │                                  #   load-bearing: read it before adding a check
+│   │                                  #   (⚠️ DATABASE_TASKS.md is in tasks/, not here; and
+│   │                                  #    facedetection/FACE_WORKFLOW.md moved 2026-08-07 to
 │   │                                  #    workflows/WORKFLOW_FACE.md — see the workflows/ block)
 │   ├── helm/
 │   │   ├── HELM_LOOM.md               # Loom chart (helm/loom) — 🔴 two live env-var bugs, see §6
@@ -288,14 +295,22 @@ spec/
 │   │                                  # 🔵 PLAN: how Cortex pushes produced artefacts + metadata
 │   │                                  #   into Loom. Loom-side counterpart of NODE_S3SINK phases 2+3
 │   └── search/
-│       ├── SEARCH.md                  # 🟡 Lexical search SHIPPED: V2.57–V2.59 search_document +
-│       │                              #   triggers, PostgresSearchProvider, SearchEndpoint,
-│       │                              #   10 LOOM_SEARCH_* options. Consumers are the gap: no UI,
-│       │                              #   no GraphQL field, MCP tools still bypass it
-│       ├── SEARCH_PLAN.md             # Build order: P0 prereqs ✅ → P1 Postgres ✅ → P2 Elasticsearch 🔵
-│       ├── SEMANTIC_SEARCH.md         # 🔵 Vector search NOT built (no pgvector/HNSW, embedding has
-│       │                              #   zero producers, qdrant is pom-only) — but the seams shipped:
-│       │                              #   SearchMode.SEMANTIC/HYBRID, SearchCapability, honest 400
+│       ├── SEARCH.md                  # 🟢 Lexical search SHIPPED: V2.57–V2.59 search_document +
+│       │                              #   triggers, PostgresSearchProvider, SearchEndpoint, loom-ui
+│       │                              #   (/search view + sidebar field), 25 LOOM_SEARCH_* options.
+│       │                              #   Remaining gaps: GraphQL field, MCP tools still bypass it
+│       ├── SEARCH_PLAN.md             # Build order: P0 ✅ → P1 Postgres + UI ✅ → P2 Elasticsearch 🔵
+│       │                              #   → P3 semantic: text ✅, image ⬜
+│       ├── SEMANTIC_SEARCH.md         # 🟡 Text→text semantic + hybrid BUILT (off by default):
+│       │                              #   TextEmbedder + RankFusion RRF over the same search_document
+│       │                              #   corpus, via the VectorIndex SPI — NO pgvector, no migration.
+│       │                              #   🔴 Read its §0.4: §2–§6 are the superseded pgvector design.
+│       │                              #   Text→IMAGE (CLIP node) is the remaining gap
+│       ├── SEARCH_INDEX_ADMIN.md      # 🟢 BUILT: /api/v1/search-indices + /admin/indices — one
+│       │                              #   operator surface over the lexical, embedding-vector and
+│       │                              #   fingerprint indices. Size/model/backlog, reindex,
+│       │                              #   delta sync + orphan sweep, drop, all as 202 jobs.
+│       │                              #   READ_/MANAGE_SEARCH_INDEX (V2.85/V2.86)
 │       └── LUCENE_PLAN.md             # 🟢 BUILT: loom/services/lucene LuceneSimilarityIndex,
 │                                      #   SimilarityModule, LOOM_SIMILARITY_* (default off),
 │                                      #   /similarity-index/rebuild, /assets/:uuid/similar-assets
@@ -404,6 +419,7 @@ spec/
 | Binary upload/download, storage layout, S3 vs filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
 | Getting Cortex-produced artefacts (thumbnails, depth maps, TTS) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan**; the endpoints it needs exist |
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
+| **"Did that operation corrupt anything?"** — dangling rows, contradictory timestamps, blank required names, values outside their enum | [features/db/DB_INTEGRITY.md](features/db/DB_INTEGRITY.md) — 🟢 built. `assertIntegrity()` in any DAO or endpoint test, `GET /api/v1/db-integrity` for an operator. ⚠️ not to be confused with the Cortex `consistency` node, which checks media files |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
 | Chat / AI agent / skills / memory | [chat/LOOM_UI_CHAT.md](chat/LOOM_UI_CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [tasks/CHAT_TASKS.md](tasks/CHAT_TASKS.md) |
 | **What the chat agent should become** — capability tiers, the gap map, the roadmap | [chat/AGENTIC_CHAT_PLAN.md](chat/AGENTIC_CHAT_PLAN.md). §6's keystone gap is closed; the subsystem is owned by [chat/AGENTIC_NODE_EXECUTION.md](chat/AGENTIC_NODE_EXECUTION.md) |
@@ -424,7 +440,8 @@ spec/
 | Making a rating or a tag actually *do* something | [workflows/WORKFLOW_MANUAL_SORT.md](workflows/WORKFLOW_MANUAL_SORT.md) §5 — 🔴 `FilterBy` has no `TAG`/`RATING` strategy, which is why every manual decision is inert. Task W1 in [tasks/WORKFLOW_TASKS.md](tasks/WORKFLOW_TASKS.md) |
 | **Segmentation** — masks rather than boxes, and video object tracking | [features/nodes/sam2/NODE_SAM2.md](features/nodes/sam2/NODE_SAM2.md) — the `sam2` node + its :9130 sidecar. 🔴 the only per-pixel geometry in the tree, and it is **ledger only**: masks are worker-local files, so there is no way to query them |
 | **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](concept/SEARCH_PLAN.md) |
-| Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — **not built**; the API seams exist and reject with 400 |
+| **Operating an index** — size, backlog, reindex, drop, orphan sweep, the two permissions | [features/search/SEARCH_INDEX_ADMIN.md](features/search/SEARCH_INDEX_ADMIN.md) — **shipped**. Read it before touching `VectorIndex.rebuild(...)`: it clears every space, and per-space work must use `drop(space)` |
+| Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — text→text **built**, off by default (`LOOM_SEARCH_SEMANTIC_ENABLED`); text→image (CLIP) not built. Read §0.4 before §2–§6 |
 | Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](concept/LUCENE_PLAN.md) — **built**, off by default |
 | Deduplication (discover, review, apply) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md) — nodes + REST built, review UI is a mock |
 | S3 as a source or sink | [NODE_S3SOURCE_PLAN.md](concept/NODE_S3SOURCE_PLAN.md), [NODE_S3SINK_PLAN.md](concept/NODE_S3SINK_PLAN.md) — also the only home of the `cortex/s3-common` design |
@@ -510,7 +527,7 @@ is the external `io.metaloom.fs` artifact), `llm-common`, `node-runtime`, `nodes
 | `NodeDispatcher` / `RunStateStore` | `io.metaloom.loom.pipeline.engine` | Task dispatch to workers / durable run+item state |
 | `PipelineGraphParser` | `io.metaloom.loom.pipeline.graph` | Parses definition JSON into a `PipelineGraph`; rejects `dependencies[]` |
 | `PipelineSegmenter` | `io.metaloom.loom.pipeline.graph` | Groups nodes into affinity segments |
-| `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` | Lexical search over `search_document` (tsvector + pg_trgm) |
+| `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` | Lexical search over `search_document` (tsvector + pg_trgm), plus RRF-fused semantic/hybrid when enabled |
 | `LuceneSimilarityIndex` | `io.metaloom.loom.similarity.lucene` | Fingerprint HNSW index behind the `SimilarityIndex` SPI |
 | `NodeDescriptor` / `NodeDescriptorProvider` | `io.metaloom.loom.nodes.spec` | Palette + port contract; **39 kinds** from a generated resource (2 providers since `d9bbc2dc`), ServiceLoader-discovered |
 | `MemoryService` | `io.metaloom.loom.agent.memory` | Scoped markdown memory bank for the chat agent |
@@ -605,6 +622,7 @@ options classes in `loom-shared/api/.../options/`.
 | `LOOM_SEARCH_DEFAULT_LIMIT` / `_MAX_LIMIT` / `_MAX_OFFSET` | — | Paging and deep-paging guard (over `_MAX_OFFSET` ⇒ 400) |
 | `LOOM_SEARCH_HIGHLIGHT_ENABLED` / `_TS_CONFIG` / `_BODY_MAX_BYTES` | — | `ts_headline` snippets, text-search config, indexed-body cap (tsvector limit is 1 MB) |
 | `LOOM_SEARCH_TRIGRAM_THRESHOLD` / `_TRIGRAM_WEIGHT` | — | pg_trgm fuzzy-match cutoff and its weight in the blended score |
+| `LOOM_SEARCH_SEMANTIC_ENABLED` / `_EMBED_*` / `_VECTOR_*` / `_RRF_*` | off | Semantic + hybrid ranking. Needs an embeddings host (`sidecars/llamacpp-embeddings`) **and** `LOOM_VECTOR_INDEX_PROVIDER=lucene` |
 | `LOOM_SIMILARITY_ENABLED` / `_INDEX_PATH` / `_ALGORITHM` / `_TOPK` / `_SCORE_THRESHOLD` | off | Lucene fingerprint index; failure to open falls back to `NoopSimilarityIndex`, never blocks boot |
 
 > `LOOM_CONF_FILENAME` is **not** an environment variable. `LoomEnv.LOOM_CONF_FILENAME` is a
@@ -681,6 +699,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
 | The LLM backend those `llm`/`translate` options point at | `sidecars/llamacpp/` — llama.cpp's official image on :8080, docker or podman ([sidecars/LLAMACPP_SIDECAR.md](sidecars/LLAMACPP_SIDECAR.md)) |
 | **Lexical search** | `loom/db/jooq/.../search/PostgresSearchProvider.java`, `loom/core/.../dagger/SearchModule.java`, `loom/services/rest/.../endpoint/impl/SearchEndpoint.java` |
+| **Semantic search** | `loom-shared/api/.../search/{TextEmbedder,RankFusion}.java`, `loom/core/.../core/search/OpenAiTextEmbedder.java`, `loom/db/jooq/.../search/SearchEmbeddingService.java` |
 | Search schema | `V2.57__add_search_permission.sql`, `V2.58__add_search_document.sql`, `V2.59__add_search_triggers.sql` |
 | **Fingerprint similarity** | `loom/services/lucene/.../similarity/`, `loom/core/.../dagger/SimilarityModule.java`, `SimilarityIndexEndpoint` |
 | Dedup | `V2.61__add_dedup_group.sql`, `V2.62__add_dedup_permission.sql`, `loom/db/api/.../model/dedup/`, `cortex/nodes/dedup/` |
@@ -834,5 +853,9 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `da6b1760`_
-_Last updated: 2026-08-09 (registered features/pipeline/PIPELINE_VALIDATION.md). Earlier: (pipeline validation cheat-sheet row: one authority, two entry points)_
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (registered features/db/DB_INTEGRITY.md — the database integrity checks — and
+corrected the features/db/ block, which listed DATABASE_TASKS.md (it lives in tasks/) and placed
+DB_SCHEMA_FEEDBACK.md a level too high; file count 127 → 131. Earlier: registered
+features/pipeline/PIPELINE_VALIDATION.md, and the pipeline validation cheat-sheet row: one authority,
+two entry points)_

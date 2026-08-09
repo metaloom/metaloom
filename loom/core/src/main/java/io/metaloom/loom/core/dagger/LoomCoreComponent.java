@@ -18,6 +18,7 @@ import io.metaloom.loom.db.dagger.DBBindModule;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.flyway.dagger.FlywayModule;
 import io.metaloom.loom.db.jooq.dagger.JooqLoomDaoBindModule;
+import io.metaloom.loom.db.jooq.dagger.JooqIntegrityBindModule;
 import io.metaloom.loom.db.jooq.dagger.JooqModule;
 import io.metaloom.loom.mcp.dagger.MCPModule;
 import io.metaloom.loom.mcp.dagger.MCPToolModule;
@@ -39,6 +40,7 @@ import io.metaloom.loom.rest.dagger.RESTModule;
 	DBBindModule.class,
 	JooqLoomDaoBindModule.class,
 	JooqModule.class,
+	JooqIntegrityBindModule.class,
 	EndpointModule.class,
 	RESTBindModule.class,
 	RESTModule.class,
@@ -79,6 +81,17 @@ public interface LoomCoreComponent {
 
 	/** The UI events socket, so a test can observe the frames a run emits. */
 	io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster pipelineEventBroadcaster();
+
+	/**
+	 * The database integrity checks.
+	 *
+	 * <p>
+	 * Exposed so an endpoint test can corrupt the database on purpose and then assert the endpoint
+	 * reports it. Nothing in production should reach for this - the REST layer injects
+	 * {@code DbIntegrityService} the ordinary way.
+	 * </p>
+	 */
+	io.metaloom.loom.db.integrity.DbIntegrityService dbIntegrity();
 
 	@Component.Builder
 	interface Builder {

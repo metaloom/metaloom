@@ -5,6 +5,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import io.metaloom.loom.api.search.HexFingerprint;
+import io.metaloom.loom.api.search.IndexStatus;
 import io.metaloom.loom.api.search.IndexedFingerprint;
 import io.metaloom.loom.api.search.SimilarityHit;
 import io.metaloom.loom.api.search.SimilarityIndex;
@@ -62,6 +63,26 @@ public class NoopSimilarityIndex implements SimilarityIndex {
 	}
 
 	@Override
+	public void drop(String algorithm) {
+		// no-op
+	}
+
+	@Override
+	public IndexStatus status() {
+		return new IndexStatus().setHealthy(false).setDetail("The fingerprint similarity index is disabled (LOOM_SIMILARITY_ENABLED=false).");
+	}
+
+	@Override
+	public IndexStatus status(String algorithm) {
+		return status();
+	}
+
+	@Override
+	public Stream<UUID> streamIndexedAssetUuids() {
+		return Stream.empty();
+	}
+
+	@Override
 	public void commit() {
 		// no-op
 	}
@@ -69,5 +90,10 @@ public class NoopSimilarityIndex implements SimilarityIndex {
 	@Override
 	public boolean isAvailable() {
 		return false;
+	}
+
+	@Override
+	public String providerName() {
+		return "none";
 	}
 }

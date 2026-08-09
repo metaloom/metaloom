@@ -38,6 +38,7 @@ tags:
   description: Asset collections
 - name: comments
   description: Comments and their reactions
+- name: db-integrity
 - name: dedup-groups
 - name: detections
   description: The cross-asset detection review queue. Detections themselves are created
@@ -80,8 +81,11 @@ tags:
   description: Reactions
 - name: roles
   description: Roles of the RBAC model
+- name: search
+- name: search-indices
 - name: sessions
   description: Files of a chat's coding sandbox session
+- name: similarity-index
 - name: skills
   description: "Agent skills, the published skill library and installs"
 - name: spaces
@@ -11615,6 +11619,131 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/db-integrity:
+    description: "Run the database integrity checks and report the findings. Filter\
+      \ with ?check=, ?category=, ?severity= and ?limit="
+    get:
+      tags:
+      - db-integrity
+      summary: "Run the database integrity checks and report the findings. Filter\
+        \ with ?check=, ?category=, ?severity= and ?limit="
+      description: "Run the database integrity checks and report the findings. Filter\
+        \ with ?check=, ?category=, ?severity= and ?limit="
+      operationId: getDbintegrity
+      responses:
+        "200":
+          description: A database integrity report
+          content:
+            application/json:
+              example:
+                timestamp: 2026-08-09T11:24:07Z
+                durationMs: 312
+                checksRun: 29
+                findingCount: 2
+                clean: false
+                results:
+                - check:
+                    code: DANGLING_SEARCH_DOCUMENT
+                    category: DANGLING
+                    severity: ERROR
+                    table: search_document
+                    column: entity_uuid
+                    description: "A search document points at an entity that no longer\
+                      \ exists, so a search can return a hit that resolves to nothing."
+                  count: 2
+                  samples:
+                  - 6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60 (entity_type=asset)
+                  - 8a2e9c4d-77b1-42aa-9d31-5b6c7d8e9f01 (entity_type=asset)
+                  durationMs: 4
+                - check:
+                    code: TIMESTAMP_EDITED_BEFORE_CREATED
+                    category: TIMESTAMP
+                    severity: ERROR
+                    table: (every audited table)
+                    column: edited
+                    description: A row was edited before it was created.
+                  count: 0
+                  samples: []
+                  durationMs: 7
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/db-integrity/checks:
+    description: List the registered database integrity checks without running any
+      of them
+    get:
+      tags:
+      - db-integrity
+      summary: List the registered database integrity checks without running any of
+        them
+      description: List the registered database integrity checks without running any
+        of them
+      operationId: getDbintegrityChecks
+      responses:
+        "200":
+          description: The integrity check catalogue
+          content:
+            application/json:
+              example:
+                checks:
+                - code: DANGLING_SEARCH_DOCUMENT
+                  category: DANGLING
+                  severity: ERROR
+                  table: search_document
+                  column: entity_uuid
+                  description: "A search document points at an entity that no longer\
+                    \ exists, so a search can return a hit that resolves to nothing."
+                - code: TIMESTAMP_EDITED_BEFORE_CREATED
+                  category: TIMESTAMP
+                  severity: ERROR
+                  table: (every audited table)
+                  column: edited
+                  description: A row was edited before it was created.
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/dedup-groups:
     description: "Create or update a candidate duplicate group. Used by the fingerprint-dedup\
       \ discovery node; upserts the pending group for the same keep asset and algorithm.\
@@ -15413,7 +15542,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 68556b9c-cd3f-46fd-9b54-a1d7c20b6076
+                  versionUuid: 5f7cae48-8e4f-4c7c-904d-1889fda73bd4
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -15434,7 +15563,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: a969ee65-8a23-4f01-b916-effbad3f45bc
+                  versionUuid: 4505f058-5a7c-4c7e-9be1-6fedd6c98f24
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -15507,7 +15636,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: bcde9945-a158-4fe8-ae13-b52e018c85c9
+                versionUuid: 7719e899-5e10-4e7e-8d73-9e10411244b8
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -15566,7 +15695,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: af1e1633-2ea8-4a4d-ab36-ba27d5e83ff8
+                versionUuid: ce47172a-ea07-43a8-ae6e-c8faa5b4b12c
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -15638,7 +15767,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 03fde67f-8b20-44a2-a992-3946945cdcdf
+                versionUuid: ff750b0f-75d7-4cb6-b0d9-5e82489a960a
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -15747,7 +15876,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: dd3ff6de-2ec1-401c-968b-1b9b1050e8d3
+                runUuid: 58743f6d-86d3-4e7f-a420-60217029fa8f
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -15835,11 +15964,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 05a7ccf8-cc24-4761-87f8-2399ccd40ef0
-                  pipelineUuid: 1c48d69f-6747-47dd-91c6-93cd1abfccbf
+                - uuid: d78908af-4099-4976-a246-b75fe0176286
+                  pipelineUuid: ef17c700-0ed1-41fc-9b38-eddcbc4a2f1a
                   pipelineVersion: 1
-                  started: 2026-08-09T13:45:28.091912501Z
-                  finished: 2026-08-09T13:45:28.091956981Z
+                  started: 2026-08-09T17:44:52.679453758Z
+                  finished: 2026-08-09T17:44:52.679465638Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -15847,11 +15976,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 907dda37-fa66-4742-817a-40d8ff538c7b
-                  pipelineUuid: 94e275dd-4f3e-49ab-97a4-7687a5651743
+                - uuid: 64ed2e96-0b50-4204-9d1e-f7d895bcab2e
+                  pipelineUuid: 462ba48c-a603-4531-9f92-3a188521bf4b
                   pipelineVersion: 1
-                  started: 2026-08-09T13:45:28.091989951Z
-                  finished: 2026-08-09T13:45:28.091994531Z
+                  started: 2026-08-09T17:44:52.679491368Z
+                  finished: 2026-08-09T17:44:52.679493948Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -15914,11 +16043,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: f33592c7-f3fc-4e68-bcb6-8ff3ff5d9b86
-                pipelineUuid: a5483021-9b8d-4493-a10d-fdb2d5721fc3
+                uuid: 913564ba-7c54-42ae-8f7b-41ae5f8e111d
+                pipelineUuid: 6ffe77a3-2e58-40bd-8548-4c9eff52688e
                 pipelineVersion: 1
-                started: 2026-08-09T13:45:28.092109861Z
-                finished: 2026-08-09T13:45:28.092114281Z
+                started: 2026-08-09T17:44:52.679538168Z
+                finished: 2026-08-09T17:44:52.679540668Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -16260,15 +16389,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 25bdb85b-d52b-4ae6-8572-b3d29d34ea98
-                  runUuid: 61962c4b-00d7-419c-b952-420c529a0311
+                - uuid: dec8d5e5-1d18-4b44-8d26-a1eb6a65dd51
+                  runUuid: a1ba850d-6b96-476b-8188-023e23bbf2b7
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: bc5a9d64-3ddb-42e8-8aef-ad670317e197
-                  runUuid: 4a582a37-13af-477c-a0fd-9a213d9d5832
+                - uuid: ad62c5c0-27e4-4b98-b927-380f3eb09f56
+                  runUuid: ad340f4b-e174-4f58-8379-c5d7f261266f
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -16340,9 +16469,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 913c1bac-e41c-44b5-a907-b8e68db48edf
-                  itemUuid: 9e926bd6-62b7-450e-b59d-059d3643770a
-                  runUuid: ccb0b98e-8ee3-4cf6-9833-faff9fe7cd7c
+                - uuid: 495d6956-b5b8-44c6-aeee-c39f6e48ba71
+                  itemUuid: a5d2e26e-797a-4901-907d-e7f909a2f831
+                  runUuid: 914a073c-4a51-4cf6-b4c8-e9078ea31a73
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -16805,7 +16934,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 10e7a672-a50a-466b-806d-653c9c0389c5
+                  versionUuid: 56fb48eb-8caf-417f-b9e5-72ace69eefa8
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -16826,7 +16955,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 88a46c63-338c-43d9-ac51-f5d78f81d8b7
+                  versionUuid: d61c8a00-41a8-4031-8a97-846f57e5e903
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -16902,7 +17031,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: e30ce47b-7077-4a8d-bb72-85b16568da99
+                versionUuid: 95274f6b-a2e9-4e55-8204-038c469afb07
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -16988,7 +17117,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: fde38fe2-24fe-4813-bde5-b1c5a5d4104a
+                versionUuid: 0d9d6140-96d9-47ff-afd8-3a7fb9d6214f
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1
@@ -18314,6 +18443,1034 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/search-indices:
+    description: "List every search index with its state, model, size and backlog,\
+      \ plus the storage backends they live in"
+    get:
+      tags:
+      - search-indices
+      summary: "List every search index with its state, model, size and backlog, plus\
+        \ the storage backends they live in"
+      description: "List every search index with its state, model, size and backlog,\
+        \ plus the storage backends they live in"
+      operationId: getSearchindices
+      responses:
+        "200":
+          description: The search index list response
+          content:
+            application/json:
+              example:
+                data:
+                - id: lexical
+                  kind: LEXICAL
+                  backendId: lexical
+                  label: Lexical search documents
+                  enabled: true
+                  available: true
+                  reason: Maintained synchronously by database triggers.
+                  documentCount: 41286
+                  indexedCount: 41286
+                  pendingCount: 0
+                  supportedActions:
+                  - REINDEX
+                - id: vector-face-inspireface-r18-512
+                  kind: VECTOR
+                  backendId: vector
+                  label: Face embeddings
+                  type: face
+                  model: inspireface-r18
+                  dimensions: 512
+                  enabled: true
+                  available: true
+                  documentCount: 128402
+                  indexedCount: 127590
+                  pendingCount: 812
+                  supportedActions:
+                  - REINDEX
+                  - DELTA_SYNC
+                  - DROP
+                - id: vector-text-nomic-embed-text-v1-5-768
+                  kind: VECTOR
+                  backendId: vector
+                  label: Semantic text embeddings
+                  type: text
+                  model: nomic-embed-text-v1.5
+                  dimensions: 768
+                  enabled: true
+                  available: false
+                  reason: The vector index is configured but could not be opened.
+                  documentCount: 0
+                  indexedCount: 0
+                  pendingCount: 41286
+                  supportedActions:
+                  - REINDEX
+                  - DELTA_SYNC
+                  - DROP
+                - id: fingerprint
+                  kind: FINGERPRINT
+                  backendId: fingerprint
+                  label: Duplicate fingerprints
+                  algorithm: metaloom-multisector-v1
+                  enabled: true
+                  available: true
+                  documentCount: 9140
+                  indexedCount: 9140
+                  pendingCount: 0
+                  supportedActions:
+                  - REINDEX
+                  - DELTA_SYNC
+                  - DROP
+                backends:
+                - id: lexical
+                  provider: postgres
+                  enabled: true
+                  available: true
+                  documentCount: 41286
+                  deletedCount: 0
+                  sizeBytes: 612368384
+                - id: vector
+                  provider: lucene
+                  enabled: true
+                  available: true
+                  documentCount: 128402
+                  deletedCount: 3100
+                  sizeBytes: 1476395008
+                - id: fingerprint
+                  provider: lucene
+                  enabled: true
+                  available: true
+                  documentCount: 9140
+                  deletedCount: 0
+                  sizeBytes: 37748736
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/search-indices/{id}:
+    description: Read the state of one search index
+    get:
+      tags:
+      - search-indices
+      summary: Read the state of one search index
+      description: Read the state of one search index
+      operationId: getSearchindicesById
+      responses:
+        "200":
+          description: The search index response
+          content:
+            application/json:
+              example:
+                id: vector-face-inspireface-r18-512
+                kind: VECTOR
+                backendId: vector
+                label: Face embeddings
+                type: face
+                model: inspireface-r18
+                dimensions: 512
+                enabled: true
+                available: true
+                documentCount: 128402
+                indexedCount: 127590
+                pendingCount: 812
+                supportedActions:
+                - REINDEX
+                - DELTA_SYNC
+                - DROP
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: id
+      in: path
+      description: UUID of the referenced id
+      required: true
+      schema:
+        type: string
+  /api/v1/search-indices/{id}/jobs:
+    description: "List the recent maintenance jobs for one index, newest first"
+    get:
+      tags:
+      - search-indices
+      summary: "List the recent maintenance jobs for one index, newest first"
+      description: "List the recent maintenance jobs for one index, newest first"
+      operationId: getSearchindicesByIdJobs
+      responses:
+        "200":
+          description: The index job list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  indexId: vector-face-inspireface-r18-512
+                  action: REINDEX
+                  state: RUNNING
+                  processed: 18420
+                  total: 128402
+                  removed: 0
+                  startedAt: 1.7862705E9
+                - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  indexId: vector-face-inspireface-r18-512
+                  action: DELTA_SYNC
+                  state: SUCCEEDED
+                  processed: 812
+                  total: 812
+                  removed: 4
+                  startedAt: 1.786266E9
+                  finishedAt: 1.786266012E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - search-indices
+      summary: "Start a maintenance job (REINDEX, DELTA_SYNC or DROP) against one\
+        \ index. Answers 202 with a job to poll"
+      description: "Start a maintenance job (REINDEX, DELTA_SYNC or DROP) against\
+        \ one index. Answers 202 with a job to poll"
+      operationId: postSearchindicesByIdJobs
+      requestBody:
+        content:
+          application/json:
+            example:
+              action: REINDEX
+      responses:
+        "202":
+          description: The accepted index job
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                indexId: vector-face-inspireface-r18-512
+                action: REINDEX
+                state: RUNNING
+                processed: 18420
+                total: 128402
+                removed: 0
+                startedAt: 1.7862705E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: id
+      in: path
+      description: UUID of the referenced id
+      required: true
+      schema:
+        type: string
+  /api/v1/search-indices/{id}/jobs/{jobUuid}:
+    description: Read one maintenance job and its progress
+    get:
+      tags:
+      - search-indices
+      summary: Read one maintenance job and its progress
+      description: Read one maintenance job and its progress
+      operationId: getSearchindicesByIdJobsByJobUuid
+      responses:
+        "202":
+          description: The accepted index job
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                indexId: vector-face-inspireface-r18-512
+                action: REINDEX
+                state: RUNNING
+                processed: 18420
+                total: 128402
+                removed: 0
+                startedAt: 1.7862705E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - search-indices
+      summary: Ask a running maintenance job to stop at its next item boundary
+      description: Ask a running maintenance job to stop at its next item boundary
+      operationId: deleteSearchindicesByIdJobsByJobUuid
+      responses:
+        "202":
+          description: The accepted index job
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                indexId: vector-face-inspireface-r18-512
+                action: REINDEX
+                state: RUNNING
+                processed: 18420
+                total: 128402
+                removed: 0
+                startedAt: 1.7862705E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: id
+      in: path
+      description: UUID of the referenced id
+      required: true
+      schema:
+        type: string
+    - name: jobUuid
+      in: path
+      description: UUID of the referenced job
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/search/assets:
+    description: Search assets only
+    get:
+      tags:
+      - search
+      summary: Search assets only
+      description: Search assets only
+      operationId: getSearchAssets
+      parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous response. Wins over offset
+        schema:
+          type: string
+        example: ""
+      - name: types
+        in: query
+        description: Comma separated entity types to search
+        schema:
+          type: string
+        example: "asset,transcript,tag"
+      - name: offset
+        in: query
+        description: Result offset. Capped per provider; prefer the returned cursor
+          when present
+        schema:
+          type: string
+        example: "0"
+      - name: mime
+        in: query
+        description: Restrict to a mime type prefix
+        schema:
+          type: string
+        example: image/
+      - name: profile
+        in: query
+        description: Named search profile (vector_config row). Reserved for hybrid
+          search
+        schema:
+          type: string
+        example: default
+      - name: sort
+        in: query
+        description: Result ordering
+        schema:
+          type: string
+        example: RELEVANCE
+      - name: collection
+        in: query
+        description: Restrict to a collection
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: space
+        in: query
+        description: Restrict to a space
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: facets
+        in: query
+        description: Comma separated facets to compute
+        schema:
+          type: string
+        example: "mime_type,entity_type"
+      - name: mode
+        in: query
+        description: Matching mode. Providers without the capability reject the request
+          rather than silently degrading
+        schema:
+          type: string
+        example: LEXICAL
+      - name: q
+        in: query
+        description: "The search term. Supports \"quoted phrases\", or, and -negation"
+        schema:
+          type: string
+        example: aurora
+      - name: highlight
+        in: query
+        description: Return match snippets
+        schema:
+          type: string
+        example: "true"
+      - name: library
+        in: query
+        description: Restrict to a library
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: limit
+        in: query
+        description: Page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Only elements first seen at or after this instant
+        schema:
+          type: string
+        example: 2026-01-01T00:00:00Z
+      - name: tag
+        in: query
+        description: Comma separated tag names the asset must carry
+        schema:
+          type: string
+        example: nightscape
+      - name: to
+        in: query
+        description: Only elements first seen at or before this instant
+        schema:
+          type: string
+        example: 2026-12-31T23:59:59Z
+      - name: lang
+        in: query
+        description: Restrict to a language tag
+        schema:
+          type: string
+        example: en
+      responses:
+        "200":
+          description: The search result response
+          content:
+            application/json:
+              example:
+                data:
+                - type: asset
+                  uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  score: 0.87
+                  title: aurora_timelapse.mp4
+                  subtitle: /mnt/media/2026/aurora_timelapse.mp4
+                  matchedIn: title
+                  highlights:
+                  - <b>aurora</b> timelapse
+                  mimeType: video/mp4
+                  size: 184320000
+                - type: transcript
+                  uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  score: 0.41
+                  title: aurora_timelapse.mp4
+                  subtitle: en whisper-large-v3
+                  matchedIn: body
+                  highlights:
+                  - the northern lights above <b>aurora</b> bay
+                  timeFromMs: 0
+                facets: {}
+                _metainfo:
+                  totalHits: 2
+                  totalExact: true
+                  perPage: 25
+                  offset: 0
+                  tookMs: 12
+                  provider: postgres
+                  capabilities:
+                  - LEXICAL
+                  - PHRASE
+                  - FUZZY
+                  - HIGHLIGHT
+                  - FACETS
+                  - EXACT_TOTAL
+                  - SUGGEST
+                  warnings: []
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/search/results:
+    description: "Search across assets, transcripts, tags, annotations, persons, collections,\
+      \ libraries and clusters"
+    get:
+      tags:
+      - search
+      summary: "Search across assets, transcripts, tags, annotations, persons, collections,\
+        \ libraries and clusters"
+      description: "Search across assets, transcripts, tags, annotations, persons,\
+        \ collections, libraries and clusters"
+      operationId: getSearchResults
+      parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous response. Wins over offset
+        schema:
+          type: string
+        example: ""
+      - name: types
+        in: query
+        description: Comma separated entity types to search
+        schema:
+          type: string
+        example: "asset,transcript,tag"
+      - name: offset
+        in: query
+        description: Result offset. Capped per provider; prefer the returned cursor
+          when present
+        schema:
+          type: string
+        example: "0"
+      - name: mime
+        in: query
+        description: Restrict to a mime type prefix
+        schema:
+          type: string
+        example: image/
+      - name: profile
+        in: query
+        description: Named search profile (vector_config row). Reserved for hybrid
+          search
+        schema:
+          type: string
+        example: default
+      - name: sort
+        in: query
+        description: Result ordering
+        schema:
+          type: string
+        example: RELEVANCE
+      - name: collection
+        in: query
+        description: Restrict to a collection
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: space
+        in: query
+        description: Restrict to a space
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: facets
+        in: query
+        description: Comma separated facets to compute
+        schema:
+          type: string
+        example: "mime_type,entity_type"
+      - name: mode
+        in: query
+        description: Matching mode. Providers without the capability reject the request
+          rather than silently degrading
+        schema:
+          type: string
+        example: LEXICAL
+      - name: q
+        in: query
+        description: "The search term. Supports \"quoted phrases\", or, and -negation"
+        schema:
+          type: string
+        example: aurora
+      - name: highlight
+        in: query
+        description: Return match snippets
+        schema:
+          type: string
+        example: "true"
+      - name: library
+        in: query
+        description: Restrict to a library
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: limit
+        in: query
+        description: Page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Only elements first seen at or after this instant
+        schema:
+          type: string
+        example: 2026-01-01T00:00:00Z
+      - name: tag
+        in: query
+        description: Comma separated tag names the asset must carry
+        schema:
+          type: string
+        example: nightscape
+      - name: to
+        in: query
+        description: Only elements first seen at or before this instant
+        schema:
+          type: string
+        example: 2026-12-31T23:59:59Z
+      - name: lang
+        in: query
+        description: Restrict to a language tag
+        schema:
+          type: string
+        example: en
+      responses:
+        "200":
+          description: The search result response
+          content:
+            application/json:
+              example:
+                data:
+                - type: asset
+                  uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  score: 0.87
+                  title: aurora_timelapse.mp4
+                  subtitle: /mnt/media/2026/aurora_timelapse.mp4
+                  matchedIn: title
+                  highlights:
+                  - <b>aurora</b> timelapse
+                  mimeType: video/mp4
+                  size: 184320000
+                - type: transcript
+                  uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  score: 0.41
+                  title: aurora_timelapse.mp4
+                  subtitle: en whisper-large-v3
+                  matchedIn: body
+                  highlights:
+                  - the northern lights above <b>aurora</b> bay
+                  timeFromMs: 0
+                facets: {}
+                _metainfo:
+                  totalHits: 2
+                  totalExact: true
+                  perPage: 25
+                  offset: 0
+                  tookMs: 12
+                  provider: postgres
+                  capabilities:
+                  - LEXICAL
+                  - PHRASE
+                  - FUZZY
+                  - HIGHLIGHT
+                  - FACETS
+                  - EXACT_TOTAL
+                  - SUGGEST
+                  warnings: []
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/search/status:
+    description: "Report which search backend is bound, whether it is available and\
+      \ what it can do"
+    get:
+      tags:
+      - search
+      summary: "Report which search backend is bound, whether it is available and\
+        \ what it can do"
+      description: "Report which search backend is bound, whether it is available\
+        \ and what it can do"
+      operationId: getSearchStatus
+      responses:
+        "200":
+          description: The search status response
+          content:
+            application/json:
+              example:
+                provider: postgres
+                available: true
+                capabilities:
+                - LEXICAL
+                - PHRASE
+                - FUZZY
+                - HIGHLIGHT
+                - FACETS
+                - EXACT_TOTAL
+                - SUGGEST
+                documentCount: 12483
+                dirtyCount: 0
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/search/suggestions:
+    description: Typeahead suggestions for a partial search term
+    get:
+      tags:
+      - search
+      summary: Typeahead suggestions for a partial search term
+      description: Typeahead suggestions for a partial search term
+      operationId: getSearchSuggestions
+      parameters:
+      - name: cursor
+        in: query
+        description: Opaque cursor from a previous response. Wins over offset
+        schema:
+          type: string
+        example: ""
+      - name: types
+        in: query
+        description: Comma separated entity types to search
+        schema:
+          type: string
+        example: "asset,transcript,tag"
+      - name: offset
+        in: query
+        description: Result offset. Capped per provider; prefer the returned cursor
+          when present
+        schema:
+          type: string
+        example: "0"
+      - name: mime
+        in: query
+        description: Restrict to a mime type prefix
+        schema:
+          type: string
+        example: image/
+      - name: profile
+        in: query
+        description: Named search profile (vector_config row). Reserved for hybrid
+          search
+        schema:
+          type: string
+        example: default
+      - name: sort
+        in: query
+        description: Result ordering
+        schema:
+          type: string
+        example: RELEVANCE
+      - name: collection
+        in: query
+        description: Restrict to a collection
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: space
+        in: query
+        description: Restrict to a space
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: facets
+        in: query
+        description: Comma separated facets to compute
+        schema:
+          type: string
+        example: "mime_type,entity_type"
+      - name: mode
+        in: query
+        description: Matching mode. Providers without the capability reject the request
+          rather than silently degrading
+        schema:
+          type: string
+        example: LEXICAL
+      - name: q
+        in: query
+        description: "The search term. Supports \"quoted phrases\", or, and -negation"
+        schema:
+          type: string
+        example: aurora
+      - name: highlight
+        in: query
+        description: Return match snippets
+        schema:
+          type: string
+        example: "true"
+      - name: library
+        in: query
+        description: Restrict to a library
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: limit
+        in: query
+        description: Page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Only elements first seen at or after this instant
+        schema:
+          type: string
+        example: 2026-01-01T00:00:00Z
+      - name: tag
+        in: query
+        description: Comma separated tag names the asset must carry
+        schema:
+          type: string
+        example: nightscape
+      - name: to
+        in: query
+        description: Only elements first seen at or before this instant
+        schema:
+          type: string
+        example: 2026-12-31T23:59:59Z
+      - name: lang
+        in: query
+        description: Restrict to a language tag
+        schema:
+          type: string
+        example: en
+      responses:
+        "200":
+          description: The search suggestion response
+          content:
+            application/json:
+              example:
+                data:
+                - text: aurora_timelapse.mp4
+                  type: asset
+                  uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  score: 0.62
+                - text: aurora
+                  type: tag
+                  uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  score: 0.55
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/sessions/{uuid}/download:
     description: Download a file from the chat's live coding-session workspace
     get:
@@ -18458,6 +19615,42 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/similarity-index/rebuild:
+    description: Rebuild the fingerprint similarity index from the stored fingerprint
+      components
+    post:
+      tags:
+      - similarity-index
+      summary: Rebuild the fingerprint similarity index from the stored fingerprint
+        components
+      description: Rebuild the fingerprint similarity index from the stored fingerprint
+        components
+      operationId: postSimilarityindexRebuild
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/skills:
     description: Create a new skill
     get:

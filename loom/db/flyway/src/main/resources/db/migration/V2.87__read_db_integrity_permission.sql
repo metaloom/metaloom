@@ -1,0 +1,16 @@
+-- Reading the database integrity report: GET /api/v1/db-integrity and its /checks catalogue.
+--
+-- The report answers "does the database still hold the invariants the code assumes" — dangling rows
+-- the schema has no foreign key to prevent, audit timestamps that contradict each other, required
+-- names left blank, varchar columns holding values their Java enum does not have, and CHECK
+-- constraints that rows were written around. It is computed on every request; there is nothing to
+-- create, edit or delete, so there is one permission rather than four.
+--
+-- Separate from READ_METRIC even though both are operator surfaces. Metrics are aggregate counters
+-- about a running instance. This report names the uuids of specific rows that are wrong, which is a
+-- read of the catalogue itself and a different trust decision.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- Nothing else may go in this file.
+ALTER TYPE loom_permission ADD VALUE IF NOT EXISTS 'READ_DB_INTEGRITY';

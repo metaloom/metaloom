@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.api.annotation.AnnotationType;
@@ -89,6 +90,21 @@ import io.vertx.core.json.JsonObject;
  * </p>
  */
 public class AssetCascadeTest extends AbstractJooqTest {
+
+	/**
+	 * Every test here ends by asking whether the database is still self-consistent.
+	 *
+	 * <p>
+	 * The tests below assert about the rows they thought to name - the dependents in the fixture, and
+	 * the second asset that must survive. A cascade that also removed something nobody listed, or that
+	 * left a trigger-maintained search document pointing at a deleted asset, would pass all of them.
+	 * That gap is what this closes.
+	 * </p>
+	 */
+	@AfterEach
+	public void assertDatabaseIsStillConsistent() {
+		assertIntegrity();
+	}
 
 	/**
 	 * The set of dependent rows attached to a single asset, keyed by their primary key so removal can be asserted precisely.

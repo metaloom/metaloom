@@ -21,17 +21,18 @@ feature of any kind". That was true before `V2.57`–`V2.59` landed and is false
 |---|---|---|
 | SPI + value types | ✅ built | `loom-shared/api` → `io.metaloom.loom.api.search` |
 | `search_document` + `search_document_deleted`, 12 SQL functions, 17 triggers, backfill | ✅ built | `V2.58`, `V2.59` |
-| Postgres provider (FTS + `pg_trgm`, ranking, facets, highlights, suggest) | ✅ built | `PostgresSearchProvider` (426 lines) |
+| Postgres provider (FTS + `pg_trgm`, ranking, facets, highlights, suggest, **RRF fusion**) | ✅ built | `PostgresSearchProvider` |
 | REST: `GET /api/v1/search/{results,assets,suggestions,status}` | ✅ built | `SearchEndpoint`, `SearchEndpointService` |
 | Dagger binding, boot-safe fallback | ✅ built | `SearchModule` in `LoomCoreComponent` |
-| `LOOM_SEARCH_*` options (10 vars) | ✅ built | `SearchOptions` |
+| `LOOM_SEARCH_*` options (10 lexical + 15 semantic) | ✅ built | `SearchOptions` |
 | Client methods + endpoint tests | ✅ built | `SearchMethods`, `LoomHttpClientImpl`, 49 tests |
 | **loom-ui** | ✅ built — client, `/search` view, global sidebar field, capability gating | `src/api/search.ts`, `features/search/`, `SearchContext` |
 | **MCP `search_assets` / `search_transcript`** | 🔴 still stubs, still bypass the SPI | `loom/services/mcp` |
 | **GraphQL `search` field** | 🔴 absent | `loom.graphqls` |
 | **Elasticsearch provider** | 🔴 `loom/services/elasticsearch` has **no `src/`** — `pom.xml` + README only | — |
 | **Qdrant** | 🔴 `loom/services/qdrant` has **no `src/`** | — |
-| **Semantic / vector** | 🔴 nothing | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
+| **Semantic / hybrid (text)** | ✅ built, **off by default** — `LOOM_SEARCH_SEMANTIC_ENABLED`. RRF over the lexical ranker plus embeddings of the same documents | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
+| **Semantic (text→image, CLIP)** | 🔴 nothing | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §4 |
 | Website docs | ✅ built | `website/content/english/docs/ui/index.adoc` — "Search" section |
 | Purpose-built demo fixtures | 🔴 absent — but the demo corpus **is** indexed | triggers cannot be bypassed (§4) |
 
@@ -66,6 +67,8 @@ graph TB
     end
 
     DOC --> PG
+    DOC -->|"SearchEmbeddingService ✅<br/>same text, embedded"| VEC["vector ranker ✅<br/>TextEmbedder + VectorIndex<br/>fused by RankFusion"]
+    VEC --> PG
     DOC -.->|"dirty / es_synced_at outbox<br/>🔴 nothing drains it yet"| ES["ElasticsearchSearchProvider ⬜"]
     UI["loom-ui ✅<br/>api/search.ts · SearchContext · /search"] --> EP
     MCP["MCP tools ⬜ (still stubs)"] -.-> SPI
@@ -74,6 +77,12 @@ graph TB
 The load-bearing idea: **`search_document` is simultaneously the Postgres index, the pre-assembled
 Elasticsearch document, and the outbox that would feed it.** Phase 2 therefore changes a binding, not
 a pipeline. The outbox columns are already maintained — they are simply not consumed (§5.3).
+
+It turned out to be one thing more: **the semantic corpus.** The vectors behind `SearchMode.SEMANTIC`
+are embeddings of this same assembled text, so the two rankers share one source and one freshness
+signal — a late-arriving transcript refreshes both through the same trigger. That path is designed in
+[SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md); everything in *this* document describes the lexical ranker, which is unchanged
+by it and remains the default and the only mode a stock deployment serves.
 
 ---
 
@@ -102,9 +111,9 @@ public interface SearchIndexer {                  // write side; Postgres binds 
 
 | Enum | Values | Note |
 |---|---|---|
-| `SearchCapability` | `LEXICAL PHRASE FUZZY HIGHLIGHT FACETS EXACT_TOTAL DEEP_PAGING SEMANTIC HYBRID SUGGEST` | Postgres advertises all **except** `DEEP_PAGING`, `SEMANTIC`, `HYBRID` |
+| `SearchCapability` | `LEXICAL PHRASE FUZZY HIGHLIGHT FACETS EXACT_TOTAL DEEP_PAGING SEMANTIC HYBRID SUGGEST` | Postgres never advertises `DEEP_PAGING`. It advertises `SEMANTIC` and `HYBRID` **only** when semantic search is enabled and both an embedding host and a vector index answer — see below |
 | `SearchEntityType` | `ASSET TRANSCRIPT TAG ANNOTATION PERSON COLLECTION LIBRARY DETECTION SEGMENT CLUSTER` | wire form = lowercase `id()` = `search_document.entity_type` |
-| `SearchMode` | `LEXICAL SEMANTIC HYBRID` | non-`LEXICAL` ⇒ 400 `SEARCH_UNSUPPORTED` |
+| `SearchMode` | `LEXICAL SEMANTIC HYBRID` | non-`LEXICAL` ⇒ 400 `SEARCH_UNSUPPORTED` **unless the matching capability is advertised** ([SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md)) |
 | `SearchSortMode` | `RELEVANCE NEWEST OLDEST NAME SIZE` | built into `ORDER BY` from the enum, never from input |
 
 🔴 **`DETECTION` and `SEGMENT` are enum values with no documents.** `search_document_rebuild()` loops
@@ -116,6 +125,14 @@ hits of their own.
 `DEEP_PAGING`, so an offset past `LOOM_SEARCH_MAX_OFFSET` returns 400 naming the provider and the cap
 instead of timing out.
 
+🔴 **`capabilities()` is computed per call, not a constant.** The lexical set is fixed, but `SEMANTIC`
+and `HYBRID` depend on two things outside the provider — an embedding host that answers and an open
+vector index — and either can fail at runtime. Recomputing is what makes `/search/status` tell the
+truth after the embedding host goes down: the capability disappears, the UI's mode toggle disappears
+with it, and the mode starts answering 400 again instead of failing. A cached set would leave the UI
+offering a mode that no longer works. The method must never throw for the same reason `isAvailable()`
+must not — the status route calls it precisely when something is broken.
+
 ### 2.1 Provider selection (`SearchModule`)
 
 `loom/core/.../dagger/SearchModule.java`, registered in `LoomCoreComponent` (line 53).
@@ -126,6 +143,12 @@ instead of timing out.
 logged + `NoopSearchProvider`. `NoopSearchProvider.search()` throws
 `LoomRestException(503, SEARCH_UNAVAILABLE, reason)` while `GET /search/status` still answers **200**
 with `available:false`, so a UI can hide its search box rather than render a broken one.
+
+The same module binds the `TextEmbedder` behind semantic search, on the same terms: disabled or
+unreachable → `NoopTextEmbedder`, logged, never a boot failure. Availability is probed **once here**,
+with a real embedding call rather than a health check — a reachable server with no embedding model
+loaded answers `/health` perfectly well and then fails every actual request. The provider re-checks per
+call, so a host that dies later still retracts the capability.
 
 ---
 
@@ -243,7 +266,7 @@ asserts (§8).
 | Thing | Written by | Read by |
 |---|---|---|
 | `library_uuids` / `space_uuids` / `collection_uuids` | triggers ✅ | **partly** — the provider filters on them for explicit `?library=`/`?space=`/`?collection=`, but the *ACL* path (`SearchRequest.allowedLibraryUuids/allowedSpaceUuids`) is never populated, so row-level narrowing is dead code awaiting §7.2 |
-| `dirty`, `es_synced_at`, `search_document_deleted` | triggers ✅ | 🔴 **nothing in Java.** They are an outbox for an external index that does not exist yet; the Postgres provider queries the table directly and reports `dirtyCount = 0` by construction |
+| `dirty`, `es_synced_at`, `search_document_deleted` | triggers ✅ | 🔴 **nothing in Java.** They are an outbox for an external index that does not exist yet; the Postgres provider queries the table directly and reports `dirtyCount = 0` by construction. The admin screen therefore reports the lexical index's backlog as 0 rather than reading this — see [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
 | `asset_doc_comp.doc_plain_text` + its GIN tsvector | 🔴 **nobody** — no Cortex node calls `createDocComp`; OCR writes `asset_json_comp schema_type='ocr'`, Tika `='tika'` | 🔴 nothing, and search deliberately does **not** read it (`V2.58` records why). If nodes ever graduate to writing it, the change is one branch in `search_document_refresh_asset` |
 
 ---
@@ -258,7 +281,7 @@ asserts (§8).
 | `/api/v1/search/status` | GET | ✅ | Singleton status resource (`HealthEndpoint` sets the precedent); still 200 when unavailable |
 | `/api/v1/search/results` | POST | ⬜ | Body-encoded long queries |
 | `/api/v1/search/facets` | GET | ⬜ | Facets already exist as `?facets=` on `/results` (`mime_type`, `entity_type`, `lang`) |
-| `/api/v1/search/reindexes` | POST | ⬜ | Admin rebuild; `NoopSearchIndexer.rebuild()` exists but is not exposed over REST |
+| ~~`/api/v1/search/reindexes`~~ | POST | ⏭️ | **Superseded.** A rebuild is now `POST /api/v1/search-indices/lexical/jobs {"action":"REINDEX"}` — one admin surface over every index rather than one route per backend. `SearchIndexer.rebuild()` is on the SPI and exposed. See [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
 
 `search` is a **namespace with no handler mounted on it** — every route below it is plural, as
 [../../guidelines/CODING.md](../../guidelines/CODING.md) requires. `addSearchRoute(...)` sits next to
@@ -356,10 +379,14 @@ library, which needs a batched job, not a trigger (⬜); group/role/space **memb
 
 ## 7. Configuration
 
-🔴 **These ten variables are all that exist.** `io.metaloom.loom.api.options.SearchOptions`, wired into
-`LoomOptions` (field, getter, setter, `overrideWithEnv()`, `errors.nested("search", search)`). Any
-`LOOM_SEARCH_ES_*`, `LOOM_SEARCH_SEMANTIC_*`, `LOOM_SEARCH_RRF_K` or `LOOM_SEARCH_SWEEP_INTERVAL_MS`
-you find referenced elsewhere is **speculative and unimplemented**.
+**These ten govern the lexical ranker.** `io.metaloom.loom.api.options.SearchOptions`, wired into
+`LoomOptions` (field, getter, setter, `overrideWithEnv()`, `errors.nested("search", search)`).
+
+⚠️ `SearchOptions` carries **fifteen more** — `LOOM_SEARCH_SEMANTIC_ENABLED`, `LOOM_SEARCH_EMBED_*`,
+`LOOM_SEARCH_VECTOR_*`, `LOOM_SEARCH_RRF_*` — which govern semantic and hybrid ranking and are
+documented in [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §9 rather than duplicated here. They change nothing about the
+lexical path. Anything `LOOM_SEARCH_ES_*` or `LOOM_SEARCH_SWEEP_INTERVAL_MS` you find referenced
+elsewhere is still **speculative and unimplemented**.
 
 | Env var | Default | Meaning |
 |---|---|---|
@@ -417,8 +444,12 @@ is why the DB-side tests are split into three classes of ≤ 15.
 |---|---|---|
 | `SearchProvider`, `SearchIndexer`, `SearchCapability`, `SearchMode`, `SearchSortMode`, `SearchEntityType` | `io.metaloom.loom.api.search` (`loom-shared/api`) | ✅ |
 | `SearchRequest`, `SearchResult`, `SearchHit`, `SearchSuggestion`, `SearchDocument`, `SearchProviderInfo`, `FacetBucket` | same | ✅ |
-| `SearchOptions` | `io.metaloom.loom.api.options` (`loom-shared/api`) | ✅ 10 env vars |
-| `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` (`loom/db/jooq`) | ✅ 426 lines |
+| `SearchOptions` | `io.metaloom.loom.api.options` (`loom-shared/api`) | ✅ 10 lexical + 15 semantic env vars |
+| `PostgresSearchProvider` | `io.metaloom.loom.db.jooq.search` (`loom/db/jooq`) | ✅ lexical path plus `fusedSearch` for `SEMANTIC`/`HYBRID` |
+| `TextEmbedder` / `NoopTextEmbedder` / `RankFusion` | `io.metaloom.loom.api.search` (`loom-shared/api`) | ✅ the semantic seam — [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
+| `OpenAiTextEmbedder` | `io.metaloom.loom.core.search` (`loom/core`) | ✅ |
+| `SearchEmbeddingService` | `io.metaloom.loom.db.jooq.search` (`loom/db/jooq`) | ✅ embeds the same corpus |
+| `SearchEmbeddingDrainer` | `io.metaloom.loom.rest.search` (`loom/services/rest`) | ✅ periodic pass |
 | `NoopSearchProvider` / `NoopSearchIndexer` | same | ✅ (`rebuild()` calls `search_document_rebuild()`) |
 | `SearchModule` | `io.metaloom.loom.core.dagger` (`loom/core`) | ✅ in `LoomCoreComponent:53` |
 | `SearchEndpoint` | `io.metaloom.loom.rest.endpoint.impl` (`loom/services/rest`) | ✅ 4 GET routes |
@@ -455,7 +486,10 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | **`asset_doc_comp`** | ⚠️ FTS index, zero rows, no producer. Deliberately not a search source (§4.3). |
 | **`QueryParameterKey`** | ⚠️ Never add `q` there — `addListRoute` iterates its values and would document `q` on ~40 routes that ignore it. Use `SearchQueryParameterKey`. |
 | **MCP has no auth** | ⚠️ The MCP server bypasses REST auth and calls DAOs directly; `descriptor().permissions()` is advisory. Per-type narrowing cannot apply there when the tools are finally moved onto the SPI. |
-| **Constructor changes** | ⚠️ Clean-rebuild `loom/core` after endpoint constructor changes, before `setup-pool.sh`, or Dagger factories throw `NoSuchMethodError`. |
+| **Constructor changes** | ⚠️ Clean-rebuild `loom/core` after endpoint constructor changes, before `setup-pool.sh`, or Dagger factories throw `NoSuchMethodError`. `PostgresSearchProvider` and `SearchEndpointService` both gained arguments for the semantic path — that rebuild is not optional. |
+| **Capabilities are dynamic** | 🔴 `capabilities()` is recomputed per call because `SEMANTIC`/`HYBRID` depend on an embedding host and a vector index that can fail at runtime (§2). Do not cache it into a constant; the UI renders its mode toggle from it. |
+| **Two search paths, one provider** | ⚠️ `search()` dispatches on `SearchRequest.mode`. The lexical path keeps exact totals, SQL sorting and corpus-wide facets; the fused path has none of those ([SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §5.2). A change to matching or filtering must be made in the shared `appendMatch`/`appendFilters`/`SCORE_EXPRESSION` helpers, or the two drift into ranking differently. |
+| **The pooled test DB is not empty** | 🔴 It carries fixtures of its own, so search tests must assert relative to their own assets — `hitsAsset(result, mine)` is false, never "the result set is empty". |
 
 ## 11. Where do I find …?
 
@@ -474,7 +508,9 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | Env vars | `loom-shared/api/.../options/SearchOptions.java` |
 | Client methods | `loom-client/common/.../method/SearchMethods.java`, `loom-client/rest/.../LoomHttpClientImpl.java:1537+` |
 | Tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/`, `loom/core/src/test/java/.../SearchEndpointTest.java` |
-| Highest migration | `V2.63__library_storage_pool.sql` — verify before claiming a version |
+| Semantic/hybrid ranking, the embedder and its host | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §5, §9; `sidecars/llamacpp-embeddings/README.md` |
+| What users are told about search | `website/content/english/docs/ui/index.adoc` |
+| Highest migration | `V2.84__read_metric_permission.sql` at the time of writing — **always re-check**, sorted numerically, before claiming a version |
 | Permission model / REST conventions | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../guidelines/CODING.md](../../guidelines/CODING.md) |
 | Node → text mapping | [../pipeline-nodes/NODES.md](../nodes/NODES.md) |
 
@@ -485,9 +521,9 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [x] Regression sweep of the ~20 list endpoints; `ListResponseModelAssert.hasSize()`/`hasTotalCount()` split
 - [x] `LoomRoutingContext.permissions()` — request-scoped `Future<Predicate<Permission>>`
 - [x] `SEARCH_UNAVAILABLE` / `SEARCH_UNSUPPORTED` added to **both** copies of `LoomRestErrorCode`
-- [ ] Orphaned `loom-ui/src/{Dashboard,User,Content}` trees still present (unreachable from `AppShell`); untouched because no UI work landed
+- [ ] Orphaned `loom-ui/src/{Dashboard,User,Content}` trees still present (unreachable from `AppShell`); the search UI landed alongside them rather than replacing them
 
-**Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, other consumers ⬜
+**Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, MCP + GraphQL ⬜
 - [x] `io.metaloom.loom.api.search` SPI + value types
 - [x] `SearchOptions` (10 env vars) + `LoomOptions` wiring + validation
 - [x] `V2.57` `READ_SEARCH` · `V2.58` `pg_trgm` + tables + 12 functions · `V2.59` 17 triggers + backfill
@@ -502,12 +538,12 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [ ] `/search/suggestions` ranks by trigram similarity only — no dedicated prefix index
 - [ ] `/search/assets` returns `SearchResultResponse`, not `AssetResponse` — a UI grid cannot render it unchanged
 - [ ] `DETECTION` and `SEGMENT` documents are not emitted; the labels/titles live in the owning asset's `keywords`
-- [ ] Demo data (`DemoDatabaseInitializer`) not seeded with *purpose-built* search fixtures — the existing corpus is nonetheless indexed, because triggers cannot be bypassed, and `search-backend.spec.ts` asserts against it
+- [ ] Demo data (`DemoDatabaseInitializer`) not seeded with *purpose-built* search fixtures — the existing corpus is nonetheless indexed, because triggers cannot be bypassed, and `search-backend.spec.ts` asserts against it (magic string: `quarterly`)
 - [x] Customer-facing docs — the "Search" section of `website/content/english/docs/ui/index.adoc`
 - [ ] MCP `SearchAssetsTool` (ignores `query`/`mimeType`, calls `loadPage(null, limit, null, null, null)`) and `SearchTranscriptTool` (hardcoded string) still stubs
 - [ ] GraphQL `search` field not added
 - [x] loom-ui: `api/search.ts` (typed `SearchApiError`), `SearchContext` (fail-closed capability gate), global sidebar field with trigram typeahead, `/search` view with type filters, facet chips, highlights, pager and honest degradation
-- [x] loom-ui tests: 25 client + 32 helper vitest cases, `search-mocked.spec.ts` (27), `search-backend.spec.ts` (14)
+- [x] loom-ui tests: 25 client + 32 helper vitest cases; Playwright `search-mocked` (27), `asset-search-mocked` (9), `list-search-mocked` (7), `search-backend` (14)
 - [ ] A transcript hit deep-links to its asset but not to its timecode — `AssetDetail` has no seek parameter; the offset is shown as a badge only
 - [ ] `asset_doc_comp` remains deliberately unread (§4.3)
 
@@ -518,7 +554,19 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [ ] Everything else — see [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) Phase 2, gated on the P2-1 spike
 - [ ] ⚠️ Correction to older plans: **do not delete `loom/services/lucene`** — it now serves fingerprint k-NN
 
-**Phase 3 — semantic / hybrid** — not started, see [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md). `loom/services/qdrant` has no `src/`.
+**Phase 3 — Semantic / hybrid** — text ✅ shipped (off by default), image ⬜
+- [x] `TextEmbedder` SPI + `OpenAiTextEmbedder` (llama.cpp `--embeddings`) + `NoopTextEmbedder`
+- [x] `RankFusion` (RRF, k=60) and `SearchMode.{SEMANTIC,HYBRID}` served by `PostgresSearchProvider`
+- [x] `SearchEmbeddingService` + `SearchEmbeddingDrainer` — embeds the same `search_document` corpus
+- [x] Capabilities computed per call, so an embedding host that dies retracts the UI's mode toggle
+- [x] 15 new `LOOM_SEARCH_*` vars, validated; `sidecars/llamacpp-embeddings` resolves the P3-1 spike
+- [x] 46 new tests (13 fusion, 20 provider, 13 options)
+- [x] No migration, no pgvector, no new cortex node — [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §0.4 explains why
+- [ ] Text→image (CLIP) — [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §4; the ranker and UI would consume it unchanged
+- [ ] `vector_config` profiles — fusion weights are still env vars, so `?profile=` reaches nothing
+- [ ] No real-model verification: retrieval quality is unmeasured, every test uses a deterministic fake
+- [ ] No demo vectors, so a demo container shows no mode toggle
+- [ ] `loom/services/qdrant` still has no `src/`, and is now unlikely to be needed
 
 **Row-level ACL** — not started
 - [x] `library_uuids` / `space_uuids` / `collection_uuids` populated and GIN-indexed; `SearchRequest.userUuid` carried
@@ -534,5 +582,6 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so a tagged asset cannot be deleted — shapes the delete-cascade test
 
 ---
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (loom-ui wired to the search API: client, SearchContext, global field, /search view; added the client-side contract notes in section 5.1)_
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (text semantic + hybrid search shipped: TextEmbedder, RankFusion,
+SearchEmbeddingService, dynamic capabilities. Design and departures in SEMANTIC_SEARCH.md §0.4)_

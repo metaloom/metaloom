@@ -32,7 +32,12 @@ const OUT = process.env.OUT_DIR
   ? path.resolve(process.env.OUT_DIR)
   : path.resolve(__dirname, "../../website/content/english/docs/ui");
 
+// Most shots belong to the UI page bundle. The search index ones belong to the page that documents
+// them, because asciidoc resolves a bare image:: filename inside the bundle of the page using it.
+const SEARCH_INDEX_OUT = path.resolve(OUT, "../loom/search-indices");
+
 fs.mkdirSync(OUT, { recursive: true });
+fs.mkdirSync(SEARCH_INDEX_OUT, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -54,9 +59,9 @@ async function main() {
   const page = await context.newPage();
   const results = [];
 
-  const shot = async (name, { settle = 900 } = {}) => {
+  const shot = async (name, { settle = 900, dir = OUT } = {}) => {
     await sleep(settle);
-    const file = path.join(OUT, name);
+    const file = path.join(dir, name);
     await page.screenshot({ path: file });
     results.push(`  ✓ ${name}`);
     console.log(`captured ${name}`);
@@ -226,6 +231,33 @@ async function main() {
     await openAclGroup();
     await clickNav("Permissions");
     await shot("acl-roles.png", { settle: 1200 });
+  });
+
+  // ---- Search indices (admin tab, not a sidebar entry) ----
+  // Reached through Spaces — every /admin/* screen except Spaces and Memory Denylist lives behind
+  // the AdminArea tab bar, and a deep link cannot be used because the SPA has no basename here.
+  //
+  // These two land in the Search Indices page bundle rather than docs/ui/, because that is the page
+  // that shows them and every image:: in the docs is a bare filename resolved inside its own bundle.
+  await capture("search-indices.png", async () => {
+    await clickNav("Spaces");
+    await page.getByRole("tab", { name: "Indices", exact: true }).click({ timeout: 8000 });
+    await page.locator('[data-testid="search-indices-admin"]').waitFor({ timeout: 8000 });
+    await shot("search-indices.png", { settle: 1400, dir: SEARCH_INDEX_OUT });
+  });
+
+  // ---- Search index reindex in flight ----
+  // The lexical index is the one guaranteed to be populated in the demo, and its rebuild is a
+  // single SQL call — so it reports no total and the bar renders indeterminate, which is exactly
+  // the state the docs need to explain. Shoot immediately: on a demo-sized corpus it finishes fast.
+  await capture("search-indices-job.png", async () => {
+    const reindex = page.locator('[data-testid="search-index-action-lexical-reindex"]');
+    await reindex.click({ timeout: 6000 });
+    await page
+      .locator('[data-testid="search-index-job-progress-lexical"]')
+      .waitFor({ timeout: 6000 })
+      .catch(() => {});
+    await shot("search-indices-job.png", { settle: 250, dir: SEARCH_INDEX_OUT });
   });
 
   // ---- API keys (try to open the create dialog) ----

@@ -7,6 +7,17 @@ ENV HOME=/loom
 # The agent memory bank is opt-in on a real server, but the demo seeds notes and shows the
 # Memory screen — without this the endpoints are not even registered and the screen is empty.
 ENV LOOM_AGENT_MEMORY_ENABLED=true
+# Both index backends are off by default on a real server, but with neither bound the search
+# index admin screen has nothing to show but three disabled rows. Both are local Lucene
+# directories under the writable /loom, need no external service, and fall back to a no-op
+# implementation if the directory cannot be opened — so switching them on cannot fail boot.
+# The index is not on a volume, so it is lost when the container is replaced; that is harmless
+# and arguably useful here, because both are declared rebuildable caches and the screen's own
+# Reindex button is the repair.
+ENV LOOM_VECTOR_INDEX_PROVIDER=lucene
+ENV LOOM_SIMILARITY_ENABLED=true
+# Semantic search stays off: it needs an embeddings host the demo container cannot reach, and a
+# row that reports "disabled, and here is why" is a more honest demo than one that errors.
 ENV JAVA_TOOL_OPTIONS="-Xms512m -Xmx512m"
 
 EXPOSE 8092

@@ -6,10 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Set;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.db.integrity.DbIntegrityCodes;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.perm.Permission;
@@ -32,6 +35,37 @@ import io.metaloom.loom.db.model.user.User;
  * </p>
  */
 public class AclCascadeTest extends AbstractJooqTest {
+
+	/**
+	 * Every test here ends by asking whether the database is still self-consistent.
+	 *
+	 * <p>
+	 * The class javadoc names the failure mode as "an orphan row or a foreign-key violation on
+	 * delete". The violation half fails loudly on its own; the orphan half is exactly what these
+	 * checks look for, and each test above only asserts about the rows it thought to name. This
+	 * catches the ones it did not.
+	 * </p>
+	 */
+	@AfterEach
+	public void assertDatabaseIsStillConsistent() {
+		assertIntegrity();
+	}
+
+	/**
+	 * {@code SOFT_DELETED_USER_HAS_LIVE_WORK} is the state
+	 * {@link #testSoftDeletingAUserKeepsGrantsAndMemberships()} exists to produce, and asserts about
+	 * on purpose - soft delete deliberately leaves the grant and the membership behind, because the
+	 * row is never removed and no cascade fires.
+	 *
+	 * <p>
+	 * Silencing exactly that one code, rather than switching the sweep off, keeps the other twenty-eight
+	 * checks watching these cascades.
+	 * </p>
+	 */
+	@Override
+	public Set<String> ignoredIntegrityChecks() {
+		return Set.of(DbIntegrityCodes.SOFT_DELETED_USER_HAS_LIVE_WORK);
+	}
 
 	private User creator() {
 		return adminUser();

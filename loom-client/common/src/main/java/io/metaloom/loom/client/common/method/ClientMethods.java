@@ -37,10 +37,12 @@ public interface ClientMethods extends
 	SegmentCompMethods,
 	SearchMethods,
 	SimilarityMethods,
+	SearchIndexMethods,
 	DedupGroupMethods,
 	GraphQLMethods,
 	HealthMethods,
 	MetricsMethods,
+	DbIntegrityMethods,
 	InfoMethods {
 
 }

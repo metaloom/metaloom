@@ -242,6 +242,14 @@ public enum Permission {
 	// because search is cross-entity by construction.
 	READ_SEARCH,              // doc:yes  ui:no  test:SearchEndpointTest
 
+	// Search index operation. Gate on /api/v1/search-indices. Split from READ_SEARCH because
+	// querying the index and operating it are different authorities: these cover the lexical index,
+	// the embedding vector spaces and the fingerprint index, none of which READ_SEARCH reaches.
+	// MANAGE also covers the destructive actions - a drop empties an index until a reindex refills
+	// it, though no source data is lost because every index here is a rebuildable cache.
+	READ_SEARCH_INDEX,        // doc:yes  ui:yes test:SearchIndexEndpointTest (403 cases)
+	MANAGE_SEARCH_INDEX,      // doc:yes  ui:yes test:SearchIndexEndpointTest (403 cases)
+
 	// Deduplication review. Gate on /api/v1/dedup-groups and /api/v1/assets/:uuid/dedup-groups.
 	// The discovery node creates PENDING groups (CREATE_DEDUP); a reviewer confirms/denies
 	// (UPDATE_DEDUP); the apply node reads CONFIRMED groups (READ_DEDUP).
@@ -257,6 +265,13 @@ public enum Permission {
 	// YOUR inbox, never anybody else's (NotificationEndpointService 404s a foreign row).
 	READ_NOTIFICATION,        // doc:yes  ui:yes test:NotificationEndpointTest (403 cases)
 	UPDATE_NOTIFICATION,      // doc:yes  ui:yes test:NotificationEndpointTest (403 cases)
-	DELETE_NOTIFICATION;      // doc:yes  ui:yes test:NotificationEndpointTest (403 cases)
+	DELETE_NOTIFICATION,      // doc:yes  ui:yes test:NotificationEndpointTest (403 cases)
+
+	// The database integrity report. Gate on /api/v1/db-integrity.
+	// Read only, and one constant rather than four: the checks are computed from the database on
+	// every request, so there is nothing to create, edit or delete. It is a separate grant from
+	// READ_METRIC because the report names uuids of rows that are wrong, which is closer to reading
+	// the catalogue than to reading a counter.
+	READ_DB_INTEGRITY;        // doc:yes  ui:yes test:DbIntegrityEndpointTest (403 cases)
 
 }

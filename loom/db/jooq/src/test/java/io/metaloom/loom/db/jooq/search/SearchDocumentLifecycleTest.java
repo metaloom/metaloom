@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.api.options.SearchOptions;
+import io.metaloom.loom.api.search.NoopTextEmbedder;
 import io.metaloom.loom.api.search.SearchRequest;
 import io.metaloom.loom.api.search.SearchResult;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
@@ -35,7 +36,7 @@ public class SearchDocumentLifecycleTest extends AbstractJooqTest {
 	@BeforeEach
 	public void setupProvider() {
 		options = new SearchOptions();
-		provider = new PostgresSearchProvider(ctx(), options);
+		provider = new PostgresSearchProvider(ctx(), options, new NoopTextEmbedder("semantic search is off in this test"), new InMemoryVectorIndex());
 	}
 
 	private DSLContext ctx() {

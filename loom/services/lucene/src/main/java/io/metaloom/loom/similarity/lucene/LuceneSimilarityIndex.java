@@ -1,13 +1,20 @@
 package io.metaloom.loom.similarity.lucene;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -21,8 +28,11 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
@@ -32,10 +42,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.api.search.HexFingerprint;
+import io.metaloom.loom.api.search.IndexStatus;
 import io.metaloom.loom.api.search.IndexedFingerprint;
 import io.metaloom.loom.api.search.SimilarityHit;
 import io.metaloom.loom.api.search.SimilarityIndex;
@@ -184,13 +196,7 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		} catch (IOException e) {
 			log.warn("Similarity query failed: {}", e.getMessage());
 		} finally {
-			if (searcher != null) {
-				try {
-					searcherManager.release(searcher);
-				} catch (IOException e) {
-					log.warn("Failed to release searcher: {}", e.getMessage());
-				}
-			}
+			release(searcher);
 		}
 		return hits;
 	}
@@ -263,6 +269,176 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		} finally {
 			writeLock.unlock();
 		}
+	}
+
+	@Override
+	public void drop(String algorithm) {
+		if (!available) {
+			return;
+		}
+		writeLock.lock();
+		try {
+			// A null algorithm means "everything"; documents written without one carry no ALGORITHM_FIELD and a term query would miss them.
+			if (algorithm == null || algorithm.isBlank()) {
+				writer.deleteAll();
+			} else {
+				writer.deleteDocuments(new Term(ALGORITHM_FIELD, algorithm));
+			}
+			writer.commit();
+			searcherManager.maybeRefresh();
+			log.info("Dropped fingerprints for algorithm {} from the index at {}", algorithm, indexPath);
+		} catch (IOException e) {
+			log.error("Failed to drop fingerprints for algorithm {}: {}", algorithm, e.getMessage(), e);
+		} finally {
+			writeLock.unlock();
+		}
+	}
+
+	@Override
+	public IndexStatus status() {
+		IndexStatus status = new IndexStatus().setHealthy(available);
+		if (!available) {
+			return status.setDetail("The fingerprint index directory could not be opened at " + indexPath);
+		}
+		try {
+			IndexWriter.DocStats stats = writer.getDocStats();
+			status.setDocumentCount(stats.numDocs);
+			status.setDeletedCount((long) stats.maxDoc - stats.numDocs);
+			status.setSizeBytes(directorySize());
+		} catch (Exception e) {
+			log.warn("Could not read fingerprint index status: {}", e.getMessage());
+			status.setHealthy(false).setDetail(e.getMessage());
+		}
+		return status;
+	}
+
+	@Override
+	public IndexStatus status(String algorithm) {
+		IndexStatus status = new IndexStatus().setHealthy(available);
+		if (!available) {
+			return status;
+		}
+		IndexSearcher searcher = null;
+		try {
+			searcherManager.maybeRefresh();
+			searcher = searcherManager.acquire();
+			status.setDocumentCount(algorithm == null || algorithm.isBlank()
+				? searcher.getIndexReader().numDocs()
+				: searcher.count(new TermQuery(new Term(ALGORITHM_FIELD, algorithm))));
+		} catch (IOException e) {
+			log.warn("Could not count fingerprints for algorithm {}: {}", algorithm, e.getMessage());
+			status.setHealthy(false).setDetail(e.getMessage());
+		} finally {
+			release(searcher);
+		}
+		return status;
+	}
+
+	/**
+	 * Sum of every file in the index directory. A concurrent merge can unlink a file between listing and measuring it, so a missing file is skipped
+	 * rather than failing the read - this is an operator-facing estimate.
+	 */
+	private long directorySize() throws IOException {
+		long bytes = 0;
+		for (String file : directory.listAll()) {
+			try {
+				bytes += directory.fileLength(file);
+			} catch (FileNotFoundException | NoSuchFileException e) {
+				// Merged away while we were looking at it.
+			}
+		}
+		return bytes;
+	}
+
+	/**
+	 * Walk the {@code asset_uuid} term dictionary rather than loading stored fields - see
+	 * {@link io.metaloom.loom.api.search.VectorIndex#streamIndexedEmbeddingUuids()} for why. The result is a superset that may include
+	 * deleted-but-unmerged documents.
+	 */
+	@Override
+	public Stream<UUID> streamIndexedAssetUuids() {
+		if (!available) {
+			return Stream.empty();
+		}
+		IndexSearcher searcher;
+		try {
+			searcherManager.maybeRefresh();
+			searcher = searcherManager.acquire();
+		} catch (IOException e) {
+			log.warn("Could not open a reader to enumerate indexed fingerprints: {}", e.getMessage());
+			return Stream.empty();
+		}
+		IndexSearcher acquired = searcher;
+		try {
+			List<Stream<UUID>> perLeaf = new ArrayList<>();
+			for (LeafReaderContext leaf : acquired.getIndexReader().leaves()) {
+				Terms terms = leaf.reader().terms(ASSET_FIELD);
+				if (terms != null) {
+					perLeaf.add(termStream(terms));
+				}
+			}
+			return perLeaf.stream().flatMap(s -> s).onClose(() -> release(acquired));
+		} catch (IOException e) {
+			log.warn("Could not enumerate indexed fingerprints: {}", e.getMessage());
+			release(acquired);
+			return Stream.empty();
+		}
+	}
+
+	private static Stream<UUID> termStream(Terms terms) throws IOException {
+		TermsEnum iterator = terms.iterator();
+		Iterator<UUID> uuids = new Iterator<>() {
+
+			private UUID next = advance();
+
+			private UUID advance() {
+				try {
+					BytesRef term;
+					while ((term = iterator.next()) != null) {
+						try {
+							return UUID.fromString(term.utf8ToString());
+						} catch (IllegalArgumentException e) {
+							// Not a uuid, so not an asset key; skip rather than abort the sweep.
+						}
+					}
+				} catch (IOException e) {
+					log.warn("Failed while walking the asset term dictionary: {}", e.getMessage());
+				}
+				return null;
+			}
+
+			@Override
+			public boolean hasNext() {
+				return next != null;
+			}
+
+			@Override
+			public UUID next() {
+				if (next == null) {
+					throw new NoSuchElementException();
+				}
+				UUID current = next;
+				next = advance();
+				return current;
+			}
+		};
+		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(uuids, Spliterator.ORDERED | Spliterator.NONNULL), false);
+	}
+
+	private void release(IndexSearcher searcher) {
+		if (searcher == null) {
+			return;
+		}
+		try {
+			searcherManager.release(searcher);
+		} catch (IOException e) {
+			log.warn("Failed to release searcher: {}", e.getMessage());
+		}
+	}
+
+	@Override
+	public String providerName() {
+		return "lucene";
 	}
 
 	@Override

@@ -431,6 +431,10 @@ public class DemoDatabaseInitializer {
 			// is not a privileged secret, and a dashboard of dashes teaches a new user nothing about
 			// what the screen is for.
 			Permission.READ_METRIC,
+			// The admin area's Database Integrity tab. Granted to the editor but not the viewer: the
+			// report names the uuids of rows that are wrong, which is a read of the catalogue rather
+			// than of a counter, and a read-only demo account has no use for it.
+			Permission.READ_DB_INTEGRITY,
 		}) {
 			permissionDao.grantRolePermission(editorRole.getUuid(), perm);
 		}

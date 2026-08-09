@@ -13,6 +13,19 @@
 > **Do not duplicate here:** the entity inventory lives in [../loom/DOMAIN.md](../loom/DOMAIN.md),
 > the executed rework in [db/DATABASE_TASKS.md](db/DATABASE_TASKS.md), and the open DAO/test gaps
 > in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md).
+>
+> **Part of this audit is now executable.** [DB_INTEGRITY.md](DB_INTEGRITY.md) turns the structural
+> findings into 29 named checks that run against a live database, from the admin area and from any
+> test. Three findings this file records are detected there today:
+>
+> | Finding | Check |
+> |---|---|
+> | `token.editor_uuid` has no foreign key (V2.1 declares one for `creator_uuid` only) | `DANGLING_TOKEN_EDITOR` |
+> | `asset_remix.editor_uuid` repeats the same omission (V2.8) | `DANGLING_ASSET_REMIX_EDITOR` |
+> | `vector_config` has no primary key and no foreign keys at all (V2.6) | `DANGLING_VECTOR_CONFIG_ACTOR`, `DUPLICATE_VECTOR_CONFIG_UUID` |
+>
+> 🔴 **Detection is not a fix.** The constraints are still absent and should be added by a migration
+> of their own; until then these checks are what notices when the absence costs something.
 
 ---
 
@@ -544,5 +557,7 @@ mvn -q install -pl loom/db/flyway
 # the tests that exercise the audited constraints
 mvn -q test -pl loom/db/jooq -Dtest='AssetCascadeTest,AssetComponentKeyTest,EmbeddingDaoTest'
 ```
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `27894151`_
+_Last updated: 2026-08-09 (three structural findings are now detected at runtime by the checks in
+DB_INTEGRITY.md - the two missing editor_uuid foreign keys and vector_config's missing constraints.
+The constraints themselves are still unwritten. Earlier: 2026-08-06 reference sweep, no content changes)_

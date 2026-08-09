@@ -2,11 +2,14 @@ package io.metaloom.loom.db.jooq.dao.asset.comp;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -806,6 +809,38 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 			.from(FINGERPRINT_TABLE)
 			.where(F_ALGORITHM.eq(algorithm))
 			.fetch(this::mapFingerprintComp);
+	}
+
+	@Override
+	public Stream<AssetFingerprintComp> streamByAlgorithm(String algorithm) {
+		return ctx.select(DSL.asterisk())
+			.from(FINGERPRINT_TABLE)
+			.where(F_ALGORITHM.eq(algorithm))
+			// Ordered so a rebuild is reproducible and a resumed one is comparable to its predecessor.
+			.orderBy(FINGERPRINT_TABLE.field("uuid", UUID.class).asc())
+			.fetchStream()
+			.map(this::mapFingerprintComp);
+	}
+
+	@Override
+	public long countByAlgorithm(String algorithm) {
+		Integer count = ctx.selectCount()
+			.from(FINGERPRINT_TABLE)
+			.where(F_ALGORITHM.eq(algorithm))
+			.fetchOne(0, Integer.class);
+		return count == null ? 0 : count;
+	}
+
+	@Override
+	public Set<UUID> filterExistingFingerprintAssets(String algorithm, Collection<UUID> assetUuids) {
+		if (assetUuids == null || assetUuids.isEmpty()) {
+			return Set.of();
+		}
+		Field<UUID> assetField = FINGERPRINT_TABLE.field("asset_uuid", UUID.class);
+		return Set.copyOf(ctx.selectDistinct(assetField)
+			.from(FINGERPRINT_TABLE)
+			.where(F_ALGORITHM.eq(algorithm).and(assetField.in(assetUuids)))
+			.fetchInto(UUID.class));
 	}
 
 	private AssetFingerprintComp mapFingerprintComp(Record r) {

@@ -44,6 +44,7 @@ the spec in the same change (§ Spec below).
   - Don't mention spec files.
   - Don't include internal coding references (class names, packages, module paths).
   - Keep the tone customer-facing.
+  - Add screenshots for new features and embed those in the docs. See metaloom/loom-ui/scripts
   - Don't use ASCII-art diagrams — use SVG (or the existing `ml-nodeviz` blocks for node pages).
 * See [../website/WEBSITE.md](../website/WEBSITE.md) for the build (the system `hugo` is too old;
   an extended ≥ 0.158 binary is required).

@@ -1,0 +1,50 @@
+{
+  "kind" : "assign",
+  "generatedBy" : "io.metaloom.loom.test.integration.node.docs.DocsLoomFixtureGenerator",
+  "backend" : "real",
+  "requirement" : "loom server (pooled test database)",
+  "state" : "COMPLETED",
+  "durationMs" : 52,
+  "message" : null,
+  "source" : {
+    "path" : "/tmp/loom-docs-library/pexels-photo-2379005.jpeg"
+  },
+  "nodeData" : {
+    "id" : "assign",
+    "target" : "COLLECTION",
+    "collectionName" : "Selects",
+    "onMissing" : "CREATE"
+  },
+  "upstream" : [ {
+    "kind" : "filesystem-source",
+    "sourcePort" : "media",
+    "targetPort" : "media"
+  } ],
+  "outputs" : {
+    "assigned" : {
+      "contentType" : "scalar/boolean",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : true
+      } ]
+    },
+    "target" : {
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "elements" : [ {
+        "origin" : {
+          "itemId" : "item-0",
+          "seq" : 0,
+          "total" : 1
+        },
+        "value" : "2761dd99-e957-418b-85ff-68dc6af8aa5a"
+      } ]
+    }
+  },
+  "previews" : { }
+}

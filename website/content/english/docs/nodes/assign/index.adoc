@@ -46,6 +46,9 @@ link:../move/[Move] with a library target.
 
 == Settings
 
+.The node's settings in the pipeline editor
+image::config.png["The Assign settings panel: Target, Collection Name, On Missing and 4 more settings",role="ml-panel-shot"]
+
 [cols="1,1,2"]
 |===
 | Setting | Default | What it does
@@ -78,6 +81,18 @@ filter by tag, take `hero`, and assign it to the collection your website publish
 Adding the same asset twice is harmless. Membership is a set, so a second run reports `assigned` as
 false and writes nothing — which means you can re-run a pipeline over a library you have already
 curated without duplicating anything.
+
+== Seeing it run
+
+Turn on link:../../pipeline/#debug-mode[Debug Mode] and every node keeps what it produced, on the
+card itself. Below is a real run of this node, filing a photograph into a *Selects* collection.
+
+image::debug.png["The assign node after a run, with the values it emitted on each port",role=img-fluid]
+
+The strip on the card lists what each output port carried — `assigned`, `target`. `assigned` is true
+because this was the first time that photograph went into that collection; a second run over the same
+asset reports false and writes nothing. `target` is the collection itself, which is what you wire
+onwards if a later node needs to know where the asset was filed.
 
 == Good to know
 

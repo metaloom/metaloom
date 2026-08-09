@@ -4,10 +4,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import io.metaloom.loom.api.search.IndexStatus;
 import io.metaloom.loom.api.search.VectorHit;
 import io.metaloom.loom.api.search.VectorIndex;
 import io.metaloom.loom.api.search.VectorQuery;
 import io.metaloom.loom.api.search.VectorRecord;
+import io.metaloom.loom.api.search.VectorSpace;
 
 /**
  * The {@link VectorIndex} bound when no backend is selected ({@code LOOM_VECTOR_INDEX_PROVIDER=none}) or the chosen one could not be opened.
@@ -57,6 +59,26 @@ public class NoopVectorIndex implements VectorIndex {
 		if (all != null) {
 			all.close();
 		}
+	}
+
+	@Override
+	public void drop(VectorSpace space) {
+		// no-op
+	}
+
+	@Override
+	public IndexStatus status() {
+		return new IndexStatus().setHealthy(false).setDetail("No vector index backend is bound (LOOM_VECTOR_INDEX_PROVIDER=none).");
+	}
+
+	@Override
+	public IndexStatus status(VectorSpace space) {
+		return status();
+	}
+
+	@Override
+	public Stream<UUID> streamIndexedEmbeddingUuids() {
+		return Stream.empty();
 	}
 
 	@Override
