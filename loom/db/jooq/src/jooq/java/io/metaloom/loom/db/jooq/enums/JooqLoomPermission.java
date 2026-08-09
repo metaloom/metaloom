@@ -287,7 +287,9 @@ public enum JooqLoomPermission implements EnumType {
 
     UPDATE_MCP_PIPELINE("UPDATE_MCP_PIPELINE"),
 
-    VALIDATE_MCP_PIPELINE("VALIDATE_MCP_PIPELINE");
+    VALIDATE_MCP_PIPELINE("VALIDATE_MCP_PIPELINE"),
+
+    EXECUTE_MCP_NODE("EXECUTE_MCP_NODE");
 
     private final String literal;
 

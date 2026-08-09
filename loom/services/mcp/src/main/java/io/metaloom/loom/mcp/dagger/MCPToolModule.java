@@ -9,14 +9,18 @@ import dagger.Provides;
 import dagger.multibindings.ElementsIntoSet;
 import io.metaloom.loom.mcp.tool.MCPTool;
 import io.metaloom.loom.mcp.tool.impl.AssetStatisticsTool;
+import io.metaloom.loom.mcp.tool.impl.CancelJobTool;
 import io.metaloom.loom.mcp.tool.impl.CreatePipelineTool;
 import io.metaloom.loom.mcp.tool.impl.GetAssetTool;
+import io.metaloom.loom.mcp.tool.impl.GetJobTool;
 import io.metaloom.loom.mcp.tool.impl.GetNodeDescriptorTool;
 import io.metaloom.loom.mcp.tool.impl.GetPipelineTool;
 import io.metaloom.loom.mcp.tool.impl.ListCollectionsTool;
 import io.metaloom.loom.mcp.tool.impl.ListNodeDescriptorsTool;
 import io.metaloom.loom.mcp.tool.impl.ListPipelinesTool;
 import io.metaloom.loom.mcp.tool.impl.PipelineAuthoringGuideTool;
+import io.metaloom.loom.mcp.tool.impl.RunNodeGraphTool;
+import io.metaloom.loom.mcp.tool.impl.RunNodeProbeTool;
 import io.metaloom.loom.mcp.tool.impl.SearchAssetsTool;
 import io.metaloom.loom.mcp.tool.impl.SearchTranscriptTool;
 import io.metaloom.loom.mcp.tool.impl.UpdatePipelineTool;
@@ -44,7 +48,11 @@ public class MCPToolModule {
 		PipelineAuthoringGuideTool pipelineAuthoringGuideTool,
 		ValidatePipelineTool validatePipelineTool,
 		CreatePipelineTool createPipelineTool,
-		UpdatePipelineTool updatePipelineTool) {
+		UpdatePipelineTool updatePipelineTool,
+		RunNodeProbeTool runNodeProbeTool,
+		RunNodeGraphTool runNodeGraphTool,
+		GetJobTool getJobTool,
+		CancelJobTool cancelJobTool) {
 		return new HashSet<>(Arrays.asList(
 			searchAssetsTool,
 			getAssetTool,
@@ -59,7 +67,12 @@ public class MCPToolModule {
 			pipelineAuthoringGuideTool,
 			validatePipelineTool,
 			createPipelineTool,
-			updatePipelineTool));
+			updatePipelineTool,
+			// Ad-hoc node execution: run one node now, or run a graph as a job and read it back later.
+			runNodeProbeTool,
+			runNodeGraphTool,
+			getJobTool,
+			cancelJobTool));
 	}
 
 }

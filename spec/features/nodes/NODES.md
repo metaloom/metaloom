@@ -112,6 +112,15 @@ Every persisting node does two things inside `compute()`, guarded by `asset != n
    → `POST /api/v1/assets/:uuid/node-results` → `asset_node_result`, **UNIQUE (asset_uuid, node_kind, node_id)**.
    Best-effort: a ledger failure never fails the node.
 
+⚠️ **`node_id` is a namespace, not a label.** Because the key is `(asset, node_kind, node_id)` and the
+write is an upsert, anything reusing a pipeline's graph-local node id silently overwrites that
+pipeline's catalog state. Ad-hoc node runs therefore write under `node_id = "adhoc:<runUuid[0..8]>"`
+— a valid graph node id matches `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$` and cannot contain a colon, so
+the collision is impossible rather than unlikely, and withdrawal is
+`DELETE ... WHERE node_id LIKE 'adhoc:%'`. Any future writer that is not a pipeline node must pick a
+prefixed namespace the same way. See
+[../../chat/AGENTIC_NODE_EXECUTION.md](../../chat/AGENTIC_NODE_EXECUTION.md).
+
 All 32 node classes call `recordNodeResult`. ⚠️ `WhisperNode` declares a **private overload** that
 shadows the base method — do not copy it.
 

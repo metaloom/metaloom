@@ -55,9 +55,9 @@ Three layers must stay in sync:
 
 | Layer | Type | Location |
 |---|---|---|
-| Java | `enum Permission` — **129** constants | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java` |
-| Postgres | `loom_permission` enum — **130** values | `V2.1__add_acl.sql` + later `ALTER TYPE` migrations |
-| Generated | `enum JooqLoomPermission` — **130** | `loom/db/jooq/src/jooq/java/.../enums/JooqLoomPermission.java` |
+| Java | `enum Permission` — **130** constants | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java` |
+| Postgres | `loom_permission` enum — **131** values | `V2.1__add_acl.sql` + later `ALTER TYPE` migrations |
+| Generated | `enum JooqLoomPermission` — **131** | `loom/db/jooq/src/jooq/java/.../enums/JooqLoomPermission.java` |
 
 `PermissionDaoImpl` bridges with `JooqLoomPermission.valueOf(perm.name())`, so a
 Java constant without a Postgres value throws `IllegalArgumentException` at grant time.
@@ -140,7 +140,7 @@ Tables and identity contract: [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md)
 ### 2.5 The REST mirror enum `RolePermission`
 
 `loom-shared/rest-model/.../role/RolePermission.java` is a **literal mirror** of
-`Permission`: same 129 constants, same names. It exists because `loom-rest-model` must
+`Permission`: same 130 constants, same names. It exists because `loom-rest-model` must
 not depend on `loom-db-api`; `RoleEndpointService` bridges the two with
 `Permission.valueOf(restPerm.name())`.
 
@@ -264,7 +264,7 @@ startup, idempotently (each step guarded by a load-first check), and establishes
 exactly one privileged path:
 
 ```
-user "admin" → group "admins" → role "admin-role" → all 129 permissions
+user "admin" → group "admins" → role "admin-role" → all 130 permissions
 ```
 
 Constants: `DatabaseInitializer.GROUP_NAME = "admins"`, `ROLE_NAME = "admin-role"`,
@@ -672,10 +672,10 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 
 | Class | Package / module | Purpose |
 |---|---|---|
-| `Permission` | `io.metaloom.loom.db.model.perm` (loom-db-api) | The 129-value enum — Java source of truth, with per-constant audit comments |
+| `Permission` | `io.metaloom.loom.db.model.perm` (loom-db-api) | The 130-value enum — Java source of truth, with per-constant audit comments |
 | `PermissionDao` / `PermissionDaoImpl` | `…db.model.perm` / `…db.jooq.dao.perm` | Grant + load API; performs the group→role join |
 | `ResourcePermission` / `ResourcePermissionSet` | `io.metaloom.loom.db.model.perm` | `(permission, resource)` pair with **no** `equals`/`hashCode`; `HashSet` subclass |
-| `JooqLoomPermission` | `io.metaloom.loom.db.jooq.enums` (generated) | 130-value enum generated from Postgres |
+| `JooqLoomPermission` | `io.metaloom.loom.db.jooq.enums` (generated) | 131-value enum generated from Postgres |
 | `LoomAuthorizationProvider` | `io.metaloom.loom.auth` (auth-common) | Loads perms into Vert.x authorizations; **drops `resource`** |
 | `PermissionCache` | `io.metaloom.loom.auth` (auth-common) | Caffeine, 10k entries, no TTL / no invalidation |
 | `LoomRoutingContext` | `io.metaloom.loom.rest` (loom-rest) | `requirePerm` (`:147`), `permissions()` (`:141`), `permissionChecker()` (`:124`) |
@@ -689,7 +689,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 | `TestFixtureProvider` | `io.metaloom.loom.test.fixture` (loom-fixture) | Test RBAC graph with stable UUIDs |
 | `AbstractCRUDEndpointTest` / `CRUDEndpointTestcases` | `io.metaloom.loom.core.endpoint` (test) | Compiler-enforced 403 cases |
 | `PermissionDaoTest` / `AclCascadeTest` | `io.metaloom.loom.db.perm` / `…db.jooq.dao` (test) | Grant resolution / cascade semantics |
-| `RolePermission` | `io.metaloom.loom.rest.model.role` (rest-model) | REST mirror of `Permission`, 129 constants, parity-tested (§2.5) |
+| `RolePermission` | `io.metaloom.loom.rest.model.role` (rest-model) | REST mirror of `Permission`, 130 constants, parity-tested (§2.5) |
 
 ---
 
@@ -720,7 +720,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 
 ### 13.1 Implemented
 
-- [x] `loom_permission` Postgres enum (130 values) and Java `Permission` (129)
+- [x] `loom_permission` Postgres enum (131 values) and Java `Permission` (130)
 - [x] `role_permission`, `user_permission`, `token_permission` tables
 - [x] `user_group` / `role_group` join tables with cascade
 - [x] `PermissionDao` grant + load API

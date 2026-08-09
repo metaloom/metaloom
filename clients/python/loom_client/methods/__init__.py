@@ -38,6 +38,7 @@ from .info import InfoMethods
 from .json_comp import JsonCompMethods
 from .library import LibraryMethods
 from .node_result import NodeResultMethods
+from .node_run import NodeRunMethods
 from .person import PersonMethods
 from .pipeline import PipelineMethods
 from .reaction import ReactionMethods
@@ -81,6 +82,7 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     JsonCompMethods,
     LibraryMethods,
     NodeResultMethods,
+    NodeRunMethods,
     PersonMethods,
     PipelineMethods,
     ReactionMethods,
@@ -124,6 +126,7 @@ __all__ = [
     "JsonCompMethods",
     "LibraryMethods",
     "NodeResultMethods",
+    "NodeRunMethods",
     "PersonMethods",
     "PipelineMethods",
     "ReactionMethods",

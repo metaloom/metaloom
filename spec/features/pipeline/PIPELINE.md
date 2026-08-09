@@ -733,6 +733,8 @@ never read by anything**.
 | `V2.68__pipeline_node_task_generation.sql` | `generation INTEGER NOT NULL DEFAULT 0`; idempotency key becomes `UNIQUE (item_uuid, node_id, element_seq, generation)` |
 | `V2.76__mcp_pipeline_permissions.sql` | `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` — authoring through an agent, granted separately from authoring in the editor |
 | `V2.77__normalize_pipeline_run_item_state.sql` | Rewrites `pipeline_run_item.state = 'FAILURE'` to `'FAILED'` and documents the vocabulary on the column. Data only — no schema change |
+| `V2.82__execute_mcp_node_permission.sql` | `EXECUTE_MCP_NODE` — running a node without a stored pipeline, granted separately from authoring one |
+| `V2.83__adhoc_pipeline_run.sql` | **`pipeline_run.pipeline_uuid` becomes nullable** and `kind VARCHAR NOT NULL DEFAULT 'PIPELINE'` is added, with a CHECK pairing the two. A `kind = 'ADHOC'` run carries its definition in `meta.definition` and belongs to no pipeline — see [AGENTIC_NODE_EXECUTION.md](../../chat/AGENTIC_NODE_EXECUTION.md) |
 
 **`V2.68` is the re-execution migration** ([§6.4b](#64b-re-executing-a-held-node-with-different-settings)).
 A node held at a breakpoint can be run again with different settings, and each attempt keeps
@@ -915,6 +917,11 @@ post-refactor, but the parameter is dead weight on the interface.
   `/api/v1/pipelines/events/ws` escapes the auth chain. **A new endpoint is
   unauthenticated until you add it to that list.**
 - There is **no `POST /validate`** endpoint.
+- **A run does not have to belong to a pipeline.** `/api/v1/node-runs` starts an *ad-hoc* run from a
+  definition supplied with the request; those rows carry `kind = 'ADHOC'`, a null `pipeline_uuid`, and
+  are deliberately invisible to every route above — including `/runs/stats`, which counts scheduled
+  processing only. That subsystem is owned by
+  [AGENTIC_NODE_EXECUTION.md](../../chat/AGENTIC_NODE_EXECUTION.md); do not add ad-hoc routes here.
 - **Previews are metadata in the list and bytes on their own route.** `toPipelineNodeTaskRecord`
   strips the base64 and substitutes a `url`; inlining it would put a blob per image port into a
   JSON document the browser cannot cache per image. The byte route answers `304` against an ETag

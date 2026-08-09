@@ -2,15 +2,32 @@ package io.metaloom.loom.db.model.pipeline;
 
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.PipelineRunKind;
 import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.CUDElement;
 import io.vertx.core.json.JsonObject;
 
 public interface PipelineRun extends CUDElement<PipelineRun> {
 
+	/**
+	 * The {@link #getMeta()} key an {@link PipelineRunKind#ADHOC} run stores its executable graph
+	 * under. It is the same definition JSON the pipeline catalog stores, so recovery and validation
+	 * need no second format.
+	 */
+	String META_DEFINITION = "definition";
+
+	/**
+	 * The pipeline this run executes, or {@code null} for a {@link PipelineRunKind#ADHOC} run, which
+	 * carries its definition in {@link #getMeta()} under {@code definition} instead.
+	 */
 	UUID getPipelineUuid();
 
 	PipelineRun setPipelineUuid(UUID pipelineUuid);
+
+	/** Where the definition came from. Never {@code null}; existing rows read back as {@code PIPELINE}. */
+	PipelineRunKind getKind();
+
+	PipelineRun setKind(PipelineRunKind kind);
 
 	int getPipelineVersion();
 

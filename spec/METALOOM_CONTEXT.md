@@ -174,8 +174,13 @@ spec/
 │   ├── AGENTIC_CHAT_PLAN.md           # 🔵 NEW 2026-08-08 — the vision and the gap map. Five capability
 │   │                                  #   tiers (retrieve/comprehend/act/produce/ship), what is missing
 │   │                                  #   in backend, frontend and loop, and §6 the KEYSTONE gap:
-│   │                                  #   there is NO ad-hoc node execution API. Read §6 before
-│   │                                  #   designing anything that runs a node from chat
+│   │                                  #   §6's ad-hoc node execution gap is now CLOSED — see
+│   │                                  #   AGENTIC_NODE_EXECUTION.md, which owns that subsystem
+│   ├── AGENTIC_NODE_EXECUTION.md      # 🟢 NEW 2026-08-09 — ad-hoc ("pipelineless") node execution:
+│   │                                  #   POST /api/v1/node-runs, the four MCP execution tools,
+│   │                                  #   pipeline_run.kind = ADHOC, and the rules about what such a
+│   │                                  #   run may record. Answers AGENTIC_CHAT_PLAN §6.5. Read it
+│   │                                  #   before running a node from anywhere but a stored pipeline
 │   ├── CHAT_USER_REQUESTS.md          # 🔵 NEW 2026-08-08 — 88 user prompts worked through the stack,
 │   │                                  #   24 extracted open spots (N1–N24) and a ranking of what blocks
 │   │                                  #   the most. The top two blockers are reading data Loom already
@@ -398,7 +403,8 @@ spec/
 | A DAO / migration | [loom/PERSISTENCE.md](loom/PERSISTENCE.md) + [loom/DOMAIN.md](loom/DOMAIN.md) |
 | Permissions / authorization | [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md), [features/rbac/RBAC.md](features/rbac/RBAC.md) |
 | Chat / AI agent / skills / memory | [chat/LOOM_UI_CHAT.md](chat/LOOM_UI_CHAT.md), [features/chat/CHAT_MEMORY_PLAN.md](features/chat/CHAT_MEMORY_PLAN.md), open defects in [tasks/CHAT_TASKS.md](tasks/CHAT_TASKS.md) |
-| **What the chat agent should become** — capability tiers, the gap map, the roadmap | [chat/AGENTIC_CHAT_PLAN.md](chat/AGENTIC_CHAT_PLAN.md). 🔴 §6: **ad-hoc node execution does not exist** — `POST /pipelines/:uuid/run` needs a stored pipeline, and per-node re-execution only works inside a live, breakpointed run |
+| **What the chat agent should become** — capability tiers, the gap map, the roadmap | [chat/AGENTIC_CHAT_PLAN.md](chat/AGENTIC_CHAT_PLAN.md). §6's keystone gap is closed; the subsystem is owned by [chat/AGENTIC_NODE_EXECUTION.md](chat/AGENTIC_NODE_EXECUTION.md) |
+| **Running a node on chosen assets without a stored pipeline** | [chat/AGENTIC_NODE_EXECUTION.md](chat/AGENTIC_NODE_EXECUTION.md) — `POST /api/v1/node-runs`, `run_node_probe`/`run_node_graph`/`get_job`/`cancel_job`, and why a probe writes nothing by default |
 | **What users will ask the chat, and whether Loom can answer** | [chat/CHAT_USER_REQUESTS.md](chat/CHAT_USER_REQUESTS.md) — 88 prompts, 24 open spots, ranked by what blocks the most |
 | **Getting node results (faces, captions, GPS, transcripts, detections) in front of the model** | [chat/AGENTIC_CHAT_CONTEXT_DATA.md](chat/AGENTIC_CHAT_CONTEXT_DATA.md) — render on read, do **not** materialize a markdown corpus per asset; `search_document` is already the precomputed text layer |
 | The UI | [loom/ui/LOOM_UI.md](loom/ui/LOOM_UI.md) + the matching `TASK_UI_*.md` |

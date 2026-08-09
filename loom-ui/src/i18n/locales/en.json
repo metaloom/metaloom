@@ -793,6 +793,7 @@
         "CREATE_MCP_PIPELINE": "Let the assistant create pipelines. Granted in addition to \"Create new pipelines\" — both are needed.",
         "UPDATE_MCP_PIPELINE": "Let the assistant change existing pipelines. Granted in addition to \"Edit existing pipelines\" — both are needed.",
         "VALIDATE_MCP_PIPELINE": "Let the assistant check a draft pipeline. Nothing is stored, so this can be granted on its own.",
+        "EXECUTE_MCP_NODE": "Let the assistant run processing nodes on chosen assets without a stored pipeline. This spends worker and GPU time, so it is granted separately from the authoring permissions.",
         "CREATE_ASSET_POOL": "Create new asset pools — storage locations that assets are scanned from.",
         "READ_ASSET_POOL": "View asset pools — storage locations that assets are scanned from.",
         "DELETE_ASSET_POOL": "Delete asset pools — storage locations that assets are scanned from.",

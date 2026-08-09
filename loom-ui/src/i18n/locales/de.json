@@ -784,6 +784,7 @@
         "CREATE_MCP_PIPELINE": "Dem Assistenten erlauben, Pipelines anzulegen. Wird zusätzlich zu „Neue Pipelines anlegen“ vergeben — beides ist nötig.",
         "UPDATE_MCP_PIPELINE": "Dem Assistenten erlauben, bestehende Pipelines zu ändern. Wird zusätzlich zu „Bestehende Pipelines bearbeiten“ vergeben — beides ist nötig.",
         "VALIDATE_MCP_PIPELINE": "Dem Assistenten erlauben, einen Pipeline-Entwurf zu prüfen. Dabei wird nichts gespeichert, kann also allein vergeben werden.",
+        "EXECUTE_MCP_NODE": "Dem Assistenten erlauben, Verarbeitungs-Nodes ohne gespeicherte Pipeline auf ausgewählte Assets anzuwenden. Das verbraucht Worker- und GPU-Zeit und wird deshalb getrennt von den Autoren-Rechten vergeben.",
         "CREATE_ASSET_POOL": "Neue Asset-Pools anlegen — Speicherorte, aus denen Assets eingelesen werden.",
         "READ_ASSET_POOL": "Asset-Pools ansehen — Speicherorte, aus denen Assets eingelesen werden.",
         "DELETE_ASSET_POOL": "Asset-Pools löschen — Speicherorte, aus denen Assets eingelesen werden.",

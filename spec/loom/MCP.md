@@ -236,7 +236,7 @@ bounded** (producer caps it — `GetPipelineTool.MAX_NODES`/`MAX_EDGES` — and
 
 ## 5. Registered Tools
 
-Seventeen tool implementations in total — the thirteen core tools always, the four
+Twenty-one tool implementations in total — the seventeen core tools always, the four
 memory tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`).
 
 | Tool                | Class                  | Module   | Permissions       | Identity | References | Visual |
@@ -254,13 +254,21 @@ memory tools only when `LOOM_AGENT_MEMORY_ENABLED=true` (default `false`).
 | `validate_pipeline` | `ValidatePipelineTool` | mcp      | `READ_PIPELINE` + `VALIDATE_MCP_PIPELINE` | no | — | —  |
 | `create_pipeline`   | `CreatePipelineTool`   | mcp      | `CREATE_PIPELINE` + `CREATE_MCP_PIPELINE` | **yes** | pipeline | `pipeline-graph` |
 | `update_pipeline`   | `UpdatePipelineTool`   | mcp      | `UPDATE_PIPELINE` + `UPDATE_MCP_PIPELINE` | **yes** | pipeline | `pipeline-graph` |
+| `run_node_probe`    | `RunNodeProbeTool`     | mcp      | `READ_ASSET` + `EXECUTE_MCP_NODE` | **yes** | — | — |
+| `run_node_graph`    | `RunNodeGraphTool`     | mcp      | `READ_ASSET` + `EXECUTE_MCP_NODE` | **yes** | — | `job-card` |
+| `get_job`           | `GetJobTool`           | mcp      | `EXECUTE_MCP_NODE` | **yes** | — | `job-card` |
+| `cancel_job`        | `CancelJobTool`        | mcp      | `EXECUTE_MCP_NODE` | **yes** | — | — |
 | `list_memory`       | `ListMemoryTool`       | memory   | `READ_MEMORY`     | **yes**  | —          | —      |
 | `get_memory`        | `GetMemoryTool`        | memory   | `READ_MEMORY`     | **yes**  | memory     | —      |
 | `put_memory`        | `PutMemoryTool`        | memory   | `UPDATE_MEMORY`   | **yes**  | memory     | —      |
 | `delete_memory`     | `DeleteMemoryTool`     | memory   | `DELETE_MEMORY`   | **yes**  | —          | —      |
 
 The write surface is the two pipeline authoring tools plus the two memory writes;
-everything else is read-oriented.
+everything else is read-oriented. The four execution tools are a third category: they write nothing
+by default but they **spend worker and GPU time**, which is why `EXECUTE_MCP_NODE` is separate from
+the authoring permissions — an operator can grant designing a pipeline without granting running one.
+They are owned by [../chat/AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md); a rejection
+from any of them is a tool result, never a failed future.
 
 ### 5.1 Asset & collection tools
 
@@ -427,7 +435,7 @@ prompt; `dispatch` is the gate. Both are tested, in
 
 ### 6.0a MCP-specific pipeline permissions
 
-Three permissions gate pipeline authoring *through an agent*, separately from the
+Four permissions gate pipeline work *through an agent*, separately from the
 `*_PIPELINE` quad that gates the editor and the REST API:
 
 | Permission | Gates |
@@ -435,6 +443,7 @@ Three permissions gate pipeline authoring *through an agent*, separately from th
 | `CREATE_MCP_PIPELINE` | `create_pipeline` |
 | `UPDATE_MCP_PIPELINE` | `update_pipeline` |
 | `VALIDATE_MCP_PIPELINE` | `validate_pipeline` |
+| `EXECUTE_MCP_NODE` | `run_node_probe`, `run_node_graph`, `get_job`, `cancel_job` |
 
 Letting an agent write a pipeline is a different trust decision from letting a person
 draw one, and an administrator has to be able to grant one without the other. The two
@@ -444,8 +453,13 @@ user is able to do. `VALIDATE_MCP_PIPELINE` is separate because the dry run writ
 nothing: an operator can hand the agent the design-and-check loop while withholding the
 ability to store the result.
 
-Added by `V2.76__mcp_pipeline_permissions.sql`; UI group **Pipeline (assistant)** in
-`AdminArea.tsx`. See
+`EXECUTE_MCP_NODE` follows the same logic one step further: designing a pipeline and
+*spending processing time* are different trust decisions, and it is the only permission
+that lets a caller occupy the worker fleet. The probe and graph tools declare it
+alongside `READ_ASSET`, so granting it alone can never widen what a user may read.
+
+Added by `V2.76__mcp_pipeline_permissions.sql` and `V2.82__execute_mcp_node_permission.sql`;
+UI group **Pipeline (assistant)** in `AdminArea.tsx`. See
 [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md).
 
 ### 6.1 Environment variables
@@ -608,7 +622,7 @@ tool definitions → model emits calls → `tools/call` per call → feed result
 | Descriptor / schema / `enum` params         | `…/mcp/model/MCPToolDescriptor.java` |
 | Caller identity record                      | `…/mcp/model/MCPCallerContext.java` |
 | Result envelopes (`references`, `visuals`)  | `…/mcp/tool/MCPToolResults.java` |
-| The 13 core tool implementations            | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/impl/` |
+| The 17 core tool implementations            | `loom/services/mcp/src/main/java/io/metaloom/loom/mcp/tool/impl/` |
 | The shared pipeline write path              | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineAuthoringService.java` |
 | The pipeline authoring guide (markdown)     | `loom/common/src/main/resources/skills/pipeline-authoring.md` |
 | The 4 memory tools                          | `loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/tool/` |

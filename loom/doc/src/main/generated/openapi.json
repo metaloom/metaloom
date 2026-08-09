@@ -83,6 +83,8 @@
     "name" : "memory-deny-rules",
     "description" : "Administration of the agent memory denylist"
   }, {
+    "name" : "node-runs"
+  }, {
     "name" : "notifications",
     "description" : "The caller's notification inbox: list, mark read, dismiss and clear"
   }, {
@@ -20118,6 +20120,518 @@
         }
       }
     },
+    "/api/v1/node-runs" : {
+      "description" : "Start an ad-hoc node run from a definition supplied with the request, and return a handle to poll.",
+      "get" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Load a paged list of the caller's ad-hoc node runs, newest first.",
+        "description" : "Load a paged list of the caller's ad-hoc node runs, newest first.",
+        "operationId" : "getNoderuns",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The node run list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : "RUNNING",
+                    "mediaCount" : 2,
+                    "successCount" : 1,
+                    "failureCount" : 0,
+                    "skippedCount" : 0,
+                    "definition" : {
+                      "version" : 1,
+                      "name" : "describe images",
+                      "nodes" : [ {
+                        "id" : "vlm",
+                        "type" : "vlm",
+                        "options" : {
+                          "prompt" : "What is in this image?"
+                        }
+                      } ]
+                    },
+                    "results" : [ {
+                      "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "mediaPath" : "/data/media/beach.jpg",
+                      "nodeId" : "vlm",
+                      "nodeKind" : "vlm",
+                      "state" : "COMPLETED",
+                      "outputs" : {
+                        "text" : {
+                          "contentType" : "text/plain",
+                          "cardinality" : "ONE",
+                          "elements" : [ {
+                            "value" : "A beach at sunset.",
+                            "seq" : 0
+                          } ]
+                        }
+                      },
+                      "durationMs" : 4120
+                    } ]
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Start an ad-hoc node run from a definition supplied with the request, and return a handle to poll.",
+        "description" : "Start an ad-hoc node run from a definition supplied with the request, and return a handle to poll.",
+        "operationId" : "postNoderuns",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "definition" : {
+                  "version" : 1,
+                  "name" : "describe images",
+                  "nodes" : [ {
+                    "id" : "vlm",
+                    "type" : "vlm",
+                    "options" : {
+                      "prompt" : "What is in this image?"
+                    }
+                  } ]
+                },
+                "assetUuids" : [ "f04e89d0-076d-4d90-b192-715a25a2cd59", "86abc160-4da2-4951-a91f-da0c33fbc634" ],
+                "persist" : true
+              }
+            }
+          }
+        },
+        "responses" : {
+          "202" : {
+            "description" : "The node run handle",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : "RUNNING",
+                  "accepted" : 2,
+                  "rejected" : 0,
+                  "rejectedAssetUuids" : [ ],
+                  "etaMs" : 10000,
+                  "message" : "2 item(s) accepted"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/node-runs/{uuid}" : {
+      "description" : "Load the status and results of one of the caller's ad-hoc node runs. Pass ?results=false for the status alone.",
+      "get" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Load the status and results of one of the caller's ad-hoc node runs. Pass ?results=false for the status alone.",
+        "description" : "Load the status and results of one of the caller's ad-hoc node runs. Pass ?results=false for the status alone.",
+        "operationId" : "getNoderunsByUuid",
+        "responses" : {
+          "200" : {
+            "description" : "The node run status response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : "RUNNING",
+                  "mediaCount" : 2,
+                  "successCount" : 1,
+                  "failureCount" : 0,
+                  "skippedCount" : 0,
+                  "definition" : {
+                    "version" : 1,
+                    "name" : "describe images",
+                    "nodes" : [ {
+                      "id" : "vlm",
+                      "type" : "vlm",
+                      "options" : {
+                        "prompt" : "What is in this image?"
+                      }
+                    } ]
+                  },
+                  "results" : [ {
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "mediaPath" : "/data/media/beach.jpg",
+                    "nodeId" : "vlm",
+                    "nodeKind" : "vlm",
+                    "state" : "COMPLETED",
+                    "outputs" : {
+                      "text" : {
+                        "contentType" : "text/plain",
+                        "cardinality" : "ONE",
+                        "elements" : [ {
+                          "value" : "A beach at sunset.",
+                          "seq" : 0
+                        } ]
+                      }
+                    },
+                    "durationMs" : 4120
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/node-runs/{uuid}/cancel" : {
+      "description" : "Cancel one of the caller's ad-hoc node runs.",
+      "post" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Cancel one of the caller's ad-hoc node runs.",
+        "description" : "Cancel one of the caller's ad-hoc node runs.",
+        "operationId" : "postNoderunsByUuidCancel",
+        "responses" : {
+          "200" : {
+            "description" : "The node run cancel response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "message" : "Node run cancelled"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/node-runs/probes" : {
+      "description" : "Run a single node against a single asset and wait for the result. A node that cannot be run reports why in the response rather than failing the request.",
+      "post" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Run a single node against a single asset and wait for the result. A node that cannot be run reports why in the response rather than failing the request.",
+        "description" : "Run a single node against a single asset and wait for the result. A node that cannot be run reports why in the response rather than failing the request.",
+        "operationId" : "postNoderunsProbes",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "kind" : "vlm",
+                "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                "options" : {
+                  "prompt" : "What is in this image?"
+                },
+                "persist" : false
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The node probe response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "state" : "COMPLETED",
+                  "nodeKind" : "vlm",
+                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "durationMs" : 4120,
+                  "outputs" : {
+                    "text" : {
+                      "contentType" : "text/plain",
+                      "cardinality" : "ONE",
+                      "elements" : [ {
+                        "value" : "A beach at sunset.",
+                        "seq" : 0
+                      } ]
+                    }
+                  },
+                  "text" : "beach.jpg\n  vlm: COMPLETED (4120ms)\n    text [text/plain]: A beach at sunset.\n"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications" : {
       "description" : "Load a paged list of the caller's notifications. Pass ?unread=true to restrict to unread entries.",
       "get" : {
@@ -21604,7 +22118,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "123db6d7-955b-4b6a-b631-be4c50c18dce",
+                    "versionUuid" : "2f25e48d-add6-40d1-9988-01366dc77fe8",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -21631,7 +22145,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "df9d8898-1c21-4217-bc00-cc1b4ee621bb",
+                    "versionUuid" : "02b53c95-3785-45d6-9af7-e77f11af1274",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -21738,7 +22252,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "d6e8374d-ad79-42ef-bb26-c5c9a244d7f2",
+                  "versionUuid" : "6069bc94-6386-411a-b971-fcbda7f4ab7e",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -21824,7 +22338,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "ec36cc1f-ef4a-4679-9ab3-183b8585ac7d",
+                  "versionUuid" : "924b388f-3669-4ef7-bda3-c6a385c208b2",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -21931,7 +22445,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "9d1b516a-75c0-410e-9d0c-596586ad8bab",
+                  "versionUuid" : "a33cbc07-37e7-42d1-b2a4-4570bd7ed76b",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22093,7 +22607,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "43bcc1d0-0d58-4762-b51d-4f7d1be4311b",
+                  "runUuid" : "b6b123b5-e8d8-49f3-b8fe-905e9075e0c6",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -22219,11 +22733,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "ba1306fe-e5f3-4448-8a34-e00abed51a9c",
-                    "pipelineUuid" : "46c3ba22-8e6b-4e2a-b3ba-4fa8a70dfc74",
+                    "uuid" : "20c2f804-e047-4e33-a1f6-e01b1dbaee60",
+                    "pipelineUuid" : "51a450de-4ad2-40e9-a7b7-53c07356e60b",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T00:30:36.551076099Z",
-                    "finished" : "2026-08-09T00:30:36.551217318Z",
+                    "started" : "2026-08-09T09:29:07.993651962Z",
+                    "finished" : "2026-08-09T09:29:07.993781732Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22232,11 +22746,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "4d842b8a-6693-46b8-9715-6d34652d2d3c",
-                    "pipelineUuid" : "2fe6c365-eba2-4203-8d2c-7a41a7eb5c98",
+                    "uuid" : "e9d26c2b-53e3-466e-b7b2-cdba9fe8f74f",
+                    "pipelineUuid" : "3ba8b4d1-9af1-470f-9c16-969aef35ef30",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T00:30:36.551393328Z",
-                    "finished" : "2026-08-09T00:30:36.551398758Z",
+                    "started" : "2026-08-09T09:29:07.993929312Z",
+                    "finished" : "2026-08-09T09:29:07.993934352Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22329,11 +22843,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "c7388f05-485d-4611-acee-886bb5f2ad2f",
-                  "pipelineUuid" : "e9c55302-8562-4bbd-9147-46f789d7ed2b",
+                  "uuid" : "08ed4d5a-11be-4016-b67a-999d54149792",
+                  "pipelineUuid" : "c876e2cc-50b8-4d8a-918f-0c9eec080fb4",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-09T00:30:36.552418996Z",
-                  "finished" : "2026-08-09T00:30:36.552426936Z",
+                  "started" : "2026-08-09T09:29:07.994858571Z",
+                  "finished" : "2026-08-09T09:29:07.994865901Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -22823,16 +23337,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "cb545cc2-1141-4a49-9124-382f7b832f0a",
-                    "runUuid" : "7d33a4f5-f825-4b6e-98ac-0de73eee8066",
+                    "uuid" : "82e3210d-1615-47ae-864e-d4df0fabe0aa",
+                    "runUuid" : "4b539adb-27ff-4e8f-839f-ad7fac980c10",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "5c59a072-e312-4656-b2b5-f9ce61047a69",
-                    "runUuid" : "f9fea0d4-bbbc-4c0b-9a71-ca60fb97f30d",
+                    "uuid" : "3dabe4e0-bb7f-488d-88d5-239089b22008",
+                    "runUuid" : "394aab7b-a4fb-464a-b50f-d5fb5bd9f666",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -22933,9 +23447,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "733a4471-4f0e-4841-a4f1-4dc50b83cab9",
-                    "itemUuid" : "295e182c-595b-46bb-ad1c-55977904cfcf",
-                    "runUuid" : "2bfde669-cc5d-41a1-9152-3092b575610f",
+                    "uuid" : "0818e838-7134-48f1-8f54-2e97e43d12ab",
+                    "itemUuid" : "cd37f664-99a4-4c4a-8265-edbf395b18be",
+                    "runUuid" : "2f6b8cb3-5e0b-4602-82b1-853a53a81f6b",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -23601,7 +24115,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "f3814531-7ff9-4552-b7ea-1ca5712329b2",
+                    "versionUuid" : "045ae0eb-0685-45e1-aea3-d8cbb050b7fe",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23628,7 +24142,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "9e40fbfc-5d32-4682-88cf-f46d39d37335",
+                    "versionUuid" : "cff7e9c8-4013-4e35-9593-d9598da6680b",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23739,7 +24253,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "ac2b0b0c-3a79-4d52-94a9-01e5e95a1498",
+                  "versionUuid" : "485dbdd2-41ce-4138-9a14-fd2312ad2809",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23864,7 +24378,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "8f73c600-6d89-44bc-8290-8894eb7e38b2",
+                  "versionUuid" : "71e51a02-d75f-4a5b-9720-b363ea27998f",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

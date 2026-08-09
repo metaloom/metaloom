@@ -62,6 +62,7 @@ tags:
   description: "Agent memory - scopes, notes and entries"
 - name: memory-deny-rules
   description: Administration of the agent memory denylist
+- name: node-runs
 - name: notifications
   description: "The caller's notification inbox: list, mark read, dismiss and clear"
 - name: persons
@@ -13958,6 +13959,373 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/node-runs:
+    description: "Start an ad-hoc node run from a definition supplied with the request,\
+      \ and return a handle to poll."
+    get:
+      tags:
+      - node-runs
+      summary: "Load a paged list of the caller's ad-hoc node runs, newest first."
+      description: "Load a paged list of the caller's ad-hoc node runs, newest first."
+      operationId: getNoderuns
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The node run list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status: RUNNING
+                  mediaCount: 2
+                  successCount: 1
+                  failureCount: 0
+                  skippedCount: 0
+                  definition:
+                    version: 1
+                    name: describe images
+                    nodes:
+                    - id: vlm
+                      type: vlm
+                      options:
+                        prompt: What is in this image?
+                  results:
+                  - assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    mediaPath: /data/media/beach.jpg
+                    nodeId: vlm
+                    nodeKind: vlm
+                    state: COMPLETED
+                    outputs:
+                      text:
+                        contentType: text/plain
+                        cardinality: ONE
+                        elements:
+                        - value: A beach at sunset.
+                          seq: 0
+                    durationMs: 4120
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - node-runs
+      summary: "Start an ad-hoc node run from a definition supplied with the request,\
+        \ and return a handle to poll."
+      description: "Start an ad-hoc node run from a definition supplied with the request,\
+        \ and return a handle to poll."
+      operationId: postNoderuns
+      requestBody:
+        content:
+          application/json:
+            example:
+              definition:
+                version: 1
+                name: describe images
+                nodes:
+                - id: vlm
+                  type: vlm
+                  options:
+                    prompt: What is in this image?
+              assetUuids:
+              - f04e89d0-076d-4d90-b192-715a25a2cd59
+              - 86abc160-4da2-4951-a91f-da0c33fbc634
+              persist: true
+      responses:
+        "202":
+          description: The node run handle
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status: RUNNING
+                accepted: 2
+                rejected: 0
+                rejectedAssetUuids: []
+                etaMs: 10000
+                message: 2 item(s) accepted
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/node-runs/{uuid}:
+    description: Load the status and results of one of the caller's ad-hoc node runs.
+      Pass ?results=false for the status alone.
+    get:
+      tags:
+      - node-runs
+      summary: Load the status and results of one of the caller's ad-hoc node runs.
+        Pass ?results=false for the status alone.
+      description: Load the status and results of one of the caller's ad-hoc node
+        runs. Pass ?results=false for the status alone.
+      operationId: getNoderunsByUuid
+      responses:
+        "200":
+          description: The node run status response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status: RUNNING
+                mediaCount: 2
+                successCount: 1
+                failureCount: 0
+                skippedCount: 0
+                definition:
+                  version: 1
+                  name: describe images
+                  nodes:
+                  - id: vlm
+                    type: vlm
+                    options:
+                      prompt: What is in this image?
+                results:
+                - assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  mediaPath: /data/media/beach.jpg
+                  nodeId: vlm
+                  nodeKind: vlm
+                  state: COMPLETED
+                  outputs:
+                    text:
+                      contentType: text/plain
+                      cardinality: ONE
+                      elements:
+                      - value: A beach at sunset.
+                        seq: 0
+                  durationMs: 4120
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/node-runs/{uuid}/cancel:
+    description: Cancel one of the caller's ad-hoc node runs.
+    post:
+      tags:
+      - node-runs
+      summary: Cancel one of the caller's ad-hoc node runs.
+      description: Cancel one of the caller's ad-hoc node runs.
+      operationId: postNoderunsByUuidCancel
+      responses:
+        "200":
+          description: The node run cancel response
+          content:
+            application/json:
+              example:
+                message: Node run cancelled
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/node-runs/probes:
+    description: Run a single node against a single asset and wait for the result.
+      A node that cannot be run reports why in the response rather than failing the
+      request.
+    post:
+      tags:
+      - node-runs
+      summary: Run a single node against a single asset and wait for the result. A
+        node that cannot be run reports why in the response rather than failing the
+        request.
+      description: Run a single node against a single asset and wait for the result.
+        A node that cannot be run reports why in the response rather than failing
+        the request.
+      operationId: postNoderunsProbes
+      requestBody:
+        content:
+          application/json:
+            example:
+              kind: vlm
+              assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+              options:
+                prompt: What is in this image?
+              persist: false
+      responses:
+        "200":
+          description: The node probe response
+          content:
+            application/json:
+              example:
+                state: COMPLETED
+                nodeKind: vlm
+                assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                durationMs: 4120
+                outputs:
+                  text:
+                    contentType: text/plain
+                    cardinality: ONE
+                    elements:
+                    - value: A beach at sunset.
+                      seq: 0
+                text: |
+                  beach.jpg
+                    vlm: COMPLETED (4120ms)
+                      text [text/plain]: A beach at sunset.
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/notifications:
     description: Load a paged list of the caller's notifications. Pass ?unread=true
       to restrict to unread entries.
@@ -14973,7 +15341,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 8a0ae4ec-ee38-444a-8d0e-53e5ed4a380f
+                  versionUuid: 4c3ae90c-307b-4773-9922-a2135e68b52f
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -14994,7 +15362,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 2afc5396-13a9-4b4e-aab3-cf2ee5adb9f9
+                  versionUuid: 1c6f5d8d-0707-47c6-af62-5ae8578527aa
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -15067,7 +15435,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 2e10dc6a-a022-42b3-9aa9-db82217782c7
+                versionUuid: 9fa845bf-c42c-46fb-a249-11fcba180249
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -15126,7 +15494,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 80fabc5a-4089-43d6-b373-0ca30909b4b9
+                versionUuid: 8935eb9d-50f5-43dd-8b8c-de8b41daf9da
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -15198,7 +15566,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 88d8c8cf-3a39-4468-a427-b7cbe8f40fa9
+                versionUuid: 6c6ee5fc-c9b0-40ec-83dc-c0449e04a640
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -15307,7 +15675,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 9db38519-2ee7-46de-9699-83e5b671e312
+                runUuid: 574032f0-f1fe-4fbf-9850-c3056637d93f
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -15395,11 +15763,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 703c74b9-ad93-4531-a5b3-560e005ba2f6
-                  pipelineUuid: e8817544-fe2f-44a3-bcea-818e523fff49
+                - uuid: bb1743e1-4966-4098-a503-497623babf30
+                  pipelineUuid: 0544c045-0a7a-47c8-9777-09f6abf15a1c
                   pipelineVersion: 1
-                  started: 2026-08-09T00:30:36.726647035Z
-                  finished: 2026-08-09T00:30:36.726663345Z
+                  started: 2026-08-09T09:29:08.154914598Z
+                  finished: 2026-08-09T09:29:08.154928788Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -15407,11 +15775,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 2b2d9643-e4f9-4153-a12f-5c2ad452f33f
-                  pipelineUuid: 11ac71e0-c5ba-469e-8f35-656da405401c
+                - uuid: 366155a2-76a9-4810-81fe-b39ba02e3312
+                  pipelineUuid: c7a008cb-cd6b-46c8-9147-dd55be6d6857
                   pipelineVersion: 1
-                  started: 2026-08-09T00:30:36.726699475Z
-                  finished: 2026-08-09T00:30:36.726703285Z
+                  started: 2026-08-09T09:29:08.154954648Z
+                  finished: 2026-08-09T09:29:08.154957238Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -15474,11 +15842,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: f28d8f22-6091-4836-8d5d-b37653d407b8
-                pipelineUuid: 79bf0e7c-aefe-49ed-9351-0ed95e9c6470
+                uuid: 390b145e-d344-4a78-8ecf-035e17409d71
+                pipelineUuid: 880a32f4-724b-48cf-91c0-951e96569455
                 pipelineVersion: 1
-                started: 2026-08-09T00:30:36.726787255Z
-                finished: 2026-08-09T00:30:36.726792565Z
+                started: 2026-08-09T09:29:08.155006808Z
+                finished: 2026-08-09T09:29:08.155009528Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -15820,15 +16188,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 7242c4c2-0412-415c-bc79-5dad103aff60
-                  runUuid: 521dca6a-ba1a-4815-9326-b9abfdaa4561
+                - uuid: b1a762e7-143e-497c-8d3c-92759f154677
+                  runUuid: fe93aeb6-5d6c-42d7-9228-628c08d17614
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: ac82a5c6-8094-426e-885b-7105153611f2
-                  runUuid: 8990101c-e268-46bd-b0b6-550538dc46cd
+                - uuid: e3434b68-338a-44d6-9ee3-cdd62372df5e
+                  runUuid: 866b6fbf-e95b-4813-8e28-f390178457fd
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -15900,9 +16268,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 144e553e-f909-4c30-b198-49706be2f6f0
-                  itemUuid: dd459236-ae9b-4e36-b7d2-96a6d87b24ad
-                  runUuid: c00165c6-90bd-4ae3-9b35-1be1ee4eb4f5
+                - uuid: fafa45b4-e872-43d2-af48-d4acf4cd7972
+                  itemUuid: c3b68b51-66fe-4f5e-a15a-cae77c375e5a
+                  runUuid: 21174400-092e-41fe-8814-5696067f2cbf
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -16365,7 +16733,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 8067f254-a53e-42b3-bd6f-668ba1f3430d
+                  versionUuid: cae3f20b-4999-4e30-b047-c8c2ab8f432f
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -16386,7 +16754,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 1bb52254-0a45-4f16-87a5-d2a6eeac100c
+                  versionUuid: 568b1575-c2cf-43c7-92df-dd657c87f33f
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -16462,7 +16830,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: af2e6e78-b013-42f6-b877-06e5629011e7
+                versionUuid: 1bb729f4-2848-4842-ac69-0edb64fa42ab
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -16548,7 +16916,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 73c08624-e747-45ac-aa37-18561fb1533f
+                versionUuid: eab81338-0a99-4790-9a1f-40798ed0c876
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1

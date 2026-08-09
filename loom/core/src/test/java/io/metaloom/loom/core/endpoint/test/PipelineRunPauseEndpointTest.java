@@ -141,7 +141,7 @@ public class PipelineRunPauseEndpointTest {
 			assertEquals(409, status[0], "A run that already finished must yield 409");
 			assertThat(runDao().load(run.getUuid()).getStatus())
 				.as("a conflicting pause must not overwrite the terminal state")
-				.isEqualTo("SUCCESS");
+				.isEqualTo(PipelineRunStatus.SUCCESS);
 		} finally {
 			vertx.close();
 		}
@@ -201,7 +201,7 @@ public class PipelineRunPauseEndpointTest {
 			assertEquals(403, status[0], "A caller lacking UPDATE_PIPELINE_RUN must be forbidden");
 			assertThat(runDao().load(run.getUuid()).getStatus())
 				.as("a forbidden pause must not touch the run")
-				.isEqualTo("RUNNING");
+				.isEqualTo(PipelineRunStatus.RUNNING);
 		} finally {
 			vertx.close();
 		}
@@ -227,7 +227,7 @@ public class PipelineRunPauseEndpointTest {
 			assertEquals(409, status[0], "Resuming a run with no engine must yield 409");
 			assertThat(runDao().load(run.getUuid()).getStatus())
 				.as("a refused resume must leave the run paused")
-				.isEqualTo("PAUSED");
+				.isEqualTo(PipelineRunStatus.PAUSED);
 		} finally {
 			vertx.close();
 		}

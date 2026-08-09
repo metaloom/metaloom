@@ -38,16 +38,20 @@ The harness is built. The catalog access is not.
 - [ ] **Any read access to node results.** No tool reads `asset_json_comp`, `detection`,
       `asset_geo_comp`, `asset_transcript_comp`, `asset_segment_comp` or `asset_node_result`.
       Everything Cortex computes is invisible to the agent (§4.2, [AGENTIC_CHAT_CONTEXT_DATA.md](AGENTIC_CHAT_CONTEXT_DATA.md))
-- [ ] **Ad-hoc node execution.** There is no way to run a node on chosen assets on demand — §6.
-      **This is the keystone gap**; four of the five capability tiers depend on it
+- [x] **Ad-hoc node execution.** Built — `POST /api/v1/node-runs`, `run_node_probe`, `run_node_graph`.
+      The keystone gap is closed; the subsystem is owned by
+      [AGENTIC_NODE_EXECUTION.md](AGENTIC_NODE_EXECUTION.md), which supersedes §6 below
 - [ ] **Produced bytes cannot come back.** Generated images/video/audio stay in the worker's
       `*_bin` directories; Loom has no byte-ingest endpoint for produced media ([NODES.md §2.1](../features/nodes/NODES.md))
 - [ ] **The agent cannot see.** The loop is text-only — `genai-utils` has no `image_url` content
       part, so the model can never look at an asset, only at text somebody else wrote about it (§5.3)
 - [ ] **The chat cannot show an asset.** The only visual type is `pipeline-graph`; `RefChip`
       renders `asset | collection | task | pipeline | annotation` as a chip with no thumbnail (§5.2)
-- [ ] **No long-running work model.** One tool call has `LOOM_AI_TOOL_TIMEOUT_MS` (30 s) and a run
-      has `LOOM_AI_MAX_TURNS` (8); a pipeline run takes minutes. Nothing bridges the two (§7)
+- [x] **No long-running work model.** Bridged for ad-hoc work: `run_node_graph` returns a job handle
+      inside the turn, `get_job` reads it in a later one, and completion writes a `NODE_RUN_COMPLETED`
+      notification. Resumption is user-driven in v1 — see
+      [AGENTIC_NODE_EXECUTION.md §8](AGENTIC_NODE_EXECUTION.md). A *stored pipeline* run started from
+      chat still has no job model (§7)
 - [ ] **No write tools over the catalog** — the agent cannot tag, rate, collect, comment or assign
 - [ ] Run-time assembly of `chat_session_context_ref` ([CHAT_SESSIONS_CONCEPT.md §5.2](../features/chat/CHAT_SESSIONS_CONCEPT.md))
 
@@ -243,11 +247,13 @@ thumbnails needs a shorter dossier.
 
 ---
 
-## 6. Dynamic node execution — the missing architecture
+## 6. Dynamic node execution — BUILT, see AGENTIC_NODE_EXECUTION.md
 
-**Track this as the keystone item.** It is large enough to deserve promotion to its own spec
-(`spec/features/chat/AGENTIC_NODE_EXECUTION.md`) plus a task file once the design below is chosen.
-Nothing in tiers 4 and 5 is buildable without it, and half of tier 2 (recompute-on-demand) as well.
+> **This section is superseded.** The design below was the analysis; the decision and the built
+> system are in [AGENTIC_NODE_EXECUTION.md](AGENTIC_NODE_EXECUTION.md), which owns this subsystem.
+> Option B was taken as the mechanism, with curated operations (Option C) still open as the policy
+> layer. §6.5's open questions are answered there. The text below is kept because it records why the
+> options were weighed the way they were; do not treat it as current.
 
 ### 6.1 What exists, precisely
 
@@ -339,7 +345,12 @@ authoring, where `validate` is separable from `create`.
 `filter` must accept the **same** filter object as `find_assets` (§4.1) so "run it over what I just
 found" needs no id list to survive the truncated transcript.
 
-### 6.5 Open questions for the dedicated spec
+### 6.5 Open questions for the dedicated spec — ANSWERED
+
+> All five are answered in [AGENTIC_NODE_EXECUTION.md §4](AGENTIC_NODE_EXECUTION.md). In short:
+> nullable `pipeline_uuid` plus a `kind` discriminator; opt-in ledger writes under
+> `node_id = "adhoc:<runUuid[0..8]>"` (not `agent:`); no component-table writes by Loom; quotas in
+> `NodeRunService`; ad-hoc runs excluded from the pipeline stats and views; `dryRun` is sufficient.
 
 - Does an ad-hoc run write `asset_node_result`? If yes, with what `node_id` so it cannot clobber the
   scheduled pipeline's ledger row (§6.1)? Proposal: `node_id = "agent:" + <jobId prefix>`.

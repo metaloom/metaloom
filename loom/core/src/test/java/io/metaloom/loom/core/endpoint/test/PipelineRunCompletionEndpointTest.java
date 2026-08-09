@@ -225,7 +225,7 @@ public class PipelineRunCompletionEndpointTest {
 			PipelineRun reloaded = runDao().load(run.getUuid());
 			assertThat(reloaded.getStatus())
 				.as("the first terminal verdict must win")
-				.isEqualTo("SUCCESS");
+				.isEqualTo(PipelineRunStatus.SUCCESS);
 			assertThat(reloaded.getMediaCount()).isEqualTo(7);
 
 			ws.close();
@@ -251,7 +251,7 @@ public class PipelineRunCompletionEndpointTest {
 
 			assertThat(runDao().load(run.getUuid()).getStatus())
 				.as("an untracked completion must not touch unrelated runs")
-				.isEqualTo("RUNNING");
+				.isEqualTo(PipelineRunStatus.RUNNING);
 
 			// The socket must still be usable afterwards.
 			assertThat(ws.isClosed()).isFalse();

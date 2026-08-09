@@ -54,6 +54,7 @@ import io.metaloom.loom.pipeline.graph.GraphValidationException;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphNode;
 import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
+import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.model.processor.message.ProcessorMessageType;
 import io.metaloom.loom.rest.model.processor.message.SourceTaskMessage;
@@ -83,15 +84,11 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 
 	private final PipelineRunRegistry pipelineRunRegistry;
 
-	private final WebSocketNodeDispatcher nodeDispatcher;
+	/** Assembles every engine this service starts; see {@link PipelineRunEngineFactory}. */
+	private final PipelineRunEngineFactory engineFactory;
 
 	private final PipelineGraphParser graphParser;
 	private final PipelineEventBroadcaster pipelineEventBroadcaster;
-	private final io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker circuitBreaker;
-	private final io.vertx.core.Vertx vertx;
-
-	/** How often aggregated node counters are pushed to subscribers. */
-	private static final long STATS_INTERVAL_MS = 1000;
 
 	/** Default window (in days) for the cross-pipeline run stats endpoint. */
 	private static final int RUN_STATS_DEFAULT_DAYS = 14;
@@ -107,14 +104,11 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		PipelineValidationService pipelineValidationService, PipelineAuthoringService pipelineAuthoringService,
 		PipelineRunDao pipelineRunDao,
 		PipelineVersionDao pipelineVersionDao, PipelineRunTracker pipelineRunTracker, PipelineRunRegistry pipelineRunRegistry,
-		WebSocketNodeDispatcher nodeDispatcher, PipelineRunItemDao pipelineRunItemDao,
+		PipelineRunEngineFactory engineFactory, PipelineRunItemDao pipelineRunItemDao,
 		PipelineNodeTaskDao pipelineNodeTaskDao, PipelineEventBroadcaster pipelineEventBroadcaster,
-		io.vertx.core.Vertx vertx, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
+		NodeDescriptorRegistry nodeDescriptorRegistry, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		super(pipelineDao, daos, modelBuilder, validator);
 		this.metrics = metrics;
-		// One breaker for the whole process, so its per-kind trip counter and state gauge describe
-		// the fleet rather than whichever run happened to notice first.
-		this.circuitBreaker = new io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker(metrics);
 		this.processorRegistry = processorRegistry;
 		this.pipelineValidationService = pipelineValidationService;
 		this.pipelineAuthoringService = pipelineAuthoringService;
@@ -122,12 +116,14 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		this.pipelineVersionDao = pipelineVersionDao;
 		this.pipelineRunTracker = pipelineRunTracker;
 		this.pipelineRunRegistry = pipelineRunRegistry;
-		this.nodeDispatcher = nodeDispatcher;
+		this.engineFactory = engineFactory;
 		this.pipelineRunItemDao = pipelineRunItemDao;
 		this.pipelineNodeTaskDao = pipelineNodeTaskDao;
 		this.pipelineEventBroadcaster = pipelineEventBroadcaster;
-		this.vertx = vertx;
-		this.graphParser = new PipelineGraphParser();
+		// Registry-backed on purpose. A parser without one skips port checking entirely and classifies
+		// every node as ExecutionMode.SINGLE, which silently loses fan-out: a dispatched run would
+		// behave differently from the same graph validated at save time.
+		this.graphParser = new PipelineGraphParser(nodeDescriptorRegistry);
 	}
 
 	@Override
@@ -340,48 +336,12 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 		// run is not lost with the process that started it.
 		RunStateStore stateStore = new DaoRunStateStore(pipelineRunDao, pipelineRunItemDao, pipelineNodeTaskDao,
 			runUuid, userUuid);
-		PipelineRunEngine engine = new PipelineRunEngine(graph, nodeDispatcher, runUuid, stateStore);
-		// Dispatch-to-result latency, retries and dead-letters are only knowable here: the engine is
-		// the one party that sees a task leave and its result come back.
-		engine.setMetrics(metrics);
-		// Outputs of nodes marked syncToLoom land on the asset, not just in the run
-		// record. Without this the hash a pipeline computes is invisible everywhere
-		// an asset is actually looked at.
-		engine.setAssetSink(new DaoAssetSink(daos().assetDao(), userUuid));
-		engine.onCompletion(summary -> pipelineRunTracker.complete(runUuid, summary.getDurationMs(),
-			(int) summary.getMediaCount(), (int) summary.getSuccessCount(),
-			(int) summary.getFailureCount(), (int) summary.getSkippedCount()));
-		// The run banner and history in the editor refresh off these two frames. Loom is the
-		// only party that knows a run started or settled - a worker holds no pipeline graph -
-		// so if they are not emitted here they are not emitted at all.
-		engine.onCompletion(summary -> broadcastRunEvent(
-			io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.PIPELINE_COMPLETED, pipelineName, runUuid));
-		// Aggregated progress: per-node counters on a timer, individual events only
-		// for failures. Forwarding every settle would be millions of frames to move
-		// a progress bar.
-		RunStatsAggregator statsAggregator = new RunStatsAggregator(runUuid, graph.getName(),
-			pipelineEventBroadcaster);
-		engine.onNodeSettled(statsAggregator);
-		statsAggregator.setProgressSupplier(engine::nodeProgressSnapshot);
-		long statsTimer = vertx.setPeriodic(STATS_INTERVAL_MS, timerId -> statsAggregator.flush());
-		engine.onCompletion(summary -> {
-			vertx.cancelTimer(statsTimer);
-			// One last push so the final counts are not left a timer-tick stale.
-			statsAggregator.flush();
-		});
-
-		// Shared across runs on purpose: a kind broken by a missing model file or an
-		// expired key is broken for everyone, and per-run breakers would each have to
-		// rediscover that.
-		// Debug mode is a property of this run, not of the pipeline: the same definition is run
-		// both ways, and nothing about the graph changes either way.
-		engine.setCapturePreviews(Boolean.TRUE.equals(request.isDebug()));
-		// Armed before start(), so the first item cannot slip past a breakpoint the caller asked
-		// for in the same request that started the run.
-		attachBreakpointBroadcast(engine, pipelineName, runUuid);
-		engine.setBreakpoints(validateBreakpoints(graph, request.getBreakpoints()));
-		engine.setCircuitBreaker(circuitBreaker);
-		engine.setRetryScheduler((delayMs, action) -> vertx.setTimer(Math.max(1, delayMs), t -> action.run()));
+		// Metrics, the asset sink, the completion hooks, the stats timer, the circuit breaker and the
+		// retry scheduler are all assembled in one place - see PipelineRunEngineFactory - because an
+		// ad-hoc run (NodeRunService) needs exactly the same wiring and a second copy of it would drift.
+		PipelineRunEngine engine = engineFactory.assemble(graph, runUuid, userUuid, stateStore,
+			PipelineRunEngineFactory.EngineConfig.forRun(pipelineName, Boolean.TRUE.equals(request.isDebug()),
+				validateBreakpoints(graph, request.getBreakpoints())));
 
 		pipelineRunRegistry.register(runUuid, engine);
 		engine.start();
@@ -923,35 +883,6 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	}
 
 	/**
-	 * Forward the engine's holds and releases to the UI socket.
-	 *
-	 * <p>
-	 * Sent immediately rather than folded into the {@code NODE_STATS} tick, for the same reason a
-	 * failure is: a hold happens because a person asked for it and is worthless a second late.
-	 * </p>
-	 */
-	private void attachBreakpointBroadcast(PipelineRunEngine engine, String pipelineName, UUID runUuid) {
-		engine.onBreakpoint((itemId, mediaPath, nodeId, elementSeq, held) -> {
-			try {
-				pipelineEventBroadcaster.broadcast(new io.metaloom.loom.rest.model.pipeline.event.PipelineEventMessage()
-					.setType(held
-						? io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.NODE_BREAKPOINT_HELD
-						: io.metaloom.loom.rest.model.pipeline.event.PipelineEventType.NODE_BREAKPOINT_RELEASED)
-					.setPipelineName(pipelineName)
-					.setPipelineRunUuid(runUuid.toString())
-					.setNodeId(nodeId)
-					.setItemUuid(itemId)
-					.setElementSeq(elementSeq)
-					.setMediaPath(mediaPath)
-					.setTimestamp(System.currentTimeMillis()));
-			} catch (Exception e) {
-				// The run really did stop even if nobody could be told about it.
-				log.error("Failed to broadcast a breakpoint frame for run {}", runUuid, e);
-			}
-		});
-	}
-
-	/**
 	 * Load a run, rejecting an unknown run or one belonging to a different pipeline.
 	 */
 	private PipelineRun loadRunOr404(UUID pipelineUuid, UUID runUuid) {
@@ -972,6 +903,11 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 	 * </p>
 	 */
 	private String runPipelineName(PipelineRun run) {
+		if (run.getKind() == io.metaloom.loom.api.pipeline.PipelineRunKind.ADHOC) {
+			// There is no version row to resolve, and the two lookups below would both return null and
+			// leave the frame announcing the literal string "null".
+			return AdhocRuns.label(run);
+		}
 		PipelineVersion version = pipelineVersionDao.loadByPipelineAndVersion(run.getPipelineUuid(), run.getPipelineVersion());
 		if (version == null) {
 			version = pipelineVersionDao.loadLatestByPipeline(run.getPipelineUuid());

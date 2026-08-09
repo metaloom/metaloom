@@ -423,6 +423,10 @@ public class DemoDatabaseInitializer {
 			Permission.READ_SPACE, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
 			// The reviewer's pair: open the duplicate queue and decide a group. Without UPDATE_DEDUP the workflow screen offers a button that 403s.
 			Permission.READ_DEDUP, Permission.UPDATE_DEDUP,
+			// Ad-hoc node execution: run a node on chosen assets without drawing a pipeline first. The
+			// editor is the role the demo's assistant runs as, and this is the permission that lets it
+			// gather information about an asset rather than only read what was already computed.
+			Permission.EXECUTE_MCP_NODE,
 		}) {
 			permissionDao.grantRolePermission(editorRole.getUuid(), perm);
 		}

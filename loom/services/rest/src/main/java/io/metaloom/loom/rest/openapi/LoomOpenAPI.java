@@ -49,6 +49,7 @@ import io.metaloom.loom.rest.endpoint.impl.ProcessorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RESTInfoEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ReactionEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.RoleEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.NodeRunEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NotificationEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SkillEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.SpaceEndpoint;
@@ -251,6 +252,7 @@ public class LoomOpenAPI {
 		endpoints.add(new ReactionEndpoint(null, deps, examples));
 		endpoints.add(new RESTInfoEndpoint(deps, null));
 		endpoints.add(new RoleEndpoint(null, deps, examples));
+		endpoints.add(new NodeRunEndpoint(null, deps, examples));
 		endpoints.add(new NotificationEndpoint(null, deps, examples));
 		endpoints.add(new SkillEndpoint(null, deps, examples));
 		endpoints.add(new SpaceEndpoint(null, deps, examples));

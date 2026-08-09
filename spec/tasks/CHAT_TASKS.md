@@ -520,6 +520,16 @@ definitions are name-sorted.
 
 ## B. Pipelineless node execution
 
+> **EXE1, EXE2, EXE3 and EXE5 are DONE** (2026-08-09). The spec they asked for is
+> [AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md), which now owns this subsystem;
+> read it rather than the task text below, which records the analysis that led there. Built:
+> `POST /api/v1/node-runs` (+ `/probes`, `/:uuid`, `/:uuid/cancel`), the `run_node_probe`,
+> `run_node_graph`, `get_job` and `cancel_job` MCP tools, `EXECUTE_MCP_NODE` (`V2.82`), and
+> `pipeline_run.kind` with a nullable `pipeline_uuid` (`V2.83`). Two deviations from the task text
+> worth knowing: the ledger prefix is `adhoc:` rather than `agent:`, and the source of every ad-hoc
+> graph is `loom-fetch`, executed by Loom rather than dispatched. **EXE4** (curated operations) and
+> **EXE6** (byte ingest) remain open and now build on `NodeRunService`.
+
 *The keystone gap. There is no way to run a node on chosen assets on demand: `POST /pipelines/:uuid/run`
 needs a stored pipeline row, and the node re-execution route needs a **live, halted** run
 (`requireLiveEngine` 409s otherwise) — it is a debugger, not an API. Nodes execute on cortex workers

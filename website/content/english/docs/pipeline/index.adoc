@@ -447,6 +447,44 @@ node for 99 columns is refused immediately rather than becoming a failure to fin
 Only a node that is currently *waiting* can be re-executed. Once you press Step or Continue its
 result has gone downstream, and re-running it would mean unpicking everything that already used it.
 
+== Running a Node Without a Pipeline
+
+Not every question is worth drawing a pipeline for. "What does the vision model say about this
+photo?", "what is the hash of this file?", "read the text out of this page" — these are questions
+about one asset, and answering them by saving a pipeline, running it, and then deleting it again
+leaves clutter behind for a result you wanted once.
+
+*Node runs* answer them directly. You pick a node, point it at assets you have already selected, and
+Loom dispatches it to a free Cortex worker exactly as it would inside a pipeline. Nothing is added to
+your pipeline list.
+
+There are two shapes, because the work has two shapes:
+
+Probe a single asset:: One node against one asset, answered while you wait. If the node is slow, you
+are told so rather than left hanging, and pointed at the second form.
+Run a graph over a set:: Several nodes over many assets. You get a job straight away and the work
+continues in the background; you can watch its progress, read partial results as they arrive, and
+stop it at any point. When it finishes you get a notification, so you can start a long pass and walk
+away.
+
+=== What it does and does not record
+
+By default a node run *records nothing*. The result comes back to you and the asset is left exactly
+as it was, which is what makes it safe to try something. If you want the outcome kept, ask for it —
+the result is then written to the asset's processing history, marked as an ad-hoc result so it can
+never be confused with, or overwrite, what a scheduled pipeline produced.
+
+=== What you cannot run this way
+
+Nodes that *produce files* — thumbnails, generated images, rendered audio — are not available as node
+runs. Those nodes write their output next to themselves on the worker, and Loom cannot yet fetch it,
+so you would be told the node succeeded and handed nothing. They remain available inside a normal
+pipeline, where the file is consumed by the next node on the same worker.
+
+Running nodes this way is a separate permission from editing pipelines. An administrator can grant
+someone — or the assistant — the ability to design pipelines without the ability to spend processing
+time, or the other way round.
+
 == Custom Nodes
 
 Any node kind can be added by a custom Cortex worker that advertises it. See

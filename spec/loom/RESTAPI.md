@@ -262,6 +262,7 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/detections` | GET | 🟢 Cross-asset review queue: `?status=PENDING&type=objectdetection`. The response field is `reviewStatus`, not `status` — the latter is the creator/editor audit block |
 | `/assets/:uuid/transcripts` · `/transcripts/:transcriptUuid` | POST, GET · GET, POST, DELETE | |
 | `/assets/:uuid/node-results` · `/node-results/:nodeResultUuid` | POST, GET · GET, DELETE | Cortex node result ledger |
+| `/node-runs` · `/node-runs/probes` · `/node-runs/:uuid` · `/node-runs/:uuid/cancel` | POST, GET · POST · GET · POST | 🟢 Ad-hoc ("pipelineless") node execution: run a node on chosen assets without a stored pipeline. `/probes` runs one node against one asset and answers with the result; `POST /node-runs` takes an inline definition and answers **202** with a job handle. All require `EXECUTE_MCP_NODE`, all are scoped to the caller (a foreign run is **404, not 403**), and `/probes` is a **literal prefix registered before the `/:uuid` wildcard**. Owned by [../chat/AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md) |
 | `/assets/:uuid/json-comps` · `/json-comps/:compUuid` | POST, GET · GET, DELETE | |
 | `/assets/:uuid/fingerprints` · `/fingerprints/:compUuid` | POST, GET · GET, DELETE | |
 | `/assets/:uuid/segments` · `/segments/:compUuid` | POST, GET · GET, DELETE | |

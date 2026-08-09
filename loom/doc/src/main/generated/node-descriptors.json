@@ -1,5 +1,83 @@
 {
   "nodeDescriptors" : [ {
+    "nodeId" : "assign",
+    "kind" : "assign",
+    "name" : "Assign",
+    "description" : "Add the asset to a collection or a library. Writes the membership only - it never moves, copies or deletes a file.",
+    "icon" : "playlist_add",
+    "category" : "OUTPUT",
+    "inputPorts" : [ {
+      "id" : "media",
+      "label" : "Media",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The item to add to the target"
+    } ],
+    "outputPorts" : [ {
+      "id" : "assigned",
+      "label" : "Assigned",
+      "contentType" : "scalar/boolean",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Whether a new membership was written, so a downstream node can branch on it"
+    }, {
+      "id" : "target",
+      "label" : "Target",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Uuid of the collection or library the asset now belongs to"
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "target",
+      "type" : "ENUM",
+      "defaultValue" : "COLLECTION",
+      "label" : "Target",
+      "description" : "What to add the asset to: a collection or a library",
+      "values" : [ "COLLECTION", "LIBRARY" ]
+    }, {
+      "key" : "collectionUuid",
+      "type" : "STRING",
+      "label" : "Collection Uuid",
+      "description" : "The collection to add to. Use this or collectionName, not both"
+    }, {
+      "key" : "collectionName",
+      "type" : "STRING",
+      "label" : "Collection Name",
+      "description" : "The collection to add to, resolved by name. Use this or collectionUuid, not both"
+    }, {
+      "key" : "libraryUuid",
+      "type" : "STRING",
+      "label" : "Library Uuid",
+      "description" : "The library to add to, for the LIBRARY target"
+    }, {
+      "key" : "onMissing",
+      "type" : "STRING",
+      "defaultValue" : "FAIL",
+      "label" : "On Missing",
+      "description" : "What to do when the target does not exist: fail, create it, or skip the item"
+    }, {
+      "key" : "dryRun",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Dry Run",
+      "description" : "Report the membership that would be written and write nothing"
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "PARALLEL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
     "nodeId" : "captioning",
     "kind" : "captioning",
     "name" : "Image Captioning",
@@ -978,7 +1056,7 @@
     "nodeId" : "fingerprint-dedup-apply",
     "kind" : "fingerprint-dedup-apply",
     "name" : "Fingerprint Deduplication (Apply)",
-    "description" : "Move confirmed near-duplicate files. Acts only on dedup groups a reviewer has confirmed in Loom.",
+    "description" : "Report confirmed near-duplicates on the confirmed_dup port, after re-verifying the keeper against the live filesystem. Acts only on dedup groups a reviewer has confirmed in Loom; wire the port into a move node to relocate them.",
     "icon" : "content_copy",
     "category" : "OUTPUT",
     "inputPorts" : [ {
@@ -989,7 +1067,21 @@
       "required" : true,
       "description" : "Any content hash; identifies the asset whose confirmed dedup groups are applied"
     } ],
-    "outputPorts" : [ ],
+    "outputPorts" : [ {
+      "id" : "confirmed_dup",
+      "label" : "Confirmed Duplicate",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The item, when a reviewer confirmed it is a duplicate and its keeper is verified intact"
+    }, {
+      "id" : "keep_path",
+      "label" : "Keeper",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Path of the file the reviewer decided to keep"
+    } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
     "dynamicPorts" : false,
@@ -1000,11 +1092,10 @@
       "label" : "Enabled",
       "description" : "Whether this node is active in the pipeline"
     }, {
-      "key" : "dupFolder",
+      "key" : "keepExcludeFolder",
       "type" : "STRING",
-      "defaultValue" : "duplicates",
-      "label" : "Duplicates Folder",
-      "description" : "Target folder for confirmed duplicate files"
+      "label" : "Keeper Exclude Folder",
+      "description" : "Never act when the keeper itself lives under this folder, for example the trash folder duplicates are moved into"
     } ],
     "defaultConcurrency" : 1,
     "defaultMode" : "SEQUENTIAL",
@@ -1253,7 +1344,7 @@
     "nodeId" : "hash-dedup",
     "kind" : "hash-dedup",
     "name" : "Hash Deduplication",
-    "description" : "Detect and move duplicate files based on hash equality.",
+    "description" : "Detect duplicate files by hash equality and report them on the duplicate port. Wire that port into a move node to relocate them.",
     "icon" : "file_copy",
     "category" : "OUTPUT",
     "inputPorts" : [ {
@@ -1264,7 +1355,21 @@
       "required" : true,
       "description" : "Any content hash. Two files whose hashes match are treated as the same file"
     } ],
-    "outputPorts" : [ ],
+    "outputPorts" : [ {
+      "id" : "duplicate",
+      "label" : "Duplicate",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The item, when an asset with identical content already exists elsewhere"
+    }, {
+      "id" : "original",
+      "label" : "Original",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Path of the copy Loom already knew about"
+    } ],
     "inputGroups" : [ ],
     "outputGroups" : [ ],
     "dynamicPorts" : false,
@@ -1275,11 +1380,10 @@
       "label" : "Enabled",
       "description" : "Whether this node is active in the pipeline"
     }, {
-      "key" : "dupFolder",
+      "key" : "keepExcludeFolder",
       "type" : "STRING",
-      "defaultValue" : "duplicates",
-      "label" : "Duplicates Folder",
-      "description" : "Target folder for duplicate files"
+      "label" : "Keeper Exclude Folder",
+      "description" : "Never act when the keeper itself lives under this folder. Leave empty to disable the check"
     } ],
     "defaultConcurrency" : 1,
     "defaultMode" : "SEQUENTIAL",
@@ -1883,6 +1987,133 @@
     } ],
     "defaultConcurrency" : 4,
     "defaultMode" : "PARALLEL",
+    "defaultBlocking" : true,
+    "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
+  }, {
+    "nodeId" : "move",
+    "kind" : "move",
+    "name" : "Move",
+    "description" : "Relocate an asset's file to a folder, a storage pool, a library or an S3 bucket. Never overwrites, and only removes the original once the destination is verified.",
+    "icon" : "drive_file_move",
+    "category" : "OUTPUT",
+    "inputPorts" : [ {
+      "id" : "media",
+      "label" : "Media",
+      "contentType" : "media/*",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "The item whose bytes should be relocated"
+    } ],
+    "outputPorts" : [ {
+      "id" : "moved",
+      "label" : "Moved",
+      "contentType" : "scalar/boolean",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Whether the bytes actually went anywhere, so a downstream node can branch on it"
+    }, {
+      "id" : "path",
+      "label" : "Location",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "Where the bytes are now: an absolute path, or an s3:// reference"
+    }, {
+      "id" : "flag",
+      "label" : "Flag",
+      "contentType" : "scalar/string",
+      "cardinality" : "ONE",
+      "required" : true,
+      "description" : "How this node finished for the item: MOVED, COPIED, ALREADY_THERE, SKIPPED or DRY_RUN"
+    } ],
+    "inputGroups" : [ ],
+    "outputGroups" : [ ],
+    "dynamicPorts" : false,
+    "parameters" : [ {
+      "key" : "enabled",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Enabled",
+      "description" : "Whether this node is active in the pipeline"
+    }, {
+      "key" : "target",
+      "type" : "ENUM",
+      "defaultValue" : "FOLDER",
+      "label" : "Target",
+      "description" : "Where the bytes go: a folder on this worker, a storage pool, a library's pool, or an S3 bucket",
+      "values" : [ "FOLDER", "POOL", "LIBRARY", "S3_BUCKET" ]
+    }, {
+      "key" : "targetFolder",
+      "type" : "STRING",
+      "defaultValue" : "trash",
+      "label" : "Target Folder",
+      "description" : "Destination root for the FOLDER target. A relative path resolves against the source root"
+    }, {
+      "key" : "sourceRoot",
+      "type" : "STRING",
+      "label" : "Source Root",
+      "description" : "The scan root paths are mirrored below. Only used by the MIRROR layout"
+    }, {
+      "key" : "layout",
+      "type" : "ENUM",
+      "defaultValue" : "MIRROR",
+      "label" : "Layout",
+      "description" : "How the path below the target root is built. Forced to CONTENT for pool, library and bucket targets",
+      "values" : [ "FLAT", "MIRROR", "DATE", "CONTENT" ]
+    }, {
+      "key" : "poolUuid",
+      "type" : "STRING",
+      "label" : "Pool Uuid",
+      "description" : "The storage pool to move into, for the POOL target"
+    }, {
+      "key" : "libraryUuid",
+      "type" : "STRING",
+      "label" : "Library Uuid",
+      "description" : "The library to move into, for the LIBRARY target. Its pool decides where the bytes land"
+    }, {
+      "key" : "bucket",
+      "type" : "STRING",
+      "label" : "Bucket",
+      "description" : "The S3 bucket to move into, for the S3_BUCKET target. Credentials come from the worker's CORTEX_S3_* configuration"
+    }, {
+      "key" : "onConflict",
+      "type" : "STRING",
+      "defaultValue" : "SUFFIX",
+      "label" : "On Conflict",
+      "description" : "What to do when the destination is occupied. There is deliberately no overwrite"
+    }, {
+      "key" : "crossDevice",
+      "type" : "STRING",
+      "defaultValue" : "SKIP",
+      "label" : "Cross Device",
+      "description" : "What to do when the destination is on another filesystem. Copying is unbounded, so the default declines"
+    }, {
+      "key" : "sourcePolicy",
+      "type" : "STRING",
+      "defaultValue" : "KEEP",
+      "label" : "Source Policy",
+      "description" : "Whether to remove the original once the destination is verified. KEEP makes this a copy"
+    }, {
+      "key" : "verify",
+      "type" : "STRING",
+      "defaultValue" : "SHA512",
+      "label" : "Verify",
+      "description" : "How the destination is proved to hold the same bytes before the original may be removed"
+    }, {
+      "key" : "updateLocation",
+      "type" : "BOOLEAN",
+      "defaultValue" : true,
+      "label" : "Update Location",
+      "description" : "Record the new location in Loom after a successful move"
+    }, {
+      "key" : "dryRun",
+      "type" : "BOOLEAN",
+      "defaultValue" : false,
+      "label" : "Dry Run",
+      "description" : "Report the move that would happen and touch nothing"
+    } ],
+    "defaultConcurrency" : 1,
+    "defaultMode" : "SEQUENTIAL",
     "defaultBlocking" : true,
     "events" : [ "NODE_STARTED", "NODE_COMPLETED", "NODE_FAILED", "NODE_SKIPPED", "NODE_STATS" ]
   }, {

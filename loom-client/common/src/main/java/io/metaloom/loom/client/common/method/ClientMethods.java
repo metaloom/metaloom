@@ -31,6 +31,7 @@ public interface ClientMethods extends
 	EmbeddingMethods,
 	TranscriptMethods,
 	NodeResultMethods,
+	NodeRunMethods,
 	JsonCompMethods,
 	FingerprintCompMethods,
 	SegmentCompMethods,

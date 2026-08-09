@@ -1,0 +1,16 @@
+-- Ad-hoc node execution: running a node on chosen assets without a stored pipeline, through
+-- POST /api/v1/node-runs and the MCP execution tools.
+--
+-- Separate from the CREATE/UPDATE/VALIDATE_MCP_PIPELINE trio added in V2.76 for the same reason
+-- those are separate from the CREATE/UPDATE_PIPELINE quad: letting an agent *design* a pipeline is
+-- a different trust decision from letting it *spend compute*. An operator has to be able to grant
+-- the design-and-validate loop while withholding execution entirely, and the execution tools are
+-- the only ones that can occupy a worker for minutes at a time.
+--
+-- The probe and graph tools require this permission in addition to READ_ASSET, so granting it on
+-- its own can never widen what a user is able to read.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- Nothing else may go in this file.
+ALTER TYPE loom_permission ADD VALUE IF NOT EXISTS 'EXECUTE_MCP_NODE';

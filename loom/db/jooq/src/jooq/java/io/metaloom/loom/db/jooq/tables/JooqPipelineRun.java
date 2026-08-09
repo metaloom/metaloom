@@ -4,11 +4,13 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.api.pipeline.PipelineRunKind;
 import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
+import io.metaloom.loom.db.jooq.converter.PipelineRunKindConverter;
 import io.metaloom.loom.db.jooq.converter.PipelineRunStatusConverter;
 import io.metaloom.loom.db.jooq.tables.records.JooqPipelineRunRecord;
 import io.vertx.core.json.JsonObject;
@@ -18,14 +20,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
+import org.jooq.Check;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function18;
+import org.jooq.Function19;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row18;
+import org.jooq.Row19;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -33,6 +36,7 @@ import org.jooq.TableField;
 import org.jooq.TableOptions;
 import org.jooq.UniqueKey;
 import org.jooq.impl.DSL;
+import org.jooq.impl.Internal;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
 
@@ -64,10 +68,11 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
     public final TableField<JooqPipelineRunRecord, java.util.UUID> UUID = createField(DSL.name("uuid"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field("uuid_generate_v4()", SQLDataType.UUID)), this, "");
 
     /**
-     * The column <code>public.pipeline_run.pipeline_uuid</code>. Reference to
-     * the pipeline definition
+     * The column <code>public.pipeline_run.pipeline_uuid</code>. The pipeline
+     * this run executes; NULL for kind = ADHOC, which carries its definition in
+     * meta
      */
-    public final TableField<JooqPipelineRunRecord, java.util.UUID> PIPELINE_UUID = createField(DSL.name("pipeline_uuid"), SQLDataType.UUID.nullable(false), this, "Reference to the pipeline definition");
+    public final TableField<JooqPipelineRunRecord, java.util.UUID> PIPELINE_UUID = createField(DSL.name("pipeline_uuid"), SQLDataType.UUID, this, "The pipeline this run executes; NULL for kind = ADHOC, which carries its definition in meta");
 
     /**
      * The column <code>public.pipeline_run.pipeline_version</code>. Version of
@@ -161,6 +166,12 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
      */
     public final TableField<JooqPipelineRunRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
+    /**
+     * The column <code>public.pipeline_run.kind</code>. PIPELINE = started from
+     * a stored pipeline row; ADHOC = inline definition in meta.definition
+     */
+    public final TableField<JooqPipelineRunRecord, PipelineRunKind> KIND = createField(DSL.name("kind"), SQLDataType.VARCHAR.nullable(false).defaultValue(DSL.field("'PIPELINE'::character varying", SQLDataType.VARCHAR)), this, "PIPELINE = started from a stored pipeline row; ADHOC = inline definition in meta.definition", new PipelineRunKindConverter());
+
     private JooqPipelineRun(Name alias, Table<JooqPipelineRunRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -201,7 +212,7 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.IDX_PIPELINE_RUN_PIPELINE_UUID, Indexes.IDX_PIPELINE_RUN_STARTED, Indexes.IDX_PIPELINE_RUN_STATUS);
+        return Arrays.asList(Indexes.IDX_PIPELINE_RUN_ADHOC_CREATOR, Indexes.IDX_PIPELINE_RUN_PIPELINE_UUID, Indexes.IDX_PIPELINE_RUN_STARTED, Indexes.IDX_PIPELINE_RUN_STATUS);
     }
 
     @Override
@@ -251,6 +262,14 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
     }
 
     @Override
+    public List<Check<JooqPipelineRunRecord>> getChecks() {
+        return Arrays.asList(
+            Internal.createCheck(this, DSL.name("pipeline_run_kind_check"), "(((kind)::text = ANY ((ARRAY['PIPELINE'::character varying, 'ADHOC'::character varying])::text[])))", true),
+            Internal.createCheck(this, DSL.name("pipeline_run_kind_pipeline_uuid_check"), "(((((kind)::text = 'PIPELINE'::text) AND (pipeline_uuid IS NOT NULL)) OR (((kind)::text = 'ADHOC'::text) AND (pipeline_uuid IS NULL))))", true)
+        );
+    }
+
+    @Override
     public JooqPipelineRun as(String alias) {
         return new JooqPipelineRun(DSL.name(alias), this);
     }
@@ -290,18 +309,18 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row18 type methods
+    // Row19 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row18<java.util.UUID, java.util.UUID, Integer, LocalDateTime, LocalDateTime, PipelineRunStatus, Integer, Integer, Integer, Integer, Boolean, String, Long, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row18) super.fieldsRow();
+    public Row19<java.util.UUID, java.util.UUID, Integer, LocalDateTime, LocalDateTime, PipelineRunStatus, Integer, Integer, Integer, Integer, Boolean, String, Long, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, PipelineRunKind> fieldsRow() {
+        return (Row19) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function18<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super PipelineRunStatus, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function19<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super PipelineRunStatus, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super PipelineRunKind, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -309,7 +328,7 @@ public class JooqPipelineRun extends TableImpl<JooqPipelineRunRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function18<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super PipelineRunStatus, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function19<? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super LocalDateTime, ? super LocalDateTime, ? super PipelineRunStatus, ? super Integer, ? super Integer, ? super Integer, ? super Integer, ? super Boolean, ? super String, ? super Long, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super PipelineRunKind, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

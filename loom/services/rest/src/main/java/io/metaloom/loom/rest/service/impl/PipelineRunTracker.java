@@ -231,6 +231,11 @@ public class PipelineRunTracker {
 	 * more use than none.
 	 */
 	private static String pipelineNameOf(PipelineRun run) {
-		return run.getPipelineUuid() != null ? String.valueOf(run.getPipelineUuid()) : String.valueOf(run.getUuid());
+		if (run.getPipelineUuid() != null) {
+			return String.valueOf(run.getPipelineUuid());
+		}
+		// An ad-hoc run has no pipeline by construction, not by accident, and it carries the label the
+		// caller gave its definition. A bare uuid in the bell would tell the recipient nothing.
+		return AdhocRuns.label(run);
 	}
 }

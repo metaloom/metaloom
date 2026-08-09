@@ -243,6 +243,15 @@ from .noderesult import (
     NodeResultListResponse,
     NodeResultResponse,
 )
+from .noderun import (
+    NodeProbeRequest,
+    NodeProbeResponse,
+    NodeRunItemResult,
+    NodeRunListResponse,
+    NodeRunRequest,
+    NodeRunResponse,
+    NodeRunStatusResponse,
+)
 from .nodes import (
     NodeAvailability,
     NodeDescriptorsResponse,
@@ -555,6 +564,8 @@ __all__ = [
     "NamedReference",
     "NodeAvailability",
     "NodeDescriptorsResponse",
+    "NodeProbeRequest",
+    "NodeProbeResponse",
     "NodeRegistration",
     "NodeRegistrationAck",
     "NodeRegistrationRejection",
@@ -564,6 +575,11 @@ __all__ = [
     "NodeResultCreateRequest",
     "NodeResultListResponse",
     "NodeResultResponse",
+    "NodeRunItemResult",
+    "NodeRunListResponse",
+    "NodeRunRequest",
+    "NodeRunResponse",
+    "NodeRunStatusResponse",
     "NodeTaskResultMessage",
     "NodeTaskState",
     "NotificationEventMessage",

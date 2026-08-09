@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.pipeline.PipelineRunKind;
 import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
@@ -175,6 +176,150 @@ public class PipelineRunDaoTest extends AbstractJooqTest implements CRUDDaoTestc
 		for (int i = 1; i < stats.size(); i++) {
 			assertTrue(stats.get(i - 1).getDate().isBefore(stats.get(i).getDate()), "Buckets must be ordered oldest first");
 		}
+	}
+
+	// ── Ad-hoc runs ─────────────────────────────────────────────────────
+
+	@Test
+	public void testCreateAdhocRunHasNullPipelineUuidAndCarriesItsDefinition() {
+		JsonObject definition = new JsonObject().put("version", 1).put("name", "probe sha512");
+		AtomicReference<UUID> runUuid = new AtomicReference<>();
+
+		transaction(tx -> {
+			PipelineRun run = pipelineRunDao().createAdhocRun(dummyUser().getUuid(), definition);
+			run.setStatus(PipelineRunStatus.RUNNING);
+			pipelineRunDao().store(run);
+			runUuid.set(run.getUuid());
+		});
+
+		PipelineRun reloaded = pipelineRunDao().load(runUuid.get());
+		assertEquals(PipelineRunKind.ADHOC, reloaded.getKind());
+		assertNull(reloaded.getPipelineUuid(), "An ad-hoc run must not name a pipeline");
+		// The definition is what recovery rebuilds the graph from after a restart; if it does not
+		// round-trip, an ad-hoc run cannot survive one.
+		assertEquals(definition, reloaded.getMeta().getJsonObject(PipelineRun.META_DEFINITION));
+	}
+
+	@Test
+	public void testExistingRunsDefaultToKindPipeline() {
+		AtomicReference<UUID> runUuid = new AtomicReference<>();
+		transaction(tx -> {
+			PipelineRun run = createElement(dummyUser(), 4714);
+			pipelineRunDao().store(run);
+			runUuid.set(run.getUuid());
+		});
+
+		// Rows written before V2.83 carry the column default. A catalog run must keep reading back as
+		// PIPELINE, or every existing run would start behaving like an ad-hoc one.
+		assertEquals(PipelineRunKind.PIPELINE, pipelineRunDao().load(runUuid.get()).getKind());
+	}
+
+	@Test
+	public void testAdhocRunSurvivesPipelineDelete() {
+		AtomicReference<UUID> pipelineUuid = new AtomicReference<>();
+		AtomicReference<UUID> catalogRunUuid = new AtomicReference<>();
+		AtomicReference<UUID> adhocRunUuid = new AtomicReference<>();
+
+		transaction(tx -> {
+			User user = dummyUser();
+			PipelineRun catalogRun = createElement(user, 4715);
+			pipelineRunDao().store(catalogRun);
+			pipelineUuid.set(catalogRun.getPipelineUuid());
+			catalogRunUuid.set(catalogRun.getUuid());
+
+			PipelineRun adhocRun = pipelineRunDao().createAdhocRun(user.getUuid(), new JsonObject().put("version", 1));
+			pipelineRunDao().store(adhocRun);
+			adhocRunUuid.set(adhocRun.getUuid());
+		});
+
+		transaction(tx -> {
+			pipelineVersionDao().loadByPipeline(pipelineUuid.get()).forEach(v -> pipelineVersionDao().delete(v.getUuid()));
+			pipelineDao().delete(pipelineUuid.get());
+		});
+
+		assertNull(pipelineRunDao().load(catalogRunUuid.get()), "A run of the deleted pipeline must cascade away");
+		assertNotNull(pipelineRunDao().load(adhocRunUuid.get()),
+			"An ad-hoc run belongs to no pipeline and must survive an unrelated pipeline being deleted");
+	}
+
+	@Test
+	public void testCountActiveAdhocByCreatorIgnoresTerminalAndForeignRuns() {
+		AtomicReference<UUID> ownerUuid = new AtomicReference<>();
+
+		transaction(tx -> {
+			User owner = dummyUser();
+			ownerUuid.set(owner.getUuid());
+
+			PipelineRun running = pipelineRunDao().createAdhocRun(owner.getUuid(), new JsonObject());
+			running.setStatus(PipelineRunStatus.RUNNING);
+			pipelineRunDao().store(running);
+
+			PipelineRun paused = pipelineRunDao().createAdhocRun(owner.getUuid(), new JsonObject());
+			paused.setStatus(PipelineRunStatus.PAUSED);
+			pipelineRunDao().store(paused);
+
+			PipelineRun finished = pipelineRunDao().createAdhocRun(owner.getUuid(), new JsonObject());
+			finished.setStatus(PipelineRunStatus.SUCCESS);
+			pipelineRunDao().store(finished);
+
+			// A catalog run of the same user must not count against the ad-hoc quota.
+			PipelineRun catalogRun = createElement(owner, 4716);
+			catalogRun.setStatus(PipelineRunStatus.RUNNING);
+			pipelineRunDao().store(catalogRun);
+		});
+
+		// PAUSED is deliberately not terminal - a paused run still holds an engine and still occupies
+		// the quota it was admitted under.
+		assertEquals(2, pipelineRunDao().countActiveAdhocByCreator(ownerUuid.get()));
+	}
+
+	@Test
+	public void testLoadAdhocPageByCreatorExcludesForeignAndCatalogRuns() {
+		AtomicReference<UUID> ownerUuid = new AtomicReference<>();
+		AtomicReference<UUID> ownRunUuid = new AtomicReference<>();
+
+		transaction(tx -> {
+			User owner = dummyUser();
+			ownerUuid.set(owner.getUuid());
+
+			PipelineRun own = pipelineRunDao().createAdhocRun(owner.getUuid(), new JsonObject());
+			own.setStatus(PipelineRunStatus.RUNNING);
+			pipelineRunDao().store(own);
+			ownRunUuid.set(own.getUuid());
+
+			PipelineRun catalogRun = createElement(owner, 4717);
+			pipelineRunDao().store(catalogRun);
+		});
+
+		List<PipelineRun> page = new java.util.ArrayList<>();
+		pipelineRunDao().loadAdhocPageByCreator(ownerUuid.get(), null, 25, List.of(), null, null).forEach(page::add);
+
+		assertEquals(1, page.size(), "Only the caller's ad-hoc runs may be listed");
+		assertEquals(ownRunUuid.get(), page.get(0).getUuid());
+	}
+
+	@Test
+	public void testDailyStatsExcludeAdhocRuns() {
+		LocalDate day = LocalDate.now().minusDays(45);
+
+		transaction(tx -> {
+			User user = dummyUser();
+			PipelineRun seed = createElement(user, 4718);
+			pipelineRunDao().store(seed);
+			createRunOn(user, seed.getPipelineUuid(), day, PipelineRunStatus.SUCCESS, 1, 0, 0);
+
+			PipelineRun adhoc = pipelineRunDao().createAdhocRun(user.getUuid(), new JsonObject());
+			adhoc.setStatus(PipelineRunStatus.SUCCESS);
+			adhoc.setSuccessCount(7);
+			adhoc.setStarted(day.atTime(12, 0).toInstant(ZoneOffset.UTC));
+			pipelineRunDao().store(adhoc);
+		});
+
+		// /pipelines/runs/stats describes scheduled processing. A chat agent probing assets is not
+		// that, and letting it into the chart makes the throughput numbers meaningless.
+		PipelineRunDayStats bucket = bucket(pipelineRunDao().loadDailyStats(day.atStartOfDay()), day).orElseThrow();
+		assertEquals(1, bucket.getRunCount(), "An ad-hoc run must not be counted in the pipeline run stats");
+		assertEquals(1, bucket.getSuccessCount());
 	}
 
 	@Test

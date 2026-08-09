@@ -20,6 +20,8 @@ public class LoomOptions implements Option {
 
 	private MemoryOptions memory = new MemoryOptions();
 
+	private NodeExecOptions nodeExec = new NodeExecOptions();
+
 	private SearchOptions search = new SearchOptions();
 
 	private SimilarityOptions similarity = new SimilarityOptions();
@@ -36,6 +38,7 @@ public class LoomOptions implements Option {
 		ai.overrideWithEnv();
 		sandbox.overrideWithEnv();
 		memory.overrideWithEnv();
+		nodeExec.overrideWithEnv();
 		search.overrideWithEnv();
 		similarity.overrideWithEnv();
 		vectorIndex.overrideWithEnv();
@@ -112,6 +115,15 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public NodeExecOptions getNodeExec() {
+		return nodeExec;
+	}
+
+	public LoomOptions setNodeExec(NodeExecOptions nodeExec) {
+		this.nodeExec = nodeExec;
+		return this;
+	}
+
 	public SearchOptions getSearch() {
 		return search;
 	}
@@ -149,6 +161,7 @@ public class LoomOptions implements Option {
 			.nested("ai", ai)
 			.nested("sandbox", sandbox)
 			.nested("memory", memory)
+			.nested("nodeExec", nodeExec)
 			.nested("search", search)
 			.nested("similarity", similarity)
 			.nested("vectorIndex", vectorIndex);

@@ -150,6 +150,36 @@ public class NotificationDispatcher {
 			n -> n.setPipelineRunUuid(runUuid));
 	}
 
+	/**
+	 * An ad-hoc node run reached a terminal state.
+	 *
+	 * <p>
+	 * Unlike {@link #pipelineRunFailed} this fires on success too. An ad-hoc run is started from a chat
+	 * turn or a script that has already moved on and is not watching the events socket, so "it is done"
+	 * is the whole reason the signal exists - and it is the durable half of that signal, which is why
+	 * there is no second channel for it.
+	 * </p>
+	 */
+	public void nodeRunCompleted(UUID starterUuid, UUID runUuid, String label, int successCount, int failureCount,
+		int skippedCount) {
+		if (starterUuid == null) {
+			return;
+		}
+		StringBuilder body = new StringBuilder()
+			.append(successCount).append(" succeeded");
+		if (failureCount > 0) {
+			body.append(", ").append(failureCount).append(" failed");
+		}
+		if (skippedCount > 0) {
+			body.append(", ").append(skippedCount).append(" skipped");
+		}
+		dispatch(NotificationType.NODE_RUN_COMPLETED, null,
+			List.of(starterUuid),
+			"Node run finished: " + label,
+			body.toString(),
+			n -> n.setPipelineRunUuid(runUuid));
+	}
+
 	// ── Core ──────────────────────────────────────────────────────────────
 
 	/**

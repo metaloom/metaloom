@@ -76,6 +76,33 @@ public class NotificationDispatchTest extends AbstractEndpointTest {
 		return client.createTask(request).sync().body();
 	}
 
+	/**
+	 * The completion signal for an ad-hoc node run.
+	 *
+	 * <p>
+	 * {@code notification.type} is a varchar with a CHECK constraint rather than an enum, so a value
+	 * the Java side knows about and the database does not is rejected at insert time - after the run
+	 * has already finished, which is the worst moment to lose the only durable signal it produces.
+	 * This asserts the two are in step.
+	 * </p>
+	 */
+	@Test
+	public void testNodeRunCompletedIsAcceptedByTheDatabase() {
+		User recipient = storeUser("noderun-recipient");
+
+		Notification notification = daos().notificationDao().createNotification(recipient.getUuid(), null,
+			NotificationType.NODE_RUN_COMPLETED, "Node run finished: describe images");
+		notification.setBody("12 succeeded, 1 failed");
+		daos().notificationDao().store(notification);
+
+		List<Notification> inbox = inboxOf(recipient.getUuid(), NotificationType.NODE_RUN_COMPLETED);
+		assertEquals(1, inbox.size(), "The new notification type must be storable and readable");
+		assertTrue(inbox.get(0).getTitle().contains("describe images"));
+		// Machine-generated: there is no actor, so nobody is suppressed and the person who started the
+		// run is told even though they "caused" it.
+		assertEquals(null, inbox.get(0).getCreatorUuid(), "A machine-generated notification has no actor");
+	}
+
 	@Test
 	public void testAssigningNotifiesTheAssigneeButNotTheActor() throws LoomClientException {
 		try (LoomHttpClient client = loom.httpClient()) {

@@ -79,6 +79,16 @@ memory:
   promptMaxChars: 4096
   sharedScopesEnabled: true
   sharedWriteEnabled: true
+nodeExec:
+  enabled: true
+  probeTimeoutMs: 25000
+  probeKinds: ""
+  probeDenyKinds: "metadata,tts,guard,watermark,translate"
+  maxAssets: 200
+  maxNodes: 10
+  maxActiveJobsPerUser: 3
+  resultMaxChars: 4000
+  persistDefault: false
 search:
   enabled: true
   provider: "postgres"

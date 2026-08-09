@@ -10,6 +10,7 @@ import io.metaloom.loom.db.page.Page;
 import io.metaloom.filter.Filter;
 import io.metaloom.loom.api.sort.SortDirection;
 import io.metaloom.loom.api.sort.SortKey;
+import io.vertx.core.json.JsonObject;
 
 public interface PipelineRunDao extends CRUDDao<PipelineRun> {
 
@@ -49,5 +50,36 @@ public interface PipelineRunDao extends CRUDDao<PipelineRun> {
 	 * Create a new pipeline run record.
 	 */
 	PipelineRun createPipelineRun(UUID userUuid, UUID pipelineUuid, int pipelineVersion);
+
+	/**
+	 * Create an ad-hoc run: no pipeline row, the definition carried in {@code meta.definition}.
+	 *
+	 * <p>The definition is the same JSON {@code validate_pipeline} and {@code PipelineGraphParser}
+	 * accept, so an ad-hoc run needs no new format and can be replayed by recovery after a restart.
+	 * See {@code spec/chat/AGENTIC_NODE_EXECUTION.md}.</p>
+	 *
+	 * @param userUuid   the caller the run belongs to; ad-hoc runs are scoped to their creator
+	 * @param definition the executable graph, stored verbatim
+	 */
+	PipelineRun createAdhocRun(UUID userUuid, JsonObject definition);
+
+	/**
+	 * Load a paged list of the ad-hoc runs a user started, newest first.
+	 *
+	 * <p>Ad-hoc runs are not reachable through {@link #loadPageByPipeline(UUID, UUID, int, List, SortKey, SortDirection)}
+	 * - they belong to no pipeline - so this is the only listing that shows them. Backed by
+	 * {@code idx_pipeline_run_adhoc_creator}.</p>
+	 */
+	Page<PipelineRun> loadAdhocPageByCreator(UUID creatorUuid, UUID fromId, int pageSize, List<Filter> filters, SortKey sortBy,
+		SortDirection sortDirection);
+
+	/**
+	 * How many of a user's ad-hoc runs are in a non-terminal status.
+	 *
+	 * <p>This is the concurrency quota's source of truth rather than an in-memory counter, because the
+	 * counter would reset on restart while the runs it was counting are still recovered and still
+	 * running.</p>
+	 */
+	int countActiveAdhocByCreator(UUID creatorUuid);
 
 }

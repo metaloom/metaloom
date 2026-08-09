@@ -26,6 +26,17 @@ public enum NotificationType {
 	COMMENT_REPLY,
 
 	/** A pipeline run you started ended in failure. */
-	PIPELINE_RUN_FAILED;
+	PIPELINE_RUN_FAILED,
+
+	/**
+	 * An ad-hoc node run you started reached a terminal status.
+	 *
+	 * <p>
+	 * Unlike {@link #PIPELINE_RUN_FAILED} this fires on success too: an ad-hoc run is started from a
+	 * chat turn or a script that has already moved on, so "it finished" is the whole point of the
+	 * signal. See {@code spec/chat/AGENTIC_NODE_EXECUTION.md}.
+	 * </p>
+	 */
+	NODE_RUN_COMPLETED;
 
 }

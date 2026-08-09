@@ -3,6 +3,7 @@ package io.metaloom.loom.db.jooq.dao.pipeline;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.metaloom.loom.api.pipeline.PipelineRunKind;
 import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.pipeline.PipelineRun;
@@ -11,6 +12,7 @@ import io.vertx.core.json.JsonObject;
 public class PipelineRunImpl extends AbstractEditableElement<PipelineRun> implements PipelineRun {
 
 	private UUID pipelineUuid;
+	private PipelineRunKind kind = PipelineRunKind.PIPELINE;
 	private int pipelineVersion = 1;
 	private Instant started;
 	private Instant finished;
@@ -32,6 +34,17 @@ public class PipelineRunImpl extends AbstractEditableElement<PipelineRun> implem
 	@Override
 	public PipelineRun setPipelineUuid(UUID pipelineUuid) {
 		this.pipelineUuid = pipelineUuid;
+		return this;
+	}
+
+	@Override
+	public PipelineRunKind getKind() {
+		return kind;
+	}
+
+	@Override
+	public PipelineRun setKind(PipelineRunKind kind) {
+		this.kind = kind;
 		return this;
 	}
 

@@ -9,11 +9,7 @@
 >
 > **This file tracks OPEN work only.** A task that is done is deleted, not archived — the
 > code and the spec are the record of what landed. Task numbers are never reused:
-> **1, 2, 3, 4, 5, 7 and 9 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
->
-> **Blocking:** **Task 12** is the one silent-correctness bug — neither dispatch nor restart
-> recovery parses graphs with a descriptor registry, so port checking and fan-out
-> classification are absent on the live path. Do it before any polish.
+> **1, 2, 3, 4, 5, 7, 9 and 12 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
 
 ---
 
@@ -253,58 +249,6 @@ backend or to skip explicitly. Items 5 and 6 need an error-path test each.
 
 ---
 
-## Task 12: Give the production parser its descriptor registry
-
-**Argumentation Summary:** Two production call sites build `new PipelineGraphParser()` —
-the **no-arg** constructor, which passes a `null` descriptor registry:
-
-- `PipelineEndpointService:122` — the parser used to **dispatch** a run
-- `PipelineRunRecovery:68` — the parser used to rebuild a run after a restart
-
-`PortGraphAnalyzer.analyze` returns immediately when the registry is null (line 70), and
-`PipelineGraphParser` skips its kind-exists check (line 223) and its descriptor lookup
-(line 336). So a dispatched or recovered run gets **no port validation and every node
-classified `ExecutionMode.SINGLE`**. That is not cosmetic: a graph whose
-`facedetect → facedescription` edge is `PER_ELEMENT` is classified per-element when
-`PipelineValidationService` parses it on save — the one call site that *does* pass the
-registry — and once-per-item when the run is actually dispatched. The fan-out results are
-lost, and a graph with an invalid port reaches the workers instead of being rejected.
-The no-arg constructor exists for test convenience; production must not use it.
-
-**Improvement Summary:** Inject one registry-backed parser per process and use it
-everywhere on the live path.
-
-```
-1. Provide the registry-backed PipelineGraphParser in the Dagger graph (RESTModule
-   already provides the @Singleton NodeDescriptorRegistry it needs), and
-   constructor-inject it into BOTH PipelineEndpointService and PipelineRunRecovery in
-   place of their `new PipelineGraphParser()` fields. One instance, so dispatch,
-   recovery and validation cannot disagree.
-   ⚠️ Endpoint/service constructor changes need a clean rebuild of loom/core, or
-      setup-pool and the tests fail with NoSuchMethodError.
-2. Re-audit after the change:
-       grep -rn "new PipelineGraphParser()" --include=*.java loom | grep -v /test/
-   must come back empty. Any hit outside src/test is the same bug.
-3. Consider making the no-arg constructor package-private or @VisibleForTesting so a
-   future caller cannot reintroduce this silently. Note that a large number of tests
-   use it deliberately (only the six that need port checking pass
-   TestDescriptors.registry()), so @VisibleForTesting is the realistic option.
-```
-
-**References:** [PIPELINE.md §5, §6.5, §16](../features/pipeline/PIPELINE.md) ·
-[NODE_DATA_TYPES.md §6.3](../features/pipeline/NODE_DATA_TYPES.md) ·
-`PipelineEndpointService.java:122`, `PipelineRunRecovery.java:68`,
-`PipelineGraphParser.java:79`, `PortGraphAnalyzer.java:70`
-
-**Test Requirements:** Extend `PipelineRunEngineRecoveryTest` (or add a
-`PipelineRunRecoveryTest` in `loom/services/rest`) with a fan-out graph: recover it and
-assert the `PER_ELEMENT` node is still classified `PER_ELEMENT` with the correct
-`fanOutDriver`. A `PipelineRunEndToEndTest` case that a dispatched fan-out graph is
-classified `PER_ELEMENT` rather than `SINGLE`. A test that dispatching or recovering a
-graph with an invalid port fails loudly rather than running a degraded run.
-
----
-
 ## Task 13: Instrument the run engine
 
 **Argumentation Summary:** Prometheus `/metrics` is live on both components and the Loom
@@ -399,6 +343,7 @@ Link them; do not open a parallel task.
 
 | Item | Owner |
 |---|---|
+| Ad-hoc ("pipelineless") node execution — running a node without a stored pipeline, `pipeline_run.kind = ADHOC`, the `/api/v1/node-runs` routes | [AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md). It reuses `PipelineGraphParser`, `PipelineRunEngine` and `WebSocketNodeDispatcher` unchanged; do not open a parallel pipeline task for it |
 | Task-state retention sweep (decided, not built) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) §"Enforce the task-state retention policy" · [PIPELINE.md §9.2](../features/pipeline/PIPELINE.md) |
 | Per-node task inspection API (`leased_by`, attempts, dead-letter reason) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) · [TASK_UI_PIPELINE.md](../loom/ui/TASK_UI_PIPELINE.md) |
 | Adaptive dispatch width from live load; priority with aging; straggler / speculative re-dispatch | [PLAN_C](../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md) §3.1 |
@@ -411,9 +356,6 @@ Link them; do not open a parallel task.
 
 ## C. Suggested sequencing
 
-- [ ] **Task 12** first — small, self-contained, and it is currently changing run
-      semantics between save and dispatch, and again across a restart, without anyone
-      noticing.
 - [ ] **Task 8** touches the REST surface; the endpoint-test harness Task 7 left behind
       (`PipelineVersionEndpointTest`, `PipelineRunDispatchEndpointTest`) is what its own
       endpoint tests should reuse.
@@ -457,7 +399,6 @@ Task-file discipline for this area. Code-level conventions live in
 | Java client methods | `loom-client/common/…/method/PipelineMethods.java` |
 | The three validators (Task 8) | `loom/services/rest/…/validation/PipelineValidationService.java` · `loom-shared/rest-model/…/validation/PipelineModelValidator.java` · `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
 | The three status/state vocabularies | `loom-shared/api/…/api/pipeline/{PipelineRunStatus,NodeTaskState,RunItemState}.java` · the jOOQ converters in `loom/db/jooq/…/converter/` and their `forcedTypes` entries in `loom/db/jooq/pom.xml` |
-| The registry-less production parsers (Task 12) | `PipelineEndpointService.java:122` · `PipelineRunRecovery.java:68` |
 | Metric catalog + the gap list (Task 13) | `loom/common/…/metrics/LoomMetrics.java` · [METRICS.md](../features/ops/METRICS.md) |
 | Engine test harnesses | `loom/pipeline/src/test/…/engine/{FakeNodeDispatcher,RecordingRunStateStore,Payloads}.java` · `loom/pipeline/src/test/…/TestDescriptors.java` |
 | Node chain test harness | `cortex/pipeline-core/src/test/…/test/AbstractNodeChainTest.java` |
@@ -465,8 +406,10 @@ Task-file discipline for this area. Code-level conventions live in
 
 ---
 
-_Git HEAD revision: `716953c0`_
-_Last updated: 2026-08-07 (Task 9 deleted as done — the three status/state vocabularies are
+_Git HEAD revision: `8bc46dbd`_
+_Last updated: 2026-08-09 (Task 12 deleted as done — both production parsers now take the descriptor
+registry, fixed alongside the ad-hoc node execution work; §B gained an ownership row for
+AGENTIC_NODE_EXECUTION.md. Earlier: Task 9 deleted as done — the three status/state vocabularies are
 typed enums parsed at the jOOQ boundary, and `V2.77` normalises the `FAILURE`/`FAILED`
 mismatch it exposed; Task 7's stale row removed, its endpoint tests are in the tree. Earlier:
 Task 3 deleted as done, Tasks 1/2/4/5 deleted, Task 6 item 2 closed by `CortexNodeAdapterTest`,

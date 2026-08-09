@@ -164,6 +164,13 @@ public enum Permission {
 	UPDATE_MCP_PIPELINE,      // doc:yes  ui:yes test:MCPPipelineAuthoringTest
 	VALIDATE_MCP_PIPELINE,    // doc:yes  ui:yes test:MCPPipelineAuthoringTest
 
+	// Ad-hoc node execution — POST /api/v1/node-runs and the MCP execution tools. Separate from the
+	// authoring trio above for the same reason those are separate from the CRUD quad: designing a
+	// pipeline and spending worker time on one are different trust decisions, and this is the only
+	// permission that lets a caller occupy the GPU fleet. The tools require it in addition to
+	// READ_ASSET, so granting it alone can never widen what a user may read.
+	EXECUTE_MCP_NODE,         // doc:yes  ui:yes test:NodeRunEndpointTest, MCPNodeExecutionTest
+
 	// Asset Pool
 	CREATE_ASSET_POOL,        // doc:yes  ui:yes test:AssetPoolEndpointTest (403 cases)
 	READ_ASSET_POOL,          // doc:yes  ui:yes test:AssetPoolEndpointTest (403 cases)

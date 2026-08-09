@@ -122,7 +122,7 @@ public class PipelineRunCancelEndpointTest {
 			assertEquals(409, status[0], "A run that already finished must yield 409");
 			assertThat(runDao().load(run.getUuid()).getStatus())
 				.as("a conflicting cancel must not overwrite the terminal state")
-				.isEqualTo("SUCCESS");
+				.isEqualTo(PipelineRunStatus.SUCCESS);
 		} finally {
 			vertx.close();
 		}
@@ -144,7 +144,7 @@ public class PipelineRunCancelEndpointTest {
 			assertEquals(403, status[0], "A caller lacking UPDATE_PIPELINE_RUN must be forbidden");
 			assertThat(runDao().load(run.getUuid()).getStatus())
 				.as("a forbidden cancel must not touch the run")
-				.isEqualTo("RUNNING");
+				.isEqualTo(PipelineRunStatus.RUNNING);
 		} finally {
 			vertx.close();
 		}

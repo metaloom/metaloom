@@ -25,6 +25,7 @@ import io.metaloom.loom.rest.model.jsoncomp.JsonCompExamples;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompExamples;
 import io.metaloom.loom.rest.model.library.LibraryExamples;
 import io.metaloom.loom.rest.model.noderesult.NodeResultExamples;
+import io.metaloom.loom.rest.model.noderun.NodeRunExamples;
 import io.metaloom.loom.rest.model.person.PersonExamples;
 import io.metaloom.loom.rest.model.pipeline.PipelineExamples;
 import io.metaloom.loom.rest.model.processor.ProcessorExamples;
@@ -51,6 +52,7 @@ public interface Examples extends
 	BlacklistExamples,
 	ChatExamples,
 	NotificationExamples,
+	NodeRunExamples,
 	SkillExamples,
 	ChatSessionExamples,
 	ClusterExamples,

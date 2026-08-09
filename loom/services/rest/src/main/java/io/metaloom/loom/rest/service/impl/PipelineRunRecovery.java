@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.api.pipeline.NodeTaskState;
+import io.metaloom.loom.api.pipeline.PipelineRunKind;
 import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
 import io.metaloom.loom.db.model.pipeline.PipelineNodeTaskDao;
@@ -27,6 +28,7 @@ import io.metaloom.loom.pipeline.engine.PipelineRunEngine.RestoredTask;
 import io.metaloom.loom.pipeline.engine.RunStateStore;
 import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
+import io.metaloom.loom.nodes.spec.NodeDescriptorRegistry;
 import io.metaloom.loom.pipeline.model.MediaRef;
 import io.metaloom.loom.pipeline.model.NodeState;
 import io.metaloom.loom.pipeline.model.NodeTaskResult;
@@ -64,12 +66,13 @@ public class PipelineRunRecovery {
 	private final WebSocketNodeDispatcher dispatcher;
 	private final PipelineRunTracker tracker;
 	private final io.metaloom.loom.common.metrics.LoomMetrics metrics;
-	private final PipelineGraphParser parser = new PipelineGraphParser();
+	private final PipelineGraphParser parser;
 
 	@Inject
 	public PipelineRunRecovery(PipelineRunDao runDao, PipelineRunItemDao itemDao, PipelineNodeTaskDao taskDao,
 		PipelineVersionDao versionDao, PipelineRunRegistry registry, WebSocketNodeDispatcher dispatcher,
-		PipelineRunTracker tracker, io.metaloom.loom.common.metrics.LoomMetrics metrics) {
+		PipelineRunTracker tracker, NodeDescriptorRegistry nodeDescriptorRegistry,
+		io.metaloom.loom.common.metrics.LoomMetrics metrics) {
 		this.runDao = runDao;
 		this.itemDao = itemDao;
 		this.taskDao = taskDao;
@@ -78,6 +81,10 @@ public class PipelineRunRecovery {
 		this.dispatcher = dispatcher;
 		this.tracker = tracker;
 		this.metrics = metrics;
+		// Registry-backed on purpose: a parser without one skips port checking and classifies every
+		// node as ExecutionMode.SINGLE, so a recovered run would silently lose the fan-out the same
+		// graph had before the restart.
+		this.parser = new PipelineGraphParser(nodeDescriptorRegistry);
 	}
 
 	/**
@@ -126,16 +133,30 @@ public class PipelineRunRecovery {
 	 */
 	private boolean recover(PipelineRun run) {
 		UUID runUuid = run.getUuid();
-		PipelineVersion version = versionDao.loadByPipelineAndVersion(run.getPipelineUuid(), run.getPipelineVersion());
-		if (version == null) {
-			// The definition this run was started from is gone, so there is no graph to
-			// resume against. Failing it is honest; leaving it RUNNING forever is not.
-			failRun(run, "Pipeline version " + run.getPipelineVersion() + " no longer exists");
-			return false;
-		}
 
-		PipelineGraph graph = parser.parse(version.getName(), version.getDefinition(), version.isEnabled(),
-			run.isDryRun(), version.getPriority());
+		PipelineGraph graph;
+		if (run.getKind() == PipelineRunKind.ADHOC) {
+			// An ad-hoc run belongs to no pipeline, so there is no version row to look up. Its
+			// definition travelled with it in meta.definition precisely so that a restart can rebuild
+			// the graph; without this branch the version lookup below would come back null and every
+			// ad-hoc run would be failed by the next Loom restart.
+			JsonObject definition = run.getMeta() == null ? null : run.getMeta().getJsonObject(PipelineRun.META_DEFINITION);
+			if (definition == null) {
+				failRun(run, "Ad-hoc run carries no definition and cannot be resumed");
+				return false;
+			}
+			graph = parser.parse(AdhocRuns.label(run), definition, true, run.isDryRun(), 0);
+		} else {
+			PipelineVersion version = versionDao.loadByPipelineAndVersion(run.getPipelineUuid(), run.getPipelineVersion());
+			if (version == null) {
+				// The definition this run was started from is gone, so there is no graph to
+				// resume against. Failing it is honest; leaving it RUNNING forever is not.
+				failRun(run, "Pipeline version " + run.getPipelineVersion() + " no longer exists");
+				return false;
+			}
+			graph = parser.parse(version.getName(), version.getDefinition(), version.isEnabled(),
+				run.isDryRun(), version.getPriority());
+		}
 
 		RunStateStore store = new DaoRunStateStore(runDao, itemDao, taskDao, runUuid, run.getCreatorUuid());
 		PipelineRunEngine engine = new PipelineRunEngine(graph, dispatcher, runUuid, store);

@@ -177,6 +177,12 @@ import io.metaloom.loom.rest.model.segmentcomp.SegmentCompResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultCreateRequest;
 import io.metaloom.loom.rest.model.noderesult.NodeResultListResponse;
 import io.metaloom.loom.rest.model.noderesult.NodeResultResponse;
+import io.metaloom.loom.rest.model.noderun.NodeProbeRequest;
+import io.metaloom.loom.rest.model.noderun.NodeProbeResponse;
+import io.metaloom.loom.rest.model.noderun.NodeRunListResponse;
+import io.metaloom.loom.rest.model.noderun.NodeRunRequest;
+import io.metaloom.loom.rest.model.noderun.NodeRunResponse;
+import io.metaloom.loom.rest.model.noderun.NodeRunStatusResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
 import io.metaloom.loom.rest.model.transcript.TranscriptListResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptResponse;
@@ -1134,6 +1140,33 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<NoResponse> deleteAssetNodeResult(UUID assetUuid, UUID nodeResultUuid) {
 		return deleteRequest("assets/" + assetUuid + "/node-results/" + nodeResultUuid);
+	}
+
+	// AD-HOC NODE EXECUTION
+
+	@Override
+	public LoomClientHttpRequest<NodeProbeResponse> probeNode(NodeProbeRequest request) {
+		return postRequest("node-runs/probes", request, NodeProbeResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NodeRunResponse> startNodeRun(NodeRunRequest request) {
+		return postRequest("node-runs", request, NodeRunResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NodeRunListResponse> listNodeRuns() {
+		return getRequest("node-runs", NodeRunListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NodeRunStatusResponse> loadNodeRun(UUID runUuid) {
+		return getRequest("node-runs/" + runUuid, NodeRunStatusResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<GenericMessageResponse> cancelNodeRun(UUID runUuid) {
+		return postRequest("node-runs/" + runUuid + "/cancel", null, GenericMessageResponse.class);
 	}
 
 	// ASSET JSON COMPONENT (generic node result sink)

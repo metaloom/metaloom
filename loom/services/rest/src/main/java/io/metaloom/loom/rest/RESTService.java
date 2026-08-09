@@ -116,6 +116,19 @@ public class RESTService extends AbstractService {
 		}
 	}
 
+	/**
+	 * The restart recovery pass.
+	 *
+	 * <p>
+	 * Exposed so a test can drive recovery deliberately rather than by restarting the whole service:
+	 * what a run does after a restart - whether it resumes or is written off - is only observable by
+	 * running this against rows that were left mid-flight.
+	 * </p>
+	 */
+	public PipelineRunRecovery getRunRecovery() {
+		return runRecovery;
+	}
+
 	public HttpServer getServer() {
 		return server;
 	}

@@ -292,6 +292,11 @@
 											<includeExpression>pipeline_run\.status</includeExpression>
 										</forcedType>
 										<forcedType>
+											<userType>io.metaloom.loom.api.pipeline.PipelineRunKind</userType>
+											<converter>io.metaloom.loom.db.jooq.converter.PipelineRunKindConverter</converter>
+											<includeExpression>pipeline_run\.kind</includeExpression>
+										</forcedType>
+										<forcedType>
 											<userType>io.metaloom.loom.api.pipeline.NodeTaskState</userType>
 											<converter>io.metaloom.loom.db.jooq.converter.NodeTaskStateConverter</converter>
 											<includeExpression>pipeline_node_task\.state</includeExpression>

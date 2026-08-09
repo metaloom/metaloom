@@ -238,7 +238,7 @@ non-source kind is rejected outright. Unknown kinds no longer report silent succ
 
 The palette is dynamic — `GET /api/v1/pipeline/node-descriptors`, served from
 `NodeDescriptorRegistry` (26 `ServiceLoader` providers, 34 kinds). **The descriptor set
-is wider than the executable set:** the 8 `filter-*` kinds, `loom-fetch` and
+is wider than the executable set:** the 8 `filter-*` kinds and
 `facedescription` have descriptors but no producer; `asset-source` and `sha512-dedup`
 are the reverse. Details in [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md).
 
@@ -399,7 +399,7 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 - [ ] 🔴 `gpuLoad` never populated and `GPU` never advertised — GPU routing matches nothing
 - [ ] `PipelineEventBroadcaster` has no bounded queue despite its Javadoc; drops newest
 - [ ] `syncToLoom` not settable from the UI editor
-- [ ] 10 palette kinds (8 `filter-*`, `loom-fetch`, `facedescription`) have descriptors but no producer — savable, then 503 at run start
+- [ ] 9 palette kinds (8 `filter-*`, `facedescription`) have descriptors but no producer — savable, then 503 at run start. `loom-fetch` is no longer one of them: Loom executes it itself as the source of an ad-hoc node run ([AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md))
 - [ ] `PipelineGraphParser` is built without the descriptor registry on the run path, so the unknown-kind check is skipped there
 - [ ] `cortex/nodes/loom/` is a dead directory (stale `target/`, no `src/`, not a Maven module)
 - [ ] Round-trip cost of per-node dispatch, and the saving from affinity segments, **unmeasured**
