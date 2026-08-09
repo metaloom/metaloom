@@ -312,7 +312,7 @@ every node stays `SINGLE`. Convenient in tests, dangerous in production —
 | Copy | Location | Notes |
 |---|---|---|
 | `PipelineValidationService` | `loom/services/rest/…/validation/` | **The wired one.** Own structural checks (ids, edge refs, Kahn's cycle detection, reachable-from-source, branch-originates-from-filter) and **delegates all port rules to `PipelineGraphParser`** |
-| `PipelineModelValidator` | `loom-shared/rest-model/…/validation/` | Untested, unwired, own copy of Kahn's |
+| `PipelineModelValidator` | `loom-shared/rest-model/…/validation/` | Unwired, own copy of Kahn's. Now covered by `PipelineModelValidatorTest` (loom/services/rest) — delete those cases with the checks when Task 8 lands |
 | `validatePipeline()` | `loom-ui/…/PipelineEditor.tsx:2255` | Own TS implementation, plus live `isValidConnection` port checks while drawing |
 
 **Structural** rules are duplicated three ways and will drift. **Port** rules are
@@ -1093,15 +1093,17 @@ root first (and again after any Flyway change), or tests fail at
 
 | Area | Tests |
 |---|---|
-| Parser / graph | `PipelineGraphParserTest`, `PortGraphAnalyzerTest`, `PipelineSegmenterTest`, `PipelineNodeOptionsParsingTest`, `PipelineAffinitySerdeTest` |
+| Parser / graph | `PipelineGraphParserTest`, `PipelineGraphParserReferenceDefinitionTest` (loads the checked-in `reference-definition.json` fixture — see §13.4), `PortGraphAnalyzerTest`, `PipelineSegmenterTest`, `PipelineNodeOptionsParsingTest`, `PipelineAffinitySerdeTest` |
 | Engine | `PipelineRunEngineTest` + `…FanOutTest`, `…RecoveryTest`, `…PauseTest`, `…CancelTest`, `…RetryTest`, `…ReturnTest`, `…ReuseTest`, `…SegmentTest`, `…CircuitTest`, `…BulkheadTest`, `…BackpressureTest`, `…FlowControlTest`, `…PersistenceTest` |
-| Cortex runtime | `NodeTaskRunnerTest`, `SegmentTaskRunnerTest`, `SourceTaskRunnerTest`, `ResultBatcherTest`, `PipelineTaskHandlerDrainTest` |
+| Cortex runtime | `NodeTaskRunnerTest`, `SegmentTaskRunnerTest`, `SourceTaskRunnerTest`, `ResultBatcherTest`, `PipelineTaskHandlerDrainTest`, `LoomControlChannelTest` (frame routing, reconnect, the `NODE_REGISTRATION` payload and the §4 gauges, against a real websocket) |
 | Node registration | `RegistryNodeFactoryTest`, `NodeRegistrarTest`, `PipelineConfigurableTest` |
 | Authoring | `PipelineAuthoringServiceTest` (rest), `PipelineAuthoringToolTest` + `NodeDescriptorToolTest` (mcp), `MCPPipelineAuthoringTest` (loom/core, pooled DB) |
 | Loom REST | `PipelineValidationServiceTest`, `PipelineRunStatusResolverTest`, `PipelineRunCapabilityTest`, `PipelineRunEndToEndTest`, `PipelineMatcherTest`, `PipelineEventBroadcasterTest`, `SegmentProtocolSerdeTest`, `ProcessorEndpointTest`, `PipelineEventEndpointTest`, `CombinedEndpointTest` |
 | Versioning + dispatch + delete (REST) | `PipelineVersionEndpointTest` (append/immutability, restore copies forward with 201, 404s, permissions), `PipelineRunDispatchEndpointTest` (400 / 503 / 202 and the `SOURCE_TASK` payload, `DELETE /:uuid` cascade) |
 | DAO | `PipelineDaoTest`, `PipelineVersionDaoTest`, `PipelineRunDaoTest`, `PipelineRunItemDaoTest`, `PipelineNodeTaskDaoTest` |
 | Status/state vocabularies | `PipelineVocabularyTest` (loom-shared/api — parse, terminality, cross-vocabulary rejection), `PipelineVocabularyDaoTest` (jooq — every value round-trips; a raw bad string written past the converter is rejected naming column and value), `PipelineVocabularyEndpointTest` (loom/core — every value out over REST as its own name, and a bad filter value is a 400) |
+| Cortex pipeline-common | `DefaultPipelineEventBusTest`, `DefaultLoomBulkSyncCollectorTest` |
+| Validation (shared model) | `PipelineModelValidatorTest` (loom/services/rest) |
 | Cross-tree ports | `integration-test/…/NodePortConformanceTest` — reflects over every node's `IN_*`/`OUT_*` constants and holds them against its descriptor |
 
 ### 13.2 Node tests — use the chain base class
@@ -1119,20 +1121,44 @@ produce failure messages that name the port. Legacy-tree asserts live in
 
 ### 13.3 Known gaps
 
-- `cortex/pipeline-common` has **no test directory at all** — five caches, the event
-  bus and the sync collector are uncovered (all currently unreachable at runtime).
-- No test for `LoomControlChannel` or `CortexNodeAdapter`'s adapter contract directly.
-- `PipelineModelValidator` (the shared-model copy) is untested.
+- ~~`cortex/pipeline-common` has no test directory at all~~ — closed. The module is down
+  to two classes (the five caches went with the caching removal, §7.4); both are covered
+  by `DefaultPipelineEventBusTest` and `DefaultLoomBulkSyncCollectorTest`.
+- ~~No test for `LoomControlChannel` or `CortexNodeAdapter`'s adapter contract directly~~ —
+  closed by `LoomControlChannelTest` and `CortexNodeAdapterTest`.
+- ~~`PipelineModelValidator` (the shared-model copy) is untested~~ — closed by
+  `PipelineModelValidatorTest`. Task 8 deletes the structural checks; delete the cases
+  covering them at the same time.
 - ~~No Java test for `POST /:uuid/run` dispatch shape or `DELETE /:uuid` cascade;
   versioning REST is covered only by mocked Playwright specs~~ — closed by
   `PipelineRunDispatchEndpointTest` and `PipelineVersionEndpointTest` (§13.1).
   Still uncovered from Java: the `mediaUuids` branch of `sourceOptions` (asset uuid →
   stored binary path), and the dispatch path where the worker's socket dies between
   selection and `send` (`dispatched=false`, 503, run closed out immediately).
-- DAO tests never exercise `loadWithLatestVersion`, `loadByUuids`,
-  `loadByPipelineAndVersion`, `loadLatestByPipeline`.
+- ~~DAO tests never exercise `loadWithLatestVersion`, `loadByUuids`,
+  `loadByPipelineAndVersion`, `loadLatestByPipeline`~~ — closed by `PipelineDaoTest` and
+  `PipelineVersionDaoTest`. Note that `testLoadWithLatestVersionReturnsThePipelineRowOnly`
+  pins what the method *does* rather than what it is named: Task 11 item 1 flips it.
 - Missing per [NODE_DATA_TYPES.md §11](NODE_DATA_TYPES.md): `PortPayload` round trip,
   `ValueCoercer`, Playwright coverage of XOR siblings and `MANY` handle rendering.
+
+### 13.4 The reference definition fixture
+
+`loom/pipeline/src/test/resources/pipeline/reference-definition.json` is the checked-in
+reference for the **stored** definition format. Until it existed, the de-facto reference
+was `DemoDatabaseInitializer`, so a format regression was caught only if somebody ran the
+demo seeder and noticed.
+
+It carries one instance of every feature the format can express — the `version` tag,
+`options` and the legacy `config` alias (including a node with both), selective output
+ports, `affinity`, a `MANY` output driving a `PER_ELEMENT` chain, and the gather that
+recombines it — over the synthetic `TestDescriptors` kinds, for the same reason the
+analyzer tests use them. `PipelineGraphParserReferenceDefinitionTest` loads the file and
+asserts node count, topological order, per-node `InputBinding`s, `ExecutionMode`, fan-out
+driver, options, affinity and demanded outputs.
+
+**Adding a field to the definition format means adding it to this fixture.** A field only
+the fixture omits is a field nothing checks the stored representation of.
 
 ---
 

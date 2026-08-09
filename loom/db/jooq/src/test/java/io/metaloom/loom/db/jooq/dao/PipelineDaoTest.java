@@ -1,6 +1,7 @@
 package io.metaloom.loom.db.jooq.dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -76,6 +77,69 @@ public class PipelineDaoTest extends AbstractJooqTest implements CRUDDaoTestcase
 		// The pointer must not block the delete - see V2.49.
 		pipelineDao().delete(pipeline.getUuid());
 		assertNull(pipelineDao().load(pipeline.getUuid()));
+	}
+
+	/**
+	 * {@link PipelineDao#loadWithLatestVersion(UUID)} today.
+	 *
+	 * <p>
+	 * It is a plain {@code selectFrom(PIPELINE).where(uuid)} - it does <em>not</em> load the version,
+	 * and every caller separately asks {@code pipelineVersionDao().loadLatestByPipeline(...)} for it.
+	 * The name promises a join that is not there, which is Task 11 item 1 in
+	 * {@code spec/tasks/PIPELINE_TASKS.md}: implement the join or rename the method.
+	 * </p>
+	 *
+	 * <p>
+	 * This asserts what the method actually does rather than what it is called, so that fixing it is
+	 * a deliberate change to a failing assertion instead of a silent behaviour change nothing
+	 * notices. The row it returns is equivalent to {@code load(uuid)}, pointer included - which is
+	 * the whole of what a caller can rely on today.
+	 * </p>
+	 */
+	@Test
+	public void testLoadWithLatestVersionReturnsThePipelineRowOnly() {
+		User user = dummyUser();
+
+		Pipeline pipeline = pipelineDao().createPipeline(user, "with_latest");
+		pipelineDao().store(pipeline);
+		PipelineVersion v1 = storeVersion(user, pipeline.getUuid(), 1);
+		PipelineVersion v2 = storeVersion(user, pipeline.getUuid(), 2);
+		pipeline.setLatestVersionUuid(v2.getUuid());
+		pipelineDao().update(pipeline);
+
+		Pipeline loaded = pipelineDao().loadWithLatestVersion(pipeline.getUuid());
+
+		assertNotNull(loaded);
+		assertEquals(pipeline.getUuid(), loaded.getUuid());
+		// The pointer is on the pipeline row, so this much is genuinely resolved.
+		assertEquals(v2.getUuid(), loaded.getLatestVersionUuid());
+		assertNotEquals(v1.getUuid(), loaded.getLatestVersionUuid());
+
+		// ...and this is the part the name promises and the query does not do: the version itself
+		// still has to be fetched separately.
+		assertEquals(2, pipelineVersionDao().loadLatestByPipeline(pipeline.getUuid()).getVersionNumber());
+	}
+
+	@Test
+	public void testLoadWithLatestVersionReturnsNullForAnUnknownPipeline() {
+		assertNull(pipelineDao().loadWithLatestVersion(UUID.randomUUID()),
+			"An unknown uuid must come back as null rather than throwing - callers turn it into a 404");
+	}
+
+	/**
+	 * A pipeline that has no version yet is a real intermediate state: the pipeline row is inserted
+	 * before its v1, because the version's foreign key needs it.
+	 */
+	@Test
+	public void testLoadWithLatestVersionOnAPipelineThatHasNoVersionYet() {
+		Pipeline pipeline = pipelineDao().createPipeline(dummyUser(), "no_version");
+		pipelineDao().store(pipeline);
+
+		Pipeline loaded = pipelineDao().loadWithLatestVersion(pipeline.getUuid());
+
+		assertNotNull(loaded);
+		assertNull(loaded.getLatestVersionUuid());
+		assertNull(pipelineVersionDao().loadLatestByPipeline(pipeline.getUuid()));
 	}
 
 	/**

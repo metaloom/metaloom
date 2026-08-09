@@ -80,7 +80,7 @@ TagDaoImpl/AssetDaoImpl).
 ## Progress Assessment
 
 - [ ] Task 1 — `AssetPoolDaoTest`
-- [ ] Task 2 — `DetectionDaoTest`
+- [x] Task 2 — `DetectionDaoTest`
 - [x] Task 3 — `ChatDaoTest`
 - [x] Task 4 — `AssetBinaryDaoTest` + resolve the `AssetBinaryDao`/`AssetLocationDao` duplication
 - [ ] Task 5 — `RoleDaoTest` CRUD + `loadByName`

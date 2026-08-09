@@ -1,0 +1,102 @@
+{
+  "version": 1,
+
+  "//": [
+    "The reference pipeline definition. This is checked in as a fixture, not as demo data:",
+    "PipelineGraphParserReferenceDefinitionTest loads *this file* and asserts what it parses to,",
+    "so a change to the stored format that nobody meant to make fails a test instead of surfacing",
+    "as a pipeline that no longer runs.",
+    "",
+    "Every feature of the format that a stored definition can carry appears exactly once here:",
+    "  version                - the format tag; absent means 1",
+    "  options                - the documented per-node parameter object (split)",
+    "  config                 - the legacy alias the editor used to write (work)",
+    "  options + config       - both present; options wins (score)",
+    "  affinity               - co-scheduling group (work, score)",
+    "  source                 - the single entry node",
+    "  blocking / syncToLoom  - the two per-node booleans, set away from their defaults",
+    "  selective output ports - route.a / route.b, only one of which fires per item",
+    "  a non-selective port   - route.label, which feeds a node that runs whichever branch fired",
+    "  fan-out                - split.texts is MANY, so work and score run PER_ELEMENT",
+    "  gather                 - gather's MANY inputs recombine the sequence, so it runs once",
+    "  two edges, same pair   - split feeds work and gather-adjacent nodes on distinct ports",
+    "  resultBatchSize        - pipeline-wide result batching",
+    "  reuseResults           - reuse of previously computed node results",
+    "",
+    "The node kinds are the synthetic ones from TestDescriptors, for the same reason the analyzer",
+    "tests use them: real kinds do not offer every port shape the format has to express, and",
+    "pinning the reference to whichever real node happens to fit today would break this fixture",
+    "every time that node is re-specified. The *format* is what is under test, not the catalogue."
+  ],
+
+  "resultBatchSize": 25,
+  "reuseResults": true,
+
+  "nodes": [
+    {
+      "id": "src",
+      "type": "test-source",
+      "name": "Source",
+      "source": true
+    },
+    {
+      "id": "route",
+      "type": "router",
+      "name": "Router"
+    },
+    {
+      "id": "notice",
+      "type": "noticer",
+      "name": "Noticer",
+      "blocking": false
+    },
+    {
+      "id": "split",
+      "type": "splitter",
+      "name": "Splitter",
+      "options": {
+        "chunkSize": 512,
+        "overlap": 32,
+        "labels": ["intro", "body"]
+      }
+    },
+    {
+      "id": "work",
+      "type": "worker",
+      "name": "Worker",
+      "affinity": "gpu",
+      "syncToLoom": true,
+      "config": {
+        "model": "legacy-alias",
+        "temperature": 0.5
+      }
+    },
+    {
+      "id": "score",
+      "type": "scorer",
+      "name": "Scorer",
+      "affinity": "gpu",
+      "options": {
+        "scale": "documented"
+      },
+      "config": {
+        "scale": "legacy"
+      }
+    },
+    {
+      "id": "gather",
+      "type": "gatherer",
+      "name": "Gatherer"
+    }
+  ],
+
+  "edges": [
+    { "id": "e1", "source": "src", "sourcePort": "media", "target": "route", "targetPort": "media" },
+    { "id": "e2", "source": "route", "sourcePort": "a", "target": "split", "targetPort": "media" },
+    { "id": "e3", "source": "route", "sourcePort": "label", "target": "notice", "targetPort": "label" },
+    { "id": "e4", "source": "split", "sourcePort": "texts", "target": "work", "targetPort": "text" },
+    { "id": "e5", "source": "split", "sourcePort": "texts", "target": "score", "targetPort": "text" },
+    { "id": "e6", "source": "work", "sourcePort": "result", "target": "gather", "targetPort": "summaries" },
+    { "id": "e7", "source": "score", "sourcePort": "score", "target": "gather", "targetPort": "sentiments" }
+  ]
+}

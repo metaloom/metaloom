@@ -486,13 +486,17 @@ Schema current through **`V2.74`**. Work items live in
 - [x] `RoleDaoTest` — `role_permission` binding plus CRUD and both `loadByName` branches
 - [ ] `SpaceDaoTest` — **empty class, zero tests**
 - [x] `AssetPoolDaoTest` — CRUD over both pool shapes plus the `library.pool_uuid` RESTRICT from V2.63
-- [ ] `DetectionDaoTest` — no DAO-level coverage
+- [x] `DetectionDaoTest` — CRUD plus the `V2.43` contract: a full provenance/geometry round trip,
+  `detection_unique_key` upsert-replace on re-run and rejection of a colliding plain `store`, the
+  `run_uuid`/`task_uuid` SET NULL detach when a pipeline run is pruned, and the asset delete-cascade;
+  the `V2.81` review columns (`status` round trip, `listByStatus`, `loadPage`, reviewer-not-editor) are
+  covered here and the re-run verdict rule in `DetectionUpsertReviewTest`
 - [x] `ChatDaoTest` — CRUD plus a deep-equality `messages` round-trip and the V2.52 `chat_session.chat_uuid` SET NULL detach
 - [x] `AssetBinaryDaoTest` — CRUD plus `loadPrimaryByAssetUuid` (oldest-first, uuid tie-break),
   `loadAllByAssetUuid`, `loadByAssetAndLibrary`, `countByPoolAndPath` (null-pool and pooled),
   `deleteByAssetUuid`, and a full-column round trip; the duplicate `AssetLocationDao` is gone
 - [ ] `AnnotationDaoTest` does not implement `CRUDDaoTestcases`
-- [ ] Delete-cascade tests missing for Library, Space, Token, Blacklist, Attachment, Detection, MemoryEntry, MemoryDenyRule; for AssetPool only the `library.pool_uuid` RESTRICT is covered — `asset_location.pool_uuid` and `attachment_binary.pool_uuid` are not
+- [ ] Delete-cascade tests missing for Library, Space, Token, Blacklist, Attachment, MemoryEntry, MemoryDenyRule; for AssetPool only the `library.pool_uuid` RESTRICT is covered — `asset_location.pool_uuid` and `attachment_binary.pool_uuid` are not
 - [ ] `vector_config` (V2.6) has a generated table but no DAO
 - [ ] `asset_remix` (V2.8) has a generated table but no DAO operations
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released

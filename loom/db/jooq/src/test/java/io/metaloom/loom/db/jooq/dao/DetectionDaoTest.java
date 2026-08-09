@@ -1,8 +1,10 @@
 package io.metaloom.loom.db.jooq.dao;
 
+import static io.metaloom.loom.db.jooq.tables.JooqDetection.DETECTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -15,6 +17,9 @@ import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.detection.Detection;
 import io.metaloom.loom.db.model.detection.DetectionDao;
+import io.metaloom.loom.db.model.pipeline.PipelineNodeTask;
+import io.metaloom.loom.db.model.pipeline.PipelineRun;
+import io.metaloom.loom.db.model.pipeline.PipelineRunItem;
 import io.metaloom.loom.db.model.review.ReviewStatus;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.db.page.Page;
@@ -33,13 +38,19 @@ public class DetectionDaoTest extends AbstractJooqTest implements CRUDDaoTestcas
 
 	@Override
 	public Detection createElement(User user, int i) {
+		// The full V2.43 shape, not just the columns a given assertion reads: the provenance columns are NOT NULL, so a factory that skipped them
+		// would only ever exercise their defaults.
+		//
 		// Each element needs a distinct (asset, node_kind, frame_number, detection_index), or the CRUD testcases' 1024-row page test would
 		// collide on detection_unique_key.
 		return getDao().createDetection(user, "objectdetection")
 			.setAssetUuid(asset().getUuid())
+			.setNodeKind("objectdetect")
+			.setProducerVersion("yolo-v8")
 			.setLabel("dog")
 			.setFrameNumber(i)
 			.setDetectionIndex(0)
+			.setTimeFrom(i * 40L)
 			.setBboxX(0.1f)
 			.setBboxY(0.2f)
 			.setBboxWidth(0.3f)
@@ -243,6 +254,114 @@ public class DetectionDaoTest extends AbstractJooqTest implements CRUDDaoTestcas
 		assertEquals(firstUuid, second.getUuid(), "The same natural key must map to the same row");
 		assertEquals(1, getDao().listByStatus(asset().getUuid(), "objectdetection", null).size(), "A re-run must not append a second row");
 		assertEquals(0.9f, getDao().load(firstUuid).getConfidence(), 0.0001f, "The producer's own payload is updated");
+	}
+
+	/**
+	 * {@link DetectionDao#upsertDetection(Detection)} is the only idempotent write. A plain {@link io.metaloom.loom.db.CRUDDao#store} of a colliding
+	 * row is rejected by {@code detection_unique_key} rather than quietly appending a duplicate.
+	 *
+	 * <p>
+	 * Pinning the constraint by name matters: it is the difference between "the database refused the duplicate" and "some unrelated insert failed".
+	 * V2.43 exists because re-running a node on a video used to append a complete second set of detections for every frame.
+	 * </p>
+	 */
+	@Test
+	public void testPlainStoreRejectsADuplicateKey() {
+		User user = dummyUser();
+		getDao().store(createElement(user, 0));
+
+		// Same (asset, node_kind, frame_number, detection_index), different payload.
+		Detection duplicate = createElement(user, 0).setConfidence(0.1f);
+
+		Exception thrown = assertThrows(Exception.class, () -> getDao().store(duplicate),
+			"A second detection with the same natural key must not be insertable");
+		assertTrue(PipelineFixtures.rootCauseMessage(thrown).contains("detection_unique_key"),
+			"The failure must come from the V2.43 idempotency key, not from something incidental");
+
+		assertEquals(1, getDao().listByStatus(asset().getUuid(), "objectdetection", null).size(), "The rejected insert must leave no row behind");
+	}
+
+	/**
+	 * Deleting the run that produced a detection detaches the provenance and keeps the detection.
+	 *
+	 * <p>
+	 * {@code run_uuid} and {@code task_uuid} are {@code ON DELETE SET NULL}, not CASCADE, and the asymmetry is deliberate: pipeline runs and their
+	 * node tasks are execution bookkeeping with a retention horizon, while the detections they produced are the result. A CASCADE here would make
+	 * pruning run history silently destroy the AI output, which is the expensive half.
+	 * </p>
+	 *
+	 * <p>
+	 * Written through jOOQ rather than the DAO because {@code Detection} exposes no accessor for either column - nothing in Java populates them yet,
+	 * so this pins the schema contract ahead of the producer that will.
+	 * </p>
+	 */
+	@Test
+	public void testDeletingTheRunDetachesButKeepsTheDetection() {
+		User user = dummyUser();
+
+		PipelineRun run = PipelineFixtures.createRun(this, user, 0);
+		PipelineRunItem item = pipelineRunItemDao().createRunItem(user.getUuid(), run.getUuid(), 0, "/media/file-0.mp4");
+		pipelineRunItemDao().store(item);
+		PipelineNodeTask task = pipelineNodeTaskDao().createNodeTask(user.getUuid(), item.getUuid(), run.getUuid(), "objectdetect",
+			"objectdetect");
+		pipelineNodeTaskDao().store(task);
+
+		Detection detection = createElement(user, 0);
+		getDao().store(detection);
+		context.ctx().update(DETECTION)
+			.set(DETECTION.RUN_UUID, run.getUuid())
+			.set(DETECTION.TASK_UUID, task.getUuid())
+			.set(DETECTION.NODE_ID, "objectdetect")
+			.where(DETECTION.UUID.eq(detection.getUuid()))
+			.execute();
+
+		// It has to be attached before the delete, or a SET NULL assertion afterwards would pass against a row that was never linked.
+		assertEquals(run.getUuid(), runUuidOf(detection.getUuid()), "The detection is attached to the run");
+
+		pipelineRunDao().delete(run.getUuid());
+
+		Detection survivor = getDao().load(detection.getUuid());
+		assertNotNull(survivor, "Pruning run history must not delete the detections that run produced");
+		assertEquals("dog", survivor.getLabel(), "...and must not touch the payload");
+		assertEquals("objectdetect", survivor.getNodeKind(), "The producer's identity is on the detection itself and survives the run");
+		assertEquals("yolo-v8", survivor.getProducerVersion());
+
+		assertNull(runUuidOf(detection.getUuid()), "run_uuid is ON DELETE SET NULL");
+		// Deleting a run cascades to its node tasks, so the task reference is nulled by the same delete.
+		assertNull(taskUuidOf(detection.getUuid()), "task_uuid is ON DELETE SET NULL");
+	}
+
+	/**
+	 * Every V2.43 column survives a write/read round trip. Loading a detection back with a zeroed bounding box or a lost frame number would put the
+	 * box in the wrong place on the wrong frame, and every assertion above would still pass.
+	 */
+	@Test
+	public void testProvenanceAndGeometryRoundTrip() {
+		Detection detection = createElement(dummyUser(), 7);
+		getDao().store(detection);
+
+		Detection loaded = getDao().load(detection.getUuid());
+		assertEquals(asset().getUuid(), loaded.getAssetUuid());
+		assertEquals("objectdetect", loaded.getNodeKind());
+		assertEquals("yolo-v8", loaded.getProducerVersion());
+		assertEquals("objectdetection", loaded.getType());
+		assertEquals("dog", loaded.getLabel());
+		assertEquals(7, loaded.getFrameNumber().intValue());
+		assertEquals(0, loaded.getDetectionIndex().intValue());
+		assertEquals(280L, loaded.getTimeFrom().longValue());
+		assertEquals(0.1f, loaded.getBboxX(), 0.0001f);
+		assertEquals(0.2f, loaded.getBboxY(), 0.0001f);
+		assertEquals(0.3f, loaded.getBboxWidth(), 0.0001f);
+		assertEquals(0.4f, loaded.getBboxHeight(), 0.0001f);
+		assertEquals(0.9f, loaded.getConfidence(), 0.0001f);
+	}
+
+	private UUID runUuidOf(UUID detectionUuid) {
+		return context.ctx().select(DETECTION.RUN_UUID).from(DETECTION).where(DETECTION.UUID.eq(detectionUuid)).fetchOne(DETECTION.RUN_UUID);
+	}
+
+	private UUID taskUuidOf(UUID detectionUuid) {
+		return context.ctx().select(DETECTION.TASK_UUID).from(DETECTION).where(DETECTION.UUID.eq(detectionUuid)).fetchOne(DETECTION.TASK_UUID);
 	}
 
 }

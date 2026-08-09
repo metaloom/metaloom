@@ -297,8 +297,8 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
 
 - [ ] **Task 14** — re-sync `dbdiagram.yaml` to `V2.63` (the only actionable item owned by
       this file; full detail above)
-- [ ] **DAO/test gaps** — including the `DetectionDaoTest` that §10.2 of the old revision
-      wrongly claimed to have run (see the correction below). Tracked in
+- [ ] **DAO/test gaps** — the `DetectionDaoTest` that §10.2 of the old revision wrongly claimed to
+      have run now exists (see the correction below); the remaining gaps are tracked in
       [../../loom/PERSISTENCE_TASKS.md](../../tasks/PERSISTENCE_TASKS.md), not here.
 - [ ] **ACL primary keys** — `user_permission` / `token_permission` / `role_permission` are
       still `PRIMARY KEY (user_uuid)` etc. (`V2.1`, unchanged) —
@@ -323,12 +323,16 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
 ### 7.1 Correction to the original verification record
 
 The superseded §10.2 listed `DetectionDaoTest` among the DAO suites verified on
-2026-07-23. **That class has never existed** — the run was `DetectionEndpointTest`
-(`loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/DetectionEndpointTest.java`).
-`detection`'s `V2.43` provenance columns and idempotency key are therefore pinned by no DAO
-test; the only test-side use of `detectionDao()` is inside `AssetCascadeTest`. Writing that
-test is an open item in
-[../../loom/PERSISTENCE_TASKS.md](../../tasks/PERSISTENCE_TASKS.md).
+2026-07-23. **That class did not exist on that date** — the run was `DetectionEndpointTest`
+(`loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/DetectionEndpointTest.java`), so
+`detection`'s `V2.43` provenance columns and idempotency key were pinned by no DAO test and the
+only test-side use of `detectionDao()` was inside `AssetCascadeTest`.
+
+The class was since written and now pins that contract: the provenance/geometry round trip, the
+`detection_unique_key` idempotency key from both sides (upsert-replace on a node re-run, rejection
+of a colliding plain `store`), and the `run_uuid`/`task_uuid` `ON DELETE SET NULL` that keeps a
+detection alive when its pipeline run is pruned. The task is closed in
+[../../loom/PERSISTENCE_TASKS.md](../../tasks/PERSISTENCE_TASKS.md) §Progress Assessment.
 
 The rest of the record stands: at the time of the rework `loom/db/jooq` (211 tests),
 `loom/db/api` (8), `loom/services/rest` (161), `loom/services/graphql` (8) and `loom/core`

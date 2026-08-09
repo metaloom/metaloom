@@ -277,7 +277,7 @@ positive does not return to the queue, and a `producer_version` change resets al
 | Test | Covers | Command |
 |---|---|---|
 | `ObjectDetectNodeTest` 🟢 | Detection + persistence | `mvn -pl cortex/nodes/objectdetect/core -am test` |
-| `DetectionDaoTest` 🟡 → extend | `status` round-trip, `listByStatus`, reviewer columns, delete-cascade | `mvn -pl loom/db/jooq test -Dtest=DetectionDaoTest` |
+| `DetectionDaoTest` 🟢 | `status` round-trip, `listByStatus`, `loadPage`, reviewer columns, delete-cascade, plus the `V2.43` provenance round trip, unique key and run/task SET NULL | `mvn -pl loom/db/jooq test -Dtest=DetectionDaoTest` |
 | `DetectionEndpointTest` 🟡 → extend | Review route 200 + 403 without `UPDATE_DETECTION`; bulk partial failure; invalid status 400; unknown uuid 404 | `mvn -pl loom/core test -Dtest=DetectionEndpointTest` |
 | `DetectionUpsertReviewTest` 🔵 **new** | The §2.4 rule: a re-run does **not** clear a `CONFIRMED` status | — |
 | `workflow-objects-mocked.spec.ts` 🔵 **new** | Mock detections with real labels; assert the caption is `dog`, not `objectdetection`; press `Y` and assert the POST body; assert a failed POST reverts | `./node_modules/.bin/playwright test` |
