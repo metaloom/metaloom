@@ -88,7 +88,7 @@ loom-ui/
 │   ├── types/        # index.ts (domain), nodeDescriptors.ts (pipeline ports)
 │   ├── img/
 │   └── main.tsx      # Entry: provider tree + AuthGate
-├── e2e/              # 79 Playwright specs (§8.2)
+├── e2e/              # 84 Playwright specs (§8.2)
 ├── public/ · index.html
 ├── vite.config.ts · vitest.config.ts · playwright.config.ts · tsconfig.json
 └── package.json
@@ -167,6 +167,10 @@ graph TD
 
 `FaceDetectionManagement`, `ClustersPanel`, `PersonsPanel` and `ReactionsPanel` have **no
 route of their own** — they are mounted as panels from `DetectionManagement` / asset detail.
+`DetectionManagement` is a three-tab shell (Faces / Objects / LLM, `role="tab"`); the Faces tab is
+`FaceDetectionManagement`, which switches between `ClustersPanel` and `PersonsPanel` with the two
+chips in `facedetection-switcher`. An E2E spec therefore reaches either panel via `/detection` plus
+that switcher, never via a URL — see `e2e/face-panels-mocked.spec.ts`.
 
 ### 4.3 Sidebar
 
@@ -502,13 +506,17 @@ tasks attached to assets with priority/status/due dates.
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-79 specs in two flavours, distinguished by filename suffix:
+84 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (45) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-mocked.spec.ts` (51) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
 | `*-backend.spec.ts` (30) | **Yes** | Real Loom server with demo data |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
+
+> **Gotcha:** `page.route` handlers are matched **most-recently-registered first**, which is why every
+> mocked spec registers the catch-all first. It also means a broad pattern registered *later* wins:
+> `…/detections/:uuid` would swallow `…/detections/bulk` unless the bulk route is registered after it.
 
 > **Gotcha:** the list clients append `?limit=`, so a matcher anchored on the bare path — either
 > `/\/api\/v1\/assets$/` or the glob `"**/api/v1/assets"` — no longer matches and the call falls
@@ -728,9 +736,11 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ### 13.4 Testing
 
-- [x] vitest (node env) for API clients and extracted helpers — 41 files
-- [x] Playwright mocked specs as the component tier — 46 files
+- [x] vitest (node env) for API clients and extracted helpers — 42 files
+- [x] Playwright mocked specs as the component tier — 51 files
 - [x] Playwright backend specs against demo data — 30 files
+- [x] Detection review actions covered: bulk staging/save, confirm, redraw, object confirm/reject
+      (`e2e/detection-review-mocked.spec.ts`) and the face panels (`e2e/face-panels-mocked.spec.ts`)
 - [x] `tsc --noEmit` gate via `npm run build`
 - [ ] Visual regression tests
 - [ ] Accessibility tests
@@ -738,6 +748,6 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-08 (`api/dedup.ts` added — the UI's only PATCH client; workflow dedup dropped
-out of the mock inventory; test counts refreshed)_
+_Git HEAD revision: `fe037e14`_
+_Last updated: 2026-08-09 (detection review + face panel E2E coverage; panel-switcher navigation
+spelled out in §4.2; `page.route` priority gotcha in §8.2; test counts refreshed)_

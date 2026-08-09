@@ -77,6 +77,7 @@ export function FaceCrop({ assetUuid, detectionUuid, size = 64, rounded = true }
           color: "text.disabled",
         }}
         aria-label="No face crop available"
+        data-testid="face-crop"
       >
         <FaceOutlinedIcon fontSize="small" />
       </Box>
@@ -89,6 +90,7 @@ export function FaceCrop({ assetUuid, detectionUuid, size = 64, rounded = true }
       alt=""
       variant={rounded ? "circular" : "rounded"}
       sx={{ width: size, height: size }}
+      data-testid="face-crop"
     />
   );
 }

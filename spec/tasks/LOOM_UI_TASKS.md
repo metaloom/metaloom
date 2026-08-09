@@ -72,7 +72,7 @@ cancel, clear), backed by `uploadQueue.test.ts` (288 lines), `uploadFormat.test.
 | `81ad0fb4` | Pipeline debug / breakpoints / inspect | Covered — `pipeline-breakpoints-mocked`, `pipeline-run-pause-mocked`, `pipeline-node-results-mocked` |
 | `384fe94e` | Debug **preview** rendering + node colors | **Gap** — vitest only; `result-element-previews`, `result-image-note`, `result-media-path`, `node-result-more` have **no E2E** → **Task 7** |
 | `228b0f97` · `6d454bc0` | Memory system + memory denylist | **Gap** — zero E2E. 13 testids across `/memory` and `/admin/memory-denylist`, none referenced → **Task 4** |
-| `b6ee0d2e` | Face embedding persistence | **Gap** — no UI surface at all; `clusters-backend`/`persons-backend` are one API-CRUD spec each → **Task 8** |
+| `b6ee0d2e` | Face embedding persistence | Closed by **Task 8** — `detection-review-mocked` + `face-panels-mocked`, plus a panel-driven assignment case in `clusters-backend` |
 
 **Repo-wide measurement:** of **172** `data-testid` values in `loom-ui/src`, **62 (36 %)** are
 referenced by no spec in `loom-ui/e2e/`. [ProfileView.tsx](../../loom-ui/src/features/profile/ProfileView.tsx)
@@ -212,52 +212,6 @@ and add a backend spec that uploads real bytes end to end.
 **Test Requirements:** The extended mocked spec (11 → ~18 cases) and the new backend spec.
 `cd loom-ui && ./node_modules/.bin/playwright test e2e/uploads-mocked.spec.ts` and, with a server up,
 `VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 ./node_modules/.bin/playwright test e2e/uploads-backend.spec.ts`
-
----
-
-## Task 8: E2E for detection review and the face panels
-
-**Argumentation Summary:** The detection review workflow — the human-in-the-loop step that makes
-detections trustworthy — is untested at the UI level. Six testids are unreferenced:
-`detection-bulk-toggle`, `detection-bulk-save`, `detection-confirm`, `detection-redraw`,
-`objectdetection-confirm`, `objectdetection-reject`. [detections-backend.spec.ts](../../loom-ui/e2e/detections-backend.spec.ts)
-covers CRUD through the API and one edit-confidence flow, but never the bulk path, and
-`clusters-backend`/`persons-backend` are **one CRUD test each** with no coverage of
-[ClustersPanel.tsx](../../loom-ui/src/features/faceDetection/ClustersPanel.tsx) or
-[PersonsPanel.tsx](../../loom-ui/src/features/faceDetection/PersonsPanel.tsx) — the screens a user
-actually operates. `FaceDetectionManagement` and `DetectionManagement` have no spec at all. With
-face embeddings now persisted and indexed (`b6ee0d2e`), the cluster→person assignment flow is about
-to matter more, not less.
-
-**Improvement Summary:** One mocked spec for the detection review actions and one for the face
-panels, both driven by fixture JSON rather than a live pipeline.
-
-```
-1. loom-ui/e2e/detection-review-mocked.spec.ts:
-     - `detection-bulk-toggle` selects all rows; `detection-bulk-save` issues ONE
-       POST /assets/:uuid/detections/bulk carrying every selected uuid (not N single requests).
-     - `detection-confirm` on a single detection persists and the row's state changes.
-     - `objectdetection-confirm` / `objectdetection-reject` on the object-detection screen.
-     - `detection-redraw` opens the region editor and a redrawn box persists new coordinates.
-     - a failed bulk save leaves the selection intact so the user can retry.
-2. loom-ui/e2e/face-panels-mocked.spec.ts:
-     - DetectionManagement mounts FaceDetectionManagement, ClustersPanel and PersonsPanel as panels
-       -- there is no route of their own (LOOM_UI.md §4.2). Navigate via /detection and the panel
-       switcher, and assert the switcher itself.
-     - a cluster lists its member faces; assigning a cluster to a person issues the expected call
-       and the cluster moves out of the unassigned list.
-     - creating a person from a cluster; renaming; the empty states for both panels.
-3. Add data-testid values where the panels lack them, following the kebab-case feature-prefixed
-   convention (LOOM_UI.md §11.1).
-```
-
-**References:** [DetectionManagement.tsx](../../loom-ui/src/features/detection/DetectionManagement.tsx) ·
-[ObjectDetectionManagement.tsx](../../loom-ui/src/features/detection/ObjectDetectionManagement.tsx) ·
-[faceDetection/](../../loom-ui/src/features/faceDetection/) ·
-[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §4.2 · commit `b6ee0d2e`
-
-**Test Requirements:** The two specs above, plus a case in `clusters-backend.spec.ts` that exercises
-the panel rather than only the API.
 
 ---
 
@@ -459,5 +413,6 @@ the mocked suite in CI.
 
 ---
 
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (initial audit — search coverage, list paging, E2E gap sweep across 172 testids)_
+_Git HEAD revision: `fe037e14`_
+_Last updated: 2026-08-09 (Task 8 closed — detection review and face panel E2E; the 172/62 testid
+measurement in §0.4 remains the 2026-08-06 baseline)_

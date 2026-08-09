@@ -105,6 +105,10 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
           <Paper
             key={cluster.id}
             elevation={0}
+            data-testid="cluster-card"
+            // The assign affordance is replaced by the person chip once a cluster is confirmed, so
+            // "is this one still unassigned?" is otherwise only answerable by probing for a button.
+            data-assigned={person ? "true" : "false"}
             sx={{
               bgcolor: tokens.bg.elevated,
               border: `1px solid ${tokens.border.subtle}`,
@@ -116,27 +120,27 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, px: 2, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}` }}>
               <Avatar src={cluster.representativeThumbnailUrl} sx={{ width: 40, height: 40 }} />
               <Box sx={{ flex: 1 }}>
-                <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.85rem", color: tokens.text.primary }}>
+                <Typography variant="body2" fontWeight={600} data-testid="cluster-name" sx={{ fontSize: "0.85rem", color: tokens.text.primary }}>
                   {cluster.label}
                 </Typography>
-                <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>
+                <Typography variant="caption" data-testid="cluster-face-count" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>
                   {t("faceDetection.count.faces", { count: cluster.faceCount })}
                 </Typography>
               </Box>
               {person ? (
-                <Chip label={person.name} size="small" avatar={<Avatar src={person.avatarUrl} />} sx={{ height: 24, fontSize: "0.72rem", bgcolor: `${tokens.accent.green}18`, border: `1px solid ${tokens.accent.green}44` }} />
+                <Chip label={person.name} size="small" data-testid="cluster-person-chip" avatar={<Avatar src={person.avatarUrl} />} sx={{ height: 24, fontSize: "0.72rem", bgcolor: `${tokens.accent.green}18`, border: `1px solid ${tokens.accent.green}44` }} />
               ) : (
                 <Tooltip title={t("faceDetection.tooltip.assign")}>
-                  <IconButton size="small" onClick={() => onAssignCluster(cluster.id)}>
+                  <IconButton size="small" data-testid="cluster-assign" onClick={() => onAssignCluster(cluster.id)}>
                     <LinkOutlined sx={{ fontSize: 16, color: tokens.text.tertiary }} />
                   </IconButton>
                 </Tooltip>
               )}
               <Box sx={{ display: "flex", flexDirection: "column" }}>
-                <IconButton size="small" onClick={() => openEdit(cluster)}>
+                <IconButton size="small" data-testid="cluster-edit" onClick={() => openEdit(cluster)}>
                   <EditOutlined sx={{ fontSize: 16 }} />
                 </IconButton>
-                <IconButton size="small" onClick={() => handleDelete(cluster.id)}>
+                <IconButton size="small" data-testid="cluster-delete" onClick={() => handleDelete(cluster.id)}>
                   <DeleteOutlined sx={{ fontSize: 16 }} />
                 </IconButton>
               </Box>
@@ -163,7 +167,7 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
         );
       })}
       {clusters.length === 0 && (
-        <Box sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
+        <Box data-testid="clusters-empty" sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
           <GroupWorkOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
           <Typography variant="body2" color="text.secondary">{t("faceDetection.empty.clusters")}</Typography>
         </Box>
@@ -180,11 +184,12 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
             size="small"
             fullWidth
             autoFocus
+            data-testid="cluster-edit-name"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditCluster(null)} size="small">{t("faceDetection.button.cancel")}</Button>
-          <Button onClick={handleUpdate} variant="contained" size="small" disabled={!editName.trim()}>{t("faceDetection.button.save")}</Button>
+          <Button onClick={handleUpdate} variant="contained" size="small" data-testid="cluster-edit-save" disabled={!editName.trim()}>{t("faceDetection.button.save")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

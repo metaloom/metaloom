@@ -184,6 +184,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
           onChange={e => setQuery(e.target.value)}
           placeholder={t("faceDetection.search.placeholder")}
           size="small"
+          data-testid="facedetection-search"
           sx={{ flex: 1, maxWidth: 320 }}
           InputProps={{
             startAdornment: (
@@ -193,12 +194,17 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             ),
           }}
         />
-        <Box sx={{ display: "flex", gap: 0.5 }}>
+        {/* Panel switcher. These two panels have no route of their own (LOOM_UI.md §4.2), so the
+            chips are the only way to reach them and `aria-pressed` is the only thing that says which
+            one is showing. */}
+        <Box sx={{ display: "flex", gap: 0.5 }} data-testid="facedetection-switcher">
           <Chip
             label={t("faceDetection.chip.clusters")}
             size="small"
             icon={<GroupWorkOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setActiveSection("clusters")}
+            data-testid="facedetection-section-clusters"
+            aria-pressed={activeSection === "clusters"}
             sx={{
               bgcolor: activeSection === "clusters" ? tokens.primary.subtle : tokens.bg.elevated,
               color: activeSection === "clusters" ? tokens.primary.main : tokens.text.secondary,
@@ -211,6 +217,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             size="small"
             icon={<PersonOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setActiveSection("persons")}
+            data-testid="facedetection-section-persons"
+            aria-pressed={activeSection === "persons"}
             sx={{
               bgcolor: activeSection === "persons" ? tokens.primary.subtle : tokens.bg.elevated,
               color: activeSection === "persons" ? tokens.primary.main : tokens.text.secondary,
@@ -224,6 +232,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             size="small"
             startIcon={<AddOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setCreateClusterOpen(true)}
+            data-testid="facedetection-add-cluster"
             sx={{ ml: "auto", textTransform: "none", fontSize: "0.78rem" }}
           >
             {t("faceDetection.button.addCluster")}
@@ -234,6 +243,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             size="small"
             startIcon={<AddOutlined sx={{ fontSize: 14 }} />}
             onClick={() => setCreatePersonOpen(true)}
+            data-testid="facedetection-add-person"
             sx={{ ml: "auto", textTransform: "none", fontSize: "0.78rem" }}
           >
             {t("faceDetection.button.addPerson")}
@@ -273,11 +283,12 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             size="small"
             fullWidth
             autoFocus
+            data-testid="facedetection-cluster-name"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateClusterOpen(false)} size="small">{t("faceDetection.button.cancel")}</Button>
-          <Button onClick={handleCreateCluster} variant="contained" size="small" disabled={!newClusterName.trim()}>{t("faceDetection.button.create")}</Button>
+          <Button onClick={handleCreateCluster} variant="contained" size="small" data-testid="facedetection-cluster-create" disabled={!newClusterName.trim()}>{t("faceDetection.button.create")}</Button>
         </DialogActions>
       </Dialog>
 
@@ -292,6 +303,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             size="small"
             fullWidth
             autoFocus
+            data-testid="facedetection-person-alias"
           />
           <TextField
             label={t("faceDetection.label.firstname")}
@@ -299,6 +311,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             onChange={e => setNewPersonFirstname(e.target.value)}
             size="small"
             fullWidth
+            data-testid="facedetection-person-firstname"
           />
           <TextField
             label={t("faceDetection.label.lastname")}
@@ -306,16 +319,18 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
             onChange={e => setNewPersonLastname(e.target.value)}
             size="small"
             fullWidth
+            data-testid="facedetection-person-lastname"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreatePersonOpen(false)} size="small">{t("faceDetection.button.cancel")}</Button>
-          <Button onClick={handleCreatePerson} variant="contained" size="small" disabled={!newPersonAlias.trim()}>{t("faceDetection.button.create")}</Button>
+          <Button onClick={handleCreatePerson} variant="contained" size="small" data-testid="facedetection-person-create" disabled={!newPersonAlias.trim()}>{t("faceDetection.button.create")}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Assign Cluster to Person Dialog */}
-      <Dialog open={!!assignOpen} onClose={() => setAssignOpen(null)} maxWidth="xs" fullWidth>
+      <Dialog open={!!assignOpen} onClose={() => setAssignOpen(null)} maxWidth="xs" fullWidth
+        PaperProps={{ "data-testid": "facedetection-assign-dialog" } as React.ComponentProps<typeof Dialog>["PaperProps"]}>
         <DialogTitle sx={{ fontSize: "0.95rem", fontWeight: 700 }}>{t("faceDetection.dialog.assign")}</DialogTitle>
         <DialogContent sx={{ pt: "8px !important" }}>
           <FormControl fullWidth size="small">
@@ -323,6 +338,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
               value={assignPersonId}
               onChange={(e: SelectChangeEvent) => setAssignPersonId(e.target.value)}
               displayEmpty
+              data-testid="facedetection-assign-select"
               sx={{ fontSize: "0.85rem" }}
             >
               <MenuItem value="" disabled>{t("faceDetection.dialog.selectPerson")}</MenuItem>
@@ -334,7 +350,7 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAssignOpen(null)} size="small">{t("faceDetection.button.cancel")}</Button>
-          <Button onClick={handleAssignCluster} variant="contained" size="small" disabled={!assignPersonId}>{t("faceDetection.button.assign")}</Button>
+          <Button onClick={handleAssignCluster} variant="contained" size="small" data-testid="facedetection-assign-save" disabled={!assignPersonId}>{t("faceDetection.button.assign")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

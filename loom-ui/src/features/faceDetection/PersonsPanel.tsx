@@ -83,6 +83,7 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
           <Paper
             key={person.id}
             elevation={0}
+            data-testid="person-card"
             sx={{
               bgcolor: tokens.bg.elevated,
               border: `1px solid ${tokens.border.subtle}`,
@@ -93,24 +94,24 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, py: 1.5 }}>
               <Avatar src={person.avatarUrl} sx={{ width: 48, height: 48 }} />
               <Box sx={{ flex: 1 }}>
-                <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.88rem", color: tokens.text.primary }}>
+                <Typography variant="body2" fontWeight={600} data-testid="person-name" sx={{ fontSize: "0.88rem", color: tokens.text.primary }}>
                   {person.name}
                 </Typography>
-                <Typography variant="caption" sx={{ color: tokens.text.secondary, fontSize: "0.75rem", display: "block" }}>
+                <Typography variant="caption" data-testid="person-alias" sx={{ color: tokens.text.secondary, fontSize: "0.75rem", display: "block" }}>
                   {person.description}
                 </Typography>
                 <Box sx={{ display: "flex", gap: 0.5, mt: 0.5 }}>
-                  <Chip label={t("faceDetection.count.clusters", { count: person.clusterIds.length })} size="small" sx={{ height: 18, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
+                  <Chip label={t("faceDetection.count.clusters", { count: person.clusterIds.length })} size="small" data-testid="person-cluster-count" sx={{ height: 18, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
                   <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.65rem", alignSelf: "center" }}>
                     {t("faceDetection.label.since", { date: new Date(person.createdAt).toLocaleDateString() })}
                   </Typography>
                 </Box>
               </Box>
               <Box sx={{ display: "flex", flexDirection: "column" }}>
-                <IconButton size="small" onClick={() => openEdit(person)}>
+                <IconButton size="small" data-testid="person-edit" onClick={() => openEdit(person)}>
                   <EditOutlined sx={{ fontSize: 16 }} />
                 </IconButton>
-                <IconButton size="small" onClick={() => handleDelete(person.id)}>
+                <IconButton size="small" data-testid="person-delete" onClick={() => handleDelete(person.id)}>
                   <DeleteOutlined sx={{ fontSize: 16 }} />
                 </IconButton>
               </Box>
@@ -123,6 +124,7 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
                     avatar={<Avatar src={c.representativeThumbnailUrl} />}
                     label={c.label}
                     size="small"
+                    data-testid="person-cluster-chip"
                     sx={{ height: 24, fontSize: "0.7rem", bgcolor: tokens.bg.overlay }}
                   />
                 ))}
@@ -132,7 +134,7 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
         );
       })}
       {persons.length === 0 && (
-        <Box sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
+        <Box data-testid="persons-empty" sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
           <PersonOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
           <Typography variant="body2" color="text.secondary">{t("faceDetection.empty.persons")}</Typography>
         </Box>
@@ -148,6 +150,7 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
             onChange={e => setEditAlias(e.target.value)}
             size="small"
             fullWidth
+            data-testid="person-edit-alias"
           />
           <TextField
             label={t("faceDetection.label.firstname")}
@@ -155,6 +158,7 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
             onChange={e => setEditFirstname(e.target.value)}
             size="small"
             fullWidth
+            data-testid="person-edit-firstname"
           />
           <TextField
             label={t("faceDetection.label.lastname")}
@@ -162,11 +166,12 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
             onChange={e => setEditLastname(e.target.value)}
             size="small"
             fullWidth
+            data-testid="person-edit-lastname"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditPerson(null)} size="small">{t("faceDetection.button.cancel")}</Button>
-          <Button onClick={handleUpdate} variant="contained" size="small">{t("faceDetection.button.save")}</Button>
+          <Button onClick={handleUpdate} variant="contained" size="small" data-testid="person-edit-save">{t("faceDetection.button.save")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

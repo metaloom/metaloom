@@ -26,7 +26,9 @@
 |---|---|
 | Chat is mock-only (`mockChatService`) | ✅ DONE — real `loom-ui/src/api/chat.ts` (`listChats`/`loadChat`/`createChat`/`updateChat`/`deleteChat`) and `api/chatSessions.ts`; `features/chat/ChatWorkspace.tsx` + `features/chatSessions/`. Remaining chat work is tracked in [TASK_UI_CHAT.md](TASK_UI_CHAT.md) |
 | Detection CRUD partially wired | ✅ DONE — `api/detections.ts` list/create/bulk/update/delete all driven from `features/detection/ObjectDetectionManagement.tsx` and `features/assetDetail/AssetDetail.tsx`; `e2e/detections-backend.spec.ts` |
+| Detection review actions untested at the UI level | ✅ DONE — `e2e/detection-review-mocked.spec.ts` covers bulk staging (one `…/detections/bulk` request, never N single creates), a failed bulk save keeping the staging, `detection-confirm`, `detection-redraw` and `objectdetection-confirm`/`objectdetection-reject` |
 | Cluster / Person CRUD missing | ✅ DONE — `api/clusters.ts` + `api/persons.ts`, UI in `features/faceDetection/{FaceDetectionManagement,ClustersPanel,PersonsPanel}.tsx`; `e2e/clusters-backend.spec.ts`, `e2e/persons-backend.spec.ts`. The remaining field-level gaps are Tasks 3 and 4 |
+| `ClustersPanel` / `PersonsPanel` had no spec | ✅ DONE — `e2e/face-panels-mocked.spec.ts` (panel switcher, member crops, cluster→person confirmation seen from both panels, create, rename, both empty states) plus the panel-driven assignment case in `e2e/clusters-backend.spec.ts` |
 | `loadDetection` / `loadPerson` / `loadCluster` have no caller | ✅ CLOSED as a non-gap for detections and persons — the list payload is complete and a single-load call would be a redundant round-trip. Only the cluster case has a real detail-view need (Task 4) |
 
 ---
@@ -271,5 +273,5 @@ plus a mocked list spec asserting the raw vector is never rendered.
 * **`POST /api/v1/similarity-index/rebuild`** (`SimilarityIndexEndpoint`, perceptual fingerprint
   k-NN) has no UI consumer. If an operator action is wanted it belongs on the maintenance screen —
   see [TASK_UI_SYSTEM.md](TASK_UI_SYSTEM.md), not here.
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `fe037e14`_
+_Last updated: 2026-08-09 (detection review + face panel E2E coverage recorded as closed)_

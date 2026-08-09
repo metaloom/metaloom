@@ -1118,7 +1118,9 @@ export default function AssetDetail() {
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>{tAD("detection.empty")}</Typography>
                   )}
                   {detections.map(d => (
-                    <Box key={d.uuid} data-testid="detection-row" sx={{ display: "flex", alignItems: "center", gap: 0.75, py: 0.25, px: 0.5, borderRadius: tokens.radius.sm, bgcolor: isConfirmed(d) ? `${tokens.accent.green}0d` : "transparent" }}>
+                    // The confirmed state is otherwise only a background tint and an icon colour,
+                    // neither of which a test can read without asserting on a theme token.
+                    <Box key={d.uuid} data-testid="detection-row" data-confirmed={isConfirmed(d) ? "true" : "false"} sx={{ display: "flex", alignItems: "center", gap: 0.75, py: 0.25, px: 0.5, borderRadius: tokens.radius.sm, bgcolor: isConfirmed(d) ? `${tokens.accent.green}0d` : "transparent" }}>
                       <Typography variant="caption" sx={{ flex: 1, minWidth: 0, fontSize: "0.72rem", textTransform: "capitalize" }} noWrap>{detectionLabel(d)}</Typography>
                       <TextField
                         type="number"

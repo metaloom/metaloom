@@ -98,6 +98,7 @@ export default function ObjectDetectionManagement() {
           onChange={e => setQuery(e.target.value)}
           placeholder={t("objectDetection.search.placeholder")}
           size="small"
+          data-testid="objectdetection-search"
           sx={{ flex: 1, maxWidth: 320 }}
           InputProps={{
             startAdornment: (
@@ -116,7 +117,7 @@ export default function ObjectDetectionManagement() {
       <Box sx={{ flex: 1, overflow: "auto", p: 2 }}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
           {filtered.map(([label, objects]) => (
-            <Paper key={label} elevation={0} sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
+            <Paper key={label} elevation={0} data-testid="objectdetection-group" sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md, overflow: "hidden" }}>
               <Box sx={{ px: 2, py: 1.25, display: "flex", alignItems: "center", gap: 1, borderBottom: `1px solid ${tokens.border.subtle}` }}>
                 <CenterFocusStrongOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
                 <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.88rem", textTransform: "capitalize", flex: 1 }}>
@@ -129,7 +130,7 @@ export default function ObjectDetectionManagement() {
                   const asset = assetMap[obj.assetId];
                   const dec = decisions[obj.id];
                   return (
-                    <Box key={obj.id} sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 0.5, px: 1, borderRadius: tokens.radius.sm, bgcolor: dec === "rejected" ? `${tokens.accent.red}08` : "transparent", opacity: dec === "rejected" ? 0.6 : 1 }}>
+                    <Box key={obj.id} data-testid="objectdetection-row" sx={{ display: "flex", alignItems: "center", gap: 1.5, py: 0.5, px: 1, borderRadius: tokens.radius.sm, bgcolor: dec === "rejected" ? `${tokens.accent.red}08` : "transparent", opacity: dec === "rejected" ? 0.6 : 1 }}>
                       <Avatar variant="rounded" sx={{ width: 40, height: 40 }} />
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem" }} noWrap>{asset?.file?.filename ?? obj.assetId}</Typography>
@@ -138,7 +139,7 @@ export default function ObjectDetectionManagement() {
                         </Typography>
                       </Box>
                       {dec ? (
-                        <Chip label={dec} size="small" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: dec === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`, color: dec === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
+                        <Chip label={dec} size="small" data-testid="objectdetection-decision" sx={{ height: 18, fontSize: "0.64rem", fontWeight: 600, bgcolor: dec === "confirmed" ? `${tokens.accent.green}18` : `${tokens.accent.red}18`, color: dec === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
                       ) : (
                         <Box sx={{ display: "flex", gap: 0.5 }}>
                           <Tooltip title={t("objectDetection.tooltip.confirm")}><IconButton size="small" data-testid="objectdetection-confirm" onClick={() => handleConfirm(obj)} sx={{ width: 24, height: 24, bgcolor: `${tokens.accent.green}18`, "&:hover": { bgcolor: `${tokens.accent.green}33` } }}><CheckOutlined sx={{ fontSize: 12, color: tokens.accent.green }} /></IconButton></Tooltip>
@@ -152,7 +153,7 @@ export default function ObjectDetectionManagement() {
             </Paper>
           ))}
           {filtered.length === 0 && (
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
+            <Box data-testid="objectdetection-empty" sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, gap: 1 }}>
               <CenterFocusStrongOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
               <Typography variant="body2" color="text.secondary">{t("objectDetection.empty")}</Typography>
             </Box>
