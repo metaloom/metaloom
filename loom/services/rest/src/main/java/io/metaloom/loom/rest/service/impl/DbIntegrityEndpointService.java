@@ -216,6 +216,7 @@ public class DbIntegrityEndpointService extends AbstractEndpointService {
 	private DbIntegrityCheckModel toModel(DbIntegrityCheckInfo info) {
 		return new DbIntegrityCheckModel()
 			.setCode(info.code())
+			.setName(info.name())
 			.setCategory(info.category().name())
 			.setSeverity(info.severity().name())
 			.setTable(info.table())

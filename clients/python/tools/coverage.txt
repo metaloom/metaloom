@@ -478,6 +478,7 @@ dbintegrity.DbIntegrityCheckListResponse <- io.metaloom.loom.rest.model.dbintegr
     checks <- List<DbIntegrityCheckModel> checks (wire: checks)
 dbintegrity.DbIntegrityCheckModel <- io.metaloom.loom.rest.model.dbintegrity.DbIntegrityCheckModel (Model)
     code <- String code (wire: code)
+    name <- String name (wire: name)
     category <- String category (wire: category)
     severity <- String severity (wire: severity)
     table <- String table (wire: table)

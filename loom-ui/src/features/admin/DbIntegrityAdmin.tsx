@@ -2,39 +2,47 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert, Box, Button, Collapse, IconButton, LinearProgress, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Tooltip, Typography,
+  TableContainer, TableHead, TableRow, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from "@mui/material";
 import {
-  CheckCircleOutlineOutlined, ExpandLessOutlined, ExpandMoreOutlined, LockOutlined,
-  RefreshOutlined,
+  ExpandLessOutlined, ExpandMoreOutlined, LockOutlined, RefreshOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import StatusChip, { type Tone } from "../../components/StatusChip";
 import EmptyState from "../../components/EmptyState";
 import { useAuth } from "../../context/AuthContext";
 import {
-  groupByCategory, loadDbIntegrityReport, severityCounts,
+  checkStatus, groupByCategory, loadDbIntegrityReport, notRunCount, passedCount, severityCounts,
   type DbIntegrityCategory, type DbIntegrityCheckResult, type DbIntegrityReport,
-  type DbIntegritySeverity,
+  type DbIntegrityStatus,
 } from "../../api/dbIntegrity";
 
 /**
  * The database integrity report.
+ *
+ * <p>Shows the whole catalogue, not only what failed. A list of findings answers "what is broken"
+ * but not "what was looked at", and those are different questions - an operator running this
+ * because something is wrong needs to know whether the rule they suspect is even covered. So every
+ * registered check gets a row and a status, and the findings filter narrows to the subset.</p>
  *
  * <p>Deliberately not polled. Unlike the index jobs next door there is nothing running in the
  * background to watch, and a sweep is real database work - re-running it every fifteen seconds on
  * an open tab would be load nobody asked for. The operator presses the button.</p>
  */
 
-const SEVERITY_TONE: Record<DbIntegritySeverity, Tone> = {
+const STATUS_TONE: Record<DbIntegrityStatus, Tone> = {
   ERROR: "red",
   WARN: "amber",
   INFO: "neutral",
+  PASSED: "green",
+  NOT_RUN: "neutral",
 };
 
 const CATEGORY_ORDER: DbIntegrityCategory[] = [
   "DANGLING", "TIMESTAMP", "MANDATORY_FIELD", "VOCABULARY", "CARDINALITY",
 ];
+
+type Filter = "all" | "findings";
 
 const cardSx = {
   p: 2,
@@ -56,6 +64,7 @@ export default function DbIntegrityAdmin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -85,13 +94,16 @@ export default function DbIntegrityAdmin() {
   }, [load]);
 
   const counts = useMemo(() => (report ? severityCounts(report) : null), [report]);
+  const passed = useMemo(() => (report ? passedCount(report) : 0), [report]);
+  const notRun = useMemo(() => (report ? notRunCount(report) : 0), [report]);
 
-  const failing = useMemo(
-    () => (report ? report.results.filter(r => r.count > 0 || r.error) : []),
-    [report],
-  );
+  const visible = useMemo(() => {
+    if (!report) return [];
+    if (filter === "all") return report.results;
+    return report.results.filter(r => checkStatus(r) !== "PASSED");
+  }, [report, filter]);
 
-  const grouped = useMemo(() => groupByCategory(failing), [failing]);
+  const grouped = useMemo(() => groupByCategory(visible), [visible]);
 
   const toggle = (code: string) => {
     setExpanded(prev => {
@@ -161,6 +173,20 @@ export default function DbIntegrityAdmin() {
               tone={counts.WARN > 0 ? "amber" : "neutral"}
               testId="db-integrity-count-warn"
             />
+            <StatusChip
+              label={t("admin.dbIntegrity.passed", { count: passed })}
+              tone="green"
+              testId="db-integrity-count-passed"
+            />
+            {/* Only rendered when it is not zero: a permanent "0 did not run" trains the eye to
+                skip the one chip that means the report is incomplete. */}
+            {notRun > 0 && (
+              <StatusChip
+                label={t("admin.dbIntegrity.notRunCount", { count: notRun })}
+                tone="amber"
+                testId="db-integrity-count-notrun"
+              />
+            )}
             <Typography variant="caption" color="text.secondary" data-testid="db-integrity-ran">
               {t("admin.dbIntegrity.ran", {
                 checks: report.checksRun,
@@ -168,23 +194,51 @@ export default function DbIntegrityAdmin() {
                 duration: report.durationMs,
               })}
             </Typography>
+            <Box sx={{ flexGrow: 1 }} />
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={filter}
+              onChange={(_e, value: Filter | null) => value && setFilter(value)}
+              data-testid="db-integrity-filter"
+            >
+              <ToggleButton value="all" data-testid="db-integrity-filter-all">
+                {t("admin.dbIntegrity.filter.all")}
+              </ToggleButton>
+              <ToggleButton value="findings" data-testid="db-integrity-filter-findings">
+                {t("admin.dbIntegrity.filter.findings")}
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Box>
         </Paper>
       )}
 
       {report && report.clean && (
-        <EmptyState
-          icon={CheckCircleOutlineOutlined}
-          title={t("admin.dbIntegrity.cleanTitle")}
-          description={t("admin.dbIntegrity.cleanDescription", { checks: report.checksRun })}
-          testId="db-integrity-clean"
-        />
+        <Alert severity="success" sx={{ mb: 2 }} data-testid="db-integrity-clean">
+          {t("admin.dbIntegrity.cleanDescription", { checks: report.checksRun })}
+        </Alert>
+      )}
+
+      {/* Nothing to narrow to. Only reachable with the findings filter on, because the catalogue is
+          never empty otherwise. */}
+      {report && filter === "findings" && visible.length === 0 && (
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ px: 1, py: 2 }}
+          data-testid="db-integrity-no-findings"
+        >
+          {t("admin.dbIntegrity.noFindings")}
+        </Typography>
       )}
 
       {CATEGORY_ORDER.filter(category => grouped.has(category)).map(category => (
         <Paper elevation={0} sx={cardSx} key={category} data-testid={`db-integrity-group-${category}`}>
-          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25 }}>
             {t(`admin.dbIntegrity.category.${category}`)}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+            {t(`admin.dbIntegrity.categoryHint.${category}`)}
           </Typography>
           <TableContainer sx={{ overflowX: "auto" }}>
             <Table size="small">
@@ -194,7 +248,7 @@ export default function DbIntegrityAdmin() {
                   <TableCell>{t("admin.dbIntegrity.column.check")}</TableCell>
                   <TableCell>{t("admin.dbIntegrity.column.location")}</TableCell>
                   <TableCell align="right">{t("admin.dbIntegrity.column.rows")}</TableCell>
-                  <TableCell>{t("admin.dbIntegrity.column.severity")}</TableCell>
+                  <TableCell>{t("admin.dbIntegrity.column.status")}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -228,31 +282,45 @@ function ResultRows({
   t: (key: string, opts?: Record<string, unknown>) => string;
 }) {
   const { check } = result;
-  const hasSamples = result.samples.length > 0 || !!result.error;
+  const status = checkStatus(result);
+  const label = status === "PASSED"
+    ? t("admin.dbIntegrity.status.passed")
+    : status === "NOT_RUN"
+      ? t("admin.dbIntegrity.checkFailed")
+      : check.severity;
   return (
     <>
       <TableRow data-testid={`db-integrity-row-${check.code}`}>
         <TableCell>
-          {hasSamples && (
-            <IconButton
-              size="small"
-              onClick={onToggle}
-              aria-label={t("admin.dbIntegrity.toggleSamples")}
-              data-testid={`db-integrity-toggle-${check.code}`}
-            >
-              {open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
-            </IconButton>
-          )}
+          {/* Every row expands, including a passing one: the description is where a reader finds
+              out what the check would have caught, and that is worth reading before it fires. */}
+          <IconButton
+            size="small"
+            onClick={onToggle}
+            aria-label={t("admin.dbIntegrity.toggleSamples")}
+            data-testid={`db-integrity-toggle-${check.code}`}
+          >
+            {open ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
+          </IconButton>
         </TableCell>
         <TableCell>
           <Tooltip title={check.description}>
-            <Typography
-              component="span"
-              sx={{ fontFamily: "monospace", fontSize: "0.78rem" }}
-              data-testid={`db-integrity-code-${check.code}`}
-            >
-              {check.code}
-            </Typography>
+            <Box>
+              <Typography
+                variant="body2"
+                sx={{ fontSize: "0.82rem" }}
+                data-testid={`db-integrity-name-${check.code}`}
+              >
+                {check.name}
+              </Typography>
+              <Typography
+                component="span"
+                sx={{ fontFamily: "monospace", fontSize: "0.7rem", color: tokens.text.secondary }}
+                data-testid={`db-integrity-code-${check.code}`}
+              >
+                {check.code}
+              </Typography>
+            </Box>
           </Tooltip>
         </TableCell>
         <TableCell>
@@ -265,8 +333,8 @@ function ResultRows({
         </TableCell>
         <TableCell>
           <StatusChip
-            label={result.error ? t("admin.dbIntegrity.checkFailed") : check.severity}
-            tone={SEVERITY_TONE[check.severity]}
+            label={label}
+            tone={STATUS_TONE[status]}
             testId={`db-integrity-severity-${check.code}`}
           />
         </TableCell>

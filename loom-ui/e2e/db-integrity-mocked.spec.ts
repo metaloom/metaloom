@@ -8,6 +8,9 @@ import { test, expect, Page, Route } from "@playwright/test";
  * ways it could mislead are specific and worth pinning: reading clean when a check could not run,
  * blanking itself when a refresh fails, or showing a sample list that silently disagrees with the
  * row count beside it.
+ *
+ * Since the panel lists the whole catalogue rather than only the findings, one more failure mode
+ * joins that list - a passing check that is indistinguishable from one that never ran.
  */
 
 const ME_UUID = "11111111-1111-1111-1111-111111111111";
@@ -16,14 +19,35 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-function check(code: string, category: string, severity: string, table: string, column: string | null) {
-  return { code, category, severity, table, column, description: `What ${code} means and why it matters.` };
+function check(
+  code: string,
+  name: string,
+  category: string,
+  severity: string,
+  table: string,
+  column: string | null,
+) {
+  return {
+    code, name, category, severity, table, column,
+    description: `What ${code} means and why it matters.`,
+  };
 }
 
-const DANGLING = check("DANGLING_SEARCH_DOCUMENT", "DANGLING", "ERROR", "search_document", "entity_uuid");
-const TIMESTAMPS = check("TIMESTAMP_EDITED_BEFORE_CREATED", "TIMESTAMP", "ERROR", "(every audited table)", "edited");
-const BLACKLIST = check("MISSING_BLACKLIST_NAME", "MANDATORY_FIELD", "WARN", "blacklist", "name");
-const SINGLETON = check("LOOM_SINGLETON", "CARDINALITY", "ERROR", "loom", null);
+const DANGLING = check(
+  "DANGLING_SEARCH_DOCUMENT", "Search document target", "DANGLING", "ERROR",
+  "search_document", "entity_uuid",
+);
+const TIMESTAMPS = check(
+  "TIMESTAMP_EDITED_BEFORE_CREATED", "Edited before created", "TIMESTAMP", "ERROR",
+  "(every audited table)", "edited",
+);
+const BLACKLIST = check(
+  "MISSING_BLACKLIST_NAME", "Unnamed blacklist entry", "MANDATORY_FIELD", "WARN",
+  "blacklist", "name",
+);
+const SINGLETON = check(
+  "LOOM_SINGLETON", "Single instance row", "CARDINALITY", "ERROR", "loom", null,
+);
 
 function result(c: ReturnType<typeof check>, count: number, samples: string[] = [], error: string | null = null) {
   return { check: c, count, samples, durationMs: 3, error };
@@ -68,7 +92,7 @@ async function open(page: Page) {
 
 test.describe("Database integrity admin - mocked", () => {
 
-  test("a clean database says so, and says how much was checked", async ({ page }) => {
+  test("a clean database says so, and still lists every check", async ({ page }) => {
     await installMocks(page);
     await page.route(/\/api\/v1\/db-integrity(\?.*)?$/, route => json(route, CLEAN));
     await open(page);
@@ -78,32 +102,74 @@ test.describe("Database integrity admin - mocked", () => {
     // "Nothing found" is only reassuring if it also says what was looked at.
     await expect(page.getByTestId("db-integrity-ran")).toContainText("4");
     await expect(page.getByTestId("db-integrity-count-error")).toHaveText("0 errors");
+    await expect(page.getByTestId("db-integrity-count-passed")).toHaveText("4 passed");
+
+    // The catalogue is the point: a clean report is a table of four passing checks, not a blank
+    // panel that leaves the reader guessing which invariants are even covered.
+    await expect(page.getByTestId("db-integrity-row-DANGLING_SEARCH_DOCUMENT")).toBeVisible();
+    await expect(page.getByTestId("db-integrity-row-LOOM_SINGLETON")).toBeVisible();
+    await expect(page.getByTestId("db-integrity-severity-LOOM_SINGLETON")).toHaveText("Passed");
   });
 
-  test("findings are grouped by category and counted by severity", async ({ page }) => {
+  test("every check is listed by name and by code, under its category", async ({ page }) => {
+    await installMocks(page);
+    await page.route(/\/api\/v1\/db-integrity(\?.*)?$/, route => json(route, DIRTY));
+    await open(page);
+
+    // The name is what makes a row readable; the code is what an operator quotes when asking for
+    // help, so both are on screen rather than one hidden behind a tooltip.
+    await expect(page.getByTestId("db-integrity-name-DANGLING_SEARCH_DOCUMENT"))
+      .toHaveText("Search document target", { timeout: 10_000 });
+    await expect(page.getByTestId("db-integrity-code-DANGLING_SEARCH_DOCUMENT"))
+      .toHaveText("DANGLING_SEARCH_DOCUMENT");
+
+    for (const category of ["DANGLING", "TIMESTAMP", "MANDATORY_FIELD", "CARDINALITY"]) {
+      await expect(page.getByTestId(`db-integrity-group-${category}`)).toBeVisible();
+    }
+    // No check has this category in the fixture, so the group must not be invented.
+    await expect(page.getByTestId("db-integrity-group-VOCABULARY")).toHaveCount(0);
+  });
+
+  test("severities are counted and a passing check is not counted among them", async ({ page }) => {
     await installMocks(page);
     await page.route(/\/api\/v1\/db-integrity(\?.*)?$/, route => json(route, DIRTY));
     await open(page);
 
     await expect(page.getByTestId("db-integrity-count-error")).toHaveText("1 errors", { timeout: 10_000 });
     await expect(page.getByTestId("db-integrity-count-warn")).toHaveText("1 warnings");
+    await expect(page.getByTestId("db-integrity-count-passed")).toHaveText("2 passed");
 
-    await expect(page.getByTestId("db-integrity-group-DANGLING")).toBeVisible();
-    await expect(page.getByTestId("db-integrity-group-MANDATORY_FIELD")).toBeVisible();
-
-    // A category with nothing wrong in it is not rendered: an empty heading is a heading and no
-    // information, and the summary already says how many checks ran.
-    await expect(page.getByTestId("db-integrity-group-TIMESTAMP")).toHaveCount(0);
-    await expect(page.getByTestId("db-integrity-group-CARDINALITY")).toHaveCount(0);
+    await expect(page.getByTestId("db-integrity-severity-DANGLING_SEARCH_DOCUMENT")).toHaveText("ERROR");
+    await expect(page.getByTestId("db-integrity-severity-TIMESTAMP_EDITED_BEFORE_CREATED")).toHaveText("Passed");
+    await expect(page.getByTestId("db-integrity-count-TIMESTAMP_EDITED_BEFORE_CREATED")).toHaveText("0");
   });
 
-  test("a passing check is not listed among the findings", async ({ page }) => {
+  test("the findings filter hides the passing checks and the toggle brings them back", async ({ page }) => {
     await installMocks(page);
     await page.route(/\/api\/v1\/db-integrity(\?.*)?$/, route => json(route, DIRTY));
     await open(page);
 
-    await expect(page.getByTestId("db-integrity-row-DANGLING_SEARCH_DOCUMENT")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("db-integrity-row-TIMESTAMP_EDITED_BEFORE_CREATED"))
+      .toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("db-integrity-filter-findings").click();
     await expect(page.getByTestId("db-integrity-row-TIMESTAMP_EDITED_BEFORE_CREATED")).toHaveCount(0);
+    await expect(page.getByTestId("db-integrity-row-DANGLING_SEARCH_DOCUMENT")).toBeVisible();
+    // A category whose only checks passed goes with them.
+    await expect(page.getByTestId("db-integrity-group-CARDINALITY")).toHaveCount(0);
+
+    await page.getByTestId("db-integrity-filter-all").click();
+    await expect(page.getByTestId("db-integrity-row-TIMESTAMP_EDITED_BEFORE_CREATED")).toBeVisible();
+  });
+
+  test("the findings filter on a clean database says so rather than showing an empty table", async ({ page }) => {
+    await installMocks(page);
+    await page.route(/\/api\/v1\/db-integrity(\?.*)?$/, route => json(route, CLEAN));
+    await open(page);
+
+    await page.getByTestId("db-integrity-filter-findings").click({ timeout: 10_000 });
+    await expect(page.getByTestId("db-integrity-no-findings")).toBeVisible();
+    await expect(page.getByTestId("db-integrity-group-DANGLING")).toHaveCount(0);
   });
 
   test("expanding a finding names the rows and admits how many it is not showing", async ({ page }) => {
@@ -116,6 +182,16 @@ test.describe("Database integrity admin - mocked", () => {
     await expect(samples).toContainText("6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60");
     // 42 rows, one sample. Saying nothing about the other 41 would make the list look complete.
     await expect(samples).toContainText("41");
+  });
+
+  test("expanding a passing check explains what it would have caught", async ({ page }) => {
+    await installMocks(page);
+    await page.route(/\/api\/v1\/db-integrity(\?.*)?$/, route => json(route, CLEAN));
+    await open(page);
+
+    await page.getByTestId("db-integrity-toggle-LOOM_SINGLETON").click({ timeout: 10_000 });
+    await expect(page.getByTestId("db-integrity-samples-LOOM_SINGLETON"))
+      .toContainText("What LOOM_SINGLETON means");
   });
 
   test("a check that could not run does not read as a passing check", async ({ page }) => {
@@ -131,6 +207,9 @@ test.describe("Database integrity admin - mocked", () => {
     await expect(page.getByTestId("db-integrity-clean")).toHaveCount(0, { timeout: 10_000 });
     await expect(page.getByTestId("db-integrity-severity-DANGLING_SEARCH_DOCUMENT")).toHaveText("Did not run");
     await expect(page.getByTestId("db-integrity-count-DANGLING_SEARCH_DOCUMENT")).toHaveText("-");
+    // It must not be folded into the passed tally either, and it keeps its own chip.
+    await expect(page.getByTestId("db-integrity-count-passed")).toHaveText("1 passed");
+    await expect(page.getByTestId("db-integrity-count-notrun")).toHaveText("1 did not run");
   });
 
   test("a failed refresh warns without blanking the last report", async ({ page }) => {

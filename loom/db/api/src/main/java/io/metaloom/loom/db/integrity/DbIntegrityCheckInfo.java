@@ -7,7 +7,10 @@ package io.metaloom.loom.db.integrity;
  *
  * @param code
  *            stable identifier, {@code SCREAMING_SNAKE_CASE}. The only part of a finding a client
- *            should branch on; the description beside it is for humans and may be reworded
+ *            should branch on; the name and description beside it are for humans and may be reworded
+ * @param name
+ *            short human-readable label naming what the check looks at, in sentence case. This is
+ *            what a catalogue or a report lists; the code is what a caller branches on
  * @param category
  *            what kind of defect this looks for
  * @param severity
@@ -22,6 +25,7 @@ package io.metaloom.loom.db.integrity;
  */
 public record DbIntegrityCheckInfo(
 	String code,
+	String name,
 	DbIntegrityCategory category,
 	DbIntegritySeverity severity,
 	String table,
@@ -31,6 +35,9 @@ public record DbIntegrityCheckInfo(
 	public DbIntegrityCheckInfo {
 		if (code == null || code.isBlank()) {
 			throw new IllegalArgumentException("A check needs a code");
+		}
+		if (name == null || name.isBlank()) {
+			throw new IllegalArgumentException("Check " + code + " needs a name");
 		}
 		if (category == null || severity == null) {
 			throw new IllegalArgumentException("Check " + code + " needs a category and a severity");

@@ -12,6 +12,8 @@ those.
 Open *Admin → Database Integrity* and press *Run checks*. Nothing is changed by running it: the
 report reads, counts and reports, and never repairs.
 
+image::db-integrity-clean.png[The Database Integrity screen on a healthy catalogue: a green summary, and every check listed with a Passed status,role=img-fluid]
+
 == When To Use It
 
 The report is most useful when something has already gone slightly wrong and you want to know how far
@@ -29,28 +31,39 @@ takes well under a second.
 
 == Reading The Report
 
-A clean report says how many checks ran and that all of them passed. That second half matters: it is
-what tells you the answer is "nothing is wrong" rather than "nothing was looked at".
+The screen lists *every* check, grouped by what it looks for, whether or not it found anything. That
+is deliberate: a list of problems tells you what is wrong, but not what was examined, and when you
+have come here because something looks off you usually want both. The counters along the top say how
+many checks reported errors, how many reported warnings and how many passed.
 
-When something is found, each finding shows:
+Each row shows:
 
-Check:: A stable identifier such as `DANGLING_SEARCH_DOCUMENT`. Quote this when asking for help; the
-wording next to it may change between versions, but the identifier will not.
+Check:: The name of the check, with its identifier underneath — something like
+`DANGLING_SEARCH_DOCUMENT`. Quote the identifier when asking for help; the name above it may be
+reworded between versions, but the identifier will not.
 
 Where:: The table and column the check looked at.
 
-Rows:: How many records are affected.
+Rows:: How many records are affected. Zero for a check that passed.
 
-Severity:: *Error* means something the software will misread or fail on. *Warning* means something
-that looks wrong but that a person has to judge — a record with no name may simply be one nobody has
-named yet.
+Status:: *Passed*, or the severity of what it found. *Error* means something the software will
+misread or fail on. *Warning* means something that looks wrong but that a person has to judge — a
+record with no name may simply be one nobody has named yet.
 
-Expanding a row lists the identifiers of the affected records, up to a limit. When there are more
-than the list shows, it says so — the count above is always the complete figure.
+Expanding any row explains what that check is for. On a row that found something it also lists the
+identifiers of the affected records, up to a limit; when there are more than the list shows, it says
+so — the count beside it is always the complete figure.
+
+image::db-integrity-findings.png[The Database Integrity screen with findings: two checks reporting rows, one expanded to show the affected records,role=img-fluid]
+
+Switch the toggle to *Findings only* when the catalogue gets in the way and you just want the list of
+problems. Groups whose checks all passed disappear with them.
+
+image::db-integrity-filtered.png[The same report with the Findings only filter applied, showing four problems across three groups,role=img-fluid]
 
 A check can also report *Did not run*. That is neither a pass nor a fail: it means the check itself
-could not complete, so nothing is known about the rule it covers. One check failing this way does not
-stop the others.
+could not complete, so nothing is known about the rule it covers, and it is counted separately from
+both the passes and the findings. One check failing this way does not stop the others.
 
 == What Is Checked
 

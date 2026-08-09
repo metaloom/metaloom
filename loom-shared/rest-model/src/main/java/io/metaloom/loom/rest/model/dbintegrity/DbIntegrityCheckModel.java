@@ -10,8 +10,11 @@ import io.metaloom.loom.rest.model.RestResponseModel;
  */
 public class DbIntegrityCheckModel implements RestResponseModel<DbIntegrityCheckModel> {
 
-	@JsonPropertyDescription("Stable identifier of the check, SCREAMING_SNAKE_CASE. The only field a client should branch on; the description may be reworded.")
+	@JsonPropertyDescription("Stable identifier of the check, SCREAMING_SNAKE_CASE. The only field a client should branch on; the name and description may be reworded.")
 	private String code;
+
+	@JsonPropertyDescription("Short human-readable label naming what the check looks at, for display in a catalogue or report.")
+	private String name;
 
 	@JsonPropertyDescription("What kind of defect this looks for: DANGLING, TIMESTAMP, MANDATORY_FIELD, VOCABULARY or CARDINALITY.")
 	private String category;
@@ -37,6 +40,15 @@ public class DbIntegrityCheckModel implements RestResponseModel<DbIntegrityCheck
 
 	public DbIntegrityCheckModel setCode(String code) {
 		this.code = code;
+		return this;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public DbIntegrityCheckModel setName(String name) {
+		this.name = name;
 		return this;
 	}
 

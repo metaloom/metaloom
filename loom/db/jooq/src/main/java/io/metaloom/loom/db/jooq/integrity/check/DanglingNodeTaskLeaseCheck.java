@@ -27,6 +27,7 @@ public final class DanglingNodeTaskLeaseCheck extends AbstractSqlCheck {
 	public DanglingNodeTaskLeaseCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.DANGLING_NODE_TASK_LEASE,
+			"Node task lease holder",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.WARN,
 			"pipeline_node_task", "leased_by",

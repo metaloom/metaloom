@@ -57,9 +57,9 @@ public final class EnumColumnCheck extends AbstractSqlCheck {
 			.collect(Collectors.joining(", "));
 	}
 
-	private static EnumColumnCheck of(String code, DbIntegritySeverity severity, String table, String column,
-		Enum<?>[] values, String description) {
-		return new EnumColumnCheck(new DbIntegrityCheckInfo(code, DbIntegrityCategory.VOCABULARY, severity,
+	private static EnumColumnCheck of(String code, String name, DbIntegritySeverity severity, String table,
+		String column, Enum<?>[] values, String description) {
+		return new EnumColumnCheck(new DbIntegrityCheckInfo(code, name, DbIntegrityCategory.VOCABULARY, severity,
 			table, column, description), table, column, values, false);
 	}
 
@@ -70,7 +70,7 @@ public final class EnumColumnCheck extends AbstractSqlCheck {
 	 * read of that row a 500. This has happened: the fixture once stored the asset's mime type here.
 	 */
 	public static EnumColumnCheck reactionType() {
-		return of(DbIntegrityCodes.INVALID_REACTION_TYPE, DbIntegritySeverity.ERROR,
+		return of(DbIntegrityCodes.INVALID_REACTION_TYPE, "Reaction type", DbIntegritySeverity.ERROR,
 			"reaction", "type", ReactionType.values(),
 			"A reaction's type is not a ReactionType. Nothing guards this column and the REST layer"
 				+ " reads it with valueOf, so every read of the row is a 500.");
@@ -78,35 +78,35 @@ public final class EnumColumnCheck extends AbstractSqlCheck {
 
 	/** Guarded by a converter that throws on read; this finds the row before a user does. */
 	public static EnumColumnCheck pipelineRunStatus() {
-		return of(DbIntegrityCodes.VOCABULARY_PIPELINE_RUN_STATUS, DbIntegritySeverity.ERROR,
-			"pipeline_run", "status", PipelineRunStatus.values(),
+		return of(DbIntegrityCodes.VOCABULARY_PIPELINE_RUN_STATUS, "Pipeline run status",
+			DbIntegritySeverity.ERROR, "pipeline_run", "status", PipelineRunStatus.values(),
 			"A pipeline run's status is not a PipelineRunStatus. The forcedType converter rejects it"
 				+ " on read, so the run cannot be loaded at all.");
 	}
 
 	public static EnumColumnCheck pipelineRunItemState() {
-		return of(DbIntegrityCodes.VOCABULARY_PIPELINE_RUN_ITEM_STATE, DbIntegritySeverity.ERROR,
-			"pipeline_run_item", "state", RunItemState.values(),
+		return of(DbIntegrityCodes.VOCABULARY_PIPELINE_RUN_ITEM_STATE, "Run item state",
+			DbIntegritySeverity.ERROR, "pipeline_run_item", "state", RunItemState.values(),
 			"A run item's state is not a RunItemState. The forcedType converter rejects it on read."
 				+ " V2.77 had to repair exactly this after the engine wrote FAILURE for FAILED.");
 	}
 
 	public static EnumColumnCheck pipelineNodeTaskState() {
-		return of(DbIntegrityCodes.VOCABULARY_PIPELINE_NODE_TASK_STATE, DbIntegritySeverity.ERROR,
-			"pipeline_node_task", "state", NodeTaskState.values(),
+		return of(DbIntegrityCodes.VOCABULARY_PIPELINE_NODE_TASK_STATE, "Node task state",
+			DbIntegritySeverity.ERROR, "pipeline_node_task", "state", NodeTaskState.values(),
 			"A node task's state is not a NodeTaskState. The forcedType converter rejects it on read.");
 	}
 
 	public static EnumColumnCheck notificationType() {
-		return of(DbIntegrityCodes.VOCABULARY_NOTIFICATION_TYPE, DbIntegritySeverity.ERROR,
-			"notification", "type", NotificationType.values(),
+		return of(DbIntegrityCodes.VOCABULARY_NOTIFICATION_TYPE, "Notification type",
+			DbIntegritySeverity.ERROR, "notification", "type", NotificationType.values(),
 			"A notification's type is not a NotificationType. There is a CHECK constraint, so a row"
 				+ " here means the constraint and the Java enum have drifted apart.");
 	}
 
 	public static EnumColumnCheck memoryEntryScope() {
-		return of(DbIntegrityCodes.VOCABULARY_MEMORY_ENTRY_SCOPE, DbIntegritySeverity.ERROR,
-			"memory_entry", "scope", MemoryScope.values(),
+		return of(DbIntegrityCodes.VOCABULARY_MEMORY_ENTRY_SCOPE, "Memory entry scope value",
+			DbIntegritySeverity.ERROR, "memory_entry", "scope", MemoryScope.values(),
 			"A memory entry's scope is not a MemoryScope, so nothing can work out which table its"
 				+ " scope_uuid points into.");
 	}
@@ -115,6 +115,7 @@ public final class EnumColumnCheck extends AbstractSqlCheck {
 	public static EnumColumnCheck nodeDescriptorStatus() {
 		return new EnumColumnCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.VOCABULARY_NODE_DESCRIPTOR_STATUS,
+			"Node descriptor status",
 			DbIntegrityCategory.VOCABULARY,
 			DbIntegritySeverity.ERROR,
 			"node_descriptor", "status",
@@ -132,6 +133,7 @@ public final class EnumColumnCheck extends AbstractSqlCheck {
 	public static EnumColumnCheck searchDocumentEntityType() {
 		return new EnumColumnCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.VOCABULARY_SEARCH_DOCUMENT_ENTITY_TYPE,
+			"Search document entity type",
 			DbIntegrityCategory.VOCABULARY,
 			DbIntegritySeverity.ERROR,
 			"search_document", "entity_type",

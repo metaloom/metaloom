@@ -63,6 +63,32 @@ public class DbIntegrityChecksTest {
 	}
 
 	/**
+	 * Names are what the admin table and the report list; the code is what a caller branches on.
+	 *
+	 * <p>
+	 * Uniqueness is the assertion that matters. Two checks sharing a name make the catalogue table
+	 * read as though one of them is listed twice, and the reader has no way to tell which row is
+	 * which without expanding it. The length bound rules out a name that is really an abbreviated
+	 * code ({@code "Dangling"}) or a second copy of the description.
+	 * </p>
+	 */
+	@Test
+	public void testNamesAreUniqueAndReadable() {
+		Set<String> seen = new HashSet<>();
+		for (DbIntegrityCheck check : DbIntegrityChecks.all()) {
+			DbIntegrityCheckInfo info = check.info();
+			String name = info.name();
+			assertTrue(name != null && !name.isBlank(), info.code() + " needs a name");
+			assertTrue(name.length() >= 8 && name.length() <= 48,
+				info.code() + " has a name of " + name.length() + " characters: '" + name
+					+ "'. A name is a short label, not a code and not a description.");
+			assertFalse(name.equals(name.toUpperCase()),
+				info.code() + " has a name that is just the code again: '" + name + "'");
+			assertTrue(seen.add(name), "Two checks share the name '" + name + "'");
+		}
+	}
+
+	/**
 	 * The registry and {@code DbIntegrityCodes} must name exactly the same set.
 	 *
 	 * <p>

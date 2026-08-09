@@ -37,6 +37,7 @@ public final class TimestampImplausibleCheck extends AbstractSweepCheck {
 	public TimestampImplausibleCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.TIMESTAMP_IMPLAUSIBLE,
+			"Timestamp out of range",
 			DbIntegrityCategory.TIMESTAMP,
 			DbIntegritySeverity.WARN,
 			"(every audited table)", "created, edited",

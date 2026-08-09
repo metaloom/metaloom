@@ -35,6 +35,7 @@ public final class RowCountCheck extends AbstractSqlCheck {
 	public static RowCountCheck loomSingleton() {
 		return new RowCountCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.LOOM_SINGLETON,
+			"Single instance row",
 			DbIntegrityCategory.CARDINALITY,
 			DbIntegritySeverity.ERROR,
 			"loom", null,
@@ -54,6 +55,7 @@ public final class RowCountCheck extends AbstractSqlCheck {
 	public static RowCountCheck duplicateVectorConfigUuid() {
 		return new RowCountCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.DUPLICATE_VECTOR_CONFIG_UUID,
+			"Vector config identity",
 			DbIntegrityCategory.CARDINALITY,
 			DbIntegritySeverity.ERROR,
 			"vector_config", "uuid",

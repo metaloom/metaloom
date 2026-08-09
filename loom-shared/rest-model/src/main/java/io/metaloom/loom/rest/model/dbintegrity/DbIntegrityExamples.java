@@ -53,6 +53,7 @@ public interface DbIntegrityExamples extends ExampleValues {
 	private static DbIntegrityCheckModel danglingSearchDocument() {
 		return new DbIntegrityCheckModel()
 			.setCode("DANGLING_SEARCH_DOCUMENT")
+			.setName("Search document target")
 			.setCategory("DANGLING")
 			.setSeverity("ERROR")
 			.setTable("search_document")
@@ -64,6 +65,7 @@ public interface DbIntegrityExamples extends ExampleValues {
 	private static DbIntegrityCheckModel editedBeforeCreated() {
 		return new DbIntegrityCheckModel()
 			.setCode("TIMESTAMP_EDITED_BEFORE_CREATED")
+			.setName("Edited before created")
 			.setCategory("TIMESTAMP")
 			.setSeverity("ERROR")
 			.setTable("(every audited table)")

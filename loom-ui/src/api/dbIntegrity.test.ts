@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  failuresAtLeast, groupByCategory, integrityQuery, severityCounts,
+  checkStatus, failuresAtLeast, groupByCategory, integrityQuery, notRunCount, passedCount,
+  severityCounts,
   type DbIntegrityCategory, type DbIntegrityCheckResult, type DbIntegrityReport,
   type DbIntegritySeverity,
 } from "./dbIntegrity";
@@ -13,7 +14,7 @@ function result(
   error?: string,
 ): DbIntegrityCheckResult {
   return {
-    check: { code, category, severity, table: "t", column: "c", description: "d" },
+    check: { code, name: `Check ${code}`, category, severity, table: "t", column: "c", description: "d" },
     count,
     samples: count > 0 ? ["some-uuid"] : [],
     durationMs: 1,
@@ -102,5 +103,49 @@ describe("groupByCategory", () => {
     ]);
     expect([...grouped.keys()]).toEqual(["DANGLING", "TIMESTAMP"]);
     expect(grouped.get("DANGLING")?.map(r => r.check.code)).toEqual(["A", "C"]);
+  });
+
+  it("groups passing checks too, so the catalogue table can list everything", () => {
+    const grouped = groupByCategory([
+      result("A", "DANGLING", "ERROR", 0),
+      result("B", "DANGLING", "WARN", 4),
+    ]);
+    expect(grouped.get("DANGLING")?.map(r => r.check.code)).toEqual(["A", "B"]);
+  });
+});
+
+describe("checkStatus", () => {
+  it("reports the check's own severity when it found something", () => {
+    expect(checkStatus(result("A", "DANGLING", "ERROR", 3))).toBe("ERROR");
+    expect(checkStatus(result("B", "TIMESTAMP", "WARN", 1))).toBe("WARN");
+  });
+
+  it("reports PASSED when the check ran and found nothing", () => {
+    expect(checkStatus(result("C", "VOCABULARY", "ERROR", 0))).toBe("PASSED");
+  });
+
+  it("never reports PASSED for a check that could not run", () => {
+    // Count zero plus an error means "unknown". Reading that as a pass is the one way the table
+    // could tell an operator the database is fine on the strength of a question nobody asked.
+    expect(checkStatus(result("D", "DANGLING", "ERROR", 0, "column does not exist"))).toBe("NOT_RUN");
+  });
+});
+
+describe("passedCount and notRunCount", () => {
+  const sample = report([
+    result("A", "DANGLING", "ERROR", 0),
+    result("B", "TIMESTAMP", "WARN", 2),
+    result("C", "VOCABULARY", "ERROR", 0),
+    result("D", "CARDINALITY", "ERROR", 0, "relation does not exist"),
+  ]);
+
+  it("counts only checks that ran and found nothing as passed", () => {
+    expect(passedCount(sample)).toBe(2);
+  });
+
+  it("counts a check that threw separately from both passes and findings", () => {
+    expect(notRunCount(sample)).toBe(1);
+    // The four checks split 2 passed + 1 finding + 1 not run, with nothing counted twice.
+    expect(passedCount(sample) + severityCounts(sample).WARN + notRunCount(sample)).toBe(4);
   });
 });

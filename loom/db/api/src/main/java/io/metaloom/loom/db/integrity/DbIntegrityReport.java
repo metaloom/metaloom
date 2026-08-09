@@ -75,7 +75,10 @@ public record DbIntegrityReport(Instant startedAt, long durationMs, List<DbInteg
 
 		for (DbIntegrityCheckResult r : failures) {
 			DbIntegrityCheckInfo info = r.check();
+			// The code first, because that is what someone greps for or puts in an ignore list; the
+			// name after it, because that is what makes the line readable at a glance.
 			b.append("\n  [").append(info.severity()).append("] ").append(info.code())
+				.append(" - ").append(info.name())
 				.append(" (").append(info.category()).append(") ").append(info.location());
 			if (r.error() != null) {
 				b.append(" - CHECK FAILED TO RUN: ").append(r.error()).append('\n');

@@ -30,6 +30,7 @@ public final class TimestampEditedBeforeCreatedCheck extends AbstractSweepCheck 
 	public TimestampEditedBeforeCreatedCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.TIMESTAMP_EDITED_BEFORE_CREATED,
+			"Edited before created",
 			DbIntegrityCategory.TIMESTAMP,
 			DbIntegritySeverity.ERROR,
 			"(every audited table)", "edited",

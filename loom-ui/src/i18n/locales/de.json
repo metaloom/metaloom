@@ -978,7 +978,6 @@
       "errors": "{{count}} Fehler",
       "warnings": "{{count}} Warnungen",
       "ran": "{{checks}} Prüfungen in {{duration}} ms, {{findings}} betroffene Zeilen gefunden",
-      "cleanTitle": "Nichts zu melden",
       "cleanDescription": "Alle {{checks}} Prüfungen bestanden. Die Datenbank hält jede geprüfte Zusicherung ein.",
       "refreshFailed": "Prüfungen konnten nicht ausgeführt werden: {{error}}",
       "forbiddenTitle": "Nicht berechtigt",
@@ -998,7 +997,24 @@
         "check": "Prüfung",
         "location": "Wo",
         "rows": "Zeilen",
-        "severity": "Schweregrad"
+        "status": "Status"
+      },
+      "passed": "{{count}} bestanden",
+      "notRunCount": "{{count}} nicht ausgeführt",
+      "noFindings": "Keine Prüfung hat etwas gemeldet. Für den vollständigen Katalog auf Alle Prüfungen umschalten.",
+      "filter": {
+        "all": "Alle Prüfungen",
+        "findings": "Nur Befunde"
+      },
+      "status": {
+        "passed": "Bestanden"
+      },
+      "categoryHint": {
+        "DANGLING": "Datensätze, die auf etwas verweisen, das inzwischen entfernt wurde - über einen Verweis, den die Datenbank nicht absichert.",
+        "TIMESTAMP": "Änderungsdaten, die sich widersprechen oder außerhalb jedes plausiblen Bereichs liegen.",
+        "MANDATORY_FIELD": "Pflichtnamen, die leer geblieben sind, sowie personenbezogene Daten, die eine Löschung hätte entfernen sollen.",
+        "VOCABULARY": "Textspalten mit einem Wert außerhalb der Menge, die die Software kennt.",
+        "CARDINALITY": "Duplikate und Feldkombinationen, die ein Constraint hätte ausschließen sollen."
       }
     }
   },

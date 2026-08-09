@@ -41,6 +41,7 @@ public final class ConstraintEchoCheck extends AbstractSqlCheck {
 	public static ConstraintEchoCheck assetPoolBackend() {
 		return new ConstraintEchoCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.XOR_ASSET_POOL_BACKEND,
+			"Asset pool backend",
 			DbIntegrityCategory.CARDINALITY,
 			DbIntegritySeverity.ERROR,
 			"asset_pool", "fs_path, s3_bucket",
@@ -59,6 +60,7 @@ public final class ConstraintEchoCheck extends AbstractSqlCheck {
 	public static ConstraintEchoCheck taskAssignee() {
 		return new ConstraintEchoCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.XOR_TASK_ASSIGNEE,
+			"Task assignee",
 			DbIntegrityCategory.CARDINALITY,
 			DbIntegritySeverity.ERROR,
 			"task_assignee", "user_uuid, group_uuid",
@@ -73,6 +75,7 @@ public final class ConstraintEchoCheck extends AbstractSqlCheck {
 	public static ConstraintEchoCheck embeddingDimensions() {
 		return new ConstraintEchoCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.EMBEDDING_DIMENSION_MISMATCH,
+			"Embedding vector length",
 			DbIntegrityCategory.CARDINALITY,
 			DbIntegritySeverity.ERROR,
 			"embedding", "vector, dimensions",
@@ -91,6 +94,7 @@ public final class ConstraintEchoCheck extends AbstractSqlCheck {
 	public static ConstraintEchoCheck pipelineRunKind() {
 		return new ConstraintEchoCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.PIPELINE_RUN_KIND_MISMATCH,
+			"Pipeline run kind",
 			DbIntegrityCategory.CARDINALITY,
 			DbIntegritySeverity.ERROR,
 			"pipeline_run", "kind, pipeline_uuid",

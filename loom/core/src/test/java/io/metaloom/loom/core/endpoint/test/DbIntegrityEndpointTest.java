@@ -49,10 +49,17 @@ public class DbIntegrityEndpointTest extends AbstractEndpointTest {
 			assertThat(response.getResults())
 				.allSatisfy(result -> {
 					assertThat(result.getCheck().getCode()).isNotBlank();
+					assertThat(result.getCheck().getName()).isNotBlank();
 					assertThat(result.getCheck().getCategory()).isNotBlank();
 					assertThat(result.getCheck().getSeverity()).isNotBlank();
 					assertThat(result.getCheck().getDescription()).isNotBlank();
 				});
+
+			// The admin table lists checks by name, so a name that never crossed the wire would show
+			// up as a column of blanks rather than as a failure anywhere.
+			assertThat(response.getResults()).extracting(result -> result.getCheck().getName())
+				.as("names are what the catalogue table shows, so they must be distinct")
+				.doesNotHaveDuplicates();
 		}
 	}
 

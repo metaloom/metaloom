@@ -31,6 +31,7 @@ public final class DanglingMemoryEntryScopeCheck extends AbstractSqlCheck {
 	public DanglingMemoryEntryScopeCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.DANGLING_MEMORY_ENTRY_SCOPE,
+			"Memory entry scope target",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.WARN,
 			"memory_entry", "scope_uuid",

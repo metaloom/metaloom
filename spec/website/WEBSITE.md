@@ -199,7 +199,7 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 | **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (17 screenshots, from **two** scripts — see below) · `cli/` · `deployment/` (`_index` + `helm/`) |
 | **`playbooks/`** | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
 | **`nodes/`** | `_index` + **36 node pages** (35 with a staged descriptor, plus `guard`): `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filter · fingerprint · gdrive-source · guard · hash · image-manipulation · imagegen · llm · metadata · objectdetect · ocr · onedrive-source · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · tag · thumbnail · tika · translate · tts · videogen · vlm · watermark · whisper`. **The count drifts** — `check-node-screenshots.mjs` is what notices, by mapping every kind in the descriptor snapshot to exactly one page |
-| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` |
+| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` · `search-indices/` (2 screenshots) · `database-integrity/` (3 screenshots) |
 | **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
 | **`legal/`** | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
 | **legacy stubs** | `rest/` · `test/` · `configuration/` — unlinked placeholders, candidates for deletion |
@@ -702,6 +702,53 @@ and progress bar, cropped, while another screen is open).
 * `reducedMotion: "reduce"`, for the same reason the node captures set it: the bars animate, and a
   re-run that catches a different frame reads as a change.
 
+## Capturing the database integrity screen (`docs/loom/database-integrity/`)
+
+Three shots, refreshed by `loom-ui/scripts/capture-db-integrity-screenshots.mjs`. It takes **one shot
+per invocation**, because the interesting picture is of a database with something wrong with it and
+breaking the demo database is a shell step that has to happen between two runs.
+
+```bash
+# Build and start as for the docs/ui captures above, then:
+cd loom-ui
+node scripts/capture-db-integrity-screenshots.mjs db-integrity-clean.png
+
+docker exec -i postgres-demo psql -U postgres -d loom <<'SQL'
+update "search_document" set "entity_uuid" = gen_random_uuid()
+ where "entity_uuid" in (select "entity_uuid" from "search_document" order by "entity_uuid" limit 24);
+update "token" set "editor_uuid" = gen_random_uuid()
+ where "uuid" = (select "uuid" from "token" order by "uuid" limit 1);
+update "asset" set "created" = timestamp '2019-03-04 09:12:00'
+ where "uuid" = (select "uuid" from "asset" order by "uuid" limit 1);
+update "blacklist" set "name" = null
+ where "uuid" = (select "uuid" from "blacklist" order by "uuid" limit 1);
+SQL
+
+node scripts/capture-db-integrity-screenshots.mjs db-integrity-findings.png --expand DANGLING_SEARCH_DOCUMENT
+node scripts/capture-db-integrity-screenshots.mjs db-integrity-filtered.png --findings-only
+
+# Leave the demo clean: recreate the database rather than trying to undo the four statements.
+docker exec postgres-demo psql -U postgres -c "DROP DATABASE loom WITH (FORCE)"
+docker exec postgres-demo psql -U postgres -c "CREATE DATABASE loom"
+./start-demo.sh
+```
+
+Filenames: `db-integrity-clean` · `db-integrity-findings` · `db-integrity-filtered`. They live in the
+**`docs/loom/database-integrity/` bundle**, not `docs/ui/`, because a bare `image::` filename resolves
+inside the bundle of the page that uses it — the same reason the two search-index shots live under
+`docs/loom/search-indices/`.
+
+* **`docker exec` needs `-i`** or the heredoc never reaches `psql`, every statement silently does
+  nothing and the report comes back clean. It looks exactly like the checks failing to fire.
+* **The four statements are chosen to span three categories and both severities** — two DANGLING
+  errors, a TIMESTAMP warning and a MANDATORY_FIELD warning — so the grouping and the severity
+  counters both have something to show. The 24 search documents are deliberately more than the
+  20-row sample cap, which is what puts the "... and 4 more" line in the picture.
+* **Don't hand-undo the damage.** Recreating the database is one command and cannot leave a
+  half-restored row behind; `DemoDatabaseInitializer` reseeds on the next start.
+* The demo database is expected to pass all 29 checks. If `db-integrity-clean.png` is not clean, that
+  is a finding about the demo seed, not a capture problem — fix the seed.
+
 ## Capturing Debug Mode screenshots (`docs/pipeline/`)
 
 `docs/pipeline/` holds 5 screenshots of the pipeline debugger, refreshed by
@@ -801,6 +848,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Refresh the OpenAPI / GraphQL / node-descriptor files | [Staged generated artefacts](#staged-generated-artefacts) |
 | Refresh the Loom UI screenshots | [Capturing Loom UI screenshots](#capturing-loom-ui-screenshots-docsui) |
 | Refresh the upload screenshots | [Capturing the upload screen](#capturing-the-upload-screen-docsui) — mocked, no container |
+| Refresh the database integrity screenshots | [Capturing the database integrity screen](#capturing-the-database-integrity-screen-docsloomdatabase-integrity) — one shot per run, breaks the demo DB between two of them |
 | Refresh a node page's settings picture | `cd loom-ui && node scripts/capture-node-config-screenshots.mjs [page]` |
 | Refresh a node page's debug picture | regenerate its fixture (`DocsFixtureGenerator`), then `node scripts/capture-node-screenshots.mjs [page]` |
 | Add a node page for a new kind | the page folder, plus an entry in `loom-ui/scripts/node-capture-plan.mjs` — the build gate fails until both exist |
@@ -950,7 +998,9 @@ review**.
       once ([Capturing the upload screen](#capturing-the-upload-screen-docsui))
 - [x] Loom docs: REST API (Swagger UI), GraphQL API (GraphiQL), Java client, **Python client**, auth,
       configuration, metrics, features, chat (incl. coding sandbox), binary storage, artifacts,
-      containers, helm
+      containers, helm, search indices (2 screenshots), database integrity (3 screenshots — clean,
+      with findings, and filtered — captured against a demo database broken on purpose,
+      [Capturing the database integrity screen](#capturing-the-database-integrity-screen-docsloomdatabase-integrity))
 - [x] Cortex docs: configuration, monitoring, metrics, artifacts, containers, examples
       (Java node, Java daemon, Python worker)
 - [x] **34 node pages** under `docs/nodes/`, each with a generated `nodeviz` diagram + the type legend

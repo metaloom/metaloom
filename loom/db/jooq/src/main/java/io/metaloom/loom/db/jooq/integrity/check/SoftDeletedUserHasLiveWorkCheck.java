@@ -39,6 +39,7 @@ public final class SoftDeletedUserHasLiveWorkCheck extends AbstractSweepCheck {
 	public SoftDeletedUserHasLiveWorkCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.SOFT_DELETED_USER_HAS_LIVE_WORK,
+			"Work left behind by a deleted user",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.ERROR,
 			"token, task_assignee, notification, user_group, user_permission", "user_uuid",

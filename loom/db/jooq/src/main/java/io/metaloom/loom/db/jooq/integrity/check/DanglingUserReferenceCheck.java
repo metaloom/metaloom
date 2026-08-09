@@ -51,6 +51,7 @@ public final class DanglingUserReferenceCheck extends AbstractSqlCheck {
 	public static DanglingUserReferenceCheck tokenEditor() {
 		return new DanglingUserReferenceCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.DANGLING_TOKEN_EDITOR,
+			"API token editor",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.ERROR,
 			"token", "editor_uuid",
@@ -63,6 +64,7 @@ public final class DanglingUserReferenceCheck extends AbstractSqlCheck {
 		// asset_remix has no uuid at all: it is keyed by the pair of assets it links.
 		return new DanglingUserReferenceCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.DANGLING_ASSET_REMIX_EDITOR,
+			"Remix link editor",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.ERROR,
 			"asset_remix", "editor_uuid",
@@ -74,6 +76,7 @@ public final class DanglingUserReferenceCheck extends AbstractSqlCheck {
 	public static DanglingUserReferenceCheck vectorConfigActor() {
 		return new DanglingUserReferenceCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.DANGLING_VECTOR_CONFIG_ACTOR,
+			"Vector config creator and editor",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.ERROR,
 			"vector_config", "creator_uuid, editor_uuid",

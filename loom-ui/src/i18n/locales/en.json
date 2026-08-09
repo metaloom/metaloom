@@ -987,7 +987,6 @@
       "errors": "{{count}} errors",
       "warnings": "{{count}} warnings",
       "ran": "{{checks}} checks ran in {{duration}} ms, {{findings}} offending rows found",
-      "cleanTitle": "Nothing to report",
       "cleanDescription": "All {{checks}} checks passed. The database holds every invariant that is checked.",
       "refreshFailed": "Could not run the checks: {{error}}",
       "forbiddenTitle": "Not permitted",
@@ -1007,7 +1006,24 @@
         "check": "Check",
         "location": "Where",
         "rows": "Rows",
-        "severity": "Severity"
+        "status": "Status"
+      },
+      "passed": "{{count}} passed",
+      "notRunCount": "{{count}} did not run",
+      "noFindings": "No check reported anything. Switch to All checks to see the full catalogue.",
+      "filter": {
+        "all": "All checks",
+        "findings": "Findings only"
+      },
+      "status": {
+        "passed": "Passed"
+      },
+      "categoryHint": {
+        "DANGLING": "Records pointing at something that has since been removed, through a reference the database does not hold in place.",
+        "TIMESTAMP": "Audit dates that contradict each other or fall outside any plausible range.",
+        "MANDATORY_FIELD": "Required names left blank, and personal data a deletion should have cleared.",
+        "VOCABULARY": "Text columns holding a value outside the set the software recognises.",
+        "CARDINALITY": "Duplicates, and combinations of fields a constraint should have ruled out."
       }
     }
   },

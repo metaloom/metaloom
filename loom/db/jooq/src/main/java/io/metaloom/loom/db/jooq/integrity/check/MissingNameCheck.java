@@ -48,6 +48,7 @@ public final class MissingNameCheck extends AbstractConditionCheck {
 	public static MissingNameCheck tokenName() {
 		return new MissingNameCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.MISSING_TOKEN_NAME,
+			"Unnamed API token",
 			DbIntegrityCategory.MANDATORY_FIELD,
 			DbIntegritySeverity.ERROR,
 			"token", "name",
@@ -65,6 +66,7 @@ public final class MissingNameCheck extends AbstractConditionCheck {
 	public static MissingNameCheck blacklistName() {
 		return new MissingNameCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.MISSING_BLACKLIST_NAME,
+			"Unnamed blacklist entry",
 			DbIntegrityCategory.MANDATORY_FIELD,
 			DbIntegritySeverity.WARN,
 			"blacklist", "name",

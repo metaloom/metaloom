@@ -53,6 +53,7 @@ public final class DanglingSearchDocumentCheck extends AbstractSqlCheck {
 	public static DanglingSearchDocumentCheck documents() {
 		return new DanglingSearchDocumentCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.DANGLING_SEARCH_DOCUMENT,
+			"Search document target",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.ERROR,
 			"search_document", "entity_uuid",
@@ -65,6 +66,7 @@ public final class DanglingSearchDocumentCheck extends AbstractSqlCheck {
 	public static DanglingSearchDocumentCheck staleTombstones() {
 		return new DanglingSearchDocumentCheck(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.STALE_SEARCH_TOMBSTONE,
+			"Search deletion tombstone",
 			DbIntegrityCategory.DANGLING,
 			DbIntegritySeverity.WARN,
 			"search_document_deleted", "entity_uuid",

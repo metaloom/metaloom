@@ -21,8 +21,10 @@ class DbIntegrityCheckModel(Model):
     """Mirrors ``io.metaloom.loom.rest.model.dbintegrity.DbIntegrityCheckModel``."""
 
     #: Stable identifier of the check, SCREAMING_SNAKE_CASE. The only field a client should branch on; the
-    #: description may be reworded.
+    #: name and description may be reworded.
     code: str | None = None
+    #: Short human-readable label naming what the check looks at, for display in a catalogue or report.
+    name: str | None = None
     #: What kind of defect this looks for: DANGLING, TIMESTAMP, MANDATORY_FIELD, VOCABULARY or CARDINALITY.
     category: str | None = None
     #: How badly a finding matters: ERROR (data the application will misread or crash on), WARN (a human

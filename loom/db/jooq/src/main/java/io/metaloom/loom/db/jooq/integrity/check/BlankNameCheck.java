@@ -28,6 +28,7 @@ public final class BlankNameCheck extends AbstractSweepCheck {
 	public BlankNameCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.BLANK_NAME,
+			"Empty name",
 			DbIntegrityCategory.MANDATORY_FIELD,
 			DbIntegritySeverity.ERROR,
 			"(every named entity)", "name",

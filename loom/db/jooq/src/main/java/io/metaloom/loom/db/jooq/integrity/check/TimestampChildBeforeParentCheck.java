@@ -30,6 +30,7 @@ public final class TimestampChildBeforeParentCheck extends AbstractSweepCheck {
 	public TimestampChildBeforeParentCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.TIMESTAMP_CHILD_BEFORE_PARENT,
+			"Child created before its parent",
 			DbIntegrityCategory.TIMESTAMP,
 			DbIntegritySeverity.WARN,
 			"asset_location, pipeline_run_item, pipeline_version, skill_version", "created",

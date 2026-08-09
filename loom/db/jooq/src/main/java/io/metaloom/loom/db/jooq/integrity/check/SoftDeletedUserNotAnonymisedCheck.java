@@ -39,6 +39,7 @@ public final class SoftDeletedUserNotAnonymisedCheck extends AbstractConditionCh
 	public SoftDeletedUserNotAnonymisedCheck() {
 		super(new DbIntegrityCheckInfo(
 			DbIntegrityCodes.SOFT_DELETED_USER_NOT_ANONYMISED,
+			"Deleted user still holds personal data",
 			DbIntegrityCategory.MANDATORY_FIELD,
 			DbIntegritySeverity.WARN,
 			"user", "firstname, lastname, meta",

@@ -26,8 +26,10 @@ export type DbIntegritySeverity = "INFO" | "WARN" | "ERROR";
 
 /** Catalogue entry: what a check is, independent of whether it has been run. */
 export interface DbIntegrityCheck {
-  /** Stable identifier. The only field to branch on; the description may be reworded. */
+  /** Stable identifier. The only field to branch on; the name and description may be reworded. */
   code: string;
+  /** Short human-readable label. What the catalogue table shows; the code is what you quote. */
+  name: string;
   category: DbIntegrityCategory;
   severity: DbIntegritySeverity;
   /** The table read. Names a theme rather than one table where a check sweeps several. */
@@ -145,10 +147,37 @@ export function severityCounts(report: DbIntegrityReport): Record<DbIntegritySev
 }
 
 /**
+ * What one check is reporting, as one word.
+ *
+ * `NOT_RUN` is the reason this is a function and not `count > 0`. A check that threw comes back with
+ * a count of zero, and treating that as a pass is the single way this panel could actively mislead
+ * someone: it would answer "is anything broken" with "no" on the strength of a question nobody
+ * managed to ask.
+ */
+export type DbIntegrityStatus = DbIntegritySeverity | "PASSED" | "NOT_RUN";
+
+export function checkStatus(result: DbIntegrityCheckResult): DbIntegrityStatus {
+  if (result.error) return "NOT_RUN";
+  if (result.count > 0) return result.check.severity;
+  return "PASSED";
+}
+
+/** How many checks passed outright — no findings and no failure to run. */
+export function passedCount(report: DbIntegrityReport): number {
+  return report.results.filter(r => checkStatus(r) === "PASSED").length;
+}
+
+/** How many checks could not run at all. Never folded into the passed or the failed count. */
+export function notRunCount(report: DbIntegrityReport): number {
+  return report.results.filter(r => !!r.error).length;
+}
+
+/**
  * Results grouped by category, in the order the server sent them.
  *
- * A category with nothing in it is omitted rather than rendered empty — the report already says how
- * many checks ran, so an empty group adds a heading and no information.
+ * Categories are keyed in first-seen order, and one with no results in the input is simply absent —
+ * the caller decides whether it is listing the whole catalogue or only the findings, and this does
+ * not second-guess that by inventing empty groups.
  */
 export function groupByCategory(
   results: DbIntegrityCheckResult[],

@@ -93,18 +93,24 @@ an invariant the schema claims but does not enforce. **WARN** = suspicious, a hu
 **INFO** = informational (nothing uses it yet; it exists so a check can be demoted without deletion).
 `assertIntegrity()` fails on ERROR only.
 
+Every check carries a **code** and a **name**. The code is the contract - it is what
+`ignoredIntegrityChecks()` lists, what `?check=` accepts and what an operator quotes in a bug report,
+and it never changes. The name is the label the admin table and the assertion message show, and it
+may be reworded freely. `DbIntegrityChecksTest` asserts names are unique, because two rows reading
+alike in the catalogue table is indistinguishable from one row listed twice.
+
 ### DANGLING (8)
 
-| Code | Sev | What it finds |
-|---|---|---|
-| `DANGLING_TOKEN_EDITOR` | ERROR | `token.editor_uuid` naming no user. V2.1 declares the FK for `creator_uuid` and omits this one |
-| `DANGLING_ASSET_REMIX_EDITOR` | ERROR | Same omission repeated by V2.8 |
-| `DANGLING_VECTOR_CONFIG_ACTOR` | ERROR | `vector_config.creator_uuid`/`editor_uuid`. V2.6 declares no PK and no FKs at all |
-| `DANGLING_SEARCH_DOCUMENT` | ERROR | A `search_document` row whose subject is gone - a gap in the V2.58/V2.59 triggers |
-| `STALE_SEARCH_TOMBSTONE` | WARN | A `search_document_deleted` row whose subject exists again |
-| `DANGLING_MEMORY_ENTRY_SCOPE` | WARN | `memory_entry.scope_uuid` unresolvable in the table its `scope` names |
-| `DANGLING_NODE_TASK_LEASE` | WARN | An unfinished task leased to an unregistered `cortex_instance.node_id` |
-| `SOFT_DELETED_USER_HAS_LIVE_WORK` | ERROR | A soft-deleted user still holding tokens, assignments, notifications, memberships or grants |
+| Code | Name | Sev | What it finds |
+|---|---|---|---|
+| `DANGLING_TOKEN_EDITOR` | API token editor | ERROR | `token.editor_uuid` naming no user. V2.1 declares the FK for `creator_uuid` and omits this one |
+| `DANGLING_ASSET_REMIX_EDITOR` | Remix link editor | ERROR | Same omission repeated by V2.8 |
+| `DANGLING_VECTOR_CONFIG_ACTOR` | Vector config creator and editor | ERROR | `vector_config.creator_uuid`/`editor_uuid`. V2.6 declares no PK and no FKs at all |
+| `DANGLING_SEARCH_DOCUMENT` | Search document target | ERROR | A `search_document` row whose subject is gone - a gap in the V2.58/V2.59 triggers |
+| `STALE_SEARCH_TOMBSTONE` | Search deletion tombstone | WARN | A `search_document_deleted` row whose subject exists again |
+| `DANGLING_MEMORY_ENTRY_SCOPE` | Memory entry scope target | WARN | `memory_entry.scope_uuid` unresolvable in the table its `scope` names |
+| `DANGLING_NODE_TASK_LEASE` | Node task lease holder | WARN | An unfinished task leased to an unregistered `cortex_instance.node_id` |
+| `SOFT_DELETED_USER_HAS_LIVE_WORK` | Work left behind by a deleted user | ERROR | A soft-deleted user still holding tokens, assignments, notifications, memberships or grants |
 
 `SOFT_DELETED_USER_HAS_LIVE_WORK` is the one worth reading twice. `user.deleted` is the only soft
 delete in the schema, and because the row is never removed, **every `ON DELETE CASCADE` pointed at
@@ -113,50 +119,50 @@ authenticate.
 
 ### TIMESTAMP (3)
 
-| Code | Sev | What it finds |
-|---|---|---|
-| `TIMESTAMP_EDITED_BEFORE_CREATED` | ERROR | `edited < created` across all 47 audited tables |
-| `TIMESTAMP_IMPLAUSIBLE` | WARN | A timestamp before 2020-01-01 or more than 15 hours in the future |
-| `TIMESTAMP_CHILD_BEFORE_PARENT` | WARN | `asset_location`/`asset`, `pipeline_run_item`/`pipeline_run`, `pipeline_version`/`pipeline`, `skill_version`/`skill` |
+| Code | Name | Sev | What it finds |
+|---|---|---|---|
+| `TIMESTAMP_EDITED_BEFORE_CREATED` | Edited before created | ERROR | `edited < created` across all 47 audited tables |
+| `TIMESTAMP_IMPLAUSIBLE` | Timestamp out of range | WARN | A timestamp before 2020-01-01 or more than 15 hours in the future |
+| `TIMESTAMP_CHILD_BEFORE_PARENT` | Child created before its parent | WARN | `asset_location`/`asset`, `pipeline_run_item`/`pipeline_run`, `pipeline_version`/`pipeline`, `skill_version`/`skill` |
 
 ### MANDATORY_FIELD (4)
 
-| Code | Sev | What it finds |
-|---|---|---|
-| `BLANK_NAME` | ERROR | `trim(col) = ''` over 14 NOT NULL name columns |
-| `MISSING_TOKEN_NAME` | ERROR | `token.name IS NULL`, which defeats `UNIQUE (creator_uuid, name)` |
-| `MISSING_BLACKLIST_NAME` | WARN | `blacklist.name IS NULL` - V2.50 made it nullable only to admit older rows |
-| `SOFT_DELETED_USER_NOT_ANONYMISED` | WARN | `deleted` set but `firstname`/`lastname`/`meta` still populated |
+| Code | Name | Sev | What it finds |
+|---|---|---|---|
+| `BLANK_NAME` | Empty name | ERROR | `trim(col) = ''` over 14 NOT NULL name columns |
+| `MISSING_TOKEN_NAME` | Unnamed API token | ERROR | `token.name IS NULL`, which defeats `UNIQUE (creator_uuid, name)` |
+| `MISSING_BLACKLIST_NAME` | Unnamed blacklist entry | WARN | `blacklist.name IS NULL` - V2.50 made it nullable only to admit older rows |
+| `SOFT_DELETED_USER_NOT_ANONYMISED` | Deleted user still holds personal data | WARN | `deleted` set but `firstname`/`lastname`/`meta` still populated |
 
 ### VOCABULARY (8)
 
 One `EnumColumnCheck` class driven by a hand-written `(table, column, enum)` list, each row emitting
 its own stable code, plus `INVALID_REACTION_TYPE` as its own class.
 
-| Code | Column | Why it matters |
-|---|---|---|
-| `INVALID_REACTION_TYPE` | `reaction.type` | Nothing guards it - no converter, no CHECK - and the REST layer reads it with `valueOf`, so a bad string makes **every** read of the row a 500 |
-| `VOCABULARY_PIPELINE_RUN_STATUS` | `pipeline_run.status` | forcedType converter throws on read |
-| `VOCABULARY_PIPELINE_RUN_ITEM_STATE` | `pipeline_run_item.state` | ditto; V2.77 repaired exactly this |
-| `VOCABULARY_PIPELINE_NODE_TASK_STATE` | `pipeline_node_task.state` | ditto |
-| `VOCABULARY_NOTIFICATION_TYPE` | `notification.type` | has a CHECK; a hit means CHECK and enum drifted |
-| `VOCABULARY_NODE_DESCRIPTOR_STATUS` | `node_descriptor.status` | ditto |
-| `VOCABULARY_SEARCH_DOCUMENT_ENTITY_TYPE` | `search_document.entity_type` | does not throw - the row simply becomes unreachable, because the provider filters on the raw string |
-| `VOCABULARY_MEMORY_ENTRY_SCOPE` | `memory_entry.scope` | without it nothing can resolve `scope_uuid` |
+| Code | Name | Column | Why it matters |
+|---|---|---|---|
+| `INVALID_REACTION_TYPE` | Reaction type | `reaction.type` | Nothing guards it - no converter, no CHECK - and the REST layer reads it with `valueOf`, so a bad string makes **every** read of the row a 500 |
+| `VOCABULARY_PIPELINE_RUN_STATUS` | Pipeline run status | `pipeline_run.status` | forcedType converter throws on read |
+| `VOCABULARY_PIPELINE_RUN_ITEM_STATE` | Run item state | `pipeline_run_item.state` | ditto; V2.77 repaired exactly this |
+| `VOCABULARY_PIPELINE_NODE_TASK_STATE` | Node task state | `pipeline_node_task.state` | ditto |
+| `VOCABULARY_NOTIFICATION_TYPE` | Notification type | `notification.type` | has a CHECK; a hit means CHECK and enum drifted |
+| `VOCABULARY_NODE_DESCRIPTOR_STATUS` | Node descriptor status | `node_descriptor.status` | ditto |
+| `VOCABULARY_SEARCH_DOCUMENT_ENTITY_TYPE` | Search document entity type | `search_document.entity_type` | does not throw - the row simply becomes unreachable, because the provider filters on the raw string |
+| `VOCABULARY_MEMORY_ENTRY_SCOPE` | Memory entry scope value | `memory_entry.scope` | without it nothing can resolve `scope_uuid` |
 
 `search_document.entity_type` stores the lowercase `SearchEntityType.id()`, not the constant name -
 that check compares in lower case.
 
 ### CARDINALITY (6)
 
-| Code | Sev | What it finds |
-|---|---|---|
-| `LOOM_SINGLETON` | ERROR | More than one `loom` row. Reports the **surplus**, not the total |
-| `DUPLICATE_VECTOR_CONFIG_UUID` | ERROR | Duplicate or null `vector_config.uuid` - V2.6 declares no PK |
-| `XOR_ASSET_POOL_BACKEND` | ERROR | `num_nonnulls(fs_path, s3_bucket) <> 1` |
-| `XOR_TASK_ASSIGNEE` | ERROR | `num_nonnulls(user_uuid, group_uuid) <> 1` |
-| `EMBEDDING_DIMENSION_MISMATCH` | ERROR | `array_length(vector,1)` disagrees with `dimensions` |
-| `PIPELINE_RUN_KIND_MISMATCH` | ERROR | `kind` disagrees with whether `pipeline_uuid` is set (V2.83) |
+| Code | Name | Sev | What it finds |
+|---|---|---|---|
+| `LOOM_SINGLETON` | Single instance row | ERROR | More than one `loom` row. Reports the **surplus**, not the total |
+| `DUPLICATE_VECTOR_CONFIG_UUID` | Vector config identity | ERROR | Duplicate or null `vector_config.uuid` - V2.6 declares no PK |
+| `XOR_ASSET_POOL_BACKEND` | Asset pool backend | ERROR | `num_nonnulls(fs_path, s3_bucket) <> 1` |
+| `XOR_TASK_ASSIGNEE` | Task assignee | ERROR | `num_nonnulls(user_uuid, group_uuid) <> 1` |
+| `EMBEDDING_DIMENSION_MISMATCH` | Embedding vector length | ERROR | `array_length(vector,1)` disagrees with `dimensions` |
+| `PIPELINE_RUN_KIND_MISMATCH` | Pipeline run kind | ERROR | `kind` disagrees with whether `pipeline_uuid` is set (V2.83) |
 
 The last four duplicate `CHECK` constraints **on purpose**. A constraint stops the application; it
 does not stop a migration backfill, a `NOT VALID` constraint, a bulk load with
@@ -229,12 +235,12 @@ Test classes:
 
 | Class | Module | Covers |
 |---|---|---|
-| `DbIntegrityChecksTest` | `loom/db/jooq` | Registry guards: unique well-formed codes, descriptions present, `DbIntegrityCodes` matches the registry exactly, every `SearchEntityType` is mapped. No database |
+| `DbIntegrityChecksTest` | `loom/db/jooq` | Registry guards: unique well-formed codes, unique readable names, descriptions present, `DbIntegrityCodes` matches the registry exactly, every `SearchEntityType` is mapped. No database |
 | `DbIntegrityServiceTest` | `loom/db/jooq` | 18 tests. Breaks the database one way at a time and asserts the matching check fires and names the row; plus the negative cases (`edited == created` is legal, a timezone-sized offset is not implausible), scoping and the sample cap |
 | `DbIntegrityFixtureReportTest` | `loom/db/jooq` | The pooled fixture must pass its own checks. Prints the whole report - the fastest way to see the catalogue's verdict on a database |
 | `DbIntegrityEndpointTest` | `loom/core` | 12 tests: shape, catalogue agreement, the three filters, both 400s, and the four RBAC cases. Also the full loop - create a row with a dangling editor through the ordinary DAO and read the finding off the endpoint |
-| `dbIntegrity.test.ts` | `loom-ui` | 9 vitest cases over the pure helpers, including that a check which could not run counts as a failure |
-| `db-integrity-mocked.spec.ts` | `loom-ui` | 7 Playwright cases: clean vs dirty, grouping, sample truncation, did-not-run, failed refresh keeps the last report, 403 |
+| `dbIntegrity.test.ts` | `loom-ui` | 15 vitest cases over the pure helpers, including that a check which could not run counts as a failure and is never `PASSED` |
+| `db-integrity-mocked.spec.ts` | `loom-ui` | 10 Playwright cases: clean vs dirty, the full catalogue table, name and code both on screen, the findings filter both ways, sample truncation, did-not-run, failed refresh keeps the last report, 403 |
 
 A check that never fires in a test is a check nobody knows works, which is why
 `DbIntegrityServiceTest` exists in the shape it does.
@@ -268,6 +274,15 @@ query parameters per request, and there is no cache, schedule or store to tune.
   this check does not try - it only catches dates no timezone can explain.
 - **Counts, not rows.** A finding carries a total plus a capped sample. Anything rendering a sample
   list must also say how many rows it is not showing, or the list reads as complete.
+- **`code` is the contract, `name` is the label.** The code is what an ignore list, a `?check=`
+  filter and a bug report carry, and changing one is a breaking change. The name exists so the admin
+  table has something readable in its first column, and is free to be reworded. Both cross the wire
+  on every catalogue entry, and both are shown - a table of codes alone is unreadable, a table of
+  names alone gives the operator nothing to quote.
+- **The admin table lists the whole catalogue, not only the findings.** "What is broken" and "what
+  was looked at" are different questions, and an operator opening this screen because something is
+  wrong needs the second one answered too. The findings filter narrows to the subset; it is not the
+  default.
 - **A check that threw is a failure, not a pass.** `DbIntegrityCheckResult.error` is non-null and
   `count` is 0; `isClean()` is false and `failures()` includes it. The UI renders "Did not run". Any
   new consumer must preserve that distinction.
@@ -339,9 +354,11 @@ query parameters per request, and there is no cache, schedule or store to tune.
 - [x] `ReactionDaoTest` no longer stores non-`ReactionType` values
 - [x] `GET /api/v1/db-integrity` and `/checks`, with filters and 400s
 - [x] Java and Python clients; parity test updated
-- [x] Admin UI tab, i18n (en + de), 9 vitest and 7 Playwright cases
+- [x] Every check carries a human-readable `name` alongside its code, uniqueness test-guarded
+- [x] Admin UI tab listing the whole catalogue with a per-check status and a findings filter,
+  i18n (en + de), 15 vitest and 10 Playwright cases
 - [x] Demo data grant on the editor role
-- [x] Customer documentation page
+- [x] Customer documentation page, with screenshots of the admin panel clean and with findings
 - [ ] The five missing foreign keys these checks detect are still missing - detection is not a fix.
   `token.editor_uuid`, `asset_remix.editor_uuid` and `vector_config`'s two, plus `vector_config`'s
   absent primary key, want a migration of their own
