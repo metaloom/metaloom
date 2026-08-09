@@ -1510,19 +1510,52 @@ body {
   padding-bottom: 24px;
   position: relative;
 }
-/* A short teal tick under the rule, aligned with the title, in place of the old full-width
-   teal border: an accent, not a stripe. */
+/* The teal accent under the rule. It spans the whole rule and a single bright crest travels
+   along it, left → right, forever.
+   The band is a *tiling* gradient — one crest per element width, laid out over a background two
+   element-widths wide — and `ml-rule-sweep` shifts it by exactly one whole tile per cycle, so
+   the loop closes on itself with no jump back. Everything between crests sits at a low-alpha
+   teal, which is what keeps a full-width line an accent rather than a stripe: the strong colour
+   is only ever the crest, and the crest is only ever in one place at a time.
+   The *shape* is a mask, kept separate from the band, so the head's left-anchored emphasis (and
+   the centred variant's symmetric fade) can change without touching the animation. */
 .page-head::after {
-  background: linear-gradient(90deg, var(--ml-accent), rgba(87, 203, 204, 0));
+  animation: ml-rule-sweep 9s linear infinite;
+  background-image: linear-gradient(90deg,
+      rgba(87, 203, 204, .18) 0%,
+      var(--ml-accent) 18%,
+      var(--ml-accent-bright) 25%,
+      var(--ml-accent) 32%,
+      rgba(87, 203, 204, .18) 50%,
+      var(--ml-accent) 68%,
+      var(--ml-accent-bright) 75%,
+      var(--ml-accent) 82%,
+      rgba(87, 203, 204, .18) 100%);
+  background-repeat: repeat-x;
+  background-size: 200% 100%;
   bottom: -1px;
   content: "";
   height: 2px;
   left: 0;
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 12%, rgba(0, 0, 0, .55) 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 12%, rgba(0, 0, 0, .55) 100%);
   position: absolute;
-  width: 74px;
+  width: 100%;
+}
+/* One tile is 200% of the element, so shifting by 200% lands on the next tile: the loop has no
+   seam and no visible restart. */
+@keyframes ml-rule-sweep {
+  from { background-position: 200% 0; }
+  to   { background-position: 0 0; }
 }
 .page-head-center { margin-bottom: 48px; text-align: center; }
-.page-head-center::after { left: 50%; transform: translateX(-50%); background: linear-gradient(90deg, rgba(87, 203, 204, 0), var(--ml-accent), rgba(87, 203, 204, 0)); width: 120px; }
+.page-head-center::after {
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, .45), #000 50%, rgba(0, 0, 0, .45));
+  mask-image: linear-gradient(90deg, rgba(0, 0, 0, .45), #000 50%, rgba(0, 0, 0, .45));
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-head::after { animation: none; }
+}
 .page-eyebrow {
   color: var(--ml-accent);
   font-family: var(--ml-sans);

@@ -562,6 +562,12 @@ There is **one palette for the whole site** — CSS custom properties at the top
   headings, Anaheim prose, monospace values, code as a chip, admonitions as coloured-left-edge
   callouts, code blocks as a recessed surface, a shared `.page-head` (eyebrow → title → rule) and a
   `.docs-foot` button pair. Heading offsets use **`scroll-margin-top: 96px`, not padding**.
+* **The `.page-head` rule is a moving band behind a static mask.** `::after` paints a tiling
+  `accent → accent-bright` gradient at `background-size: 200% 100%` and `ml-rule-sweep` drifts it
+  `200% → 0` over 7 s — one whole tile, so the loop has no seam. The tick's *shape* (fades out
+  right; both ends on `.page-head-center`) is a `mask-image`, which is why the centred variant
+  overrides only the mask and inherits the same animation. Putting the fade back in `background`
+  would knock out the band.
 * **Scroll reveal** is one script, `assets/js/reveal.js`, with a page-agnostic contract:
   `data-reveal-scope` on a container, `class="reveal"` per element, `data-reveal-delay="<n>"`
   (× 90 ms), `data-count-up`. Wire it with `{{ partial "reveal-bootstrap.html" . }}` inside the
