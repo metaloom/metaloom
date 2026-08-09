@@ -47,19 +47,21 @@ ranker lands**; `GET /search/status` is the honest gate (Task 1 step 6).
 
 ### 0.3 Is Upload covered by E2E?
 
-**Yes, better than any other screen — but with named holes.**
-[uploads-mocked.spec.ts](../../loom-ui/e2e/uploads-mocked.spec.ts) has 11 specs (multi-file,
-`poolUuid` present/absent, `GET /pools` → 403, navigate-away-mid-upload, duplicate vs failure,
-cancel, clear), backed by `uploadQueue.test.ts` (288 lines), `uploadFormat.test.ts` and
-`assetUpload.test.ts`. Not covered:
+**Yes, better than any other screen, and the named holes are now closed** (was Task 6).
+[uploads-mocked.spec.ts](../../loom-ui/e2e/uploads-mocked.spec.ts) has 18 specs (multi-file,
+drag-and-drop plus the `dragging` highlight, a file-less drop, custom/blank `origin`, queue heading
+and size-weighted totals, cancel-all, retry-failed, `poolUuid` present/absent, `GET /pools` → 403,
+navigate-away-mid-upload, duplicate vs failure, cancel, clear), backed by `uploadQueue.test.ts`
+(288 lines), `uploadFormat.test.ts` and `assetUpload.test.ts`. All six previously unreferenced
+testids — `upload-dropzone`, `upload-origin-input`, `upload-totals`, `upload-queue-heading`,
+`upload-cancel-all`, `upload-retry-failed` — now have specs.
 
-- `upload-dropzone` — **drag-and-drop is never exercised**; all 11 specs go through the file input.
-- `upload-origin-input`, `upload-totals`, `upload-queue-heading`, `upload-cancel-all`,
-  `upload-retry-failed` — five testids with zero E2E references.
-- There is **no `uploads-backend.spec.ts`** — no spec uploads real bytes to a real server and reads
-  the asset back. Java-side coverage exists (`AssetUploadEndpointTest`) but never crosses the UI.
-
-→ **Task 6**.
+[uploads-backend.spec.ts](../../loom-ui/e2e/uploads-backend.spec.ts) closes the other half: a PNG
+generated in the test goes through the screen into a real server, comes back via
+`GET /assets/sha512/:hash` with matching filename/size/hash, re-downloads to the same bytes, and
+renders as a decoded `<img>` in the asset grid rather than a `MediaPlaceholder` — which also covers
+the cookie-authenticated preview path (LOOM_UI.md §7.2). Uploading the same bytes twice is asserted
+to report `duplicate`, not `error`.
 
 ### 0.4 Have recent features been covered by E2E?
 
@@ -169,49 +171,6 @@ avatar-menu entry point.
 
 ---
 
-## Task 6: Close the upload E2E holes
-
-**Argumentation Summary:** Upload is the best-tested screen in the app — 11 mocked specs plus three
-vitest files ([../loom/ui/LOOM_UI_UPLOAD.md](../loom/ui/LOOM_UI_UPLOAD.md) §8) — which makes the
-remaining holes conspicuous. **Drag-and-drop is never exercised**: `upload-dropzone` appears in no
-spec, and `UploadView.tsx:193` (`e.dataTransfer.files`) is a code path only a `dataTransfer`-driven
-Playwright test can reach, yet the dropzone is the screen's primary affordance. Four more testids —
-`upload-origin-input`, `upload-totals`, `upload-cancel-all`, `upload-retry-failed` — are likewise
-unreferenced. And there is **no `uploads-backend.spec.ts`**: no test moves real bytes through
-`POST /assets/upload` and reads the asset back, so the UI's multipart shaping is only ever validated
-against a mock that the same author wrote.
-
-**Improvement Summary:** Extend the mocked spec with drag-and-drop and the four bulk/queue controls,
-and add a backend spec that uploads real bytes end to end.
-
-```
-1. Extend loom-ui/e2e/uploads-mocked.spec.ts:
-     - drag-and-drop: build a DataTransfer in the page context, dispatch dragenter/dragover on
-       `upload-dropzone` (assert the `dragging` visual state changes), then drop and assert the
-       same one-request-per-file behaviour the file-input specs assert.
-     - drag a *directory* entry -> zero files enqueued, no crash. LOOM_UI_UPLOAD.md §1.2 records
-       folder upload as deliberately unbuilt; pin that so it fails loudly if it silently half-works.
-     - `upload-origin-input`: a custom origin travels as the `origin` form field; blank omits it
-       (the server defaults to "upload").
-     - `upload-totals` / `upload-queue-heading`: counts and the weighted percent track the queue.
-     - `upload-cancel-all` with three in-flight items -> all three end `cancelled`, none `error`.
-     - `upload-retry-failed` after two failures -> exactly two new requests, successes untouched.
-2. New loom-ui/e2e/uploads-backend.spec.ts (real server, demo data):
-     - upload a small generated image to a demo library, poll /assets until it appears, assert
-       filename, size and sha512 match, and that AssetBrowser shows a real thumbnail (not the
-       MediaPlaceholder) -- this simultaneously covers the §7.2 cookie-auth preview path.
-     - upload the same bytes twice -> the second is reported `duplicate`, not `error`.
-     - VITE_API_BASE_URL=/api/v1 is REQUIRED for the thumbnail assertion (LOOM_UI.md §5 gotcha).
-3. Update ../loom/ui/LOOM_UI_UPLOAD.md §8.2 with the new case list and the new §8.4 backend spec.
-```
-
-**References:** [../loom/ui/LOOM_UI_UPLOAD.md](../loom/ui/LOOM_UI_UPLOAD.md) §1.2, §1.3, §8 ·
-[UploadView.tsx:193](../../loom-ui/src/features/uploads/UploadView.tsx) ·
-[uploads-mocked.spec.ts](../../loom-ui/e2e/uploads-mocked.spec.ts)
-
-**Test Requirements:** The extended mocked spec (11 → ~18 cases) and the new backend spec.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/uploads-mocked.spec.ts` and, with a server up,
-`VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 ./node_modules/.bin/playwright test e2e/uploads-backend.spec.ts`
 
 ---
 

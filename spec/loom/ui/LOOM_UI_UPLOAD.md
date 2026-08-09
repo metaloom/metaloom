@@ -31,16 +31,20 @@
 - [x] Duplicate detection surfaced (HTTP 200 → "already in Loom" rather than a failure)
 - [x] Asset browser upload dialog routed into the same queue (one upload code path)
 - [x] vitest coverage for the queue, the formatters and the request shaping
-- [x] Mocked Playwright coverage for the screen (11 specs)
+- [x] Mocked Playwright coverage for the screen (18 specs), drag-and-drop included
+- [x] Real-backend Playwright coverage: a generated PNG uploaded through the screen, read back by
+      SHA-512, and shown as a real thumbnail in the asset grid (§8.4)
 - [x] Customer documentation on `website/content/english/docs/ui/` (§ Uploads), with two screenshots
-      of three files in flight taken by `loom-ui/scripts/capture-upload-screenshots.mjs` (§8.4)
+      of three files in flight taken by `loom-ui/scripts/capture-upload-screenshots.mjs` (§8.5)
 
 ### 1.2 Not built (deliberate)
 
 - [ ] **Resumable / chunked upload.** The endpoint is single-shot multipart with no resume
       (REST_BINARY_HANDLING.md gap list). A page reload therefore loses an in-flight batch; the UI
       warns rather than pretending otherwise.
-- [ ] **Folder upload** (`webkitdirectory`). Drag-and-drop of a directory yields no files today.
+- [ ] **Folder upload** (`webkitdirectory`). `onDrop` reads `dataTransfer.files` and knows nothing
+      about directory entries, so a dropped folder contributes no files. Pinned by a §8.2 case, so a
+      half-built version fails loudly.
 - [ ] **Persisted queue across reloads.** Would require re-picking the files anyway — a `File`
       handle cannot be revived from storage.
 - [ ] **Per-upload bandwidth limit / pause.** No backpressure control on `XMLHttpRequest`.
@@ -282,9 +286,19 @@ cd loom-ui
 
 ### 8.2 Playwright (mocked)
 
-`loom-ui/e2e/uploads-mocked.spec.ts` — 11 specs, no backend required. Notable cases:
+`loom-ui/e2e/uploads-mocked.spec.ts` — 18 specs, no backend required. Notable cases:
 
 - multi-file → one multipart request per file
+- **drag-and-drop** → the same one-request-per-file contract as the file input, plus the `dragging`
+  highlight appearing on `dragover` and clearing on `drop`
+- a drop carrying no files (folder upload is unbuilt, §1.2) enqueues nothing, and the screen still
+  works afterwards
+- a custom `origin` travels as the form field; a blank one omits it, so the server's `upload` default
+  applies
+- `upload-queue-heading` / `upload-totals` track the batch, and the percent is weighted by **size**:
+  with three small files in flight and a big one still queued it stays well under half
+- `upload-cancel-all` with three in flight → three `cancelled`, zero `error`
+- `upload-retry-failed` after two failures → exactly two further requests; the success is not re-sent
 - chosen pool appears as `poolUuid`; the default omits the field entirely
 - `GET /pools` → 403 hides the pool selector but leaves uploading available
 - **navigate away mid-upload**, assert `sidebar-upload-progress`, release the parked response, return
@@ -295,6 +309,14 @@ cd loom-ui
 cd loom-ui
 ./node_modules/.bin/playwright test e2e/uploads-mocked.spec.ts
 ```
+
+Playwright has no file-drag API, so the drop cases build a `DataTransfer` inside the page with
+`page.evaluateHandle` and hand it to `locator.dispatchEvent("dragover" | "drop", { dataTransfer })`.
+`setInputFiles` cannot substitute: it drives the `<input type=file>` branch, and `onDrop` reads
+`e.dataTransfer.files`, a different code path. The same limitation bounds what the folder case can
+claim — a synthetic `DataTransfer` cannot carry a real filesystem directory entry, so the test drops
+a `text/uri-list` item instead and pins the observable consequence (`files` is empty → nothing is
+enqueued, nothing throws). If folder upload is ever half-built, that is the case that has to change.
 
 ### 8.3 Java endpoint tests
 
@@ -314,7 +336,40 @@ mvn -o install -pl loom-client/common,loom-client/rest,loom/services/rest -Dskip
 mvn -o test -pl loom/core -Dtest=AssetBinaryDataEndpointTest
 ```
 
-### 8.4 Documentation screenshots
+### 8.4 Playwright (real backend)
+
+`loom-ui/e2e/uploads-backend.spec.ts` — 2 specs, **requires a running server with demo data**. This is
+the only test that moves real bytes through the screen; everything in §8.2 validates the UI against a
+mock written by the same hand as the code.
+
+| Test | Asserts |
+|------|---------|
+| `a generated image … comes back from the server` | A PNG generated in the test uploads via `upload-file-input`, then `GET /assets/sha512/:hash` returns it with matching `filename`, `size`, `mimeType` and hash; re-downloading `binary/data` hashes back to the same SHA-512; and `AssetBrowser` renders a decoded 48×48 `<img>` rather than a `MediaPlaceholder` (the §7.2 cookie-auth preview path) |
+| `uploading the same bytes twice reports a duplicate` | Same payload under a second filename → `duplicate`, one asset, still named after the first upload |
+
+```bash
+cd loom-ui
+VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 \
+  ./node_modules/.bin/playwright test e2e/uploads-backend.spec.ts
+```
+
+Two things this spec has to do that a mocked one does not:
+
+- 🔴 **The bytes must be new on every run.** The endpoint is content-addressed, so a checked-in
+  fixture would come back `duplicate` the second time the suite runs and the "new upload" test would
+  fail for a reason unrelated to the UI. The PNG is therefore generated — a real IHDR/IDAT/IEND
+  stream built with `zlib.deflateSync` — from a `Date.now()` seed that colours its pixels.
+- 🔴 **It must not target the demo's first library.** *Archive Footage* resolves to an S3 pool the
+  demo container holds no credentials for, and the selector defaults to it — an upload there is a
+  500 about the environment. The spec picks *Campaign Media* (no pool → server default filesystem
+  storage), which also exercises `upload-library-select`.
+
+`VITE_API_BASE_URL=/api/v1` is the documented configuration because previews are cookie-authenticated
+(§7.2 of [LOOM_UI.md](LOOM_UI.md)). It is worth knowing that the thumbnail assertion passes locally
+*without* it too: `SameSite` is scoped to the site, not the origin, so `localhost:3000` and
+`localhost:8092` still exchange the cookie. A genuinely cross-site API host is what breaks it.
+
+### 8.5 Documentation screenshots
 
 `loom-ui/scripts/capture-upload-screenshots.mjs` photographs this screen for the customer docs. It is
 a *mocked* capture in the same sense as §8.2 — no backend, a Vite dev server, `page.route` over
@@ -392,14 +447,19 @@ capture rules: [../../website/WEBSITE.md](../../website/WEBSITE.md) § Capturing
 | Route registration (server) | `loom/services/rest/.../endpoint/impl/AssetEndpoint.java` |
 | Pool → storage resolution | `loom/services/rest/.../service/impl/BinaryStorageResolver.java` |
 | Java client overload | `loom-client/common/.../method/AssetBinaryMethods.java` |
+| Mocked e2e specs | `loom-ui/e2e/uploads-mocked.spec.ts` (§8.2) |
+| Real-backend e2e spec | `loom-ui/e2e/uploads-backend.spec.ts` (§8.4) |
 | i18n strings | `loom-ui/src/i18n/locales/{en,de}.json` under `uploads.*` |
 | Customer docs | `website/content/english/docs/ui/index.adoc` (§ Uploads) |
 | Docs screenshots + how they are taken | `website/content/english/docs/ui/uploads{,-sidebar}.png` · `loom-ui/scripts/capture-upload-screenshots.mjs` |
 
 ---
 
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (customer documentation for the screen on `docs/ui/` § Uploads, plus §8.4:
-`capture-upload-screenshots.mjs` and why the transport has to be subclassed rather than routed)_
+_Git HEAD revision: `fa8183e9`_
+_Last updated: 2026-08-09 (closed the e2e holes: drag-and-drop and the four unreferenced bulk/queue
+testids in §8.2, taking it 11 → 18 specs; new §8.4 `uploads-backend.spec.ts` moving real bytes end to
+end; documentation screenshots renumbered to §8.5)_
+
+_Previously: `742dae2d`, 2026-08-06 (customer documentation for the screen on `docs/ui/` § Uploads, plus §8.4: `capture-upload-screenshots.mjs` and why the transport has to be subclassed rather than routed)_
 
 _Previously: `aab85cb3`, 2026-08-02 (new file: dedicated upload screen, background upload queue, optional `poolUuid` on `POST /assets/upload`)_

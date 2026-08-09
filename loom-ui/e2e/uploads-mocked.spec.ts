@@ -35,10 +35,12 @@ interface Captured {
  * @param opts.pools whether GET /pools succeeds; false answers 403, the non-operator case
  * @param opts.hold  park uploads until `captured.release()` is called
  * @param opts.status status code the upload answers with (201 new, 200 already known)
+ * @param opts.statusFor per-request status picked from the multipart body, so one batch can mix
+ *                       success and failure (the multipart part carries `filename="…"`)
  */
 async function mockRest(
   page: Page,
-  opts: { pools?: boolean; hold?: boolean; status?: number } = {}
+  opts: { pools?: boolean; hold?: boolean; status?: number; statusFor?: (body: string) => number } = {}
 ): Promise<Captured> {
   const captured: Captured = { uploads: [] };
   const gate = new Promise<void>((resolve) => { captured.release = resolve; });
@@ -82,16 +84,23 @@ async function mockRest(
   });
 
   await page.route("**/api/v1/assets/upload", async route => {
+    const body = route.request().postData() ?? "";
     captured.uploads.push({
       contentType: route.request().headers()["content-type"] ?? "",
-      body: route.request().postData() ?? "",
+      body,
     });
     if (opts.hold) await gate;
-    route.fulfill({
-      status: opts.status ?? 201,
-      contentType: "application/json",
-      body: JSON.stringify(assetResponse()),
-    });
+    const status = opts.statusFor ? opts.statusFor(body) : opts.status ?? 201;
+    try {
+      await route.fulfill({
+        status,
+        contentType: "application/json",
+        body: JSON.stringify(status >= 400 ? { message: "Not enough space" } : assetResponse()),
+      });
+    } catch {
+      // A cancelled upload aborts the request while this handler is parked on the gate; answering a
+      // request that no longer exists is the expected outcome there, not a test failure.
+    }
   });
 
   return captured;
@@ -111,8 +120,39 @@ async function gotoUploads(page: Page) {
   await expect(page.getByTestId("upload-view")).toBeVisible({ timeout: 10_000 });
 }
 
-function fileOf(name: string) {
-  return { name, mimeType: "image/jpeg", buffer: Buffer.from("hello-bytes") };
+function fileOf(name: string, bytes = 11) {
+  return { name, mimeType: "image/jpeg", buffer: Buffer.alloc(bytes, "x") };
+}
+
+/**
+ * Build a `DataTransfer` inside the page.
+ *
+ * Playwright has no file-drag API, and `setInputFiles` drives the `<input type=file>` branch of the
+ * component — a different code path from `UploadView`'s `onDrop`, which reads `e.dataTransfer.files`.
+ * A synthetic `DataTransfer` handed to `dispatchEvent` is the only way to reach it.
+ *
+ * `files` become real `File` objects; `uris` become `text/uri-list` items, which is how a drop can
+ * carry something that is *not* a file.
+ */
+async function buildDataTransfer(page: Page, spec: { files?: { name: string; type: string }[]; uris?: string[] }) {
+  return page.evaluateHandle(({ files, uris }) => {
+    const dt = new DataTransfer();
+    for (const f of files ?? []) {
+      dt.items.add(new File(["hello-bytes"], f.name, { type: f.type }));
+    }
+    for (const uri of uris ?? []) {
+      dt.items.add(uri, "text/uri-list");
+    }
+    return dt;
+  }, spec);
+}
+
+/** Background + border of the dropzone, which is the only rendering of the `dragging` state. */
+function dropzoneStyle(page: Page) {
+  return page.getByTestId("upload-dropzone").evaluate(el => {
+    const style = getComputedStyle(el);
+    return `${style.backgroundColor}|${style.borderColor}`;
+  });
 }
 
 test.describe("Upload view – mocked", () => {
@@ -132,6 +172,161 @@ test.describe("Upload view – mocked", () => {
       expect(upload.contentType).toContain("multipart/form-data");
       expect(upload.body).toContain("lib-1");
     }
+  });
+
+  test("accepts files dropped on the dropzone, highlighting it while the drag is over it", async ({ page }) => {
+    const captured = await mockRest(page);
+    await gotoUploads(page);
+
+    const zone = page.getByTestId("upload-dropzone");
+    const idle = await dropzoneStyle(page);
+
+    const dataTransfer = await buildDataTransfer(page, {
+      files: [{ name: "dropped-one.jpg", type: "image/jpeg" }, { name: "dropped-two.jpg", type: "image/jpeg" }],
+    });
+
+    // `onDragOver` sets `dragging`, which is the dropzone's primary affordance — the user has to be
+    // told the drop will land somewhere before they let go.
+    await zone.dispatchEvent("dragover", { dataTransfer });
+    await expect.poll(() => dropzoneStyle(page), { timeout: 5_000 }).not.toBe(idle);
+
+    await zone.dispatchEvent("drop", { dataTransfer });
+    // The highlight must clear on drop, not linger until the next pointer move.
+    await expect.poll(() => dropzoneStyle(page), { timeout: 5_000 }).toBe(idle);
+
+    // Same contract as the file-input path: one multipart request per dropped file.
+    await expect(page.getByTestId("upload-row-dropped-one.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    await expect(page.getByTestId("upload-row-dropped-two.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+
+    expect(captured.uploads).toHaveLength(2);
+    for (const upload of captured.uploads) {
+      expect(upload.contentType).toContain("multipart/form-data");
+      expect(upload.body).toContain("lib-1");
+    }
+  });
+
+  test("ignores a drop that carries no files, and keeps working afterwards", async ({ page }) => {
+    const captured = await mockRest(page);
+    await gotoUploads(page);
+
+    const zone = page.getByTestId("upload-dropzone");
+
+    // Folder upload is deliberately unbuilt (LOOM_UI_UPLOAD.md §1.2): `onDrop` reads
+    // `dataTransfer.files` and knows nothing about directory entries. A synthetic DataTransfer
+    // cannot carry a real filesystem directory, so what is pinned here is the observable
+    // consequence — a drop whose `files` list is empty enqueues nothing and does not throw. If
+    // folder support is ever half-added, this is the case that has to change with it.
+    const dataTransfer = await buildDataTransfer(page, { uris: ["file:///home/user/holiday-photos"] });
+    await zone.dispatchEvent("dragover", { dataTransfer });
+    await zone.dispatchEvent("drop", { dataTransfer });
+
+    await expect(page.getByTestId("upload-empty")).toBeVisible();
+    expect(captured.uploads).toHaveLength(0);
+
+    // "No crash" means the screen is still usable, not merely that nothing was queued.
+    await page.getByTestId("upload-file-input").setInputFiles([fileOf("after-folder.jpg")]);
+    await expect(page.getByTestId("upload-row-after-folder.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+  });
+
+  test("sends a custom origin as the origin form field", async ({ page }) => {
+    const captured = await mockRest(page);
+    await gotoUploads(page);
+
+    await page.getByTestId("upload-origin-input").locator("input").fill("field-import");
+    await page.getByTestId("upload-file-input").setInputFiles([fileOf("sourced.jpg")]);
+
+    await expect(page.getByTestId("upload-row-sourced.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    expect(captured.uploads[0].body).toContain('name="origin"');
+    expect(captured.uploads[0].body).toContain("field-import");
+  });
+
+  test("omits the origin field when it is left blank", async ({ page }) => {
+    const captured = await mockRest(page);
+    await gotoUploads(page);
+
+    await page.getByTestId("upload-origin-input").locator("input").fill("");
+    await page.getByTestId("upload-file-input").setInputFiles([fileOf("unsourced.jpg")]);
+
+    await expect(page.getByTestId("upload-row-unsourced.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    // Absent, not empty — the server supplies its own default of "upload".
+    expect(captured.uploads[0].body).not.toContain('name="origin"');
+  });
+
+  test("the queue heading and totals track the batch, weighted by size", async ({ page }) => {
+    const captured = await mockRest(page, { hold: true });
+    await gotoUploads(page);
+
+    // Three small files saturate MAX_CONCURRENT; the big one stays queued. Its bytes still count in
+    // the denominator — that is what "weighted by size" means. Counting items instead would read
+    // three-quarters sent while three-quarters of the bytes have not left yet.
+    await page.getByTestId("upload-file-input").setInputFiles([
+      fileOf("s1.jpg", 1000), fileOf("s2.jpg", 1000), fileOf("s3.jpg", 1000), fileOf("big.jpg", 9000),
+    ]);
+
+    const heading = page.getByTestId("upload-queue-heading");
+    await expect(heading).toContainText("0 of 4 done", { timeout: 10_000 });
+    await expect(page.getByTestId("upload-row-big.jpg")).toHaveAttribute("data-status", "queued");
+
+    const percent = Number(/\((\d+)%\)/.exec((await heading.textContent()) ?? "")?.[1] ?? "-1");
+    expect(percent).toBeGreaterThanOrEqual(0);
+    expect(percent).toBeLessThan(50);
+
+    captured.release!();
+
+    await expect(heading).toHaveText("4 file(s) in this session", { timeout: 10_000 });
+    await expect(page.getByTestId("upload-totals"))
+      .toHaveText("4 uploaded · 0 already known · 0 failed · 12 KB total");
+  });
+
+  test("cancel all ends every in-flight upload as cancelled, not failed", async ({ page }) => {
+    const captured = await mockRest(page, { hold: true });
+    await gotoUploads(page);
+
+    const names = ["c1.jpg", "c2.jpg", "c3.jpg"];
+    await page.getByTestId("upload-file-input").setInputFiles(names.map(n => fileOf(n)));
+    for (const name of names) {
+      await expect(page.getByTestId(`upload-row-${name}`)).toHaveAttribute("data-status", "uploading", { timeout: 10_000 });
+    }
+
+    await page.getByTestId("upload-cancel-all").click();
+
+    for (const name of names) {
+      // A cancelled XHR can raise both `onabort` and `onerror`; none of these may read as a failure.
+      await expect(page.getByTestId(`upload-row-${name}`)).toHaveAttribute("data-status", "cancelled", { timeout: 10_000 });
+    }
+    await expect(page.getByTestId("upload-totals")).toContainText("0 failed");
+    await expect(page.getByRole("alert")).toContainText(/cancelled/i);
+
+    captured.release!();
+  });
+
+  test("retry failed re-sends the failures and nothing else", async ({ page }) => {
+    let failing = true;
+    const captured = await mockRest(page, {
+      statusFor: body => (failing && body.includes('filename="fail-') ? 507 : 201),
+    });
+    await gotoUploads(page);
+
+    await page.getByTestId("upload-file-input").setInputFiles([
+      fileOf("fail-a.jpg"), fileOf("fail-b.jpg"), fileOf("ok.jpg"),
+    ]);
+
+    await expect(page.getByTestId("upload-row-fail-a.jpg")).toHaveAttribute("data-status", "error", { timeout: 10_000 });
+    await expect(page.getByTestId("upload-row-fail-b.jpg")).toHaveAttribute("data-status", "error", { timeout: 10_000 });
+    await expect(page.getByTestId("upload-row-ok.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    expect(captured.uploads).toHaveLength(3);
+
+    failing = false;
+    await page.getByTestId("upload-retry-failed").click();
+
+    await expect(page.getByTestId("upload-row-fail-a.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+    await expect(page.getByTestId("upload-row-fail-b.jpg")).toHaveAttribute("data-status", "done", { timeout: 10_000 });
+
+    // Exactly two more requests: a bulk retry must not re-upload bytes the server already took.
+    expect(captured.uploads).toHaveLength(5);
+    expect(captured.uploads.filter(u => u.body.includes('filename="ok.jpg"'))).toHaveLength(1);
+    await expect(page.getByTestId("upload-totals")).toContainText("3 uploaded");
+    await expect(page.getByTestId("upload-totals")).toContainText("0 failed");
   });
 
   test("sends the chosen pool as poolUuid", async ({ page }) => {
