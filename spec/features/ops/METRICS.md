@@ -40,6 +40,10 @@
   paths. Instrumentation sites inject the interface; they never touch Micrometer directly.
 - `/metrics` is **unauthenticated** — it lives on the internal monitoring port. Restrict at the
   network layer.
+- **`GET /api/v1/metrics` is a different route** and not a second scrape endpoint: an authenticated
+  JSON read of the `loom_*` catalog on the app REST port, gated by `READ_METRIC`, for callers that
+  cannot reach the monitoring port — the web UI above all. It serves the **same registry** and the
+  **same series names**, and carries **no history**. See §3.2.
 
 ---
 
@@ -112,7 +116,7 @@ Every row below has a verified registration **and** an increment/bind call site.
 | `loom_pipeline_events_broadcast_total` | counter | — | `PipelineEventBroadcaster:136` |
 | `loom_pipeline_events_dropped_total` | counter | — | `PipelineEventBroadcaster:132` (backpressure) |
 | `loom_auth_failures_total` | counter | `type` — **only `ws` is ever emitted** | `WebSocketAuthenticator:79,94` |
-| `loom_http_server_*`, `loom_pool_*`, `vertx_*` | auto | — | Vert.x built-ins on the shared registry |
+| `vertx_http_server_*`, `vertx_pool_*`, `vertx_eventbus_*` | auto | — | Vert.x built-ins on the shared registry. No prefix is configured on `MicrometerMetricsOptions`, so these are **not** `loom_*` — an earlier revision of this row said they were |
 | `jvm_*`, `process_cpu_usage`, `process_uptime_seconds` | auto | — | `ClassLoader`/`JvmMemory`/`JvmGc`/`JvmThread`/`Processor`/`Uptime` binders in `VertxModule.meterRegistry()` |
 
 **`loom_tasks_returned_total` vs `loom_leases_reclaimed_total`** — the same recovery, but paid for at
@@ -146,6 +150,50 @@ are what tell those apart, and none of them existed before:
   are placeable. A rolling restart that leaves the fleet in `TERMINATING` reads perfectly healthy on
   `loom_processors_connected` alone while no work moves. One series per enum constant, bound at
   construction, so a state with no workers reads 0 rather than vanishing.
+
+### 3.2 `GET /api/v1/metrics` — the JSON read of the same catalog
+
+The scrape endpoint is on the monitoring port and unauthenticated (§1), so a browser cannot use it
+and must not be able to. The web UI's monitoring screen therefore reads the catalog through an
+ordinary app route instead:
+
+| | Prometheus scrape | REST snapshot |
+|---|---|---|
+| Path | `GET /metrics` | `GET /api/v1/metrics` |
+| Port | monitoring, **8989** | REST, **8092** |
+| Auth | none (network-gated) | JWT + `READ_METRIC` |
+| Body | Prometheus text exposition | `MetricsResponse` JSON |
+| Scope | everything on the registry | `loom_*` only |
+| Consumer | Prometheus | `loom-ui`, `loom-client`, `clients/python` |
+
+**Same registry, same names.** `MetricsSnapshot` (`loom/services/rest`, `…rest.service.impl`)
+projects `PrometheusMeterRegistry.getMeters()` and applies the suffix convention of §8 itself, so a
+counter registered as `loom_pipeline_runs_started` is served as `loom_pipeline_runs_started_total`,
+exactly as in a scrape. `MetricsSnapshotCatalogTest` asserts that in three directions: every §3 name
+is served, no §5 name is, and every served name appears verbatim in a real scrape of the same
+registry. A projection that forgot a suffix would otherwise serve a dashboard a series no PromQL
+query can name, and nothing would notice.
+
+**One instant, no history.** Loom has no time-series store. The response carries a `timestamp` and
+the current reading of every series; a caller wanting a rate samples twice and differences the
+counters (`loom-ui` polls every 5s and keeps a five-minute window), and a caller wanting weeks wants
+a Prometheus. Nothing in the payload is interpolated.
+
+| Field | Meaning |
+|---|---|
+| `timestamp` | Server time of the snapshot (ISO 8601 instant) — the interval a rate divides by |
+| `metrics[].name` | The **scraped** name, suffixes included |
+| `metrics[].type` | `COUNTER` \| `GAUGE` \| `TIMER` \| `SUMMARY` \| `OTHER` |
+| `metrics[].tags` | The label set; one entry per name+tag series, as in a scrape |
+| `metrics[].value` | Counter total or gauge reading; `null` for a timer |
+| `metrics[].count` / `sumSeconds` / `maxSeconds` / `meanSeconds` | Timer only |
+
+`?prefix=` narrows by name prefix (`loom_node_tasks_`). A prefix outside the `loom_` namespace is a
+**400**, not an empty list — a caller must never be able to read a 200 as "`jvm_memory_used_bytes`
+is zero here".
+
+A gauge whose supplier reports `NaN` is served as `null`. `NaN` is not valid JSON and would take the
+whole response down with it, and "no reading" is the honest translation.
 
 ---
 
@@ -273,6 +321,8 @@ of evaluation semantics stay constructible from nothing but a graph and a dispat
 | `MicrometerLoomMetrics` | `loom/services/monitoring` · `io.metaloom.loom.monitoring` | Micrometer impl; the only place `loom_*` meter names are written. |
 | `NoopLoomMetrics` | `loom/common` · `…common.metrics` | No-op for tests / manual construction. |
 | `MonitoringService` (Loom) | `loom/services/monitoring` · `io.metaloom.loom.monitoring` | Own `HttpServer`; registers `GET /metrics` via `PrometheusScrapingHandler`. Mirrors `MCPService`. |
+| `MetricsSnapshot` | `loom/services/rest` · `…rest.service.impl` | Projects the registry onto the `loom_*` catalog as `MetricRecord`s, applying the scrape suffix convention. The only place the REST names are computed. |
+| `MetricsEndpointService` / `MetricsEndpoint` | `loom/services/rest` · `…rest.service.impl` / `…rest.endpoint.impl` | `GET /api/v1/metrics`, gated by `READ_METRIC`, `?prefix=` filter. |
 | `MonitoringModule` | `loom/services/monitoring` · `…monitoring.dagger` | **Only** `@Binds LoomMetrics ← MicrometerLoomMetrics`. It does *not* provide the registry. |
 | `VertxModule` | `loom/common` · `io.metaloom.loom.common.dagger` | `@Provides PrometheusMeterRegistry` + JVM/process binders, and `Vertx vertx(registry)`. |
 | `BootstrapInitializer` | `loom/core` · `io.metaloom.loom.core.boot` | `monitoringService.start()` (:139) / `.stop()` (:173). |
@@ -341,6 +391,8 @@ of evaluation semantics stay constructible from nothing but a graph and a dispat
 | `MonitoringServiceTest` | `loom/services/monitoring` | Starts `MonitoringService` with `restPort=0`; asserts `/metrics` → 200 containing `loom_pipeline_runs_completed_total` + `jvm_memory_used_bytes`, and `/api/v1/health` on the monitoring port → **404**. |
 | `MicrometerLoomMetricsTest` | `loom/services/monitoring` | Per-helper `registry.scrape()` assertions for the new meters, plus tagged-gauge behaviour: one series per tag value, and re-binding the same `(name, tag)` does not duplicate it. |
 | `MetricsCatalogScrapeTest` | `loom/services/rest` | **Parses this file.** Every `loom_*` name in a §3 table must appear in a real scrape; every `loom_*` name in a §5 table must not. Gauges are published by constructing the production sites (`ProcessorRegistry`, `PipelineRunRegistry`, `PipelineEventBroadcaster`, `NodeKindCircuitBreaker`) and running a `PipelineRunEngine`, not by binding names in the test. |
+| `MetricsSnapshotCatalogTest` | `loom/services/rest` | **Also parses this file.** Exercises the same production sites, then asserts the REST projection against §3/§5 *and* against the scrape text — every served name must appear verbatim in a real scrape, so the two surfaces cannot drift apart on naming. |
+| `MetricsEndpointTest` | `loom/core` | The route: shape, `?prefix=` narrowing, a 400 for a foreign namespace, and the permission cases — permissionless 403, `READ_METRIC` alone 200, the neighbouring `READ_CORTEX_INSTANCE` still 403, anonymous 401. |
 | `PipelineRunEngineMetricsTest` | `loom/pipeline` | The engine's call sites: latency by kind and state, no latency for a dispatch no worker took, retry vs dead-letter counters, in-flight against its ceiling. |
 | `NodeKindCircuitBreakerMetricsTest` | `loom/pipeline` | State gauge per kind through closed → open → half-open → closed, trip counting including failed probes, and reset. |
 
@@ -370,6 +422,8 @@ asserting an engine-side instrumentation site.
 | Where the registry + JVM binders are created (Loom) | `loom/common/src/main/java/io/metaloom/loom/common/dagger/VertxModule.java` |
 | Where the registry + JVM binders are created (Cortex) | `cortex/core/src/main/java/io/metaloom/cortex/cli/dagger/CortexBindModule.java` |
 | The Loom `/metrics` route | `loom/services/monitoring/src/main/java/io/metaloom/loom/monitoring/MonitoringService.java` |
+| The JSON read of the catalog on the REST port | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/MetricsSnapshot.java` (§3.2) |
+| What the monitoring screen draws from which series | `loom-ui/src/features/monitoring/metricsPanels.ts` |
 | The Cortex `/metrics` route | `cortex/core/src/main/java/io/metaloom/cortex/impl/monitoring/MetricsEndpoint.java` |
 | The engine's own meters (latency, retries, dead-letters) | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/engine/PipelineRunEngine.java` — `recordLatency`, `scheduleRetry`, `onNodeTaskLost`; installed via `setMetrics` |
 | Circuit-breaker state + trips | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/engine/NodeKindCircuitBreaker.java` — `statsFor` binds, `trip` counts |
@@ -394,6 +448,9 @@ asserting an engine-side instrumentation site.
 - [x] `LoomMetrics` / `CortexMetrics` catalogs with Micrometer + Noop implementations
 - [x] Smoke tests: `MetricsEndpointTest`, `MonitoringServiceTest`
 - [x] Customer-facing metric catalogs on the website (`docs/loom/metrics/`, `docs/cortex/metrics/`)
+- [x] `GET /api/v1/metrics` — the authenticated JSON read of the `loom_*` catalog for callers that
+      cannot reach the monitoring port, with the `READ_METRIC` permission (V2.84), the Java and
+      Python clients, and `MetricsSnapshotCatalogTest` pinning its names to §3 (§3.2)
 
 **Instrumentation — partial**
 
@@ -428,6 +485,7 @@ asserting an engine-side instrumentation site.
 
 ---
 
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (the four fleet-health signals of §3.1 are implemented; `loom-pipeline` now
-carries instrumentation, and `MetricsCatalogScrapeTest` checks §3/§5 against a real scrape)_
+_Git HEAD revision: `566a2cf3`_
+_Last updated: 2026-08-09 (§3.2: `GET /api/v1/metrics`, the JSON read of the catalog behind
+`READ_METRIC`, checked against §3/§5 and against the scrape by `MetricsSnapshotCatalogTest`; the
+Vert.x built-in family names in §3 corrected from `loom_*` to `vertx_*`)_

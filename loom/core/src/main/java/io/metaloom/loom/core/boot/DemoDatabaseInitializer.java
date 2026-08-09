@@ -427,6 +427,10 @@ public class DemoDatabaseInitializer {
 			// editor is the role the demo's assistant runs as, and this is the permission that lets it
 			// gather information about an asset rather than only read what was already computed.
 			Permission.EXECUTE_MCP_NODE,
+			// The monitoring screen reads GET /api/v1/metrics. Both demo roles get it: instance health
+			// is not a privileged secret, and a dashboard of dashes teaches a new user nothing about
+			// what the screen is for.
+			Permission.READ_METRIC,
 		}) {
 			permissionDao.grantRolePermission(editorRole.getUuid(), perm);
 		}
@@ -443,6 +447,7 @@ public class DemoDatabaseInitializer {
 			Permission.READ_SPACE, Permission.READ_LIBRARY, Permission.READ_PIPELINE, Permission.READ_ASSET_POOL,
 			// Read only: a viewer can watch the duplicate queue but not decide anything in it.
 			Permission.READ_DEDUP,
+			Permission.READ_METRIC,
 		}) {
 			permissionDao.grantRolePermission(viewerRole.getUuid(), perm);
 		}

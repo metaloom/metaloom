@@ -297,7 +297,7 @@ the socket side — REST has no equivalent.
 
 ---
 
-## Task 12: Replace the last mock data — monitoring and workflow
+## Task 12: Replace the last mock data — monitoring and workflow — ✅ DONE (2026-08-09)
 
 **Argumentation Summary:** Two screens still render invented numbers.
 [MonitoringArea.tsx](../../loom-ui/src/features/monitoring/MonitoringArea.tsx) draws its ingestion,
@@ -334,6 +334,44 @@ panels with the real cluster/person/VLM data that now exists.
 endpoint, a failing endpoint degrades to a warning without breaking the page (the existing pattern),
 and no panel shows a sample-data badge once real. Extend `workflow-rating-mocked.spec.ts` with a
 cluster/person case.
+
+**Outcome (2026-08-09).** `src/mock/` is gone — both files, and the now-orphaned `MetricSeries` /
+`MetricPoint` types with them. Nothing in `loom-ui` imports a fixture any more.
+
+*Backend.* `GET /api/v1/metrics` serves the `loom_*` catalog as JSON on the app REST port, gated by
+a new `READ_METRIC` permission (`V2.84`). It is deliberately **not** a second Prometheus endpoint:
+the scrape stays unauthenticated on the monitoring port, which a browser cannot reach and must not.
+`MetricsSnapshot` projects the same registry and applies the `_total` / `_seconds` convention
+itself, and `MetricsSnapshotCatalogTest` pins the result to `METRICS.md` §3/§5 **and** to the scrape
+text, so the two surfaces cannot drift apart on naming. Documented in
+[../features/ops/METRICS.md](../features/ops/METRICS.md) §3.2.
+
+*The panels changed, not just their source.* Meters have no history, so the six 14-day charts could
+not be rewired — there is no meter behind ingestion, storage, task backlog, chat usage or
+annotations, and no roll-up to derive one from. Keeping their shapes and filling them from `/metrics`
+would have been the same fiction with a better provenance story. The screen now shows what Loom
+actually measures: seven fleet KPIs, per-kind node-result outcomes, per-kind latency, workers by
+state, and two **live** series differenced across polls (5s interval, five-minute window). The one
+genuinely historical chart, pipeline runs per day, is unchanged. A rate needs two samples, so a
+freshly opened dashboard says "collecting" rather than plotting a cumulative total as a rate.
+
+*What was dropped, and where it would come back from.* Ingestion, storage growth, task backlog, chat
+usage and annotation counts are all derivable from the database the way `/pipelines/runs/stats`
+already is — day-bucketed queries over `asset`, `asset_location`, `task`, `chat_message` and
+`annotation`. That is a second, separate endpoint and not a metrics one; it is not built. See
+[LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.7.
+
+*Workflow.* Persons come from `listPersons`; the VLM pane renders the asset's `vlm`
+`asset_json_comp` payloads — one card per prompt, labelled with the prompt id and the model that
+actually answered, instead of one of three sentences chosen by asset id. An asset with no such
+component says so rather than showing an empty card.
+
+*Tests.* `monitoring-mocked.spec.ts` grew from 4 cases to 10 — every rewired panel traced to its
+series, both endpoints failing independently, and an empty-but-successful catalog. It now asserts
+that **no** sample-data badge exists. `workflow-rating-mocked.spec.ts` gained four: the cluster card
+and the person options, the confirm payload, the vlm result with its variant/model chips, and the
+no-result case. Plus `metrics.test.ts` (12) and `metricsPanels.test.ts` (15) at the unit tier, and
+`MetricsEndpointTest` (10, including the permission matrix).
 
 ---
 
@@ -372,6 +410,6 @@ the mocked suite in CI.
 
 ---
 
-_Git HEAD revision: `fe037e14`_
-_Last updated: 2026-08-09 (Task 8 closed — detection review and face panel E2E; the 172/62 testid
+_Git HEAD revision: `566a2cf3`_
+_Last updated: 2026-08-09 (Task 12 closed — `GET /api/v1/metrics`, the monitoring dashboard rebuilt on it, the workflow face/person/VLM panes on the server, and `src/mock/` deleted. Earlier the same day: Task 8 closed — detection review and face panel E2E; the 172/62 testid
 measurement in §0.4 remains the 2026-08-06 baseline)_

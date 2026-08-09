@@ -17,7 +17,6 @@ import {
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, DetectedFace, FaceCluster, Person, DetectedObject } from "../../types";
-import { PERSONS } from "../../mock/data";
 import { useLayout } from "../../context/LayoutContext";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
@@ -28,6 +27,8 @@ import {
   type DetectionResponse,
 } from "../../api/detections";
 import { confirmCluster, listAssetClusters, listClusterMembers, rejectCluster } from "../../api/clusters";
+import { listPersons, type PersonResponse } from "../../api/persons";
+import { compText, listAssetJsonComps, type JsonCompResponse } from "../../api/jsonComps";
 import {
   listDedupGroups, STATUS_CONFIRMED, STATUS_PENDING, STATUS_REJECTED,
   type DedupGroupMemberModel, type DedupGroupResponse,
@@ -72,6 +73,25 @@ function apiToWorkflowAsset(r: AssetResponse): Asset {
     createdAt: r.status?.created ?? "",
     updatedAt: r.status?.edited ?? "",
     metadata: {},
+  };
+}
+
+/**
+ * A server person record as the review pane needs it.
+ *
+ * The display name is the alias, falling back to first+last: `alias` is the column the cluster
+ * confirm route writes and the only one guaranteed to be set, while the name parts are optional.
+ * A person with neither shows its uuid rather than an empty option nobody can pick.
+ */
+function apiToWorkflowPerson(r: PersonResponse): Person {
+  const fullName = [r.firstname, r.lastname].filter(Boolean).join(" ");
+  return {
+    id: r.uuid,
+    name: r.alias?.trim() || fullName || r.uuid,
+    description: r.alias && fullName && r.alias !== fullName ? fullName : "",
+    avatarUrl: "",
+    clusterIds: [],
+    createdAt: r.status?.created ?? "",
   };
 }
 
@@ -565,7 +585,8 @@ function FaceDetectionMode({
             const assignedPerson = clusterPersonAssignments[c.cluster.id];
             const isSelected = idx === selectedClusterIdx;
             return (
-              <Paper key={c.cluster.id} elevation={0} onClick={() => onSelectCluster(idx)} sx={{
+              <Paper key={c.cluster.id} elevation={0} onClick={() => onSelectCluster(idx)}
+                data-testid="workflow-cluster" data-cluster-id={c.cluster.id} sx={{
                 p: 1.5, cursor: "pointer",
                 border: `1px solid ${isSelected ? tokens.primary.main : tokens.border.subtle}`,
                 bgcolor: isSelected ? tokens.primary.subtle : tokens.bg.elevated,
@@ -608,6 +629,7 @@ function FaceDetectionMode({
                       renderInput={(params) => (
                         <TextField {...params} inputRef={personInputRef} placeholder={t("workflow.faceMode.assignPerson")} size="small"
                           onClick={(e) => e.stopPropagation()}
+                          inputProps={{ ...params.inputProps, "data-testid": "workflow-person-input" }}
                           InputProps={{ ...params.InputProps, startAdornment: <InputAdornment position="start"><PersonOutlined sx={{ fontSize: 14, color: tokens.text.tertiary }} /></InputAdornment> }}
                           sx={{ "& .MuiInputBase-root": { fontSize: "0.78rem" } }} />
                       )}
@@ -721,21 +743,29 @@ function ObjectDetectionMode({
 }
 
 // ── LLM Mode ─────────────────────────────────────────────────────────────
+/**
+ * Review what a vision-language node wrote about this asset.
+ *
+ * The results are the asset's `vlm` JSON components — one per prompt, so a node configured with
+ * three prompts produces three cards, each labelled with its prompt id (`variant`) and the model
+ * that answered (`producerVersion`). Previously this pane rendered one of three hardcoded sentences
+ * chosen by asset id, which meant it showed the same fiction on every corpus.
+ *
+ * An asset with no `vlm` component gets an explicit "nothing has run" line rather than an empty
+ * card: "the node has not run here" and "the model returned nothing" are different facts.
+ */
 function LLMMode({
-  asset, llmDecisions, onApprove, onReject,
+  asset, results, loading, llmDecisions, onApprove, onReject,
 }: {
   asset: Asset;
+  results: JsonCompResponse[];
+  loading: boolean;
   llmDecisions: Record<string, "approved" | "rejected">;
   onApprove: (assetId: string) => void;
   onReject: (assetId: string) => void;
 }) {
   const decision = llmDecisions[asset.id];
   const { t } = useTranslation();
-  // Mock LLM results for this asset
-  const mockResult = asset.id === "a1" ? "Corporate presentation scene with modern furniture. Professional indoor lighting." :
-    asset.id === "a3" ? "Product hero shot with clean studio background and dramatic side lighting." :
-    asset.id === "a4" ? "Nature scene with golden retriever on grass near a wooden bench." :
-    "No LLM analysis available for this asset yet.";
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
@@ -744,16 +774,35 @@ function LLMMode({
       </Box>
       <Box sx={{ px: 1 }}>
         <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem", mb: 0.5 }}>{asset.name}</Typography>
-        <Paper elevation={0} sx={{ p: 2, bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-            <AutoAwesomeOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
-            <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>{t("workflow.llmMode.modelOutput")}</Typography>
-            <Chip label="gpt-4o" size="small" sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
-          </Box>
-          <Typography variant="body2" sx={{ color: tokens.text.secondary, fontSize: "0.84rem", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-            {mockResult}
-          </Typography>
-        </Paper>
+        {results.length === 0 && (
+          <Paper elevation={0} data-testid="workflow-llm-empty"
+            sx={{ p: 2, bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md }}>
+            <Typography variant="body2" sx={{ color: tokens.text.tertiary, fontSize: "0.84rem" }}>
+              {loading ? t("workflow.llmMode.loading") : t("workflow.llmMode.noResult")}
+            </Typography>
+          </Paper>
+        )}
+        {results.map(result => (
+          <Paper key={result.uuid} elevation={0} data-testid="workflow-llm-result" data-variant={result.variant ?? ""}
+            sx={{ p: 2, mb: 1, bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.md }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, flexWrap: "wrap" }}>
+              <AutoAwesomeOutlined sx={{ fontSize: 16, color: tokens.primary.main }} />
+              <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>{t("workflow.llmMode.modelOutput")}</Typography>
+              {result.variant && (
+                <Chip label={result.variant} size="small" data-testid="workflow-llm-variant"
+                  sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
+              )}
+              {/* The model that actually answered, not a hardcoded name. */}
+              {result.producerVersion && (
+                <Chip label={result.producerVersion} size="small" data-testid="workflow-llm-model"
+                  sx={{ height: 16, fontSize: "0.62rem", bgcolor: tokens.bg.overlay }} />
+              )}
+            </Box>
+            <Typography variant="body2" sx={{ color: tokens.text.secondary, fontSize: "0.84rem", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              {compText(result)}
+            </Typography>
+          </Paper>
+        ))}
         <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
           <Button variant={decision === "approved" ? "contained" : "outlined"} size="small" color="success"
             startIcon={<CheckOutlined sx={{ fontSize: 14 }} />} onClick={() => onApprove(asset.id)}
@@ -887,6 +936,8 @@ export default function WorkflowView() {
   // curated tag from a machine one needs its provenance.
   const [assetTags, setAssetTags] = useState<Record<string, WorkflowTag[]>>({});
   const [tagVocabulary, setTagVocabulary] = useState<string[]>([]);
+  // The instance-wide person list a confirmed cluster can be assigned to.
+  const [persons, setPersons] = useState<Person[]>([]);
   // What each asset ARRIVED carrying, so the screen can say "somebody already decided this one"
   // without the marker lighting up the moment the reviewer presses a key.
   const [initiallyRated, setInitiallyRated] = useState<Set<string>>(new Set());
@@ -903,6 +954,9 @@ export default function WorkflowView() {
   const [selectedObjIdx, setSelectedObjIdx] = useState(0);
   const [objectDecisions, setObjectDecisions] = useState<Record<string, "confirmed" | "rejected">>({});
   const [llmDecisions, setLlmDecisions] = useState<Record<string, "approved" | "rejected">>({});
+  // What the vlm node actually wrote about the current asset, one component per prompt.
+  const [llmResults, setLlmResults] = useState<JsonCompResponse[]>([]);
+  const [llmLoading, setLlmLoading] = useState(false);
   const [profileSidebarOpen, setProfileSidebarOpen] = useState(true);
   const [profiles, setProfiles] = useState<KeyProfile[]>(DEFAULT_PROFILES);
   const [activeProfileId, setActiveProfileId] = useState(DEFAULT_PROFILES[0].id);
@@ -950,6 +1004,18 @@ export default function WorkflowView() {
     loadTagVocabulary(token)
       .then(names => { if (!cancelled) setTagVocabulary(names); })
       .catch(() => { if (!cancelled) showToast(t("workflow.tagging.vocabularyFailed"), "error"); });
+    return () => { cancelled = true; };
+  }, [token, showToast, t]);
+
+  // The people a confirmed cluster can be assigned to. Loaded once for the whole session rather
+  // than per asset: it is the same instance-wide list on every card, and the input is freeSolo, so
+  // a failure costs the suggestions and not the ability to name somebody.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    listPersons(token, { limit: PAGE_SIZE })
+      .then(r => { if (!cancelled) setPersons((r.data ?? []).map(apiToWorkflowPerson)); })
+      .catch(() => { if (!cancelled) showToast(t("workflow.faceMode.personsFailed"), "error"); });
     return () => { cancelled = true; };
   }, [token, showToast, t]);
 
@@ -1050,8 +1116,8 @@ export default function WorkflowView() {
   /**
    * The clusters the face-detection node proposed within this asset, with their members.
    *
-   * Previously joined against a `FACE_CLUSTERS` mock array that is empty, so the face review pane
-   * rendered nothing whatever the server held.
+   * Read from the server per asset. This used to be joined against a mock array that was empty, so
+   * the pane rendered nothing whatever the server held.
    */
   const [assetClusters, setAssetClusters] = useState<FaceCluster[]>([]);
 
@@ -1086,6 +1152,35 @@ export default function WorkflowView() {
       if (cancelled) return;
       setAssetClusters([]);
       setClusterDecisions({});
+    });
+    return () => { cancelled = true; };
+  }, [token, currentAsset?.id]);
+
+  /**
+   * The vision-language results for the current asset.
+   *
+   * Filtered to `schemaType === "vlm"` rather than to a node kind: the schema is what says how to
+   * read the payload, and a different node writing the same shape is still a result this pane can
+   * show. Ordered by prompt id so walking the queue does not reshuffle the cards under the reviewer.
+   */
+  useEffect(() => {
+    if (!token || !currentAsset?.id) {
+      setLlmResults([]);
+      setLlmLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLlmLoading(true);
+    listAssetJsonComps(token, currentAsset.id).then(resp => {
+      if (cancelled) return;
+      setLlmResults((resp.data ?? [])
+        .filter(comp => comp.schemaType === "vlm")
+        .sort((a, b) => (a.variant ?? "").localeCompare(b.variant ?? "")));
+      setLlmLoading(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setLlmResults([]);
+      setLlmLoading(false);
     });
     return () => { cancelled = true; };
   }, [token, currentAsset?.id]);
@@ -1430,10 +1525,10 @@ export default function WorkflowView() {
             <ToggleButton value="deduplication" data-testid="workflow-mode-deduplication" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <ContentCopyOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.dedup")}
             </ToggleButton>
-            <ToggleButton value="llm" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+            <ToggleButton value="llm" data-testid="workflow-mode-llm" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <AutoAwesomeOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.llm")}
             </ToggleButton>
-            <ToggleButton value="facedetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
+            <ToggleButton value="facedetection" data-testid="workflow-mode-facedetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
               <FaceOutlined sx={{ fontSize: 13, mr: 0.5 }} /> {t("workflow.mode.faces")}
             </ToggleButton>
             <ToggleButton value="objectdetection" data-testid="workflow-mode-objectdetection" sx={{ textTransform: "none", fontSize: "0.72rem", px: 1 }}>
@@ -1493,13 +1588,14 @@ export default function WorkflowView() {
           )}
           {mode === "facedetection" && currentAsset && (
             <FaceDetectionMode asset={currentAsset} faces={currentFaces} clusters={currentFaceClusters}
-              persons={PERSONS} selectedClusterIdx={selectedClusterIdx} onSelectCluster={setSelectedClusterIdx}
+              persons={persons} selectedClusterIdx={selectedClusterIdx} onSelectCluster={setSelectedClusterIdx}
               clusterDecisions={clusterDecisions} onConfirmCluster={handleConfirmCluster}
               onDenyCluster={handleDenyCluster} clusterPersonAssignments={clusterPersonAssignments}
               onAssignPerson={handleAssignPerson} personInputRef={personInputRef} />
           )}
           {mode === "llm" && currentAsset && (
-            <LLMMode asset={currentAsset} llmDecisions={llmDecisions}
+            <LLMMode asset={currentAsset} results={llmResults} loading={llmLoading}
+              llmDecisions={llmDecisions}
               onApprove={handleApproveLlm} onReject={handleRejectLlm} />
           )}
           {mode === "objectdetection" && currentAsset && (

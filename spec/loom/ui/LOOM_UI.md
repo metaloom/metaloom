@@ -439,17 +439,44 @@ is measured against that container and the rail never skews it. Chat itself: [CH
 > **Gotcha:** a fixed pixel `maxWidth` on the chat column silently overrides the percentage —
 > that was the old "the divider barely moves on a wide screen" bug. Do not reintroduce one.
 
-### 7.7 Remaining mock data
+### 7.7 No mock data remains
 
-Only **two** modules still import `src/mock/`:
+`src/mock/` is gone. Every screen reads a real endpoint; there is no fixture module left to import,
+and no sample-data badge left to render (`SampleDataBadge` and its i18n key went with it).
 
-| Consumer | What is mocked | What is real |
-|----------|----------------|--------------|
-| `features/monitoring/MonitoringArea.tsx` | `METRICS` — ingestion, latency, storage, task backlog, chat usage, annotations charts | Pipeline run stats via `loadPipelineRunStats` (`/pipelines/runs/stats`) + live `subscribePipelineEvents` |
-| `features/workflow/WorkflowView.tsx` | `FACE_CLUSTERS`, `PERSONS` seeds, a hardcoded VLM result string, `ALL_TAGS` (24 strings) | Assets (`listAssets`), detections (`listAssetDetections`) and the **dedup review queue** (`listDedupGroups`, `updateDedupGroup`). 🔴 Of six modes only rating and dedup **write** to the server — [../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §2 |
+The two screens that used to carry one:
 
-Everything else — chat, sessions, skills, memory, tasks, tags, collections, pools, cortex,
-maintenance (`/health` + `/`), pipelines — is wired to real endpoints.
+| Screen | Now reads |
+|--------|-----------|
+| `features/monitoring/MonitoringArea.tsx` | `/pipelines/runs/stats` + live `subscribePipelineEvents` **and** `GET /metrics`, polled every 5s ([../../features/ops/METRICS.md](../../features/ops/METRICS.md) §3.2) |
+| `features/workflow/WorkflowView.tsx` | Assets, detections, dedup groups, `/assets/:uuid/clusters` + `/clusters/:uuid/members`, `/persons`, and the asset's `vlm` `json-comps` |
+
+**The monitoring panels changed shape, not just their source.** Meters carry no history — Loom has
+no time-series store — so the six 14-day charts could not be pointed at `/metrics`: there is no
+meter behind asset ingestion, storage growth, task backlog, chat usage or annotation counts, and
+keeping the old shapes fed from the catalog would have been the same fiction with better provenance.
+The screen now shows what the instance actually measures:
+
+| Panel | Series |
+|-------|--------|
+| 7 KPI tiles | `loom_pipeline_runs_active`, `loom_node_tasks_inflight` (against `…_ceiling`), the `loom_node_task_latency_seconds` mean of completed tasks, `loom_processors_by_state{online}` against `loom_processors_connected`, `loom_node_tasks_dispatch_failed_total`, `loom_node_tasks_deadlettered_total`, `loom_node_circuit_breaker_state` — plus the unchanged 7-day run KPI |
+| Pipeline runs (14d) | `/pipelines/runs/stats` — the one genuinely historical chart, because runs are rows with dates |
+| Node results by kind · latency by kind · workers by state | Instantaneous, split by the series' own label |
+| Live throughput · live in-flight vs ceiling | Counter deltas across polls, five-minute window |
+
+Two rules the panels enforce, both in `metricsPanels.ts` and unit-tested there:
+
+- **A rate needs two samples.** The live charts say "collecting" until the second poll rather than
+  plotting a cumulative total as if it were a rate. A counter that went *down* is a restart, and
+  reads 0 — not a negative spike.
+- **Absent is not zero.** A gauge with no reading renders `—`; a chart with no series renders why
+  ("No node results recorded yet"), because a blank plot and a plot of zeroes look identical.
+
+> **Not built:** daily ingestion, storage growth, task backlog, chat usage and annotation counts are
+> all derivable from the database the way `/pipelines/runs/stats` already is — day-bucketed queries
+> over `asset`, `asset_location`, `task`, `chat_message`, `annotation`. That is a **roll-up**
+> endpoint, not a metrics one, and it does not exist. Do not reintroduce those panels from
+> `/metrics`: the meters they would need were never registered.
 
 ### 7.8 Demo data dependency
 
@@ -724,11 +751,16 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 - [x] 30 API client modules covering assets, media, collaboration, organization, RBAC, pipeline, agent
 - [x] Maintenance on real `/health` + `/`
 - [x] Monitoring on real `/pipelines/runs/stats` + live events
-- [ ] Monitoring KPI/chart series still from `mock/data.ts` `METRICS` (no `/metrics` endpoint)
+- [x] Monitoring KPI/chart series on the real `GET /metrics` catalog (`READ_METRIC`, polled 5s) —
+      `src/mock/` deleted, no sample-data badge remains (§7.7). The day-axis panels it could not
+      back (ingestion, storage, backlog, chat usage, annotations) were removed rather than refilled:
+      no meter exists behind them
 - [x] Workflow deduplication wired end to end: real `status=PENDING` queue, PATCHed decisions with
       rollback, KEEP reassignment ([../../workflows/WORKFLOW_DEDUP.md](../../workflows/WORKFLOW_DEDUP.md))
-- [ ] Workflow face-cluster/person seeds and the VLM result still mocked — and, more importantly,
-      four of the six modes discard the reviewer's decisions entirely
+- [x] Workflow face clusters, the person vocabulary and the model output all read the server
+      (`/assets/:uuid/clusters`, `/clusters/:uuid/members`, `/persons`, `/assets/:uuid/json-comps`
+      filtered to `schemaType=vlm`, one card per prompt)
+- [ ] Four of the six workflow modes still discard the reviewer's decisions entirely
       ([../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) §4, tasks W2/W5/W6 in
       [../../tasks/WORKFLOW_TASKS.md](../../tasks/WORKFLOW_TASKS.md))
 - [x] Keyset paging for large lists — `?limit=`/`?from=`, server totals, "load more" (§11.3)
@@ -748,6 +780,6 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `fe037e14`_
-_Last updated: 2026-08-09 (detection review + face panel E2E coverage; panel-switcher navigation
+_Git HEAD revision: `566a2cf3`_
+_Last updated: 2026-08-09 (§7.7 rewritten — `src/mock/` is gone and the monitoring dashboard reads `GET /metrics`; §13.3 updated. Earlier the same day: detection review + face panel E2E coverage; panel-switcher navigation
 spelled out in §4.2; `page.route` priority gotcha in §8.2; test counts refreshed)_

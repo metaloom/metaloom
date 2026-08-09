@@ -26,6 +26,7 @@ import io.metaloom.loom.rest.endpoint.impl.HealthEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MeEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.MetricsEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
 import io.metaloom.loom.rest.endpoint.impl.PersonEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PipelineEndpoint;
@@ -92,6 +93,7 @@ public class EndpointModule {
 		ReactionEndpoint reactionEndpoint,
 		TokenEndpoint tokenEndpoint,
 		MeEndpoint meEndpoint,
+		MetricsEndpoint metricsEndpoint,
 		NodeDescriptorEndpoint nodeDescriptorEndpoint,
 		DedupGroupEndpoint dedupGroupEndpoint,
 		SimilarityIndexEndpoint similarityIndexEndpoint,
@@ -133,6 +135,7 @@ public class EndpointModule {
 			reactionEndpoint,
 			tokenEndpoint,
 			meEndpoint,
+			metricsEndpoint,
 			nodeDescriptorEndpoint,
 			dedupGroupEndpoint,
 			similarityIndexEndpoint,

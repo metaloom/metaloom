@@ -33,7 +33,7 @@
 
 ---
 
-## Task 1: Replace the mock face/person seed in the Workflow view
+## Task 1: Replace the mock face/person seed in the Workflow view — ✅ DONE (2026-08-09)
 
 **Argumentation Summary:** `features/workflow/WorkflowView.tsx` is one of only **two** modules
 left in the tree that import `src/mock/` — `import { FACE_CLUSTERS, PERSONS } from "../../mock/data"`
@@ -71,6 +71,28 @@ keyboard-driven review screen; the workflow is keyboard-driven, so loading must 
 **Test Requirements:** `loom-ui/e2e/workflow-rating-mocked.spec.ts` exists; add
 `e2e/workflow-faces-mocked.spec.ts` routing `/api/v1/clusters` and `/api/v1/persons` and
 asserting the rendered names come from the mocked responses. Run: `cd loom-ui && yarn e2e --grep workflow`.
+
+**Outcome (2026-08-09).** Done as part of
+[../../tasks/LOOM_UI_TASKS.md](../../tasks/LOOM_UI_TASKS.md) Task 12, which deleted `src/mock/`
+outright. Three deviations from the prompt above, each deliberate:
+
+- **Clusters come from `listAssetClusters`, not `listClusters`.** The face mode reviews the clusters
+  *within the asset in front of you*; an instance-wide list would put a stranger's face group on the
+  current card. Members come from `/clusters/:uuid/members`, since the join lives in
+  `embedding_cluster` and a face detection carries no cluster pointer. (That effect already existed;
+  what step 1 actually removed was the dead `FACE_CLUSTERS` join beside it.)
+- **Persons come from `listPersons`, loaded once per session** rather than per asset — it is the
+  same instance-wide vocabulary on every card. A failure costs the suggestions, not the ability to
+  type a name: the input is `freeSolo`.
+- **Step 3 is obsolete.** The LLM pane no longer needs a badge because it no longer invents
+  anything: it renders the asset's `vlm` `asset_json_comp` payloads — one card per prompt, labelled
+  with the prompt id (`variant`) and the model that answered (`producerVersion`). An asset with no
+  such component says so. Task 2 below is about a *different* gap (`LLMDetectionManagement`, prompt
+  definitions) and stays open.
+
+Covered by four new cases in `e2e/workflow-rating-mocked.spec.ts` rather than a new file — the
+cluster card and person options, the confirm payload, the vlm result with its chips, and the
+no-result case — since they share the whole mock backend that spec already installs.
 
 ---
 
@@ -273,5 +295,5 @@ plus a mocked list spec asserting the raw vector is never rendered.
 * **`POST /api/v1/similarity-index/rebuild`** (`SimilarityIndexEndpoint`, perceptual fingerprint
   k-NN) has no UI consumer. If an operator action is wanted it belongs on the maintenance screen —
   see [TASK_UI_SYSTEM.md](TASK_UI_SYSTEM.md), not here.
-_Git HEAD revision: `fe037e14`_
-_Last updated: 2026-08-09 (detection review + face panel E2E coverage recorded as closed)_
+_Git HEAD revision: `566a2cf3`_
+_Last updated: 2026-08-09 (Task 1 closed — the workflow face/person seed and the hardcoded VLM string are gone; `src/mock/` deleted. Earlier the same day: detection review + face panel E2E coverage recorded as closed)_

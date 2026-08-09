@@ -83,6 +83,8 @@
     "name" : "memory-deny-rules",
     "description" : "Administration of the agent memory denylist"
   }, {
+    "name" : "metrics"
+  }, {
     "name" : "node-runs"
   }, {
     "name" : "notifications",
@@ -20120,6 +20122,108 @@
         }
       }
     },
+    "/api/v1/metrics" : {
+      "description" : "Load a snapshot of the loom_* metric catalog",
+      "get" : {
+        "tags" : [ "metrics" ],
+        "summary" : "Load a snapshot of the loom_* metric catalog",
+        "description" : "Load a snapshot of the loom_* metric catalog",
+        "operationId" : "getMetrics",
+        "responses" : {
+          "200" : {
+            "description" : "The metrics snapshot response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "timestamp" : "2026-08-09T11:24:07Z",
+                  "metrics" : [ {
+                    "name" : "loom_node_task_latency_seconds",
+                    "type" : "TIMER",
+                    "tags" : {
+                      "kind" : "sha512",
+                      "state" : "completed"
+                    },
+                    "count" : 1284,
+                    "sumSeconds" : 412.6,
+                    "maxSeconds" : 3.91,
+                    "meanSeconds" : 0.321
+                  }, {
+                    "name" : "loom_node_tasks_dispatched_total",
+                    "type" : "COUNTER",
+                    "tags" : {
+                      "kind" : "sha512"
+                    },
+                    "value" : 1290.0
+                  }, {
+                    "name" : "loom_node_tasks_inflight",
+                    "type" : "GAUGE",
+                    "tags" : { },
+                    "value" : 6.0
+                  }, {
+                    "name" : "loom_node_tasks_inflight_ceiling",
+                    "type" : "GAUGE",
+                    "tags" : { },
+                    "value" : 16.0
+                  }, {
+                    "name" : "loom_pipeline_runs_active",
+                    "type" : "GAUGE",
+                    "tags" : { },
+                    "value" : 2.0
+                  }, {
+                    "name" : "loom_processors_by_state",
+                    "type" : "GAUGE",
+                    "tags" : {
+                      "state" : "online"
+                    },
+                    "value" : 3.0
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/node-runs" : {
       "description" : "Start an ad-hoc node run from a definition supplied with the request, and return a handle to poll.",
       "get" : {
@@ -22118,7 +22222,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "2f25e48d-add6-40d1-9988-01366dc77fe8",
+                    "versionUuid" : "8e364e27-a304-4d7a-8ecb-04b3fa255dae",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22145,7 +22249,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "02b53c95-3785-45d6-9af7-e77f11af1274",
+                    "versionUuid" : "7a1dfbdf-0dd4-4b55-83e9-124c9a5f2351",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22252,7 +22356,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "6069bc94-6386-411a-b971-fcbda7f4ab7e",
+                  "versionUuid" : "0bb587d7-e59f-4dd9-99c4-d699fe83bea4",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22338,7 +22442,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "924b388f-3669-4ef7-bda3-c6a385c208b2",
+                  "versionUuid" : "3948457c-b5cb-472b-8ad8-44a5fde9b536",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22445,7 +22549,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "a33cbc07-37e7-42d1-b2a4-4570bd7ed76b",
+                  "versionUuid" : "c5a3846a-800d-4f69-9099-015ba98b70bb",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22607,7 +22711,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "b6b123b5-e8d8-49f3-b8fe-905e9075e0c6",
+                  "runUuid" : "0772e9cc-b2d7-4ce9-b63e-bf920152952a",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -22733,11 +22837,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "20c2f804-e047-4e33-a1f6-e01b1dbaee60",
-                    "pipelineUuid" : "51a450de-4ad2-40e9-a7b7-53c07356e60b",
+                    "uuid" : "31d8a2b2-e4c8-4aec-bc7a-bc31139c3c33",
+                    "pipelineUuid" : "67ee1b97-2f62-45e8-bdd7-ff2ae6a88ad3",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T09:29:07.993651962Z",
-                    "finished" : "2026-08-09T09:29:07.993781732Z",
+                    "started" : "2026-08-09T12:30:37.759402655Z",
+                    "finished" : "2026-08-09T12:30:37.759527465Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22746,11 +22850,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "e9d26c2b-53e3-466e-b7b2-cdba9fe8f74f",
-                    "pipelineUuid" : "3ba8b4d1-9af1-470f-9c16-969aef35ef30",
+                    "uuid" : "06ea56ef-3923-43b2-a62f-f90c07139b26",
+                    "pipelineUuid" : "02628f39-bbbc-46b2-abb7-dedb3a426084",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T09:29:07.993929312Z",
-                    "finished" : "2026-08-09T09:29:07.993934352Z",
+                    "started" : "2026-08-09T12:30:37.759690594Z",
+                    "finished" : "2026-08-09T12:30:37.759695594Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22843,11 +22947,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "08ed4d5a-11be-4016-b67a-999d54149792",
-                  "pipelineUuid" : "c876e2cc-50b8-4d8a-918f-0c9eec080fb4",
+                  "uuid" : "14c77f9a-c588-48c8-b804-53b5a1521370",
+                  "pipelineUuid" : "379f2a6a-8285-4cd8-9524-48d6e6a819c9",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-09T09:29:07.994858571Z",
-                  "finished" : "2026-08-09T09:29:07.994865901Z",
+                  "started" : "2026-08-09T12:30:37.760652272Z",
+                  "finished" : "2026-08-09T12:30:37.760659352Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -23337,16 +23441,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "82e3210d-1615-47ae-864e-d4df0fabe0aa",
-                    "runUuid" : "4b539adb-27ff-4e8f-839f-ad7fac980c10",
+                    "uuid" : "3964f6f8-440f-4200-856b-e94d0e829643",
+                    "runUuid" : "15188338-a08e-4474-963b-809f1855aeab",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "3dabe4e0-bb7f-488d-88d5-239089b22008",
-                    "runUuid" : "394aab7b-a4fb-464a-b50f-d5fb5bd9f666",
+                    "uuid" : "38bbc096-feb1-418e-a1be-8e3bde82d6db",
+                    "runUuid" : "059cde59-89dd-4c54-a3be-3ef258bf5350",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -23447,9 +23551,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "0818e838-7134-48f1-8f54-2e97e43d12ab",
-                    "itemUuid" : "cd37f664-99a4-4c4a-8265-edbf395b18be",
-                    "runUuid" : "2f6b8cb3-5e0b-4602-82b1-853a53a81f6b",
+                    "uuid" : "d7d83006-4cb6-4ae0-b915-cfee93412c64",
+                    "itemUuid" : "dedc4bcb-0edf-4b9d-b990-17765fb63740",
+                    "runUuid" : "69e11b49-5fc6-47d3-930b-2afb380e37b9",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -24115,7 +24219,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "045ae0eb-0685-45e1-aea3-d8cbb050b7fe",
+                    "versionUuid" : "263d6a8b-cc9d-452e-9c89-92ad288a55cc",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24142,7 +24246,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "cff7e9c8-4013-4e35-9593-d9598da6680b",
+                    "versionUuid" : "148f6835-63bf-497b-af94-5a808e3cc85e",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24253,7 +24357,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "485dbdd2-41ce-4138-9a14-fd2312ad2809",
+                  "versionUuid" : "0a9d3662-bbb8-45e7-a497-635d203cbaf5",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24378,7 +24482,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "71e51a02-d75f-4a5b-9720-b363ea27998f",
+                  "versionUuid" : "a43ad735-9d16-41a0-8fa9-da216651ff36",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

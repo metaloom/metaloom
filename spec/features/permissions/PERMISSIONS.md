@@ -55,9 +55,9 @@ Three layers must stay in sync:
 
 | Layer | Type | Location |
 |---|---|---|
-| Java | `enum Permission` — **130** constants | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java` |
-| Postgres | `loom_permission` enum — **131** values | `V2.1__add_acl.sql` + later `ALTER TYPE` migrations |
-| Generated | `enum JooqLoomPermission` — **131** | `loom/db/jooq/src/jooq/java/.../enums/JooqLoomPermission.java` |
+| Java | `enum Permission` — **137** constants | `loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/Permission.java` |
+| Postgres | `loom_permission` enum — **138** values | `V2.1__add_acl.sql` + later `ALTER TYPE` migrations |
+| Generated | `enum JooqLoomPermission` — **138** | `loom/db/jooq/src/jooq/java/.../enums/JooqLoomPermission.java` |
 
 `PermissionDaoImpl` bridges with `JooqLoomPermission.valueOf(perm.name())`, so a
 Java constant without a Postgres value throws `IllegalArgumentException` at grant time.
@@ -86,6 +86,7 @@ Non-CRUD and partial-quad constants:
 | `READ_SKILL_VERSION`, `RESTORE_SKILL_VERSION` | Same shape |
 | `MANAGE_CORTEX_INSTANCE`, `READ_CORTEX_INSTANCE` | Processor registration |
 | `READ_SEARCH` | Wholesale gate on `/api/v1/search/*`; the endpoint then narrows per-entity via the `READ_*` predicate (§5.2) |
+| `READ_METRIC` | The JSON read of the `loom_*` metric catalog on `GET /api/v1/metrics` (`V2.84`). Separate from `READ_CORTEX_INSTANCE`: that one says *which workers are attached*, this one says *how the instance is performing* — pipeline throughput, task latency, circuit-breaker state, authentication failure counts. The Prometheus scrape on the monitoring port is network-gated and never consults this |
 | `CREATE/UPDATE/VALIDATE_MCP_PIPELINE` | Pipeline authoring **through an agent** (the MCP tools `create_pipeline`, `update_pipeline`, `validate_pipeline`). Separate from the `*_PIPELINE` quad because letting an agent write a pipeline is a different trust decision from letting a person draw one, and an admin must be able to grant one without the other. The two write tools declare the base permission **and** the MCP one, and MCP requires all declared permissions — so an MCP permission alone can never widen what a user may do. `VALIDATE_` is its own value because the dry run stores nothing (`V2.76`, [../../loom/MCP.md §6.0a](../../loom/MCP.md)) |
 | `READ/UPDATE/DELETE_NOTIFICATION` | The per-user inbox. **No `CREATE`** — notifications are raised by `NotificationDispatcher`, never posted, so the constant would be dead the day it was added. These gate the *feature*, not the row: holding `READ_NOTIFICATION` reads **your** inbox, and `NotificationEndpointService.loadOwn` answers **404 (not 403)** for a foreign entry, so a permitted caller still cannot enumerate somebody else's |
 
@@ -140,7 +141,7 @@ Tables and identity contract: [../db/DATABASE_TASKS.md](../db/DATABASE_TASKS.md)
 ### 2.5 The REST mirror enum `RolePermission`
 
 `loom-shared/rest-model/.../role/RolePermission.java` is a **literal mirror** of
-`Permission`: same 130 constants, same names. It exists because `loom-rest-model` must
+`Permission`: same 137 constants, same names. It exists because `loom-rest-model` must
 not depend on `loom-db-api`; `RoleEndpointService` bridges the two with
 `Permission.valueOf(restPerm.name())`.
 
@@ -264,7 +265,7 @@ startup, idempotently (each step guarded by a load-first check), and establishes
 exactly one privileged path:
 
 ```
-user "admin" → group "admins" → role "admin-role" → all 130 permissions
+user "admin" → group "admins" → role "admin-role" → all 137 permissions
 ```
 
 Constants: `DatabaseInitializer.GROUP_NAME = "admins"`, `ROLE_NAME = "admin-role"`,
@@ -484,7 +485,7 @@ down with it.
 |---|---|---|---|
 | `NodeDescriptorEndpoint` (`/api/v1/pipeline/node-descriptors`, `/pipeline/content-types`) | **none** | **none** | Fully public — leaks the node/content-type catalogue to anonymous callers |
 | `PipelineEventEndpoint` (`/api/v1/pipelines/events/ws`) | none (order `-1000` beats wildcard auth) | none | Post-upgrade token auth only; no authorization |
-| `ProcessorEndpoint` list / load | yes | none | `READ_CORTEX_INSTANCE` exists but is never checked |
+| `ProcessorEndpoint` list / load | yes | none | `READ_CORTEX_INSTANCE` is not checked here. It *is* checked by `NodeDescriptorEndpoint.mayNameWorkers`, which is why the constant is not dead — but the routes that actually list workers do not consult it |
 | `MeEndpoint`, `LoginEndpoint`, `OAuth2Endpoint`, `HealthEndpoint`, `RESTInfoEndpoint` | varies | none | Correct by design (identity/liveness, not resources) |
 
 ### 6.4 Session and account state are not re-checked
@@ -672,10 +673,10 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 
 | Class | Package / module | Purpose |
 |---|---|---|
-| `Permission` | `io.metaloom.loom.db.model.perm` (loom-db-api) | The 130-value enum — Java source of truth, with per-constant audit comments |
+| `Permission` | `io.metaloom.loom.db.model.perm` (loom-db-api) | The 137-value enum — Java source of truth, with per-constant audit comments |
 | `PermissionDao` / `PermissionDaoImpl` | `…db.model.perm` / `…db.jooq.dao.perm` | Grant + load API; performs the group→role join |
 | `ResourcePermission` / `ResourcePermissionSet` | `io.metaloom.loom.db.model.perm` | `(permission, resource)` pair with **no** `equals`/`hashCode`; `HashSet` subclass |
-| `JooqLoomPermission` | `io.metaloom.loom.db.jooq.enums` (generated) | 131-value enum generated from Postgres |
+| `JooqLoomPermission` | `io.metaloom.loom.db.jooq.enums` (generated) | 138-value enum generated from Postgres |
 | `LoomAuthorizationProvider` | `io.metaloom.loom.auth` (auth-common) | Loads perms into Vert.x authorizations; **drops `resource`** |
 | `PermissionCache` | `io.metaloom.loom.auth` (auth-common) | Caffeine, 10k entries, no TTL / no invalidation |
 | `LoomRoutingContext` | `io.metaloom.loom.rest` (loom-rest) | `requirePerm` (`:147`), `permissions()` (`:141`), `permissionChecker()` (`:124`) |
@@ -689,7 +690,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 | `TestFixtureProvider` | `io.metaloom.loom.test.fixture` (loom-fixture) | Test RBAC graph with stable UUIDs |
 | `AbstractCRUDEndpointTest` / `CRUDEndpointTestcases` | `io.metaloom.loom.core.endpoint` (test) | Compiler-enforced 403 cases |
 | `PermissionDaoTest` / `AclCascadeTest` | `io.metaloom.loom.db.perm` / `…db.jooq.dao` (test) | Grant resolution / cascade semantics |
-| `RolePermission` | `io.metaloom.loom.rest.model.role` (rest-model) | REST mirror of `Permission`, 130 constants, parity-tested (§2.5) |
+| `RolePermission` | `io.metaloom.loom.rest.model.role` (rest-model) | REST mirror of `Permission`, 137 constants, parity-tested (§2.5) |
 
 ---
 
@@ -720,7 +721,7 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 
 ### 13.1 Implemented
 
-- [x] `loom_permission` Postgres enum (131 values) and Java `Permission` (130)
+- [x] `loom_permission` Postgres enum (138 values) and Java `Permission` (137)
 - [x] `role_permission`, `user_permission`, `token_permission` tables
 - [x] `user_group` / `role_group` join tables with cascade
 - [x] `PermissionDao` grant + load API
@@ -794,4 +795,4 @@ Unique to RBAC.md today: the GraphQL enforcement path (`GraphQLPermissionChecker
 - [ ] `PermissionDaoTest` lives in the outlier package `io.metaloom.loom.db.perm`
 
 _Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-08 (the four `DEDUP` permissions became `ui:yes` — added to `PERMISSION_GROUPS`, described in both locale files, and granted to the demo Editor/Viewer roles). Earlier: 2026-08-06 (`READ_PIPELINE_VERSION`, `RESTORE_PIPELINE_VERSION` and `DELETE_PIPELINE` now carry 403 cases — §8.2). Earlier: (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE` added by `V2.76`; MCP now filters its tool listing by permission). Earlier: (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_
+_Last updated: 2026-08-09 (`READ_METRIC` added by `V2.84` for `GET /api/v1/metrics` — §2.1, `ui:yes`, described in both locale files and granted to both demo roles; the 130/131 enum counts corrected to the actual 137/138). Earlier: 2026-08-08 (the four `DEDUP` permissions became `ui:yes` — added to `PERMISSION_GROUPS`, described in both locale files, and granted to the demo Editor/Viewer roles). Earlier: 2026-08-06 (`READ_PIPELINE_VERSION`, `RESTORE_PIPELINE_VERSION` and `DELETE_PIPELINE` now carry 403 cases — §8.2). Earlier: (`CREATE_/UPDATE_/VALIDATE_MCP_PIPELINE` added by `V2.76`; MCP now filters its tool listing by permission). Earlier: (`TAG_ASSET`/`UNTAG_ASSET` now carry 403 cases, and `PUT /assets/:uuid/tags` is the first route whose required set depends on the request — `checkPerms` + `loginClientWith`. Earlier: role permissions persisted, returned and enforced over REST; `V2.64` dropped `role_permission.resource`)_

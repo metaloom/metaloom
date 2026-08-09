@@ -992,6 +992,9 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   // editor. Both are needed to write: these never widen what the Pipeline group above allows.
   "Pipeline (assistant)": ["CREATE_MCP_PIPELINE", "UPDATE_MCP_PIPELINE", "VALIDATE_MCP_PIPELINE", "EXECUTE_MCP_NODE"],
   "Asset Pool": ["CREATE_ASSET_POOL", "READ_ASSET_POOL", "DELETE_ASSET_POOL", "UPDATE_ASSET_POOL"],
+  // One, not four: metrics are produced by the running instance, so there is nothing to create,
+  // edit or delete. This gates the monitoring screen's read of `GET /metrics`.
+  Metrics: ["READ_METRIC"],
 };
 
 function ApiKeysAdmin() {

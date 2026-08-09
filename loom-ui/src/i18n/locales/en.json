@@ -415,47 +415,53 @@
   },
   "monitoring": {
     "title": "Monitoring & Statistics",
-    "subtitle": "14-day rolling metrics",
-    "sampleData": "Sample data",
+    "subtitle": "Live instance metrics",
     "loadError": "Failed to load pipeline run data",
+    "metricsError": "Failed to read instance metrics — showing the last successful snapshot",
     "kpi": {
-      "dailyIngest": "Daily Ingest",
-      "assets": "assets",
-      "assetsToday": "Assets ingested today",
       "pipelineRuns": "Pipeline Runs (7d)",
       "runs": "runs",
       "allPipelines": "All pipelines",
-      "avgLatency": "Avg Latency",
-      "processingPipeline": "Processing pipeline",
-      "storageUsed": "Storage Used",
-      "totalLibraries": "Total across libraries",
-      "openTasks": "Open Tasks",
-      "allProjects": "Across all spaces",
-      "agentQueries": "Agent Queries (14d)",
-      "totalAgentQueries": "Total Loom Agent queries",
-      "annotations": "Annotations (14d)",
-      "newAnnotations": "New annotations created"
+      "activeRuns": "Active Runs",
+      "activeRunsSub": "Runs the engine is driving now",
+      "tasksInFlight": "Tasks In Flight",
+      "ofCeiling": "of {{ceiling}} slots across live runs",
+      "noCeiling": "No run declares a limit",
+      "avgTaskLatency": "Avg Task Latency",
+      "completedTasks": "Dispatch to result, completed tasks",
+      "workersOnline": "Workers Online",
+      "ofConnected": "of {{connected}} connected",
+      "dispatchFailures": "Dispatch Failures",
+      "deadLettered": "{{count}} tasks dead-lettered",
+      "parkedKinds": "Parked Node Kinds",
+      "allKindsDispatching": "Every node kind is dispatching"
     },
     "chart": {
-      "ingestion": "Asset Ingestion (14d)",
       "pipelineRuns": "Pipeline Runs (14d)",
-      "taskBacklog": "Task Backlog",
-      "latency": "Processing Latency (ms)",
-      "storage": "Storage Growth (TB)",
-      "agentUsage": "Agent Usage (14d)"
+      "outcomes": "Node Results by Kind",
+      "workers": "Workers by State",
+      "latencyByKind": "Task Latency by Kind (ms)",
+      "throughput": "Live Throughput (results/s)",
+      "saturation": "Live In-Flight vs Ceiling"
     },
     "series": {
-      "assets": "Assets",
       "success": "Success",
       "failed": "Failed",
       "skipped": "Skipped",
-      "open": "Open",
-      "overdue": "Overdue",
-      "avg": "Avg",
-      "p99": "P99",
-      "storage": "Storage",
-      "queries": "Queries",
-      "actions": "Actions"
+      "completed": "Completed",
+      "workers": "Workers",
+      "mean": "Mean",
+      "worst": "Worst",
+      "perSecond": "Results/s",
+      "inFlight": "In flight",
+      "ceiling": "Ceiling"
+    },
+    "empty": {
+      "loading": "Reading metrics…",
+      "collecting": "Collecting — a rate needs two samples",
+      "noResults": "No node results recorded yet",
+      "noWorkers": "No workers have ever registered",
+      "noLatency": "No task has completed yet"
     }
   },
   "tags": {
@@ -833,7 +839,8 @@
         "DELETE_MEMORY_DENY_RULE": "Delete memory deny rules — patterns the agent must never store.",
         "UPDATE_MEMORY_DENY_RULE": "Edit existing memory deny rules — patterns the agent must never store.",
         "MANAGE_CORTEX_INSTANCE": "Manage registered Cortex workers — approve, configure and remove processing instances.",
-        "READ_CORTEX_INSTANCE": "View registered Cortex workers and their state."
+        "READ_CORTEX_INSTANCE": "View registered Cortex workers and their state.",
+        "READ_METRIC": "Read the instance metrics — pipeline throughput, task latency, worker health. Needed to open the monitoring dashboard."
       },
       "dialog": {
         "create": "Create Role",
@@ -1505,7 +1512,8 @@
       "denyBtn": "Deny (N)",
       "assignPerson": "Assign person…",
       "noClusters": "No face clusters for this asset",
-      "empty": "No face clusters for this asset"
+      "empty": "No face clusters for this asset",
+      "personsFailed": "Failed to load the person list — you can still type a name"
     },
     "objectMode": {
       "detectedObjects": "Detected Objects ({{count}})",
@@ -1522,7 +1530,9 @@
       "approve": "Approve (Y)",
       "reject": "Reject (N)",
       "approveBtn": "Approve (Y)",
-      "rejectBtn": "Reject (N)"
+      "rejectBtn": "Reject (N)",
+      "loading": "Loading model output…",
+      "noResult": "No vision-model result has been written for this asset yet."
     },
     "profiles": {
       "title": "Key Profiles",

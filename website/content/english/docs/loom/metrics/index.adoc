@@ -34,6 +34,43 @@ curl http://loom.internal:8989/metrics
 LOOM_SERVER_MON_PORT=9091
 ----
 
+== Reading the metrics without Prometheus
+
+The monitoring port is deliberately unauthenticated, so it is not something you want a browser or a
+script outside your network to reach. For those callers the same figures are available as JSON on
+the ordinary API port:
+
+[source,bash]
+----
+curl -H "Authorization: Bearer $TOKEN" http://loom.internal:8092/api/v1/metrics
+----
+
+This is what the built-in monitoring screen reads. It requires the `READ_METRIC` permission, and it
+serves the `loom_` meters only — the JVM and framework families stay on the scrape endpoint, where a
+Prometheus reads them.
+
+[source,json]
+----
+{
+  "timestamp": "2026-08-09T11:24:07Z",
+  "metrics": [
+    { "name": "loom_node_tasks_inflight", "type": "GAUGE", "tags": {}, "value": 6 },
+    { "name": "loom_node_tasks_dispatched_total", "type": "COUNTER",
+      "tags": { "kind": "sha512" }, "value": 1290 },
+    { "name": "loom_node_task_latency_seconds", "type": "TIMER",
+      "tags": { "kind": "sha512", "state": "completed" },
+      "count": 1284, "sumSeconds": 412.6, "maxSeconds": 3.91, "meanSeconds": 0.321 }
+  ]
+}
+----
+
+Series are named exactly as in a scrape, suffixes included, so a name from the tables below works in
+both places. Narrow the response with `?prefix=loom_node_tasks_`.
+
+IMPORTANT: This is a single instant, not a history — Loom stores no time series. To chart a rate,
+call it twice and divide the counter difference by the gap between the two `timestamp` values. For
+anything longer than a live view, scrape the monitoring port with Prometheus.
+
 == Pipeline Runs
 
 [options="header",cols="3,1,2,4"]

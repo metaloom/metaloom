@@ -231,7 +231,11 @@ public enum Permission {
 
 	// Cortex Instance (registered processor worker)
 	MANAGE_CORTEX_INSTANCE,   // doc:yes  ui:no  test:none
-	READ_CORTEX_INSTANCE,     // doc:yes  ui:no  test:none  [unused: no code checks it]
+	READ_CORTEX_INSTANCE,     // doc:yes  ui:no  test:none  (NodeDescriptorEndpoint.mayNameWorkers)
+
+	// Metrics. Gate on GET /api/v1/metrics, the JSON read of the loom_* catalog on the app REST
+	// port. The Prometheus scrape on the monitoring port is network-gated and never sees this.
+	READ_METRIC,              // doc:yes  ui:yes test:MetricsEndpointTest (403 case)
 
 	// Search. Wholesale gate on /api/v1/search/*. The endpoint additionally narrows the requested
 	// entity types against the READ_* permissions above and drops the ones the caller may not see,

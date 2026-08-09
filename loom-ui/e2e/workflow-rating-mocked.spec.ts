@@ -15,6 +15,10 @@ import { test, expect, Page, Route } from "@playwright/test";
 const ME_UUID = "11111111-1111-1111-1111-111111111111";
 const ASSET_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const ASSET_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+const CLUSTER_UUID = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+const PERSON_UUID = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+const DETECTION_UUID = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+const VLM_COMP_UUID = "ffffffff-ffff-ffff-ffff-ffffffffffff";
 
 interface StoredReaction {
   uuid: string;
@@ -43,6 +47,63 @@ async function installMocks(page: Page, opts: { failReactionWrites?: boolean } =
   // Catch-all first (lowest priority) — empty collections for the many list
   // endpoints the workflow view fans out to (detections, …).
   await page.route(/\/api\/v1\//, route => json(route, { data: [] }));
+
+  // ── Face review: clusters, their members, and the person vocabulary ──
+  //
+  // All three used to come from mock arrays in the bundle — two of which were empty, so the pane
+  // rendered nothing whatever the server held, and the third seeded people who do not exist.
+
+  await page.route(/\/api\/v1\/assets\/[^/]+\/clusters$/, route =>
+    json(route, {
+      data: [{
+        uuid: CLUSTER_UUID,
+        name: "Face group 1",
+        reviewStatus: "PENDING",
+        assetUuid: ASSET_A,
+        memberCount: 1,
+      }],
+    })
+  );
+  await page.route(/\/api\/v1\/clusters\/[^/]+\/members$/, route =>
+    json(route, {
+      members: [{ detectionUuid: DETECTION_UUID, assetUuid: ASSET_A, bboxX: 0.1, bboxY: 0.1, bboxWidth: 0.2, bboxHeight: 0.2 }],
+      total: 1,
+    })
+  );
+  await page.route(/\/api\/v1\/persons(\?|$)/, route =>
+    json(route, {
+      data: [
+        { uuid: PERSON_UUID, alias: "Ada Lovelace", firstname: "Ada", lastname: "Lovelace" },
+        { uuid: "eeee0000-0000-0000-0000-000000000001", alias: "Grace Hopper" },
+      ],
+      _metainfo: { totalCount: 2 },
+    })
+  );
+
+  // ── LLM review: the asset's vlm JSON components ──────────────────────
+  await page.route(/\/api\/v1\/assets\/[^/]+\/json-comps(\?|$)/, route =>
+    json(route, {
+      data: [
+        {
+          uuid: VLM_COMP_UUID,
+          assetUuid: ASSET_A,
+          nodeKind: "vlm",
+          schemaType: "vlm",
+          variant: "describe",
+          producerVersion: "Qwen2.5-VL-7B",
+          data: { text: "A rack of servers in a cold aisle, blue status lights." },
+        },
+        // A second schema on the same asset must not leak into this pane.
+        {
+          uuid: "aaaa0000-0000-0000-0000-000000000002",
+          assetUuid: ASSET_A,
+          nodeKind: "metadata",
+          schemaType: "dublincore",
+          data: { title: "not a model output" },
+        },
+      ],
+    })
+  );
 
   await page.route(/\/api\/v1\/login$/, route => json(route, { token: "fake-jwt" }));
   await page.route(/\/api\/v1\/me$/, route =>
@@ -154,5 +215,95 @@ test.describe("Workflow rating – mocked e2e", () => {
     // makes an unnoticed error worse than no persistence at all.
     await expect(ratingValue).toHaveText("—", { timeout: 10_000 });
     await expect(page.getByText(/could not save the rating/i)).toBeVisible({ timeout: 10_000 });
+  });
+
+  // ── Face review ────────────────────────────────────────────────────────
+
+  test("the cluster card and the person list come from the server, not from a bundled seed", async ({ page }) => {
+    await installMocks(page);
+    await page.goto("/");
+    await login(page);
+    await openWorkflow(page);
+
+    await page.getByTestId("workflow-mode-facedetection").click();
+
+    // The card is the cluster the asset route returned. It used to be joined against a mock array
+    // that was always empty, so this pane rendered nothing however many clusters the server held.
+    const cluster = page.getByTestId("workflow-cluster");
+    await expect(cluster).toHaveCount(1, { timeout: 10_000 });
+    await expect(cluster).toHaveAttribute("data-cluster-id", CLUSTER_UUID);
+    await expect(cluster).toContainText("Face group 1");
+
+    // Selecting it reveals the assignment row, whose options are the people this instance knows.
+    await cluster.click();
+    const personInput = page.getByTestId("workflow-person-input");
+    await expect(personInput).toBeVisible();
+    await personInput.click();
+    await expect(page.getByRole("option", { name: "Ada Lovelace" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("option", { name: "Grace Hopper" })).toBeVisible();
+  });
+
+  test("confirming a cluster sends the assigned person's name rather than a local label", async ({ page }) => {
+    await installMocks(page);
+    await page.goto("/");
+    await login(page);
+    await openWorkflow(page);
+
+    await page.getByTestId("workflow-mode-facedetection").click();
+    const cluster = page.getByTestId("workflow-cluster");
+    await expect(cluster).toHaveCount(1, { timeout: 10_000 });
+    await cluster.click();
+
+    await page.getByTestId("workflow-person-input").click();
+    await page.getByRole("option", { name: "Ada Lovelace" }).click();
+
+    // A confirm without a name is refused server-side, so the assigned person has to travel with it.
+    const confirm = page.waitForRequest(
+      req => req.method() === "POST" && /\/clusters\/[^/]+\/confirm$/.test(req.url())
+    );
+    // The button rather than the "y" binding: focus is still in the person input after picking an
+    // option, and the keyboard handler deliberately stands down while a text field has focus.
+    await cluster.getByRole("button", { name: /confirm/i }).click();
+    const body = JSON.parse((await confirm).postData() || "{}");
+    expect(body).toMatchObject({ alias: "Ada Lovelace", name: "Ada Lovelace" });
+    await expect(cluster).toContainText("Confirmed", { timeout: 10_000 });
+  });
+
+  // ── Model-output review ────────────────────────────────────────────────
+
+  test("the model output is the asset's vlm component, not a hardcoded sentence", async ({ page }) => {
+    await installMocks(page);
+    await page.goto("/");
+    await login(page);
+    await openWorkflow(page);
+
+    await page.getByTestId("workflow-mode-llm").click();
+
+    const result = page.getByTestId("workflow-llm-result");
+    await expect(result).toHaveCount(1, { timeout: 10_000 });
+    await expect(result).toContainText("A rack of servers in a cold aisle");
+    // Prompt id and the model that answered, both read off the component.
+    await expect(page.getByTestId("workflow-llm-variant")).toHaveText("describe");
+    await expect(page.getByTestId("workflow-llm-model")).toHaveText("Qwen2.5-VL-7B");
+    // The old fiction, and the old hardcoded model chip, must be gone.
+    await expect(result).not.toContainText("Corporate presentation scene");
+    await expect(page.getByText("gpt-4o")).toHaveCount(0);
+    // A component of another schema on the same asset is not a model output.
+    await expect(result).not.toContainText("not a model output");
+  });
+
+  test("an asset with no vlm component says so instead of showing an empty card", async ({ page }) => {
+    await installMocks(page);
+    // No components at all: the vlm node has not run here.
+    await page.route(/\/api\/v1\/assets\/[^/]+\/json-comps(\?|$)/, route => json(route, { data: [] }));
+    await page.goto("/");
+    await login(page);
+    await openWorkflow(page);
+
+    await page.getByTestId("workflow-mode-llm").click();
+
+    await expect(page.getByTestId("workflow-llm-empty")).toContainText(
+      "No vision-model result has been written for this asset yet.", { timeout: 10_000 });
+    await expect(page.getByTestId("workflow-llm-result")).toHaveCount(0);
   });
 });

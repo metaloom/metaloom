@@ -24,6 +24,7 @@ import io.metaloom.loom.rest.model.group.GroupExamples;
 import io.metaloom.loom.rest.model.jsoncomp.JsonCompExamples;
 import io.metaloom.loom.rest.model.segmentcomp.SegmentCompExamples;
 import io.metaloom.loom.rest.model.library.LibraryExamples;
+import io.metaloom.loom.rest.model.metrics.MetricsExamples;
 import io.metaloom.loom.rest.model.noderesult.NodeResultExamples;
 import io.metaloom.loom.rest.model.noderun.NodeRunExamples;
 import io.metaloom.loom.rest.model.person.PersonExamples;
@@ -69,6 +70,7 @@ public interface Examples extends
 	GroupExamples,
 	SpaceExamples,
 	LibraryExamples,
+	MetricsExamples,
 	PersonExamples,
 	PipelineExamples,
 	ProcessorExamples,

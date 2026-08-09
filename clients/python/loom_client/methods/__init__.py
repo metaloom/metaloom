@@ -37,6 +37,7 @@ from .health import HealthMethods
 from .info import InfoMethods
 from .json_comp import JsonCompMethods
 from .library import LibraryMethods
+from .metrics import MetricsMethods
 from .node_result import NodeResultMethods
 from .node_run import NodeRunMethods
 from .person import PersonMethods
@@ -81,6 +82,7 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     InfoMethods,
     JsonCompMethods,
     LibraryMethods,
+    MetricsMethods,
     NodeResultMethods,
     NodeRunMethods,
     PersonMethods,
@@ -125,6 +127,7 @@ __all__ = [
     "InfoMethods",
     "JsonCompMethods",
     "LibraryMethods",
+    "MetricsMethods",
     "NodeResultMethods",
     "NodeRunMethods",
     "PersonMethods",

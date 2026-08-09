@@ -97,9 +97,11 @@ cannot drop an enum value. `PermissionDaoImpl` bridges via `JooqLoomPermission.v
 so a Java constant without a DB value throws at grant time — keep the Java side a subset.
 
 `Permission.java` carries a **per-constant audit comment** (`doc:` i18n text present, `ui:` offered
-by the admin ACL matrix, `test:` covering test, `[unused: no code checks it]`). Six constants are
-currently marked unused: `CREATE/DELETE/UPDATE_ASSET_LOCATION`, `CREATE_PIPELINE_RUN`,
-`DELETE_PIPELINE_RUN`, `READ_CORTEX_INSTANCE`. Refresh those comments when you change a permission.
+by the admin ACL matrix, `test:` covering test, `[unused: no code checks it]`). **Five** constants
+are currently marked unused: `CREATE/DELETE/UPDATE_ASSET_LOCATION`, `CREATE_PIPELINE_RUN`,
+`DELETE_PIPELINE_RUN`. `READ_CORTEX_INSTANCE` was on that list and is not unused —
+`NodeDescriptorEndpoint.mayNameWorkers` checks it before naming which workers offer a node. Refresh
+those comments when you change a permission.
 
 ---
 
@@ -375,4 +377,4 @@ Permission enforcement itself has no configuration switches.
       them into `spec/features/permissions/PERMISSIONS.md` and leave RBAC.md as a stub redirect.**
 
 _Git HEAD revision: `d930e222`_
-_Last updated: 2026-08-02 (role permissions are administrable over REST; `V2.64` dropped `role_permission.resource`; permission cache gained an invalidation API)_
+_Last updated: 2026-08-09 (`READ_METRIC` added by `V2.84`; the "six unused constants" note corrected to five — `READ_CORTEX_INSTANCE` is checked by `NodeDescriptorEndpoint`). Earlier: 2026-08-02 (role permissions are administrable over REST; `V2.64` dropped `role_permission.resource`; permission cache gained an invalidation API)_

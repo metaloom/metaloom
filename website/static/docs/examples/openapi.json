@@ -50,6 +50,9 @@
   }, {
     "name" : "dedup-groups"
   }, {
+    "name" : "detections",
+    "description" : "The cross-asset detection review queue. Detections themselves are created and reviewed under their asset."
+  }, {
     "name" : "embeddings",
     "description" : "Vector embeddings and their attachments"
   }, {
@@ -79,6 +82,10 @@
   }, {
     "name" : "memory-deny-rules",
     "description" : "Administration of the agent memory denylist"
+  }, {
+    "name" : "metrics"
+  }, {
+    "name" : "node-runs"
   }, {
     "name" : "notifications",
     "description" : "The caller's notification inbox: list, mark read, dismiss and clear"
@@ -3924,7 +3931,14 @@
         "requestBody" : {
           "content" : {
             "application/json" : {
-              "example" : { }
+              "example" : {
+                "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                "libraryUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                "poolUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                "filesystem" : {
+                  "path" : "/the-current-path/bigbuckbunny-4k.mp4"
+                }
+              }
             }
           }
         },
@@ -4162,6 +4176,432 @@
                   "s3" : {
                     "bucket" : "big_bucket",
                     "objectPath" : "themovie"
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/clusters" : {
+      "description" : "List the clusters computed within an asset",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "List the clusters computed within an asset",
+        "description" : "List the clusters computed within an asset",
+        "operationId" : "getAssetsByUuidClusters",
+        "responses" : {
+          "200" : {
+            "description" : "The cluster list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "The cluster name",
+                    "type" : "face",
+                    "reviewStatus" : "PENDING",
+                    "clusterIndex" : 0,
+                    "score" : 0.92,
+                    "memberCount" : 4,
+                    "nodeKind" : "facedetect"
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "The cluster name",
+                    "type" : "face",
+                    "reviewStatus" : "PENDING",
+                    "clusterIndex" : 0,
+                    "score" : 0.92,
+                    "memberCount" : 4,
+                    "nodeKind" : "facedetect"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/clusters/bulk" : {
+      "description" : "Bulk create the clusters a producer found in an asset. Idempotent on (asset, nodeKind, clusterIndex), and never overwrites a review verdict.",
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Bulk create the clusters a producer found in an asset. Idempotent on (asset, nodeKind, clusterIndex), and never overwrites a review verdict.",
+        "description" : "Bulk create the clusters a producer found in an asset. Idempotent on (asset, nodeKind, clusterIndex), and never overwrites a review verdict.",
+        "operationId" : "postAssetsByUuidClustersBulk",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "clusters" : [ {
+                  "type" : "face",
+                  "nodeKind" : "facedetect",
+                  "producerVersion" : "1/inspireface-pikachu-r18",
+                  "clusterIndex" : 0,
+                  "score" : 0.94,
+                  "model" : "inspireface-pikachu-r18",
+                  "dimensions" : 512,
+                  "members" : [ {
+                    "embeddingUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "confidence" : 0.96,
+                    "origin" : "AUTO"
+                  } ]
+                } ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "description" : "The cluster bulk create response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "clusters" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "The cluster name",
+                    "type" : "face",
+                    "reviewStatus" : "PENDING",
+                    "clusterIndex" : 0,
+                    "score" : 0.92,
+                    "memberCount" : 4,
+                    "nodeKind" : "facedetect"
+                  } ],
+                  "total" : 1,
+                  "created" : 1,
+                  "failed" : 0,
+                  "pruned" : 0
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/collections" : {
+      "description" : "Load a paged list of the collections the asset belongs to",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Load a paged list of the collections the asset belongs to",
+        "description" : "Load a paged list of the collections the asset belongs to",
+        "operationId" : "getAssetsByUuidCollections",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The collection list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "The collection name"
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "The collection name"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
                   }
                 }
               }
@@ -4560,7 +5000,8 @@
                     "bboxWidth" : 0.12,
                     "bboxHeight" : 0.2,
                     "confidence" : 0.97,
-                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "PENDING"
                   }, {
                     "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                     "status" : {
@@ -4583,7 +5024,10 @@
                     "bboxWidth" : 0.18,
                     "bboxHeight" : 0.27,
                     "confidence" : 0.88,
-                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "CONFIRMED",
+                    "reviewedAt" : "2026-08-09T10:15:30Z",
+                    "correctedLabel" : "wolf"
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -4699,7 +5143,8 @@
                   "bboxWidth" : 0.12,
                   "bboxHeight" : 0.2,
                   "confidence" : 0.97,
-                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "reviewStatus" : "PENDING"
                 }
               }
             }
@@ -4881,7 +5326,8 @@
                   "bboxWidth" : 0.12,
                   "bboxHeight" : 0.2,
                   "confidence" : 0.97,
-                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "reviewStatus" : "PENDING"
                 }
               }
             }
@@ -4944,6 +5390,325 @@
         "description" : "Delete a detection on an asset",
         "operationId" : "deleteAssetsByUuidDetectionsByDetectionUuid",
         "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "detectionUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced detection",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/detections/{detectionUuid}/confirm" : {
+      "description" : "Confirm a detection: the producer found something real here. An optional correctedLabel says the box was right but the class was wrong; the producer's own label is kept alongside it.",
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Confirm a detection: the producer found something real here. An optional correctedLabel says the box was right but the class was wrong; the producer's own label is kept alongside it.",
+        "description" : "Confirm a detection: the producer found something real here. An optional correctedLabel says the box was right but the class was wrong; the producer's own label is kept alongside it.",
+        "operationId" : "postAssetsByUuidDetectionsByDetectionUuidConfirm",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "correctedLabel" : "wolf"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The detection response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "gender" : "male",
+                    "age" : 30
+                  },
+                  "type" : "facedetection",
+                  "frameNumber" : 0,
+                  "bboxX" : 0.3,
+                  "bboxY" : 0.2,
+                  "bboxWidth" : 0.12,
+                  "bboxHeight" : 0.2,
+                  "confidence" : 0.97,
+                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "reviewStatus" : "PENDING"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "detectionUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced detection",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/detections/{detectionUuid}/crop" : {
+      "description" : "Load the cropped face image for a detection. Served from this deployment's own storage - face crops are biometric data and must not be fetched from a third party.",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Load the cropped face image for a detection. Served from this deployment's own storage - face crops are biometric data and must not be fetched from a third party.",
+        "description" : "Load the cropped face image for a detection. Served from this deployment's own storage - face crops are biometric data and must not be fetched from a third party.",
+        "operationId" : "getAssetsByUuidDetectionsByDetectionUuidCrop",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "detectionUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced detection",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/detections/{detectionUuid}/reject" : {
+      "description" : "Reject a detection as a false positive. The row is kept, not deleted: it is the record that the producer was wrong here.",
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Reject a detection as a false positive. The row is kept, not deleted: it is the record that the producer was wrong here.",
+        "description" : "Reject a detection as a false positive. The row is kept, not deleted: it is the record that the producer was wrong here.",
+        "operationId" : "postAssetsByUuidDetectionsByDetectionUuidReject",
+        "responses" : {
+          "200" : {
+            "description" : "The detection response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "gender" : "male",
+                    "age" : 30
+                  },
+                  "type" : "facedetection",
+                  "frameNumber" : 0,
+                  "bboxX" : 0.3,
+                  "bboxY" : 0.2,
+                  "bboxWidth" : 0.12,
+                  "bboxHeight" : 0.2,
+                  "confidence" : 0.97,
+                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "reviewStatus" : "PENDING"
+                }
+              }
+            }
+          },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -5087,7 +5852,8 @@
                     "bboxWidth" : 0.12,
                     "bboxHeight" : 0.2,
                     "confidence" : 0.97,
-                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "PENDING"
                   }, {
                     "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
                     "status" : {
@@ -5113,7 +5879,162 @@
                     "bboxWidth" : 0.12,
                     "bboxHeight" : 0.2,
                     "confidence" : 0.97,
-                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "PENDING"
+                  } ],
+                  "total" : 2,
+                  "created" : 2,
+                  "failed" : 0
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/detections/review-bulk" : {
+      "description" : "Record many detection verdicts on one asset. Keyboard review outruns per-item calls, so this is the shape the review UI uses.",
+      "post" : {
+        "tags" : [ "assets" ],
+        "summary" : "Record many detection verdicts on one asset. Keyboard review outruns per-item calls, so this is the shape the review UI uses.",
+        "description" : "Record many detection verdicts on one asset. Keyboard review outruns per-item calls, so this is the shape the review UI uses.",
+        "operationId" : "postAssetsByUuidDetectionsReviewbulk",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "reviews" : [ {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "status" : "CONFIRMED",
+                  "correctedLabel" : "wolf"
+                }, {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : "REJECTED"
+                } ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The detection bulk response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "detections" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "gender" : "male",
+                      "age" : 30
+                    },
+                    "type" : "facedetection",
+                    "frameNumber" : 0,
+                    "bboxX" : 0.3,
+                    "bboxY" : 0.2,
+                    "bboxWidth" : 0.12,
+                    "bboxHeight" : 0.2,
+                    "confidence" : 0.97,
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "PENDING"
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "gender" : "male",
+                      "age" : 30
+                    },
+                    "type" : "facedetection",
+                    "frameNumber" : 0,
+                    "bboxX" : 0.3,
+                    "bboxY" : 0.2,
+                    "bboxWidth" : 0.12,
+                    "bboxHeight" : 0.2,
+                    "confidence" : 0.97,
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "PENDING"
                   } ],
                   "total" : 2,
                   "created" : 2,
@@ -6002,6 +6923,168 @@
         "name" : "compUuid",
         "in" : "path",
         "description" : "UUID of the referenced comp",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/libraries" : {
+      "description" : "Load a paged list of the libraries the asset belongs to",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Load a paged list of the libraries the asset belongs to",
+        "description" : "Load a paged list of the libraries the asset belongs to",
+        "operationId" : "getAssetsByUuidLibraries",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The library list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "MyProject"
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "MyProject"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
         "required" : true,
         "schema" : {
           "type" : "string",
@@ -10739,7 +11822,14 @@
         "requestBody" : {
           "content" : {
             "application/json" : {
-              "example" : { }
+              "example" : {
+                "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                "libraryUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                "poolUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                "filesystem" : {
+                  "path" : "/the-current-path/bigbuckbunny-4k.mp4"
+                }
+              }
             }
           }
         },
@@ -10903,7 +11993,13 @@
         "requestBody" : {
           "content" : {
             "application/json" : {
-              "example" : { }
+              "example" : {
+                "libraryUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                "poolUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                "filesystem" : {
+                  "path" : "/the-new-path/bigbuckbunny-4k.mp4"
+                }
+              }
             }
           }
         },
@@ -12867,7 +13963,13 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "name" : "The cluster name"
+                    "name" : "The cluster name",
+                    "type" : "face",
+                    "reviewStatus" : "PENDING",
+                    "clusterIndex" : 0,
+                    "score" : 0.92,
+                    "memberCount" : 4,
+                    "nodeKind" : "facedetect"
                   }, {
                     "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
                     "status" : {
@@ -12885,7 +13987,13 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "name" : "The cluster name"
+                    "name" : "The cluster name",
+                    "type" : "face",
+                    "reviewStatus" : "PENDING",
+                    "clusterIndex" : 0,
+                    "score" : 0.92,
+                    "memberCount" : 4,
+                    "nodeKind" : "facedetect"
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -12976,7 +14084,13 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "name" : "The cluster name"
+                  "name" : "The cluster name",
+                  "type" : "face",
+                  "reviewStatus" : "PENDING",
+                  "clusterIndex" : 0,
+                  "score" : 0.92,
+                  "memberCount" : 4,
+                  "nodeKind" : "facedetect"
                 }
               }
             }
@@ -13053,7 +14167,13 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "name" : "The cluster name"
+                  "name" : "The cluster name",
+                  "type" : "face",
+                  "reviewStatus" : "PENDING",
+                  "clusterIndex" : 0,
+                  "score" : 0.92,
+                  "memberCount" : 4,
+                  "nodeKind" : "facedetect"
                 }
               }
             }
@@ -13149,7 +14269,13 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "name" : "The cluster name"
+                  "name" : "The cluster name",
+                  "type" : "face",
+                  "reviewStatus" : "PENDING",
+                  "clusterIndex" : 0,
+                  "score" : 0.92,
+                  "memberCount" : 4,
+                  "nodeKind" : "facedetect"
                 }
               }
             }
@@ -13214,6 +14340,327 @@
         "responses" : {
           "204" : {
             "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/clusters/{uuid}/confirm" : {
+      "description" : "Confirm that a cluster is a person, linking an existing one or creating a new one. Requires CREATE_PERSON in addition to UPDATE_CLUSTER when it creates.",
+      "post" : {
+        "tags" : [ "clusters" ],
+        "summary" : "Confirm that a cluster is a person, linking an existing one or creating a new one. Requires CREATE_PERSON in addition to UPDATE_CLUSTER when it creates.",
+        "description" : "Confirm that a cluster is a person, linking an existing one or creating a new one. Requires CREATE_PERSON in addition to UPDATE_CLUSTER when it creates.",
+        "operationId" : "postClustersByUuidConfirm",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "alias" : "Anna Meyer",
+                "firstname" : "Anna",
+                "lastname" : "Meyer"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The cluster response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "The cluster name",
+                  "type" : "face",
+                  "reviewStatus" : "PENDING",
+                  "clusterIndex" : 0,
+                  "score" : 0.92,
+                  "memberCount" : 4,
+                  "nodeKind" : "facedetect"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/clusters/{uuid}/members" : {
+      "description" : "List the embeddings belonging to a cluster, each with the detection and bounding box it came from so a face crop can be addressed.",
+      "get" : {
+        "tags" : [ "clusters" ],
+        "summary" : "List the embeddings belonging to a cluster, each with the detection and bounding box it came from so a face crop can be addressed.",
+        "description" : "List the embeddings belonging to a cluster, each with the detection and bounding box it came from so a face crop can be addressed.",
+        "operationId" : "getClustersByUuidMembers",
+        "responses" : {
+          "200" : {
+            "description" : "The cluster member list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "members" : [ {
+                    "embeddingUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "detectionUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "assetUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "frameNumber" : 0,
+                    "bboxX" : 0.25,
+                    "bboxY" : 0.15,
+                    "bboxWidth" : 0.12,
+                    "bboxHeight" : 0.2,
+                    "confidence" : 0.97,
+                    "origin" : "AUTO"
+                  }, {
+                    "embeddingUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "detectionUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "assetUuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "frameNumber" : 0,
+                    "bboxX" : 0.25,
+                    "bboxY" : 0.15,
+                    "bboxWidth" : 0.12,
+                    "bboxHeight" : 0.2,
+                    "confidence" : 0.97,
+                    "origin" : "AUTO"
+                  } ],
+                  "total" : 2
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/clusters/{uuid}/reject" : {
+      "description" : "Reject a cluster: it is not a subject worth keeping. The person pointer is left as it was, so an earlier verdict stays readable.",
+      "post" : {
+        "tags" : [ "clusters" ],
+        "summary" : "Reject a cluster: it is not a subject worth keeping. The person pointer is left as it was, so an earlier verdict stays readable.",
+        "description" : "Reject a cluster: it is not a subject worth keeping. The person pointer is left as it was, so an earlier verdict stays readable.",
+        "operationId" : "postClustersByUuidReject",
+        "responses" : {
+          "200" : {
+            "description" : "The cluster response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "The cluster name",
+                  "type" : "face",
+                  "reviewStatus" : "PENDING",
+                  "clusterIndex" : 0,
+                  "score" : 0.92,
+                  "memberCount" : 4,
+                  "nodeKind" : "facedetect"
+                }
+              }
+            }
           },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
@@ -13753,6 +15200,649 @@
         "name" : "uuid",
         "in" : "path",
         "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/collections/{uuid}/assets" : {
+      "description" : "Add an asset to the collection",
+      "get" : {
+        "tags" : [ "collections" ],
+        "summary" : "Load a paged list of the assets in the collection",
+        "description" : "Load a paged list of the assets in the collection",
+        "operationId" : "getCollectionsByUuidAssets",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The asset list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "geo" : {
+                      "lon" : 32.56,
+                      "lat" : 52.156
+                    },
+                    "tags" : [ {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "red"
+                    } ],
+                    "annotations" : [ {
+                      "status" : { },
+                      "meta" : {
+                        "abc" : "cdef"
+                      },
+                      "title" : "Intro Feedback",
+                      "area" : {
+                        "from" : 0,
+                        "to" : 10
+                      },
+                      "description" : "The very nice intro",
+                      "tasks" : [ {
+                        "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                        "status" : { },
+                        "title" : "Fix text offset here",
+                        "description" : "The text is not aligned with the title",
+                        "comments" : [ {
+                          "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                          "status" : { },
+                          "title" : "Great work!",
+                          "text" : "What a great choice of colors!",
+                          "social" : {
+                            "rating" : {
+                              "stars" : 10,
+                              "upVotes" : 42,
+                              "downVotes" : 0
+                            },
+                            "reactions" : {
+                              "SATISFIED" : 10
+                            }
+                          }
+                        } ],
+                        "assignees" : [ ]
+                      } ],
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ],
+                      "thumbnail" : "???",
+                      "tags" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "name" : "blue"
+                      } ]
+                    } ],
+                    "collections" : [ ],
+                    "embeddings" : [ ],
+                    "file" : {
+                      "mimeType" : "video/mp4",
+                      "filename" : "bigbuckbunny-4k.mp4",
+                      "size" : 42000000,
+                      "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                      "firstSeen" : "2018-10-12T14:15:06Z"
+                    },
+                    "hashes" : {
+                      "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                      "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                      "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                    },
+                    "geoComponents" : [ ],
+                    "imageComponents" : [ {
+                      "dominantColor" : "#FFFF00"
+                    } ],
+                    "videoComponents" : [ {
+                      "width" : 4000,
+                      "height" : 2250,
+                      "duration" : 20000
+                    } ],
+                    "audioComponents" : [ {
+                      "channels" : 2,
+                      "encoding" : "mp3",
+                      "samplingRate" : 48000,
+                      "bpm" : 120
+                    } ],
+                    "documentComponents" : [ ],
+                    "locations" : [ {
+                      "status" : { },
+                      "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "mimeType" : "video/mp4",
+                      "state" : "PRESENT",
+                      "license" : "CC-BY-4.0",
+                      "filesystem" : {
+                        "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                        "filekey" : {
+                          "inode" : 42,
+                          "stDev" : 12,
+                          "edate" : 12,
+                          "edateNano" : 3
+                        },
+                        "lastSeen" : "2018-11-20T20:12:01Z"
+                      },
+                      "s3" : {
+                        "bucket" : "big_bucket",
+                        "objectPath" : "themovie"
+                      }
+                    } ]
+                  }, {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "geo" : {
+                      "lon" : 32.56,
+                      "lat" : 52.156
+                    },
+                    "tags" : [ {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "red"
+                    } ],
+                    "annotations" : [ {
+                      "status" : { },
+                      "meta" : {
+                        "abc" : "cdef"
+                      },
+                      "title" : "Intro Feedback",
+                      "area" : {
+                        "from" : 0,
+                        "to" : 10
+                      },
+                      "description" : "The very nice intro",
+                      "tasks" : [ {
+                        "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                        "status" : { },
+                        "title" : "Fix text offset here",
+                        "description" : "The text is not aligned with the title",
+                        "comments" : [ {
+                          "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                          "status" : { },
+                          "title" : "Great work!",
+                          "text" : "What a great choice of colors!",
+                          "social" : {
+                            "rating" : {
+                              "stars" : 10,
+                              "upVotes" : 42,
+                              "downVotes" : 0
+                            },
+                            "reactions" : {
+                              "SATISFIED" : 10
+                            }
+                          }
+                        } ],
+                        "assignees" : [ ]
+                      } ],
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ],
+                      "thumbnail" : "???",
+                      "tags" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "name" : "blue"
+                      } ]
+                    } ],
+                    "collections" : [ ],
+                    "embeddings" : [ ],
+                    "file" : {
+                      "mimeType" : "video/mp4",
+                      "filename" : "bigbuckbunny-4k.mp4",
+                      "size" : 42000000,
+                      "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                      "firstSeen" : "2018-10-12T14:15:06Z"
+                    },
+                    "hashes" : {
+                      "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                      "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                      "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                    },
+                    "geoComponents" : [ ],
+                    "imageComponents" : [ {
+                      "dominantColor" : "#FFFF00"
+                    } ],
+                    "videoComponents" : [ {
+                      "width" : 4000,
+                      "height" : 2250,
+                      "duration" : 20000
+                    } ],
+                    "audioComponents" : [ {
+                      "channels" : 2,
+                      "encoding" : "mp3",
+                      "samplingRate" : 48000,
+                      "bpm" : 120
+                    } ],
+                    "documentComponents" : [ ],
+                    "locations" : [ {
+                      "status" : { },
+                      "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "mimeType" : "video/mp4",
+                      "state" : "PRESENT",
+                      "license" : "CC-BY-4.0",
+                      "filesystem" : {
+                        "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                        "filekey" : {
+                          "inode" : 42,
+                          "stDev" : 12,
+                          "edate" : 12,
+                          "edateNano" : 3
+                        },
+                        "lastSeen" : "2018-11-20T20:12:01Z"
+                      },
+                      "s3" : {
+                        "bucket" : "big_bucket",
+                        "objectPath" : "themovie"
+                      }
+                    } ]
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "collections" ],
+        "summary" : "Add several assets to the collection",
+        "description" : "Add several assets to the collection",
+        "operationId" : "putCollectionsByUuidAssets",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuids" : [ "f04e89d0-076d-4d90-b192-715a25a2cd59", "86abc160-4da2-4951-a91f-da0c33fbc634" ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The bulk collection membership response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "total" : 2,
+                  "added" : 2,
+                  "failed" : 0,
+                  "failedUuids" : [ ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "collections" ],
+        "summary" : "Add an asset to the collection",
+        "description" : "Add an asset to the collection",
+        "operationId" : "postCollectionsByUuidAssets",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The collection response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "The collection name"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/collections/{uuid}/assets/{assetUuid}" : {
+      "description" : "Remove an asset from the collection",
+      "delete" : {
+        "tags" : [ "collections" ],
+        "summary" : "Remove an asset from the collection",
+        "description" : "Remove an asset from the collection",
+        "operationId" : "deleteCollectionsByUuidAssetsByAssetUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "assetUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced asset",
         "required" : true,
         "schema" : {
           "type" : "string",
@@ -14859,6 +16949,165 @@
           "format" : "uuid"
         }
       } ]
+    },
+    "/api/v1/detections" : {
+      "description" : "Load a paged list of detections across every asset, optionally filtered by review status and type. This is the review queue.",
+      "get" : {
+        "tags" : [ "detections" ],
+        "summary" : "Load a paged list of detections across every asset, optionally filtered by review status and type. This is the review queue.",
+        "description" : "Load a paged list of detections across every asset, optionally filtered by review status and type. This is the review queue.",
+        "operationId" : "getDetections",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The detection list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "gender" : "male",
+                      "age" : 30
+                    },
+                    "type" : "facedetection",
+                    "frameNumber" : 0,
+                    "bboxX" : 0.3,
+                    "bboxY" : 0.2,
+                    "bboxWidth" : 0.12,
+                    "bboxHeight" : 0.2,
+                    "confidence" : 0.97,
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "PENDING"
+                  }, {
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "type" : "objectdetection",
+                    "label" : "dog",
+                    "frameNumber" : 120,
+                    "bboxX" : 0.51,
+                    "bboxY" : 0.34,
+                    "bboxWidth" : 0.18,
+                    "bboxHeight" : 0.27,
+                    "confidence" : 0.88,
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "reviewStatus" : "CONFIRMED",
+                    "reviewedAt" : "2026-08-09T10:15:30Z",
+                    "correctedLabel" : "wolf"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "/api/v1/embeddings" : {
       "description" : "Create new embedding",
@@ -16614,6 +18863,569 @@
         }
       } ]
     },
+    "/api/v1/libraries/{uuid}/assets" : {
+      "description" : "Add an asset to the library",
+      "get" : {
+        "tags" : [ "libraries" ],
+        "summary" : "Load a paged list of the assets in the library",
+        "description" : "Load a paged list of the assets in the library",
+        "operationId" : "getLibrariesByUuidAssets",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The asset list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "geo" : {
+                      "lon" : 32.56,
+                      "lat" : 52.156
+                    },
+                    "tags" : [ {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "red"
+                    } ],
+                    "annotations" : [ {
+                      "status" : { },
+                      "meta" : {
+                        "abc" : "cdef"
+                      },
+                      "title" : "Intro Feedback",
+                      "area" : {
+                        "from" : 0,
+                        "to" : 10
+                      },
+                      "description" : "The very nice intro",
+                      "tasks" : [ {
+                        "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                        "status" : { },
+                        "title" : "Fix text offset here",
+                        "description" : "The text is not aligned with the title",
+                        "comments" : [ {
+                          "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                          "status" : { },
+                          "title" : "Great work!",
+                          "text" : "What a great choice of colors!",
+                          "social" : {
+                            "rating" : {
+                              "stars" : 10,
+                              "upVotes" : 42,
+                              "downVotes" : 0
+                            },
+                            "reactions" : {
+                              "SATISFIED" : 10
+                            }
+                          }
+                        } ],
+                        "assignees" : [ ]
+                      } ],
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ],
+                      "thumbnail" : "???",
+                      "tags" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "name" : "blue"
+                      } ]
+                    } ],
+                    "collections" : [ ],
+                    "embeddings" : [ ],
+                    "file" : {
+                      "mimeType" : "video/mp4",
+                      "filename" : "bigbuckbunny-4k.mp4",
+                      "size" : 42000000,
+                      "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                      "firstSeen" : "2018-10-12T14:15:06Z"
+                    },
+                    "hashes" : {
+                      "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                      "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                      "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                    },
+                    "geoComponents" : [ ],
+                    "imageComponents" : [ {
+                      "dominantColor" : "#FFFF00"
+                    } ],
+                    "videoComponents" : [ {
+                      "width" : 4000,
+                      "height" : 2250,
+                      "duration" : 20000
+                    } ],
+                    "audioComponents" : [ {
+                      "channels" : 2,
+                      "encoding" : "mp3",
+                      "samplingRate" : 48000,
+                      "bpm" : 120
+                    } ],
+                    "documentComponents" : [ ],
+                    "locations" : [ {
+                      "status" : { },
+                      "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "mimeType" : "video/mp4",
+                      "state" : "PRESENT",
+                      "license" : "CC-BY-4.0",
+                      "filesystem" : {
+                        "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                        "filekey" : {
+                          "inode" : 42,
+                          "stDev" : 12,
+                          "edate" : 12,
+                          "edateNano" : 3
+                        },
+                        "lastSeen" : "2018-11-20T20:12:01Z"
+                      },
+                      "s3" : {
+                        "bucket" : "big_bucket",
+                        "objectPath" : "themovie"
+                      }
+                    } ]
+                  }, {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "geo" : {
+                      "lon" : 32.56,
+                      "lat" : 52.156
+                    },
+                    "tags" : [ {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "red"
+                    } ],
+                    "annotations" : [ {
+                      "status" : { },
+                      "meta" : {
+                        "abc" : "cdef"
+                      },
+                      "title" : "Intro Feedback",
+                      "area" : {
+                        "from" : 0,
+                        "to" : 10
+                      },
+                      "description" : "The very nice intro",
+                      "tasks" : [ {
+                        "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                        "status" : { },
+                        "title" : "Fix text offset here",
+                        "description" : "The text is not aligned with the title",
+                        "comments" : [ {
+                          "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                          "status" : { },
+                          "title" : "Great work!",
+                          "text" : "What a great choice of colors!",
+                          "social" : {
+                            "rating" : {
+                              "stars" : 10,
+                              "upVotes" : 42,
+                              "downVotes" : 0
+                            },
+                            "reactions" : {
+                              "SATISFIED" : 10
+                            }
+                          }
+                        } ],
+                        "assignees" : [ ]
+                      } ],
+                      "comments" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "status" : { },
+                        "title" : "Great work!",
+                        "text" : "What a great choice of colors!",
+                        "social" : {
+                          "rating" : {
+                            "stars" : 10,
+                            "upVotes" : 42,
+                            "downVotes" : 0
+                          },
+                          "reactions" : {
+                            "SATISFIED" : 10
+                          }
+                        }
+                      } ],
+                      "thumbnail" : "???",
+                      "tags" : [ {
+                        "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                        "name" : "blue"
+                      } ]
+                    } ],
+                    "collections" : [ ],
+                    "embeddings" : [ ],
+                    "file" : {
+                      "mimeType" : "video/mp4",
+                      "filename" : "bigbuckbunny-4k.mp4",
+                      "size" : 42000000,
+                      "origin" : "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+                      "firstSeen" : "2018-10-12T14:15:06Z"
+                    },
+                    "hashes" : {
+                      "sha512" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                      "sha256" : "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+                      "md5" : "d8e8fca2dc0f896fd7cb4cb0031ba249"
+                    },
+                    "geoComponents" : [ ],
+                    "imageComponents" : [ {
+                      "dominantColor" : "#FFFF00"
+                    } ],
+                    "videoComponents" : [ {
+                      "width" : 4000,
+                      "height" : 2250,
+                      "duration" : 20000
+                    } ],
+                    "audioComponents" : [ {
+                      "channels" : 2,
+                      "encoding" : "mp3",
+                      "samplingRate" : 48000,
+                      "bpm" : 120
+                    } ],
+                    "documentComponents" : [ ],
+                    "locations" : [ {
+                      "status" : { },
+                      "poolUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                      "mimeType" : "video/mp4",
+                      "state" : "PRESENT",
+                      "license" : "CC-BY-4.0",
+                      "filesystem" : {
+                        "path" : "/the-current-path/bigbuckbunny-4k.mp4",
+                        "filekey" : {
+                          "inode" : 42,
+                          "stDev" : 12,
+                          "edate" : 12,
+                          "edateNano" : 3
+                        },
+                        "lastSeen" : "2018-11-20T20:12:01Z"
+                      },
+                      "s3" : {
+                        "bucket" : "big_bucket",
+                        "objectPath" : "themovie"
+                      }
+                    } ]
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "libraries" ],
+        "summary" : "Add an asset to the library",
+        "description" : "Add an asset to the library",
+        "operationId" : "postLibrariesByUuidAssets",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The library response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "MyProject"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/libraries/{uuid}/assets/{assetUuid}" : {
+      "description" : "Remove an asset from the library",
+      "delete" : {
+        "tags" : [ "libraries" ],
+        "summary" : "Remove an asset from the library",
+        "description" : "Remove an asset from the library",
+        "operationId" : "deleteLibrariesByUuidAssetsByAssetUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "assetUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced asset",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/login" : {
       "description" : "Login the user with the provided credentials",
       "post" : {
@@ -17267,6 +20079,620 @@
         "description" : "List the memory scopes available to the current user, with usage and quota",
         "operationId" : "getMemoryScopes",
         "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/metrics" : {
+      "description" : "Load a snapshot of the loom_* metric catalog",
+      "get" : {
+        "tags" : [ "metrics" ],
+        "summary" : "Load a snapshot of the loom_* metric catalog",
+        "description" : "Load a snapshot of the loom_* metric catalog",
+        "operationId" : "getMetrics",
+        "responses" : {
+          "200" : {
+            "description" : "The metrics snapshot response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "timestamp" : "2026-08-09T11:24:07Z",
+                  "metrics" : [ {
+                    "name" : "loom_node_task_latency_seconds",
+                    "type" : "TIMER",
+                    "tags" : {
+                      "kind" : "sha512",
+                      "state" : "completed"
+                    },
+                    "count" : 1284,
+                    "sumSeconds" : 412.6,
+                    "maxSeconds" : 3.91,
+                    "meanSeconds" : 0.321
+                  }, {
+                    "name" : "loom_node_tasks_dispatched_total",
+                    "type" : "COUNTER",
+                    "tags" : {
+                      "kind" : "sha512"
+                    },
+                    "value" : 1290.0
+                  }, {
+                    "name" : "loom_node_tasks_inflight",
+                    "type" : "GAUGE",
+                    "tags" : { },
+                    "value" : 6.0
+                  }, {
+                    "name" : "loom_node_tasks_inflight_ceiling",
+                    "type" : "GAUGE",
+                    "tags" : { },
+                    "value" : 16.0
+                  }, {
+                    "name" : "loom_pipeline_runs_active",
+                    "type" : "GAUGE",
+                    "tags" : { },
+                    "value" : 2.0
+                  }, {
+                    "name" : "loom_processors_by_state",
+                    "type" : "GAUGE",
+                    "tags" : {
+                      "state" : "online"
+                    },
+                    "value" : 3.0
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/node-runs" : {
+      "description" : "Start an ad-hoc node run from a definition supplied with the request, and return a handle to poll.",
+      "get" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Load a paged list of the caller's ad-hoc node runs, newest first.",
+        "description" : "Load a paged list of the caller's ad-hoc node runs, newest first.",
+        "operationId" : "getNoderuns",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The node run list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : "RUNNING",
+                    "mediaCount" : 2,
+                    "successCount" : 1,
+                    "failureCount" : 0,
+                    "skippedCount" : 0,
+                    "definition" : {
+                      "version" : 1,
+                      "name" : "describe images",
+                      "nodes" : [ {
+                        "id" : "vlm",
+                        "type" : "vlm",
+                        "options" : {
+                          "prompt" : "What is in this image?"
+                        }
+                      } ]
+                    },
+                    "results" : [ {
+                      "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "mediaPath" : "/data/media/beach.jpg",
+                      "nodeId" : "vlm",
+                      "nodeKind" : "vlm",
+                      "state" : "COMPLETED",
+                      "outputs" : {
+                        "text" : {
+                          "contentType" : "text/plain",
+                          "cardinality" : "ONE",
+                          "elements" : [ {
+                            "value" : "A beach at sunset.",
+                            "seq" : 0
+                          } ]
+                        }
+                      },
+                      "durationMs" : 4120
+                    } ]
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Start an ad-hoc node run from a definition supplied with the request, and return a handle to poll.",
+        "description" : "Start an ad-hoc node run from a definition supplied with the request, and return a handle to poll.",
+        "operationId" : "postNoderuns",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "definition" : {
+                  "version" : 1,
+                  "name" : "describe images",
+                  "nodes" : [ {
+                    "id" : "vlm",
+                    "type" : "vlm",
+                    "options" : {
+                      "prompt" : "What is in this image?"
+                    }
+                  } ]
+                },
+                "assetUuids" : [ "f04e89d0-076d-4d90-b192-715a25a2cd59", "86abc160-4da2-4951-a91f-da0c33fbc634" ],
+                "persist" : true
+              }
+            }
+          }
+        },
+        "responses" : {
+          "202" : {
+            "description" : "The node run handle",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : "RUNNING",
+                  "accepted" : 2,
+                  "rejected" : 0,
+                  "rejectedAssetUuids" : [ ],
+                  "etaMs" : 10000,
+                  "message" : "2 item(s) accepted"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/node-runs/{uuid}" : {
+      "description" : "Load the status and results of one of the caller's ad-hoc node runs. Pass ?results=false for the status alone.",
+      "get" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Load the status and results of one of the caller's ad-hoc node runs. Pass ?results=false for the status alone.",
+        "description" : "Load the status and results of one of the caller's ad-hoc node runs. Pass ?results=false for the status alone.",
+        "operationId" : "getNoderunsByUuid",
+        "responses" : {
+          "200" : {
+            "description" : "The node run status response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : "RUNNING",
+                  "mediaCount" : 2,
+                  "successCount" : 1,
+                  "failureCount" : 0,
+                  "skippedCount" : 0,
+                  "definition" : {
+                    "version" : 1,
+                    "name" : "describe images",
+                    "nodes" : [ {
+                      "id" : "vlm",
+                      "type" : "vlm",
+                      "options" : {
+                        "prompt" : "What is in this image?"
+                      }
+                    } ]
+                  },
+                  "results" : [ {
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "mediaPath" : "/data/media/beach.jpg",
+                    "nodeId" : "vlm",
+                    "nodeKind" : "vlm",
+                    "state" : "COMPLETED",
+                    "outputs" : {
+                      "text" : {
+                        "contentType" : "text/plain",
+                        "cardinality" : "ONE",
+                        "elements" : [ {
+                          "value" : "A beach at sunset.",
+                          "seq" : 0
+                        } ]
+                      }
+                    },
+                    "durationMs" : 4120
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/node-runs/{uuid}/cancel" : {
+      "description" : "Cancel one of the caller's ad-hoc node runs.",
+      "post" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Cancel one of the caller's ad-hoc node runs.",
+        "description" : "Cancel one of the caller's ad-hoc node runs.",
+        "operationId" : "postNoderunsByUuidCancel",
+        "responses" : {
+          "200" : {
+            "description" : "The node run cancel response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "message" : "Node run cancelled"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/node-runs/probes" : {
+      "description" : "Run a single node against a single asset and wait for the result. A node that cannot be run reports why in the response rather than failing the request.",
+      "post" : {
+        "tags" : [ "node-runs" ],
+        "summary" : "Run a single node against a single asset and wait for the result. A node that cannot be run reports why in the response rather than failing the request.",
+        "description" : "Run a single node against a single asset and wait for the result. A node that cannot be run reports why in the response rather than failing the request.",
+        "operationId" : "postNoderunsProbes",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "kind" : "vlm",
+                "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                "options" : {
+                  "prompt" : "What is in this image?"
+                },
+                "persist" : false
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The node probe response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "state" : "COMPLETED",
+                  "nodeKind" : "vlm",
+                  "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "durationMs" : 4120,
+                  "outputs" : {
+                    "text" : {
+                      "contentType" : "text/plain",
+                      "cardinality" : "ONE",
+                      "elements" : [ {
+                        "value" : "A beach at sunset.",
+                        "seq" : 0
+                      } ]
+                    }
+                  },
+                  "text" : "beach.jpg\n  vlm: COMPLETED (4120ms)\n    text [text/plain]: A beach at sunset.\n"
+                }
+              }
+            }
+          },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -18369,6 +21795,139 @@
         }
       } ]
     },
+    "/api/v1/persons/{uuid}/clusters" : {
+      "description" : "List the face clusters confirmed to be this person, across every asset they appear in",
+      "get" : {
+        "tags" : [ "persons" ],
+        "summary" : "List the face clusters confirmed to be this person, across every asset they appear in",
+        "description" : "List the face clusters confirmed to be this person, across every asset they appear in",
+        "operationId" : "getPersonsByUuidClusters",
+        "responses" : {
+          "200" : {
+            "description" : "The cluster list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "The cluster name",
+                    "type" : "face",
+                    "reviewStatus" : "PENDING",
+                    "clusterIndex" : 0,
+                    "score" : 0.92,
+                    "memberCount" : 4,
+                    "nodeKind" : "facedetect"
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "The cluster name",
+                    "type" : "face",
+                    "reviewStatus" : "PENDING",
+                    "clusterIndex" : 0,
+                    "score" : 0.92,
+                    "memberCount" : 4,
+                    "nodeKind" : "facedetect"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/pipeline/content-types" : {
       "description" : "Load all pipeline content types",
       "get" : {
@@ -18663,7 +22222,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "4afc3fc6-5ebd-48ad-8e44-e3c4335209e4",
+                    "versionUuid" : "8e364e27-a304-4d7a-8ecb-04b3fa255dae",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18690,7 +22249,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "02bf7925-31cc-4c2e-9d20-8a80d1ec5a07",
+                    "versionUuid" : "7a1dfbdf-0dd4-4b55-83e9-124c9a5f2351",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -18797,7 +22356,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "41203b8f-5dbd-4e13-8c70-b1414d09c4fb",
+                  "versionUuid" : "0bb587d7-e59f-4dd9-99c4-d699fe83bea4",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18883,7 +22442,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "6e645731-28df-4134-8f40-720e00e79233",
+                  "versionUuid" : "3948457c-b5cb-472b-8ad8-44a5fde9b536",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -18990,7 +22549,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "79e01180-d876-4003-8445-3034b23fe9d2",
+                  "versionUuid" : "c5a3846a-800d-4f69-9099-015ba98b70bb",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -19152,7 +22711,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "7d582bfb-5b17-4672-afb0-66c8bc487434",
+                  "runUuid" : "0772e9cc-b2d7-4ce9-b63e-bf920152952a",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -19278,11 +22837,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "c1eaaffe-bfbc-4ee0-97de-83c2ac3326cc",
-                    "pipelineUuid" : "26d7d89a-d237-4bc2-8149-ed9aa7dfd652",
+                    "uuid" : "31d8a2b2-e4c8-4aec-bc7a-bc31139c3c33",
+                    "pipelineUuid" : "67ee1b97-2f62-45e8-bdd7-ff2ae6a88ad3",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-08T09:58:31.573599173Z",
-                    "finished" : "2026-08-08T09:58:31.573699103Z",
+                    "started" : "2026-08-09T12:30:37.759402655Z",
+                    "finished" : "2026-08-09T12:30:37.759527465Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -19291,11 +22850,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "7c0d3291-01ec-496c-bda5-4d785d6792ce",
-                    "pipelineUuid" : "2b3910ab-e348-432c-84ac-a8d0ab0a0e99",
+                    "uuid" : "06ea56ef-3923-43b2-a62f-f90c07139b26",
+                    "pipelineUuid" : "02628f39-bbbc-46b2-abb7-dedb3a426084",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-08T09:58:31.573830113Z",
-                    "finished" : "2026-08-08T09:58:31.573834343Z",
+                    "started" : "2026-08-09T12:30:37.759690594Z",
+                    "finished" : "2026-08-09T12:30:37.759695594Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -19388,11 +22947,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "df73d5d5-482a-4673-a66a-e0e8d37ec9db",
-                  "pipelineUuid" : "04dd93f9-a09c-4e14-8208-09592f170ea8",
+                  "uuid" : "14c77f9a-c588-48c8-b804-53b5a1521370",
+                  "pipelineUuid" : "379f2a6a-8285-4cd8-9524-48d6e6a819c9",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-08T09:58:31.574655892Z",
-                  "finished" : "2026-08-08T09:58:31.574662992Z",
+                  "started" : "2026-08-09T12:30:37.760652272Z",
+                  "finished" : "2026-08-09T12:30:37.760659352Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -19882,16 +23441,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "40e066e0-2a0b-43a8-b1a4-f5388667d475",
-                    "runUuid" : "c1576aca-ee10-439b-80ea-670bbcc6b50c",
+                    "uuid" : "3964f6f8-440f-4200-856b-e94d0e829643",
+                    "runUuid" : "15188338-a08e-4474-963b-809f1855aeab",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "d8685689-54ca-431e-ad82-18462cc83944",
-                    "runUuid" : "3e7a74ed-fafa-430a-912d-1190dc2e4974",
+                    "uuid" : "38bbc096-feb1-418e-a1be-8e3bde82d6db",
+                    "runUuid" : "059cde59-89dd-4c54-a3be-3ef258bf5350",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -19992,9 +23551,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "a060c765-98b8-41f1-b366-fd6e4e0308a7",
-                    "itemUuid" : "425fb98f-f167-466c-b6ef-63626c8d6032",
-                    "runUuid" : "264f4bbf-a30f-46dd-94f0-f1268dc9bd7c",
+                    "uuid" : "d7d83006-4cb6-4ae0-b915-cfee93412c64",
+                    "itemUuid" : "dedc4bcb-0edf-4b9d-b990-17765fb63740",
+                    "runUuid" : "69e11b49-5fc6-47d3-930b-2afb380e37b9",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -20660,7 +24219,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "6f4ce01b-7f77-4aab-a9d8-001ad7c8b587",
+                    "versionUuid" : "263d6a8b-cc9d-452e-9c89-92ad288a55cc",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20687,7 +24246,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "626f45b3-7031-4e56-bdaf-ad42d3462f0f",
+                    "versionUuid" : "148f6835-63bf-497b-af94-5a808e3cc85e",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -20798,7 +24357,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "0b752303-53a3-425b-b924-98dea8befe83",
+                  "versionUuid" : "0a9d3662-bbb8-45e7-a497-635d203cbaf5",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -20923,7 +24482,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "797ab3b6-9e92-4a3a-b657-8b19f7c320bb",
+                  "versionUuid" : "a43ad735-9d16-41a0-8fa9-da216651ff36",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

@@ -406,47 +406,53 @@
   },
   "monitoring": {
     "title": "Monitoring & Statistiken",
-    "subtitle": "Rollende 14-Tage-Metriken",
-    "sampleData": "Beispieldaten",
-    "loadError": "Pipeline-Läufe konnten nicht geladen werden",
+    "subtitle": "Live-Metriken der Instanz",
+    "loadError": "Pipeline-Laufdaten konnten nicht geladen werden",
+    "metricsError": "Instanz-Metriken konnten nicht gelesen werden — es wird der letzte erfolgreiche Snapshot gezeigt",
     "kpi": {
-      "dailyIngest": "Tägliche Ingestion",
-      "assets": "Assets",
-      "assetsToday": "Heute ingestionierte Assets",
-      "pipelineRuns": "Pipeline-Läufe (7T)",
+      "pipelineRuns": "Pipeline-Läufe (7 T)",
       "runs": "Läufe",
       "allPipelines": "Alle Pipelines",
-      "avgLatency": "Ø Latenz",
-      "processingPipeline": "Verarbeitungs-Pipeline",
-      "storageUsed": "Speicher verwendet",
-      "totalLibraries": "Gesamt über alle Bibliotheken",
-      "openTasks": "Offene Aufgaben",
-      "allProjects": "Über alle Spaces",
-      "agentQueries": "Agent-Anfragen (14T)",
-      "totalAgentQueries": "Gesamte Loom-Agent-Anfragen",
-      "annotations": "Annotationen (14T)",
-      "newAnnotations": "Neue Annotationen erstellt"
+      "activeRuns": "Aktive Läufe",
+      "activeRunsSub": "Läufe, die die Engine gerade steuert",
+      "tasksInFlight": "Tasks in Bearbeitung",
+      "ofCeiling": "von {{ceiling}} Slots über alle laufenden Läufe",
+      "noCeiling": "Kein Lauf gibt ein Limit an",
+      "avgTaskLatency": "Ø Task-Latenz",
+      "completedTasks": "Zuweisung bis Ergebnis, abgeschlossene Tasks",
+      "workersOnline": "Worker online",
+      "ofConnected": "von {{connected}} verbunden",
+      "dispatchFailures": "Zuweisungsfehler",
+      "deadLettered": "{{count}} Tasks endgültig verworfen",
+      "parkedKinds": "Pausierte Node-Typen",
+      "allKindsDispatching": "Alle Node-Typen werden zugewiesen"
     },
     "chart": {
-      "ingestion": "Asset-Ingestion (14T)",
-      "pipelineRuns": "Pipeline-Läufe (14T)",
-      "taskBacklog": "Aufgaben-Rückstand",
-      "latency": "Verarbeitungslatenz (ms)",
-      "storage": "Speicherwachstum (TB)",
-      "agentUsage": "Agent-Nutzung (14T)"
+      "pipelineRuns": "Pipeline-Läufe (14 T)",
+      "outcomes": "Node-Ergebnisse nach Typ",
+      "workers": "Worker nach Status",
+      "latencyByKind": "Task-Latenz nach Typ (ms)",
+      "throughput": "Live-Durchsatz (Ergebnisse/s)",
+      "saturation": "Live: in Bearbeitung vs. Limit"
     },
     "series": {
-      "assets": "Assets",
-      "success": "Erfolg",
+      "success": "Erfolgreich",
       "failed": "Fehlgeschlagen",
       "skipped": "Übersprungen",
-      "open": "Offen",
-      "overdue": "Überfällig",
-      "avg": "Ø",
-      "p99": "P99",
-      "storage": "Speicher",
-      "queries": "Anfragen",
-      "actions": "Aktionen"
+      "completed": "Abgeschlossen",
+      "workers": "Worker",
+      "mean": "Mittel",
+      "worst": "Schlechtester",
+      "perSecond": "Ergebnisse/s",
+      "inFlight": "In Bearbeitung",
+      "ceiling": "Limit"
+    },
+    "empty": {
+      "loading": "Metriken werden gelesen…",
+      "collecting": "Wird gesammelt — eine Rate braucht zwei Messpunkte",
+      "noResults": "Noch keine Node-Ergebnisse erfasst",
+      "noWorkers": "Es hat sich noch nie ein Worker registriert",
+      "noLatency": "Noch kein Task abgeschlossen"
     }
   },
   "tags": {
@@ -824,7 +830,8 @@
         "DELETE_MEMORY_DENY_RULE": "Memory-Sperrregeln löschen — Muster, die der Agent niemals speichern darf.",
         "UPDATE_MEMORY_DENY_RULE": "Bestehende Memory-Sperrregeln bearbeiten — Muster, die der Agent niemals speichern darf.",
         "MANAGE_CORTEX_INSTANCE": "Registrierte Cortex-Worker verwalten — Verarbeitungsinstanzen freigeben, konfigurieren und entfernen.",
-        "READ_CORTEX_INSTANCE": "Registrierte Cortex-Worker und deren Status ansehen."
+        "READ_CORTEX_INSTANCE": "Registrierte Cortex-Worker und deren Status ansehen.",
+        "READ_METRIC": "Instanz-Metriken lesen — Pipeline-Durchsatz, Task-Latenz, Worker-Zustand. Nötig, um das Monitoring-Dashboard zu öffnen."
       },
       "dialog": {
         "create": "Rolle erstellen",
@@ -1493,7 +1500,8 @@
       "denyBtn": "Ablehnen (N)",
       "assignPerson": "Person zuweisen…",
       "noClusters": "Keine Gesichts-Cluster für dieses Asset",
-      "empty": "Keine Gesichts-Cluster für dieses Asset"
+      "empty": "Keine Gesichts-Cluster für dieses Asset",
+      "personsFailed": "Personenliste konnte nicht geladen werden — ein Name kann weiterhin eingetippt werden"
     },
     "objectMode": {
       "detectedObjects": "Erkannte Objekte ({{count}})",
@@ -1510,7 +1518,9 @@
       "approve": "Genehmigen (Y)",
       "reject": "Ablehnen (N)",
       "approveBtn": "Genehmigen (Y)",
-      "rejectBtn": "Ablehnen (N)"
+      "rejectBtn": "Ablehnen (N)",
+      "loading": "Modell-Ausgabe wird geladen…",
+      "noResult": "Für dieses Asset wurde noch kein Vision-Modell-Ergebnis geschrieben."
     },
     "profiles": {
       "title": "Tastenprofile",

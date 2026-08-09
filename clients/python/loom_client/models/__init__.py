@@ -238,6 +238,10 @@ from .memory import (
     MemoryDenyRuleResponse,
     MemoryDenyRuleUpdateRequest,
 )
+from .metrics import (
+    MetricRecord,
+    MetricsResponse,
+)
 from .noderesult import (
     NodeResultCreateRequest,
     NodeResultListResponse,
@@ -560,6 +564,8 @@ __all__ = [
     "MemoryDenyRuleResponse",
     "MemoryDenyRuleUpdateRequest",
     "MetaModel",
+    "MetricRecord",
+    "MetricsResponse",
     "Model",
     "NamedReference",
     "NodeAvailability",

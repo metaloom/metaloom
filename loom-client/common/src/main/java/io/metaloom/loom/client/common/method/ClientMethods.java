@@ -40,6 +40,7 @@ public interface ClientMethods extends
 	DedupGroupMethods,
 	GraphQLMethods,
 	HealthMethods,
+	MetricsMethods,
 	InfoMethods {
 
 }

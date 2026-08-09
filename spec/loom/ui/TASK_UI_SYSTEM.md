@@ -65,7 +65,7 @@ block, next to the version/dbRevision/lastUsed chips.
 
 ---
 
-## Task 2: Finish de-mocking the Monitoring dashboard
+## Task 2: Finish de-mocking the Monitoring dashboard — ✅ DONE (2026-08-09)
 
 **Argumentation Summary:** [MonitoringArea.tsx](../../../loom-ui/src/features/monitoring/MonitoringArea.tsx)
 still imports `METRICS` from `src/mock/data.ts` and uses it for the ingestion, latency, storage,
@@ -107,6 +107,28 @@ deleted — WorkflowView is then its last consumer (TASK_UI_AI_ML.md).
 - Failure path in the same spec: `/health` 500 and `/processors` 403 render Unknown / hidden
   tiles with the page still usable.
 
+**Outcome (2026-08-09).** The long-term path was taken directly, as part of
+[../../tasks/LOOM_UI_TASKS.md](../../tasks/LOOM_UI_TASKS.md) Task 12: `GET /api/v1/metrics` now
+exists (`READ_METRIC`, `V2.84`, [../../features/ops/METRICS.md](../../features/ops/METRICS.md)
+§3.2), `src/api/metrics.ts` reads it, and `src/mock/` is deleted — so the short-term badging work
+became moot and no badge remains to audit. The spec's premise "the general `GET /api/v1/metrics`
+LOOM_UI.md describes does not exist" is no longer true.
+
+What landed differs from the prompt in two ways:
+
+- **The worker tile reads the metric catalog, not `/processors`.** `loom_processors_by_state{online}`
+  against `loom_processors_connected` is the same fact from the source the rest of the screen already
+  polls, and it distinguishes *attached* from *placeable* — which a count from `/processors` does
+  not. No 403 branch is needed: the tile lives behind the same `READ_METRIC` gate as its neighbours.
+- **Task backlog was removed rather than rebuilt from `/tasks`.** Counting open tasks would give one
+  number and no history, and the panel was a two-line time series. It belongs with the other
+  day-bucketed roll-ups named in [LOOM_UI.md](LOOM_UI.md) §7.7, which need a roll-up endpoint that
+  does not exist.
+
+**Open follow-up:** the health tile. `GET /api/v1/health` is unauthenticated and already consumed by
+`MaintenanceView`; a tile on this screen showing `UP`/`DEGRADED` with `MaintenanceView`'s tone
+mapping is still worth having and was not built.
+
 ---
 
 ## Closed items (outcome records)
@@ -116,5 +138,5 @@ deleted — WorkflowView is then its last consumer (TASK_UI_AI_ML.md).
 | Surface instance info (version, dbRevision, lastUsed) | [api/info.ts](../../../loom-ui/src/api/info.ts) → MaintenanceView chips; `e2e/maintenance-mocked.spec.ts` |
 | Surface health status honestly (real DB card, gated unavailable cards) | [api/health.ts](../../../loom-ui/src/api/health.ts) → MaintenanceView |
 | Back the pipeline-run KPI + chart with real aggregation instead of mock | `loadPipelineRunStats` + [runMetrics.ts](../../../loom-ui/src/features/monitoring/runMetrics.ts) (`runMetrics.test.ts`), deltas computed from the real series |
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `566a2cf3`_
+_Last updated: 2026-08-09 (Task 2 closed — `GET /api/v1/metrics` landed and `src/mock/` is gone; the health tile remains an open follow-up). Earlier: 2026-08-06 (reference sweep — no content changes)_

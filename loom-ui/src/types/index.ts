@@ -251,18 +251,6 @@ export interface BlacklistEntry {
   expiresAt?: string;
 }
 
-// Metrics
-export interface MetricPoint {
-  ts: string;
-  value: number;
-}
-
-export interface MetricSeries {
-  label: string;
-  color: string;
-  data: MetricPoint[];
-}
-
 // Chat
 export type ChatMessageRole = "user" | "assistant" | "system";
 

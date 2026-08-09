@@ -208,6 +208,10 @@ public enum RolePermission {
 	MANAGE_CORTEX_INSTANCE,
 	READ_CORTEX_INSTANCE,
 
+	// Metrics. Gate on GET /api/v1/metrics, the JSON read of the loom_* catalog on the app REST
+	// port. The Prometheus scrape on the monitoring port is network-gated and never sees this.
+	READ_METRIC,
+
 	// Search. Wholesale gate on /api/v1/search/*. The endpoint additionally narrows the requested
 	// entity types against the READ_* permissions above and drops the ones the caller may not see,
 	// because search is cross-entity by construction.

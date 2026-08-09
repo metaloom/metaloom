@@ -1,0 +1,16 @@
+-- Reading the Loom metric catalog over the app REST port: GET /api/v1/metrics.
+--
+-- Separate from READ_CORTEX_INSTANCE even though both describe the processing fleet. That one says
+-- "you may see which workers are attached"; this one says "you may see how the whole instance is
+-- performing" — pipeline throughput, task latency, dispatch failures, circuit-breaker state and
+-- authentication failure counts. Those are operator facts, and an operator role is not the same
+-- role as one that may list workers.
+--
+-- The Prometheus scrape surface is unaffected: /metrics on the monitoring port (8989) stays
+-- unauthenticated and network-gated, exactly as METRICS.md §1 describes. This permission gates only
+-- the JSON read on the public REST port, which a browser can reach and a Prometheus never uses.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- Nothing else may go in this file.
+ALTER TYPE loom_permission ADD VALUE IF NOT EXISTS 'READ_METRIC';

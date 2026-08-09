@@ -1,42 +1,31 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Box, Typography, Paper, Grid, Chip, Alert,
+  Box, Typography, Paper, Alert,
 } from "@mui/material";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import {
-  CloudUploadOutlined, AccountTreeOutlined, SpeedOutlined,
-  StorageOutlined, TaskAltOutlined, BookmarkBorderOutlined,
-  AutoAwesome,
+  AccountTreeOutlined, SpeedOutlined,
+  PlayCircleOutlineOutlined, MemoryOutlined, DnsOutlined,
+  ReportProblemOutlined, BlockOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
-import { METRICS } from "../../mock/data";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { loadPipelineRunStats, PipelineRunDayStats } from "../../api/pipelines";
 import { subscribePipelineEvents, PipelineEventMessage } from "../../api/pipelineEvents";
+import { loadMetrics, type MetricRecord } from "../../api/metrics";
 import { formatDeltaPct, summarizeRunStats } from "./runMetrics";
-
-// ── Sample data badge ─────────────────────────────────────────────────────
-// Marks panels that still render synthetic demo series so they cannot be
-// mistaken for live metrics.
-function SampleDataBadge() {
-  const { t } = useTranslation();
-  return (
-    <Chip
-      data-testid="sample-data-badge"
-      label={t("monitoring.sampleData")}
-      size="small"
-      sx={{ height: 16, fontSize: "0.6rem", bgcolor: `${tokens.accent.amber}22`, color: tokens.accent.amber }}
-    />
-  );
-}
+import {
+  appendSample, latencyByKind, outcomesByKind, summarizeFleet, toLiveSample, toLiveSeries,
+  workersByState, POLL_INTERVAL_MS, type LiveSample,
+} from "./metricsPanels";
 
 // ── KPI Card ──────────────────────────────────────────────────────────────
 function KPICard({
-  title, value, unit, delta, color, icon, subtitle, sample, testId,
+  title, value, unit, delta, color, icon, subtitle, testId,
 }: {
   title: string;
   value: string | number;
@@ -45,7 +34,6 @@ function KPICard({
   color: string;
   icon: React.ReactNode;
   subtitle?: string;
-  sample?: boolean;
   testId?: string;
 }) {
   return (
@@ -77,7 +65,6 @@ function KPICard({
             <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: "0.07em", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
               {title}
             </Typography>
-            {sample && <SampleDataBadge />}
           </Box>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5, mt: 0.25 }}>
             <Typography variant="h4" fontWeight={700} sx={{ fontSize: "1.75rem", color: tokens.text.primary, lineHeight: 1 }}>
@@ -101,12 +88,19 @@ function KPICard({
 }
 
 // ── Chart Card ────────────────────────────────────────────────────────────
-function ChartCard({ title, children, height = 160, sample, testId }: {
+/**
+ * A panel with a title and, when its series is empty, a reason instead of an empty plot.
+ *
+ * A blank chart and a chart of zeroes look identical, and neither says which one it is. `empty` is
+ * rendered whenever there is nothing to draw, so "no worker has run anything yet" never reads as
+ * "throughput is zero".
+ */
+function ChartCard({ title, children, height = 160, testId, empty }: {
   title: string;
   children: React.ReactNode;
   height?: number;
-  sample?: boolean;
   testId?: string;
+  empty?: string;
 }) {
   return (
     <Paper
@@ -121,10 +115,15 @@ function ChartCard({ title, children, height = 160, sample, testId }: {
     >
       <Box sx={{ px: 2, py: 1.5, borderBottom: `1px solid ${tokens.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.875rem" }}>{title}</Typography>
-        {sample && <SampleDataBadge />}
       </Box>
       <Box sx={{ p: 1.5, height }}>
-        {children}
+        {empty
+          ? (
+            <Box data-testid="chart-empty" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem", textAlign: "center" }}>{empty}</Typography>
+            </Box>
+          )
+          : children}
       </Box>
     </Paper>
   );
@@ -147,7 +146,28 @@ const tooltipStyle = {
   labelStyle: { color: tokens.text.secondary },
 };
 
+/** Clock time of a live sample, which is the only axis a five-minute window can use. */
+function clockTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/** A KPI value that has no reading yet shows a dash rather than a zero it cannot justify. */
+function orDash(value: number | undefined, digits = 0): string {
+  return value === undefined ? "—" : value.toFixed(digits);
+}
+
 // ── Main Monitoring Area ──────────────────────────────────────────────────
+/**
+ * The instance dashboard, drawn entirely from what Loom measures.
+ *
+ * Two independent sources, and a failure of either degrades only its own panels:
+ *
+ * - `GET /pipelines/runs/stats` — the one genuinely historical series Loom keeps, because pipeline
+ *   runs are database rows with dates. It is the only chart here with a day axis.
+ * - `GET /metrics` — the `loom_*` meter catalog, polled. Meters have no history, so the panels fed
+ *   by it are either instantaneous (in flight, workers, breaker state, per-kind totals) or a rate
+ *   differenced across polls and labelled as live. Nothing here interpolates a past it did not see.
+ */
 export default function MonitoringArea() {
   const { t } = useTranslation();
   const { token } = useAuth();
@@ -182,6 +202,38 @@ export default function MonitoringArea() {
     return subscribePipelineEvents(handle, token);
   }, [token, loadRunStats]);
 
+  // ── Metric catalog ──────────────────────────────────────────────────────
+  // null = not read yet; [] is a valid answer from an instance that has recorded nothing.
+  const [metrics, setMetrics] = useState<MetricRecord[] | null>(null);
+  const [metricsError, setMetricsError] = useState(false);
+  const [history, setHistory] = useState<LiveSample[]>([]);
+
+  // The poll must not be torn down and rebuilt on every state change it causes, so the effect below
+  // depends on the token alone and reaches the fetch through a ref.
+  const pollRef = useRef<() => void>(() => { });
+  pollRef.current = () => {
+    if (!token) return;
+    loadMetrics(token)
+      .then(response => {
+        setMetrics(response.metrics ?? []);
+        setMetricsError(false);
+        setHistory(previous => appendSample(previous, toLiveSample(response)));
+      })
+      .catch(() => {
+        // Keep the last good snapshot on screen rather than blanking the dashboard on one bad poll,
+        // and say so in the banner. A transient 502 is not a fleet that went to zero.
+        setMetrics(previous => previous ?? []);
+        setMetricsError(true);
+      });
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    pollRef.current();
+    const handle = setInterval(() => pollRef.current(), POLL_INTERVAL_MS);
+    return () => clearInterval(handle);
+  }, [token]);
+
   const runSummary = useMemo(() => summarizeRunStats(runStats ?? []), [runStats]);
   const runChartData = useMemo(() => (runStats ?? []).map(b => ({
     ts: b.date,
@@ -190,12 +242,16 @@ export default function MonitoringArea() {
     skipped: b.skippedCount,
   })), [runStats]);
 
-  // Compute KPI snapshot values from latest data points
-  const lastIngestion = METRICS.ingestion[0].data.slice(-1)[0]?.value ?? 0;
-  const lastLatency = METRICS.latency[0].data.slice(-1)[0]?.value ?? 0;
-  const storageLatest = METRICS.storage[0].data.slice(-1)[0]?.value ?? 0;
-  const openTasks = METRICS.taskBacklog[0].data.slice(-1)[0]?.value ?? 0;
-  const chatQueries = METRICS.chatUsage[0].data.reduce((a, b) => a + b.value, 0);
+  const fleet = useMemo(() => summarizeFleet(metrics ?? []), [metrics]);
+  const outcomes = useMemo(() => outcomesByKind(metrics ?? []), [metrics]);
+  const latencies = useMemo(() => latencyByKind(metrics ?? []), [metrics]);
+  const workers = useMemo(() => workersByState(metrics ?? []), [metrics]);
+  const live = useMemo(() => toLiveSeries(history), [history]);
+
+  const loading = metrics === null;
+  const noMetrics = loading ? t("monitoring.empty.loading") : undefined;
+  // One point cannot be a rate, so the live charts say what they are waiting for.
+  const noLive = live.length === 0 ? (loading ? t("monitoring.empty.loading") : t("monitoring.empty.collecting")) : undefined;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%", bgcolor: tokens.bg.base }}>
@@ -208,41 +264,32 @@ export default function MonitoringArea() {
         {runStatsError && (
           <Alert severity="warning" sx={{ mb: 2 }}>{t("monitoring.loadError")}</Alert>
         )}
+        {metricsError && (
+          <Alert severity="warning" data-testid="metrics-error" sx={{ mb: 2 }}>{t("monitoring.metricsError")}</Alert>
+        )}
 
         {/* KPI Row */}
         <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 2, mb: 3 }}>
-          <KPICard title={t("monitoring.kpi.dailyIngest")} value={lastIngestion} unit={t("monitoring.kpi.assets")} delta="+14%" color={tokens.primary.main} icon={<CloudUploadOutlined />} subtitle={t("monitoring.kpi.assetsToday")} sample />
           <KPICard title={t("monitoring.kpi.pipelineRuns")} value={runStats === null ? "—" : runSummary.totalRuns7d} unit={t("monitoring.kpi.runs")} delta={formatDeltaPct(runSummary.runsDeltaPct)} color={tokens.accent.teal} icon={<AccountTreeOutlined />} subtitle={t("monitoring.kpi.allPipelines")} testId="kpi-pipeline-runs" />
-          <KPICard title={t("monitoring.kpi.avgLatency")} value={lastLatency} unit="ms" delta={lastLatency > 400 ? "+5%" : "-3%"} color={tokens.accent.blue} icon={<SpeedOutlined />} subtitle={t("monitoring.kpi.processingPipeline")} sample />
-          <KPICard title={t("monitoring.kpi.storageUsed")} value={storageLatest.toFixed(1)} unit="TB" color={tokens.accent.amber} icon={<StorageOutlined />} subtitle={t("monitoring.kpi.totalLibraries")} sample />
-          <KPICard title={t("monitoring.kpi.openTasks")} value={openTasks} delta="-2%" color={tokens.accent.green} icon={<TaskAltOutlined />} subtitle={t("monitoring.kpi.allProjects")} sample />
-          <KPICard title={t("monitoring.kpi.agentQueries")} value={chatQueries} color={tokens.primary.light} icon={<AutoAwesome />} subtitle={t("monitoring.kpi.totalAgentQueries")} sample />
-          <KPICard title={t("monitoring.kpi.annotations")} value={METRICS.annotations[0].data.reduce((a, b) => a + b.value, 0)} color={tokens.accent.red} icon={<BookmarkBorderOutlined />} subtitle={t("monitoring.kpi.newAnnotations")} sample />
+          <KPICard title={t("monitoring.kpi.activeRuns")} value={orDash(fleet.activeRuns)} color={tokens.primary.main} icon={<PlayCircleOutlineOutlined />} subtitle={t("monitoring.kpi.activeRunsSub")} testId="kpi-active-runs" />
+          <KPICard title={t("monitoring.kpi.tasksInFlight")} value={orDash(fleet.inFlight)} color={tokens.accent.blue} icon={<MemoryOutlined />}
+            /* A run configured as unlimited contributes 0 to the ceiling, so "of 0 slots" would be a
+               lie in the alarming direction. Say unlimited instead. */
+            subtitle={fleet.inFlightCeiling ? t("monitoring.kpi.ofCeiling", { ceiling: fleet.inFlightCeiling }) : t("monitoring.kpi.noCeiling")}
+            testId="kpi-tasks-inflight" />
+          <KPICard title={t("monitoring.kpi.avgTaskLatency")} value={orDash(fleet.meanLatencyMs)} unit="ms" color={tokens.accent.amber} icon={<SpeedOutlined />} subtitle={t("monitoring.kpi.completedTasks")} testId="kpi-task-latency" />
+          <KPICard title={t("monitoring.kpi.workersOnline")} value={orDash(fleet.workersOnline)} color={tokens.accent.green} icon={<DnsOutlined />}
+            subtitle={t("monitoring.kpi.ofConnected", { connected: fleet.workersConnected ?? 0 })} testId="kpi-workers" />
+          <KPICard title={t("monitoring.kpi.dispatchFailures")} value={fleet.dispatchFailures} color={tokens.accent.red} icon={<ReportProblemOutlined />} subtitle={t("monitoring.kpi.deadLettered", { count: fleet.deadLettered })} testId="kpi-dispatch-failures" />
+          <KPICard title={t("monitoring.kpi.parkedKinds")} value={fleet.parked.length} color={fleet.parked.length > 0 ? tokens.accent.red : tokens.primary.light} icon={<BlockOutlined />}
+            subtitle={fleet.parked.length > 0 ? fleet.parked.join(", ") : t("monitoring.kpi.allKindsDispatching")} testId="kpi-parked-kinds" />
         </Box>
 
         {/* Charts Grid */}
         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr", lg: "2fr 1fr 1fr" }, gap: 2 }}>
-          {/* Ingestion throughput */}
-          <ChartCard title={t("monitoring.chart.ingestion")} height={180} sample>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={METRICS.ingestion[0].data} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                <defs>
-                  <linearGradient id="ingestionGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={tokens.primary.main} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={tokens.primary.main} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
-                <XAxis dataKey="ts" tickFormatter={v => new Date(v).toLocaleDateString("en", { month: "short", day: "numeric" })} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
-                <Tooltip {...tooltipStyle} />
-                <Area type="monotone" dataKey="value" name="Assets" stroke={tokens.primary.main} fill="url(#ingestionGrad)" strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          {/* Pipeline runs — real cross-pipeline aggregation */}
-          <ChartCard title={t("monitoring.chart.pipelineRuns")} height={180} testId="monitoring-runs-chart">
+          {/* Pipeline runs — the one series with real history, from the run table */}
+          <ChartCard title={t("monitoring.chart.pipelineRuns")} height={180} testId="monitoring-runs-chart"
+            empty={runStats === null ? t("monitoring.empty.loading") : undefined}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={runChartData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
@@ -257,64 +304,83 @@ export default function MonitoringArea() {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Task backlog */}
-          <ChartCard title={t("monitoring.chart.taskBacklog")} height={180} sample>
+          {/* Node task outcomes, per node kind */}
+          <ChartCard title={t("monitoring.chart.outcomes")} height={180} testId="monitoring-outcomes-chart"
+            empty={noMetrics ?? (outcomes.length === 0 ? t("monitoring.empty.noResults") : undefined)}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={METRICS.taskBacklog[0].data.map((d, i) => ({ ts: d.ts, open: d.value, overdue: METRICS.taskBacklog[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <BarChart data={outcomes} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
-                <XAxis dataKey="ts" tickFormatter={v => new Date(v).toLocaleDateString("en", { day: "numeric" })} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="kind" interval={0} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
                 <Tooltip {...tooltipStyle} />
-                <Line type="monotone" dataKey="open" name="Open" stroke={tokens.accent.amber} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="overdue" name="Overdue" stroke={tokens.accent.red} strokeWidth={2} dot={false} strokeDasharray="4 2" />
-              </LineChart>
+                <Bar dataKey="completed" name={t("monitoring.series.completed")} fill={tokens.accent.green} radius={[2, 2, 0, 0]} stackId="outcome" />
+                <Bar dataKey="failed" name={t("monitoring.series.failed")} fill={tokens.accent.red} radius={[2, 2, 0, 0]} stackId="outcome" />
+                <Bar dataKey="skipped" name={t("monitoring.series.skipped")} fill={tokens.accent.amber} radius={[2, 2, 0, 0]} stackId="outcome" />
+              </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Processing latency */}
-          <ChartCard title={t("monitoring.chart.latency")} height={170} sample>
+          {/* Workers by lifecycle state */}
+          <ChartCard title={t("monitoring.chart.workers")} height={180} testId="monitoring-workers-chart"
+            empty={noMetrics ?? (workers.length === 0 ? t("monitoring.empty.noWorkers") : undefined)}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={METRICS.latency[0].data.map((d, i) => ({ ts: d.ts, avg: d.value, p99: METRICS.latency[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <BarChart data={workers} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
-                <XAxis dataKey="ts" tickFormatter={v => new Date(v).toLocaleDateString("en", { day: "numeric" })} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="state" interval={0} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
                 <Tooltip {...tooltipStyle} />
-                <Line type="monotone" dataKey="avg" name="Avg" stroke={tokens.accent.blue} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="p99" name="P99" stroke={tokens.accent.amber} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
-              </LineChart>
+                <Bar dataKey="count" name={t("monitoring.series.workers")} fill={tokens.accent.teal} radius={[2, 2, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Storage growth */}
-          <ChartCard title={t("monitoring.chart.storage")} height={170} sample>
+          {/* Dispatch-to-result latency, per node kind */}
+          <ChartCard title={t("monitoring.chart.latencyByKind")} height={170} testId="monitoring-latency-chart"
+            empty={noMetrics ?? (latencies.length === 0 ? t("monitoring.empty.noLatency") : undefined)}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={METRICS.storage[0].data} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+              <BarChart data={latencies} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+                <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
+                <XAxis dataKey="kind" interval={0} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(0)} />
+                <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v.toFixed(0)} ms`, ""]} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="meanMs" name={t("monitoring.series.mean")} fill={tokens.accent.blue} radius={[2, 2, 0, 0]} />
+                <Bar dataKey="maxMs" name={t("monitoring.series.worst")} fill={tokens.accent.amber} radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          {/* Live throughput — differenced across polls, never interpolated */}
+          <ChartCard title={t("monitoring.chart.throughput")} height={170} testId="monitoring-throughput-chart" empty={noLive}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={live} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <defs>
-                  <linearGradient id="storageGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={tokens.accent.teal} stopOpacity={0.3} />
-                    <stop offset="95%" stopColor={tokens.accent.teal} stopOpacity={0} />
+                  <linearGradient id="throughputGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={tokens.primary.main} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={tokens.primary.main} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
-                <XAxis dataKey="ts" tickFormatter={v => new Date(v).toLocaleDateString("en", { day: "numeric" })} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} tickFormatter={v => v.toFixed(1)} />
-                <Tooltip {...tooltipStyle} formatter={(v: number) => [v.toFixed(2) + " TB", "Storage"]} />
-                <Area type="monotone" dataKey="value" name="Storage" stroke={tokens.accent.teal} fill="url(#storageGrad)" strokeWidth={2} dot={false} />
+                <XAxis dataKey="ts" tickFormatter={clockTime} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <Tooltip {...tooltipStyle} labelFormatter={(v: number) => clockTime(v)} formatter={(v: number) => [v.toFixed(2), t("monitoring.series.perSecond")]} />
+                <Area type="monotone" dataKey="resultsPerSecond" name={t("monitoring.series.perSecond")} stroke={tokens.primary.main} fill="url(#throughputGrad)" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Agent chat usage */}
-          <ChartCard title={t("monitoring.chart.agentUsage")} height={170} sample>
+          {/* Live saturation — depth against its ceiling, which is what decides whether workers help */}
+          <ChartCard title={t("monitoring.chart.saturation")} height={170} testId="monitoring-inflight-chart" empty={noLive}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={METRICS.chatUsage[0].data.map((d, i) => ({ ts: d.ts, queries: d.value, actions: METRICS.chatUsage[1].data[i]?.value ?? 0 }))} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+              <LineChart data={live} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
                 <CartesianGrid stroke={tokens.border.subtle} vertical={false} />
-                <XAxis dataKey="ts" tickFormatter={v => new Date(v).toLocaleDateString("en", { day: "numeric" })} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
-                <Tooltip {...tooltipStyle} />
-                <Bar dataKey="queries" name="Queries" fill={tokens.primary.main} radius={[2, 2, 0, 0]} />
-                <Bar dataKey="actions" name="Actions" fill={tokens.accent.blue} radius={[2, 2, 0, 0]} />
-              </BarChart>
+                <XAxis dataKey="ts" tickFormatter={clockTime} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tick={{ ...chartStyle, fill: tokens.text.tertiary }} tickLine={false} axisLine={false} />
+                <Tooltip {...tooltipStyle} labelFormatter={(v: number) => clockTime(v)} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="inFlight" name={t("monitoring.series.inFlight")} stroke={tokens.accent.blue} strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="ceiling" name={t("monitoring.series.ceiling")} stroke={tokens.accent.amber} strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+              </LineChart>
             </ResponsiveContainer>
           </ChartCard>
         </Box>

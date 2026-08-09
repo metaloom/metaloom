@@ -126,6 +126,7 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRecord;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
+import io.metaloom.loom.rest.model.metrics.MetricsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionListResponse;
@@ -722,6 +723,22 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PipelineRunStatsResponse> loadPipelineRunStats() {
 		return getRequest("pipelines/runs/stats", PipelineRunStatsResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<MetricsResponse> loadMetrics() {
+		return getRequest("metrics", MetricsResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<MetricsResponse> loadMetrics(String prefix) {
+		// A real query parameter, not a path suffix: getRequest encodes what it is given as a path, so
+		// an inlined "?prefix=" arrives as %3Fprefix= and 404s.
+		LoomClientHttpRequest<MetricsResponse> request = getRequest("metrics", MetricsResponse.class);
+		if (prefix != null) {
+			request.addQueryParameter("prefix", prefix);
+		}
+		return request;
 	}
 
 	@Override
