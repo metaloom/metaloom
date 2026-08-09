@@ -9,6 +9,7 @@
 
 | Topic | Spec |
 |---|---|
+| Definition validation: the rules, error codes, `POST /pipelines/validate`, the client contract | [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
 | Port model, content types, cardinality, fan-out/gather, coercion, per-kind port tables | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) |
 | Individual nodes: lifecycle, options, MetaStorage, per-node reference, node restriction | [../pipeline-nodes/NODES.md](../nodes/NODES.md) |
 | WebSocket framing, auth, reconnect, message-by-message reference | [../../loom/WEBSOCKET.md](../../loom/WEBSOCKET.md) |
@@ -307,19 +308,29 @@ passes a null registry; `PortGraphAnalyzer.analyze` then returns immediately and
 every node stays `SINGLE`. Convenient in tests, dangerous in production —
 `PipelineRunRecovery` currently uses it.
 
-### 5.1 Validation lives in three places
+### 5.1 Validation — owned by [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md)
 
-| Copy | Location | Notes |
-|---|---|---|
-| `PipelineValidationService` | `loom/services/rest/…/validation/` | **The wired one.** Own structural checks (ids, edge refs, Kahn's cycle detection, reachable-from-source, branch-originates-from-filter) and **delegates all port rules to `PipelineGraphParser`** |
-| `PipelineModelValidator` | `loom-shared/rest-model/…/validation/` | Unwired, own copy of Kahn's. Now covered by `PipelineModelValidatorTest` (loom/services/rest) — delete those cases with the checks when Task 8 lands |
-| `validatePipeline()` | `loom-ui/…/PipelineEditor.tsx:2255` | Own TS implementation, plus live `isValidConnection` port checks while drawing |
+**The rules, the error codes, the `POST /pipelines/validate` route and the client contract are
+specified in [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md). Do not duplicate them here.**
+What this file owns is what the *parser* builds (above) and what the *engine* does with it
+(§6); validation is the layer between, and it grew large enough to need its own file.
 
-**Structural** rules are duplicated three ways and will drift. **Port** rules are
-not — do not add a second copy of those.
+The three facts a reader of this section needs:
 
-⚠️ `validateDefinition` **skips port checking entirely when the definition has no
-`edges` key** — the `validatePorts` call sits inside `if (edges != null)`. A single-node
+- `PipelineValidationService` (`loom/services/rest/…/validation/`) is the **single authority**
+  on whether a definition is acceptable. It owns the structural rules and **delegates every
+  port rule to `PipelineGraphParser`**. Four doors reach it — `create`, `update`,
+  `POST /pipelines/validate` and the `validate_pipeline` MCP tool — so a draft that validates
+  is a draft that saves.
+- It has **two entry points**: `collectErrors(JsonObject)` returns every problem (the route,
+  the MCP tool); `validateDefinition(JsonObject)` throws on the first (create, update). The
+  second is a thin wrapper over the first and the tests assert they agree.
+- There used to be **three copies** of the structural rules — this class,
+  `PipelineModelValidator` and `validatePipeline()` in `PipelineEditor.tsx`. They drifted,
+  which is why retired Task 8 existed. The other two are gone. **Do not add a second copy of
+  any of these rules, structural or port.**
+
+⚠️ Port checking is **skipped entirely when the definition has no `edges` key**. A single-node
 pipeline is legal, so this is deliberate; a graph *with* edges is the checked path.
 
 ### 5.2 One write path — `PipelineAuthoringService`
@@ -328,7 +339,9 @@ pipeline is legal, so this is deliberate; a graph *with* edges is the checked pa
 non-persisting `validate`. It takes a caller uuid and a request model and returns rows —
 no `LoomRoutingContext` — because there are now two doors onto the same operation:
 `PipelineEndpointService.create`/`update` (REST) and the `create_pipeline` /
-`update_pipeline` MCP tools ([../../loom/MCP.md §5.2a](../../loom/MCP.md)).
+`update_pipeline` MCP tools ([../../loom/MCP.md §5.2a](../../loom/MCP.md)). Its `validate`
+likewise serves both `PipelineEndpointService.validate` (`POST /pipelines/validate`) and the
+`validate_pipeline` tool.
 
 The order is load-bearing and unchanged: `validator.validate(request)` →
 `pipelineValidationService.validateDefinition` → `PipelineGraphParser.stampVersion` →
@@ -336,12 +349,11 @@ write pipeline → write version → repoint `latest_version_uuid`. Nothing is s
 the definition is known to be sound, which is what lets a rejected definition leave no
 row behind — the property an agent iterating on a draft depends on.
 
-`validate(definition)` runs the same checks and then adds two things save-time validation
-deliberately does not fail on, both **warnings**: kinds no online worker accepts
-(`unsupportedNodeKinds` — a `503` at run time) and `AffinityValidator` warnings. The
-affinity *fleet* check is skipped when unsupported kinds were already reported, since with
-nothing online the two say the same thing; `GROUP_SPLIT` still comes through. This is the
-first production caller of `AffinityValidator`.
+`validate(definition)` runs the same checks through `collectErrors`, so its `ValidationReport`
+carries the **whole** error list, and then adds the two **warnings** save-time validation
+deliberately does not fail on — unsupported node kinds and `AffinityValidator` output. This is
+the first and only production caller of `AffinityValidator`. Details, and why a warning is not
+an error, in [PIPELINE_VALIDATION.md §7](PIPELINE_VALIDATION.md).
 
 ⚠️ `DemoDatabaseInitializer.createPipeline` is still a **fourth** hand-rolled writer of
 `latest_version_uuid`, and deliberately skips validation so demo seeding cannot be broken
@@ -886,6 +898,7 @@ post-refactor, but the parameter is dead weight on the interface.
 | Method | Path | Response | Permission |
 |---|---|---|---|
 | POST | `/` | `PipelineResponse` | `CREATE_PIPELINE` |
+| POST | `/validate` | `PipelineValidationResponse` (200 even when invalid) | `CREATE_PIPELINE` |
 | GET | `/` | `PipelineListResponse` | `READ_PIPELINE` |
 | GET | `/:uuid` | `PipelineResponse` | `READ_PIPELINE` |
 | POST | `/:uuid` | `PipelineResponse` | `UPDATE_PIPELINE` |
@@ -916,7 +929,10 @@ post-refactor, but the parameter is dead weight on the interface.
 - Secured paths are enumerated **individually**, specifically so
   `/api/v1/pipelines/events/ws` escapes the auth chain. **A new endpoint is
   unauthenticated until you add it to that list.**
-- There is **no `POST /validate`** endpoint.
+- **`POST /validate` answers 200 with `valid: false`, not 400**, is gated on
+  **`CREATE_PIPELINE`** rather than `READ_PIPELINE`, and — like `/runs/stats` — is a **literal
+  prefix registered before the `:uuid` wildcard**. Full contract, error codes and the reasoning
+  for each of those three: [PIPELINE_VALIDATION.md §9](PIPELINE_VALIDATION.md).
 - **A run does not have to belong to a pipeline.** `/api/v1/node-runs` starts an *ad-hoc* run from a
   definition supplied with the request; those rows carry `kind = 'ADHOC'`, a null `pipeline_uuid`, and
   are deliberately invisible to every route above — including `/runs/stats`, which counts scheduled
@@ -969,6 +985,9 @@ with no routing context.
 `versionNumber`, `name`, `description`, `definition`, `enabled`, `dryRun`,
 `priority`); `PipelineModelBuilder` folds `Pipeline` + `PipelineVersion` into it, and
 creator/editor status comes from the **version**.
+
+`PipelineValidateRequest` / `PipelineValidationResponse` / `PipelineValidationError` are
+specified in [PIPELINE_VALIDATION.md §9](PIPELINE_VALIDATION.md), not here.
 
 ⚠️ `PipelineRunRecord.started`/`finished` are **ISO-8601 Strings**. `status` is a
 `PipelineRunStatus`; `PipelineRunItemRecord.state` a `RunItemState`; and
@@ -1103,7 +1122,7 @@ root first (and again after any Flyway change), or tests fail at
 | DAO | `PipelineDaoTest`, `PipelineVersionDaoTest`, `PipelineRunDaoTest`, `PipelineRunItemDaoTest`, `PipelineNodeTaskDaoTest` |
 | Status/state vocabularies | `PipelineVocabularyTest` (loom-shared/api — parse, terminality, cross-vocabulary rejection), `PipelineVocabularyDaoTest` (jooq — every value round-trips; a raw bad string written past the converter is rejected naming column and value), `PipelineVocabularyEndpointTest` (loom/core — every value out over REST as its own name, and a bad filter value is a 400) |
 | Cortex pipeline-common | `DefaultPipelineEventBusTest`, `DefaultLoomBulkSyncCollectorTest` |
-| Validation (shared model) | `PipelineModelValidatorTest` (loom/services/rest) |
+| Validation | `PipelineValidationServiceTest`, `PipelineValidateEndpointTest` (loom/core), `PipelineModelValidatorTest` — see [PIPELINE_VALIDATION.md §12](PIPELINE_VALIDATION.md) for what each covers and how to add a rule |
 | Cross-tree ports | `integration-test/…/NodePortConformanceTest` — reflects over every node's `IN_*`/`OUT_*` constants and holds them against its descriptor |
 
 ### 13.2 Node tests — use the chain base class
@@ -1126,9 +1145,10 @@ produce failure messages that name the port. Legacy-tree asserts live in
   by `DefaultPipelineEventBusTest` and `DefaultLoomBulkSyncCollectorTest`.
 - ~~No test for `LoomControlChannel` or `CortexNodeAdapter`'s adapter contract directly~~ —
   closed by `LoomControlChannelTest` and `CortexNodeAdapterTest`.
-- ~~`PipelineModelValidator` (the shared-model copy) is untested~~ — closed by
-  `PipelineModelValidatorTest`. Task 8 deletes the structural checks; delete the cases
-  covering them at the same time.
+- ~~`PipelineModelValidator` (the shared-model copy) is untested~~ — closed, then made
+  moot: Task 8 deleted its structural checks and the cases covering them. What is left is
+  request/response shape, plus one case asserting a broken definition is *not* rejected there
+  — the guard against someone restoring a second copy of the rules.
 - ~~No Java test for `POST /:uuid/run` dispatch shape or `DELETE /:uuid` cascade;
   versioning REST is covered only by mocked Playwright specs~~ — closed by
   `PipelineRunDispatchEndpointTest` and `PipelineVersionEndpointTest` (§13.1).
@@ -1236,7 +1256,7 @@ the fixture omits is a field nothing checks the stored representation of.
 | **Every edge carries `sourcePort` + `targetPort`** | The parser rejects the definition otherwise. The branch key is `branch`, not `edgeType` |
 | **`nodes[].dependencies[]` throws** | No inline fallback exists. A definition with *no* `edges` is still legal (single-node pipeline) |
 | **A node never names another node** | Data is addressed by port; the engine resolves which upstream `(node, port)` fills each input. Never reintroduce a node-id-keyed lookup |
-| **Port rules live in the parser** | `PipelineValidationService.validatePorts` delegates. Do not add a second copy. *Structural* rules are still triplicated (§5.1) |
+| **All validation lives in one class** | `PipelineValidationService`: structural rules its own, port rules delegated to `PipelineGraphParser`. The `PipelineModelValidator` and editor copies are deleted. Do not add a second copy of either — [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
 | **`new PipelineGraphParser()` disables port checking** | Null registry ⇒ `PortGraphAnalyzer.analyze` returns immediately, every node stays `SINGLE`. `PipelineRunRecovery` uses it |
 | **Exactly one source node** | Declared `source: true` wins; ambiguity is an error, never a guess |
 | **A source's output port must be named `media`** | `PipelineRunEngine.SOURCE_MEDIA_PORT` is the literal `"media"` |
@@ -1297,8 +1317,9 @@ the fixture omits is a field nothing checks the stored representation of.
 - [x] ~~Node caching is entirely unreachable~~ — resolved 2026-08-02: `cacheProvider()`
       and the five `NodeCacheProvider` impls are deleted; the segment-scoped
       `ArtifactCache` (§7.4) replaces the part that was actually wanted
-- [ ] Structural validation is triplicated (`PipelineValidationService`,
-      `PipelineModelValidator`, the editor); no standalone validation endpoint
+- [x] ~~Structural validation is triplicated (`PipelineValidationService`,
+      `PipelineModelValidator`, the editor); no standalone validation endpoint~~ — resolved:
+      `POST /api/v1/pipelines/validate`, and the other two copies deleted (§5.1)
 - [ ] `PipelineRunRecovery` uses the **no-arg** parser, so recovered runs skip port
       checking and every node is classified `SINGLE`
 - [ ] `PipelineRunRecovery` does not restore breakpoints (§6.4a): a run recovered after a
@@ -1328,5 +1349,5 @@ See [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) for the actionable breakd
 [NODE_DATA_TYPES.md §17](NODE_DATA_TYPES.md) for port-model progress.
 
 ---
-_Git HEAD revision: `716953c0`_
-_Last updated: 2026-08-07 (run status and both execution states are typed enums parsed at the jOOQ boundary — §9.1; V2.77 normalises the `FAILURE`/`FAILED` mismatch). Earlier: (versioning, run dispatch and delete-cascade now have Java endpoint tests — §13.1)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (validation extracted to PIPELINE_VALIDATION.md; 5.1 is now a pointer). Earlier: (Task 8: `POST /pipelines/validate`, and structural validation collapsed from three copies into `PipelineValidationService`)_

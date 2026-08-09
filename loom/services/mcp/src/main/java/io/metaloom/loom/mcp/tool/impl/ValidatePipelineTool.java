@@ -42,7 +42,7 @@ public class ValidatePipelineTool implements MCPTool {
 	public MCPToolDescriptor descriptor() {
 		return new MCPToolDescriptor(
 			"validate_pipeline",
-			"Check a pipeline definition without storing anything. Reports the first problem it finds — an unknown node kind, a port that "
+			"Check a pipeline definition without storing anything. Reports every problem it finds — an unknown node kind, a port that "
 				+ "does not exist, incompatible content types, an unwired required input, a cycle, an unreachable node. ALWAYS call this on a "
 				+ "draft and fix what it reports until it answers VALID, before calling create_pipeline or update_pipeline. Warnings are not "
 				+ "errors: a definition can be VALID and still warn that no worker is online for one of its node kinds.",
@@ -72,7 +72,15 @@ public class ValidatePipelineTool implements MCPTool {
 		StringBuilder sb = new StringBuilder();
 		if (!report.valid()) {
 			sb.append("INVALID: ").append(report.error()).append("\n");
-			sb.append("\nFix this and validate again. Only the first problem is reported, so there may be more.\n");
+			// Everything after the first is listed too, but separately: a model that reads six
+			// messages as one problem tends to rewrite six things. Later errors can also be
+			// consequences of the first, which is why the first keeps its own line.
+			if (report.errors().size() > 1) {
+				sb.append("\nAlso reported:\n");
+				report.errors().subList(1, report.errors().size())
+					.forEach(error -> sb.append("- ").append(error.getMessage()).append("\n"));
+			}
+			sb.append("\nFix these and validate again.\n");
 			return sb.toString();
 		}
 		sb.append("VALID — this definition would be accepted.\n");

@@ -50,6 +50,7 @@ import {
   listPipelineVersions, restorePipelineVersion,
   loadPipelineRunBreakpoints, setPipelineRunBreakpoints, continuePipelineRunBreakpoint,
   stepPipelineRun, type HeldExecution, reExecutePipelineRunNode,
+  validatePipelineDefinition,
 } from "../../api/pipelines";
 import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pipelineEvents";
 import { useAuth } from "../../context/AuthContext";
@@ -2765,16 +2766,27 @@ function CommandPaletteContent({
   );
 }
 
-// ── Pipeline validation (cycle detection, duplicate IDs, etc.) ──────────
+// ── Pipeline validation ────────────────────────────────────────────────
+//
+// The graph rules live on the server. `POST /pipelines/validate` runs the very code the save path
+// runs, so what it accepts is what saves — and it reports every problem at once. The editor used to
+// carry its own implementation of those rules, Kahn's algorithm and all, which is exactly how the
+// canvas and the server ended up disagreeing about which graphs were legal.
+//
+// What stays here is only what must answer without a round trip: `isValidConnection`, which decides
+// whether a wire may be dropped while the mouse is still down, and the two checks below, which
+// catch the states the server would answer to slowly or not at all.
 const NODE_ID_REGEX = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
 
 interface ValidationError {
-  type: "duplicateId" | "cycle" | "invalidId" | "noSource" | "multipleSource" | "unknownType"
-      | "unknownPort" | "typeMismatch" | "cardinality" | "xor" | "exclusive" | "requiredInput";
+  /** Server error code, or a `local-` prefixed one for the two checks made here. */
+  code: string;
   message: string;
+  nodeId?: string;
+  edgeId?: string;
 }
 
-/** A node as the validator sees it — enough to resolve its ports. */
+/** A node as the validator sees it. */
 interface ValidatedNode {
   id: string;
   type: string;
@@ -2782,163 +2794,56 @@ interface ValidatedNode {
   options?: Record<string, unknown>;
 }
 
-/** An edge as the validator sees it. Ports are required by Loom; a missing one is an error here. */
-interface ValidatedEdge {
-  source: string;
-  target: string;
-  sourcePort?: string;
-  targetPort?: string;
-}
-
 /**
- * Port-level rules, mirroring §5.3 of the port refactor plan so an author is told before saving
- * rather than by an HTTP 400. `PipelineValidationService` remains the authority — this is the thin
- * editor-side mirror the plan calls for, not a fourth independent validator.
+ * The checks worth making without asking the server.
+ *
+ * <p>An empty canvas is not a draft anyone wants a round trip for, and a malformed node id is
+ * produced by the editor itself — by renaming a node — so the author should see it as they type.
+ * Everything else, including cycles, ports and reachability, is the server's answer.</p>
  */
-function validatePorts(nodes: ValidatedNode[], edges: ValidatedEdge[], descriptors: NodeDescriptor[]): ValidationError[] {
+function validateLocally(nodes: ValidatedNode[]): ValidationError[] {
   const errors: ValidationError[] = [];
-  const descMap = new Map(descriptors.map(d => [d.kind, d]));
-  const ports = new Map<string, NodePorts>();
-  const names = new Map<string, string>();
+  if (nodes.length === 0) {
+    errors.push({ code: "EMPTY_GRAPH", message: "Pipeline definition must contain at least one node" });
+    return errors;
+  }
   for (const n of nodes) {
-    ports.set(n.id, nodeConnectors(descMap.get(n.type), n.options ?? {}));
-    names.set(n.id, n.label || n.id);
-  }
-  const nameOf = (id: string) => names.get(id) ?? id;
-
-  /** Edges that resolved to a real port pair, so the satisfaction rules see only wired truth. */
-  const resolved: { edge: ValidatedEdge; source: PortSpec; target: PortSpec }[] = [];
-
-  for (const e of edges) {
-    const sourcePorts = ports.get(e.source);
-    const targetPorts = ports.get(e.target);
-    // Unknown node ids are already reported by the graph-level checks.
-    if (!sourcePorts || !targetPorts) continue;
-
-    if (!e.sourcePort || !e.targetPort) {
-      errors.push({ type: "unknownPort", message: `Edge ${nameOf(e.source)} → ${nameOf(e.target)} is not connected to named ports — redraw it handle to handle` });
-      continue;
-    }
-    const source = sourcePorts.portsOut.find(p => p.id === e.sourcePort);
-    const target = targetPorts.portsIn.find(p => p.id === e.targetPort);
-    if (!source) {
-      errors.push({ type: "unknownPort", message: `${nameOf(e.source)} has no output port "${e.sourcePort}"` });
-      continue;
-    }
-    if (!target) {
-      errors.push({ type: "unknownPort", message: `${nameOf(e.target)} has no input port "${e.targetPort}"` });
-      continue;
-    }
-    if (!isAssignable(source.contentType, target.contentType)) {
-      errors.push({ type: "typeMismatch", message: `${nameOf(e.source)} · ${portName(source)} emits ${source.contentType}, which ${nameOf(e.target)} · ${portName(target)} cannot accept (${target.contentType})` });
-      continue;
-    }
-    resolved.push({ edge: e, source, target });
-  }
-
-  // Multi-edge: only a MANY input may take more than one incoming edge.
-  const incoming = new Map<string, number>();
-  for (const { edge, target } of resolved) {
-    if (target.cardinality === "MANY") continue;
-    const key = `${edge.target} ${target.id}`;
-    const count = (incoming.get(key) ?? 0) + 1;
-    incoming.set(key, count);
-    if (count === 2) {
-      errors.push({ type: "cardinality", message: `${nameOf(edge.target)} · ${portName(target)} has more than one incoming edge but carries a single element` });
+    if (!NODE_ID_REGEX.test(n.id)) {
+      errors.push({
+        code: "NODE_ID_INVALID",
+        message: `Invalid node ID: "${n.id}" — IDs must match ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`,
+        nodeId: n.id,
+      });
     }
   }
-
-  for (const n of nodes) {
-    const nodePorts = ports.get(n.id);
-    if (!nodePorts) continue;
-    const wiredIn = new Set(resolved.filter(r => r.edge.target === n.id).map(r => r.target.id));
-    const wiredOut = new Set(resolved.filter(r => r.edge.source === n.id).map(r => r.source.id));
-
-    // Ungrouped required inputs must be wired — the group owns `required` for grouped ports.
-    for (const port of nodePorts.portsIn) {
-      if (port.group || !port.required || wiredIn.has(port.id)) continue;
-      errors.push({ type: "requiredInput", message: `${nameOf(n.id)} · ${portName(port)} is a required input but nothing is connected to it` });
-    }
-
-    for (const group of nodePorts.portGroupsIn) {
-      if (group.mode !== "XOR") continue;
-      const members = nodePorts.portsIn.filter(p => p.group === group.id);
-      const wired = members.filter(p => wiredIn.has(p.id));
-      const alternatives = members.map(portName).join(" or ");
-      if (wired.length > 1) {
-        errors.push({ type: "xor", message: `${nameOf(n.id)} accepts ${alternatives}, not both` });
-      } else if (wired.length === 0 && group.required && members.length > 0) {
-        errors.push({ type: "xor", message: `${nameOf(n.id)} needs one of ${alternatives} connected` });
-      }
-    }
-
-    for (const group of nodePorts.portGroupsOut) {
-      if (group.mode !== "EXCLUSIVE") continue;
-      const wired = nodePorts.portsOut.filter(p => p.group === group.id && wiredOut.has(p.id));
-      if (wired.length > 1) {
-        errors.push({ type: "exclusive", message: `${nameOf(n.id)} emits ${wired.map(portName).join(" or ")}, not both` });
-      }
-    }
-  }
-
   return errors;
 }
 
-function validatePipeline(nodes: ValidatedNode[], edges: ValidatedEdge[], descriptors: NodeDescriptor[]): ValidationError[] {
-  const errors: ValidationError[] = [];
-  const descKinds = new Set(descriptors.map(d => d.kind));
-
-  // Duplicate ID check
-  const idSet = new Set<string>();
-  for (const n of nodes) {
-    if (idSet.has(n.id)) {
-      errors.push({ type: "duplicateId", message: `Duplicate node ID: "${n.id}" — node IDs must be unique` });
-    } else {
-      idSet.add(n.id);
-    }
+/**
+ * The full verdict: the cheap checks, then the server's.
+ *
+ * <p>The local checks run first and short-circuit — asking the server about a canvas with no nodes
+ * on it wastes a round trip to be told what is already on screen.</p>
+ *
+ * <p>A validation request that cannot be sent at all is <b>not</b> reported as a broken pipeline.
+ * "The network is down" and "your graph has a cycle" are different sentences, and turning the first
+ * into the second would block saving whenever the server hiccups. The save then goes ahead and the
+ * create/update route refuses it if it must — which is the same authority, one step later.</p>
+ */
+async function validateWithServer(token: string, definition: any): Promise<ValidationError[]> {
+  const nodes: ValidatedNode[] = (definition?.nodes ?? []).map((n: any) => ({
+    id: n.id, type: n.type ?? n.category, label: n.label, options: pipelineNodeOptions(n),
+  }));
+  const local = validateLocally(nodes);
+  if (local.length > 0) return local;
+  try {
+    const report = await validatePipelineDefinition(token, definition);
+    // Only an explicit rejection blocks. Anything else — a 200 whose body is not a verdict, a
+    // deployment whose server predates this route — reads as "no opinion", never as "broken".
+    return report?.valid === false ? (report.errors ?? []) : [];
+  } catch {
+    return [];
   }
-
-  // Invalid ID format check
-  for (const n of nodes) {
-    if (!NODE_ID_REGEX.test(n.id)) {
-      errors.push({ type: "invalidId", message: `Invalid node ID: "${n.id}" — IDs must match ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$` });
-    }
-  }
-
-  // Unknown node type check
-  for (const n of nodes) {
-    if (!descKinds.has(n.type)) {
-      errors.push({ type: "unknownType", message: `Unknown node type: "${n.type}" — not found in descriptor registry` });
-    }
-  }
-
-  // Cycle detection (Kahn's algorithm)
-  const adj = new Map<string, string[]>();
-  const inDeg = new Map<string, number>();
-  for (const n of nodes) { adj.set(n.id, []); inDeg.set(n.id, 0); }
-  for (const e of edges) {
-    if (adj.has(e.source) && inDeg.has(e.target)) {
-      adj.get(e.source)!.push(e.target);
-      inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
-    }
-  }
-  const queue: string[] = [];
-  for (const [id, deg] of inDeg) { if (deg === 0) queue.push(id); }
-  let visited = 0;
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    visited++;
-    for (const t of adj.get(id) ?? []) {
-      const d = (inDeg.get(t) ?? 0) - 1;
-      inDeg.set(t, d);
-      if (d === 0) queue.push(t);
-    }
-  }
-  if (visited < nodes.length) {
-    errors.push({ type: "cycle", message: "Cycle detected in pipeline graph — nodes form a circular dependency" });
-  }
-
-  return [...errors, ...validatePorts(nodes, edges, descriptors)];
 }
 
 // ── Main Pipeline Editor ──────────────────────────────────────────────────
@@ -3510,6 +3415,28 @@ export default function PipelineEditor() {
   }, []);
 
   /**
+   * Validate the canvas in the background, a beat after the author stops editing.
+   *
+   * <p>Debounced because every dragged edge and renamed node produces a new `graphJson`, and one
+   * request per keystroke would be both wasteful and out of order. 500ms is long enough that a
+   * continuous edit sends nothing and short enough that pausing to look at the graph shows the
+   * verdict.</p>
+   *
+   * <p>Late replies are dropped: the guard closes over this effect's own timer, so a request whose
+   * graph has already been edited past cannot overwrite the newer result.</p>
+   */
+  useEffect(() => {
+    if (!token || !graphJson) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      validateWithServer(token, graphJson).then(errors => {
+        if (current) setValidationErrors(errors);
+      });
+    }, 500);
+    return () => { current = false; clearTimeout(timer); };
+  }, [token, graphJson]);
+
+  /**
    * Validate a definition and store it as a new pipeline version.
    *
    * Takes the definition rather than reading `graphJson`, so a caller that has just changed a
@@ -3520,9 +3447,7 @@ export default function PipelineEditor() {
    */
   const saveDefinition = useCallback(async (definition: any): Promise<boolean> => {
     if (!token || !selected || saving) return false;
-    const nodesForValidation = (definition.nodes ?? []).map((n: any) => ({ id: n.id, type: n.type ?? n.category, label: n.label, options: pipelineNodeOptions(n) }));
-    const edgesForValidation = (definition.edges ?? []).map((e: any) => ({ source: e.source, target: e.target, sourcePort: e.sourcePort, targetPort: e.targetPort }));
-    const errors = validatePipeline(nodesForValidation, edgesForValidation, descriptors);
+    const errors = await validateWithServer(token, definition);
     setValidationErrors(errors);
     if (errors.length > 0) {
       notify("error", errors[0].message);
@@ -3554,7 +3479,7 @@ export default function PipelineEditor() {
     } finally {
       setSaving(false);
     }
-  }, [token, selected, saving, descriptors, notify, t]);
+  }, [token, selected, saving, notify, t]);
 
   /** Save what is on the canvas — the Save button. */
   const handleSave = useCallback(async () => {
@@ -3610,9 +3535,11 @@ export default function PipelineEditor() {
         nodes: selected.definition.nodes ?? [],
         edges: selected.definition.edges ?? [],
       }));
-      const nodesForValidation = (definition.nodes as any[]).map(n => ({ id: n.id, type: n.type ?? n.category, label: n.label, options: pipelineNodeOptions(n) }));
-      const edgesForValidation = (definition.edges as any[]).map(e => ({ source: e.source, target: e.target, sourcePort: e.sourcePort, targetPort: e.targetPort }));
-      const errors = validatePipeline(nodesForValidation, edgesForValidation, descriptors);
+      // A clone refused for the source's own faults is reported on the canvas as well as in the
+      // toast: the graph the author has to fix is the one they are already looking at, and a toast
+      // carries one message where the panel carries all of them.
+      const errors = await validateWithServer(token, definition);
+      setValidationErrors(errors);
       if (errors.length > 0) {
         notify("error", errors[0].message);
         return;
@@ -3641,7 +3568,7 @@ export default function PipelineEditor() {
     } finally {
       setCreating(false);
     }
-  }, [token, createDialog, creating, selected, descriptors, notify, t, applySelect]);
+  }, [token, createDialog, creating, selected, notify, t, applySelect]);
 
   const handleDeletePipeline = useCallback(async () => {
     if (!token || !selected || deletingPipeline) return;
@@ -4189,7 +4116,7 @@ export default function PipelineEditor() {
               <Box sx={{ borderBottom: `1px solid ${tokens.border.subtle}`, bgcolor: tokens.bg.surface, flexShrink: 0 }}>
                 <Tabs value={canvasTab} onChange={(_, v) => setCanvasTab(v)} sx={{ minHeight: 32, px: 1 }}>
                   <Tab label={t("pipeline.editor.tabVisual")} sx={{ fontSize: "0.72rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
-                  <Tab label={t("pipeline.editor.tabJson")} icon={<DataObjectOutlined sx={{ fontSize: 13 }} />} iconPosition="start" sx={{ fontSize: "0.72rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
+                  <Tab data-testid="pipeline-tab-json" label={t("pipeline.editor.tabJson")} icon={<DataObjectOutlined sx={{ fontSize: 13 }} />} iconPosition="start" sx={{ fontSize: "0.72rem", minHeight: 32, py: 0.5, minWidth: 60 }} />
                 </Tabs>
               </Box>
             )}
@@ -4343,7 +4270,7 @@ export default function PipelineEditor() {
                 </Box>
                 {/* Validation errors */}
                 {validationErrors.length > 0 && (
-                  <Box sx={{ mt: 1, px: 1.5, py: 0.5, bgcolor: `${tokens.accent.red}11`, border: `1px solid ${tokens.accent.red}44`, borderRadius: tokens.radius.sm, flexShrink: 0 }}>
+                  <Box data-testid="pipeline-validation-errors" sx={{ mt: 1, px: 1.5, py: 0.5, bgcolor: `${tokens.accent.red}11`, border: `1px solid ${tokens.accent.red}44`, borderRadius: tokens.radius.sm, flexShrink: 0 }}>
                     {validationErrors.map((err, i) => (
                       <Box key={i} sx={{ display: "flex", alignItems: "flex-start", gap: 0.5, py: 0.25 }}>
                         <ErrorOutline sx={{ fontSize: 12, color: tokens.accent.red, mt: 1, flexShrink: 0 }} />

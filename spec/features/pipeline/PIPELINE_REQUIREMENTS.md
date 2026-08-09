@@ -14,6 +14,7 @@
 | Related | Purpose |
 |---|---|
 | [PIPELINE.md](PIPELINE.md) | Technical spec — parser, engine, protocol, persistence, REST |
+| [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) | Definition validation: rules, error codes, `POST /pipelines/validate` (R11) |
 | [PIPELINE_TASKS.md](../../tasks/PIPELINE_TASKS.md) | The actionable breakdown of every 🔴/🟡 below |
 | [PIPELINE_FLOW.md](PIPELINE_FLOW.md) | The mental model: what actually travels between nodes |
 | [NODE_DATA_TYPES.md](NODE_DATA_TYPES.md) | Ports, content types, cardinality, fan-out/gather |
@@ -63,7 +64,7 @@ Legend: ✅ Met · 🟡 Met with a stated deviation · 🔴 Not met
 | **R8** | Pipelines are serialized / deserialized via JSON | ✅ | JSONB definition with a top-level `version` (`CURRENT_DEFINITION_VERSION = 1`; absent ⇒ 1; higher refused **by name**, never half-read). `stampVersion` runs on create/update and in `DemoDatabaseInitializer`. **Deviation:** serde is one-way — `PipelineSerializer`/`PipelineDeserializer` are deleted, so no code writes a definition back out of a graph object, and there is **no checked-in fixture** (the six demo pipelines are the de-facto reference). |
 | **R9** | Pipeline execution is backpressure-aware and reactive | ✅ | Bounded end to end: `maxInFlight` (default 256) + per-kind bulkheads, and `SOURCE_ITEMS_ACK` is **withheld** at capacity, which throttles the source scan itself rather than only node dispatch. Cortex `SourceTaskRunner` waits for each ack. **Deviation of wording:** "reactive" no longer means RxJava — the reactive executor was deleted; backpressure is explicit accounting under one monitor. |
 | **R10** | Intermediate pipeline node results are stored on the Loom backend service | ✅ | Every node result is persisted to `pipeline_node_task.outputs` (JSONB, keyed by output **port id**, `PortPayloads` codec) — this is the dedicated intermediate-result store the requirement asks for. Nodes flagged `syncToLoom` additionally write onto the asset via `DaoAssetSink`, with the `asset_node_result` ledger (`V2.45`). **Deviation:** nothing prunes it — retention is decided but not enforced ([PIPELINE.md §9.2](PIPELINE.md)). |
-| **R11** | Pipelines can be validated using a validation endpoint in the Loom REST API | 🔴 | There is **no `POST /api/v1/pipelines/validate`**. Validation runs only as a side effect of create/update, so a draft cannot be checked without persisting it. The checks themselves are thorough, but **structural** rules exist in three copies (`PipelineValidationService`, `PipelineModelValidator`, `validatePipeline()` in the editor); only **port** rules are single-sourced in the parser. Task 8. |
+| **R11** | Pipelines can be validated using a validation endpoint in the Loom REST API | 🟢 | `POST /api/v1/pipelines/validate` (`CREATE_PIPELINE`) checks a draft without storing it and answers **200 with `valid: false`** rather than a 400, reporting **every** problem rather than the first. `PipelineValidationService` is now the single authority — the copies in `PipelineModelValidator` and `PipelineEditor.tsx` are gone, and the editor calls the route (debounced) instead. Same service backs create/update and the `validate_pipeline` MCP tool, so a draft that validates is a draft that saves. |
 | **R12** | WebSocket events must be emitted so the Loom UI can visualize processing / status | ✅ | `RunStatsAggregator` (1 s timer) → `PipelineEventBroadcaster` → `/api/v1/pipelines/events/ws`, with `?pipeline=` / `?run=` filters and drop-on-`writeQueueFull` backpressure. Failures are forwarded immediately. **Deliberate deviation:** progress is **aggregated, not streamed** — there is no per-item event; forwarding every settle would be millions of frames to move a progress bar. |
 
 ### Deviations at a glance
@@ -186,7 +187,5 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 - [ ] Tracked elsewhere: retention sweep, per-node task API, per-item events, artifact cache
 
 ---
-_Git HEAD revision: `716953c0`_
-_Last updated: 2026-08-07 (typed run status/state closed; the versioning and dispatch endpoint
-tests are in the tree, so that item went too. Earlier: R7 closed — `MIME`/`SIZE`/`DATE`
-`FilterStrategy` implementations landed; stale descriptor-only-kind items removed)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (R11 closed; validation spec split out to PIPELINE_VALIDATION.md). Earlier: (typed run status/state closed; the versioning and dispatch endpoint tests landed)_

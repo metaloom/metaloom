@@ -282,10 +282,10 @@ over an existing set.
    assetUuids[]}, reusing PipelineEndpointService.dispatchRun. Guard it - this can
    dispatch tens of thousands of items.
 4. Optional follow-up: promote meta.trigger to a validated PipelineTrigger model in
-   loom-shared/pipeline-model with a PipelineModelValidator rule rejecting unknown keys,
-   so a typo like "mimetypes" fails loudly instead of matching nothing. Add the rule in
-   ONE place and delegate - structural validation is already duplicated between
-   PipelineModelValidator and PipelineValidationService; do not create a third copy.
+   loom-shared/pipeline-model with a rule rejecting unknown keys, so a typo like
+   "mimetypes" fails loudly instead of matching nothing. The rule belongs in
+   PipelineValidationService, the single authority on definition contents - this feature
+   has already been de-duplicated once; do not add a second validator.
 ```
 
 **References:** [../workflows/WORKFLOW_UPLOAD.md](../workflows/WORKFLOW_UPLOAD.md) §2 ·
@@ -615,6 +615,5 @@ every mode. ⚠️ The website build: back up `yarn.lock` and escape bare `local
 
 ---
 
-_Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-08 (Task 3 completed — dedup review loop wired end to end, plus the two
-correctness defects that gated it)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (follow-up 4 re-pointed at the single validator). Earlier: (Task 3 completed — dedup review loop wired end to end)_

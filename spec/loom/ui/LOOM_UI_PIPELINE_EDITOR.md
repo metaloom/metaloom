@@ -2,8 +2,8 @@
 
 The **product** pipeline editor: the React Flow canvas behind the `/pipelines` route of `loom-ui`,
 backed by the Loom REST API. It loads node descriptors from the server, draws a typed-port graph,
-validates it client-side, and persists a pipeline **definition JSON** that
-`PipelineGraphParser` on the Java side must be able to read verbatim.
+has the server validate it (`POST /pipelines/validate`), and persists a pipeline **definition JSON**
+that `PipelineGraphParser` on the Java side must be able to read verbatim.
 
 ### This file is not
 
@@ -12,6 +12,7 @@ validates it client-side, and persists a pipeline **definition JSON** that
 | The marketing site's standalone editor (no backend, hardcoded node catalogue) | [../../website/WEBSITE_PIPELINE_EDITOR.md](../../website/WEBSITE_PIPELINE_EDITOR.md) |
 | The type system itself — content-type vocabulary, `family/subtype`, cardinality, XOR/EXCLUSIVE groups, fan-out/gather | [../../features/pipeline/NODE_DATA_TYPES.md](../../features/pipeline/NODE_DATA_TYPES.md) |
 | The engine, the definition schema's server side, node descriptors, Loom↔Cortex protocol | [../../features/pipeline/PIPELINE.md](../../features/pipeline/PIPELINE.md) |
+| The validation rules themselves, error codes, and the `/pipelines/validate` contract | [../../features/pipeline/PIPELINE_VALIDATION.md](../../features/pipeline/PIPELINE_VALIDATION.md) |
 | REST endpoint contracts and payload schemas | [../RESTAPI.md](../RESTAPI.md) |
 | Pipeline-event WebSocket frames | [../WEBSOCKET.md](../WEBSOCKET.md) |
 | Open UI work items for the pipeline area | [TASK_UI_PIPELINE.md](TASK_UI_PIPELINE.md) |
@@ -27,8 +28,9 @@ validates it client-side, and persists a pipeline **definition JSON** that
 - [x] React Flow canvas with custom node renderer, minimap, controls, dotted background
 - [x] Node palette sourced from server descriptors (`NodeRegistryContext`), never hardcoded
 - [x] Handle ids **are** port ids (`PortSpec.id`) — no invented fallback handles
-- [x] Typed connection validation mirroring the server lattice (`isAssignable`)
-- [x] Cardinality (ONE/MANY), XOR input groups, EXCLUSIVE output groups enforced on drag and on save
+- [x] Typed connection validation mirroring the server lattice (`isAssignable`) — **drag time only**
+- [x] Cardinality (ONE/MANY), XOR input groups, EXCLUSIVE output groups enforced on drag; on save the
+      server enforces them, so the editor no longer carries a second copy of the rules (§7.2)
 - [x] Dynamic ports for `script` / `llm` / `vlm` / `filter` via `portResolvers.ts` mirrors
 - [x] `PORT_LIST` parameter editor (`BucketListEditor.tsx`): repeatable rows with an add button,
       whose ids become the node's output ports; selective ports render with a dashed handle
@@ -79,7 +81,8 @@ validates it client-side, and persists a pipeline **definition JSON** that
 - [x] Unsaved-changes guard when switching pipelines in the list
 - [ ] Route-level navigation guard (leaving `/pipelines` dirty still loses edits silently)
 - [ ] Undo / redo
-- [ ] Live validation while editing (validation runs only on save / clone)
+- [x] Live validation while editing — debounced `POST /pipelines/validate` 500ms after the canvas
+      settles, plus the blocking check on save and clone (§7.2)
 - [ ] Node copy/paste and multi-select operations
 - [ ] Per-node task state in the run drill-down (no REST endpoint — see [TASK_UI_PIPELINE.md](TASK_UI_PIPELINE.md))
 - [ ] Delete the unreachable legacy prototype at `loom-ui/src/Pipeline/` + `loom-ui/src/Dashboard/`
@@ -110,7 +113,7 @@ flowchart TB
   SB[NodeDetailSidebar] -->|nodeParameters /<br/>nodeAffinities /<br/>nodeDisplayNames| CV
   SB -->|also writes| SEL
 
-  GJ --> VAL[validatePipeline + validatePorts]
+  GJ --> VAL[validateWithServer<br/>POST /pipelines/validate]
   VAL -->|ok| SAVE[POST /pipelines/:uuid] --> P
   W --> CV
 
@@ -151,8 +154,8 @@ All in `loom-ui/src/features/pipeline/PipelineEditor.tsx` unless noted. Line num
 | `getGraphJson` | 1816 | **The definition serialiser** — node `options`, edge `sourcePort`/`targetPort`/`branch` |
 | `syntaxHighlightJson` | 2005 | JSON tab colouring |
 | `CommandPaletteContent` | 2025 | `N`-key node search modal |
-| `validatePorts` | 2166 | Save-time port rules mirror of `PipelineValidationService` |
-| `validatePipeline` | 2255 | Graph rules (ids, unknown kind, cycles) + `validatePorts` |
+| `validateLocally` | 2804 | The only checks made without the server: empty graph, malformed node id |
+| `validateWithServer` | 2833 | `validateLocally`, then `POST /pipelines/validate`. **The graph rules are the server's** |
 | `PipelineEditor` (default export) | 2313 | Orchestration, state, REST, events, dialogs |
 | `contentTypes.ts` | — | Mirror of Java `ContentTypeLattice`: `family`, `isAssignable`, `isProvisional`, `FAMILY_COLORS` |
 | `resultRenderers.ts` | — | `previewKind` / `summarizePayload` / `payloadToMarkdownTable`. Switches on the **content-type family**, never the node kind, so an unreleased node still renders |
@@ -328,25 +331,47 @@ reason in `connectionRejectedRef`; `onConnectEnd` surfaces it as a 5-second toas
 | XOR input | `<node> accepts <a> or <b>, not both` |
 | EXCLUSIVE output | `<node> emits <a> or <b>, not both` |
 
-### 7.2 Save time — `validatePipeline` (2255) → `validatePorts` (2166)
+### 7.2 Save time — `validateWithServer` (2833)
 
-Run by `handleSave` and by clone-create, over `{id, type, label, options}` / `{source, target,
-sourcePort, targetPort}` projections. First error is toasted; all errors render in the JSON tab.
+🔴 **The editor has no copy of the graph rules any more.** It used to: `validatePipeline` carried
+its own TypeScript Kahn's algorithm and `validatePorts` mirrored `PipelineValidationService`, a
+second and third implementation of one rule set that drifted from the server's. Both are deleted.
+`POST /api/v1/pipelines/validate` runs the code the save path runs, so what it accepts is what
+saves — see [../../features/pipeline/PIPELINE.md §5.1](../../features/pipeline/PIPELINE.md).
+**Do not reintroduce a client-side rule.**
 
-| `type` | Rule |
+Two checks stay local, in `validateLocally` (2804), and only because a round trip would be worse
+than useless for them:
+
+| `code` | Rule |
 |---|---|
-| `duplicateId` | Node ids unique |
-| `invalidId` | `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$` |
-| `unknownType` | `type` present in the descriptor registry |
-| `cycle` | Kahn's algorithm over the edge list |
-| `unknownPort` | Edge lacks `sourcePort`/`targetPort`, or the id resolves to no port |
-| `typeMismatch` | `isAssignable(source.contentType, target.contentType)` |
-| `cardinality` | >1 incoming edge on a non-MANY input |
-| `requiredInput` | Ungrouped `required` input unwired (grouped ports delegate `required` to the group) |
-| `xor` | >1 member wired, or 0 wired on a `required` XOR group |
-| `exclusive` | >1 member of an `EXCLUSIVE` output group wired |
+| `EMPTY_GRAPH` | No nodes — nothing to ask about |
+| `NODE_ID_INVALID` | `^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$`; produced by renaming a node, so it should appear as the author types |
 
-`noSource` / `multipleSource` exist in the `ValidationError` union but are not currently produced.
+They short-circuit: a canvas that fails one is not sent.
+
+`validateWithServer` runs on three occasions:
+
+- **debounced, 500ms after the canvas settles** — a `useEffect` on `graphJson`, so the panel shows
+  the verdict while the author is looking at the graph. A stale reply cannot overwrite a newer one:
+  the guard closes over the effect's own timer.
+- **`saveDefinition`**, which awaits it and refuses to save on any error.
+- **clone-create**, which validates the source definition and reports on the canvas as well as in
+  the toast — the graph to fix is the one already on screen.
+
+The first error is toasted; all of them render in the JSON tab's
+`pipeline-validation-errors` panel. Each carries the server's stable `code` plus `nodeId` /
+`edgeId` where applicable.
+
+⚠️ **A validation request that fails to send is not a rejection.** `validateWithServer` returns no
+errors on a network failure, and treats anything other than an explicit `valid: false` as "no
+opinion". "The server is unreachable" and "your graph has a cycle" are different sentences, and
+conflating them would block saving whenever the server hiccups — or on any deployment predating
+this route. The save then proceeds and create/update refuses it if it must: same authority, one
+step later.
+
+Drag-time port rules (§7.1, `isValidConnection`) are unaffected — they must answer while the mouse
+is down, and are the one place a client-side rule is still correct.
 
 ---
 
@@ -577,7 +602,7 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 | Change what the editor saves | `loom-ui/src/features/pipeline/PipelineEditor.tsx` → `getGraphJson` (1816) |
 | Change what the editor loads | same file → `toRFNodes` (495) / `toRFEdges` (541) |
 | Change drag-time connection rules | same file → `isValidConnection` (1672) |
-| Change save-time validation | same file → `validatePipeline` (2255) / `validatePorts` (2166) |
+| Change save-time validation | **server-side** → `PipelineValidationService` (`loom/services/rest`). The editor only calls it: `validateWithServer` (2833) |
 | Change node visuals or handles | same file → `PipelineNodeComponent` (206), `categoryConfig`, `ICON_MAP` |
 | Change the parameter editors | same file → `NodeDetailSidebar` (1083) |
 | Change type assignability or family colours | `loom-ui/src/features/pipeline/contentTypes.ts` |
@@ -593,7 +618,5 @@ Stable selectors: `pipeline-canvas`, `pipeline-node-{id}` (with `data-active` / 
 
 ---
 
-_Git HEAD revision: `827cd2cb`_
-_Last updated: 2026-08-09 (E2E coverage for the debug preview renderers: element-preview grid,
-strip collapse, missing/capped previews, media paths — driven from `loom-ui/scripts/fixtures/`.
-Earlier: Debugging phase 5 — editing a held node's settings as a run-scoped draft, re-executing it, Save to pipeline, and the attempt selector. Earlier: phases 1–4 — run pause/resume, debug mode, NODE_STATS counters, per-node result inspection, previews, the enlarged detail view, and breakpoints + stepping)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (7.2 rewritten: the editor's own graph validators are deleted; saving asks `POST /pipelines/validate`, specified in PIPELINE_VALIDATION.md). Earlier: (E2E coverage for the debug preview renderers)_

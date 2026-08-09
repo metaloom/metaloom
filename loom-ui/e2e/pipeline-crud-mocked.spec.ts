@@ -26,8 +26,10 @@ const DEFINITION = {
 };
 
 /**
- * Descriptors for the node kinds above — required so the client-side `validatePipeline` run before
- * a clone accepts both the kinds and the ports every edge names.
+ * Descriptors for the node kinds above — the canvas needs them to draw ports, and
+ * `isValidConnection` needs them to decide whether a wire may be dropped.
+ *
+ * They no longer gate the save: the graph rules moved to `POST /pipelines/validate`, mocked below.
  */
 const DESCRIPTORS = [
   { kind: "filesystem-source", out: { id: "media", contentType: "media/*" } },
@@ -74,6 +76,12 @@ interface MockState {
   created: any[];
   deleted: string[];
   seq: number;
+  /**
+   * The verdict `POST /pipelines/validate` answers with. Null means "valid" — the server is the
+   * authority on the graph rules now, so a test that wants a save blocked sets this rather than
+   * drawing a graph the editor would refuse on its own.
+   */
+  validationErrors: { code: string; message: string; nodeId?: string }[] | null;
 }
 
 /**
@@ -89,6 +97,7 @@ async function mockBackend(page: Page): Promise<MockState> {
     created: [],
     deleted: [],
     seq: 0,
+    validationErrors: null,
   };
 
   // Catch-all for anything else the shell loads (spaces, users, …).
@@ -160,6 +169,19 @@ async function mockBackend(page: Page): Promise<MockState> {
     route.fulfill({ status: p ? 200 : 404, contentType: "application/json", body: JSON.stringify(p ?? {}) });
   });
 
+  // POST /pipelines/validate — the graph rules, which live on the server now. Registered LAST
+  // because the most recent matching handler wins: the /pipelines/:uuid regex above also matches
+  // this URL and would otherwise read "validate" as a pipeline uuid. The server route table has
+  // the same hazard, resolved the other way round (literal before wildcard).
+  await page.route("**/api/v1/pipelines/validate", route => {
+    const errors = state.validationErrors ?? [];
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ valid: errors.length === 0, errors, warnings: [] }),
+    });
+  });
+
   return state;
 }
 
@@ -216,6 +238,72 @@ test.describe("Pipeline create / clone / delete – mocked", () => {
     expect(posted.name).toBe("Quick Hash (copy)");
     expect(posted.definition.nodes.map((n: any) => n.id)).toEqual(["src", "sha512", "thumb"]);
     expect(posted.definition.edges.map((e: any) => e.id)).toEqual(["e1", "e2"]);
+  });
+
+  /**
+   * The server owns the graph rules, so a refusal has to reach the author and stop the write.
+   *
+   * The definition here is perfectly well formed as far as the editor can tell — the point is that
+   * the editor no longer has an opinion. It asks, and the answer blocks the save.
+   */
+  test("a server validation error blocks the save", async ({ page }) => {
+    const state = await mockBackend(page);
+    state.validationErrors = [
+      { code: "CYCLE", message: "Cycle detected in pipeline graph — nodes form a circular dependency" },
+      { code: "UNREACHABLE", message: "Unreachable node(s): [thumb] — every node must be reachable from the pipeline source", nodeId: "thumb" },
+    ];
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    await page.getByTestId("pipeline-clone-button").click();
+    await expect(page.getByTestId("pipeline-create-dialog")).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId("pipeline-create-confirm").click();
+
+    // The first error is surfaced …
+    await expect(page.getByText("Cycle detected in pipeline graph", { exact: false })).toBeVisible({ timeout: 10_000 });
+    // … and nothing was written.
+    await expect(page.getByRole("button", { name: "Quick Hash (copy)" })).toBeHidden();
+    expect(state.created).toHaveLength(0);
+
+    // Clearing the verdict lets the same definition through, which is the proof that the server
+    // was the thing blocking it rather than anything the editor decided on its own.
+    state.validationErrors = null;
+    await page.getByTestId("pipeline-create-confirm").click();
+    await expect(page.getByRole("button", { name: "Quick Hash (copy)" })).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => state.created.length).toBe(1);
+  });
+
+  /**
+   * Every problem is shown at once — the reason the route collects rather than throwing on the
+   * first. The toast can only carry one; the JSON tab's panel carries the list.
+   */
+  test("the JSON tab lists every error the server reported", async ({ page }) => {
+    const state = await mockBackend(page);
+    state.validationErrors = [
+      { code: "NODE_TYPE_UNKNOWN", message: 'Unknown node type: "ghost" — not found in descriptor registry', nodeId: "sha512" },
+      { code: "CYCLE", message: "Cycle detected in pipeline graph — nodes form a circular dependency" },
+    ];
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    await page.getByTestId("pipeline-clone-button").click();
+    await expect(page.getByTestId("pipeline-create-dialog")).toBeVisible({ timeout: 5_000 });
+    await page.getByTestId("pipeline-create-confirm").click();
+    await expect(page.getByText("Unknown node type", { exact: false }).first()).toBeVisible({ timeout: 10_000 });
+
+    // The dialog stays open on a refusal — dismiss it to reach the editor behind it.
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByTestId("pipeline-create-dialog")).toBeHidden({ timeout: 5_000 });
+
+    await page.getByTestId("pipeline-tab-json").click();
+    const panel = page.getByTestId("pipeline-validation-errors");
+    await expect(panel).toBeVisible({ timeout: 10_000 });
+    await expect(panel.getByText("Unknown node type", { exact: false })).toBeVisible();
+    await expect(panel.getByText("Cycle detected", { exact: false })).toBeVisible();
   });
 
   test("deleting a pipeline removes it and reselects another", async ({ page }) => {

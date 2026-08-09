@@ -319,6 +319,41 @@ class PipelineUpdateRequest(Model):
 
 
 @dataclass
+class PipelineValidateRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineValidateRequest``."""
+
+    #: The pipeline definition to check: {version, nodes[], edges[]}.
+    definition: dict[str, Any] | None = None
+
+
+@dataclass
+class PipelineValidationError(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineValidationError``."""
+
+    #: Stable machine-readable code for the rule that was broken, e.g. CYCLE or NODE_ID_DUPLICATE.
+    code: str | None = None
+    #: Human-readable explanation of the problem.
+    message: str | None = None
+    #: The node the error belongs to, or null when it is not about one node.
+    node_id: str | None = None
+    #: The edge the error belongs to, rendered as \"source->target\"; null when the error is not about an
+    #: edge.
+    edge_id: str | None = None
+
+
+@dataclass
+class PipelineValidationResponse(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineValidationResponse``."""
+
+    #: True when the definition would be accepted by create/update. Warnings do not make it false.
+    valid: bool = False
+    #: Every problem found, not just the first. Empty when the definition is valid.
+    errors: list[PipelineValidationError] = field(default_factory=list)
+    #: Things the author probably did not intend; may be non-empty for a valid definition.
+    warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
 class PipelineVersionListResponse(ListResponse):
     """Mirrors ``io.metaloom.loom.rest.model.pipeline.PipelineVersionListResponse``."""
 

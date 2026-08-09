@@ -282,6 +282,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
         <Tooltip title={collapsed ? (username ?? "") : ""} placement="right">
           <IconButton
             size="small"
+            data-testid="sidebar-avatar-button"
             onClick={(e) => setUserMenuAnchor(e.currentTarget)}
             sx={{ flexShrink: 0, p: 0 }}
           >
@@ -299,15 +300,16 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
           onClose={() => setUserMenuAnchor(null)}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
           transformOrigin={{ vertical: "top", horizontal: "right" }}
+          data-testid="sidebar-avatar-menu"
         >
           <Box sx={{ px: 2, py: 1, minWidth: 160 }}>
             <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{username ?? t("sidebar.fallback.unknown")}</Typography>
           </Box>
           <Divider />
-          <MenuItem onClick={() => { setUserMenuAnchor(null); navigate("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
+          <MenuItem data-testid="sidebar-avatar-profile" onClick={() => { setUserMenuAnchor(null); navigate("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
             <PersonOutlined sx={{ fontSize: 18 }} /> {t("sidebar.menu.profile")}
           </MenuItem>
-          <MenuItem onClick={() => { setUserMenuAnchor(null); logout(); }} sx={{ gap: 1.5, fontSize: "0.85rem", color: tokens.accent.red }}>
+          <MenuItem data-testid="sidebar-avatar-logout" onClick={() => { setUserMenuAnchor(null); logout(); }} sx={{ gap: 1.5, fontSize: "0.85rem", color: tokens.accent.red }}>
             <LogoutOutlined sx={{ fontSize: 18 }} /> {t("sidebar.menu.logout")}
           </MenuItem>
         </Menu>

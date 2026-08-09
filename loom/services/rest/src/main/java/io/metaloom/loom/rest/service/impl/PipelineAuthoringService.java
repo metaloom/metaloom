@@ -22,6 +22,7 @@ import io.metaloom.loom.pipeline.graph.PipelineGraph;
 import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineValidationError;
 import io.metaloom.loom.rest.model.processor.ProcessorCapability;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 import io.metaloom.loom.rest.validation.PipelineValidationService;
@@ -92,19 +93,32 @@ public class PipelineAuthoringService {
 	 *
 	 * @param valid
 	 *            whether the definition would be accepted by {@link #create} / {@link #update}
-	 * @param error
-	 *            the first problem found, or {@code null} when valid
+	 * @param errors
+	 *            every problem found, not just the first; empty when valid
 	 * @param warnings
 	 *            things the author probably did not intend; may be non-empty for a valid definition
 	 */
-	public record ValidationReport(boolean valid, String error, List<String> warnings) {
+	public record ValidationReport(boolean valid, List<PipelineValidationError> errors, List<String> warnings) {
 
-		public static ValidationReport invalid(String error) {
-			return new ValidationReport(false, error, List.of());
+		public static ValidationReport invalid(List<PipelineValidationError> errors) {
+			return new ValidationReport(false, List.copyOf(errors), List.of());
 		}
 
 		public static ValidationReport valid(List<String> warnings) {
-			return new ValidationReport(true, null, List.copyOf(warnings));
+			return new ValidationReport(true, List.of(), List.copyOf(warnings));
+		}
+
+		/**
+		 * The first problem, for callers that can only show one.
+		 *
+		 * <p>
+		 * The MCP tool renders text into a model's context window, where a list of six messages is
+		 * worse than one plus an invitation to validate again; the REST route hands back
+		 * {@link #errors} whole. Null when valid.
+		 * </p>
+		 */
+		public String error() {
+			return errors.isEmpty() ? null : errors.get(0).getMessage();
 		}
 	}
 
@@ -214,10 +228,15 @@ public class PipelineAuthoringService {
 	 * Check a definition without storing anything.
 	 *
 	 * <p>
-	 * This is the dry run behind the {@code validate_pipeline} MCP tool, and it exists because an agent authoring a graph needs to find out what is
-	 * wrong with a draft without leaving a pipeline behind for every attempt. It runs exactly the checks {@link #create} runs — same
-	 * {@link PipelineValidationService}, therefore the same {@code PortGraphAnalyzer} — and then adds the two questions save-time validation
-	 * deliberately does not fail on.
+	 * This is the dry run behind {@code POST /api/v1/pipelines/validate} and the {@code validate_pipeline} MCP tool, and it exists because whoever is
+	 * authoring a graph — an agent or a person in the editor — needs to find out what is wrong with a draft without leaving a pipeline behind for
+	 * every attempt. It runs exactly the checks {@link #create} runs — same {@link PipelineValidationService}, therefore the same
+	 * {@code PortGraphAnalyzer} — and then adds the two questions save-time validation deliberately does not fail on.
+	 * </p>
+	 *
+	 * <p>
+	 * The one difference from {@link #create} is that it collects: {@code create} stops at the first problem because it is deciding whether to write a
+	 * row, whereas here the caller is fixing a draft and wants the whole list.
 	 * </p>
 	 *
 	 * @param definition
@@ -225,24 +244,22 @@ public class PipelineAuthoringService {
 	 * @return a report; never null, never throws for an invalid definition
 	 */
 	public ValidationReport validate(JsonObject definition) {
-		if (definition == null) {
-			return ValidationReport.invalid("A pipeline definition must be set");
-		}
-		try {
-			pipelineValidationService.validateDefinition(definition);
-		} catch (ValidationException | GraphValidationException e) {
-			return ValidationReport.invalid(e.getMessage());
+		List<PipelineValidationError> errors = pipelineValidationService.collectErrors(definition);
+		if (!errors.isEmpty()) {
+			return ValidationReport.invalid(errors);
 		}
 
-		// The parse below repeats work validateDefinition already did, but it is the only way to
-		// get the graph itself: validateDefinition throws away the PipelineGraph it builds. The
-		// alternative — having it return one — would change a validator into a factory on the REST
-		// path too, for the benefit of this one caller.
+		// The parse below repeats work collectErrors already did, but it is the only way to get the
+		// graph itself: collectErrors throws away the PipelineGraph it builds. The alternative —
+		// having it return one — would change a validator into a factory on the REST path too, for
+		// the benefit of this one caller.
 		PipelineGraph graph;
 		try {
 			graph = new PipelineGraphParser(nodeDescriptorRegistry).parse("definition", definition, true, false, 0);
 		} catch (GraphValidationException e) {
-			return ValidationReport.invalid(stripGraphName(e.getMessage()));
+			// Unreachable in practice: collectErrors ran the same parse and would have reported it.
+			return ValidationReport.invalid(List.of(new PipelineValidationError(PipelineValidationService.PORTS,
+				PipelineValidationService.stripGraphName(e.getMessage()), null, null)));
 		}
 
 		List<String> warnings = new ArrayList<>();
@@ -268,17 +285,6 @@ public class PipelineAuthoringService {
 		}
 
 		return ValidationReport.valid(warnings);
-	}
-
-	/**
-	 * The parser names an ad-hoc graph {@code "definition"} for want of anything better; strip that so the message reads as advice about the graph the
-	 * author is looking at. Mirrors {@code PipelineValidationService.validatePorts}.
-	 */
-	private static String stripGraphName(String message) {
-		if (message == null) {
-			return "Invalid pipeline definition";
-		}
-		return message.replace("Pipeline 'definition' ", "");
 	}
 
 }

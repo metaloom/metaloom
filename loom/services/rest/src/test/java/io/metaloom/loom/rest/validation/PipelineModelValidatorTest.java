@@ -1,13 +1,12 @@
 package io.metaloom.loom.rest.validation;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.UUID;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.rest.model.pipeline.PipelineCreateRequest;
@@ -19,29 +18,20 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
 /**
- * {@link PipelineModelValidator}, which had no test at all.
+ * {@link PipelineModelValidator} — what a pipeline request and response must <em>look like</em>.
  *
  * <p>
- * This is the shared-model copy of the structural rules — the second of the three implementations
- * {@code spec/tasks/PIPELINE_TASKS.md} Task 8 exists to collapse (the others being
- * {@code PipelineValidationService} and {@code validatePipeline()} in the editor). Until that
- * consolidation lands, the copy is on the classpath and reachable through
- * {@link LoomModelValidator}, so what it accepts and rejects is worth pinning: an untested validator
- * is one that can start rejecting valid definitions without anybody noticing.
+ * Nothing here is about the contents of a definition. That used to be the bulk of this class: node
+ * ids, edge references and its own copy of Kahn's algorithm, a second implementation of rules
+ * {@code PipelineValidationService} also owned. Those checks are gone and their cases went with
+ * them — see {@link PipelineValidationServiceTest}, which is now the only place the structural rules
+ * are described.
  * </p>
  *
  * <p>
- * Two of the cases here are the ones that mattered most in practice. A definition whose
- * {@code nodes} is present but is not an array used to reach {@code getJsonArray} and throw a
- * {@code ClassCastException}, turning a client's bad request into a 500. And a definition whose
- * edges form a cycle has to be refused here rather than at run time, because the graph the engine
- * builds from it cannot be ordered at all.
- * </p>
- *
- * <p>
- * <strong>If Task 8 deletes the structural checks, delete these cases with them.</strong> They
- * describe that class's behaviour, not a requirement of the REST layer — the authority for these
- * rules is meant to end up in one place.
+ * What remains is the part this module can actually answer without a descriptor registry: a create
+ * request needs a name and a definition, an update needs neither, and a response has to carry the
+ * version identity a client needs to edit it.
  * </p>
  */
 public class PipelineModelValidatorTest {
@@ -68,165 +58,6 @@ public class PipelineModelValidatorTest {
 				.add(edge("pn2", "pn3")));
 	}
 
-	private ValidationException rejected(JsonObject definition) {
-		return assertThrows(ValidationException.class, () -> validator.validateDefinition(definition));
-	}
-
-	// ── The happy path ────────────────────────────────────────────────────
-
-	@Test
-	public void testAWellFormedDefinitionIsAccepted() {
-		assertDoesNotThrow(() -> validator.validateDefinition(validDefinition()));
-	}
-
-	@Test
-	public void testEdgesAreOptional() {
-		// A single-node pipeline is legitimate, and so is a definition that simply has no edges yet.
-		assertDoesNotThrow(() -> validator.validateDefinition(
-			new JsonObject().put("nodes", new JsonArray().add(node("pn1", "filesystem-source")))));
-	}
-
-	@Test
-	public void testADiamondIsNotACycle() {
-		// Kahn's counts visited nodes, so a join reached by two paths must not be mistaken for a loop.
-		assertDoesNotThrow(() -> validator.validateDefinition(new JsonObject()
-			.put("nodes", new JsonArray()
-				.add(node("src", "filesystem-source"))
-				.add(node("left", "sha512"))
-				.add(node("right", "md5"))
-				.add(node("join", "scene-layout")))
-			.put("edges", new JsonArray()
-				.add(edge("src", "left"))
-				.add(edge("src", "right"))
-				.add(edge("left", "join"))
-				.add(edge("right", "join")))));
-	}
-
-	// ── Shape of the definition itself ────────────────────────────────────
-
-	/**
-	 * The wrong <em>type</em> under a known key is a client error, not an internal one. Reading it
-	 * straight through {@code getJsonArray} threw {@code ClassCastException} out of the validator,
-	 * which the REST layer has no case for and answers with a 500.
-	 */
-	@Test
-	public void testANonArrayNodesFieldIsABadRequestRatherThanACrash() {
-		ValidationException e = rejected(new JsonObject().put("nodes", new JsonObject().put("pn1", "sha512")));
-		assertTrue(e.getMessage().contains("must be an array"), e.getMessage());
-	}
-
-	@Test
-	public void testANonArrayEdgesFieldIsABadRequestRatherThanACrash() {
-		ValidationException e = rejected(validDefinition().put("edges", "pn1->pn2"));
-		assertTrue(e.getMessage().contains("must be an array"), e.getMessage());
-	}
-
-	@Test
-	public void testADefinitionWithoutNodesIsRejected() {
-		assertThrows(ValidationException.class, () -> validator.validateDefinition(null));
-		rejected(new JsonObject());
-		rejected(new JsonObject().put("nodes", new JsonArray()));
-	}
-
-	@Test
-	public void testANullEntryInAnArrayIsRejectedByPosition() {
-		assertTrue(rejected(new JsonObject().put("nodes", new JsonArray().add(node("pn1", "sha512")).addNull()))
-			.getMessage().contains("index 1"));
-		assertTrue(rejected(validDefinition().put("edges", new JsonArray().addNull()))
-			.getMessage().contains("index 0"));
-	}
-
-	// ── Node rules ────────────────────────────────────────────────────────
-
-	@Test
-	public void testANodeWithoutAnIdOrTypeIsRejected() {
-		assertTrue(rejected(new JsonObject().put("nodes", new JsonArray().add(new JsonObject().put("type", "sha512"))))
-			.getMessage().contains("missing an id"));
-		assertTrue(rejected(new JsonObject().put("nodes", new JsonArray().add(new JsonObject().put("id", "pn1"))))
-			.getMessage().contains("missing a type"));
-		assertTrue(rejected(new JsonObject().put("nodes", new JsonArray().add(node("pn1", "  "))))
-			.getMessage().contains("missing a type"), "A blank type is no type");
-	}
-
-	/**
-	 * The id ends up in URLs, log lines and edge references, so it is restricted to lowercase
-	 * alphanumerics and inner hyphens.
-	 */
-	@Test
-	public void testTheNodeIdPatternIsEnforced() {
-		for (String bad : new String[] { "PN1", "pn 1", "-pn1", "pn1-", "pn_1", "pn.1", "ä" }) {
-			ValidationException e = rejected(new JsonObject().put("nodes", new JsonArray().add(node(bad, "sha512"))));
-			assertTrue(e.getMessage().contains("Invalid node ID"), "Expected '" + bad + "' to be refused: " + e.getMessage());
-		}
-		for (String good : new String[] { "a", "1", "pn1", "filesystem-source-1", "a-b-c" }) {
-			assertDoesNotThrow(() -> validator.validateDefinition(
-				new JsonObject().put("nodes", new JsonArray().add(node(good, "sha512")))),
-				"Expected '" + good + "' to be accepted");
-		}
-	}
-
-	@Test
-	public void testDuplicateNodeIdsAreRejected() {
-		// Edges address nodes by id, so two nodes sharing one makes every edge to it ambiguous.
-		ValidationException e = rejected(new JsonObject().put("nodes", new JsonArray()
-			.add(node("pn1", "sha512"))
-			.add(node("pn1", "md5"))));
-		assertTrue(e.getMessage().contains("Duplicate node ID"), e.getMessage());
-	}
-
-	// ── Edge rules ────────────────────────────────────────────────────────
-
-	@Test
-	public void testAnEdgeWithoutASourceOrTargetIsRejected() {
-		assertTrue(rejected(validDefinition().put("edges", new JsonArray().add(new JsonObject().put("target", "pn2"))))
-			.getMessage().contains("missing a source"));
-		assertTrue(rejected(validDefinition().put("edges", new JsonArray().add(new JsonObject().put("source", "pn1"))))
-			.getMessage().contains("missing a target"));
-	}
-
-	@Test
-	public void testAnEdgeReferencingAnUnknownNodeIsRejectedByName() {
-		assertTrue(rejected(validDefinition().put("edges", new JsonArray().add(edge("ghost", "pn2"))))
-			.getMessage().contains("ghost"));
-		assertTrue(rejected(validDefinition().put("edges", new JsonArray().add(edge("pn1", "ghost"))))
-			.getMessage().contains("ghost"));
-	}
-
-	@Test
-	public void testACycleIsRejected() {
-		ValidationException e = rejected(validDefinition().put("edges", new JsonArray()
-			.add(edge("pn1", "pn2"))
-			.add(edge("pn2", "pn3"))
-			.add(edge("pn3", "pn1"))));
-		assertTrue(e.getMessage().contains("Cycle detected"), e.getMessage());
-	}
-
-	@Test
-	public void testASelfEdgeIsACycle() {
-		// The one-node loop is the case a naive "have I seen this node twice" check misses.
-		assertTrue(rejected(new JsonObject()
-			.put("nodes", new JsonArray().add(node("pn1", "sha512")))
-			.put("edges", new JsonArray().add(edge("pn1", "pn1"))))
-				.getMessage().contains("Cycle detected"));
-	}
-
-	@Test
-	public void testACycleIsFoundEvenWhenPartOfTheGraphIsAcyclic() {
-		// Kahn's drains the acyclic prefix first; the check is that the *remaining* nodes are noticed
-		// rather than the traversal simply finishing.
-		assertTrue(rejected(new JsonObject()
-			.put("nodes", new JsonArray()
-				.add(node("src", "filesystem-source"))
-				.add(node("a", "sha512"))
-				.add(node("b", "md5"))
-				.add(node("c", "sha256")))
-			.put("edges", new JsonArray()
-				.add(edge("src", "a"))
-				.add(edge("b", "c"))
-				.add(edge("c", "b"))))
-					.getMessage().contains("Cycle detected"));
-	}
-
 	// ── The request and response entry points ─────────────────────────────
 
 	@Test
@@ -240,12 +71,24 @@ public class PipelineModelValidatorTest {
 			new PipelineCreateRequest().setName("p").setDefinition(validDefinition())));
 	}
 
+	/**
+	 * A definition this module would once have refused is accepted here — the check moved, it did
+	 * not disappear.
+	 *
+	 * <p>
+	 * {@code PipelineAuthoringService} runs {@code PipelineValidationService} over the same request
+	 * immediately after this validator, so nothing structural reaches the database. Asserting the
+	 * silence is the guard against someone restoring a second copy of the rules here.
+	 * </p>
+	 */
 	@Test
-	public void testACreateRequestsDefinitionIsCheckedStructurally() {
-		ValidationException e = assertThrows(ValidationException.class, () -> validator.validate(
+	@DisplayName("A structurally broken definition is not this validator's business")
+	public void testTheDefinitionContentsAreNotCheckedHere() {
+		assertDoesNotThrow(() -> validator.validate(
 			new PipelineCreateRequest().setName("p").setDefinition(validDefinition()
 				.put("edges", new JsonArray().add(edge("pn1", "ghost"))))));
-		assertTrue(e.getMessage().contains("ghost"), e.getMessage());
+		assertDoesNotThrow(() -> validator.validate(
+			new PipelineCreateRequest().setName("p").setDefinition(new JsonObject().put("nodes", new JsonArray()))));
 	}
 
 	/**
@@ -257,9 +100,6 @@ public class PipelineModelValidatorTest {
 	public void testAnUpdateWithoutADefinitionLeavesTheGraphAlone() {
 		assertDoesNotThrow(() -> validator.validate(new PipelineUpdateRequest().setName("renamed")));
 		assertDoesNotThrow(() -> validator.validate((PipelineUpdateRequest) null));
-
-		assertThrows(ValidationException.class, () -> validator.validate(
-			new PipelineUpdateRequest().setDefinition(new JsonObject().put("nodes", new JsonArray()))));
 	}
 
 	@Test
@@ -276,18 +116,11 @@ public class PipelineModelValidatorTest {
 
 	/**
 	 * The response check is deliberately not structural: it is a shape assertion on what the server
-	 * sent, and re-running Kahn's on every read would cost a graph traversal per response.
+	 * sent, and re-running the graph rules on every read would cost a traversal per response.
 	 */
 	@Test
 	public void testAResponseDefinitionIsNotRevalidatedStructurally() {
 		assertDoesNotThrow(() -> validator.validate(response().setDefinition(new JsonObject())));
-	}
-
-	@Test
-	public void testTheNodeIdPatternIsSharedRatherThanRedeclared() {
-		// A second copy of this regex is how the editor and the server end up disagreeing about
-		// which ids are legal.
-		assertEquals("^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$", PipelineModelValidator.NODE_ID_PATTERN.pattern());
 	}
 
 	private static PipelineResponse response() {

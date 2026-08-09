@@ -37,7 +37,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: fail this test rather than quietly leave the Python client behind.
 #: 244 abstract declarations plus 32 ``default`` overloads. Cross-checked both ways
 #: against ``LoomHttpClientImpl``, which implements exactly these.
-EXPECTED_JAVA_METHOD_COUNT = 276
+EXPECTED_JAVA_METHOD_COUNT = 277
 
 #: Paths this client builds that the generated API description does not list.
 #:

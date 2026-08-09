@@ -211,6 +211,23 @@ public class PipelineAuthoringServiceTest {
 		assertTrue(report.warnings().isEmpty());
 	}
 
+	/**
+	 * The report carries every problem, unlike {@link PipelineAuthoringService#create}, which stops at the first because it is deciding whether to
+	 * write a row. An author fixing a draft is the caller here, and one problem per round trip is the thing this route exists to avoid.
+	 */
+	@Test
+	public void testValidateCollectsEveryError() {
+		JsonObject broken = validDefinition();
+		broken.getJsonArray("nodes").getJsonObject(0).put("id", "Not A Valid Id");
+		broken.getJsonArray("nodes").getJsonObject(1).put("type", "no-such-kind");
+
+		ValidationReport report = service.validate(broken);
+		assertFalse(report.valid());
+		assertEquals(2, report.errors().size(), report.errors().toString());
+		// error() stays the first of them, for the MCP tool and anything else that can show one.
+		assertEquals(report.errors().get(0).getMessage(), report.error());
+	}
+
 	@Test
 	public void testValidateNullDefinition() {
 		assertFalse(service.validate(null).valid());

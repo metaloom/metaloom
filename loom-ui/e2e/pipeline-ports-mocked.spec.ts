@@ -228,6 +228,17 @@ async function mockBackend(page: Page, definition: unknown): Promise<MockState> 
     route.fulfill({ status: p ? 200 : 404, contentType: "application/json", body: JSON.stringify(p ?? {}) });
   });
 
+  // POST /pipelines/validate — the server owns the graph rules now. Registered LAST because the
+  // most recent matching handler wins, and the /pipelines/:uuid route above also matches this URL:
+  // without this the validation request is counted as a save.
+  await page.route("**/api/v1/pipelines/validate", route =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ valid: true, errors: [], warnings: [] }),
+    })
+  );
+
   return state;
 }
 

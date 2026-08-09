@@ -48,6 +48,7 @@ public class PipelineEndpoint extends AbstractEndpoint {
 		// /api/v1/pipelines/events/ws which is handled by PipelineEventEndpoint.
 		secure(basePath());
 		secure(basePath() + "/runs/stats");
+		secure(basePath() + "/validate");
 		secure(basePath() + "/:uuid");
 		secure(basePath() + "/:uuid/run");
 		secure(basePath() + "/:uuid/runs");
@@ -73,6 +74,16 @@ public class PipelineEndpoint extends AbstractEndpoint {
 			examples.pipelineRunStatsResponseExample(),
 			lrc -> {
 				service.loadRunStats(lrc);
+			});
+
+		// Validate a draft without storing it (literal prefix — registered before the :uuid
+		// wildcard, or "validate" is read as a pipeline uuid and the route never fires)
+		addRoute(basePath() + "/validate", POST,
+			"Validate a pipeline definition without storing it",
+			examples.pipelineValidateRequestExample(),
+			examples.pipelineValidationResponseExample(),
+			lrc -> {
+				service.validate(lrc);
 			});
 
 		// Create

@@ -9,7 +9,7 @@
 >
 > **This file tracks OPEN work only.** A task that is done is deleted, not archived — the
 > code and the spec are the record of what landed. Task numbers are never reused:
-> **1, 2, 3, 4, 5, 7, 9 and 12 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
+> **1, 2, 3, 4, 5, 7, 8, 9 and 12 are retired.** [CLI_PLAN.md](../features/cli/CLI_PLAN.md) cites Task 7.
 
 ---
 
@@ -18,72 +18,11 @@
 | # | Task | State |
 |---|---|---|
 | 6 | Close the residual test blind spots | 🟡 **Partly done** — adapter test landed; fixture, control channel, DAO cases open |
-| 8 | Validation endpoint + de-triplicate structural validation | 🔴 **OPEN** — closes R11 |
 | 10 | Retire the remaining dead surfaces | 🔴 **OPEN** — eight independent items |
 | 11 | Fill the remaining persistence and API gaps | 🔴 **OPEN** — eight independent items |
 | 12 | Give the production parser its descriptor registry | 🔴 **OPEN — silent correctness bug** |
 | 13 | Instrument the run engine | 🔴 **OPEN** — `loom/pipeline` has no metrics at all |
 | 14 | Let a programmatic definition resolve bucket ports, and give the demos a real MIME filter | 🔴 **OPEN** — the three demo filters still route via `other` |
-
----
-
----
-
----
-
-
-## Task 8: Add a validation endpoint and de-triplicate structural validation
-
-**Argumentation Summary:** Requirement **R11 is unmet**: there is no
-`POST /api/v1/pipelines/validate`, so a client cannot validate a draft without persisting
-it. Separately, the *structural* rules (node id format, uniqueness, edge references,
-Kahn's cycle detection, reachable-from-source) exist in **three** independent
-implementations — `PipelineValidationService` (loom rest, the wired and tested one, and
-the only caller that builds a registry-backed `PipelineGraphParser`),
-`PipelineModelValidator` (`loom-shared/rest-model`, untested and unwired), and
-`validatePipeline()` in `PipelineEditor.tsx` (its own TypeScript Kahn's). They will drift.
-**Port** rules are correctly single-sourced in `PipelineGraphParser` — do not add a second
-copy of those.
-
-**Improvement Summary:** Make the server the single authority, expose it, and reduce the
-client to cheap synchronous checks.
-
-```
-1. Add POST /api/v1/pipelines/validate to PipelineEndpoint:
-   - body: the definition JsonObject; response:
-     { valid: boolean, errors: [{ code, message, nodeId?, edgeId? }] }
-   - gate on CREATE_PIPELINE (validating a draft is an authoring action)
-   ⚠️ Secured paths in PipelineEndpoint are enumerated INDIVIDUALLY (so the events WS
-      escapes the auth chain). Add secure(basePath() + "/validate") or the route ships
-      unauthenticated.
-   ⚠️ Register it BEFORE the ":uuid" wildcard, like "/runs/stats", or it is shadowed.
-
-2. Refactor PipelineValidationService to collect a structured error list instead of
-   throwing on the first problem, so a user sees every error at once. Keep a thin
-   throwing wrapper for the existing create/update call sites so their behaviour and
-   tests are unchanged.
-
-3. Delete PipelineModelValidator's structural checks. It is untested and unwired for
-   these rules; keep only what rest-model genuinely needs, or delete the class.
-
-4. loom-ui: replace validatePipeline() in PipelineEditor.tsx with a debounced call to
-   the new endpoint. Keep only cheap synchronous checks (empty graph, malformed id)
-   and the live isValidConnection port checks for editor responsiveness. Removing the
-   TypeScript Kahn's implementation is the point of the task.
-```
-
-**References:** [PIPELINE_REQUIREMENTS.md](../features/pipeline/PIPELINE_REQUIREMENTS.md) R11 ·
-[PIPELINE.md §5.1, §10](../features/pipeline/PIPELINE.md) ·
-[LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) ·
-`PipelineValidationService.java`, `PipelineModelValidator.java`, `PipelineEditor.tsx`
-
-**Test Requirements:** Endpoint tests for a valid and several invalid definitions,
-asserting **all** errors come back, not just the first. Re-point the existing
-`PipelineValidationServiceTest` cases at the collecting API. A permission test for
-`CREATE_PIPELINE`. A Playwright spec that a server validation error blocks save.
-Per [CODING.md](../guidelines/CODING.md) a new endpoint also needs website docs.
-
----
 
 ---
 
@@ -308,9 +247,6 @@ Link them; do not open a parallel task.
 
 ## C. Suggested sequencing
 
-- [ ] **Task 8** touches the REST surface; the endpoint-test harness Task 7 left behind
-      (`PipelineVersionEndpointTest`, `PipelineRunDispatchEndpointTest`) is what its own
-      endpoint tests should reuse.
 - [ ] **Tasks 6, 10, 11, 13** are independent and parallelisable. Task 6's
       reference-fixture item is worth pulling forward regardless — the definition format
       has never had a checked-in regression fixture.
@@ -349,7 +285,7 @@ Task-file discipline for this area. Code-level conventions live in
 | The artifact scope — an intermediate, one segment | `cortex/api/…/api/node/artifact/`, `cortex/common/…/common/artifact/MediaArtifacts.java` |
 | Endpoint-test harness + pattern to copy | `loom/core/src/test/…/endpoint/test/PipelineRunItemEndpointTest.java` |
 | Java client methods | `loom-client/common/…/method/PipelineMethods.java` |
-| The three validators (Task 8) | `loom/services/rest/…/validation/PipelineValidationService.java` · `loom-shared/rest-model/…/validation/PipelineModelValidator.java` · `loom-ui/src/features/pipeline/PipelineEditor.tsx` |
+| The one validator | `loom/services/rest/…/validation/PipelineValidationService.java`. It used to be three (Task 8, retired); the `PipelineModelValidator` and `PipelineEditor.tsx` copies are gone — do not add another |
 | The three status/state vocabularies | `loom-shared/api/…/api/pipeline/{PipelineRunStatus,NodeTaskState,RunItemState}.java` · the jOOQ converters in `loom/db/jooq/…/converter/` and their `forcedTypes` entries in `loom/db/jooq/pom.xml` |
 | Metric catalog + the gap list (Task 13) | `loom/common/…/metrics/LoomMetrics.java` · [METRICS.md](../features/ops/METRICS.md) |
 | Engine test harnesses | `loom/pipeline/src/test/…/engine/{FakeNodeDispatcher,RecordingRunStateStore,Payloads}.java` · `loom/pipeline/src/test/…/TestDescriptors.java` |
@@ -358,11 +294,5 @@ Task-file discipline for this area. Code-level conventions live in
 
 ---
 
-_Git HEAD revision: `8bc46dbd`_
-_Last updated: 2026-08-09 (Task 12 deleted as done — both production parsers now take the descriptor
-registry, fixed alongside the ad-hoc node execution work; §B gained an ownership row for
-AGENTIC_NODE_EXECUTION.md. Earlier: Task 9 deleted as done — the three status/state vocabularies are
-typed enums parsed at the jOOQ boundary, and `V2.77` normalises the `FAILURE`/`FAILED`
-mismatch it exposed; Task 7's stale row removed, its endpoint tests are in the tree. Earlier:
-Task 3 deleted as done, Tasks 1/2/4/5 deleted, Task 6 item 2 closed by `CortexNodeAdapterTest`,
-Task 12 widened to cover `PipelineEndpointService`)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (Task 8 deleted as done — validation endpoint landed and the three structural validators are one). Earlier: (Task 12 deleted as done)_

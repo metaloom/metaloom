@@ -133,6 +133,73 @@ nodes and ports, and no run is created.
 Node results with sync enabled are written back to Loom as asset metadata; see
 link:../cortex/examples/[Cortex Examples] for the persistence path.
 
+[#checking-a-draft]
+== Checking a Draft Before You Save It
+
+A definition can be checked without being stored:
+
+[source,text]
+----
+POST /api/v1/pipelines/validate
+
+{
+  "definition": {
+    "nodes": [
+      { "id": "source", "type": "filesystem-source", "source": true },
+      { "id": "sha512", "type": "sha512" }
+    ],
+    "edges": [
+      { "source": "source", "sourcePort": "media", "target": "sha512", "targetPort": "media" }
+    ]
+  }
+}
+----
+
+The reply is the verdict, not an error:
+
+[source,json]
+----
+{
+  "valid": false,
+  "errors": [
+    {
+      "code": "NODE_TYPE_UNKNOWN",
+      "message": "Unknown node type: \"sha51\" — not found in descriptor registry",
+      "nodeId": "sha512"
+    },
+    {
+      "code": "CYCLE",
+      "message": "Cycle detected in pipeline graph — nodes form a circular dependency"
+    }
+  ],
+  "warnings": []
+}
+----
+
+Three things about it are worth knowing.
+
+**A rejected draft still answers `200`.** You asked a question and got an answer; nothing was
+stored either way, so there is no pipeline to clean up after a failed attempt.
+
+**Every problem comes back at once.** Saving a pipeline reports the first thing wrong with it,
+because it is deciding whether to write a version. Validating reports the whole list, so a graph
+with four independent mistakes takes one round trip to diagnose rather than four. Each error carries
+a stable `code`, and `nodeId` or `edgeId` where the problem belongs to one — which is how the editor
+marks them on the canvas.
+
+**It runs exactly the checks saving runs.** A draft that validates is a draft that saves; that
+equivalence is the only reason the route is worth using.
+
+`warnings` never block. The usual one is that no worker is currently online for one of your node
+kinds — a fact about your fleet rather than about your graph. The pipeline saves; a run started
+before that worker comes back is what would be refused.
+
+Validating requires permission to create pipelines. It is an authoring action, and read access to
+existing pipelines neither grants it nor is needed for it.
+
+The pipeline editor does this for you: it checks the canvas in the background shortly after you stop
+editing, lists whatever comes back, and refuses to save a graph the server has rejected.
+
 [#running-a-pipeline]
 == Running a Pipeline
 

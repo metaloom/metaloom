@@ -117,6 +117,41 @@ public interface PipelineExamples extends ExampleValues {
 			.setOptions(java.util.Map.of("maxFaceAngle", 90));
 	}
 
+	default Example pipelineValidateRequestExample() {
+		return new ExampleImpl(pipelineValidateRequest(), "The pipeline validation request", HttpResponseStatus.OK);
+	}
+
+	default Example pipelineValidationResponseExample() {
+		return new ExampleImpl(pipelineValidationResponse(), "The pipeline validation response", HttpResponseStatus.OK);
+	}
+
+	default PipelineValidateRequest pipelineValidateRequest() {
+		return new PipelineValidateRequest().setDefinition(new JsonObject()
+			.put("nodes", new io.vertx.core.json.JsonArray()
+				.add(new JsonObject().put("id", "source").put("type", "filesystem-source").put("source", true))
+				.add(new JsonObject().put("id", "sha512").put("type", "sha512")))
+			.put("edges", new io.vertx.core.json.JsonArray()
+				.add(new JsonObject().put("source", "source").put("target", "sha512")
+					.put("sourcePort", "file").put("targetPort", "file"))));
+	}
+
+	/**
+	 * A rejected draft, because that is the answer the route exists to give.
+	 *
+	 * <p>
+	 * Two errors rather than one on purpose: the route reports everything wrong with the definition, which is the only difference between it and
+	 * posting the draft to create and reading the 400.
+	 * </p>
+	 */
+	default PipelineValidationResponse pipelineValidationResponse() {
+		return new PipelineValidationResponse()
+			.setValid(false)
+			.setErrors(List.of(
+				new PipelineValidationError("NODE_ID_DUPLICATE", "Duplicate node ID: \"sha512\" — node IDs must be unique", "sha512", null),
+				new PipelineValidationError("CYCLE", "Cycle detected in pipeline graph — nodes form a circular dependency", null, null)))
+			.setWarnings(List.of());
+	}
+
 	default Example pipelineVersionListResponseExample() {
 		return new ExampleImpl(pipelineVersionListResponse(), "The pipeline version list response", HttpResponseStatus.OK);
 	}

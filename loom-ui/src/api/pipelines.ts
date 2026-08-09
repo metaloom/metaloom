@@ -134,6 +134,43 @@ export async function updatePipeline(token: string, uuid: string, request: Pipel
   return handleResponse<PipelineResponse>(res);
 }
 
+/** One problem with a definition, as the server reports it. */
+export interface PipelineValidationError {
+  /** Stable machine-readable code, e.g. CYCLE or NODE_ID_DUPLICATE. The only field worth branching on. */
+  code: string;
+  message: string;
+  /** The node the error belongs to, so the editor can mark it. Absent for whole-graph problems. */
+  nodeId?: string;
+  /** The edge the error belongs to, as "source->target". */
+  edgeId?: string;
+}
+
+export interface PipelineValidationResponse {
+  valid: boolean;
+  errors: PipelineValidationError[];
+  /** Never blocking — e.g. no worker is currently online for one of the node kinds. */
+  warnings: string[];
+}
+
+/**
+ * Ask the server whether a definition would be accepted, without storing it.
+ *
+ * A refused definition still answers 200: read `valid`. The error list is the whole list, which is
+ * why the editor no longer carries its own copy of the graph rules — the server is the authority,
+ * and a second implementation here could only drift from it.
+ */
+export async function validatePipelineDefinition(
+  token: string,
+  definition: Record<string, unknown>,
+): Promise<PipelineValidationResponse> {
+  const res = await fetch(`${API_BASE_URL}/pipelines/validate`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({ definition }),
+  });
+  return handleResponse<PipelineValidationResponse>(res);
+}
+
 export async function deletePipeline(token: string, uuid: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/pipelines/${encodeURIComponent(uuid)}`, {
     method: "DELETE",

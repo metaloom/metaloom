@@ -1,33 +1,27 @@
 import React, { useEffect, useState } from "react";
 import {
   Box, Typography, TextField, Button, Avatar, IconButton, Divider,
-  ToggleButton, ToggleButtonGroup, CircularProgress,
+  ToggleButton, ToggleButtonGroup, CircularProgress, Alert,
 } from "@mui/material";
 import { PhotoCameraOutlined, DarkModeOutlined, LightModeOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
-import { loadUser, updateUser, UserResponse } from "../../api/users";
+import { loadUser, updateUser, UserResponse, UserUpdateRequest } from "../../api/users";
 import { useToast } from "../../context/ToastContext";
 import { useTranslation } from "react-i18next";
 import { useThemeMode } from "../../context/ThemeContext";
 import type { ThemeMode } from "../../context/ThemeContext";
 
-/** Decode the payload of a JWT (no validation, just base64 parse). */
-function decodeJwtPayload(jwt: string): Record<string, unknown> {
-  const parts = jwt.split(".");
-  if (parts.length < 2) return {};
-  const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-  return JSON.parse(atob(payload));
-}
-
 export default function ProfileView() {
-  const { token: authToken, username: authUsername } = useAuth();
+  const { token: authToken, username: authUsername, userUuid } = useAuth();
   const { showToast } = useToast();
   const { t, i18n } = useTranslation();
   const { mode, setMode } = useThemeMode();
   const [language, setLanguage] = useState(i18n.language);
   const [user, setUser] = useState<UserResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -35,10 +29,9 @@ export default function ProfileView() {
 
   useEffect(() => {
     if (!authToken) return;
-    const payload = decodeJwtPayload(authToken);
-    const uuid = payload.uuid as string | undefined;
-    if (!uuid) { setLoading(false); return; }
-    loadUser(authToken, uuid)
+    // The auth context derives the uuid from the JWT and then confirms it via /me.
+    if (!userUuid) { setLoading(false); return; }
+    loadUser(authToken, userUuid)
       .then(u => {
         setUser(u);
         setFirstName(u.firstname ?? "");
@@ -47,7 +40,7 @@ export default function ProfileView() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [authToken]);
+  }, [authToken, userUuid]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,24 +58,44 @@ export default function ProfileView() {
     setLanguage(lang);
   };
 
+  /**
+   * Only the fields the user actually touched are sent — a full-record write would
+   * clobber concurrent changes to fields this screen does not even show.
+   */
+  const changedFields = (loaded: UserResponse): UserUpdateRequest => {
+    const request: UserUpdateRequest = {};
+    if (firstName !== (loaded.firstname ?? "")) request.firstname = firstName;
+    if (lastName !== (loaded.lastname ?? "")) request.lastname = lastName;
+    if (email !== (loaded.email ?? "")) request.email = email;
+    return request;
+  };
+
   const handleSave = async () => {
-    if (!authToken || !user) return;
+    if (!authToken || !user || saving) return;
+    setSaveError(null);
+    setSaving(true);
     try {
-      const updated = await updateUser(authToken, user.uuid, {
-        firstname: firstName,
-        lastname: lastName,
-        email,
-      });
+      const updated = await updateUser(authToken, user.uuid, changedFields(user));
       setUser(updated);
+      setFirstName(updated.firstname ?? "");
+      setLastName(updated.lastname ?? "");
+      setEmail(updated.email ?? "");
       showToast(t("profile.toast.saved"), "success");
     } catch {
+      // The inline alert is what survives; the toast auto-hides after a few seconds.
+      setSaveError(t("profile.toast.error"));
       showToast(t("profile.toast.error"), "error");
+    } finally {
+      setSaving(false);
     }
   };
 
   if (loading) {
     return (
-      <Box sx={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
+      <Box
+        data-testid="profile-loading"
+        sx={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}
+      >
         <CircularProgress size={32} />
       </Box>
     );
@@ -91,7 +104,7 @@ export default function ProfileView() {
   const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
 
   return (
-    <Box sx={{ flex: 1, overflow: "auto", p: 4, maxWidth: 600, mx: "auto" }}>
+    <Box data-testid="profile-view" sx={{ flex: 1, overflow: "auto", p: 4, maxWidth: 600, mx: "auto" }}>
       <Typography variant="h5" fontWeight={700} color="text.primary" gutterBottom>
         {t("profile.title")}
       </Typography>
@@ -147,6 +160,7 @@ export default function ProfileView() {
             fullWidth
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
+            inputProps={{ "data-testid": "profile-field-firstName" }}
           />
           <TextField
             label={t("profile.field.lastName")}
@@ -154,6 +168,7 @@ export default function ProfileView() {
             fullWidth
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
+            inputProps={{ "data-testid": "profile-field-lastName" }}
           />
         </Box>
         <TextField
@@ -163,6 +178,7 @@ export default function ProfileView() {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          inputProps={{ "data-testid": "profile-field-email" }}
         />
         <TextField
           label={t("profile.field.username")}
@@ -171,6 +187,7 @@ export default function ProfileView() {
           value={user?.username ?? authUsername ?? ""}
           disabled
           helperText={t("profile.field.usernameHelper")}
+          inputProps={{ "data-testid": "profile-field-username" }}
         />
       </Box>
 
@@ -221,10 +238,19 @@ export default function ProfileView() {
         </ToggleButtonGroup>
       </Box>
 
+      {saveError && (
+        <Alert severity="error" data-testid="profile-error" sx={{ mt: 3 }}>
+          {saveError}
+        </Alert>
+      )}
+
       <Box sx={{ mt: 4 }}>
         <Button
           variant="contained"
+          data-testid="profile-save"
           onClick={handleSave}
+          disabled={saving}
+          startIcon={saving ? <CircularProgress size={14} data-testid="profile-saving" /> : undefined}
           sx={{
             textTransform: "none",
             fontWeight: 600,

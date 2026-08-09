@@ -23,6 +23,8 @@ from ..models.pipeline import (
     PipelineRunResponse,
     PipelineRunStatsResponse,
     PipelineUpdateRequest,
+    PipelineValidateRequest,
+    PipelineValidationResponse,
     PipelineVersionListResponse,
 )
 
@@ -55,6 +57,17 @@ class PipelineMethods:
     ) -> LoomRequest[PipelineResponse]:
         """Update a pipeline definition. This creates a new version."""
         return self._post(f"pipelines/{self._uuid(pipeline_uuid)}", request, PipelineResponse)
+
+    def validate_pipeline(
+        self, request: PipelineValidateRequest
+    ) -> LoomRequest[PipelineValidationResponse]:
+        """Check a definition without storing it.
+
+        A refused definition still answers 200 -- read ``valid`` for the verdict and
+        ``errors`` for every problem found, not just the first. Requires
+        ``CREATE_PIPELINE``: validating a draft is an authoring action.
+        """
+        return self._post("pipelines/validate", request, PipelineValidationResponse)
 
     def list_pipelines(self) -> LoomRequest[PipelineListResponse]:
         """List pipelines. Supports ``limit``, ``from_``, ``filter``, ``sort`` and ``iter``."""

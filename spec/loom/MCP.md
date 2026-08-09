@@ -350,6 +350,13 @@ pipeline the agent authored is indistinguishable from one drawn in the editor.
 collapses into a `-32603` string the model cannot act on. Validation precedes the first
 `store`, so a rejected create leaves **no row behind**.
 
+**Every problem is reported, first one separately.** `PipelineValidationService.collectErrors`
+returns the whole list ([../features/pipeline/PIPELINE_VALIDATION.md](../features/pipeline/PIPELINE_VALIDATION.md)),
+so `INVALID:` names the first and an `Also reported:` block lists the rest. The split is
+deliberate: a model handed six messages as one blob tends to rewrite six things, and later
+errors can be consequences of the first. `create_pipeline` still reports only the first — it
+was deciding whether to write a row, and one reason not to is enough.
+
 **Warnings are never fatal**, and both come from a question save-time validation
 deliberately does not fail on:
 
@@ -780,5 +787,5 @@ Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 `WebSocketAuthenticator`, `TokenDao`.
 
 ---
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md). Earlier: (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_

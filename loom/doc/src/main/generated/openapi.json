@@ -22222,7 +22222,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "8e364e27-a304-4d7a-8ecb-04b3fa255dae",
+                    "versionUuid" : "0de9f0da-77a7-4272-8f0a-26e0647ac4fc",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22249,7 +22249,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "7a1dfbdf-0dd4-4b55-83e9-124c9a5f2351",
+                    "versionUuid" : "50ffcb9d-6fce-4dbc-9596-cd54c4240aca",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22356,7 +22356,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "0bb587d7-e59f-4dd9-99c4-d699fe83bea4",
+                  "versionUuid" : "1d8ae557-03bd-46dd-a623-1402bc986b54",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22442,7 +22442,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "3948457c-b5cb-472b-8ad8-44a5fde9b536",
+                  "versionUuid" : "651f3b0f-ff59-4e06-bead-de888e3c743c",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22549,7 +22549,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "c5a3846a-800d-4f69-9099-015ba98b70bb",
+                  "versionUuid" : "99c59d75-e6d5-4c83-a226-fc1aed87b62d",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22711,7 +22711,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "0772e9cc-b2d7-4ce9-b63e-bf920152952a",
+                  "runUuid" : "7f1aba0c-ecc3-4ac3-b7e7-639a9c35305b",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -22837,11 +22837,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "31d8a2b2-e4c8-4aec-bc7a-bc31139c3c33",
-                    "pipelineUuid" : "67ee1b97-2f62-45e8-bdd7-ff2ae6a88ad3",
+                    "uuid" : "f4fafe62-086d-4aab-8a08-143f8d5b1c27",
+                    "pipelineUuid" : "496a2447-0aba-4268-a8c2-fe1d7e226f7a",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T12:30:37.759402655Z",
-                    "finished" : "2026-08-09T12:30:37.759527465Z",
+                    "started" : "2026-08-09T13:45:27.432765458Z",
+                    "finished" : "2026-08-09T13:45:27.433064648Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22850,11 +22850,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "06ea56ef-3923-43b2-a62f-f90c07139b26",
-                    "pipelineUuid" : "02628f39-bbbc-46b2-abb7-dedb3a426084",
+                    "uuid" : "3a342f20-9df4-4b41-8ae7-a2e92ac12bfe",
+                    "pipelineUuid" : "2d4772af-0b73-444b-b433-8150ccc1714e",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T12:30:37.759690594Z",
-                    "finished" : "2026-08-09T12:30:37.759695594Z",
+                    "started" : "2026-08-09T13:45:27.433422569Z",
+                    "finished" : "2026-08-09T13:45:27.433433029Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -22947,11 +22947,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "14c77f9a-c588-48c8-b804-53b5a1521370",
-                  "pipelineUuid" : "379f2a6a-8285-4cd8-9524-48d6e6a819c9",
+                  "uuid" : "ff3c566c-9994-499b-8a6e-7ca6042f4043",
+                  "pipelineUuid" : "c3d823cc-98e2-43d9-a0e2-7e9a1e09b2dc",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-09T12:30:37.760652272Z",
-                  "finished" : "2026-08-09T12:30:37.760659352Z",
+                  "started" : "2026-08-09T13:45:27.436286790Z",
+                  "finished" : "2026-08-09T13:45:27.436304820Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -23441,16 +23441,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "3964f6f8-440f-4200-856b-e94d0e829643",
-                    "runUuid" : "15188338-a08e-4474-963b-809f1855aeab",
+                    "uuid" : "99d2dff2-8c48-4bd6-b6b8-0fb57459c220",
+                    "runUuid" : "6967a890-bdaf-44c7-b147-c5d7ffcb0799",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "38bbc096-feb1-418e-a1be-8e3bde82d6db",
-                    "runUuid" : "059cde59-89dd-4c54-a3be-3ef258bf5350",
+                    "uuid" : "e3d8d905-8116-42e5-860b-cddb856b74fe",
+                    "runUuid" : "3dfc70f5-3b89-4631-8f46-40e555ed63bb",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -23551,9 +23551,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "d7d83006-4cb6-4ae0-b915-cfee93412c64",
-                    "itemUuid" : "dedc4bcb-0edf-4b9d-b990-17765fb63740",
-                    "runUuid" : "69e11b49-5fc6-47d3-930b-2afb380e37b9",
+                    "uuid" : "4c4a1fd8-3676-4d3d-aa05-fbd4ab4c9000",
+                    "itemUuid" : "a41fb03f-4fc2-46bb-9aae-e203c90c93b7",
+                    "runUuid" : "34b5d595-e72e-4dcf-b2e5-41c2abfba504",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -24219,7 +24219,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "263d6a8b-cc9d-452e-9c89-92ad288a55cc",
+                    "versionUuid" : "26877928-4b18-44ff-beb6-cb1beb774583",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24246,7 +24246,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "148f6835-63bf-497b-af94-5a808e3cc85e",
+                    "versionUuid" : "ddae32b6-fd24-4d32-8297-016f9f53e2c7",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24357,7 +24357,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "0a9d3662-bbb8-45e7-a497-635d203cbaf5",
+                  "versionUuid" : "201da6ad-0220-4f26-b76c-f2cc8a5fc243",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24482,7 +24482,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "a43ad735-9d16-41a0-8fa9-da216651ff36",
+                  "versionUuid" : "d5915b75-6084-4471-8770-148a9e0d6c5f",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",
@@ -24594,6 +24594,100 @@
                     "failureCount" : 0,
                     "skippedCount" : 1
                   } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pipelines/validate" : {
+      "description" : "Validate a pipeline definition without storing it",
+      "post" : {
+        "tags" : [ "pipelines" ],
+        "summary" : "Validate a pipeline definition without storing it",
+        "description" : "Validate a pipeline definition without storing it",
+        "operationId" : "postPipelinesValidate",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "definition" : {
+                  "nodes" : [ {
+                    "id" : "source",
+                    "type" : "filesystem-source",
+                    "source" : true
+                  }, {
+                    "id" : "sha512",
+                    "type" : "sha512"
+                  } ],
+                  "edges" : [ {
+                    "source" : "source",
+                    "target" : "sha512",
+                    "sourcePort" : "file",
+                    "targetPort" : "file"
+                  } ]
+                }
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The pipeline validation response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "valid" : false,
+                  "errors" : [ {
+                    "code" : "NODE_ID_DUPLICATE",
+                    "message" : "Duplicate node ID: \"sha512\" — node IDs must be unique",
+                    "nodeId" : "sha512"
+                  }, {
+                    "code" : "CYCLE",
+                    "message" : "Cycle detected in pipeline graph — nodes form a circular dependency"
+                  } ],
+                  "warnings" : [ ]
                 }
               }
             }

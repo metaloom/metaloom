@@ -114,7 +114,7 @@ None of these break the mechanism; all of them make it hard to operate.
 
 | # | Gap | Consequence |
 |---|---|---|
-| U1 | 🟡 **The trigger is untyped JSON in `meta`.** No column, no schema validation, no `PipelineModelValidator` rule | A typo (`mimetypes`, `autorun`) silently matches nothing. There is no error, no warning and no way to ask "which pipeline handles a JPEG?" |
+| U1 | 🟡 **The trigger is untyped JSON in `meta`.** No column, no schema validation, no validator rule | A typo (`mimetypes`, `autorun`) silently matches nothing. There is no error, no warning and no way to ask "which pipeline handles a JPEG?" |
 | U2 | 🔴 **The trigger is invisible in the editor.** [../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) has no trigger field | An operator cannot enable auto-processing from the UI at all |
 | U3 | 🔴 **A 503 from the auto-trigger is only logged.** `AssetPipelineTrigger` logs `dispatched=false` and the message | The uploader sees a green checkmark and no processing. This is the workflow's worst failure mode |
 | U4 | 🔴 **No backfill.** The trigger fires on `asset.created` only | Adding a pipeline never processes assets already in the system. There is no "run this pipeline over library X" from the UI, only a manual per-asset run |
@@ -129,9 +129,10 @@ U3 and U4 are the two an operator will hit first.
 Promote the trigger to a validated model without a schema change, then optionally to columns:
 
 1. A `PipelineTrigger` record in `loom-shared/pipeline-model` with `auto`, `mimeTypes`, and room for
-   `libraryUuids`, and a `PipelineModelValidator` rule that rejects unknown keys inside
-   `meta.trigger`. ⚠️ Structural validation is already duplicated in `PipelineModelValidator` and
-   `PipelineValidationService`; add it in **one** place and delegate — do not create a third copy.
+   `libraryUuids`, and a rule that rejects unknown keys inside `meta.trigger`. ⚠️ Put it in
+   `PipelineValidationService`, which is the single authority on what a definition may contain
+   ([../features/pipeline/PIPELINE.md §5.1](../features/pipeline/PIPELINE.md)) — this feature has
+   already been through one de-duplication and must not acquire a second validator.
 2. A trigger panel in the editor writing that model.
 3. `GET /api/v1/pipelines/triggers?mimeType=image/jpeg` — "which pipeline handles this?" answered
    without reading JSON by hand.
@@ -260,5 +261,5 @@ Per-pipeline, in `pipeline_version`:
 
 ---
 
-_Git HEAD revision: `21e8a8cd`_
-_Last updated: 2026-08-07 (new file — verified against AssetUploadEndpointService, AssetPipelineTrigger, PipelineMatcher)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (§2.1: the trigger rule belongs in `PipelineValidationService`, now the single validator). Earlier: (new file — verified against AssetUploadEndpointService, AssetPipelineTrigger, PipelineMatcher)_

@@ -188,6 +188,11 @@ MANAGEMENT  Asset Pools · Pipelines · Cortex · Monitoring · Spaces (/admin/s
 `/profile` is reached from the avatar menu in the sidebar header (which also holds Logout);
 `/maintenance` has **no nav entry at all** and is URL-only.
 
+Because that menu is the *only* way into `/profile`, it carries testids of its own —
+`sidebar-avatar-button` (the trigger), `sidebar-avatar-menu`, `sidebar-avatar-profile` and
+`sidebar-avatar-logout` — and `e2e/profile-mocked.spec.ts` enters through it in every case,
+so a regression that orphans the screen fails the profile suite rather than passing silently.
+
 | Aspect | Rule |
 |--------|------|
 | Sub-group initial state | Closed, unless one of its routes is active — a deep link never lands on a page whose entry is hidden |
@@ -533,12 +538,12 @@ tasks attached to assets with priority/status/due dates.
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-84 specs in two flavours, distinguished by filename suffix:
+86 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (51) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
-| `*-backend.spec.ts` (30) | **Yes** | Real Loom server with demo data |
+| `*-mocked.spec.ts` (52) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-backend.spec.ts` (31) | **Yes** | Real Loom server with demo data |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
 > **Gotcha:** `page.route` handlers are matched **most-recently-registered first**, which is why every
@@ -621,6 +626,7 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `subscribePipelineEvents` / `subscribeProcessorEvents` | `src/api/pipelineEvents.ts` | Shared reconnecting WebSocket (§7.4) |
 | `login` / `getMe` / `decodeJwt` | `src/api/auth.ts` | Auth calls + JWT claim decode |
 | `API_BASE_URL` | `src/api/config.ts` | REST base (§5) |
+| `ProfileView` | `src/features/profile/ProfileView.tsx` | Own user record (name, email), language and theme mode. The uuid comes from `useAuth().userUuid` — the view does not decode the JWT itself. Save `POST`s **only the fields that differ** from the loaded user, so it never clobbers fields the screen does not show; a rejected save keeps the edits, renders `profile-error` and leaves the form editable |
 | `AdminArea` | `src/features/admin/AdminArea.tsx` | All seven admin screens in one file |
 | `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Media, timeline, annotations, comments, reactions, tasks, transcripts, faces, tags |
 | `VideoTimeline` / `ZoomableImage` | `src/features/assetDetail/` | Marker timeline · pan/zoom viewer |
@@ -769,10 +775,12 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 ### 13.4 Testing
 
 - [x] vitest (node env) for API clients and extracted helpers — 42 files
-- [x] Playwright mocked specs as the component tier — 51 files
-- [x] Playwright backend specs against demo data — 30 files
+- [x] Playwright mocked specs as the component tier — 52 files
+- [x] Playwright backend specs against demo data — 31 files
 - [x] Detection review actions covered: bulk staging/save, confirm, redraw, object confirm/reject
       (`e2e/detection-review-mocked.spec.ts`) and the face panels (`e2e/face-panels-mocked.spec.ts`)
+- [x] Profile covered: avatar-menu entry point, field population, partial-field save, a
+      rejected save and logout (`e2e/profile-mocked.spec.ts`)
 - [x] `tsc --noEmit` gate via `npm run build`
 - [ ] Visual regression tests
 - [ ] Accessibility tests

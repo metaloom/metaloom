@@ -237,6 +237,8 @@ spec/
 │   │   └── PERMISSIONS.md             # Authorization: model, taxonomy, enforcement points
 │   ├── pipeline/
 │   │   ├── PIPELINE.md                # 🟢 Technical spec: engine, persistence, protocol, schemas
+│   │   ├── PIPELINE_VALIDATION.md     # 🟢 Is this definition acceptable? Rules, error codes,
+│   │   │                              #   POST /pipelines/validate, the one-authority invariant
 │   │   ├── PIPELINE_FLOW.md           # Conceptual: WHAT travels between nodes — item vs ambient media
 │   │   │                              #   reference vs per-port payload; why nothing accumulates
 │   │   ├── NODE_DATA_TYPES.md         # 🟢 The typed-port model: family/subtype lattice, ONE/MANY
@@ -394,6 +396,7 @@ spec/
 | **Auditing existing Java** (duplicates, hallucinations, contradictions) | [guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](guidelines/METALOOM_STATIC_CODE_ANALYSIS.md) |
 | Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md), then [METALOOM.md](METALOOM.md) |
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
+| "Why was my pipeline rejected?" — validation rules, error codes, `POST /pipelines/validate` | [features/pipeline/PIPELINE_VALIDATION.md](features/pipeline/PIPELINE_VALIDATION.md) |
 | "What actually travels between nodes?" — the mental model | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) |
 | Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) (built model); [NODE_DATA_TYPES_PLAN.md](concept/NODE_DATA_TYPES_PLAN.md) for rationale and divergences |
 | Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA_CONCEPT.md](concept/NODE_SCHEMA_CONCEPT.md) — descriptors are built; the "node card" prose format is not |
@@ -713,7 +716,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | **Cardinality drives fan-out** | A `MANY` output makes every downstream `ONE` input run **once per element**; a `MANY` input **gathers** the branch and runs once. Nothing in the JSON declares this — it falls out of the ports. The gather barrier is `NodeExecState.isSettled()`, not a merge node |
 | **Every edge carries ports** | `sourcePort` + `targetPort` are **required**; the branch key is `branch` (not `edgeType`). `nodes[].dependencies[]` is **rejected outright** by `PipelineGraphParser` — the old "inline fallback" behaviour is gone |
 | **Pipeline graph rules** | Exactly one source node; node IDs match `^[a-z0-9]([a-z0-9\-]{0,62}[a-z0-9])?$` |
-| **Pipeline validation** | *Structural* rules (ids, uniqueness, cycles, reachability) are still duplicated in `PipelineModelValidator` (loom-shared) and `PipelineValidationService` (loom-rest). *Port* rules exist once: the service delegates to `PipelineGraphParser` → `PortGraphAnalyzer`. Do not add a third copy |
+| **Pipeline validation** | `PipelineValidationService` (loom-rest) is the **single** authority: structural rules (ids, uniqueness, cycles, reachability) its own, port rules delegated to `PipelineGraphParser` → `PortGraphAnalyzer`. The copies in `PipelineModelValidator` and `PipelineEditor.tsx` are deleted — do not add another. Two entry points, same rules: `collectErrors` (every problem; backs `POST /pipelines/validate`) and `validateDefinition` (throws on the first; backs create/update). Spec: [features/pipeline/PIPELINE_VALIDATION.md](features/pipeline/PIPELINE_VALIDATION.md) |
 | **Descriptor ≠ registration** | A `NodeDescriptorProvider` makes a kind visible in the palette; **running** it needs `@Binds @IntoMap @StringKey("<kind>")` in the node's own module. **39 advertised kinds** — the literal asserted by `NodeDescriptorServiceLoaderTest`. Since the `d9bbc2dc` refactor the descriptors are one generated resource served by two providers (`GeneratedNodeDescriptorProvider` + `OrphanNodeDescriptorProvider`), not one hand-written provider per node. ⚠️ The runnable-kind arithmetic that used to follow here (*"35 runnable with S3 and both clouds, 32 with none, 31 `@StringKey` bindings"*) is stale — there are 34 node `@StringKey` bindings today and the derived totals were never re-checked; recount before quoting them. Visible but not runnable: `facedescription`, `loom-fetch`. Runnable without a descriptor: `sha512-dedup`, `asset-source` |
 | **Filtering is one kind now** | The eight unrunnable `filter-*` kinds and their nine classes are deleted; `filter` replaces them, with dynamic bucket ports and a real `@StringKey` binding. Routing is by port (`PortSpec.selective`), not by an edge attribute — see [NODE_DATA_TYPES.md §8.6](features/pipeline/NODE_DATA_TYPES.md). All six `filterBy` values are implemented: `LANGUAGE` (one LLM round trip); `MIME`, `SIZE` and `DATE`, which read the item's metadata and take no `LLMProvider`; and `RATING` and `TAG`, which route on what reviewers recorded |
 | **Unschedulable runs → 503** | `PipelineEndpointService.dispatchRun` prechecks **every** node kind in the graph against `ProcessorRegistry`; if any kind has no online worker, the run is rejected with **503** naming the kinds |
@@ -831,8 +834,5 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `43ada5a8`_
-_Last updated: 2026-08-08 (registered the `chat/` family: `AGENTIC_CHAT_PLAN.md`,
-`CHAT_USER_REQUESTS.md`, `AGENTIC_CHAT_CONTEXT_DATA.md`. ⚠️ the `spec/` tree above is otherwise
-stale: `chat/LOOM_UI_CHAT.md` was `loom/ui/CHAT.md`, and `CHAT_TASKS.md`/`DATABASE_TASKS.md`/
-`CLI_PLAN.md` have moved to `tasks/` and `plans/`)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (registered features/pipeline/PIPELINE_VALIDATION.md). Earlier: (pipeline validation cheat-sheet row: one authority, two entry points)_

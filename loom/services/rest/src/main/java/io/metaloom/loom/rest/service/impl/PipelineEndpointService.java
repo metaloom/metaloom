@@ -44,6 +44,8 @@ import io.metaloom.loom.rest.model.pipeline.PipelineResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineValidateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineValidationResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineBreakpointRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineNodeReExecuteRequest;
@@ -194,6 +196,34 @@ public class PipelineEndpointService extends AbstractCRUDEndpointService<Pipelin
 			updated.set(result.version());
 			return result.pipeline();
 		}, pipeline -> modelBuilder.toResponse(pipeline, updated.get()));
+	}
+
+	/**
+	 * Check a definition without storing it.
+	 *
+	 * <p>
+	 * Gated on {@link io.metaloom.loom.db.model.perm.Permission#CREATE_PIPELINE} rather than {@code READ_PIPELINE}: validating a draft is an authoring
+	 * action, and the reply describes the caller's own definition rather than anything stored, so read access to existing pipelines is neither
+	 * necessary nor sufficient.
+	 * </p>
+	 *
+	 * <p>
+	 * A rejected definition is a <b>200 with {@code valid: false}</b>, not a 400. The caller asked a question and got an answer; the 400 belongs on
+	 * create and update, where the definition was supposed to be stored. Only a malformed <em>request</em> — no definition at all — is a 400 here.
+	 * </p>
+	 */
+	public void validate(LoomRoutingContext lrc) {
+		checkPerm(lrc, CREATE_PIPELINE, () -> {
+			PipelineValidateRequest request = lrc.requestBody(PipelineValidateRequest.class);
+			if (request == null || request.getDefinition() == null) {
+				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "A pipeline definition must be set");
+			}
+			PipelineAuthoringService.ValidationReport report = pipelineAuthoringService.validate(request.getDefinition());
+			lrc.send(new PipelineValidationResponse()
+				.setValid(report.valid())
+				.setErrors(report.errors())
+				.setWarnings(report.warnings()));
+		});
 	}
 
 	/**

@@ -850,9 +850,9 @@ plus the TS resolver mirrors — it never asks the server for a configured node'
 | **Adding a script value type means touching the TS mirror** | The obligation moved from `SCRIPT_VALUE_CONTENT_TYPE` to `portResolvers.ts`; it did not go away |
 | **Adding a content type means touching three places** | `ContentTypeRegistry.all()`, the `nodeviz` `TYPES` table on the website, and — only if you added a *family* — `FAMILY_COLORS` |
 | **Never hardcode content-type labels in TypeScript** | They are served by `/api/v1/pipeline/content-types`; only the *rule* is mirrored |
-| **Port rules live in the parser, not in a second validator** | `PipelineValidationService.validatePorts` (`:167`) delegates. Validation logic here has historically drifted across three copies — do not add a fourth |
+| **Port rules live in the parser, not in a second validator** | `PipelineValidationService.collectPortErrors` delegates. Validation here drifted across three copies until Task 8 collapsed them into that one class — do not add another. See [PIPELINE_VALIDATION.md](PIPELINE_VALIDATION.md) |
 | **A null `NodeDescriptorRegistry` silently disables port checking** | `new PipelineGraphParser()` is the no-checking constructor. Convenient in tests, dangerous in production paths (§6.3) |
-| **`validatePorts` only runs when an `edges` key is present** | `PipelineValidationService:110-152`. A definition with no `edges` array skips port validation on the REST path entirely |
+| **Port checking only runs when an `edges` key is present** | `PipelineValidationService.collectErrors` returns before it otherwise. A definition with no `edges` array skips port validation on the REST path entirely |
 | **Re-run `./setup-pool.sh` after a Flyway change** | `V2.60__pipeline_node_task_element_seq.sql` and later migrations make pooled test databases stale |
 
 ---
@@ -929,7 +929,7 @@ unchanged: [../../cortex/CONFIGURATION.md](../../cortex/CONFIGURATION.md),
 | The gather barrier | `loom/pipeline/.../engine/NodeExecState.java` (`isSettled`) and `PipelineRunEngine.dependenciesSettled` |
 | How a task's inputs are filled | `loom/pipeline/.../engine/PipelineRunEngine.java` (`buildInputs`) |
 | Outputs → JSONB | `loom/pipeline/.../engine/PortPayloads.java`; column in `V2.31`, `element_seq` in `V2.60` |
-| Save-time validation | `loom/services/rest/.../validation/PipelineValidationService.java` (`validatePorts`) |
+| Save-time validation | `loom/services/rest/.../validation/PipelineValidationService.java` (`collectPortErrors`) |
 | Demo pipelines (7) | `loom/core/.../boot/DemoDatabaseInitializer.java` (`edge(id, src, srcPort, tgt, tgtPort)`) |
 | The node-author API | `cortex/api/.../node/{InputPort,OutputPort,Element,NodeInputs}.java`, `…/node/context/NodeContext.java` |
 | **Count descriptor kinds** | `grep -c 'setKind("' loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/*DescriptorProvider.java \| …` — or `grep -rho 'setKind("[^"]*"' … \| sort -u \| wc -l` |
@@ -1015,7 +1015,7 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [x] `PortPayloads` JSON codec; `AssetSink.persist` takes port payloads
 - [x] Segmenter: `PER_ELEMENT` nodes always dispatch per node (the SINGLE-only fallback)
 - [ ] `PipelineRunRecovery` re-parses with a **null registry**, so a resumed run gets no port checking
-- [ ] `validatePorts` is skipped entirely when a definition has no `edges` key
+- [ ] Port checking is skipped entirely when a definition has no `edges` key
 
 ### Wire and persistence
 
@@ -1066,6 +1066,5 @@ Per-node end-to-end coverage lives in `integration-test/` — see
 - [ ] Elements by reference for large gathers (a gather task ships all N elements inline)
 
 ---
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (§4.5: the `filter` node's four `filterBy` strategies and the two
-seam methods — `version()` and `validateBuckets(...)`)_
+_Git HEAD revision: `da6b1760`_
+_Last updated: 2026-08-09 (port-validation entry points renamed and re-pointed at PIPELINE_VALIDATION.md). Earlier: (4.5: the `filter` node's strategies)_

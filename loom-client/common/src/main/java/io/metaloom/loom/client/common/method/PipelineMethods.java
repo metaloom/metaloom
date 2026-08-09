@@ -20,6 +20,8 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunRequest;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineValidateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineValidationResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
 
@@ -30,6 +32,17 @@ public interface PipelineMethods {
 	LoomClientRequest<PipelineResponse> createPipeline(PipelineCreateRequest request);
 
 	LoomClientRequest<PipelineResponse> updatePipeline(UUID uuid, PipelineUpdateRequest request);
+
+	/**
+	 * Check a definition without storing it.
+	 *
+	 * <p>
+	 * A definition the server refuses still answers 200 — the verdict is in
+	 * {@link PipelineValidationResponse#isValid()}, and the error list is the whole list, not the first entry. Requires {@code CREATE_PIPELINE}:
+	 * validating a draft is an authoring action.
+	 * </p>
+	 */
+	LoomClientRequest<PipelineValidationResponse> validatePipeline(PipelineValidateRequest request);
 
 	LoomClientRequest<PipelineListResponse> listPipelines();
 

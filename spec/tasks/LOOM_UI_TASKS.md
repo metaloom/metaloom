@@ -78,7 +78,9 @@ to report `duplicate`, not `error`.
 
 **Repo-wide measurement:** of **172** `data-testid` values in `loom-ui/src`, **62 (36 %)** are
 referenced by no spec in `loom-ui/e2e/`. [ProfileView.tsx](../../loom-ui/src/features/profile/ProfileView.tsx)
-carries **no `data-testid` at all** and so cannot even appear in that count → **Task 5**.
+carried **no `data-testid` at all** and so could not even appear in that count — closed by
+**Task 5**: the view and the sidebar avatar menu now carry testids, covered by
+`profile-mocked.spec.ts`.
 
 ---
 
@@ -136,38 +138,6 @@ lifecycle, plus a backend spec proving a denied pattern actually blocks a write.
 
 ---
 
-## Task 5: Make ProfileView testable, then test it
-
-**Argumentation Summary:** [ProfileView.tsx](../../loom-ui/src/features/profile/ProfileView.tsx)
-(240 lines, `/profile`) carries **zero `data-testid` attributes** and has zero specs. It calls
-`updateUser` — it writes to the user record — and nothing verifies that the write carries the right
-fields, that a failure is surfaced, or that the form repopulates. It is also the only route reachable
-solely from the sidebar avatar menu, so a regression in that menu silently orphans the screen. The
-repo convention is explicit: *"`data-testid` on anything an E2E spec touches"*
-([../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §11.1) — the screen currently opts itself out.
-
-**Improvement Summary:** Add testids and one mocked spec covering load, edit, save, failure and the
-avatar-menu entry point.
-
-```
-1. Add data-testid attributes to ProfileView.tsx: `profile-view`, `profile-field-<name>` for each
-   editable field, `profile-save`, `profile-error`, `profile-saving`.
-2. Add `sidebar-avatar-menu` and `sidebar-avatar-profile` / `sidebar-avatar-logout` testids in
-   src/layout/Sidebar.tsx if absent -- the menu is the only route in.
-3. loom-ui/e2e/profile-mocked.spec.ts:
-     - open the avatar menu, click Profile, land on /ui/profile
-     - fields populate from GET /users/:uuid (the uuid comes from useAuth().userUuid, which is
-       decoded from the JWT then confirmed by /me -- mock both)
-     - edit a field, save, assert the PATCH/POST body carries only changed fields
-     - a 403 renders `profile-error` and leaves the form editable
-     - logout from the same menu returns to the login form
-```
-
-**References:** [ProfileView.tsx](../../loom-ui/src/features/profile/ProfileView.tsx) ·
-[Sidebar.tsx](../../loom-ui/src/layout/Sidebar.tsx) ·
-[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §4.3, §11.1
-
-**Test Requirements:** `loom-ui/e2e/profile-mocked.spec.ts`, five cases as above.
 
 ---
 
@@ -297,83 +267,6 @@ the socket side — REST has no equivalent.
 
 ---
 
-## Task 12: Replace the last mock data — monitoring and workflow — ✅ DONE (2026-08-09)
-
-**Argumentation Summary:** Two screens still render invented numbers.
-[MonitoringArea.tsx](../../loom-ui/src/features/monitoring/MonitoringArea.tsx) draws its ingestion,
-latency, storage, task-backlog, chat-usage and annotation charts from `src/mock/data.ts` `METRICS`
-(only the pipeline-run KPI is real, via `/pipelines/runs/stats`), and
-[WorkflowView.tsx](../../loom-ui/src/features/workflow/WorkflowView.tsx) seeds `FACE_CLUSTERS`,
-`PERSONS` and a hardcoded VLM result string. `monitoring-mocked.spec.ts` pins that every synthetic
-panel carries a sample-data badge — honest, and the right interim behaviour — but a monitoring screen
-whose charts are fiction is not a monitoring screen. Metrics are catalogued in
-[../features/ops/METRICS.md](../features/ops/METRICS.md) (whose §3/§5 tables are parsed at runtime by
-`MetricsCatalogScrapeTest`), so the naming is settled; what is missing is an endpoint to read them.
-
-**Improvement Summary:** Land a metrics read endpoint and point the charts at it; back the workflow
-panels with the real cluster/person/VLM data that now exists.
-
-```
-1. Backend first (blocking): expose the catalogued metrics over REST. Confirm against
-   ../features/ops/METRICS.md §3/§5 -- those tables are parsed by MetricsCatalogScrapeTest, so the
-   endpoint's series names must match them exactly (a markdown edit there can break the Java build).
-2. src/api/metrics.ts + rewire MonitoringArea panel by panel. Remove each panel's sample-data badge
-   only as that panel goes real -- a half-real dashboard with no badges is worse than the current
-   state.
-3. WorkflowView: replace FACE_CLUSTERS/PERSONS with listClusters/listPersons (the clients exist),
-   and the hardcoded VLM string with the asset's `vlm` asset_json_comp payload.
-4. Delete src/mock/data.ts and src/mock/services.ts once the last consumer is gone, and strike
-   ../loom/ui/LOOM_UI.md §7.7 and the two §13.3 checkboxes.
-```
-
-**References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.7, §13.3 ·
-[monitoring-mocked.spec.ts](../../loom-ui/e2e/monitoring-mocked.spec.ts) ·
-[../features/ops/METRICS.md](../features/ops/METRICS.md)
-
-**Test Requirements:** Extend `monitoring-mocked.spec.ts` — each rewired panel derives from the
-endpoint, a failing endpoint degrades to a warning without breaking the page (the existing pattern),
-and no panel shows a sample-data badge once real. Extend `workflow-rating-mocked.spec.ts` with a
-cluster/person case.
-
-**Outcome (2026-08-09).** `src/mock/` is gone — both files, and the now-orphaned `MetricSeries` /
-`MetricPoint` types with them. Nothing in `loom-ui` imports a fixture any more.
-
-*Backend.* `GET /api/v1/metrics` serves the `loom_*` catalog as JSON on the app REST port, gated by
-a new `READ_METRIC` permission (`V2.84`). It is deliberately **not** a second Prometheus endpoint:
-the scrape stays unauthenticated on the monitoring port, which a browser cannot reach and must not.
-`MetricsSnapshot` projects the same registry and applies the `_total` / `_seconds` convention
-itself, and `MetricsSnapshotCatalogTest` pins the result to `METRICS.md` §3/§5 **and** to the scrape
-text, so the two surfaces cannot drift apart on naming. Documented in
-[../features/ops/METRICS.md](../features/ops/METRICS.md) §3.2.
-
-*The panels changed, not just their source.* Meters have no history, so the six 14-day charts could
-not be rewired — there is no meter behind ingestion, storage, task backlog, chat usage or
-annotations, and no roll-up to derive one from. Keeping their shapes and filling them from `/metrics`
-would have been the same fiction with a better provenance story. The screen now shows what Loom
-actually measures: seven fleet KPIs, per-kind node-result outcomes, per-kind latency, workers by
-state, and two **live** series differenced across polls (5s interval, five-minute window). The one
-genuinely historical chart, pipeline runs per day, is unchanged. A rate needs two samples, so a
-freshly opened dashboard says "collecting" rather than plotting a cumulative total as a rate.
-
-*What was dropped, and where it would come back from.* Ingestion, storage growth, task backlog, chat
-usage and annotation counts are all derivable from the database the way `/pipelines/runs/stats`
-already is — day-bucketed queries over `asset`, `asset_location`, `task`, `chat_message` and
-`annotation`. That is a second, separate endpoint and not a metrics one; it is not built. See
-[LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.7.
-
-*Workflow.* Persons come from `listPersons`; the VLM pane renders the asset's `vlm`
-`asset_json_comp` payloads — one card per prompt, labelled with the prompt id and the model that
-actually answered, instead of one of three sentences chosen by asset id. An asset with no such
-component says so rather than showing an empty card.
-
-*Tests.* `monitoring-mocked.spec.ts` grew from 4 cases to 10 — every rewired panel traced to its
-series, both endpoints failing independently, and an empty-but-successful catalog. It now asserts
-that **no** sample-data badge exists. `workflow-rating-mocked.spec.ts` gained four: the cluster card
-and the person options, the confirm payload, the vlm result with its variant/model chips, and the
-no-result case. Plus `metrics.test.ts` (12) and `metricsPanels.test.ts` (15) at the unit tier, and
-`MetricsEndpointTest` (10, including the permission matrix).
-
----
 
 ## Task 13: Shell refinement backlog
 

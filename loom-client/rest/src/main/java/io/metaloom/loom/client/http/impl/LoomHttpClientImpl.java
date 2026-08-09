@@ -129,6 +129,8 @@ import io.metaloom.loom.rest.model.pipeline.PipelineRunResponse;
 import io.metaloom.loom.rest.model.metrics.MetricsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineRunStatsResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineUpdateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineValidateRequest;
+import io.metaloom.loom.rest.model.pipeline.PipelineValidationResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionListResponse;
 import io.metaloom.loom.rest.model.pipeline.PipelineVersionRestoreRequest;
 import io.metaloom.loom.rest.model.info.RESTInfoResponse;
@@ -765,6 +767,11 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PipelineResponse> createPipeline(PipelineCreateRequest request) {
 		return postRequest("pipelines", request, PipelineResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PipelineValidationResponse> validatePipeline(PipelineValidateRequest request) {
+		return postRequest("pipelines/validate", request, PipelineValidationResponse.class);
 	}
 
 	@Override

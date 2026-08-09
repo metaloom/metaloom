@@ -29,8 +29,8 @@ const DEFINITION = {
 };
 
 /**
- * Descriptors so the client-side validatePipeline accepts these node kinds — typed ports, since
- * every edge now names one on each side.
+ * Descriptors for these node kinds — typed ports, since every edge now names one on each side.
+ * They feed the canvas and `isValidConnection`; the save-time graph rules are the server's.
  */
 const DESCRIPTORS = [
   { kind: "filesystem-source", category: "SOURCE", out: { id: "media", contentType: "media/*" } },
@@ -138,6 +138,17 @@ async function mockBackend(page: Page): Promise<MockState> {
     const p = state.pipelines.find(x => x.uuid === uuid);
     route.fulfill({ status: p ? 200 : 404, contentType: "application/json", body: JSON.stringify(p ?? {}) });
   });
+
+  // POST /pipelines/validate — the server owns the graph rules now. Registered LAST because the
+  // most recent matching handler wins, and the /pipelines/:uuid route above also matches this URL:
+  // without this the validation request is counted as a save.
+  await page.route("**/api/v1/pipelines/validate", route =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ valid: true, errors: [], warnings: [] }),
+    })
+  );
 
   return state;
 }
