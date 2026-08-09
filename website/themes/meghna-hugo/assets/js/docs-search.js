@@ -15,9 +15,12 @@
  * search. While it downloads, the substring pass answers on its own and the panel says so — a
  * spinner over an empty list would be the wrong trade for a control that already has an answer.
  *
+ * The box lives in the site header, right of the Docs menu entry, so it is on every page — but
+ * the index covers /docs/** only, which is what the placeholder says out loud.
+ *
  * The box is hidden until docs-search-bootstrap.html's inline snippet flags JavaScript as
  * working, and that snippet takes the flag away again if this script never runs. A reader with
- * JavaScript off sees the topic rail they have always seen, not a text field that does nothing.
+ * JavaScript off sees the header they have always seen, not a text field that does nothing.
  */
 (function () {
 	'use strict';
@@ -245,19 +248,21 @@
 	document.body.appendChild(panel);
 
 	/**
-	 * The panel hangs off <body>, not off the rail.
+	 * The panel hangs off <body>, not off the header.
 	 *
-	 * .docs-sidebar is a scroll container — and, by design, the only one in the rail — so a
-	 * dropdown inside it would be clipped at the rail's edge and would put a second scrollbar a
-	 * dozen pixels from the first. Positioning it against the input's own box instead leaves the
-	 * rail's geometry completely alone.
+	 * The header is `sticky-top` with its own stacking context and a backdrop filter; a panel
+	 * inside it would inherit both and would be clipped by the navbar's own box. Positioning a
+	 * body-level element against the input's rect instead leaves the header's geometry alone —
+	 * and, because the header is sticky, the anchor does not move as the page scrolls.
 	 */
 	function place() {
 		if (!activeInput) return;
 		var box = activeInput.getBoundingClientRect();
 		var width = Math.min(Math.max(box.width, 380), window.innerWidth - 24);
-		var left = Math.min(box.left, window.innerWidth - width - 12);
-		panel.style.left = Math.max(12, left) + 'px';
+		// Right edges flush. The box lives at the end of the menu, so growing the panel leftwards
+		// is what keeps it under its own control instead of drifting toward the middle.
+		var left = Math.max(12, Math.min(box.right - width, window.innerWidth - width - 12));
+		panel.style.left = left + 'px';
 		panel.style.top = (box.bottom + 6) + 'px';
 		panel.style.width = width + 'px';
 	}
@@ -462,7 +467,8 @@
 		if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
 		var el = document.activeElement;
 		if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-		// Focus the box the reader can actually see: the rail is hidden below the lg breakpoint.
+		// Focus the box the reader can actually see: below the lg breakpoint it is inside the
+		// collapsed hamburger panel and has no layout box until that panel is open.
 		for (var i = 0; i < roots.length; i++) {
 			var input = roots[i].querySelector('input');
 			if (input && input.offsetParent !== null) { e.preventDefault(); input.focus(); return; }

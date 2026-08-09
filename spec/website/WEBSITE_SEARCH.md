@@ -36,8 +36,9 @@ detail below into it**.
 * `themes/meghna-hugo/assets/js/docs-search.js` runs **two passes over one index**: a substring pass
   that answers instantly from the metadata, and a cosine pass against the embeddings once the model
   has arrived. Neither is a fallback for the other — they are good at opposite things.
-* The box is a rail control on `/docs/**`, loaded from the two docs layouts only. **Nothing is
-  fetched until the reader focuses it**, and nothing at all is fetched anywhere outside `/docs/`.
+* The box lives in the **site header**, right of the *Docs* menu entry, so it is on every page —
+  but the index covers `/docs/**` only, which the placeholder says out loud. **Nothing is fetched
+  until the reader focuses it**: a non-docs reader pays for the ~5 KB script and nothing else.
 * Four `data-*-url` attributes carry the asset URLs and are checked by **both** build gates.
 
 ## Architecture
@@ -185,20 +186,30 @@ cap matters — chunk overlap means one page can otherwise fill the panel with f
 
 ## The box
 
-`partials/docs-search.html`, called with a `variant` that only distinguishes the instances. **A page
-renders it more than once on purpose**, and `docs-search.js` binds every instance; they share one
-index, one model and one results panel.
+`partials/docs-search.html` (variant `nav`), rendered once from `partials/navigation.html` at the end
+of the menu — **right of *Docs***. `docs-search.js` binds every `[data-docs-search]` root, so extra
+placements would work, but there is exactly one today. The script itself is loaded site-wide from
+`partials/footer.html`.
 
-| Variant | Where | Why |
-|---|---|---|
-| `rail` | top of `.docs-sidebar`, both docs layouts | the decided home |
-| `narrow` | content column, `d-lg-none`, both layouts | **the rail is `d-none d-lg-block`** — below 992 px it is not rendered at all, so without this a phone cannot search |
-| `hero` | `/docs/` only, under the page header | that page is centred and **rail-free by design**; the box goes under the header because on the one page that *is* the map, the map comes first |
+**It is site chrome, not a docs control.** A reader on the home page or a blog post can reach the
+reference without navigating into it first, and search from `/blog/` links straight into `/docs/`.
+The index is still `/docs/**` only; the placeholder — *"Search the docs…"* — is what keeps that
+honest.
 
-* **The results panel hangs off `<body>`**, positioned against the input's own box. `.docs-sidebar`
-  is a scroll container — and, per [WEBSITE.md](WEBSITE.md) § *Conventions and Gotchas*, deliberately
-  the **only** one in the rail — so a panel inside it would be clipped at the rail's edge and would
-  stand a second scrollbar a dozen pixels from the first.
+* **The results panel hangs off `<body>`**, positioned against the input's rect, right edges flush.
+  The header is `sticky-top` with its own stacking context and a `backdrop-filter`; a panel inside
+  it would inherit both and be clipped by the navbar's box. Because the header is sticky, the anchor
+  does not move as the page scrolls.
+* **The header had no room to spare.** Between 992 px and 1199 px the menu is expanded but the
+  container is not yet wide enough for seven links, a logo *and* a field: the box ran off the right
+  edge and the whole document scrolled sideways — the defect [WEBSITE.md](WEBSITE.md) § *Test Setup*
+  checks for. A `@media (min-width: 992px) and (max-width: 1199px)` block halves the link gutter and
+  narrows the box to 160 px. **Re-measure `scrollWidth` at 992/1024/1200 after any nav change.**
+* **The box is a fixed width, deliberately.** The menu beside it is pushed right by `ml-auto`, so a
+  field that grew on focus would drag every nav link sideways with it.
+* Below 992 px it sits inside the collapsed hamburger panel, full width, **after** the links — the
+  same position relative to *Docs* that it has on the desktop bar. No `order` is used: the collapsed
+  panel is `display: block`, so it follows DOM order regardless.
 * **Nothing loads until focus.** The model is 7 MB and most visitors never search.
 * **The box is hidden until JavaScript proves it works.** `docs-search-bootstrap.html` adds
   `docs-search-js` to `<html>` synchronously during parse and removes it again after 2.5 s if
@@ -206,7 +217,8 @@ index, one model and one results panel.
   server to submit to, so a box the script cannot drive is a control that collects and does nothing.
 * A11y: `role="combobox"` + `aria-expanded` + `aria-controls` + `aria-activedescendant`, panel as
   `role="listbox"`, rows as `role="option"`, `aria-live` status line, arrows/Enter/Escape, and `/` to
-  focus **the box the reader can actually see** (it skips instances whose `offsetParent` is null).
+  focus **a box that is actually on screen** — it skips any whose `offsetParent` is null, which is
+  what the collapsed hamburger panel makes it below 992 px.
 * Highlighting is **per word, not per query** — a semantic hit is precisely the case where the whole
   phrase does not appear. Built from DOM nodes, never from markup.
 * Deep links land correctly because headings already carry `scroll-margin-top: 96px`.
@@ -240,8 +252,8 @@ then fails the build instead of 404-ing for a reader.
 | Change chunk size or overlap | `chunkSection()` / `sentencesOf()`, same file |
 | Change the index format | the `index` object at the bottom of `main()`, and the reader in `docs-search.js` |
 | Change ranking | `substringPass()` / `semanticPass()` / `results()` in `themes/meghna-hugo/assets/js/docs-search.js` |
-| Move or restyle the box | `partials/docs-search.html`, the `.docs-search*` block at the end of `less/includes/docs.less` |
-| Change where the box appears | `layouts/docs/single.html` and `layouts/docs/list.html` — **both** |
+| Move or restyle the box | `partials/docs-search.html`, the *Documentation search* block in `less/includes/custom.less` |
+| Change where the box appears | `partials/navigation.html` (the box) and `partials/footer.html` (the script) |
 | Change the placeholder or label | `website/i18n/en.yaml` (`searchDocsLabel`, `searchDocsPlaceholder`) |
 | Bump or re-vendor the model | `./vendor-ternlight.sh [version]`, then `./build.sh` |
 | Find out why a page is missing from search | run `node build-search-index.mjs dist` — the gates name the page |
@@ -257,8 +269,9 @@ then fails the build instead of 404-ing for a reader.
   (`{ module: … }` / `{ module_or_path: … }`) or every reader gets a console warning.
 * **The `/` hint badge is hidden on the `narrow` variant** — it only renders below the lg
   breakpoint, where there is most likely no keyboard to press it on.
-* **Do not add the search script to `[[params.plugins.js]]`.** That list renders on every page of
-  the site; nothing outside `/docs/` has anything to search.
+* **Do not add the search script to `[[params.plugins.js]]`.** Those are plain `<script src>` tags;
+  this one needs Hugo Pipes for its fingerprint and integrity hash and carries the four
+  `data-*-url` attributes. `partials/footer.html` is where it belongs.
 * **The theme's `package.json` declares no module type**, so the vendored glue ships upstream's
   one-line `{"type":"module"}` beside it. Without that file Node reparses the glue on every build
   and prints `MODULE_TYPELESS_PACKAGE_JSON`.
@@ -291,8 +304,10 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
    the word first — those three are the regression the identifier-shape test exists for.
 5. **Keyboard.** ArrowDown sets `aria-activedescendant`; Enter lands on the section anchor with
    `scroll-margin-top: 96px` honoured. `/` focuses without typing a slash.
-6. **Layout.** `/docs/` shows `hero` and has no rail. At 420 px the rail is hidden, `narrow` is
-   visible, and `document.documentElement.scrollWidth` does not exceed the viewport.
+6. **Layout.** The box is present on `/`, `/blog/`, `/tour/` and `/docs/` alike, and searching from
+   `/blog/` links into `/docs/`. **`document.documentElement.scrollWidth` must not exceed the
+   viewport at 992, 1024, 1200, 1280, 1440 and 1600** — the header is the tight one, not the page.
+   At 420 px the box is reachable only after opening the hamburger.
 7. **Degradation, all four:** block the wasm (substring results survive, status says why); block the
    index (honest failure message); block the script (the box removes itself after 2.5 s, rail
    intact); disable JavaScript (no box, rail and content unaffected).
@@ -328,4 +343,4 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
 
 ---
 _Git HEAD revision: `4c02c3a5`_
-_Last updated: 2026-08-09 (initial specification — client-side semantic search over /docs/)_
+_Last updated: 2026-08-09 (initial specification; box placed in the site header, right of Docs)_

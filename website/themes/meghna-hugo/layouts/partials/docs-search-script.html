@@ -1,11 +1,14 @@
 {{/*
-  Loads the search script, on documentation pages only.
+  Loads the search script. Called from partials/footer.html, so it is on every page — the box
+  lives in the site header now, not in the docs rail.
 
-  Deliberately NOT one of the `[[params.plugins.js]]` entries in config.toml: that list is
-  rendered on every page of the site, and nothing outside /docs/ has anything to search.
+  Still NOT one of the `[[params.plugins.js]]` entries in config.toml, because those are plain
+  `<script src>` tags: this one needs Hugo Pipes for the fingerprint and the integrity hash, and
+  it needs the four URLs below. What it costs a non-docs reader is this ~5 KB file and nothing
+  else — the 118 KB index and the 7 MB model are not fetched until the box is focused.
 
-  The four URLs ride on this tag rather than on the box, because the box renders two or three
-  times per page and these are page-level facts. They are `data-*-url` attributes so both build
+  The four URLs ride on this tag rather than on the box, because they are page-level facts and
+  the box is markup that may move. They are `data-*-url` attributes so both build
   gates see them — build.sh's localhost grep and check-links.mjs both enumerate the attributes
   they check, and both have been taught these four. A renamed index or a moved model then fails
   the build instead of 404-ing for a reader.

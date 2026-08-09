@@ -7,8 +7,9 @@
   Either way a blocked or failed script degrades to the page as it was, never to a text field
   that swallows what a reader types.
 
-  Synchronous on purpose: a deferred snippet would let the rail paint without the box and then
-  push it in, moving the topic list under the reader's cursor.
+  Synchronous on purpose, and emitted immediately before the header: a deferred snippet would let
+  the menu paint without the box and then push it in, shifting every nav link sideways under the
+  reader's cursor.
 */}}
 <script>
   document.documentElement.classList.add('docs-search-js');

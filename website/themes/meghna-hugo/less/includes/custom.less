@@ -1154,6 +1154,206 @@ html { scrollbar-gutter: stable; }
 }
 
 /* ==========================================================
+   Documentation search
+
+   The box is the last thing in the header menu, right of Docs. The results panel is NOT in the
+   header: docs-search.js appends it to <body> and positions it against the input, so it is not
+   clipped by the navbar and does not have to fight the sticky bar's stacking context.
+   ========================================================== */
+
+/* Hidden until docs-search-bootstrap.html confirms the script runs. There is no server to submit
+   to, so a box that JavaScript cannot drive is a control that collects and does nothing. */
+.docs-search {
+  display: none;
+}
+
+.docs-search-js .docs-search {
+  display: block;
+  position: relative;
+}
+
+.docs-search-nav {
+  align-self: center;
+  flex-shrink: 0;
+  margin-left: 30px;
+  /* Fixed, deliberately. The menu beside it is pushed right by `ml-auto`, so a box that grew on
+     focus would drag every nav link sideways with it. */
+  width: 200px;
+}
+
+.docs-search-input {
+  width: 100%;
+  padding: 7px 30px 7px 11px;
+  font-family: var(--ml-sans);
+  font-size: 0.86rem;
+  color: var(--ml-fg);
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: var(--ml-radius-sm);
+  transition: border-color .2s ease-in 0s, background-color .2s ease-in 0s;
+
+  /* Safari paints a rounded inset field and a cancel button of its own over all of this. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.docs-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.docs-search-input::placeholder {
+  color: #8b97a3;
+}
+
+.docs-search-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, .09);
+  border-color: #57cbcc;
+}
+
+/* The keyboard shortcut, shown on the control it operates. Hidden once the field has focus — at
+   that point it is stale advice sitting on top of what the reader is typing. */
+.docs-search-hint {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  transform: translateY(-50%);
+  padding: 0 5px;
+  font-family: var(--ml-mono);
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: #8b97a3;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.docs-search-input:focus ~ .docs-search-hint {
+  opacity: 0;
+}
+
+/* Between the lg breakpoint and 1200px the menu is expanded but the container is not yet wide
+   enough for seven links, a logo and a search field: the box ran off the right edge of the page.
+   The links give up half their gutter and the box gives up 40px, which is enough at 992. Without
+   this the whole document scrolls sideways — the defect WEBSITE.md § Test Setup checks for. */
+@media (min-width: 992px) and (max-width: 1199px) {
+  .navbar-expand-lg .navbar-nav .nav-link {
+    margin-left: 18px;
+  }
+  .docs-search-nav {
+    margin-left: 18px;
+    width: 160px;
+  }
+}
+
+@media (max-width: 991px) {
+  /* Inside the open hamburger panel: full width, below the links — the same position relative to
+     Docs that it has on the desktop bar — and no "/" badge, since there is most likely no
+     keyboard here to press it on. (No `order` here: the collapsed panel is `display: block`, so
+     the box follows DOM order regardless.) */
+  .docs-search-nav {
+    margin: 10px 0 4px;
+    width: 100%;
+  }
+  .docs-search-hint {
+    display: none;
+  }
+}
+
+.docs-search-panel {
+  position: fixed;
+  z-index: 1040;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  background: var(--ml-bg-alt);
+  border: 1px solid var(--ml-line-hi);
+  border-radius: var(--ml-radius);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .55);
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--ml-line-hi) transparent;
+}
+
+.docs-search-status {
+  margin: 0;
+  padding: 4px 8px 8px;
+  font-size: 0.78rem;
+  color: var(--ml-muted);
+}
+
+.docs-search-result {
+  display: block;
+  padding: 9px 10px;
+  border-radius: var(--ml-radius-sm);
+  color: var(--ml-fg-dim);
+  text-decoration: none;
+  transition: background-color .12s ease-in 0s;
+}
+
+.docs-search-result:hover,
+.docs-search-result[aria-selected="true"] {
+  background: var(--ml-accent-wash);
+  color: var(--ml-fg);
+  text-decoration: none;
+}
+
+.dsr-where {
+  display: block;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ml-muted);
+}
+
+.dsr-title {
+  display: block;
+  font-family: var(--ml-display);
+  font-size: 0.98rem;
+  color: var(--ml-fg);
+}
+
+.dsr-section {
+  color: var(--ml-accent);
+}
+
+.dsr-section::before {
+  content: " › ";
+  color: var(--ml-muted);
+}
+
+/* Three lines of context, clamped: a result row is an invitation to a page, and a paragraph of
+   preview per row turns eight of them into something nobody scans. */
+.dsr-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--ml-fg-dim);
+}
+
+.docs-search-result mark {
+  padding: 0;
+  color: var(--ml-accent-bright);
+  background: transparent;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-search-input,
+  .docs-search-hint,
+  .docs-search-result {
+    transition: none;
+  }
+}
+
+/* ==========================================================
    Reading pages — docs, announcements, blog
 
    These share ONE surface and one component vocabulary with /features/ and the home page:

@@ -1,21 +1,19 @@
 {{/*
   The documentation search box.
 
-  Call with a variant, which only distinguishes the instances from one another so their labels
-  can point at the right field:
+  Rendered once, from partials/navigation.html, at the end of the menu — right of *Docs*. Call it
+  with a variant, which names the placement so the label can point at the right field:
 
-      {{ partial "docs-search.html" (dict "variant" "rail") }}
+      {{ partial "docs-search.html" (dict "variant" "nav") }}
 
-  A page renders this more than once on purpose. The rail it belongs in is `d-none d-lg-block`,
-  so below 992 px there is no rail and therefore nowhere to search from; and /docs/ itself is
-  laid out centred and rail-free because that page *is* the map. Both layouts therefore pair the
-  rail instance with one in the content column. docs-search.js binds every instance and they
-  share one index, one model and one results panel.
+  It is site chrome, so it is on every page: a reader on the home page or a blog post can reach
+  the reference without navigating into it first. The index still covers `/docs/**` only, which is
+  what the placeholder says out loud — see ../../../../spec/website/WEBSITE_SEARCH.md.
 
-  The form submits nowhere — there is no server to submit to. Search happens in the browser or
-  not at all, which is why the whole control stays hidden until the script has confirmed it runs.
+  The form submits nowhere; there is no server to submit to. Search happens in the browser or not
+  at all, which is why the whole control stays hidden until the script has confirmed it runs.
 */}}
-{{ $variant := .variant | default "rail" }}
+{{ $variant := .variant | default "nav" }}
 {{ $id := printf "docs-search-%s" $variant }}
 <form class="docs-search docs-search-{{ $variant }}" data-docs-search role="search" action="">
 	<label class="sr-only" for="{{ $id }}">{{ i18n "searchDocsLabel" }}</label>

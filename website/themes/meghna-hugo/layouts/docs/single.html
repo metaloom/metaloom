@@ -1,23 +1,18 @@
 {{ define "main" }}
 
 {{ partial "navigation.html" . }}
-{{ partial "docs-search-bootstrap.html" . }}
 
 <section class="section docs-section">
   <div class="container">
     <div class="row">
       <div class="col-lg-3 d-none d-lg-block">
         <div class="docs-sidebar toc-sticky-top">
-          {{ partial "docs-search.html" (dict "variant" "rail") }}
           <div class="docs-sidebar-title">On this page</div>
           <nav id="toc"></nav>
           {{ partial "docs-topics.html" . }}
         </div>
       </div>
       <div class="col-lg-9">
-        {{/* The rail is `d-none d-lg-block`, so on a phone the box above is not merely small —
-             it is not rendered. This is the same control for readers who never see the rail. */}}
-        <div class="d-lg-none">{{ partial "docs-search.html" (dict "variant" "narrow") }}</div>
         {{/* Same header object as /blog/, /announcements/ and /features/ — see the "Reading
              pages" block in less/includes/custom.less. The eyebrow names the section the page
              sits in, which is the one thing a deep-linked reference page cannot show otherwise. */}}
@@ -44,5 +39,4 @@
     </div>
   </div>
 </section>
-{{ partial "docs-search-script.html" . }}
 {{ end }}

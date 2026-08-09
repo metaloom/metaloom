@@ -5,7 +5,13 @@
   The current section is marked with `.is-active` so a reader always knows where they are: a
   menu entry matches when the current page's URL sits under it (`/docs/nodes/whisper/` →
   *Docs*). Styling lives in less/includes/custom.less; labels come from config.toml.
+
+  The documentation search box sits at the end of the menu, right of *Docs*. It is site chrome
+  rather than a docs control, so a reader who lands on the home page or a blog post can reach the
+  reference without navigating to it first — the placeholder says "docs" because that is what the
+  index covers. See ../../../../spec/website/WEBSITE_SEARCH.md.
 */}}
+{{ partial "docs-search-bootstrap.html" . }}
 <section class="sticky-top navigation">
 	<div class="container">
 		<nav class="navbar navbar-expand-lg navbar-dark">
@@ -34,6 +40,8 @@
 					</li>
 					{{ end }}
 				</ul>
+
+				{{ partial "docs-search.html" (dict "variant" "nav") }}
 
 				{{/* Language List */}}
 				{{- if hugo.IsMultilingual }}

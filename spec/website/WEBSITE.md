@@ -31,8 +31,9 @@ coding agent that has to add or restructure site content, or fix the build/publi
   `baseURL = https://metaloom.io`. Single language `en`, `contentDir = content/english`.
 * Docs and blog are **AsciiDoc** (`.adoc`) — `asciidoctor` must be on `PATH` and allow-listed in
   `[security.exec]`. The marketing pages are **data-driven** from `data/en/*.yml`.
-* `/docs/**` has **client-side semantic search** — a build step embeds every page with a vendored
-  7 MB model and the browser runs it on the CPU. See [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md).
+* **Client-side semantic search over `/docs/**`**, from a box in the site header right of *Docs*.
+  A build step embeds every page with a vendored 7 MB model and the browser runs it on the CPU.
+  See [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md).
 * Build with `./build.sh` → `dist/`, then the **search index** and three gates: a **localhost-link check**,
   `check-links.mjs` (broken internal links + missing `#anchors`) and `check-node-screenshots.mjs`
   (every node page has its pictures; every shipped node kind has a page). All three fail the build.
@@ -581,7 +582,8 @@ There is **one palette for the whole site** — CSS custom properties at the top
 > **No CJK text anywhere** — the site ships no CJK webfont, so a Japanese line renders as tofu.
 
 Site chrome: `partials/navigation.html` (sticky, translucent, `.is-scrolled` past 12 px,
-`.is-active` + `aria-current` on the current section, hamburger → X) and `partials/footer.html`
+`.is-active` + `aria-current` on the current section, hamburger → X, and the **docs search box**
+at the end of the menu — [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md)) and `partials/footer.html`
 (four columns, labels from `i18n/en.yaml`, contact pills from `[[params.social]]`, the Impressum
 link, the *1.0.0 — not released yet* badge). **Footer headings carry `data-toc-skip`** and
 `plugins/toc/toc.js` scopes bootstrap-toc to `.docs-main-content`, or they land in the docs TOC.
@@ -804,7 +806,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Add a node page for a new kind | the page folder, plus an entry in `loom-ui/scripts/node-capture-plan.mjs` — the build gate fails until both exist |
 | Record which model a node uses + its license | `docs/legal/model-licenses/index.adoc` |
 | Fill in the Impressum | `docs/legal/impressum/index.adoc` — the `[…]` markers and the comment block at the top |
-| Change top navigation | `[[Languages.en.menu.main]]` in `config.toml`; look in `partials/navigation.html` + `.navigation` in `custom.less` |
+| Change top navigation | `[[Languages.en.menu.main]]` in `config.toml`; look in `partials/navigation.html` + `.navigation` in `custom.less`. **Re-check header overflow at 992–1200 px** — the bar is full |
 | Change UI labels / footer headings | `website/i18n/en.yaml` |
 | Change the footer | `layouts/partials/footer.html`; contact pills in `[[params.social]]` |
 | Change site colours | the `--ml-*` block at the top of `less/includes/custom.less` (rebuild via `build.sh`) |
@@ -918,7 +920,9 @@ review**.
    python3 -m http.server 8099 --directory dist &
    # navigate, SCROLL the page (everything starts hidden until revealed), then shoot 1440px and 420px
    ```
-6. **Horizontal overflow at 420 px** on `/tour/` and `/studio/`:
+6. **Horizontal overflow.** The header carries seven links, a logo and the search box, so check
+   `scrollWidth` at **992, 1024 and 1200 px** on any page after touching the nav
+   ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) § *The box*). Then, at 420 px on `/tour/` and `/studio/`:
    `document.documentElement.scrollWidth` must equal the viewport width minus the scrollbar gutter,
    and no `main` descendant may be clipped by `.st-page`/`.sd-page`'s `overflow-x: hidden`. That
    clipping is silent — the page still scrolls, the content is just cut off.

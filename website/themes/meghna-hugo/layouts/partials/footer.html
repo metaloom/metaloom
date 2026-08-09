@@ -88,6 +88,9 @@
 {{ $script := resources.Get "js/script.js" | minify | fingerprint "sha384"}}
 <script src="{{ $script.RelPermalink }}" integrity="{{ $script.Data.Integrity }}"></script>
 
+{{ "<!-- Documentation Search -->" | safeHTML }}
+{{ partial "docs-search-script.html" . }}
+
 {{ "<!-- Highlight Script -->" | safeHTML }}
 <link rel="stylesheet" href="{{ "plugins/highlight/styles/obsidian.css" | relURL }}">
 <script src="{{ "plugins/highlight/highlight.pack.js" | relURL }}"></script>
