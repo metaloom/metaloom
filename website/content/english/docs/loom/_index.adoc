@@ -17,6 +17,7 @@ It exposes a REST API over HTTP, a GraphQL API, and a gRPC API (planned) for man
 * *Configuration* — YAML config file and environment variables. See link:configuration[Configuration].
 * *Metrics* — The Prometheus scrape endpoint and the `loom_*` catalog. See link:metrics[Metrics].
 * *Search Indices* — Inspecting, reindexing and syncing the search, face and duplicate indices. See link:search-indices[Search Indices].
+* *Storage Usage* — How much space each kind of content uses, and how full each storage backend is. See link:storage[Storage Usage].
 * *Artifacts* — Maven coordinates, containers and the Helm chart. See link:artifacts[Artifacts].
 * *Features* — Assets, users, groups, roles, tags, pipelines and more. See link:features[Features].
 * *Chat & AI Agent* — Conversational assistant with Sessions, Skills, Memory and an optional coding sandbox. See link:chat[Chat & AI Agent].

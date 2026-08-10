@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
-import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetBinary;
@@ -56,19 +55,20 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 
 	private final AssetEndpointService assetService;
 	private final DaoCollection daos;
-	private final LoomOptions options;
 	private final AssetEventPublisher eventPublisher;
 	private final BinaryStorageResolver storageResolver;
+	private final StorageCapacityGuard capacityGuard;
 
 	@Inject
 	public AssetUploadEndpointService(AssetEndpointService assetService, DaoCollection daos, LoomModelBuilder modelBuilder,
-		LoomModelValidator validator, LoomOptions options, AssetEventPublisher eventPublisher, BinaryStorageResolver storageResolver) {
+		LoomModelValidator validator, AssetEventPublisher eventPublisher, BinaryStorageResolver storageResolver,
+		StorageCapacityGuard capacityGuard) {
 		super(modelBuilder, validator);
 		this.assetService = assetService;
 		this.daos = daos;
-		this.options = options;
 		this.eventPublisher = eventPublisher;
 		this.storageResolver = storageResolver;
+		this.capacityGuard = capacityGuard;
 	}
 
 	/**
@@ -102,7 +102,7 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 			UUID poolUuid = explicitPool != null ? explicitPool : storageResolver.poolUuidOfLibrary(libraryUuid);
 			// Resolving an unknown pool is a 404 here rather than a silent fallback to local disk.
 			BinaryStorage storage = storageResolver.forPool(poolUuid);
-			checkCapacity(storage, size);
+			capacityGuard.checkUpload(storage, size);
 
 			SHA512 sha512 = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
 
@@ -184,7 +184,7 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 			UUID libraryUuid = existing != null ? existing.getLibraryUuid() : requiredLibraryUuid(lrc);
 			UUID poolUuid = storageResolver.poolUuidOfLibrary(libraryUuid);
 			BinaryStorage storage = storageResolver.forPool(poolUuid);
-			checkCapacity(storage, upload.size());
+			capacityGuard.checkUpload(storage, upload.size());
 
 			SHA512 sha512 = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
 			String locator = storage.store(Paths.get(upload.uploadedFileName()), sha512, mimeType);
@@ -231,81 +231,7 @@ public class AssetUploadEndpointService extends AbstractEndpointService {
 		return existing.get(0);
 	}
 
-	/**
-	 * Reject an upload that is too large, or that the target volume cannot hold.
-	 *
-	 * <p>
-	 * The body limit is deliberately unlimited at the router ({@code BodyHandler.setBodyLimit(-1)}) because media is large; that makes this the only
-	 * place standing between an authenticated caller and a full disk.
-	 * </p>
-	 */
-	private void checkCapacity(BinaryStorage storage, long size) {
-		long maxUploadSize = options.getStorage().getMaxUploadSize();
-		if (maxUploadSize > 0 && size > maxUploadSize) {
-			throw new LoomRestException(413, LoomRestErrorCode.BAD_REQUEST,
-				"The upload is " + size + " bytes which exceeds the configured limit of " + maxUploadSize
-					+ " bytes (LOOM_STORAGE_MAX_UPLOAD_SIZE).");
-		}
-		long minFreeSpace = options.getStorage().getMinFreeSpace();
-		if (minFreeSpace <= 0) {
-			return;
-		}
-		Long free = storage.freeSpace();
-		if (free == null) {
-			// Object stores have no capacity to report; there is nothing to check.
-			return;
-		}
-		if (free - size < minFreeSpace) {
-			throw new LoomRestException(507, LoomRestErrorCode.INTERNAL_ERROR,
-				"Not enough space in " + storage.describe() + ": " + free + " bytes free, the upload needs " + size
-					+ " and " + minFreeSpace + " must remain (LOOM_STORAGE_MIN_FREE_SPACE).");
-		}
-	}
-
-	/**
-	 * Return the single uploaded file part or fail with a 400 when there are zero or more than one file parts.
-	 */
-	private FileUpload singleUpload(LoomRoutingContext lrc) {
-		if (lrc.fileUploads().isEmpty()) {
-			throw new LoomRestException(400, LoomRestErrorCode.UPLOAD_DATA_MISSING, "No uploads found in request.");
-		}
-		if (lrc.fileUploads().size() > 1) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
-				"Upload with multiple files in one request is currently not supported");
-		}
-		return lrc.fileUploads().get(0);
-	}
-
 	private UUID requiredLibraryUuid(LoomRoutingContext lrc) {
-		String value = lrc.routingContext().request().getFormAttribute("libraryUuid");
-		if (value == null || value.isBlank()) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The 'libraryUuid' form field is required for uploads.");
-		}
-		return parseUuid(value, "libraryUuid");
-	}
-
-	/**
-	 * An optional uuid-valued form field. Absent and blank both mean "not given"; a non-blank value that is not a uuid is a 400 rather than a silent
-	 * fall-back, so a typo cannot quietly route bytes somewhere else.
-	 */
-	private UUID optionalUuid(LoomRoutingContext lrc, String field) {
-		String value = lrc.routingContext().request().getFormAttribute(field);
-		if (value == null || value.isBlank()) {
-			return null;
-		}
-		return parseUuid(value, field);
-	}
-
-	private UUID parseUuid(String value, String field) {
-		try {
-			return UUID.fromString(value.trim());
-		} catch (IllegalArgumentException e) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The '" + field + "' form field is not a valid UUID.");
-		}
-	}
-
-	private String formValue(LoomRoutingContext lrc, String field, String defaultValue) {
-		String value = lrc.routingContext().request().getFormAttribute(field);
-		return (value == null || value.isBlank()) ? defaultValue : value.trim();
+		return requiredUuid(lrc, "libraryUuid");
 	}
 }

@@ -6,12 +6,9 @@ import static io.metaloom.loom.db.model.perm.Permission.READ_DETECTION;
 import static io.metaloom.loom.db.model.perm.Permission.READ_PERSON;
 import static io.metaloom.loom.db.model.perm.Permission.UPDATE_PERSON;
 
-import java.io.InputStream;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import javax.inject.Inject;
@@ -42,9 +39,6 @@ import io.metaloom.loom.rest.validation.LoomModelValidator;
 import io.metaloom.loom.storage.BinaryStorage;
 import io.metaloom.utils.hash.HashUtils;
 import io.metaloom.utils.hash.SHA512;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpHeaders;
-import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.FileUpload;
 
 /**
@@ -70,12 +64,19 @@ public class PersonEndpointService extends AbstractCRUDEndpointService<PersonDao
 
 	private final BinaryStorageResolver storageResolver;
 
+	private final StorageCapacityGuard capacityGuard;
+
+	private final AttachmentBinarySender binarySender;
+
 	@Inject
 	public PersonEndpointService(PersonDao personDao, DaoCollection daos, LoomModelBuilder modelBuilder, LoomModelValidator validator,
-		AttachmentDao attachmentDao, BinaryStorageResolver storageResolver) {
+		AttachmentDao attachmentDao, BinaryStorageResolver storageResolver, StorageCapacityGuard capacityGuard,
+		AttachmentBinarySender binarySender) {
 		super(personDao, daos, modelBuilder, validator);
 		this.attachmentDao = attachmentDao;
 		this.storageResolver = storageResolver;
+		this.capacityGuard = capacityGuard;
+		this.binarySender = binarySender;
 	}
 
 	@Override
@@ -190,6 +191,7 @@ public class PersonEndpointService extends AbstractCRUDEndpointService<PersonDao
 			SHA512 sha512sum = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
 			UUID poolUuid = optionalUuid(lrc, "poolUuid");
 			BinaryStorage storage = storageResolver.forPool(poolUuid);
+			capacityGuard.checkUpload(storage, size);
 
 			// Store before the row exists, so an image never points at content that is not there.
 			storage.store(Paths.get(upload.uploadedFileName()), sha512sum, mimeType);
@@ -248,52 +250,7 @@ public class PersonEndpointService extends AbstractCRUDEndpointService<PersonDao
 	 */
 	public void downloadImage(LoomRoutingContext lrc, UUID personUuid, UUID imageUuid) {
 		checkPerm(lrc, READ_PERSON, () -> {
-			Attachment image = requireImage(personUuid, imageUuid);
-
-			BinaryStorage storage = storageResolver.forPool(image.getPoolUuid());
-			String locator = storage.locatorFor(image.getSha512sum());
-			if (!storage.exists(locator)) {
-				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND,
-					"The image's bytes are missing in " + storage.describe() + ".");
-			}
-
-			HttpServerResponse response = lrc.routingContext().response();
-			// The row is immutable once written and the bytes are addressed by their own hash, so this is safe to cache hard.
-			String etag = "\"" + imageUuid + "-" + image.getSha512sum().toString().substring(0, 16) + "\"";
-			if (etag.equals(lrc.routingContext().request().getHeader(HttpHeaders.IF_NONE_MATCH))) {
-				response.setStatusCode(304).end();
-				return;
-			}
-			response.putHeader(HttpHeaders.CONTENT_TYPE, image.getMimeType() == null ? "image/jpeg" : image.getMimeType());
-			response.putHeader(HttpHeaders.ETAG, etag);
-			// private: a picture of an identified person is not something a shared cache should hold.
-			response.putHeader(HttpHeaders.CACHE_CONTROL, "private, max-age=86400, immutable");
-
-			Optional<Path> local = storage.localPath(locator);
-			if (local.isPresent()) {
-				response.sendFile(local.get().toString());
-				return;
-			}
-			long size = storage.size(locator);
-			if (size >= 0) {
-				response.putHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(size));
-			} else {
-				// Vert.x refuses a write with neither a Content-Length nor chunked encoding.
-				response.setChunked(true);
-			}
-			try (InputStream in = storage.read(locator, 0, -1)) {
-				byte[] buffer = new byte[64 * 1024];
-				int read;
-				while ((read = in.read(buffer)) > 0) {
-					response.write(Buffer.buffer(java.util.Arrays.copyOf(buffer, read)));
-				}
-				response.end();
-			} catch (Exception e) {
-				log.error("Failed to stream image {} of person {}", imageUuid, personUuid, e);
-				if (!response.headWritten()) {
-					throw new LoomRestException(500, LoomRestErrorCode.INTERNAL_ERROR, "Could not read the image.");
-				}
-			}
+			binarySender.send(lrc, requireImage(personUuid, imageUuid), "image");
 		});
 	}
 
@@ -373,37 +330,6 @@ public class PersonEndpointService extends AbstractCRUDEndpointService<PersonDao
 	private static String fileNameFor(Attachment crop, UUID detectionUuid) {
 		String filename = crop.getFilename();
 		return filename == null || filename.isBlank() ? "face-" + detectionUuid + ".jpg" : filename;
-	}
-
-	private static UUID parseUuid(String raw, String field) {
-		if (raw == null || raw.isBlank()) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The '" + field + "' is required.");
-		}
-		try {
-			return UUID.fromString(raw.trim());
-		} catch (IllegalArgumentException e) {
-			// A malformed uuid is a bad request, not an internal error - without this it surfaces as a 500 from deep inside the DAO.
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The '" + field + "' is not a valid uuid.");
-		}
-	}
-
-	private UUID optionalUuid(LoomRoutingContext lrc, String field) {
-		String value = lrc.routingContext().request().getFormAttribute(field);
-		if (value == null || value.isBlank()) {
-			return null;
-		}
-		return parseUuid(value, field);
-	}
-
-	private FileUpload singleUpload(LoomRoutingContext lrc) {
-		if (lrc.fileUploads().isEmpty()) {
-			throw new LoomRestException(400, LoomRestErrorCode.UPLOAD_DATA_MISSING, "No uploads found in request.");
-		}
-		if (lrc.fileUploads().size() > 1) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
-				"Upload with multiple files in one request is currently not supported");
-		}
-		return lrc.fileUploads().get(0);
 	}
 
 }

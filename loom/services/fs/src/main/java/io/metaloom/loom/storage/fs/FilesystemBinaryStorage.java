@@ -124,9 +124,24 @@ public class FilesystemBinaryStorage implements BinaryStorage {
 
 	@Override
 	public Long freeSpace() {
+		return measure("free space", FileStore::getUsableSpace);
+	}
+
+	@Override
+	public Long totalSpace() {
+		return measure("total space", FileStore::getTotalSpace);
+	}
+
+	/**
+	 * Read one figure off the volume the base directory sits on, or null when it cannot be read.
+	 *
+	 * <p>
+	 * Both callers need the same probe, so it lives here once. Note what the probe does: the base directory may not exist yet on a fresh install, so
+	 * it walks up to the first parent that does, because the question is "how much room does the volume have", not "does this directory exist".
+	 * </p>
+	 */
+	private Long measure(String what, FileStoreReader reader) {
 		try {
-			// The base directory may not exist yet on a fresh install; walk up to the first parent that does,
-			// because the answer we want is "how much room does the volume have", not "does this dir exist".
 			Path probe = baseDir.toAbsolutePath();
 			while (probe != null && !Files.exists(probe)) {
 				probe = probe.getParent();
@@ -134,12 +149,16 @@ public class FilesystemBinaryStorage implements BinaryStorage {
 			if (probe == null) {
 				return null;
 			}
-			FileStore store = Files.getFileStore(probe);
-			return store.getUsableSpace();
+			return reader.read(Files.getFileStore(probe));
 		} catch (IOException e) {
-			log.warn("Could not determine free space for {}", baseDir, e);
+			log.warn("Could not determine {} for {}", what, baseDir, e);
 			return null;
 		}
+	}
+
+	@FunctionalInterface
+	private interface FileStoreReader {
+		long read(FileStore store) throws IOException;
 	}
 
 	@Override

@@ -27,6 +27,7 @@ import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MeEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DbIntegrityEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.StorageEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MetricsEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
 import io.metaloom.loom.rest.endpoint.impl.PersonEndpoint;
@@ -97,6 +98,7 @@ public class EndpointModule {
 		MeEndpoint meEndpoint,
 		MetricsEndpoint metricsEndpoint,
 		DbIntegrityEndpoint dbIntegrityEndpoint,
+		StorageEndpoint storageEndpoint,
 		NodeDescriptorEndpoint nodeDescriptorEndpoint,
 		DedupGroupEndpoint dedupGroupEndpoint,
 		SimilarityIndexEndpoint similarityIndexEndpoint,
@@ -135,6 +137,7 @@ public class EndpointModule {
 			restInfoEndpoint,
 			searchEndpoint,
 			searchIndexEndpoint,
+			storageEndpoint,
 			attachmentEndpoint,
 			commentEndpoint,
 			reactionEndpoint,

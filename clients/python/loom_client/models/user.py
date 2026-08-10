@@ -10,6 +10,20 @@ from .base import CreatorEditorResponse, ListResponse, MetaModel, Model
 
 
 @dataclass
+class UserAvatarResponse(CreatorEditorResponse):
+    """Mirrors ``io.metaloom.loom.rest.model.user.UserAvatarResponse``."""
+
+    #: The original filename of the picture.
+    filename: str | None = None
+    #: The mime type of the picture.
+    mime_type: str | None = None
+    #: The size of the picture in bytes.
+    size: int = 0
+    #: URL the picture bytes can be loaded from.
+    url: str | None = None
+
+
+@dataclass
 class UserCreateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.user.UserCreateRequest``."""
 
@@ -47,6 +61,9 @@ class UserResponse(CreatorEditorResponse):
     email: str | None = None
     #: Flag that indicates whether the user is enabled
     enabled: bool = False
+    #: URL of the user's avatar picture, or null when they have none. Read-only: upload one via POST
+    #: /users/:uuid/avatar or POST /me/avatar.
+    avatar_url: str | None = None
 
 
 @dataclass

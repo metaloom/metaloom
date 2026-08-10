@@ -1,5 +1,7 @@
 package io.metaloom.loom.db.jooq.dao.user;
 
+import java.util.UUID;
+
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
 import io.metaloom.loom.db.model.user.User;
 
@@ -13,8 +15,20 @@ public class UserImpl extends AbstractEditableElement<User> implements User {
 	private boolean enabled;
 	private boolean deleted;
 	private boolean sso;
+	private UUID avatarAttachmentUuid;
 
 	public UserImpl() {
+	}
+
+	@Override
+	public UUID getAvatarAttachmentUuid() {
+		return avatarAttachmentUuid;
+	}
+
+	@Override
+	public User setAvatarAttachmentUuid(UUID avatarAttachmentUuid) {
+		this.avatarAttachmentUuid = avatarAttachmentUuid;
+		return this;
 	}
 
 	@Override

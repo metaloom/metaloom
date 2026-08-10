@@ -26,6 +26,22 @@ public enum AttachmentType {
 	 * (V2.90). One of a person's images is designated the avatar via {@code person.avatar_attachment_uuid}.
 	 * </p>
 	 */
-	PERSON_IMAGE;
+	PERSON_IMAGE,
+
+	/**
+	 * The picture of a user account, owned by that account.
+	 *
+	 * <p>
+	 * Uploaded to the account through {@code POST /users/:uuid/avatar} or {@code POST /me/avatar}, and shown wherever the UI renders a username. Like
+	 * {@link #PERSON_IMAGE} it is derived from nothing, so it carries {@code user_uuid} and leaves the asset, embedding and detection pointers null
+	 * (V2.93).
+	 * </p>
+	 *
+	 * <p>
+	 * Unlike a person image there is at most one per account: a partial unique index enforces it, so an upload replaces the previous picture instead
+	 * of appending to a gallery. A person is a subject face detection keeps finding in new material; an account is not.
+	 * </p>
+	 */
+	USER_AVATAR;
 
 }

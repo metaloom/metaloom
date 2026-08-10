@@ -33,4 +33,18 @@ public interface AttachmentDao extends CRUDDao<Attachment> {
 	 */
 	List<Attachment> listByPerson(UUID personUuid);
 
+	/**
+	 * The avatar picture of a user account, or {@code null}.
+	 *
+	 * <p>
+	 * At most one can exist: {@code idx_attachment_user_avatar_unique} (V2.93) is a partial unique index over {@code user_uuid} for this type, so the
+	 * cardinality is a schema fact rather than a convention this method has to defend. That is what lets the upload path replace rather than ask which
+	 * of several pictures is meant.
+	 * </p>
+	 *
+	 * @param userUuid the account that owns the picture
+	 * @return the attachment, or null when the account has none
+	 */
+	Attachment loadAvatarByUser(UUID userUuid);
+
 }

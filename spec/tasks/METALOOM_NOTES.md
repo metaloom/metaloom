@@ -8,6 +8,8 @@ an item grows teeth it moves into a real spec under `spec/features/…` or a tas
 
 ## Tasks
 
+* Shareable link system (e.g. with password), Shareable collection, folder
+* Customer faceing area, deliverable area
 
 ## Test failure
 

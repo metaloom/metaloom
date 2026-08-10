@@ -171,20 +171,9 @@ export async function cancelSearchIndexJob(
 
 // ── Presentation helpers (pure, unit-tested) ──────────────────────────────
 
-/**
- * Human-readable byte size.
- *
- * Binary units because that is what a filesystem reports, and one decimal place above
- * KiB because "1.4 GiB" and "1 GiB" are meaningfully different numbers to an operator
- * watching an index grow.
- */
-export function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
-  const exponent = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-  const value = bytes / Math.pow(1024, exponent);
-  return `${exponent === 0 ? value : value.toFixed(1)} ${units[exponent]}`;
-}
+// Re-exported rather than defined here: the storage screen needs the identical rendering,
+// and a cross-import between two unrelated feature clients would be the wrong shape.
+export { formatBytes } from "./format";
 
 /**
  * Fraction of a job that is done, or null when the total is unknown.

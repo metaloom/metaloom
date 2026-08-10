@@ -19,6 +19,7 @@ import { Menu } from "@mui/material";
 import { tokens } from "../../theme";
 import SearchIndicesAdmin from "./SearchIndicesAdmin";
 import DbIntegrityAdmin from "./DbIntegrityAdmin";
+import StorageAdmin from "./StorageAdmin";
 import { listBlacklists, createBlacklist, deleteBlacklist, BlacklistResponse } from "../../api/blacklist";
 import {
   listMemoryDenyRules, createMemoryDenyRule, updateMemoryDenyRule, deleteMemoryDenyRule,
@@ -1006,6 +1007,8 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   // to create, edit or delete. Separate from Metrics because it names the uuids of rows that are
   // wrong — a read of the catalogue rather than of a counter.
   "Database integrity": ["READ_DB_INTEGRITY"],
+  // One, not four: the storage report is computed on every request and owns no rows.
+  Storage: ["READ_STORAGE"],
 };
 
 function ApiKeysAdmin() {
@@ -1546,6 +1549,7 @@ export default function AdminArea() {
     { label: t("admin.tab.memoryDenylist"), path: "/admin/memory-denylist" },
     { label: t("admin.tab.searchIndices"), path: "/admin/indices" },
     { label: t("admin.tab.dbIntegrity"), path: "/admin/db-integrity" },
+    { label: t("admin.tab.storage"), path: "/admin/storage" },
   ];
 
   const tabIdx = ADMIN_TABS.findIndex(tab => location.pathname === tab.path);
@@ -1581,6 +1585,7 @@ export default function AdminArea() {
           <Route path="memory-denylist" element={<MemoryDenylistAdmin />} />
           <Route path="indices" element={<SearchIndicesAdmin />} />
           <Route path="db-integrity" element={<DbIntegrityAdmin />} />
+          <Route path="storage" element={<StorageAdmin />} />
         </Routes>
       </Box>
     </Box>

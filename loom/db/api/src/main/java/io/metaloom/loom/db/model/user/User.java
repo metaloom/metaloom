@@ -1,5 +1,7 @@
 package io.metaloom.loom.db.model.user;
 
+import java.util.UUID;
+
 import io.metaloom.loom.db.CUDElement;
 import io.metaloom.loom.db.MetaElement;
 
@@ -94,6 +96,10 @@ public interface User extends CUDElement<User>, MetaElement<User> {
 		setFirstname(null);
 		setLastname(null);
 		setMeta(null);
+		// A picture of a face is personal data in exactly the sense the rest of this method exists to purge.
+		// Only the pointer can be dropped from here - this interface has no DAO - so the attachment row and its
+		// bytes are removed by UserEndpointService.delete before it calls this.
+		setAvatarAttachmentUuid(null);
 		return this;
 	}
 
@@ -161,4 +167,19 @@ public interface User extends CUDElement<User>, MetaElement<User> {
 	 * @return Fluent API.
 	 */
 	User setLastname(String lastname);
+
+	/**
+	 * The account's avatar picture, or null.
+	 *
+	 * <p>
+	 * Points at an {@code attachment} of type {@link io.metaloom.loom.api.attachment.AttachmentType#USER_AVATAR} owned by this user. At most one
+	 * exists - a partial unique index enforces it (V2.93) - so uploading a new picture replaces the old one rather than adding to a gallery, which is
+	 * where a user differs from a person.
+	 * </p>
+	 *
+	 * @return the attachment uuid, or null when the account has no picture
+	 */
+	UUID getAvatarAttachmentUuid();
+
+	User setAvatarAttachmentUuid(UUID avatarAttachmentUuid);
 }

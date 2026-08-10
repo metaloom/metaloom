@@ -10,6 +10,7 @@ import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -408,6 +409,12 @@ public class DemoDatabaseInitializer {
 		// --- Users ---
 		User editor = createDemoUser(admin, "editor", "editor1234", "editor@example.com", "Emily", "Editor");
 		User viewer = createDemoUser(admin, "viewer", "viewer1234", "viewer@example.com", "Victor", "Viewer");
+
+		// Account pictures. Two of the three, deliberately: every screen that renders a username has to
+		// look right both with a picture and with the initials fall-back, and a demo where everybody has
+		// one only ever exercises half of that.
+		createUserAvatar(admin, admin, "admin-avatar.jpg", Portrait.VIOLET_CLOSE);
+		createUserAvatar(admin, editor, "editor-avatar.jpg", Portrait.FROST_CLOSE);
 
 		// --- Roles ---
 		Role editorRole = createDemoRole(admin, "Editor");
@@ -829,16 +836,19 @@ public class DemoDatabaseInitializer {
 		// Each gets pictures of their own and one of them as the avatar. Person images reference no asset
 		// (V2.90), so this is also the demo of the property that matters: deleting the material somebody
 		// was found in leaves their picture standing.
+		//
+		// One face per person, in two framings where they have two pictures — a gallery of two different
+		// people under one name would misread as a clustering bug rather than as demo data.
 		Person johnDoe = createPerson(admin, "jdoe", "John", "Doe");
-		createPersonImage(admin, johnDoe, "john-doe-portrait.jpg", Palette.PORTRAIT_WARM, true);
-		createPersonImage(admin, johnDoe, "john-doe-profile.jpg", Palette.PORTRAIT_SLATE, false);
+		createPersonImage(admin, johnDoe, "john-doe-portrait.jpg", Portrait.TEAL_CLOSE, true);
+		createPersonImage(admin, johnDoe, "john-doe-profile.jpg", Portrait.TEAL_WIDE, false);
 
 		Person aliceSmith = createPerson(admin, "asmith", "Alice", "Smith");
-		createPersonImage(admin, aliceSmith, "alice-smith-portrait.jpg", Palette.PORTRAIT_COOL, true);
-		createPersonImage(admin, aliceSmith, "alice-smith-profile.jpg", Palette.PORTRAIT_WARM, false);
+		createPersonImage(admin, aliceSmith, "alice-smith-portrait.jpg", Portrait.FROST_CLOSE, true);
+		createPersonImage(admin, aliceSmith, "alice-smith-profile.jpg", Portrait.FROST_WIDE, false);
 
 		Person bobWilson = createPerson(admin, "bwilson", "Bob", "Wilson");
-		createPersonImage(admin, bobWilson, "bob-wilson-portrait.jpg", Palette.PORTRAIT_SLATE, true);
+		createPersonImage(admin, bobWilson, "bob-wilson-portrait.jpg", Portrait.VIOLET_WIDE, true);
 		log.info("Created {} demo persons", 3);
 
 		// --- Clusters ---
@@ -1081,8 +1091,11 @@ public class DemoDatabaseInitializer {
 	 * That is the whole point of the model: a person's picture is theirs, and deleting the material they were found in cannot take it away.
 	 * </p>
 	 */
-	private Attachment createPersonImage(User admin, Person person, String filename, Palette palette, boolean avatar) {
-		byte[] bytes = renderDemoImage(palette, "image/jpeg");
+	private Attachment createPersonImage(User admin, Person person, String filename, Portrait portrait, boolean avatar) {
+		byte[] bytes = loadPortrait(portrait);
+		if (bytes == null) {
+			return null;
+		}
 		SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
 		storeBinary(bytes, sha512);
 
@@ -1101,6 +1114,39 @@ public class DemoDatabaseInitializer {
 		}
 		log.info("Created demo person image: {} for {} ({} bytes)", filename, person.getAlias(), bytes.length);
 		return image;
+	}
+
+	/**
+	 * Give a user account its picture.
+	 *
+	 * <p>
+	 * The same content-addressed storage a person image uses, pointed at the account instead (V2.93). Unlike a person there is at most one, so this
+	 * is called once per account rather than building a gallery.
+	 * </p>
+	 */
+	private Attachment createUserAvatar(User admin, User owner, String filename, Portrait portrait) {
+		byte[] bytes = loadPortrait(portrait);
+		if (bytes == null) {
+			return null;
+		}
+		SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+		storeBinary(bytes, sha512);
+
+		Attachment avatar = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, "image/jpeg", AttachmentType.USER_AVATAR);
+		avatar.setUuid(UUIDUtils.randomUUID());
+		avatar.setUserUuid(owner.getUuid());
+		avatar.setCreator(admin);
+		avatar.setEditor(admin);
+		avatar.setCreated(Instant.now());
+		avatar.setEdited(Instant.now());
+		attachmentDao.store(avatar);
+
+		// The attachment row has to exist before the account can point at it: the two foreign keys form a
+		// cycle, and this order is what resolves it.
+		owner.setAvatarAttachmentUuid(avatar.getUuid());
+		userDao.update(owner);
+		log.info("Created demo account picture: {} for {} ({} bytes)", filename, owner.getUsername(), bytes.length);
+		return avatar;
 	}
 
 	private Person createPerson(User admin, String alias, String firstname, String lastname) {
@@ -2039,8 +2085,55 @@ public class DemoDatabaseInitializer {
 	// The asset browser renders a preview from GET /assets/:uuid/binary/data, which needs real
 	// bytes on disk and an asset_location row pointing at them. Without those every demo asset
 	// falls back to a type placeholder icon, which is what "no thumbnails are displayed" means.
-	// The images are synthesised rather than shipped so the repository carries no binary blobs
-	// and the demo never claims to show photography it does not have.
+	// Asset previews are synthesised rather than shipped so the repository carries no library-sized
+	// binary blobs and the demo never claims to show photography it does not have. Faces are the one
+	// exception: a painted portrait does not read as a person, so avatars and person images come from
+	// the shipped photographs below.
+
+	/**
+	 * The shipped portrait photographs, used for account pictures and person images.
+	 *
+	 * <p>
+	 * Three faces, each in a wide and a close framing, checked in under {@code demo/portraits/} as 512x512 JPEGs — the size an avatar (48-72px) and a
+	 * person's picture gallery actually need. The two framings of one face are the same person, which is what a person's gallery is: several pictures of
+	 * them. Sources are Pexels photographs (free licence, no attribution required); see {@code demo/portraits/README.txt}.
+	 * </p>
+	 */
+	private enum Portrait {
+
+		TEAL_WIDE("portrait-teal-wide.jpg"),
+		TEAL_CLOSE("portrait-teal-close.jpg"),
+		FROST_WIDE("portrait-frost-wide.jpg"),
+		FROST_CLOSE("portrait-frost-close.jpg"),
+		VIOLET_WIDE("portrait-violet-wide.jpg"),
+		VIOLET_CLOSE("portrait-violet-close.jpg");
+
+		private final String resource;
+
+		Portrait(String resource) {
+			this.resource = resource;
+		}
+	}
+
+	/**
+	 * Read one shipped portrait off the classpath.
+	 *
+	 * @return the JPEG bytes, or null when the resource is missing — the caller then skips the picture rather than failing the whole seeding run, the same
+	 *         way an unwritable upload directory only costs a preview
+	 */
+	private static byte[] loadPortrait(Portrait portrait) {
+		String path = "/demo/portraits/" + portrait.resource;
+		try (InputStream in = DemoDatabaseInitializer.class.getResourceAsStream(path)) {
+			if (in == null) {
+				log.warn("Demo portrait {} is not on the classpath — the picture will be skipped", path);
+				return null;
+			}
+			return in.readAllBytes();
+		} catch (IOException e) {
+			log.warn("Could not read demo portrait {} — the picture will be skipped", path, e);
+			return null;
+		}
+	}
 
 	/**
 	 * How one demo image is painted. Deterministic: same palette in, same bytes out, so a re-run stores the same content-addressed file.
@@ -2056,12 +2149,7 @@ public class DemoDatabaseInitializer {
 		// Snow-lit peaks: the ridges start near-white and darken layer by layer, so this reads as
 		// a different scene from LAKE rather than a recolour of the same one.
 		SNOW(1600, 1067, 0x22384F, 0x9FBBD1, 0xFFFFFF, 0xE4EDF4, Style.PEAKS, 71),
-		SCAN(1240, 1754, 0xF4F1EA, 0xFFFFFF, 0x8A8577, 0xF4F1EA, Style.DOCUMENT, 89),
-		// Square portraits for the demo persons' own pictures. Small, because an avatar is displayed at
-		// 48-72px and a person's gallery should not ship megabytes to say what it has to say.
-		PORTRAIT_WARM(512, 512, 0x2B1A16, 0x5C332A, 0xE8B98A, 0x2B1A16, Style.PORTRAIT, 97),
-		PORTRAIT_COOL(512, 512, 0x151E2E, 0x2E4A6B, 0xA9C8E8, 0x151E2E, Style.PORTRAIT, 101),
-		PORTRAIT_SLATE(512, 512, 0x1E2220, 0x3D4A44, 0xC9D6CE, 0x1E2220, Style.PORTRAIT, 103);
+		SCAN(1240, 1754, 0xF4F1EA, 0xFFFFFF, 0x8A8577, 0xF4F1EA, Style.DOCUMENT, 89);
 
 		private enum Style {
 			HILLS, PEAKS, SKYLINE, PORTRAIT, FOLIAGE, DOCUMENT

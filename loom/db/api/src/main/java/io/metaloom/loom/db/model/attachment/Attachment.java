@@ -76,6 +76,23 @@ public interface Attachment extends CUDElement<Attachment> {
 	Attachment setPersonUuid(UUID personUuid);
 
 	/**
+	 * The user account that owns this binary, for a {@link io.metaloom.loom.api.attachment.AttachmentType#USER_AVATAR}.
+	 *
+	 * <p>
+	 * Null for every other attachment type. Like a person image this is not derived from anything - it was uploaded to the account - so it leaves
+	 * {@code assetUuid} and {@code detectionUuid} null and no asset deletion can reach it (V2.93). Unlike a person image there is at most one per
+	 * account, enforced by a partial unique index rather than by convention, so an upload replaces rather than appends.
+	 * </p>
+	 *
+	 * <p>
+	 * Not to be confused with the {@code userUuid} argument of {@link AttachmentDao#createAttachment}, which is the creator of the row.
+	 * </p>
+	 */
+	UUID getUserUuid();
+
+	Attachment setUserUuid(UUID userUuid);
+
+	/**
 	 * Discriminator between attachments of the same type for the same target, e.g. the longest edge of a crop.
 	 *
 	 * <p>

@@ -19,12 +19,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function20;
+import org.jooq.Function21;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row20;
+import org.jooq.Row21;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -167,6 +167,13 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
      */
     public final TableField<JooqAttachmentRecord, java.util.UUID> PERSON_UUID = createField(DSL.name("person_uuid"), SQLDataType.UUID, this, "Person that owns this image. Independent of any asset: a person image outlives the material it may have come from.");
 
+    /**
+     * The column <code>public.attachment.user_uuid</code>. User account that
+     * owns this picture. Independent of any asset: an account picture is
+     * uploaded to the account, never derived from material.
+     */
+    public final TableField<JooqAttachmentRecord, java.util.UUID> USER_UUID = createField(DSL.name("user_uuid"), SQLDataType.UUID, this, "User account that owns this picture. Independent of any asset: an account picture is uploaded to the account, never derived from material.");
+
     private JooqAttachment(Name alias, Table<JooqAttachmentRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -207,7 +214,7 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ATTACHMENT_ASSET_VARIANT_KEY, Indexes.ATTACHMENT_DETECTION_VARIANT_KEY, Indexes.ATTACHMENT_UUID_IDX, Indexes.IDX_ATTACHMENT_ASSET_UUID, Indexes.IDX_ATTACHMENT_DETECTION_UUID, Indexes.IDX_ATTACHMENT_PERSON_UUID);
+        return Arrays.asList(Indexes.ATTACHMENT_ASSET_VARIANT_KEY, Indexes.ATTACHMENT_DETECTION_VARIANT_KEY, Indexes.ATTACHMENT_UUID_IDX, Indexes.IDX_ATTACHMENT_ASSET_UUID, Indexes.IDX_ATTACHMENT_DETECTION_UUID, Indexes.IDX_ATTACHMENT_PERSON_UUID, Indexes.IDX_ATTACHMENT_USER_AVATAR_UNIQUE, Indexes.IDX_ATTACHMENT_USER_UUID);
     }
 
     @Override
@@ -217,7 +224,7 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
 
     @Override
     public List<ForeignKey<JooqAttachmentRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.ATTACHMENT__ATTACHMENT_BINARY_SHA512SUM_FKEY, Keys.ATTACHMENT__ATTACHMENT_EMBEDDING_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_ASSET_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_CREATOR_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_EDITOR_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_RUN_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_TASK_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_DETECTION_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_PERSON_UUID_FKEY);
+        return Arrays.asList(Keys.ATTACHMENT__ATTACHMENT_BINARY_SHA512SUM_FKEY, Keys.ATTACHMENT__ATTACHMENT_EMBEDDING_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_ASSET_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_CREATOR_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_EDITOR_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_RUN_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_TASK_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_DETECTION_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_PERSON_UUID_FKEY, Keys.ATTACHMENT__ATTACHMENT_USER_UUID_FKEY);
     }
 
     private transient JooqAttachmentBinary _attachmentBinary;
@@ -229,6 +236,7 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
     private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqDetection _detection;
     private transient JooqPerson _person;
+    private transient JooqUser _attachmentUserUuidFkey;
 
     /**
      * Get the implicit join path to the <code>public.attachment_binary</code>
@@ -324,6 +332,17 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
         return _person;
     }
 
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>attachment_user_uuid_fkey</code> key.
+     */
+    public JooqUser attachmentUserUuidFkey() {
+        if (_attachmentUserUuidFkey == null)
+            _attachmentUserUuidFkey = new JooqUser(this, Keys.ATTACHMENT__ATTACHMENT_USER_UUID_FKEY);
+
+        return _attachmentUserUuidFkey;
+    }
+
     @Override
     public JooqAttachment as(String alias) {
         return new JooqAttachment(DSL.name(alias), this);
@@ -364,18 +383,18 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row20 type methods
+    // Row21 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row20<java.util.UUID, String, java.util.UUID, java.util.UUID, String, JooqAttachmentType, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String, String, String, java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID> fieldsRow() {
-        return (Row20) super.fieldsRow();
+    public Row21<java.util.UUID, String, java.util.UUID, java.util.UUID, String, JooqAttachmentType, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String, String, String, java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID, java.util.UUID> fieldsRow() {
+        return (Row21) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function20<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -383,7 +402,7 @@ public class JooqAttachment extends TableImpl<JooqAttachmentRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function20<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super String, ? super JooqAttachmentType, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

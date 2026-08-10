@@ -1,0 +1,14 @@
+-- A user account owns one picture: the avatar shown beside their name in comments, tasks and the
+-- chat. attachment is already the sink for binaries that are not assets (V2.44, V2.79, V2.89), so
+-- this needs a type rather than a table.
+--
+-- Until now there was no user picture at all. The profile screen offered a file picker that only
+-- ever produced a local FileReader preview - nothing was uploaded, and the picture vanished on the
+-- next reload. Routing it through attachment gives it the same content-addressed storage, pool
+-- selection and capacity guard every other binary already gets, at the cost of one nullable column.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- V2.93 is where the column and the partial index that names this value go. Nothing else may go in
+-- this file.
+ALTER TYPE "attachment_type" ADD VALUE IF NOT EXISTS 'USER_AVATAR';

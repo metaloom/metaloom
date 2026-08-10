@@ -46,6 +46,10 @@ Base path `/api/v1`. Every route sits behind `secure(basePath() + "*")` — JWT 
 | GET | `/assets/:uuid/binary/data` | optional `Range: bytes=` | raw bytes, **200**/**206**/**416**; `Content-Type` from `asset_location.mime_type`, `Content-Disposition: attachment`, `Accept-Ranges: bytes` | `READ_ASSET_BINARY` | `AssetBinaryEndpointService.downloadByAssetUuid` |
 | POST | `/attachments` | `multipart/form-data`: one file part + optional `assetUuid`, `embeddingUuid`, `type`, `poolUuid` | `AttachmentResponse` | `CREATE_ATTACHMENT` | `AttachmentEndpointService.create` |
 | GET | `/attachments/:uuid/data` | — (**no `Range` support**) | raw bytes, `Content-Type` + `Content-Disposition` from the row | `READ_ATTACHMENT` | `AttachmentEndpointService.download` |
+| POST | `/persons/:uuid/images` | `multipart/form-data`: one file part + optional `poolUuid` | `PersonImageResponse`, **201** | `UPDATE_PERSON` | `PersonEndpointService.uploadImage` |
+| GET | `/persons/:uuid/images/:imageUuid/data` | — | raw bytes, ETag + `Cache-Control: private` | `READ_PERSON` | `PersonEndpointService.downloadImage` |
+| POST | `/users/:uuid/avatar` · `/me/avatar` | `multipart/form-data`: one file part + optional `poolUuid` | `UserAvatarResponse`, **201**; **replaces** any previous picture | `UPDATE_USER`, or none for your own | `UserEndpointService.uploadAvatar` |
+| GET | `/users/:uuid/avatar/data` · `/me/avatar/data` | — | raw bytes, ETag + `Cache-Control: private` | `READ_USER`, or none for your own | `UserEndpointService.downloadAvatar` |
 
 - Exactly **one** file part per request (`singleUpload` → 400 on zero or many).
 - `libraryUuid` on `/binary/data` is required when the asset has **no** binary yet, and when it has
@@ -61,6 +65,22 @@ Base path `/api/v1`. Every route sits behind `secure(basePath() + "*")` — JWT 
   [../../loom/ui/LOOM_UI_UPLOAD.md](../../loom/ui/LOOM_UI_UPLOAD.md).
 - `POST /attachments` with no `type` form field defaults to `AttachmentType.EMBEDDING_ATTACHMENT`
   (historic behaviour, kept so pre-existing callers are unaffected).
+- 🔴 **Every one of these paths is capacity-checked** by `StorageCapacityGuard` (§11, G11). Until it
+  existed only the two asset routes were, so an attachment or a person image could fill a volume
+  unchecked and then fail with an `IOException` surfacing as a 500 rather than the 507 that says what
+  is actually wrong. Adding a new byte-carrying route means calling `capacityGuard.checkUpload` after
+  pool resolution and **before** `storage.store`.
+- **A user avatar replaces rather than appends.** `idx_attachment_user_avatar_unique` (V2.93) makes
+  "at most one per account" a schema fact, which is why there is no `/users/:uuid/avatar/:imageUuid`
+  and no designate-which-one route. A person has a gallery because face detection keeps finding them
+  in new material; an account does not.
+- **`/me/avatar` is not a convenience alias.** `UPDATE_USER` is the permission to edit *anybody's*
+  account and no ordinary user holds it, so a profile screen built on `/users/:uuid/avatar` would work
+  for administrators only. `UserEndpointService.checkAvatarPerm` exempts the caller acting on
+  themselves; `MeEndpoint.me()` already set that precedent.
+- **The avatar URL in a response is always the `/users/:uuid` form**, even when read through `/me`.
+  It ends up in an `<img src>` that other people's browsers load — a comment author's face beside
+  their comment — and a self-relative URL there would show every reader their own picture.
 
 ### 2.2 Binary *metadata* routes (JSON only — no bytes)
 
@@ -74,6 +94,10 @@ Base path `/api/v1`. Every route sits behind `secure(basePath() + "*")` — JWT 
 | GET | `/assets/:uuid/binary` | The asset's **primary** binary (`loadPrimaryByAssetUuid`, oldest row) | `READ_ASSET_BINARY` |
 | GET | `/assets/:uuid/binaries` | **All** binaries — one per library the asset was imported into | `READ_ASSET_BINARY` |
 | DELETE | `/assets/:uuid/binary` | Delete **all** rows of the asset, reclaiming each | `DELETE_ASSET_BINARY` |
+| GET | `/storage` | The storage report: elements and bytes per category, dedupe savings, orphaned objects, and every backend's free space and watermark | `READ_STORAGE` |
+| GET | `/storage/backends` | Capacity only — no aggregate SQL, so this is the one a dashboard can poll | `READ_STORAGE` |
+| GET | `/users/:uuid/avatar` · `/me/avatar` | The account picture's metadata; 404 when there is none | `READ_USER`, or none for your own |
+| DELETE | `/users/:uuid/avatar` · `/me/avatar` | Delete the picture; the FK nulls the pointer | `UPDATE_USER`, or none for your own |
 
 ### 2.3 Adjacent subsystems
 
@@ -292,6 +316,21 @@ erDiagram
   written by `AttachmentDaoImpl.store`, the bytes by `AttachmentEndpointService.create`. It has **no
   locator column** — the download route re-derives one via `BinaryStorage.locatorFor(sha512)`, which is
   sound only because the layout is content-addressed.
+- 🔴 **`attachment` carries neither `size` nor `pool_uuid`.** Both live on `attachment_binary`
+  (V2.13, V2.63) and reach the POJO through the `LEFT JOIN` every read in `AttachmentDaoImpl`
+  performs. An aggregate written against `ATTACHMENT.SIZE` does not compile; one written against a
+  size column that does not exist on `asset_location` either (the asset's size is on `asset`).
+- **`attachment` has five nullable target columns**, none of them alternatives to the others:
+  `embedding_uuid` (V2.13), `asset_uuid` (V2.13/V2.44), `detection_uuid` (V2.79), `person_uuid`
+  (V2.90) and `user_uuid` (V2.93). The last two are the ones that reference no asset at all, which is
+  what lets a person's picture and an account's picture outlive any material.
+- **V2.93** added `attachment.user_uuid` (`ON DELETE CASCADE` from `user`) plus the partial unique
+  index `idx_attachment_user_avatar_unique`, and `user.avatar_attachment_uuid`
+  (`ON DELETE SET NULL`). The two keys form a cycle; both columns are nullable, so writes order
+  themselves — insert the attachment, then point the account at it.
+  ⚠️ `UserEndpointService.delete` **soft**-deletes (`markDeleted()`), so that CASCADE is a safety net
+  rather than the working path. The service deletes the avatar row explicitly before calling it,
+  because a picture of a face is exactly the personal data `markDeleted` exists to purge.
 
 ---
 
@@ -368,7 +407,8 @@ registers the artefact as a new asset — see that plan's §7 B5.
 | **G7/G9** | No Java test for the byte routes; `UPDATE_ASSET_BINARY` untested | `AssetBinaryDataEndpointTest` (12 cases incl. 403s), `FilesystemBinaryStorageTest`, `S3LocatorTest`, `ByteRangeTest` |
 | **G8** | S3 modelled but unimplemented | §5 |
 | **G10** | Byte routes undocumented in OpenAPI | `addUploadRoute` sets `consumes: multipart/form-data`, `addDownloadRoute` sets `produces: application/octet-stream` |
-| **G11** | Unbounded uploads | `LOOM_STORAGE_MAX_UPLOAD_SIZE` (413) and `LOOM_STORAGE_MIN_FREE_SPACE` (507). Object stores report no capacity, so the free-space check is skipped there |
+| **G11** | Unbounded uploads | `LOOM_STORAGE_MAX_UPLOAD_SIZE` (413) and `LOOM_STORAGE_MIN_FREE_SPACE` (507), now enforced on **every** byte-carrying route by `StorageCapacityGuard` — attachments, person images and user avatars bypassed the check entirely until it was extracted from `AssetUploadEndpointService`. Object stores report no capacity, so the free-space check is skipped there |
+| **G17** | No way to see what storage holds, or how full it is | `GET /api/v1/storage` (§2.2): elements and bytes per category, logical vs. distinct so dedupe is visible, orphaned objects, and free space + watermark per backend. `StorageSpaceMonitor` logs a warning when a backend crosses a threshold and feeds the `loom_storage_*` gauges. `asset_pool.free_space`/`used_space` stay unused — they are client-supplied and nothing computes them |
 | — | Re-uploading known content 500'd on the unique `sha512sum` | Upload resolves to the existing asset (§3.2) |
 | — | The `s3` field of `AssetBinaryResponse` was never populated | `AssetBinaryModelBuilder.toResponse` derives `storageType` + `s3`/`filesystem` from the locator (§5.2) |
 
@@ -378,7 +418,7 @@ registers the artefact as a new asset — see that plan's §7 B5.
 |---|---|---|
 | **G2** | No artefact upload path for Cortex | Thumbnails, generated images, TTS audio and depth maps are computed and stranded on the worker. Endpoints and client methods exist; node-side work is the plan file |
 | **G12** | Loom and Cortex must share a filesystem for filesystem-backed libraries | An upload is unprocessable by a worker that cannot see Loom's storage at the identical path. S3-backed libraries do not have this constraint |
-| **G13** | Attachment bytes and cascade-deleted asset bytes are not reclaimed | §3.3/§3.4 |
+| **G13** | Attachment bytes and cascade-deleted asset bytes are not reclaimed | §3.3/§3.4. Now **visible** rather than merely true: `GET /storage` reports `orphanObjects`/`orphanBytes`, the storage screen surfaces it, and the customer docs say plainly that the space is reclaimed separately. Fixing it needs a reference count spanning `attachment_binary` and `asset_location` and is its own change |
 | **G14** | Attachment provenance (V2.44) is invisible to REST | `node_kind`, `variant`, `run_uuid` … exist in the DB and are not mapped. Plan Phase A |
 | **G15** | Pool edits need a restart | `BinaryStorageResolver` caches one backend per pool uuid and never evicts |
 
@@ -445,6 +485,12 @@ group+role, never a direct user grant ([../permissions/PERMISSIONS.md](../permis
 | `StorageKeys` | `io.metaloom.loom.storage` | The single definition of `ab/cd/ef/<sha512>` |
 | `BinaryStorageResolver` | `io.metaloom.loom.rest.service.impl` | library → pool → backend; `forLibrary`, `forPool`, `poolUuidOfLibrary`, `storageTypeOfPool`. Caches per pool uuid, never evicts |
 | `BinaryReclaimer` | `io.metaloom.loom.rest.service.impl` | Package-private static; reference-counted unlink **after** a row is deleted or re-pointed |
+| `StorageCapacityGuard` | `io.metaloom.loom.rest.service.impl` | **The only capacity check.** `checkUpload` (413/507, skipped when `freeSpace()` is null) and `evaluate(freeBytes)` → `OK/WARN/CRITICAL/UNKNOWN`. Called by every byte-carrying route |
+| `AttachmentBinarySender` | `io.metaloom.loom.rest.service.impl` | Streams a picture attachment back: ETag + `If-None-Match`, `private` cache, `sendFile` fast path. Shared by person images and user avatars; **not** used by the asset route, which implements `Range` |
+| `StorageStatsService` / `JooqStorageStatsService` | `io.metaloom.loom.db.storage` / `…jooq.storage` | The catalogue half of the report. Logical vs. distinct per category, per-pool totals, orphaned objects |
+| `StorageSpaceMonitor` | `io.metaloom.loom.rest.storage` | Periodic free-space pass; logs WARN/ERROR on a crossed watermark and owns the snapshot the gauges read |
+| `StorageMetricsBinder` | `io.metaloom.loom.rest.storage` | Binds `loom_storage_*`. Takes suppliers, not DAOs — a gauge must never `statvfs` on the scrape thread, and `MetricsCatalogScrapeTest` builds it without a database |
+| `StorageEndpointService` / `StorageEndpoint` | `io.metaloom.loom.rest.service.impl` / `…endpoint.impl` | `/api/v1/storage` — joins the catalogue half to the capacity half |
 | `AssetUploadEndpointService` | `io.metaloom.loom.rest.service.impl` | **The only class that writes asset bytes.** `upload`, `uploadForAsset`, `resolveTarget`, `checkCapacity`, `singleUpload` |
 | `AssetBinaryEndpointService` | `io.metaloom.loom.rest.service.impl` | Binary metadata CRUD, fs/S3 create+update, `downloadByAssetUuid` (Range + `sendFile` fast path), `listByAssetUuid`, `deleteByAssetUuid`, nested `ByteRange` record |
 | `AttachmentEndpointService` | `io.metaloom.loom.rest.service.impl` | Attachment CRUD; stores bytes into the parent asset's pool, `download` re-derives the locator from `sha512sum`; delete does **not** reclaim |
@@ -460,7 +506,7 @@ group+role, never a direct user grant ([../permissions/PERMISSIONS.md](../permis
 | `AssetEventPublisher` / `AssetPipelineTrigger` | `io.metaloom.loom.rest.service.impl` | `loom.asset.created` → auto-run a mime-matched pipeline after upload |
 | `SourceOptionsResolver` | `io.metaloom.loom.rest.service.impl` | `mediaUuids` → `path` (one) or `pathGlobs` (many) source options |
 | `DaoAssetSink` | `io.metaloom.loom.rest.service.impl` | Persists node outputs — hashes only; `warnAboutUnmapped` logs the rest |
-| `StorageOptions` | `io.metaloom.loom.api.options` (`loom-shared/api`) | `uploadDirectory` (default `data/storage`), `maxUploadSize`, `minFreeSpace`; `overrideWithEnv` applies the `LOOM_BINARY_DIR` alias first |
+| `StorageOptions` | `io.metaloom.loom.api.options` (`loom-shared/api`) | `uploadDirectory` (default `data/storage`), `maxUploadSize`, `minFreeSpace`, `warnFreeSpace`, `spaceCheckIntervalMs`; `overrideWithEnv` applies the `LOOM_BINARY_DIR` alias first |
 | `S3Options` | `io.metaloom.loom.api.options` | `LOOM_S3_*` endpoint/region/keys/path-style |
 | `AssetBinaryMethods` | `io.metaloom.loom.client.common.method` | JSON CRUD **plus** `uploadAsset(File, libraryUuid, mimeType)`, `uploadAsset(File, libraryUuid, poolUuid, mimeType)`, `uploadAssetBinary(assetUuid, File, libraryUuid, mimeType)`, `downloadAssetBinary(assetUuid)` |
 | `AttachmentMethods` | `io.metaloom.loom.client.common.method` | `uploadAttachment(filename, mimeType, InputStream)`, `uploadAttachment(File, mimeType, assetUuid, type)`, `downloadAttachment` |
@@ -477,7 +523,9 @@ group+role, never a direct user grant ([../permissions/PERMISSIONS.md](../permis
 | `LOOM_STORAGE_UPLOAD_DIR` | `data/storage` | Destination for libraries with no pool. **The canonical name** |
 | `LOOM_BINARY_DIR` | — | Accepted alias, applied first so `LOOM_STORAGE_UPLOAD_DIR` wins when both are set. Exists only because the Helm chart set it for its entire history against a process that never read it |
 | `LOOM_STORAGE_MAX_UPLOAD_SIZE` | `-1` (no cap) | Larger uploads → 413. `0` or `< -1` fails startup validation |
-| `LOOM_STORAGE_MIN_FREE_SPACE` | `1073741824` (1 GiB) | Refuse an upload that would take the volume below this → 507. Skipped for S3 (`freeSpace()` is null). `0` disables |
+| `LOOM_STORAGE_MIN_FREE_SPACE` | `1073741824` (1 GiB) | Refuse an upload that would take the volume below this → 507. **The critical watermark**; there is deliberately no second name for it. Skipped for S3 (`freeSpace()` is null). `0` disables |
+| `LOOM_STORAGE_WARN_FREE_SPACE` | `5368709120` (5 GiB) | Report a backend as degraded below this. Never refuses anything. Startup fails if it is below `MIN_FREE_SPACE`, which would make the amber state dead configuration. `0` disables |
+| `LOOM_STORAGE_SPACE_CHECK_INTERVAL_MS` | `300000` (5 min) | How often `StorageSpaceMonitor` re-reads every backend, logs a crossed watermark and refreshes the gauge snapshot. `0` disables the pass; `GET /storage` still computes on request |
 | `LOOM_S3_ENDPOINT` | — | Fallback when a pool names no endpoint. Set for MinIO/Ceph, leave empty for real AWS |
 | `LOOM_S3_REGION` | `us-east-1` | Fallback when a pool names no region |
 | `LOOM_S3_ACCESS_KEY` | — | Sensitive. Unset ⇒ AWS default credential chain (IRSA, instance role, `~/.aws`) |
@@ -592,6 +640,13 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 - [x] UI upload / preview / download / delete (`loom-ui/src/api/binaries.ts`)
 - [x] Demo data: two filesystem pools, one S3 pool (`Archive S3`), one S3-backed library
 - [x] Java + e2e coverage of the byte routes
+- [x] `POST /users/:uuid/avatar` + `/me/avatar` — the account picture, replacing rather than
+      appending, with a self-exemption so the profile screen works without `UPDATE_USER`
+- [x] `GET /api/v1/storage` + `/storage/backends` — elements and bytes per category, logical vs.
+      distinct, orphaned objects, free space and watermark per backend
+- [x] `StorageCapacityGuard` on **every** byte-carrying route, not only the asset ones
+- [x] `LOOM_STORAGE_WARN_FREE_SPACE` + a periodic check that logs a crossed watermark
+- [x] `loom_storage_*` gauges and the upload-rejection counter
 
 ### Open — ordered
 
@@ -612,8 +667,10 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 - [ ] Migrate existing binaries when a library's pool changes
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-09 (G16 closed: `AssetBinaryDaoTest` covers the cardinality contract,
+_Git HEAD revision: `8e6f4915`_
+_Last updated: 2026-08-10 (G11 widened to every upload path and G17 closed: `GET /api/v1/storage`,
+the `USER_AVATAR` type and its routes, `StorageCapacityGuard`, `StorageSpaceMonitor` and the
+`loom_storage_*` metrics. G13 stays open but is now reported rather than merely true. Earlier: G16 closed: `AssetBinaryDaoTest` covers the cardinality contract,
 `countByPoolAndPath` for both the null-pool and pooled cases, and `deleteByAssetUuid`; the duplicate
 `AssetLocationDao` over the same table was deleted and `AssetBinary` grew the
 `state`/`license`/`locked_by_uuid` accessors it had been missing. Earlier: reference sweep — no content changes)_

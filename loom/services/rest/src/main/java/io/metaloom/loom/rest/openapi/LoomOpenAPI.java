@@ -41,6 +41,7 @@ import io.metaloom.loom.rest.endpoint.impl.LibraryEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.LoginEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MeEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DbIntegrityEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.StorageEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.MetricsEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.NodeDescriptorEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.OAuth2Endpoint;
@@ -250,6 +251,7 @@ public class LoomOpenAPI {
 		endpoints.add(new MeEndpoint(null, deps, examples));
 		endpoints.add(new MetricsEndpoint(null, examples, deps));
 		endpoints.add(new DbIntegrityEndpoint(null, examples, deps));
+		endpoints.add(new StorageEndpoint(null, examples, deps));
 		endpoints.add(new NodeDescriptorEndpoint(null, null, deps));
 		endpoints.add(new OAuth2Endpoint(deps, null));
 		endpoints.add(new PersonEndpoint(null, deps, examples));

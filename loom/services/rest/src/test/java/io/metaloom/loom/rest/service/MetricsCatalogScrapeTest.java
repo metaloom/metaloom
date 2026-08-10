@@ -1,40 +1,40 @@
 package io.metaloom.loom.rest.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
-import java.util.UUID;
+import java.util.Set;
 import java.util.regex.Matcher;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.common.metrics.LoomMetrics;
+import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.monitoring.MicrometerLoomMetrics;
-import io.metaloom.loom.pipeline.engine.NodeDispatcher;
-import io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker;
-import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
-import io.metaloom.loom.pipeline.graph.PipelineGraph;
-import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
-import io.metaloom.loom.pipeline.model.MediaRef;
-import io.metaloom.loom.pipeline.model.NodeTask;
-import io.metaloom.loom.pipeline.model.NodeTaskResult;
-import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
-import io.metaloom.loom.rest.service.impl.PipelineRunRegistry;
-import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
+import io.metaloom.loom.monitoring.MicrometerLoomMetrics;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 /**
  * The specification and the scrape, checked against each other.
@@ -79,103 +79,9 @@ public class MetricsCatalogScrapeTest {
 		PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 		LoomMetrics metrics = new MicrometerLoomMetrics(registry);
 
-		bindProductionGauges(metrics);
-		runAPipeline(metrics);
-		recordTheRemainingCounters(metrics);
+		MetricsCatalogExercise.exerciseEverything(metrics);
 
 		scrape = registry.scrape();
-	}
-
-	/**
-	 * Construct the real instrumentation sites, which is what publishes the gauges.
-	 */
-	private static void bindProductionGauges(LoomMetrics metrics) {
-		// null daos + null broadcaster: the in-memory selection registry, as its own unit tests use it.
-		new ProcessorRegistry(null, null, metrics);
-		new PipelineRunRegistry(metrics);
-		new PipelineEventBroadcaster(metrics);
-	}
-
-	/**
-	 * Drive one run end to end so the engine's own meters fire from their real call sites.
-	 */
-	private static void runAPipeline(LoomMetrics metrics) {
-		JsonObject definition = new JsonObject()
-			.put("nodes", new JsonArray()
-				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
-				.add(new JsonObject().put("id", "hash").put("type", "sha512")
-					.put("options", new JsonObject().put("retryFailed", true))))
-			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash")
-					.put("targetPort", "media")));
-		PipelineGraph graph = new PipelineGraphParser().parse("metrics", definition, true, false, 0);
-
-		List<NodeTask> dispatched = new ArrayList<>();
-		NodeDispatcher dispatcher = task -> {
-			dispatched.add(task);
-			return "worker-1";
-		};
-
-		// Shared breaker, exactly as PipelineEndpointService installs it. Observing a kind is what
-		// binds that kind's state gauge.
-		NodeKindCircuitBreaker breaker = new NodeKindCircuitBreaker(metrics);
-
-		PipelineRunEngine engine = new PipelineRunEngine(graph, dispatcher, UUID.randomUUID());
-		engine.setMetrics(metrics);
-		engine.setCircuitBreaker(breaker);
-		engine.start();
-
-		// A failure that retries, then a completion: retried + latency, both states.
-		String itemId = engine.onItemDiscovered(MediaRef.of("/media/a.mp4"));
-		engine.onSourceComplete(1);
-		engine.onNodeTaskResult(itemId,
-			NodeTaskResult.failed(dispatched.get(dispatched.size() - 1).getTaskUuid(), "hash", 1, "transient"));
-		engine.onNodeTaskResult(itemId,
-			NodeTaskResult.completed(dispatched.get(dispatched.size() - 1).getTaskUuid(), "hash", 1, Map.of()));
-
-		// A second item, lost twice: retried again, then dead-lettered.
-		PipelineRunEngine losing = new PipelineRunEngine(graph, dispatcher, UUID.randomUUID());
-		losing.setMetrics(metrics);
-		losing.start();
-		String lostItem = losing.onItemDiscovered(MediaRef.of("/media/b.mp4"));
-		losing.onSourceComplete(1);
-		losing.onNodeTaskLost(lostItem, "hash", "lease expired");
-		losing.onNodeTaskLost(lostItem, "hash", "lease expired again");
-
-		// Trip the breaker so its trip counter exists as well as its state gauge.
-		for (int i = 0; i < NodeKindCircuitBreaker.DEFAULT_MIN_SAMPLES; i++) {
-			breaker.record("sha512", false);
-		}
-	}
-
-	/**
-	 * The counters whose real call sites need a database, a WebSocket or a worker.
-	 *
-	 * <p>
-	 * Those sites are covered by their own tests; what is being checked here is that the catalog can
-	 * produce every documented name at all — the precise gap that let three helpers ship with no
-	 * caller and a fourth be documented without a helper.
-	 * </p>
-	 */
-	private static void recordTheRemainingCounters(LoomMetrics metrics) {
-		metrics.recordRunStarted();
-		metrics.recordRunCompleted("success", 1_234);
-		metrics.recordRunRejected("no_processor");
-		metrics.recordRunRecovered(1);
-		metrics.recordNodeTaskDispatched("sha512");
-		metrics.recordNodeTaskDispatchFailed("no_processor");
-		metrics.recordNodeResultReceived("sha512", "success");
-		metrics.recordSourceItemsReceived(3);
-		metrics.recordAssetNodeResultWritten("sha512", "success");
-		metrics.recordLeasesReclaimed(1);
-		metrics.recordOrphansDeadlettered(1);
-		metrics.recordTaskReturned("worker-1");
-		metrics.recordPipelineEventBroadcast();
-		metrics.recordPipelineEventDropped();
-		metrics.recordProcessorRegistered();
-		metrics.recordProcessorDisconnected();
-		metrics.recordProcessorHeartbeat();
-		metrics.recordAuthFailure("ws");
 	}
 
 	@Test

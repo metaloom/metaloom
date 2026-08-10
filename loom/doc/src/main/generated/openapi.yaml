@@ -90,6 +90,7 @@ tags:
   description: "Agent skills, the published skill library and installs"
 - name: spaces
   description: Spaces
+- name: storage
 - name: tags
   description: Tags
 - name: tasks
@@ -13695,6 +13696,180 @@ paths:
                 lastname: Doe
                 email: joedoe@metaloom.io
                 enabled: false
+                avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/me/avatar:
+    description: Load the metadata of your own avatar picture. 404 when you have none.
+    get:
+      tags:
+      - me
+      summary: Load the metadata of your own avatar picture. 404 when you have none.
+      description: Load the metadata of your own avatar picture. 404 when you have
+        none.
+      operationId: getMeAvatar
+      responses:
+        "200":
+          description: The user avatar response
+          content:
+            application/json:
+              example:
+                uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                filename: joedoe.jpg
+                mimeType: image/jpeg
+                size: 48213
+                url: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - me
+      summary: "Upload your own avatar picture, replacing any previous one. Form fields:\
+        \ 'file' (required, the image) and 'poolUuid' (optional storage pool). Requires\
+        \ no permission beyond being signed in."
+      description: "Upload your own avatar picture, replacing any previous one. Form\
+        \ fields: 'file' (required, the image) and 'poolUuid' (optional storage pool).\
+        \ Requires no permission beyond being signed in."
+      operationId: postMeAvatar
+      responses:
+        "200":
+          description: The user avatar response
+          content:
+            application/json:
+              example:
+                uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                filename: joedoe.jpg
+                mimeType: image/jpeg
+                size: 48213
+                url: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - me
+      summary: Delete your own avatar picture
+      description: Delete your own avatar picture
+      operationId: deleteMeAvatar
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/me/avatar/data:
+    description: Load the bytes of your own avatar picture
+    get:
+      tags:
+      - me
+      summary: Load the bytes of your own avatar picture
+      description: Load the bytes of your own avatar picture
+      operationId: getMeAvatarData
+      responses:
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -15992,7 +16167,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: f33f3c47-510b-4452-9a9a-9a5ccf0de2a1
+                  versionUuid: 7d14ff12-5358-4154-bc54-5e2ee6bfd8c6
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16013,7 +16188,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 9f814659-6e8e-4528-9650-abe18c7fa735
+                  versionUuid: ca50e193-3855-49e0-9d06-039f58b9324a
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16086,7 +16261,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 32ac2668-d4af-423c-a3a6-eb64cb0a3c40
+                versionUuid: 08fe3702-3dcd-4c3a-95a9-c23dd8fee510
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16145,7 +16320,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 47b1a762-4fa6-431b-9b67-b10cdf949c22
+                versionUuid: 309b556e-3948-48e6-b70d-111015fdb99d
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16217,7 +16392,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 940d0ae6-230f-4a10-bf44-c66312236999
+                versionUuid: d57f30e9-bd62-4c6f-881a-c102afd3672d
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16326,7 +16501,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: 24be615f-6855-4de2-9050-fa3d04204242
+                runUuid: bda9d980-d8c8-4276-a09e-48a0a5cf3b97
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -16414,11 +16589,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 0e906082-1eff-4b65-bb89-7347099cdfdf
-                  pipelineUuid: c519149f-38e6-4875-8d01-143f5d28ce4e
+                - uuid: 5f99ba39-eb1b-4875-be12-aea241f44114
+                  pipelineUuid: 5df52b3d-f19e-4c80-84cb-1f2a6d9a989c
                   pipelineVersion: 1
-                  started: 2026-08-10T19:02:02.956208955Z
-                  finished: 2026-08-10T19:02:02.956223585Z
+                  started: 2026-08-10T20:56:00.407588271Z
+                  finished: 2026-08-10T20:56:00.407631021Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -16426,11 +16601,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 9e5a554e-3553-4c0a-964b-7c91ec52b7b3
-                  pipelineUuid: e9809c91-7b37-496b-8f3e-d4b2a06d83fb
+                - uuid: 51f92ae4-0b04-4dee-a18f-20ab416d7ae6
+                  pipelineUuid: 72e0888c-89d7-4541-b015-7e9d1a33327a
                   pipelineVersion: 1
-                  started: 2026-08-10T19:02:02.956256785Z
-                  finished: 2026-08-10T19:02:02.956260225Z
+                  started: 2026-08-10T20:56:00.407667641Z
+                  finished: 2026-08-10T20:56:00.407670751Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -16493,11 +16668,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: cafae3b2-def5-42e7-8a30-7a57d9f97bac
-                pipelineUuid: 0ed2a67c-1217-450d-8ee3-2251ffa575f1
+                uuid: dd1497e6-15e0-4de3-a4dd-a21e9ea91592
+                pipelineUuid: c98d9368-28ff-48ad-b7bd-67974b33977f
                 pipelineVersion: 1
-                started: 2026-08-10T19:02:02.956322175Z
-                finished: 2026-08-10T19:02:02.956326355Z
+                started: 2026-08-10T20:56:00.407773691Z
+                finished: 2026-08-10T20:56:00.407779181Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -16839,15 +17014,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: b68b980c-4005-43d4-bbe9-c54c708068e3
-                  runUuid: a242ad59-2a85-4d04-a583-ce969a2ea331
+                - uuid: 3b7db01b-1a54-47a7-9dd4-32481b08d1fd
+                  runUuid: a41d2991-5d6a-4f87-a2f0-932b50cbb557
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 73fcf0a6-c22d-4bb4-9ac7-8081372f8428
-                  runUuid: 13f25131-e045-4954-a820-56ecef51482b
+                - uuid: 9e491921-424c-4490-bfa9-5d6a08ae55a8
+                  runUuid: 82687eaa-e9f1-45ae-baf5-03a2101dfa90
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -16919,9 +17094,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: f9e0fa56-8b28-4439-ab9e-02a9f4ca054f
-                  itemUuid: 8c268ba8-993d-4a0b-a677-4c895ec74b2c
-                  runUuid: e709263b-2040-48f3-a8b6-f22a20a07165
+                - uuid: 728f5b83-88f7-4198-8042-0773be5533aa
+                  itemUuid: 40265ee1-e0a9-45b6-9916-0cc3d7de6123
+                  runUuid: b869462c-0ca8-4484-9e29-f54917b9cde7
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -17384,7 +17559,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: f9f99652-7ba5-4930-95c5-f1c1afedb337
+                  versionUuid: 02b2c428-682d-4bdd-9e64-1cd1c2f81a29
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -17405,7 +17580,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 51227dc2-b2aa-42f5-86b3-ccef03c8c3bf
+                  versionUuid: a4942fcf-ae86-49ab-bb5a-d5465eb63063
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -17481,7 +17656,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: eaa5d29e-7312-423b-b2b3-13ae9a1bcfa2
+                versionUuid: a1e1e2ce-8e61-4b4f-9702-5f95acf08bbc
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -17567,7 +17742,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: eb4e960e-c4f0-4aa6-86fa-3b44913bf203
+                versionUuid: 12ec344f-140e-449d-89f8-0b245fb1f140
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1
@@ -21256,6 +21431,169 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/storage:
+    description: "Report what is stored, per kind of content, and how much room is\
+      \ left on every storage backend."
+    get:
+      tags:
+      - storage
+      summary: "Report what is stored, per kind of content, and how much room is left\
+        \ on every storage backend."
+      description: "Report what is stored, per kind of content, and how much room\
+        \ is left on every storage backend."
+      operationId: getStorage
+      responses:
+        "200":
+          description: The storage report
+          content:
+            application/json:
+              example:
+                timestamp: 1.786353262E9
+                thresholds:
+                  minFreeSpaceBytes: 1073741824
+                  warnFreeSpaceBytes: 5368709120
+                  maxUploadSizeBytes: -1
+                categories:
+                - category: ASSET_BINARY
+                  elements: 1204
+                  logicalBytes: 163208757248
+                  distinctObjects: 1198
+                  distinctBytes: 162987212800
+                - category: FACE_CROP
+                  elements: 8842
+                  logicalBytes: 371654656
+                  distinctObjects: 8391
+                  distinctBytes: 352845824
+                - category: PERSON_IMAGE
+                  elements: 112
+                  logicalBytes: 9437184
+                  distinctObjects: 104
+                  distinctBytes: 8650752
+                - category: PERSON_AVATAR
+                  elements: 37
+                  logicalBytes: 3145728
+                  distinctObjects: 37
+                  distinctBytes: 3145728
+                - category: USER_AVATAR
+                  elements: 9
+                  logicalBytes: 524288
+                  distinctObjects: 9
+                  distinctBytes: 524288
+                - category: ASSET_THUMBNAIL
+                  elements: 0
+                  logicalBytes: 0
+                  distinctObjects: 0
+                  distinctBytes: 0
+                - category: EMBEDDING_ATTACHMENT
+                  elements: 0
+                  logicalBytes: 0
+                  distinctObjects: 0
+                  distinctBytes: 0
+                backends:
+                - poolName: Default storage
+                  kind: filesystem
+                  description: filesystem:/uploads
+                  freeBytes: 48318382080
+                  totalBytes: 214748364800
+                  watermark: OK
+                  objects: 1842
+                  bytes: 160890470400
+                - poolUuid: 6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60
+                  poolName: Archive S3
+                  kind: s3
+                  description: s3:metaloom-archive-prod
+                  watermark: UNKNOWN
+                  objects: 9431
+                  bytes: 2199023255552
+                objects: 8532
+                distinctBytes: 361955328
+                orphanObjects: 148
+                orphanBytes: 6291456
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/storage/backends:
+    description: "List the storage backends and how full each one is, without the\
+      \ catalogue aggregates. Cheap enough to poll."
+    get:
+      tags:
+      - storage
+      summary: "List the storage backends and how full each one is, without the catalogue\
+        \ aggregates. Cheap enough to poll."
+      description: "List the storage backends and how full each one is, without the\
+        \ catalogue aggregates. Cheap enough to poll."
+      operationId: getStorageBackends
+      responses:
+        "200":
+          description: The storage backends and their capacity
+          content:
+            application/json:
+              example:
+                backends:
+                - poolName: Default storage
+                  kind: filesystem
+                  description: filesystem:/uploads
+                  freeBytes: 48318382080
+                  totalBytes: 214748364800
+                  watermark: OK
+                  objects: 1842
+                  bytes: 160890470400
+                - poolUuid: 6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60
+                  poolName: Archive S3
+                  kind: s3
+                  description: s3:metaloom-archive-prod
+                  watermark: UNKNOWN
+                  objects: 9431
+                  bytes: 2199023255552
+                thresholds:
+                  minFreeSpaceBytes: 1073741824
+                  warnFreeSpaceBytes: 5368709120
+                  maxUploadSizeBytes: -1
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
   /api/v1/tags:
     description: Create new tag
     get:
@@ -22929,6 +23267,7 @@ paths:
                   lastname: Doe
                   email: joedoe@metaloom.io
                   enabled: false
+                  avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
                 - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
                   status:
                     creator:
@@ -22946,6 +23285,7 @@ paths:
                   lastname: Doe
                   email: joedoe@metaloom.io
                   enabled: false
+                  avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
                 _metainfo:
                   perPage: 2
                   totalCount: 28
@@ -23012,6 +23352,7 @@ paths:
                 lastname: Doe
                 email: joedoe@metaloom.io
                 enabled: false
+                avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -23067,6 +23408,7 @@ paths:
                 lastname: Doe
                 email: joedoe@metaloom.io
                 enabled: false
+                avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -23138,6 +23480,7 @@ paths:
                 lastname: Doe
                 email: joedoe@metaloom.io
                 enabled: false
+                avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -23207,6 +23550,7 @@ paths:
                 lastname: Doe
                 email: joedoe@metaloom.io
                 enabled: false
+                avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:
@@ -23317,6 +23661,224 @@ paths:
                 lastname: Doe
                 email: joedoe@metaloom.io
                 enabled: false
+                avatarUrl: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/users/{uuid}/avatar:
+    description: Load the metadata of a user's avatar picture. 404 when the account
+      has none.
+    get:
+      tags:
+      - users
+      summary: Load the metadata of a user's avatar picture. 404 when the account
+        has none.
+      description: Load the metadata of a user's avatar picture. 404 when the account
+        has none.
+      operationId: getUsersByUuidAvatar
+      responses:
+        "200":
+          description: The user avatar response
+          content:
+            application/json:
+              example:
+                uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                filename: joedoe.jpg
+                mimeType: image/jpeg
+                size: 48213
+                url: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - users
+      summary: "Upload a user's avatar picture, replacing any previous one. Form fields:\
+        \ 'file' (required, the image) and 'poolUuid' (optional storage pool; without\
+        \ it the picture lands in the deployment's default storage, since an account\
+        \ has no parent asset to inherit a pool from)."
+      description: "Upload a user's avatar picture, replacing any previous one. Form\
+        \ fields: 'file' (required, the image) and 'poolUuid' (optional storage pool;\
+        \ without it the picture lands in the deployment's default storage, since\
+        \ an account has no parent asset to inherit a pool from)."
+      operationId: postUsersByUuidAvatar
+      responses:
+        "200":
+          description: The user avatar response
+          content:
+            application/json:
+              example:
+                uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                filename: joedoe.jpg
+                mimeType: image/jpeg
+                size: 48213
+                url: /api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - users
+      summary: "Delete a user's avatar picture, leaving the account without one."
+      description: "Delete a user's avatar picture, leaving the account without one."
+      operationId: deleteUsersByUuidAvatar
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/users/{uuid}/avatar/data:
+    description: Load the bytes of a user's avatar picture
+    get:
+      tags:
+      - users
+      summary: Load the bytes of a user's avatar picture
+      description: Load the bytes of a user's avatar picture
+      operationId: getUsersByUuidAvatarData
+      responses:
         "400":
           description: Bad request - validation error or malformed path/query parameter
           content:

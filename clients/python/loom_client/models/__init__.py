@@ -394,6 +394,13 @@ from .space import (
     SpaceResponse,
     SpaceUpdateRequest,
 )
+from .storage import (
+    StorageBackendListResponse,
+    StorageBackendModel,
+    StorageCategoryModel,
+    StorageReportResponse,
+    StorageThresholdsModel,
+)
 from .tag import (
     AssetTagBulkRequest,
     AssetTagBulkResponse,
@@ -427,6 +434,7 @@ from .transcript import (
     TranscriptUpdateRequest,
 )
 from .user import (
+    UserAvatarResponse,
     UserCreateRequest,
     UserListResponse,
     UserResponse,
@@ -713,6 +721,11 @@ __all__ = [
     "SpaceReference",
     "SpaceResponse",
     "SpaceUpdateRequest",
+    "StorageBackendListResponse",
+    "StorageBackendModel",
+    "StorageCategoryModel",
+    "StorageReportResponse",
+    "StorageThresholdsModel",
     "SystemStatusInfo",
     "TagCreateRequest",
     "TagListResponse",
@@ -740,6 +753,7 @@ __all__ = [
     "TranscriptListResponse",
     "TranscriptResponse",
     "TranscriptUpdateRequest",
+    "UserAvatarResponse",
     "UserCreateRequest",
     "UserListResponse",
     "UserReference",

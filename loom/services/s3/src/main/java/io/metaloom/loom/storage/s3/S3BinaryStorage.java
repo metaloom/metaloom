@@ -213,6 +213,13 @@ public class S3BinaryStorage implements BinaryStorage, AutoCloseable {
 	}
 
 	@Override
+	public Long totalSpace() {
+		// Same answer for the same reason: a bucket has no size. Reporting the bytes currently stored as if
+		// they were a capacity would make an S3 pool look 100% full on any dashboard that divides one by the other.
+		return null;
+	}
+
+	@Override
 	public String describe() {
 		return describe;
 	}

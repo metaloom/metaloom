@@ -530,6 +530,16 @@
       "saved": "Profil aktualisiert",
       "updated": "Profil aktualisiert",
       "error": "Profil konnte nicht aktualisiert werden"
+    },
+    "avatar": {
+      "title": "Profilbild",
+      "upload": "Bild ändern",
+      "remove": "Bild entfernen",
+      "uploaded": "Profilbild aktualisiert",
+      "removed": "Profilbild entfernt",
+      "failed": "Das Profilbild konnte nicht aktualisiert werden: {{error}}",
+      "tooLarge": "Dieses Bild ist größer als der Server akzeptiert.",
+      "hint": "Ein quadratisches Bild passt am besten. JPEG oder PNG."
     }
   },
   "chat": {
@@ -611,7 +621,8 @@
       "blacklist": "Sperrliste",
       "memoryDenylist": "Gedächtnis-Sperrliste",
       "searchIndices": "Indizes",
-      "dbIntegrity": "Datenbank-Integrität"
+      "dbIntegrity": "Datenbank-Integrität",
+      "storage": "Speicher"
     },
     "spaces": {
       "title": "Spaces",
@@ -836,7 +847,8 @@
         "READ_METRIC": "Instanz-Metriken lesen — Pipeline-Durchsatz, Task-Latenz, Worker-Zustand. Nötig, um das Monitoring-Dashboard zu öffnen.",
         "READ_SEARCH_INDEX": "Zustand der Suchindizes lesen — Größe, Rückstand, Embedding-Modell und Auftragsverlauf. Verändert nichts.",
         "MANAGE_SEARCH_INDEX": "Einen Suchindex neu aufbauen, abgleichen oder leeren. Es gehen keine Quelldaten verloren — jeder Index ist wiederherstellbar — aber nach dem Leeren liefert er nichts, bis er neu gefüllt ist.",
-        "READ_DB_INTEGRITY": "Den Bericht zur Datenbank-Integrität lesen — welche internen Konsistenzregeln der Katalog derzeit einhält und welche nicht. Der Bericht nennt die Kennungen betroffener Datensätze und gibt damit etwas über den Inhalt preis."
+        "READ_DB_INTEGRITY": "Den Bericht zur Datenbank-Integrität lesen — welche internen Konsistenzregeln der Katalog derzeit einhält und welche nicht. Der Bericht nennt die Kennungen betroffener Datensätze und gibt damit etwas über den Inhalt preis.",
+        "READ_STORAGE": "Den Speicherbericht ansehen – wie viel Platz jede Inhaltsart belegt und wie voll jedes Speicher-Backend ist."
       },
       "dialog": {
         "create": "Rolle erstellen",
@@ -1015,6 +1027,51 @@
         "MANDATORY_FIELD": "Pflichtnamen, die leer geblieben sind, sowie personenbezogene Daten, die eine Löschung hätte entfernen sollen.",
         "VOCABULARY": "Textspalten mit einem Wert außerhalb der Menge, die die Software kennt.",
         "CARDINALITY": "Duplikate und Feldkombinationen, die ein Constraint hätte ausschließen sollen."
+      }
+    },
+    "storage": {
+      "title": "Speichernutzung",
+      "subtitle": "Was gespeichert ist, wie viel davon doppelter Inhalt ist und wie viel Platz noch frei ist.",
+      "refresh": "Aktualisieren",
+      "objects": "{{count}} gespeicherte Objekte",
+      "onDisk": "{{size}} belegt",
+      "saved": "{{size}} durch Deduplizierung gespart",
+      "savedHint": "Identischer Inhalt wird nur einmal gespeichert, egal wie viele Elemente darauf verweisen. So viel hat das gespart.",
+      "orphans": "{{count}} ohne Verweis ({{size}})",
+      "orphansHint": "Gespeicherte Objekte, auf die nichts mehr verweist. Beim Löschen eines Elements verschwindet der Eintrag; der Platz wird getrennt davon freigegeben.",
+      "backendsTitle": "Speicher-Backends",
+      "categoriesTitle": "Nach Inhaltsart",
+      "freeOf": "{{free}} frei von {{total}}",
+      "holding": "enthält {{count}} Objekte ({{size}})",
+      "unknown": "Unbekannt",
+      "thresholds": "Uploads werden abgelehnt, sobald weniger als {{critical}} frei sind; unter {{warn}} gilt ein Backend als knapp.",
+      "categoriesNote": "„Beansprucht“ summiert die Größe jedes Elements. „Belegt“ zählt jedes gespeicherte Objekt einmal, denn identischer Inhalt wird nur einmal gespeichert. Beide unterscheiden sich überall dort, wo Inhalt geteilt wird – und die Spalte „Belegt“ lässt sich nicht über die Zeilen aufsummieren: Ein Objekt kann zu zwei Arten gehören.",
+      "refreshFailed": "Der Speicherbericht konnte nicht aktualisiert werden: {{error}}",
+      "forbiddenTitle": "Kein Zugriff auf den Speicherbericht",
+      "forbiddenDescription": "Zum Lesen des Speicherverbrauchs wird die Berechtigung READ_STORAGE benötigt. Bitte eine Administratorin oder einen Administrator darum bitten.",
+      "column": {
+        "category": "Art",
+        "elements": "Elemente",
+        "logical": "Beansprucht",
+        "logicalHint": "Die Summe aller Elementgrößen – geteilter Inhalt zählt pro Element.",
+        "onDisk": "Belegt",
+        "onDiskHint": "Was die gespeicherten Objekte tatsächlich belegen – geteilter Inhalt zählt einmal. Lässt sich nicht über die Zeilen aufsummieren.",
+        "saved": "Gespart"
+      },
+      "watermark": {
+        "OK": "OK",
+        "WARN": "Knapp",
+        "CRITICAL": "Voll",
+        "UNKNOWN": "Nicht messbar"
+      },
+      "category": {
+        "ASSET_BINARY": "Mediendateien",
+        "ASSET_THUMBNAIL": "Asset-Vorschaubilder",
+        "EMBEDDING_ATTACHMENT": "Embedding-Anhänge",
+        "FACE_CROP": "Gesichtsausschnitte",
+        "PERSON_IMAGE": "Personenbilder",
+        "PERSON_AVATAR": "Personen-Avatare",
+        "USER_AVATAR": "Kontobilder"
       }
     }
   },

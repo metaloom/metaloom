@@ -539,6 +539,16 @@
       "saved": "Profile updated",
       "updated": "Profile updated",
       "error": "Failed to update profile"
+    },
+    "avatar": {
+      "title": "Profile picture",
+      "upload": "Change picture",
+      "remove": "Remove picture",
+      "uploaded": "Profile picture updated",
+      "removed": "Profile picture removed",
+      "failed": "Could not update your profile picture: {{error}}",
+      "tooLarge": "That picture is larger than the server accepts.",
+      "hint": "A square image works best. JPEG or PNG."
     }
   },
   "chat": {
@@ -620,7 +630,8 @@
       "blacklist": "Blacklist",
       "memoryDenylist": "Memory Denylist",
       "searchIndices": "Indices",
-      "dbIntegrity": "Database integrity"
+      "dbIntegrity": "Database integrity",
+      "storage": "Storage"
     },
     "spaces": {
       "title": "Spaces",
@@ -845,7 +856,8 @@
         "READ_METRIC": "Read the instance metrics — pipeline throughput, task latency, worker health. Needed to open the monitoring dashboard.",
         "READ_SEARCH_INDEX": "Read the state of the search indices — size, backlog, embedding model and job history. Changes nothing.",
         "MANAGE_SEARCH_INDEX": "Reindex, delta-sync or drop a search index. No source data is lost — every index is rebuildable — but a drop leaves that index answering nothing until it is refilled.",
-        "READ_DB_INTEGRITY": "Read the database integrity report — which internal consistency rules the catalogue currently holds and which it does not. The report names the identifiers of affected records, so it reveals a little about what is stored."
+        "READ_DB_INTEGRITY": "Read the database integrity report — which internal consistency rules the catalogue currently holds and which it does not. The report names the identifiers of affected records, so it reveals a little about what is stored.",
+        "READ_STORAGE": "View the storage report — how much space each kind of content uses and how full each storage backend is."
       },
       "dialog": {
         "create": "Create Role",
@@ -1024,6 +1036,51 @@
         "MANDATORY_FIELD": "Required names left blank, and personal data a deletion should have cleared.",
         "VOCABULARY": "Text columns holding a value outside the set the software recognises.",
         "CARDINALITY": "Duplicates, and combinations of fields a constraint should have ruled out."
+      }
+    },
+    "storage": {
+      "title": "Storage usage",
+      "subtitle": "What is stored, how much of it is duplicate content, and how much room is left.",
+      "refresh": "Refresh",
+      "objects": "{{count}} stored objects",
+      "onDisk": "{{size}} on disk",
+      "saved": "{{size}} saved by deduplication",
+      "savedHint": "Identical content is stored once however many elements reference it. This is what that saved.",
+      "orphans": "{{count}} unreferenced ({{size}})",
+      "orphansHint": "Stored objects nothing references any more. Deleting an element removes the record; the space is reclaimed separately.",
+      "backendsTitle": "Storage backends",
+      "categoriesTitle": "By kind of content",
+      "freeOf": "{{free}} free of {{total}}",
+      "holding": "holding {{count}} objects ({{size}})",
+      "unknown": "Unknown",
+      "thresholds": "Uploads are refused below {{critical}} free; a backend is reported as low below {{warn}}.",
+      "categoriesNote": "“Claimed” adds up every element's size. “On disk” counts each stored object once, because identical content is stored once. The two differ wherever content is shared, and the on-disk column does not add up across rows: one object can belong to two kinds.",
+      "refreshFailed": "Could not refresh the storage report: {{error}}",
+      "forbiddenTitle": "You cannot see the storage report",
+      "forbiddenDescription": "Reading how much storage this deployment uses needs the READ_STORAGE permission. Ask an administrator to grant it.",
+      "column": {
+        "category": "Kind",
+        "elements": "Elements",
+        "logical": "Claimed",
+        "logicalHint": "The sum of every element's size, counting shared content once per element.",
+        "onDisk": "On disk",
+        "onDiskHint": "What the stored objects actually occupy, counting shared content once. Does not add up across rows.",
+        "saved": "Saved"
+      },
+      "watermark": {
+        "OK": "OK",
+        "WARN": "Low",
+        "CRITICAL": "Full",
+        "UNKNOWN": "Not measurable"
+      },
+      "category": {
+        "ASSET_BINARY": "Media files",
+        "ASSET_THUMBNAIL": "Asset thumbnails",
+        "EMBEDDING_ATTACHMENT": "Embedding attachments",
+        "FACE_CROP": "Face crops",
+        "PERSON_IMAGE": "Person pictures",
+        "PERSON_AVATAR": "Person avatars",
+        "USER_AVATAR": "Account pictures"
       }
     }
   },

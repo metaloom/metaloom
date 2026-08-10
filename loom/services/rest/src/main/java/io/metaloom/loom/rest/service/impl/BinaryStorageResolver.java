@@ -1,5 +1,7 @@
 package io.metaloom.loom.rest.service.impl;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,6 +18,7 @@ import io.metaloom.loom.api.options.LoomOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.model.library.Library;
 import io.metaloom.loom.db.model.pool.AssetPool;
+import io.metaloom.loom.db.page.Page;
 import io.metaloom.loom.storage.BinaryStorage;
 import io.metaloom.loom.storage.fs.FilesystemBinaryStorage;
 import io.metaloom.loom.storage.s3.S3BinaryStorage;
@@ -48,6 +51,11 @@ public class BinaryStorageResolver {
 
 	/** Sentinel for "no pool" — {@link ConcurrentHashMap} rejects null keys. */
 	private static final UUID DEFAULT_POOL = new UUID(0L, 0L);
+
+	private static final int POOL_PAGE_SIZE = 100;
+
+	/** A backstop, not a policy. Pools are operator-created; an installation past this has a different problem. */
+	private static final int MAX_POOLS = 1000;
 
 	private final DaoCollection daos;
 	private final LoomOptions options;
@@ -134,6 +142,85 @@ public class BinaryStorageResolver {
 			}
 			return isS3(pool) ? S3BinaryStorage.KIND : FilesystemBinaryStorage.KIND;
 		});
+	}
+
+	/**
+	 * Every backend this deployment writes to: the default local upload directory, plus one per {@code asset_pool} row.
+	 *
+	 * <p>
+	 * A pool that cannot be built reports its {@code error} rather than throwing. One malformed pool row must not turn the whole storage report into a
+	 * 500 — the same reasoning {@link #storageTypeOfPool(UUID)} already applies to listing libraries, and the report is precisely where an operator
+	 * should learn that a pool is broken.
+	 * </p>
+	 *
+	 * <p>
+	 * Calls {@code freeSpace()} and {@code totalSpace()} on each backend, which for a filesystem means a {@code statvfs}. Blocking, and capable of
+	 * hanging on a stalled NFS mount — never call it from the event loop or from a metrics scrape.
+	 * </p>
+	 */
+	public List<BackendInfo> allBackends() {
+		List<BackendInfo> backends = new ArrayList<>();
+		backends.add(describe(null, "Default storage"));
+		for (AssetPool pool : allPools()) {
+			backends.add(describe(pool.getUuid(), pool.getName()));
+		}
+		return backends;
+	}
+
+	private BackendInfo describe(UUID poolUuid, String poolName) {
+		try {
+			BinaryStorage storage = forPool(poolUuid);
+			return new BackendInfo(poolUuid, poolName, storage.kind(), storage.describe(), storage.freeSpace(), storage.totalSpace(), null);
+		} catch (Exception e) {
+			log.warn("Could not resolve storage for pool {}", poolUuid, e);
+			return new BackendInfo(poolUuid, poolName, storageTypeOfPool(poolUuid), null, null, null, e.getMessage());
+		}
+	}
+
+	/**
+	 * Every pool row.
+	 *
+	 * <p>
+	 * Paged through rather than fetched in one go because {@code CRUDDao} offers no list-all, and bounded at a page size far above any plausible
+	 * number of pools - these are operator-created, and an installation with more than a few hundred has a different problem.
+	 * </p>
+	 */
+	private List<AssetPool> allPools() {
+		List<AssetPool> pools = new ArrayList<>();
+		UUID from = null;
+		while (pools.size() < MAX_POOLS) {
+			Page<AssetPool> page = daos.assetPoolDao().loadPage(from, POOL_PAGE_SIZE, null, null, null);
+			if (page.isEmpty()) {
+				break;
+			}
+			page.forEach(pools::add);
+			if (page.size() < POOL_PAGE_SIZE) {
+				break;
+			}
+			from = page.last().getUuid();
+		}
+		return pools;
+	}
+
+	/**
+	 * One storage backend, as the report sees it.
+	 *
+	 * @param poolUuid    the pool, or null for the deployment's default local storage
+	 * @param poolName    a human-readable name
+	 * @param kind        {@code "filesystem"} or {@code "s3"}
+	 * @param description where it points, safe to show (never contains credentials); null when the backend could not be built
+	 * @param freeBytes   usable space, or null when the backend cannot say - which every object store always is
+	 * @param totalBytes  capacity, or null for the same reason
+	 * @param error       why the backend could not be built, or null when it could
+	 */
+	public record BackendInfo(
+		UUID poolUuid,
+		String poolName,
+		String kind,
+		String description,
+		Long freeBytes,
+		Long totalBytes,
+		String error) {
 	}
 
 	private BinaryStorage build(AssetPool pool) {

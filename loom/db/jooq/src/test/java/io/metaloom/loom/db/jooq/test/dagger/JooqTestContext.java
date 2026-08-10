@@ -15,6 +15,7 @@ import io.metaloom.loom.api.options.DatabaseOptions;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.dagger.DaoProvider;
 import io.metaloom.loom.db.integrity.DbIntegrityService;
+import io.metaloom.loom.db.storage.StorageStatsService;
 import io.metaloom.loom.test.LoomProviderExtension;
 
 public class JooqTestContext implements BeforeEachCallback, AfterEachCallback, DaoProvider {
@@ -61,6 +62,10 @@ public class JooqTestContext implements BeforeEachCallback, AfterEachCallback, D
 
 	public DbIntegrityService dbIntegrity() {
 		return component.dbIntegrity();
+	}
+
+	public StorageStatsService storageStats() {
+		return component.storageStats();
 	}
 
 }

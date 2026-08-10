@@ -109,5 +109,43 @@ public class UserEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.load(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// --- The account picture -------------------------------------------------------------------
+		// Singular, because an account has exactly one. The metadata route is registered before the
+		// bytes route so the literal "data" segment is not swallowed - the same ordering rule
+		// /assets/:uuid/binary and /binary/data follow.
+		//
+		// A user may always read and change their own picture without holding READ_USER or UPDATE_USER;
+		// see UserEndpointService.checkAvatarPerm. The same four routes are mounted under /me.
+
+		addRoute(basePath() + "/:uuid/avatar", GET,
+			"Load the metadata of a user's avatar picture. 404 when the account has none.",
+			null,
+			examples.userAvatarResponseExample(),
+			lrc -> {
+				service.loadAvatar(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addDownloadRoute(basePath() + "/:uuid/avatar/data",
+			"Load the bytes of a user's avatar picture",
+			lrc -> {
+				service.downloadAvatar(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addUploadRoute(basePath() + "/:uuid/avatar",
+			"Upload a user's avatar picture, replacing any previous one. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage "
+				+ "pool; without it the picture lands in the deployment's default storage, since an account has no parent asset to inherit a pool from).",
+			examples.userAvatarResponseExample(),
+			lrc -> {
+				service.uploadAvatar(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/avatar", DELETE,
+			"Delete a user's avatar picture, leaving the account without one.",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.deleteAvatar(lrc, lrc.pathParamUUID("uuid"));
+			});
 	}
 }

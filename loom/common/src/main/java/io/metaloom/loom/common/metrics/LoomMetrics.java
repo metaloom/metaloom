@@ -123,6 +123,17 @@ public interface LoomMetrics {
 	/** An authentication attempt failed (jwt|ws|permission). */
 	void recordAuthFailure(String type);
 
+	// ---- Storage ----------------------------------------------------------------------------
+
+	/**
+	 * An upload was refused before its bytes were stored (too_large|no_space).
+	 *
+	 * <p>The counter that separates "nobody is uploading" from "everybody is being turned away". A
+	 * volume crossing its low-water mark shows up here as a step change well before anyone opens a
+	 * ticket, and the {@code reason} label distinguishes a misconfigured size cap from a full disk.</p>
+	 */
+	void recordUploadRejected(String reason);
+
 	// ---- Gauges -----------------------------------------------------------------------------
 
 	/** Bind a gauge to live state; the supplier is polled at scrape time. Idempotent per name. */

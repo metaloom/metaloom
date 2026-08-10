@@ -167,3 +167,9 @@ read it themselves. What that requires depends on the pool:
 
 If you are running Loom and Cortex on separate machines, an S3-backed library is the simpler
 arrangement.
+
+== How much room is left
+
+Where the bytes go is one question; how much space they take and how much is still free is another.
+See link:../storage[Storage Usage] for the report that answers it, and for the thresholds that decide
+when Loom starts refusing uploads.

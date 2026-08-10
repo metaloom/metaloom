@@ -297,7 +297,9 @@ public enum JooqLoomPermission implements EnumType {
 
     MANAGE_SEARCH_INDEX("MANAGE_SEARCH_INDEX"),
 
-    READ_DB_INTEGRITY("READ_DB_INTEGRITY");
+    READ_DB_INTEGRITY("READ_DB_INTEGRITY"),
+
+    READ_STORAGE("READ_STORAGE");
 
     private final String literal;
 

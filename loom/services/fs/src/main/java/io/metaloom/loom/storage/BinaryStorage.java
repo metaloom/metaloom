@@ -143,6 +143,19 @@ public interface BinaryStorage {
 	Long freeSpace();
 
 	/**
+	 * Total capacity, for the "how full is it" reading of the storage report.
+	 *
+	 * <p>
+	 * Exists because {@link #freeSpace()} alone cannot be turned into a percentage, and a bare byte count is not what an operator reads a capacity
+	 * dashboard for: 40 GB free is comfortable on a laptop volume and an emergency on a media archive. Reported alongside the free figure so the
+	 * consumer can compute the fraction rather than guess at a denominator.
+	 * </p>
+	 *
+	 * @return total bytes, or null when the backend cannot say — the same "no meaningful answer" object stores give for {@link #freeSpace()}
+	 */
+	Long totalSpace();
+
+	/**
 	 * @return a human-readable description of where this storage points, safe to log (never contains credentials)
 	 */
 	String describe();

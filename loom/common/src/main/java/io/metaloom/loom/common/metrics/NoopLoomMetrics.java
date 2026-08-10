@@ -99,6 +99,10 @@ public class NoopLoomMetrics implements LoomMetrics {
 	}
 
 	@Override
+	public void recordUploadRejected(String reason) {
+	}
+
+	@Override
 	public void bindGauge(String name, Supplier<Number> supplier) {
 	}
 

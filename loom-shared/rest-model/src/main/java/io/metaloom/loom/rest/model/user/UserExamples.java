@@ -23,6 +23,10 @@ public interface UserExamples extends ExampleValues {
 		return new ExampleImpl(userListResponse(), "The user list response", HttpResponseStatus.OK);
 	}
 
+	default Example userAvatarResponseExample() {
+		return new ExampleImpl(userAvatarResponse(), "The user avatar response", HttpResponseStatus.OK);
+	}
+
 	default UserResponse userResponse() {
 		UserResponse model = new UserResponse();
 		model.setUuid(uuidA());
@@ -30,7 +34,20 @@ public interface UserExamples extends ExampleValues {
 		model.setEmail("joedoe@metaloom.io");
 		model.setFirstname("Joe");
 		model.setLastname("Doe");
+		// The /users form even when the caller read this through /me: the URL is rendered in other people's browsers too.
+		model.setAvatarUrl("/api/v1/users/" + uuidA() + "/avatar/data");
 		model.setMeta(meta());
+		setCreatorEditor(model);
+		return model;
+	}
+
+	default UserAvatarResponse userAvatarResponse() {
+		UserAvatarResponse model = new UserAvatarResponse();
+		model.setUuid(uuidB());
+		model.setFilename("joedoe.jpg");
+		model.setMimeType("image/jpeg");
+		model.setSize(48213);
+		model.setUrl("/api/v1/users/" + uuidA() + "/avatar/data");
 		setCreatorEditor(model);
 		return model;
 	}

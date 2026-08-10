@@ -38,6 +38,7 @@ from .info import InfoMethods
 from .json_comp import JsonCompMethods
 from .library import LibraryMethods
 from .db_integrity import DbIntegrityMethods
+from .storage import StorageMethods
 from .metrics import MetricsMethods
 from .node_result import NodeResultMethods
 from .node_run import NodeRunMethods
@@ -86,6 +87,7 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     LibraryMethods,
     MetricsMethods,
     DbIntegrityMethods,
+    StorageMethods,
     NodeResultMethods,
     NodeRunMethods,
     PersonMethods,
@@ -133,6 +135,7 @@ __all__ = [
     "LibraryMethods",
     "MetricsMethods",
     "DbIntegrityMethods",
+    "StorageMethods",
     "NodeResultMethods",
     "NodeRunMethods",
     "PersonMethods",

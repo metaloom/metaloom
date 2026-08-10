@@ -94,6 +94,24 @@ public class AttachmentDaoImpl extends AbstractJooqDao<Attachment> implements At
 	}
 
 	@Override
+	public Attachment loadAvatarByUser(UUID userUuid) {
+		if (userUuid == null) {
+			return null;
+		}
+		// Same left join as every other read here: the pool lives on attachment_binary and the download path needs it.
+		// No ordering or limit - the partial unique index (V2.93) guarantees at most one row, and fetchOne turning a
+		// second one into an exception is the right way to learn that the index was dropped.
+		return ctx()
+			.select()
+			.from(ATTACHMENT)
+			.leftJoin(ATTACHMENT_BINARY)
+			.on(ATTACHMENT_BINARY.SHA512SUM.eq(ATTACHMENT.BINARY_SHA512SUM))
+			.where(ATTACHMENT.USER_UUID.eq(userUuid)
+				.and(ATTACHMENT.TYPE.eq(io.metaloom.loom.db.jooq.enums.JooqAttachmentType.USER_AVATAR)))
+			.fetchOneInto(getPojoClass());
+	}
+
+	@Override
 	public Attachment load(UUID uuid) {
 		return ctx()
 			.select()

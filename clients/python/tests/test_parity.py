@@ -39,7 +39,7 @@ OPENAPI = REPO_ROOT / "loom/doc/src/main/generated/openapi.json"
 #: against ``LoomHttpClientImpl``, which implements exactly these.
 #: Counted by distinct method *name*, so a set of overloads contributes one - which is
 #: why ``tools/generate_models.py`` reports a different number and this one wins.
-EXPECTED_JAVA_METHOD_COUNT = 291
+EXPECTED_JAVA_METHOD_COUNT = 301
 
 #: Paths this client builds that the generated API description does not list.
 #:
@@ -189,6 +189,8 @@ EXTRA_KWARGS = {
     "upload_asset_binary": {"filename": "x.bin"},
     "upload_attachment": {"filename": "x.bin"},
     "upload_person_image": {"filename": "x.bin"},
+    "upload_user_avatar": {"filename": "x.bin"},
+    "upload_my_avatar": {"filename": "x.bin"},
 }
 
 

@@ -3,10 +3,12 @@ import {
   Box, Typography, TextField, Button, Avatar, IconButton, Divider,
   ToggleButton, ToggleButtonGroup, CircularProgress, Alert,
 } from "@mui/material";
-import { PhotoCameraOutlined, DarkModeOutlined, LightModeOutlined } from "@mui/icons-material";
+import { PhotoCameraOutlined, DarkModeOutlined, LightModeOutlined, DeleteOutlineOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
-import { loadUser, updateUser, UserResponse, UserUpdateRequest } from "../../api/users";
+import {
+  deleteMyAvatar, loadUser, updateUser, uploadMyAvatar, UserApiError, UserResponse, UserUpdateRequest,
+} from "../../api/users";
 import { useToast } from "../../context/ToastContext";
 import { useTranslation } from "react-i18next";
 import { useThemeMode } from "../../context/ThemeContext";
@@ -25,7 +27,13 @@ export default function ProfileView() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  // The preview is a *pending* value, not the value. It shows the file the moment it is picked -
+  // waiting for a round trip to see your own picture feels broken - but the served URL is what the
+  // account actually has, and a failed upload has to put the old one back rather than leave a
+  // picture on screen that nobody stored.
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authToken) return;
@@ -42,12 +50,51 @@ export default function ProfileView() {
       .finally(() => setLoading(false));
   }, [authToken, userUuid]);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => setAvatarPreview(reader.result as string);
-      reader.readAsDataURL(file);
+    // Clear the input so picking the same file twice fires change again - after a failed upload
+    // that is exactly what a user does next.
+    e.target.value = "";
+    if (!file || !authToken || avatarBusy) return;
+
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try {
+      const uploaded = await uploadMyAvatar(authToken, file);
+      // Swap the local preview for the served URL: from here the picture is whatever the server
+      // holds, and every other screen renders it from the same place.
+      setAvatarPreview(null);
+      setUser(current => (current ? { ...current, avatarUrl: uploaded.url } : current));
+      showToast(t("profile.avatar.uploaded"), "success");
+    } catch (err) {
+      setAvatarPreview(null);
+      const message = err instanceof UserApiError && err.status === 413
+        ? t("profile.avatar.tooLarge")
+        : (err as Error).message;
+      setAvatarError(t("profile.avatar.failed", { error: message }));
+      showToast(t("profile.avatar.failed", { error: message }), "error");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!authToken || avatarBusy) return;
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try {
+      await deleteMyAvatar(authToken);
+      setAvatarPreview(null);
+      setUser(current => (current ? { ...current, avatarUrl: null } : current));
+      showToast(t("profile.avatar.removed"), "success");
+    } catch (err) {
+      setAvatarError(t("profile.avatar.failed", { error: (err as Error).message }));
+    } finally {
+      setAvatarBusy(false);
     }
   };
 
@@ -115,10 +162,13 @@ export default function ProfileView() {
       <Divider sx={{ mb: 3 }} />
 
       {/* Avatar */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
         <Box sx={{ position: "relative" }}>
+          {/* The served URL carries no Authorization header - an <img> cannot send one - so it
+              relies on the __Host-loom_token cookie, the same way every other avatar in the UI does. */}
           <Avatar
-            src={avatarPreview ?? undefined}
+            src={avatarPreview ?? user?.avatarUrl ?? undefined}
+            data-testid="profile-avatar"
             sx={{ width: 72, height: 72, fontSize: "1.5rem", bgcolor: tokens.primary.dark }}
           >
             {initials}
@@ -126,6 +176,8 @@ export default function ProfileView() {
           <IconButton
             component="label"
             size="small"
+            disabled={avatarBusy}
+            title={t("profile.avatar.upload")}
             sx={{
               position: "absolute",
               bottom: -4,
@@ -137,8 +189,16 @@ export default function ProfileView() {
               "&:hover": { bgcolor: tokens.bg.overlay },
             }}
           >
-            <PhotoCameraOutlined sx={{ fontSize: 14 }} />
-            <input type="file" hidden accept="image/*" onChange={handleAvatarChange} />
+            {avatarBusy
+              ? <CircularProgress size={12} data-testid="profile-avatar-busy" />
+              : <PhotoCameraOutlined sx={{ fontSize: 14 }} />}
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              data-testid="profile-avatar-input"
+              onChange={handleAvatarChange}
+            />
           </IconButton>
         </Box>
         <Box>
@@ -149,7 +209,29 @@ export default function ProfileView() {
             {user?.username ?? authUsername}
           </Typography>
         </Box>
+        {/* Only offered when there is something to remove. */}
+        {user?.avatarUrl && (
+          <IconButton
+            size="small"
+            disabled={avatarBusy}
+            onClick={handleAvatarRemove}
+            title={t("profile.avatar.remove")}
+            data-testid="profile-avatar-remove"
+          >
+            <DeleteOutlineOutlined sx={{ fontSize: 18 }} />
+          </IconButton>
+        )}
       </Box>
+
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 3 }}>
+        {t("profile.avatar.hint")}
+      </Typography>
+
+      {avatarError && (
+        <Alert severity="error" data-testid="profile-avatar-error" sx={{ mb: 3 }}>
+          {avatarError}
+        </Alert>
+      )}
 
       {/* Fields */}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>

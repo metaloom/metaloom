@@ -196,6 +196,9 @@ import io.metaloom.loom.rest.model.transcript.TranscriptCreateRequest;
 import io.metaloom.loom.rest.model.transcript.TranscriptListResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptResponse;
 import io.metaloom.loom.rest.model.transcript.TranscriptUpdateRequest;
+import io.metaloom.loom.rest.model.storage.StorageBackendListResponse;
+import io.metaloom.loom.rest.model.storage.StorageReportResponse;
+import io.metaloom.loom.rest.model.user.UserAvatarResponse;
 import io.metaloom.loom.rest.model.user.UserCreateRequest;
 import io.metaloom.loom.rest.model.user.UserListResponse;
 import io.metaloom.loom.rest.model.user.UserResponse;
@@ -662,6 +665,62 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PersonResponse> setPersonAvatar(UUID personUuid, PersonAvatarRequest request) {
 		return postRequest("persons/" + personUuid + "/avatar", request, PersonResponse.class);
+	}
+
+	// USER AVATAR
+
+	@Override
+	public LoomClientHttpRequest<UserAvatarResponse> loadUserAvatar(UUID userUuid) {
+		return getRequest("users/" + userUuid + "/avatar", UserAvatarResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<UserAvatarResponse> uploadUserAvatar(UUID userUuid, java.io.File file, String mimeType, UUID poolUuid) {
+		return multipartRequest("users/" + userUuid + "/avatar", UserAvatarResponse.class, file, mimeType,
+			"poolUuid", poolUuid == null ? null : poolUuid.toString());
+	}
+
+	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> downloadUserAvatar(UUID userUuid) {
+		return getDownloadRequest("users/" + userUuid + "/avatar/data");
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteUserAvatar(UUID userUuid) {
+		return deleteRequest("users/" + userUuid + "/avatar");
+	}
+
+	@Override
+	public LoomClientHttpRequest<UserAvatarResponse> loadMyAvatar() {
+		return getRequest("me/avatar", UserAvatarResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<UserAvatarResponse> uploadMyAvatar(java.io.File file, String mimeType, UUID poolUuid) {
+		return multipartRequest("me/avatar", UserAvatarResponse.class, file, mimeType,
+			"poolUuid", poolUuid == null ? null : poolUuid.toString());
+	}
+
+	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> downloadMyAvatar() {
+		return getDownloadRequest("me/avatar/data");
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteMyAvatar() {
+		return deleteRequest("me/avatar");
+	}
+
+	// STORAGE
+
+	@Override
+	public LoomClientHttpRequest<StorageReportResponse> loadStorageReport() {
+		return getRequest("storage", StorageReportResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<StorageBackendListResponse> loadStorageBackends() {
+		return getRequest("storage/backends", StorageBackendListResponse.class);
 	}
 
 	// SPACE

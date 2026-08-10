@@ -238,6 +238,11 @@ public enum RolePermission {
 
 	// The database integrity report. Gate on /api/v1/db-integrity.
 	// Read only - the report is computed per request, so there is nothing to create, edit or delete.
-	READ_DB_INTEGRITY;
+	READ_DB_INTEGRITY,
+
+	// The storage report. Gate on /api/v1/storage and /api/v1/storage/backends.
+	// Read only, for the same reason as READ_DB_INTEGRITY. Separate from READ_ASSET_POOL: seeing how
+	// full a pool is and being able to repoint it at another bucket are different authorities.
+	READ_STORAGE;
 
 }

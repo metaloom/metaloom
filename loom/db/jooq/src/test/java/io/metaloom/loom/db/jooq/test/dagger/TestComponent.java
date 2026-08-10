@@ -14,14 +14,16 @@ import io.metaloom.loom.db.dagger.DBBindModule;
 import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.flyway.dagger.FlywayModule;
 import io.metaloom.loom.db.integrity.DbIntegrityService;
+import io.metaloom.loom.db.storage.StorageStatsService;
 import io.metaloom.loom.db.jooq.dagger.JooqIntegrityBindModule;
+import io.metaloom.loom.db.jooq.dagger.JooqStorageStatsBindModule;
 import io.metaloom.loom.db.jooq.dagger.JooqLoomDaoBindModule;
 import io.metaloom.loom.db.jooq.dagger.JooqModule;
 import io.r2dbc.spi.ConnectionFactory;
 
 @Singleton
 @Component(modules = { JooqModule.class, DBBindModule.class, FlywayModule.class, JooqLoomDaoBindModule.class, VertxModule.class,
-	JooqIntegrityBindModule.class })
+	JooqIntegrityBindModule.class, JooqStorageStatsBindModule.class })
 public interface TestComponent {
 
 	Flyway flyway();
@@ -39,6 +41,8 @@ public interface TestComponent {
 	 * did. Same implementation the admin endpoint serves.
 	 */
 	DbIntegrityService dbIntegrity();
+
+	StorageStatsService storageStats();
 
 	@Component.Builder
 	interface Builder {

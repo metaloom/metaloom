@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.agent.sandbox.SandboxReaper;
 import io.metaloom.loom.rest.search.IndexJobRegistry;
 import io.metaloom.loom.rest.search.SearchEmbeddingDrainer;
+import io.metaloom.loom.rest.storage.StorageSpaceMonitor;
 import io.metaloom.loom.rest.vector.EmbeddingIndexDrainer;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.mcp.MCPService;
@@ -59,6 +60,8 @@ public class BootstrapInitializer {
 
 	private final IndexJobRegistry indexJobRegistry;
 
+	private final StorageSpaceMonitor storageSpaceMonitor;
+
 	private final DataSource dataSource;
 
 	@Inject
@@ -66,7 +69,8 @@ public class BootstrapInitializer {
 		MonitoringService monitoringService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
 		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper, EmbeddingIndexDrainer embeddingIndexDrainer,
-		SearchEmbeddingDrainer searchEmbeddingDrainer, IndexJobRegistry indexJobRegistry, DataSource dataSource) {
+		SearchEmbeddingDrainer searchEmbeddingDrainer, IndexJobRegistry indexJobRegistry, StorageSpaceMonitor storageSpaceMonitor,
+		DataSource dataSource) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
@@ -82,6 +86,7 @@ public class BootstrapInitializer {
 		this.embeddingIndexDrainer = embeddingIndexDrainer;
 		this.searchEmbeddingDrainer = searchEmbeddingDrainer;
 		this.indexJobRegistry = indexJobRegistry;
+		this.storageSpaceMonitor = storageSpaceMonitor;
 		this.dataSource = dataSource;
 	}
 
@@ -178,6 +183,14 @@ public class BootstrapInitializer {
 		} catch (Exception e) {
 			log.warn("Error while starting the vector index drain — continuing startup", e);
 		}
+
+		try {
+			storageSpaceMonitor.start();
+		} catch (Exception e) {
+			// A capacity observer that cannot start must not stop the server from serving. The report
+			// endpoint computes its own figures on request and is unaffected.
+			log.warn("Error while starting the storage space monitor — continuing startup", e);
+		}
 	}
 
 	public RESTService getRestService() {
@@ -196,6 +209,7 @@ public class BootstrapInitializer {
 		sandboxReaper.stop();
 		embeddingIndexDrainer.stop();
 		searchEmbeddingDrainer.stop();
+		storageSpaceMonitor.stop();
 		// Releases the index-job worker pool. A job still running at shutdown is abandoned rather
 		// than awaited - every one of them is restartable work over derived data, so the right
 		// trade is a prompt shutdown and a button press afterwards.

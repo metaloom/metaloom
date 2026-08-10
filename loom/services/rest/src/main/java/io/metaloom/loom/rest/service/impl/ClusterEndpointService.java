@@ -141,7 +141,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 	 */
 	public void confirm(LoomRoutingContext lrc, UUID clusterUuid) {
 		ClusterConfirmRequest request = lrc.requestBody(ClusterConfirmRequest.class);
-		UUID personUuid = parseUuid(request.getPersonUuid(), "personUuid");
+		UUID personUuid = optionalUuid(request.getPersonUuid(), "personUuid");
 		boolean createsPerson = personUuid == null;
 
 		Permission[] required = createsPerson
@@ -235,7 +235,7 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 						"One bulk write describes one producer's view of the asset, so every cluster must carry the same nodeKind.");
 				}
 				for (ClusterMemberCreateItem member : item.getMembers()) {
-					if (parseUuid(member.getEmbeddingUuid(), "members.embeddingUuid") == null) {
+					if (optionalUuid(member.getEmbeddingUuid(), "members.embeddingUuid") == null) {
 						throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "Every cluster member needs an embeddingUuid.");
 					}
 				}
@@ -317,17 +317,6 @@ public class ClusterEndpointService extends AbstractCRUDEndpointService<ClusterD
 
 	private static boolean isBlank(String value) {
 		return value == null || value.isBlank();
-	}
-
-	private static UUID parseUuid(String raw, String field) {
-		if (raw == null || raw.isBlank()) {
-			return null;
-		}
-		try {
-			return UUID.fromString(raw);
-		} catch (IllegalArgumentException e) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The '" + field + "' is not a valid uuid.");
-		}
 	}
 
 }

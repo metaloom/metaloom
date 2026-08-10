@@ -128,6 +128,8 @@
     "name" : "spaces",
     "description" : "Spaces"
   }, {
+    "name" : "storage"
+  }, {
     "name" : "tags",
     "description" : "Tags"
   }, {
@@ -19674,11 +19676,265 @@
                   "firstname" : "Joe",
                   "lastname" : "Doe",
                   "email" : "joedoe@metaloom.io",
-                  "enabled" : false
+                  "enabled" : false,
+                  "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                 }
               }
             }
           },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/avatar" : {
+      "description" : "Load the metadata of your own avatar picture. 404 when you have none.",
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Load the metadata of your own avatar picture. 404 when you have none.",
+        "description" : "Load the metadata of your own avatar picture. 404 when you have none.",
+        "operationId" : "getMeAvatar",
+        "responses" : {
+          "200" : {
+            "description" : "The user avatar response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "joedoe.jpg",
+                  "mimeType" : "image/jpeg",
+                  "size" : 48213,
+                  "url" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "me" ],
+        "summary" : "Upload your own avatar picture, replacing any previous one. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage pool). Requires no permission beyond being signed in.",
+        "description" : "Upload your own avatar picture, replacing any previous one. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage pool). Requires no permission beyond being signed in.",
+        "operationId" : "postMeAvatar",
+        "responses" : {
+          "200" : {
+            "description" : "The user avatar response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "joedoe.jpg",
+                  "mimeType" : "image/jpeg",
+                  "size" : 48213,
+                  "url" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "me" ],
+        "summary" : "Delete your own avatar picture",
+        "description" : "Delete your own avatar picture",
+        "operationId" : "deleteMeAvatar",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/avatar/data" : {
+      "description" : "Load the bytes of your own avatar picture",
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Load the bytes of your own avatar picture",
+        "description" : "Load the bytes of your own avatar picture",
+        "operationId" : "getMeAvatarData",
+        "responses" : {
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {
@@ -23019,7 +23275,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "ff77f8cc-d0d5-479d-bb36-513639218948",
+                    "versionUuid" : "3317fa70-8f6e-4295-94a0-06f5d48fa812",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23046,7 +23302,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "50d2137e-c54e-4964-8067-55ae606739fc",
+                    "versionUuid" : "8e4f4224-6992-4efa-a953-acaf5a95ed7b",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23153,7 +23409,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "fb87ea4f-71df-41b3-a32b-66f8c12e873b",
+                  "versionUuid" : "7f17888e-7e58-40cf-8950-e5eb598b0941",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23239,7 +23495,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "de692e04-35dc-4091-8130-dc786ca27d2a",
+                  "versionUuid" : "aa8dff4d-bf21-4b86-a0ff-4bff71343abe",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23346,7 +23602,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "5593feed-04b1-4ec1-9a33-7eb8d7a8fe1d",
+                  "versionUuid" : "ae9b35d3-7b80-4f0c-8e4d-0ba7e030a086",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23508,7 +23764,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "7fc93ac1-f9d4-4aec-8a13-ee6a6e553eb9",
+                  "runUuid" : "029af3f9-3110-4214-a020-b02a005b4c81",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -23634,11 +23890,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "161a43c0-3f2b-4744-b124-0d5acc4846ec",
-                    "pipelineUuid" : "ad5cabb2-ba0e-49be-a09e-8d0caba46f6f",
+                    "uuid" : "9ee7adb0-cf58-40d1-9550-ff024104be97",
+                    "pipelineUuid" : "5e487521-06e1-4aa9-be08-96aaa1e39eaf",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-10T19:02:02.812278245Z",
-                    "finished" : "2026-08-10T19:02:02.812381795Z",
+                    "started" : "2026-08-10T20:55:59.662806828Z",
+                    "finished" : "2026-08-10T20:55:59.663192358Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -23647,11 +23903,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "a18387d3-46b9-4c18-976b-0511c8da07e0",
-                    "pipelineUuid" : "699ab088-ee83-4df0-85cc-f9e7e407e311",
+                    "uuid" : "e7fc7733-c53e-4a71-9b1b-0f8fd79da402",
+                    "pipelineUuid" : "aafecd05-c84a-49cb-b5f9-0a64a884a7b0",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-10T19:02:02.812524055Z",
-                    "finished" : "2026-08-10T19:02:02.812528335Z",
+                    "started" : "2026-08-10T20:55:59.663708139Z",
+                    "finished" : "2026-08-10T20:55:59.663731129Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -23744,11 +24000,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "b652ba35-da83-4401-a2c1-c46ba280bf85",
-                  "pipelineUuid" : "26754576-04dd-4e55-9d95-38ab474ae872",
+                  "uuid" : "1126e120-76f9-485e-8ae9-72e42e5609d9",
+                  "pipelineUuid" : "f4e397d4-e9ec-48b1-897c-2996cfd9d6e1",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-10T19:02:02.813373174Z",
-                  "finished" : "2026-08-10T19:02:02.813379754Z",
+                  "started" : "2026-08-10T20:55:59.667307321Z",
+                  "finished" : "2026-08-10T20:55:59.667331201Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -24238,16 +24494,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "b520cbbb-45bb-4ccb-9008-71e30da28f85",
-                    "runUuid" : "f4694acf-9f19-4fc8-842e-48abb031d853",
+                    "uuid" : "869c2f4a-b60e-4160-a7a2-db5539a5aa20",
+                    "runUuid" : "e522a2a0-252f-41d7-bc20-231992a45e38",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "e6622325-f0bd-4085-9353-771ba01a1bfb",
-                    "runUuid" : "2d290080-7782-45b4-9436-93e01d2ee6f8",
+                    "uuid" : "d3fbbd0f-1843-4e49-b4de-abfa04758433",
+                    "runUuid" : "5a3cf492-d34f-449b-8034-850c61720d1a",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -24348,9 +24604,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "948b0da0-3c4d-4e28-92a1-597e628062d7",
-                    "itemUuid" : "07198a67-2a1f-4752-85ab-5808baf1ac33",
-                    "runUuid" : "b6e61070-6594-4c92-ad65-62a77e7f2f62",
+                    "uuid" : "b666fd27-9985-46a5-9a34-01f25dedc962",
+                    "itemUuid" : "c54ca1f8-567c-4225-9a37-76395c713ef6",
+                    "runUuid" : "194b0dd5-c76b-4adb-a61a-c706d541efaa",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -25016,7 +25272,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "51e59ce1-88cc-4e38-bbf6-0fcdeb86e074",
+                    "versionUuid" : "2b0f9980-31a4-46f0-8dd6-5943ec054961",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25043,7 +25299,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "e523b03b-01a8-4c17-952c-cc8f0f00bc39",
+                    "versionUuid" : "54804131-70bb-4568-b2ff-148e496a24b6",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25154,7 +25410,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "48b22846-a2e6-4b14-abc8-c18ab99413c4",
+                  "versionUuid" : "36ab90f1-1f30-40c3-9b03-cf837779a51d",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -25279,7 +25535,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "1abcd0ad-816b-415b-9127-697c32f023b0",
+                  "versionUuid" : "1665888e-1b0d-4c3a-a773-d44de0434ec1",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",
@@ -30471,6 +30727,220 @@
         }
       } ]
     },
+    "/api/v1/storage" : {
+      "description" : "Report what is stored, per kind of content, and how much room is left on every storage backend.",
+      "get" : {
+        "tags" : [ "storage" ],
+        "summary" : "Report what is stored, per kind of content, and how much room is left on every storage backend.",
+        "description" : "Report what is stored, per kind of content, and how much room is left on every storage backend.",
+        "operationId" : "getStorage",
+        "responses" : {
+          "200" : {
+            "description" : "The storage report",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "timestamp" : 1.786353262E9,
+                  "thresholds" : {
+                    "minFreeSpaceBytes" : 1073741824,
+                    "warnFreeSpaceBytes" : 5368709120,
+                    "maxUploadSizeBytes" : -1
+                  },
+                  "categories" : [ {
+                    "category" : "ASSET_BINARY",
+                    "elements" : 1204,
+                    "logicalBytes" : 163208757248,
+                    "distinctObjects" : 1198,
+                    "distinctBytes" : 162987212800
+                  }, {
+                    "category" : "FACE_CROP",
+                    "elements" : 8842,
+                    "logicalBytes" : 371654656,
+                    "distinctObjects" : 8391,
+                    "distinctBytes" : 352845824
+                  }, {
+                    "category" : "PERSON_IMAGE",
+                    "elements" : 112,
+                    "logicalBytes" : 9437184,
+                    "distinctObjects" : 104,
+                    "distinctBytes" : 8650752
+                  }, {
+                    "category" : "PERSON_AVATAR",
+                    "elements" : 37,
+                    "logicalBytes" : 3145728,
+                    "distinctObjects" : 37,
+                    "distinctBytes" : 3145728
+                  }, {
+                    "category" : "USER_AVATAR",
+                    "elements" : 9,
+                    "logicalBytes" : 524288,
+                    "distinctObjects" : 9,
+                    "distinctBytes" : 524288
+                  }, {
+                    "category" : "ASSET_THUMBNAIL",
+                    "elements" : 0,
+                    "logicalBytes" : 0,
+                    "distinctObjects" : 0,
+                    "distinctBytes" : 0
+                  }, {
+                    "category" : "EMBEDDING_ATTACHMENT",
+                    "elements" : 0,
+                    "logicalBytes" : 0,
+                    "distinctObjects" : 0,
+                    "distinctBytes" : 0
+                  } ],
+                  "backends" : [ {
+                    "poolName" : "Default storage",
+                    "kind" : "filesystem",
+                    "description" : "filesystem:/uploads",
+                    "freeBytes" : 48318382080,
+                    "totalBytes" : 214748364800,
+                    "watermark" : "OK",
+                    "objects" : 1842,
+                    "bytes" : 160890470400
+                  }, {
+                    "poolUuid" : "6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60",
+                    "poolName" : "Archive S3",
+                    "kind" : "s3",
+                    "description" : "s3:metaloom-archive-prod",
+                    "watermark" : "UNKNOWN",
+                    "objects" : 9431,
+                    "bytes" : 2199023255552
+                  } ],
+                  "objects" : 8532,
+                  "distinctBytes" : 361955328,
+                  "orphanObjects" : 148,
+                  "orphanBytes" : 6291456
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/storage/backends" : {
+      "description" : "List the storage backends and how full each one is, without the catalogue aggregates. Cheap enough to poll.",
+      "get" : {
+        "tags" : [ "storage" ],
+        "summary" : "List the storage backends and how full each one is, without the catalogue aggregates. Cheap enough to poll.",
+        "description" : "List the storage backends and how full each one is, without the catalogue aggregates. Cheap enough to poll.",
+        "operationId" : "getStorageBackends",
+        "responses" : {
+          "200" : {
+            "description" : "The storage backends and their capacity",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "backends" : [ {
+                    "poolName" : "Default storage",
+                    "kind" : "filesystem",
+                    "description" : "filesystem:/uploads",
+                    "freeBytes" : 48318382080,
+                    "totalBytes" : 214748364800,
+                    "watermark" : "OK",
+                    "objects" : 1842,
+                    "bytes" : 160890470400
+                  }, {
+                    "poolUuid" : "6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60",
+                    "poolName" : "Archive S3",
+                    "kind" : "s3",
+                    "description" : "s3:metaloom-archive-prod",
+                    "watermark" : "UNKNOWN",
+                    "objects" : 9431,
+                    "bytes" : 2199023255552
+                  } ],
+                  "thresholds" : {
+                    "minFreeSpaceBytes" : 1073741824,
+                    "warnFreeSpaceBytes" : 5368709120,
+                    "maxUploadSizeBytes" : -1
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tags" : {
       "description" : "Create new tag",
       "get" : {
@@ -32953,7 +33423,8 @@
                     "firstname" : "Joe",
                     "lastname" : "Doe",
                     "email" : "joedoe@metaloom.io",
-                    "enabled" : false
+                    "enabled" : false,
+                    "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                   }, {
                     "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
                     "status" : {
@@ -32975,7 +33446,8 @@
                     "firstname" : "Joe",
                     "lastname" : "Doe",
                     "email" : "joedoe@metaloom.io",
-                    "enabled" : false
+                    "enabled" : false,
+                    "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -33073,7 +33545,8 @@
                   "firstname" : "Joe",
                   "lastname" : "Doe",
                   "email" : "joedoe@metaloom.io",
-                  "enabled" : false
+                  "enabled" : false,
+                  "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                 }
               }
             }
@@ -33154,7 +33627,8 @@
                   "firstname" : "Joe",
                   "lastname" : "Doe",
                   "email" : "joedoe@metaloom.io",
-                  "enabled" : false
+                  "enabled" : false,
+                  "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                 }
               }
             }
@@ -33257,7 +33731,8 @@
                   "firstname" : "Joe",
                   "lastname" : "Doe",
                   "email" : "joedoe@metaloom.io",
-                  "enabled" : false
+                  "enabled" : false,
+                  "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                 }
               }
             }
@@ -33360,7 +33835,8 @@
                   "firstname" : "Joe",
                   "lastname" : "Doe",
                   "email" : "joedoe@metaloom.io",
-                  "enabled" : false
+                  "enabled" : false,
+                  "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                 }
               }
             }
@@ -33524,11 +34000,325 @@
                   "firstname" : "Joe",
                   "lastname" : "Doe",
                   "email" : "joedoe@metaloom.io",
-                  "enabled" : false
+                  "enabled" : false,
+                  "avatarUrl" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
                 }
               }
             }
           },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/users/{uuid}/avatar" : {
+      "description" : "Load the metadata of a user's avatar picture. 404 when the account has none.",
+      "get" : {
+        "tags" : [ "users" ],
+        "summary" : "Load the metadata of a user's avatar picture. 404 when the account has none.",
+        "description" : "Load the metadata of a user's avatar picture. 404 when the account has none.",
+        "operationId" : "getUsersByUuidAvatar",
+        "responses" : {
+          "200" : {
+            "description" : "The user avatar response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "joedoe.jpg",
+                  "mimeType" : "image/jpeg",
+                  "size" : 48213,
+                  "url" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "users" ],
+        "summary" : "Upload a user's avatar picture, replacing any previous one. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage pool; without it the picture lands in the deployment's default storage, since an account has no parent asset to inherit a pool from).",
+        "description" : "Upload a user's avatar picture, replacing any previous one. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage pool; without it the picture lands in the deployment's default storage, since an account has no parent asset to inherit a pool from).",
+        "operationId" : "postUsersByUuidAvatar",
+        "responses" : {
+          "200" : {
+            "description" : "The user avatar response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "joedoe.jpg",
+                  "mimeType" : "image/jpeg",
+                  "size" : 48213,
+                  "url" : "/api/v1/users/f04e89d0-076d-4d90-b192-715a25a2cd59/avatar/data"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "users" ],
+        "summary" : "Delete a user's avatar picture, leaving the account without one.",
+        "description" : "Delete a user's avatar picture, leaving the account without one.",
+        "operationId" : "deleteUsersByUuidAvatar",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/users/{uuid}/avatar/data" : {
+      "description" : "Load the bytes of a user's avatar picture",
+      "get" : {
+        "tags" : [ "users" ],
+        "summary" : "Load the bytes of a user's avatar picture",
+        "description" : "Load the bytes of a user's avatar picture",
+        "operationId" : "getUsersByUuidAvatarData",
+        "responses" : {
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
             "content" : {

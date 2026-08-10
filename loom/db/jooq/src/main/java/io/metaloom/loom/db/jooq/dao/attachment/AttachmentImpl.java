@@ -33,6 +33,8 @@ public class AttachmentImpl extends AbstractEditableElement<Attachment> implemen
 
 	private UUID personUuid;
 
+	private UUID userUuid;
+
 	private String variant;
 
 	private String nodeKind;
@@ -149,6 +151,17 @@ public class AttachmentImpl extends AbstractEditableElement<Attachment> implemen
 	@Override
 	public Attachment setPersonUuid(UUID personUuid) {
 		this.personUuid = personUuid;
+		return this;
+	}
+
+	@Override
+	public UUID getUserUuid() {
+		return userUuid;
+	}
+
+	@Override
+	public Attachment setUserUuid(UUID userUuid) {
+		this.userUuid = userUuid;
 		return this;
 	}
 

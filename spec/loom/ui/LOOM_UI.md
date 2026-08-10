@@ -191,7 +191,8 @@ MANAGEMENT  Asset Pools · Pipelines · Cortex · Monitoring · Spaces (/admin/s
             └── ACL ▾   Users · Groups · Permissions · API Keys · Blacklist
 ```
 
-`/admin/indices` (search index operation) and `/admin/db-integrity` (the database integrity report)
+`/admin/indices` (search index operation), `/admin/db-integrity` (the database integrity report)
+and `/admin/storage` (storage usage and free space)
 have **no sidebar entry of their own** — like `permissions`, `api-keys` and the rest, they are
 reached through the `AdminArea` tab bar after entering via Spaces. An E2E spec deep-links instead of
 clicking, which is why `search-indices-mocked.spec.ts` and `db-integrity-mocked.spec.ts` call
@@ -268,6 +269,8 @@ export const API_BASE_URL =
 | `libraries.ts` · `collections.ts` · `spaces.ts` | `/libraries` · `/collections` · `/spaces` |
 | `search.ts` | `/search/{results,assets,suggestions,status}` — one of two clients with a typed error (`SearchApiError`, carries `status`) |
 | `dbIntegrity.ts` | `/db-integrity[/checks]` — the database integrity report and its catalogue. Pure helpers `failuresAtLeast`, `severityCounts`, `checkStatus`, `passedCount`, `notRunCount`, `groupByCategory` and `integrityQuery` are unit-tested in `dbIntegrity.test.ts`. `checkStatus` is the one to reach for: a check that *could not run* returns `NOT_RUN`, never `PASSED`, which is the distinction this screen must not lose |
+| `storage.ts` | `/storage[/backends]` — the storage report. Carries `StorageApiError` (`status`) so a 403 is distinguishable from a failed refresh, plus the pure helpers `dedupeSavings`, `savingsPercent`, `usedFraction`, `watermarkTone`, `sortBackends`, `sortCategories` (unit-tested in `storage.test.ts`). `usedFraction` returns **null**, not 0, for a backend that reports no capacity — 0 renders as an empty bar, which reads as "plenty of room" for a bucket whose capacity is not a thing that exists |
+| `format.ts` | `formatBytes` (binary units) and `formatBytesOrUnknown`, shared by the search-index and storage screens so the same volume does not read differently depending on which tab you opened. Deliberately **not** the only `formatBytes` in the tree: the upload and asset screens use decimal units because that is what a file manager shows a user about their own file |
 | `searchIndices.ts` | `/search-indices[/:id[/jobs[/:jobUuid]]]` — the admin surface over the lexical, vector and fingerprint indices. Carries `SearchIndexApiError` (`status`) so a 403 is distinguishable from a failed poll, plus the pure helpers `formatBytes`, `jobProgress`, `indexTone`, `indexStateLabel` (unit-tested in `searchIndices.test.ts`) |
 | `tags.ts` | `/tags`, `/tags/:uuid/rating`, `/assets/:uuid/tags[/:tagUuid]` |
 | `tasks.ts` | `/tasks`, `/assets/:uuid/tasks[/:taskUuid]`, `/tasks/:uuid/assignees[/users/:uuid\|/groups/:uuid]` |
@@ -503,6 +506,9 @@ Two rules the panels enforce, both in `metricsPanels.ts` and unit-tested there:
 anything to show. Beyond assets/tags/collections/pipelines/users it must seed: image binaries
 (synthesised at runtime with `java.awt`, no text — the Alpine JRE has no fontconfig — plus a
 matching `asset_location` row and real sha512/size, otherwise every card is a placeholder §7.2);
+account pictures and person images (**not** synthesised — shipped as JPEG resources under
+`loom/core/src/main/resources/demo/portraits/`, one face per person across their pictures, because a
+painted gradient reads as an empty placeholder wherever a face belongs);
 skills with **two** versions each (one version hides the whole version UI); chat sessions with
 `chat_session_context_ref` / `chat_session_skill` rows and at least two published; agent memory
 entries (and `LOOM_AGENT_MEMORY_ENABLED=true`, since the endpoints are not registered otherwise);
@@ -644,6 +650,7 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `ProfileView` | `src/features/profile/ProfileView.tsx` | Own user record (name, email), language and theme mode. The uuid comes from `useAuth().userUuid` — the view does not decode the JWT itself. Save `POST`s **only the fields that differ** from the loaded user, so it never clobbers fields the screen does not show; a rejected save keeps the edits, renders `profile-error` and leaves the form editable |
 | `AdminArea` | `src/features/admin/AdminArea.tsx` | Seven admin screens in one file, plus the tab and route for the eighth |
 | `DbIntegrityAdmin` | `src/features/admin/DbIntegrityAdmin.tsx` | `/admin/db-integrity`. Runs the integrity checks on demand — deliberately **not** polled, unlike the index screen next door: there is no background job to watch and a sweep is real database work. Lists the **whole catalogue** grouped by category — every check by name and code, with a status of Passed, its severity, or "Did not run" — because "what was looked at" is half the answer to "is anything broken". A *Findings only* toggle narrows to the failures; a check that threw is never rendered as a pass |
+| `StorageAdmin` | `src/features/admin/StorageAdmin.tsx` | `/admin/storage`. What is stored and how much room is left. Two byte columns per kind of content, because neither alone is the truth — "claimed" overstates what deleting would free on a deduplicated install, "on disk" gives no sense of how much material there is. A backend that reports no capacity renders as *Not measurable* with **no bar at all**; an empty bar would read as plenty of room. Backends sort worst-first with unmeasurable last. Not polled, like the integrity screen next door |
 | `SearchIndicesAdmin` | `src/features/admin/SearchIndicesAdmin.tsx` | `/admin/indices`. Groups indices under their storage backend (size is per backend — Lucene segments interleave the vector spaces, so there is no per-index byte figure). Action buttons are driven by each index's `supportedActions`, never hardcoded. Polls at 2 s while a job runs and 15 s otherwise, keeping the last good snapshot on a failed poll |
 | `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Media, timeline, annotations, comments, reactions, tasks, transcripts, faces, tags |
 | `VideoTimeline` / `ZoomableImage` | `src/features/assetDetail/` | Marker timeline · pan/zoom viewer |
@@ -806,7 +813,10 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 ---
 
 _Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (database integrity admin screen — `/admin/db-integrity`,
+_Last updated: 2026-08-10 (storage admin screen — `/admin/storage`, `api/storage.ts`, `api/format.ts`,
+`StorageAdmin.tsx`, 20 vitest cases and 9 Playwright cases; and the profile picture on `/profile`,
+whose picker had until now only ever produced a local preview that vanished on reload — 4 more
+Playwright cases. Earlier: database integrity admin screen — `/admin/db-integrity`,
 `api/dbIntegrity.ts`, `DbIntegrityAdmin.tsx`, 15 vitest cases and 10 Playwright cases. The panel
 lists the **whole check catalogue** with a per-check status and a findings filter, not only what
 failed — each check carries a human-readable name beside its stable code. The feature is

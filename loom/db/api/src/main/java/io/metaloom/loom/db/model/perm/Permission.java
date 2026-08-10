@@ -272,6 +272,13 @@ public enum Permission {
 	// every request, so there is nothing to create, edit or delete. It is a separate grant from
 	// READ_METRIC because the report names uuids of rows that are wrong, which is closer to reading
 	// the catalogue than to reading a counter.
-	READ_DB_INTEGRITY;        // doc:yes  ui:yes test:DbIntegrityEndpointTest (403 cases)
+	READ_DB_INTEGRITY,        // doc:yes  ui:yes test:DbIntegrityEndpointTest (403 cases)
+
+	// The storage report. Gate on /api/v1/storage and /api/v1/storage/backends.
+	// Read only, and one constant rather than four, for the same reason as READ_DB_INTEGRITY: the
+	// report is computed on every request and owns no rows. Separate from READ_ASSET_POOL because
+	// seeing how full a pool is and being able to repoint it at another bucket are different
+	// authorities, and an operator on call needs only the first.
+	READ_STORAGE;             // doc:yes  ui:yes test:StorageEndpointTest (403 cases)
 
 }

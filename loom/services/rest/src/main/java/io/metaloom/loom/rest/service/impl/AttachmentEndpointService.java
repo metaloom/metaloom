@@ -55,11 +55,14 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 
 	private final BinaryStorageResolver storageResolver;
 
+	private final StorageCapacityGuard capacityGuard;
+
 	@Inject
 	public AttachmentEndpointService(AttachmentDao attachmentDao, DaoCollection daos, LoomModelBuilder modelBuilder, LoomModelValidator validator,
-		BinaryStorageResolver storageResolver) {
+		BinaryStorageResolver storageResolver, StorageCapacityGuard capacityGuard) {
 		super(attachmentDao, daos, modelBuilder, validator);
 		this.storageResolver = storageResolver;
+		this.capacityGuard = capacityGuard;
 	}
 
 	@Override
@@ -103,6 +106,7 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 			SHA512 sha512sum = HashUtils.computeSHA512(Paths.get(upload.uploadedFileName()));
 			UUID poolUuid = poolFor(lrc, assetUuid);
 			BinaryStorage storage = storageResolver.forPool(poolUuid);
+			capacityGuard.checkUpload(storage, size);
 
 			// Store before the row exists, so an attachment never points at content that is not there.
 			storage.store(Paths.get(upload.uploadedFileName()), sha512sum, mimeType);
@@ -222,26 +226,4 @@ public class AttachmentEndpointService extends AbstractCRUDEndpointService<Attac
 		}
 	}
 
-	private UUID optionalUuid(LoomRoutingContext lrc, String field) {
-		String value = lrc.routingContext().request().getFormAttribute(field);
-		if (value == null || value.isBlank()) {
-			return null;
-		}
-		try {
-			return UUID.fromString(value.trim());
-		} catch (IllegalArgumentException e) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The '" + field + "' form field is not a valid UUID.");
-		}
-	}
-
-	private FileUpload singleUpload(LoomRoutingContext lrc) {
-		if (lrc.fileUploads().isEmpty()) {
-			throw new LoomRestException(400, LoomRestErrorCode.UPLOAD_DATA_MISSING, "No uploads found in request.");
-		}
-		if (lrc.fileUploads().size() > 1) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST,
-				"Upload with multiple files in one request is currently not supported");
-		}
-		return lrc.fileUploads().get(0);
-	}
 }

@@ -1,0 +1,20 @@
+-- Reading the storage report: GET /api/v1/storage and its /backends listing.
+--
+-- The report answers "what is filling my disk, and how close am I to full" — how many attachments
+-- of each kind exist and how many bytes they occupy, how much of that is duplicate content the
+-- content-addressed store folded into one object, how many stored objects nothing references any
+-- more, and the free space and watermark state of every backend this deployment writes to. It is
+-- computed on every request; there is nothing to create, edit or delete, so there is one permission
+-- rather than four.
+--
+-- Separate from READ_METRIC, which reads aggregate counters about a running process. This one reads
+-- the catalogue: it counts the customer's own rows and reports the shape of their media library.
+--
+-- Separate from READ_ASSET_POOL, which is CRUD over pool rows. Seeing how full a pool is and being
+-- able to repoint it at another bucket are different trust decisions, and an operator on call needs
+-- only the first.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- V2.95 is where the grant that names this value goes. Nothing else may go in this file.
+ALTER TYPE loom_permission ADD VALUE IF NOT EXISTS 'READ_STORAGE';

@@ -19,6 +19,7 @@ import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.flyway.dagger.FlywayModule;
 import io.metaloom.loom.db.jooq.dagger.JooqLoomDaoBindModule;
 import io.metaloom.loom.db.jooq.dagger.JooqIntegrityBindModule;
+import io.metaloom.loom.db.jooq.dagger.JooqStorageStatsBindModule;
 import io.metaloom.loom.db.jooq.dagger.JooqModule;
 import io.metaloom.loom.mcp.dagger.MCPModule;
 import io.metaloom.loom.mcp.dagger.MCPToolModule;
@@ -41,6 +42,7 @@ import io.metaloom.loom.rest.dagger.RESTModule;
 	JooqLoomDaoBindModule.class,
 	JooqModule.class,
 	JooqIntegrityBindModule.class,
+	JooqStorageStatsBindModule.class,
 	EndpointModule.class,
 	RESTBindModule.class,
 	RESTModule.class,

@@ -18,12 +18,12 @@ import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function14;
+import org.jooq.Function15;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
-import org.jooq.Row14;
+import org.jooq.Row15;
 import org.jooq.Schema;
 import org.jooq.SelectField;
 import org.jooq.Table;
@@ -129,6 +129,13 @@ public class JooqUser extends TableImpl<JooqUserRecord> {
      */
     public final TableField<JooqUserRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
 
+    /**
+     * The column <code>public.user.avatar_attachment_uuid</code>. The account's
+     * avatar picture. At most one exists per user, enforced by
+     * idx_attachment_user_avatar_unique.
+     */
+    public final TableField<JooqUserRecord, java.util.UUID> AVATAR_ATTACHMENT_UUID = createField(DSL.name("avatar_attachment_uuid"), SQLDataType.UUID, this, "The account's avatar picture. At most one exists per user, enforced by idx_attachment_user_avatar_unique.");
+
     private JooqUser(Name alias, Table<JooqUserRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -169,7 +176,7 @@ public class JooqUser extends TableImpl<JooqUserRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.USER_USERNAME_IDX);
+        return Arrays.asList(Indexes.IDX_USER_AVATAR_ATTACHMENT_UUID, Indexes.USER_USERNAME_IDX);
     }
 
     @Override
@@ -184,11 +191,12 @@ public class JooqUser extends TableImpl<JooqUserRecord> {
 
     @Override
     public List<ForeignKey<JooqUserRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.USER__USER_CREATOR_UUID_FKEY, Keys.USER__USER_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.USER__USER_CREATOR_UUID_FKEY, Keys.USER__USER_EDITOR_UUID_FKEY, Keys.USER__USER_AVATAR_ATTACHMENT_UUID_FKEY);
     }
 
     private transient JooqUser _userCreatorUuidFkey;
     private transient JooqUser _userEditorUuidFkey;
+    private transient JooqAttachment _attachment;
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -210,6 +218,16 @@ public class JooqUser extends TableImpl<JooqUserRecord> {
             _userEditorUuidFkey = new JooqUser(this, Keys.USER__USER_EDITOR_UUID_FKEY);
 
         return _userEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.attachment</code> table.
+     */
+    public JooqAttachment attachment() {
+        if (_attachment == null)
+            _attachment = new JooqAttachment(this, Keys.USER__USER_AVATAR_ATTACHMENT_UUID_FKEY);
+
+        return _attachment;
     }
 
     @Override
@@ -252,18 +270,18 @@ public class JooqUser extends TableImpl<JooqUserRecord> {
     }
 
     // -------------------------------------------------------------------------
-    // Row14 type methods
+    // Row15 type methods
     // -------------------------------------------------------------------------
 
     @Override
-    public Row14<java.util.UUID, String, String, String, String, Boolean, Boolean, Boolean, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
-        return (Row14) super.fieldsRow();
+    public Row15<java.util.UUID, String, String, String, String, Boolean, Boolean, Boolean, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, java.util.UUID> fieldsRow() {
+        return (Row15) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function14<? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super Boolean, ? super Boolean, ? super Boolean, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function15<? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super Boolean, ? super Boolean, ? super Boolean, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -271,7 +289,7 @@ public class JooqUser extends TableImpl<JooqUserRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function14<? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super Boolean, ? super Boolean, ? super Boolean, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function15<? super java.util.UUID, ? super String, ? super String, ? super String, ? super String, ? super Boolean, ? super Boolean, ? super Boolean, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

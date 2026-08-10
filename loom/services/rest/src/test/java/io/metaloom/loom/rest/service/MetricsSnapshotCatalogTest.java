@@ -1,42 +1,46 @@
 package io.metaloom.loom.rest.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
-import java.util.UUID;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Test;
 
 import io.metaloom.loom.common.metrics.LoomMetrics;
+import io.metaloom.loom.common.metrics.LoomMetrics;
 import io.metaloom.loom.monitoring.MicrometerLoomMetrics;
-import io.metaloom.loom.pipeline.engine.NodeDispatcher;
-import io.metaloom.loom.pipeline.engine.NodeKindCircuitBreaker;
-import io.metaloom.loom.pipeline.engine.PipelineRunEngine;
-import io.metaloom.loom.pipeline.graph.PipelineGraph;
-import io.metaloom.loom.pipeline.graph.PipelineGraphParser;
-import io.metaloom.loom.pipeline.model.MediaRef;
-import io.metaloom.loom.pipeline.model.NodeTask;
-import io.metaloom.loom.pipeline.model.NodeTaskResult;
+import io.metaloom.loom.monitoring.MicrometerLoomMetrics;
+import io.metaloom.loom.rest.model.metrics.MetricRecord;
 import io.metaloom.loom.rest.model.metrics.MetricRecord;
 import io.metaloom.loom.rest.service.impl.MetricsSnapshot;
-import io.metaloom.loom.rest.service.impl.PipelineEventBroadcaster;
-import io.metaloom.loom.rest.service.impl.PipelineRunRegistry;
-import io.metaloom.loom.rest.service.impl.ProcessorRegistry;
+import io.metaloom.loom.rest.service.impl.MetricsSnapshot;
+import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
-import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 
 /**
  * The REST snapshot, the Prometheus scrape and {@code METRICS.md}, checked against each other.
@@ -80,82 +84,10 @@ public class MetricsSnapshotCatalogTest {
 		PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
 		LoomMetrics metrics = new MicrometerLoomMetrics(registry);
 
-		// null daos + null broadcaster: the in-memory selection registry, as its own unit tests use it.
-		new ProcessorRegistry(null, null, metrics);
-		new PipelineRunRegistry(metrics);
-		new PipelineEventBroadcaster(metrics);
-		runAPipeline(metrics);
-		recordTheRemainingCounters(metrics);
+		MetricsCatalogExercise.exerciseEverything(metrics);
 
 		scrape = registry.scrape();
 		snapshot = MetricsSnapshot.of(registry);
-	}
-
-	/** One run end to end, so the engine's own meters fire from their real call sites. */
-	private static void runAPipeline(LoomMetrics metrics) {
-		JsonObject definition = new JsonObject()
-			.put("nodes", new JsonArray()
-				.add(new JsonObject().put("id", "src").put("type", "filesystem-source").put("source", true))
-				.add(new JsonObject().put("id", "hash").put("type", "sha512")
-					.put("options", new JsonObject().put("retryFailed", true))))
-			.put("edges", new JsonArray()
-				.add(new JsonObject().put("source", "src").put("sourcePort", "media").put("target", "hash")
-					.put("targetPort", "media")));
-		PipelineGraph graph = new PipelineGraphParser().parse("metrics", definition, true, false, 0);
-
-		java.util.List<NodeTask> dispatched = new java.util.ArrayList<>();
-		NodeDispatcher dispatcher = task -> {
-			dispatched.add(task);
-			return "worker-1";
-		};
-
-		NodeKindCircuitBreaker breaker = new NodeKindCircuitBreaker(metrics);
-
-		PipelineRunEngine engine = new PipelineRunEngine(graph, dispatcher, UUID.randomUUID());
-		engine.setMetrics(metrics);
-		engine.setCircuitBreaker(breaker);
-		engine.start();
-
-		String itemId = engine.onItemDiscovered(MediaRef.of("/media/a.mp4"));
-		engine.onSourceComplete(1);
-		engine.onNodeTaskResult(itemId,
-			NodeTaskResult.failed(dispatched.get(dispatched.size() - 1).getTaskUuid(), "hash", 1, "transient"));
-		engine.onNodeTaskResult(itemId,
-			NodeTaskResult.completed(dispatched.get(dispatched.size() - 1).getTaskUuid(), "hash", 1, Map.of()));
-
-		PipelineRunEngine losing = new PipelineRunEngine(graph, dispatcher, UUID.randomUUID());
-		losing.setMetrics(metrics);
-		losing.start();
-		String lostItem = losing.onItemDiscovered(MediaRef.of("/media/b.mp4"));
-		losing.onSourceComplete(1);
-		losing.onNodeTaskLost(lostItem, "hash", "lease expired");
-		losing.onNodeTaskLost(lostItem, "hash", "lease expired again");
-
-		for (int i = 0; i < NodeKindCircuitBreaker.DEFAULT_MIN_SAMPLES; i++) {
-			breaker.record("sha512", false);
-		}
-	}
-
-	/** The counters whose real call sites need a database, a WebSocket or a worker. */
-	private static void recordTheRemainingCounters(LoomMetrics metrics) {
-		metrics.recordRunStarted();
-		metrics.recordRunCompleted("success", 1_234);
-		metrics.recordRunRejected("no_processor");
-		metrics.recordRunRecovered(1);
-		metrics.recordNodeTaskDispatched("sha512");
-		metrics.recordNodeTaskDispatchFailed("no_processor");
-		metrics.recordNodeResultReceived("sha512", "success");
-		metrics.recordSourceItemsReceived(3);
-		metrics.recordAssetNodeResultWritten("sha512", "success");
-		metrics.recordLeasesReclaimed(1);
-		metrics.recordOrphansDeadlettered(1);
-		metrics.recordTaskReturned("worker-1");
-		metrics.recordPipelineEventBroadcast();
-		metrics.recordPipelineEventDropped();
-		metrics.recordProcessorRegistered();
-		metrics.recordProcessorDisconnected();
-		metrics.recordProcessorHeartbeat();
-		metrics.recordAuthFailure("ws");
 	}
 
 	private Set<String> snapshotNames() {

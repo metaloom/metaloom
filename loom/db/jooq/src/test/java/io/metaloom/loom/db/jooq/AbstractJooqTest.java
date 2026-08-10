@@ -10,6 +10,7 @@ import io.metaloom.loom.db.dagger.DaoCollection;
 import io.metaloom.loom.db.integrity.DbIntegrityService;
 import io.metaloom.loom.db.jooq.test.dagger.JooqTestContext;
 import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
+import io.metaloom.loom.db.storage.StorageStatsService;
 import io.metaloom.loom.db.transaction.TransactionCallable;
 
 public abstract class AbstractJooqTest implements DatabaseTest, FixtureElementProvider, DbIntegrityAsserts {
@@ -29,6 +30,10 @@ public abstract class AbstractJooqTest implements DatabaseTest, FixtureElementPr
 	@Override
 	public DbIntegrityService dbIntegrity() {
 		return context.dbIntegrity();
+	}
+
+	public StorageStatsService storageStats() {
+		return context.storageStats();
 	}
 
 	@Override

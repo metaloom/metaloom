@@ -35,6 +35,8 @@ storage:
   uploadDirectory: "data/storage"
   maxUploadSize: -1
   minFreeSpace: 1073741824
+  warnFreeSpace: 5368709120
+  spaceCheckIntervalMs: 300000
 s3:
   endpoint: null
   region: "us-east-1"

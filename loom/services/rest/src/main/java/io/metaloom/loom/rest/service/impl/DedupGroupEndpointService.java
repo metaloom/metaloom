@@ -76,13 +76,13 @@ public class DedupGroupEndpointService extends AbstractEndpointService {
 			if (request.getMembers() == null || request.getMembers().isEmpty()) {
 				throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "A dedup group needs at least one member.");
 			}
-			UUID keepUuid = parseUuid(request.getKeepAssetUuid(), "keepAssetUuid");
+			UUID keepUuid = optionalUuid(request.getKeepAssetUuid(), "keepAssetUuid");
 			String algorithm = request.getAlgorithm();
 
 			// Validate every member before writing anything - a bad role halfway through would otherwise leave a half-populated group behind.
 			List<MemberEntry> members = new java.util.ArrayList<>();
 			for (DedupGroupMemberModel member : request.getMembers()) {
-				UUID memberAsset = parseUuid(member.getAssetUuid(), "members.assetUuid");
+				UUID memberAsset = optionalUuid(member.getAssetUuid(), "members.assetUuid");
 				if (memberAsset == null) {
 					throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "Every dedup group member needs an assetUuid.");
 				}
@@ -162,7 +162,7 @@ public class DedupGroupEndpointService extends AbstractEndpointService {
 			requireGroup(uuid);
 
 			String status = requireStatus(request.getStatus());
-			UUID keepUuid = parseUuid(request.getKeepAssetUuid(), "keepAssetUuid");
+			UUID keepUuid = optionalUuid(request.getKeepAssetUuid(), "keepAssetUuid");
 			DedupGroup updated = dedupDao.updateStatus(uuid, status, keepUuid, lrc.userUuid());
 			lrc.send(toResponse(updated));
 		});
@@ -228,17 +228,6 @@ public class DedupGroupEndpointService extends AbstractEndpointService {
 			return status;
 		}
 		throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The status must be one of PENDING, CONFIRMED, REJECTED.");
-	}
-
-	private static UUID parseUuid(String raw, String field) {
-		if (raw == null || raw.isBlank()) {
-			return null;
-		}
-		try {
-			return UUID.fromString(raw);
-		} catch (IllegalArgumentException e) {
-			throw new LoomRestException(400, LoomRestErrorCode.BAD_REQUEST, "The '" + field + "' is not a valid uuid.");
-		}
 	}
 
 	private DedupGroupResponse toResponse(DedupGroup group) {

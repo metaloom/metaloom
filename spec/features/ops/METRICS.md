@@ -116,12 +116,29 @@ Every row below has a verified registration **and** an increment/bind call site.
 | `loom_pipeline_events_broadcast_total` | counter | — | `PipelineEventBroadcaster:136` |
 | `loom_pipeline_events_dropped_total` | counter | — | `PipelineEventBroadcaster:132` (backpressure) |
 | `loom_auth_failures_total` | counter | `type` — **only `ws` is ever emitted** | `WebSocketAuthenticator:79,94` |
+| `loom_storage_free_bytes` | gauge | `pool` (name, `default` for local storage) — `NaN` when the backend cannot say | `StorageMetricsBinder.bind` (bound on first sight of a pool) |
+| `loom_storage_total_bytes` | gauge | `pool` — `NaN` for an object store | `StorageMetricsBinder.bind` (same pass) |
+| `loom_storage_watermark` | gauge | `pool` — -1 unknown, 0 ok, 1 warn, 2 critical | `StorageMetricsBinder.bind` (same pass) |
+| `loom_storage_attachment_bytes` | gauge | `category` — the storage report's vocabulary | `StorageMetricsBinder.bind` (bound on first sight of a category) |
+| `loom_storage_attachment_objects` | gauge | `category` | `StorageMetricsBinder.bind` (same pass) |
+| `loom_storage_upload_rejections_total` | counter | `reason`=too_large\|no_space | `StorageCapacityGuard.checkUpload` (413 and 507 paths) |
 | `vertx_http_server_*`, `vertx_pool_*`, `vertx_eventbus_*` | auto | — | Vert.x built-ins on the shared registry. No prefix is configured on `MicrometerMetricsOptions`, so these are **not** `loom_*` — an earlier revision of this row said they were |
 | `jvm_*`, `process_cpu_usage`, `process_uptime_seconds` | auto | — | `ClassLoader`/`JvmMemory`/`JvmGc`/`JvmThread`/`Processor`/`Uptime` binders in `VertxModule.meterRegistry()` |
 
 **`loom_tasks_returned_total` vs `loom_leases_reclaimed_total`** — the same recovery, but paid for at
 announcement rather than after a lease interval. A fleet that scales down often and shows reclaims
 instead of returns has workers dying rather than draining.
+
+**The `loom_storage_*` family reads a cached snapshot, never live storage.** `StorageSpaceMonitor`
+refreshes it on `LOOM_STORAGE_SPACE_CHECK_INTERVAL_MS` (default 5 min) off the event loop; the gauge
+suppliers only read what it left behind. That indirection is not incidental: a gauge that called
+`freeSpace()` would put a `statvfs` on the Prometheus scrape thread, and one stalled NFS mount would
+hang every scrape. `loom_storage_attachment_*` is worse still — it is several aggregate table scans.
+
+**`loom_storage_watermark` is encoded by severity, not by enum ordinal**, exactly like
+`loom_node_circuit_breaker_state`, so `max(loom_storage_watermark)` across pools reads as "how bad is
+the worst one". `-1` (unknown) sorts below `0` (ok) on purpose: an object store reports no capacity,
+and a threshold alert must not mistake "cannot tell" for "fine".
 
 ### 3.1 The four fleet-health signals
 

@@ -27,7 +27,20 @@ public class UserResponse extends AbstractCreatorEditorRestResponse<UserResponse
 	@JsonPropertyDescription("Flag that indicates whether the user is enabled")
 	private boolean enabled;
 
+	@JsonProperty(required = false)
+	@JsonPropertyDescription("URL of the user's avatar picture, or null when they have none. Read-only: upload one via POST /users/:uuid/avatar or POST /me/avatar.")
+	private String avatarUrl;
+
 	public UserResponse() {
+	}
+
+	public String getAvatarUrl() {
+		return avatarUrl;
+	}
+
+	public UserResponse setAvatarUrl(String avatarUrl) {
+		this.avatarUrl = avatarUrl;
+		return this;
 	}
 
 	@Override

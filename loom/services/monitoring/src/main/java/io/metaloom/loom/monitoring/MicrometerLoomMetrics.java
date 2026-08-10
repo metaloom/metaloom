@@ -145,6 +145,11 @@ public class MicrometerLoomMetrics implements LoomMetrics {
 	}
 
 	@Override
+	public void recordUploadRejected(String reason) {
+		registry.counter("loom_storage_upload_rejections", "reason", reason).increment();
+	}
+
+	@Override
 	public void bindGauge(String name, Supplier<Number> supplier) {
 		Gauge.builder(name, supplier).strongReference(true).register(registry);
 	}

@@ -43,6 +43,7 @@ public interface ClientMethods extends
 	HealthMethods,
 	MetricsMethods,
 	DbIntegrityMethods,
+	StorageMethods,
 	InfoMethods {
 
 }

@@ -199,7 +199,7 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 | **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (17 screenshots, from **two** scripts — see below) · `cli/` · `deployment/` (`_index` + `helm/`) |
 | **`playbooks/`** | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
 | **`nodes/`** | `_index` + **36 node pages** (35 with a staged descriptor, plus `guard`): `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filter · fingerprint · gdrive-source · guard · hash · image-manipulation · imagegen · llm · metadata · objectdetect · ocr · onedrive-source · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · tag · thumbnail · tika · translate · tts · videogen · vlm · watermark · whisper`. **The count drifts** — `check-node-screenshots.mjs` is what notices, by mapping every kind in the descriptor snapshot to exactly one page |
-| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` · `search-indices/` (2 screenshots) · `database-integrity/` (3 screenshots) |
+| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` · `search-indices/` (2 screenshots) · `database-integrity/` (3 screenshots) · `storage/` (1 screenshot) |
 | **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
 | **`legal/`** | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
 | **legacy stubs** | `rest/` · `test/` · `configuration/` — unlinked placeholders, candidates for deletion |
@@ -658,6 +658,9 @@ images in the bundle — `uploads` and `uploads-sidebar` — come from a **diffe
 
 * `DemoDatabaseInitializer` seeds every screen with real content, and **paints real image bytes**, so
   the asset browser shows pictures. Video/audio/PDF stay as placeholders — expected, not a failure.
+  The exception is faces: account pictures and person images are **shipped photographs**
+  (`loom/core/src/main/resources/demo/portraits/`, three faces × two framings), because a painted
+  gradient does not read as a person. `persons.png` is the shot that shows them.
 * **The ACL screens sit in a collapsed sub-group**; `openAclGroup()` must click
   `[data-testid="sidebar-group-acl"]` first or the nav click times out. `clickNav` matches
   `^\d*<label>\d*$` so a badge counter (Tasks) still resolves.
@@ -707,6 +710,42 @@ and progress bar, cropped, while another screen is open).
   survives into the page as a third of the figure showing nothing.
 * `reducedMotion: "reduce"`, for the same reason the node captures set it: the bars animate, and a
   re-run that catches a different frame reads as a change.
+
+## Capturing the storage screen (`docs/loom/storage/`)
+
+```bash
+./start-postgres.sh && ./start-demo.sh          # a demo stack built from the current tree
+cd loom-ui
+node scripts/capture-storage-screenshots.mjs storage-overview.png
+```
+
+Writes into the **`docs/loom/storage/` bundle**, for the same reason as the integrity shots: a bare
+`image::` filename resolves inside the bundle of the page using it.
+
+The script logs in as `admin`/`finger`, clicks *Spaces* in the sidebar and then the *Storage* tab —
+a deep link cannot be used because the SPA has no basename there — waits for
+`[data-testid="storage-summary"]` rather than a fixed delay (the report is several aggregate scans
+on the server), and takes one shot per invocation.
+
+`--focus backends` and `--focus categories` capture just that section, for a page that needs the
+cards or the table readable rather than the whole screen shrunk to fit.
+
+`UI_BASE_URL` also lets the shot be taken against the Vite dev server rather than the container,
+which is what to reach for when the screen has changed since the last image was built:
+
+```bash
+VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092 ./node_modules/.bin/vite --port 3010
+UI_BASE_URL=http://127.0.0.1:3010/ui/ node scripts/capture-storage-screenshots.mjs storage-overview.png
+```
+
+The demo container serves the UI it was built with, so a screenshot taken from it shows the last
+released screen and not the one in the working tree — which is easy to miss, because everything else
+in the shot looks current.
+
+The demo database gives this something to show: two of the three demo accounts have pictures, the
+three demo people have galleries with one designated avatar each, and the demo pools include an S3
+one — which is the case worth having in the shot, because it is the one that renders as *Not
+measurable* rather than green.
 
 ## Capturing the database integrity screen (`docs/loom/database-integrity/`)
 
@@ -854,6 +893,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Refresh the OpenAPI / GraphQL / node-descriptor files | [Staged generated artefacts](#staged-generated-artefacts) |
 | Refresh the Loom UI screenshots | [Capturing Loom UI screenshots](#capturing-loom-ui-screenshots-docsui) |
 | Refresh the upload screenshots | [Capturing the upload screen](#capturing-the-upload-screen-docsui) — mocked, no container |
+| Refresh the storage screenshot | [Capturing the storage screen](#capturing-the-storage-screen-docsloomstorage) — one shot per run |
 | Refresh the database integrity screenshots | [Capturing the database integrity screen](#capturing-the-database-integrity-screen-docsloomdatabase-integrity) — one shot per run, breaks the demo DB between two of them |
 | Refresh a node page's settings picture | `cd loom-ui && node scripts/capture-node-config-screenshots.mjs [page]` |
 | Refresh a node page's debug picture | regenerate its fixture (`DocsFixtureGenerator`), then `node scripts/capture-node-screenshots.mjs [page]` |
