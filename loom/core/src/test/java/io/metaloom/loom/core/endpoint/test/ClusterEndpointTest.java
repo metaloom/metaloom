@@ -4,6 +4,7 @@ import static io.metaloom.loom.rest.model.assertj.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -230,6 +231,65 @@ public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 	}
 
 	/**
+	 * Confirming records which human attributed the face, and when - durably.
+	 *
+	 * <p>
+	 * The verdict used to be attributed only through {@code editor_uuid}, which the producing node rewrites on every pass, so the answer to "who said
+	 * this is Anna?" survived until the next pipeline run and no longer. Face data is biometric; the second half of this test is the point, not a
+	 * flourish.
+	 * </p>
+	 */
+	@Test
+	public void testConfirmRecordsTheReviewer() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			ClusterResponse proposed = client.bulkCreateAssetClusters(ASSET_UUID, bulkRequest(0.9f)).sync().body().getClusters().get(0);
+			assertNull(proposed.getReviewedAt(), "A machine proposal nobody has decided on has no review timestamp");
+			assertNull(proposed.getReviewerUuid());
+
+			// With a name, so the confirmation also takes the trailing dao().update(cluster) path - a whole-POJO write that must round-trip the two
+			// new fields rather than nulling them on the way back out.
+			ClusterResponse confirmed = client.confirmCluster(proposed.getUuid(),
+				new ClusterConfirmRequest().setAlias("Anna Meyer").setName("Anna's faces")).sync().body();
+
+			assertNotNull(confirmed.getReviewedAt(), "The verdict is timestamped");
+			assertEquals(ADMIN_UUID.toString(), confirmed.getReviewerUuid(), "and attributed to the user who made it");
+
+			// The node runs again over the same asset, as it does on every pipeline pass.
+			client.bulkCreateAssetClusters(ASSET_UUID, bulkRequest(0.7f)).sync().body();
+
+			ClusterResponse reloaded = client.loadCluster(proposed.getUuid()).sync().body();
+			assertEquals(ADMIN_UUID.toString(), reloaded.getReviewerUuid(), "A re-run must not erase who attributed the face");
+			// To the millisecond, not to the microsecond. Confirming with a name runs a trailing whole-POJO dao().update(), and that path maps the
+			// POJO's Instant through jOOQ's LocalDateTime conversion, which truncates sub-millisecond digits. Generic and long-standing - "created"
+			// and "edited" have always behaved this way - so tightening this to exact equality would be pinning a jOOQ detail, not this feature.
+			assertEquals(millis(confirmed.getReviewedAt()), millis(reloaded.getReviewedAt()), "nor when they did");
+		}
+	}
+
+	/**
+	 * Rejecting records its author too - the half with no person link to fall back on.
+	 */
+	@Test
+	public void testRejectRecordsTheReviewer() throws Exception {
+		try (LoomHttpClient client = loom.httpClient()) {
+			loginAdmin(client);
+			ClusterResponse proposed = client.bulkCreateAssetClusters(ASSET_UUID, bulkRequest(0.9f)).sync().body().getClusters().get(0);
+
+			ClusterResponse rejected = client.rejectCluster(proposed.getUuid()).sync().body();
+
+			assertEquals("REJECTED", rejected.getReviewStatus());
+			assertNotNull(rejected.getReviewedAt(), "A rejection is a decision and is timestamped");
+			assertEquals(ADMIN_UUID.toString(), rejected.getReviewerUuid(), "and attributed");
+
+			client.bulkCreateAssetClusters(ASSET_UUID, bulkRequest(0.7f)).sync().body();
+
+			assertEquals(ADMIN_UUID.toString(), client.loadCluster(proposed.getUuid()).sync().body().getReviewerUuid(),
+				"A re-run must not erase who rejected it");
+		}
+	}
+
+	/**
 	 * The review queue filters by status and type.
 	 */
 	@Test
@@ -320,6 +380,12 @@ public class ClusterEndpointTest extends AbstractCRUDEndpointTest {
 	 */
 	private static boolean contains(ClusterListResponse list, java.util.UUID uuid) {
 		return list.getData() != null && list.getData().stream().anyMatch(c -> uuid.equals(c.getUuid()));
+	}
+
+	/** An ISO instant truncated to milliseconds - the precision that survives a whole-POJO {@code dao().update()}. */
+	private static java.time.Instant millis(String isoInstant) {
+		assertNotNull(isoInstant, "expected a timestamp");
+		return java.time.Instant.parse(isoInstant).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
 	}
 
 	/** One machine-proposed face cluster for {@code ASSET_UUID}, at index 0. */

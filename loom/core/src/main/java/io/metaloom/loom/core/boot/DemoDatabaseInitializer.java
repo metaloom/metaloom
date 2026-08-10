@@ -56,6 +56,9 @@ import io.metaloom.loom.db.model.asset.AssetImageComp;
 import io.metaloom.loom.db.model.asset.AssetJsonComp;
 import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
 import io.metaloom.loom.db.model.asset.AssetVideoComp;
+import io.metaloom.loom.api.attachment.AttachmentType;
+import io.metaloom.loom.db.model.attachment.Attachment;
+import io.metaloom.loom.db.model.attachment.AttachmentDao;
 import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.Chat;
@@ -194,6 +197,8 @@ public class DemoDatabaseInitializer {
 
 	private final EmbeddingDao embeddingDao;
 	private final PersonDao personDao;
+
+	private final AttachmentDao attachmentDao;
 	private final DetectionDao detectionDao;
 	private final AssetComponentDao assetComponentDao;
 	private final ChatDao chatDao;
@@ -219,7 +224,7 @@ public class DemoDatabaseInitializer {
 		DetectionDao detectionDao, EmbeddingDao embeddingDao,
 		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao,
 		PipelineRunDao pipelineRunDao, AssetBinaryDao assetBinaryDao, SkillDao skillDao, SkillVersionDao skillVersionDao,
-		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, DedupGroupDao dedupGroupDao, LoomOptions options) {
+		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, DedupGroupDao dedupGroupDao, AttachmentDao attachmentDao, LoomOptions options) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
@@ -241,6 +246,7 @@ public class DemoDatabaseInitializer {
 		this.memoryDenyRuleDao = memoryDenyRuleDao;
 		this.clusterDao = clusterDao;
 		this.personDao = personDao;
+		this.attachmentDao = attachmentDao;
 		this.detectionDao = detectionDao;
 		this.embeddingDao = embeddingDao;
 		this.assetComponentDao = assetComponentDao;
@@ -820,9 +826,19 @@ public class DemoDatabaseInitializer {
 		log.info("Created {} demo memory deny rules", 2);
 
 		// --- Persons ---
-		createPerson(admin, "jdoe", "John", "Doe");
-		createPerson(admin, "asmith", "Alice", "Smith");
-		createPerson(admin, "bwilson", "Bob", "Wilson");
+		// Each gets pictures of their own and one of them as the avatar. Person images reference no asset
+		// (V2.90), so this is also the demo of the property that matters: deleting the material somebody
+		// was found in leaves their picture standing.
+		Person johnDoe = createPerson(admin, "jdoe", "John", "Doe");
+		createPersonImage(admin, johnDoe, "john-doe-portrait.jpg", Palette.PORTRAIT_WARM, true);
+		createPersonImage(admin, johnDoe, "john-doe-profile.jpg", Palette.PORTRAIT_SLATE, false);
+
+		Person aliceSmith = createPerson(admin, "asmith", "Alice", "Smith");
+		createPersonImage(admin, aliceSmith, "alice-smith-portrait.jpg", Palette.PORTRAIT_COOL, true);
+		createPersonImage(admin, aliceSmith, "alice-smith-profile.jpg", Palette.PORTRAIT_WARM, false);
+
+		Person bobWilson = createPerson(admin, "bwilson", "Bob", "Wilson");
+		createPersonImage(admin, bobWilson, "bob-wilson-portrait.jpg", Palette.PORTRAIT_SLATE, true);
 		log.info("Created {} demo persons", 3);
 
 		// --- Clusters ---
@@ -1055,6 +1071,36 @@ public class DemoDatabaseInitializer {
 		blacklistDao.store(blacklist);
 		log.info("Created demo blacklist entry: {}", name);
 		return blacklist;
+	}
+
+	/**
+	 * Give a person one of their own pictures, and optionally make it their avatar.
+	 *
+	 * <p>
+	 * The bytes go to the same content-addressed upload directory an asset binary would use, but the row references no asset - only the person (V2.90).
+	 * That is the whole point of the model: a person's picture is theirs, and deleting the material they were found in cannot take it away.
+	 * </p>
+	 */
+	private Attachment createPersonImage(User admin, Person person, String filename, Palette palette, boolean avatar) {
+		byte[] bytes = renderDemoImage(palette, "image/jpeg");
+		SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+		storeBinary(bytes, sha512);
+
+		Attachment image = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, "image/jpeg", AttachmentType.PERSON_IMAGE);
+		image.setUuid(UUIDUtils.randomUUID());
+		image.setPersonUuid(person.getUuid());
+		image.setCreator(admin);
+		image.setEditor(admin);
+		image.setCreated(Instant.now());
+		image.setEdited(Instant.now());
+		attachmentDao.store(image);
+
+		if (avatar) {
+			person.setAvatarAttachmentUuid(image.getUuid());
+			personDao.update(person);
+		}
+		log.info("Created demo person image: {} for {} ({} bytes)", filename, person.getAlias(), bytes.length);
+		return image;
 	}
 
 	private Person createPerson(User admin, String alias, String firstname, String lastname) {
@@ -2010,7 +2056,12 @@ public class DemoDatabaseInitializer {
 		// Snow-lit peaks: the ridges start near-white and darken layer by layer, so this reads as
 		// a different scene from LAKE rather than a recolour of the same one.
 		SNOW(1600, 1067, 0x22384F, 0x9FBBD1, 0xFFFFFF, 0xE4EDF4, Style.PEAKS, 71),
-		SCAN(1240, 1754, 0xF4F1EA, 0xFFFFFF, 0x8A8577, 0xF4F1EA, Style.DOCUMENT, 89);
+		SCAN(1240, 1754, 0xF4F1EA, 0xFFFFFF, 0x8A8577, 0xF4F1EA, Style.DOCUMENT, 89),
+		// Square portraits for the demo persons' own pictures. Small, because an avatar is displayed at
+		// 48-72px and a person's gallery should not ship megabytes to say what it has to say.
+		PORTRAIT_WARM(512, 512, 0x2B1A16, 0x5C332A, 0xE8B98A, 0x2B1A16, Style.PORTRAIT, 97),
+		PORTRAIT_COOL(512, 512, 0x151E2E, 0x2E4A6B, 0xA9C8E8, 0x151E2E, Style.PORTRAIT, 101),
+		PORTRAIT_SLATE(512, 512, 0x1E2220, 0x3D4A44, 0xC9D6CE, 0x1E2220, Style.PORTRAIT, 103);
 
 		private enum Style {
 			HILLS, PEAKS, SKYLINE, PORTRAIT, FOLIAGE, DOCUMENT

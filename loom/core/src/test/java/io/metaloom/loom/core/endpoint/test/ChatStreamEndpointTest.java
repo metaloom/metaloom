@@ -16,7 +16,9 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.ai.genai.llm.LLMContext;
 import io.metaloom.ai.genai.llm.ToolCall;
+import io.metaloom.loom.agent.chat.loop.TurnListener;
 import io.metaloom.loom.agent.chat.loop.TurnResult;
 import io.metaloom.loom.agent.chat.loop.TurnStreamer;
 import io.metaloom.loom.client.http.LoomHttpClient;
@@ -199,14 +201,24 @@ public class ChatStreamEndpointTest extends AbstractEndpointTest {
 
 			CountDownLatch started = new CountDownLatch(1);
 			CountDownLatch release = new CountDownLatch(1);
-			loom.internal().agentService().setTurnStreamerFactory(() -> (ctx, listener) -> {
-				started.countDown();
-				try {
-					release.await(30, TimeUnit.SECONDS);
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
+			// Stands in for a provider stream that only ends when the subscription is disposed: the turn blocks until cancel() releases it, so the run can
+			// only reach "aborted" if the DELETE actually interrupted the turn in flight.
+			loom.internal().agentService().setTurnStreamerFactory(() -> new TurnStreamer() {
+				@Override
+				public TurnResult streamTurn(LLMContext ctx, TurnListener listener) {
+					started.countDown();
+					try {
+						release.await(30, TimeUnit.SECONDS);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+					return new TurnResult("late answer", null, List.of(new ToolCall("c1", "search_assets", new JsonObject())));
 				}
-				return new TurnResult("late answer", null, List.of(new ToolCall("c1", "search_assets", new JsonObject())));
+
+				@Override
+				public void cancel() {
+					release.countDown();
+				}
 			});
 
 			// First run blocks inside the turn
@@ -217,12 +229,15 @@ public class ChatStreamEndpointTest extends AbstractEndpointTest {
 			HttpResult second = stream(token, chatUuid, "Second message").get(30, TimeUnit.SECONDS);
 			assertEquals(409, second.statusCode(), "A concurrent run on the same chat must be rejected");
 
-			// Explicit cancel aborts the active run
+			// Explicit cancel aborts the active run — mid-turn, without waiting for the turn to finish on its own
 			HttpResult cancel = request(HttpMethod.DELETE, "/api/v1/chats/" + chatUuid + "/stream", token, null).get(30, TimeUnit.SECONDS);
 			assertEquals(204, cancel.statusCode());
 
-			release.countDown();
-			HttpResult firstResult = first.get(30, TimeUnit.SECONDS);
+			long cancelledAt = System.currentTimeMillis();
+			HttpResult firstResult = first.get(60, TimeUnit.SECONDS);
+			long elapsed = System.currentTimeMillis() - cancelledAt;
+			// The turn only unblocks through cancel(). Falling back to the post-turn check would take the fake's full 30s await instead.
+			assertTrue(elapsed < 10_000, "The cancel must interrupt the turn in flight, but the run took " + elapsed + "ms to finish");
 			List<SseEvent> events = parseSse(firstResult.body());
 			SseEvent agentEnd = events.get(events.size() - 1);
 			assertEquals("agent_end", agentEnd.type());

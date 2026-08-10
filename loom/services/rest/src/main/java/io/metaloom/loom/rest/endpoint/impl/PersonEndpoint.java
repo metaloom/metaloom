@@ -97,5 +97,57 @@ public class PersonEndpoint extends AbstractEndpoint {
 			lrc -> {
 				service.listClusters(lrc, lrc.pathParamUUID("uuid"));
 			});
+
+		// --- The person's own images ---------------------------------------------------------------
+		// Scoped under the person rather than under /attachments because the person is what owns them: they reference no asset, and they are the one
+		// kind of binary that outlives the material somebody was found in.
+
+		addListRoute(basePath() + "/:uuid/images", GET,
+			"List the person's images, newest first",
+			examples.personImageListResponseExample(),
+			lrc -> {
+				service.listImages(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addUploadRoute(basePath() + "/:uuid/images",
+			"Upload a picture of this person. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage pool; without it the image "
+				+ "lands in the deployment's default storage, since a person image has no parent asset to inherit a pool from).",
+			examples.personImageResponseExample(),
+			lrc -> {
+				service.uploadImage(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// Registered after the upload route so the more specific path wins over "/:uuid/images".
+		addRoute(basePath() + "/:uuid/images/from-detection", POST,
+			"Copy a detection's face crop into this person's images. The copy shares the crop's bytes but belongs to the person, so it survives "
+				+ "deletion of the asset the face was found in. Requires READ_DETECTION as well as UPDATE_PERSON: the result is readable face crop "
+				+ "content, which is biometric.",
+			examples.personImageImportRequestExample(),
+			examples.personImageResponseExample(),
+			lrc -> {
+				service.importImageFromDetection(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		addDownloadRoute(basePath() + "/:uuid/images/:imageUuid/data",
+			"Load the bytes of one of the person's images",
+			lrc -> {
+				service.downloadImage(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("imageUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/images/:imageUuid", DELETE,
+			"Delete one of the person's images. Deleting the one currently used as the avatar leaves the person without one.",
+			null,
+			examples.deleteResponseExample(),
+			lrc -> {
+				service.deleteImage(lrc, lrc.pathParamUUID("uuid"), lrc.pathParamUUID("imageUuid"));
+			});
+
+		addRoute(basePath() + "/:uuid/avatar", POST,
+			"Set which of the person's images is their avatar. Send a blank or absent imageUuid to clear it.",
+			examples.personAvatarRequestExample(),
+			examples.personResponseExample(),
+			lrc -> {
+				service.setAvatar(lrc, lrc.pathParamUUID("uuid"));
+			});
 	}
 }

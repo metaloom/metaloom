@@ -274,7 +274,11 @@ from .notification import (
     NotificationUpdateRequest,
 )
 from .person import (
+    PersonAvatarRequest,
     PersonCreateRequest,
+    PersonImageImportRequest,
+    PersonImageListResponse,
+    PersonImageResponse,
     PersonListResponse,
     PersonResponse,
     PersonUpdateRequest,
@@ -618,7 +622,11 @@ __all__ = [
     "NotificationType",
     "NotificationUpdateRequest",
     "PagingInfo",
+    "PersonAvatarRequest",
     "PersonCreateRequest",
+    "PersonImageImportRequest",
+    "PersonImageListResponse",
+    "PersonImageResponse",
     "PersonListResponse",
     "PersonResponse",
     "PersonUpdateRequest",

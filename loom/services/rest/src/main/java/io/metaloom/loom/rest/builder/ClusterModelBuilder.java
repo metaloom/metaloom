@@ -20,6 +20,8 @@ public interface ClusterModelBuilder extends UserModelBuilder {
 		response.setMeta(cluster.getMeta());
 		response.setReviewStatus(cluster.getStatus());
 		response.setPersonUuid(cluster.getPersonUuid() == null ? null : cluster.getPersonUuid().toString());
+		response.setReviewedAt(cluster.getReviewedAt() == null ? null : cluster.getReviewedAt().toString());
+		response.setReviewerUuid(cluster.getReviewerUuid() == null ? null : cluster.getReviewerUuid().toString());
 		response.setAssetUuid(cluster.getAssetUuid() == null ? null : cluster.getAssetUuid().toString());
 		response.setClusterIndex(cluster.getClusterIndex());
 		response.setScore(cluster.getScore());

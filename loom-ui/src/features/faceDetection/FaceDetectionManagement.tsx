@@ -11,7 +11,7 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
-import { listPersons, createPerson as apiCreatePerson, listPersonClusters, PersonResponse } from "../../api/persons";
+import { listPersons, createPerson as apiCreatePerson, listPersonClusters } from "../../api/persons";
 import {
   listClusters as apiListClusters,
   createCluster as apiCreateCluster,
@@ -20,7 +20,7 @@ import {
 } from "../../api/clusters";
 import ClustersPanel from "./ClustersPanel";
 import PersonsPanel from "./PersonsPanel";
-import { assetBinaryUrl } from "../../api/assets";
+import { toUiPerson } from "./personMapping";
 import { PAGE_SIZE } from "../../hooks/pagedList";
 
 export default function FaceDetectionManagement({ embedded }: { embedded?: boolean }) {
@@ -39,17 +39,6 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
   const { t } = useTranslation();
   const { token } = useAuth();
 
-  const toUiPerson = (r: PersonResponse, clusterIds: string[] = []): Person => ({
-    id: r.uuid,
-    name: [r.firstname, r.lastname].filter(Boolean).join(" ") || r.alias,
-    description: r.alias,
-    // The avatar is the person's primary image when they have one. It used to be hardcoded empty, so
-    // every avatar fell back to the MUI default however the person was set up.
-    avatarUrl: r.primaryImageUuid ? assetBinaryUrl(r.primaryImageUuid) : "",
-    clusterIds,
-    createdAt: r.status?.created ?? new Date().toISOString(),
-  });
-
   const toUiCluster = (r: ClusterResponse): FaceCluster => ({
     id: r.uuid,
     // A machine proposal has no name until somebody confirms one, so fall back to something a
@@ -62,6 +51,8 @@ export default function FaceDetectionManagement({ embedded }: { embedded?: boole
     faceCount: r.memberCount ?? 0,
     assetId: r.assetUuid,
     reviewStatus: r.reviewStatus,
+    reviewedAt: r.reviewedAt,
+    reviewerUuid: r.reviewerUuid,
     score: r.score,
     personId: r.personUuid,
   });

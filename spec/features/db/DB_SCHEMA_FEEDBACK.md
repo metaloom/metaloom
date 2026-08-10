@@ -89,8 +89,9 @@ loudly.
 
 Partly fixed: `detection` (`V2.43`), `attachment` (`V2.44`), `reaction`/`comment` → `annotation`
 (`V2.48`), `embedding_cluster` (`V2.51`) now cascade, alongside the `asset_*_comp` tables,
-`asset_location`, `annotation`, `annotation_asset`, `person_image`, `blacklist` and
-`asset_node_result`.
+`asset_location`, `annotation`, `annotation_asset`, `blacklist` and
+`asset_node_result`. (`person_image` was in that list until `V2.91` dropped the table — a person's
+pictures now hang off the person, not off an asset.)
 
 `tag_asset` was fixed in `V2.72` — **both** its foreign keys now cascade, so deleting an asset drops
 its tag assignments and deleting a tag drops the assignments to every asset. Neither delete touches
@@ -128,9 +129,9 @@ The other direction of `library_asset` is deliberately *not* a cascade: `library
 reference so a library cannot be deleted out from under the assets in it — the stance `V2.63` already
 took for `library → asset_pool`.
 
-**After `V2.74` the only non-`CASCADE` foreign keys to `asset` are the two intentional `SET NULL`s**,
-`dedup_group.keep_asset_uuid` and `person.primary_image_uuid`. `DELETE_ASSET` works for every link
-the system writes.
+**After `V2.74` the only non-`CASCADE` foreign key to `asset` is the intentional `SET NULL` on**
+`dedup_group.keep_asset_uuid`. (`person.primary_image_uuid` was the other one until `V2.91` removed
+it.) `DELETE_ASSET` works for every link the system writes.
 
 **How the tests are built.** All eight link tests share one fixture (`AssetCascadeTest.linkedPair`):
 two assets wired into the same tag, collection, task and library, each with its own user meta,
@@ -237,9 +238,10 @@ Neither story is expressed today. Cross-referenced from
 `CREATE UNIQUE INDEX ON "cluster" ("name")` (`V2.12`) spans all cluster types. A person cluster and
 a visual-similarity cluster cannot share a name, and two distinct people with the same name cannot
 both be clusters. Should be `UNIQUE (type, name)` at minimum; for people, name uniqueness is wrong
-regardless. Related: `person`/`person_image` still overlaps `cluster` of `type = 'person'` with no
+regardless. Related: `person` still overlaps `cluster` of `type = 'person'` with no
 relation between them — two competing models of the same concept (see
-[../CLUSTERING.md](../concept/CLUSTERING.md)).
+[../CLUSTERING.md](../concept/CLUSTERING.md)). (`person_image` is no longer part of that overlap:
+`V2.91` dropped it in favour of person-owned attachments.)
 
 ---
 

@@ -5,7 +5,6 @@ import static io.metaloom.loom.db.jooq.tables.JooqAssetTask.ASSET_TASK;
 import static io.metaloom.loom.db.jooq.tables.JooqAssetUserMeta.ASSET_USER_META;
 import static io.metaloom.loom.db.jooq.tables.JooqCollectionAsset.COLLECTION_ASSET;
 import static io.metaloom.loom.db.jooq.tables.JooqLibraryAsset.LIBRARY_ASSET;
-import static io.metaloom.loom.db.jooq.tables.JooqPersonImage.PERSON_IMAGE;
 import static io.metaloom.loom.db.jooq.tables.JooqTagAsset.TAG_ASSET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -79,14 +78,20 @@ import io.vertx.core.json.JsonObject;
  * </p>
  *
  * <p>
- * After V2.74 the only foreign keys to {@code asset} that are not {@code CASCADE} are the two deliberate {@code SET NULL}s —
- * {@code dedup_group.keep_asset_uuid} and {@code person.primary_image_uuid}.
+ * After V2.74 the only foreign key to {@code asset} that is not {@code CASCADE} is the deliberate {@code SET NULL} on
+ * {@code dedup_group.keep_asset_uuid}. ({@code person.primary_image_uuid} was the other one until V2.91 removed it.)
  * </p>
  *
  * <p>
- * Everything is created through the DAOs (not raw SQL) so the test also exercises the DAO-level FK wiring. The two link tables that have no DAO
- * writer — {@code annotation_asset} and {@code person_image} — are inserted directly with jOOQ, mirroring {@code AnnotationDaoTest} and
- * {@code PersonDaoTest}. {@code asset_remix} also cascades (V2.8) but has no DAO yet, so it is intentionally left out until those operations exist.
+ * The fixture also attaches something that must <b>not</b> move: a person, and one of that person's own images. Person images are attachments owned
+ * by the person rather than by any asset (V2.90), which is the whole point of that design — deleting the material somebody was found in must not take
+ * their picture with it. They replaced {@code person_image}, which pointed at assets and cascaded.
+ * </p>
+ *
+ * <p>
+ * Everything is created through the DAOs (not raw SQL) so the test also exercises the DAO-level FK wiring. The one link table that has no DAO
+ * writer — {@code annotation_asset} — is inserted directly with jOOQ, mirroring {@code AnnotationDaoTest}. {@code asset_remix} also cascades (V2.8)
+ * but has no DAO yet, so it is intentionally left out until those operations exist.
  * </p>
  */
 public class AssetCascadeTest extends AbstractJooqTest {
@@ -127,6 +132,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		UUID blacklist;
 		UUID annotation;
 		UUID person;
+		UUID personImage;
 		UUID cluster;
 	}
 
@@ -243,13 +249,20 @@ public class AssetCascadeTest extends AbstractJooqTest {
 			.values(annotation.getUuid(), assetUuid)
 			.execute();
 
-		// person_image gallery row (V2.26). The person itself is a shared resource and must survive the asset delete.
+		// A person and one of that person's own images (V2.90), plus the avatar pointer at it. Neither is a dependent of the asset: the image carries
+		// person_uuid and leaves asset_uuid null, so the delete below must leave all three standing. This is the assertion the design exists for.
 		Person person = personDao().createPerson(user, "person-" + seed);
 		personDao().store(person);
 		d.person = person.getUuid();
-		context.ctx().insertInto(PERSON_IMAGE, PERSON_IMAGE.PERSON_UUID, PERSON_IMAGE.ASSET_UUID)
-			.values(person.getUuid(), assetUuid)
-			.execute();
+
+		Attachment personImage = attachmentDao().createAttachment(userUuid, SHA512SUM, "hero-" + seed + ".jpg", 42L, IMAGE_MIMETYPE,
+			AttachmentType.PERSON_IMAGE);
+		personImage.setPersonUuid(person.getUuid());
+		attachmentDao().store(personImage);
+		d.personImage = personImage.getUuid();
+
+		person.setAvatarAttachmentUuid(personImage.getUuid());
+		personDao().update(person);
 
 		// cluster (V2.79). A per-asset face cluster describes that asset and is meaningless without it. Confirmed to the person above, to prove the
 		// cascade fires even when a reviewer has already decided on it - the asset is what it depends on, not the verdict.
@@ -263,10 +276,6 @@ public class AssetCascadeTest extends AbstractJooqTest {
 
 	private int countAnnotationAsset(UUID annotationUuid) {
 		return context.ctx().fetchCount(ANNOTATION_ASSET, ANNOTATION_ASSET.ANNOTATION_UUID.eq(annotationUuid));
-	}
-
-	private int countPersonImage(UUID personUuid) {
-		return context.ctx().fetchCount(PERSON_IMAGE, PERSON_IMAGE.PERSON_UUID.eq(personUuid));
 	}
 
 	private void assertGone(Dependents d) {
@@ -287,9 +296,12 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNull(blacklistDao().load(d.blacklist), "blacklist must cascade with the asset");
 		assertNull(annotationDao().load(d.annotation), "annotation must cascade with the asset");
 		assertEquals(0, countAnnotationAsset(d.annotation), "annotation_asset link must cascade with the asset");
-		assertEquals(0, countPersonImage(d.person), "person_image gallery row must cascade with the asset");
 		assertNull(clusterDao().load(d.cluster), "cluster must cascade with the asset (V2.79)");
 		assertNotNull(personDao().load(d.person), "the person is a shared resource and must survive its asset");
+		assertNotNull(attachmentDao().load(d.personImage),
+			"a person's own image is owned by the person, not the asset, and must survive the asset delete (V2.90)");
+		assertEquals(d.personImage, personDao().load(d.person).getAvatarAttachmentUuid(),
+			"the avatar still points at that image - nothing about the asset delete may reach it");
 	}
 
 	private void assertPresent(Dependents d) {
@@ -310,7 +322,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNotNull(blacklistDao().load(d.blacklist), "blacklist of the other asset must survive");
 		assertNotNull(annotationDao().load(d.annotation), "annotation of the other asset must survive");
 		assertEquals(1, countAnnotationAsset(d.annotation), "annotation_asset link of the other asset must survive");
-		assertEquals(1, countPersonImage(d.person), "person_image gallery row of the other asset must survive");
+		assertNotNull(attachmentDao().load(d.personImage), "the other person's image must survive");
 		assertNotNull(clusterDao().load(d.cluster), "cluster of the other asset must survive");
 	}
 
@@ -555,8 +567,9 @@ public class AssetCascadeTest extends AbstractJooqTest {
 	 * Deleting an asset removes the per-user metadata written onto it (V2.73).
 	 *
 	 * <p>
-	 * {@code asset_user_meta} has no DAO writer yet, so the row is inserted directly with jOOQ - the same way {@code annotation_asset} and
-	 * {@code person_image} are handled above. The cascade is pinned now so that the table cannot grow a writer and an orphan problem at the same time.
+	 * {@code asset_user_meta} has no DAO writer yet, so the row is inserted directly with jOOQ - the same way {@code annotation_asset} is handled
+	 * above. The cascade is pinned now so that the table cannot grow a writer and an orphan problem at the same time. ({@code person_image} used to be
+	 * the other such table; V2.91 dropped it rather than let it keep waiting for a writer.)
 	 * </p>
 	 */
 	@Test

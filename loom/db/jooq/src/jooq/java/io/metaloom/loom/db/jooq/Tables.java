@@ -55,7 +55,6 @@ import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptor;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
-import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
@@ -416,11 +415,6 @@ public class Tables {
      * The table <code>public.person</code>.
      */
     public static final JooqPerson PERSON = JooqPerson.PERSON;
-
-    /**
-     * Gallery of pictures associated with a person
-     */
-    public static final JooqPersonImage PERSON_IMAGE = JooqPersonImage.PERSON_IMAGE;
 
     /**
      * The table <code>public.pipeline</code>.

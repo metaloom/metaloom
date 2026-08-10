@@ -114,6 +114,8 @@ class ClusterResponse(CreatorEditorResponse):
     type: str | None = None
     review_status: str | None = None
     person_uuid: str | None = None
+    reviewed_at: str | None = None
+    reviewer_uuid: str | None = None
     asset_uuid: str | None = None
     cluster_index: int | None = None
     score: float | None = None

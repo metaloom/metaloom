@@ -4,6 +4,7 @@
 package io.metaloom.loom.db.jooq.tables;
 
 
+import io.metaloom.loom.db.jooq.Indexes;
 import io.metaloom.loom.db.jooq.JooqPublic;
 import io.metaloom.loom.db.jooq.Keys;
 import io.metaloom.loom.db.jooq.converter.JsonObjectConverter;
@@ -18,6 +19,7 @@ import java.util.function.Function;
 import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Function10;
+import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Records;
@@ -80,12 +82,6 @@ public class JooqPerson extends TableImpl<JooqPersonRecord> {
     public final TableField<JooqPersonRecord, JsonObject> META = createField(DSL.name("meta"), SQLDataType.JSONB, this, "Custom meta properties", new JsonObjectConverter());
 
     /**
-     * The column <code>public.person.primary_image_uuid</code>. UUID of the
-     * primary gallery image
-     */
-    public final TableField<JooqPersonRecord, java.util.UUID> PRIMARY_IMAGE_UUID = createField(DSL.name("primary_image_uuid"), SQLDataType.UUID, this, "UUID of the primary gallery image");
-
-    /**
      * The column <code>public.person.created</code>.
      */
     public final TableField<JooqPersonRecord, LocalDateTime> CREATED = createField(DSL.name("created"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field("now()", SQLDataType.LOCALDATETIME)), this, "");
@@ -104,6 +100,13 @@ public class JooqPerson extends TableImpl<JooqPersonRecord> {
      * The column <code>public.person.editor_uuid</code>.
      */
     public final TableField<JooqPersonRecord, java.util.UUID> EDITOR_UUID = createField(DSL.name("editor_uuid"), SQLDataType.UUID.nullable(false), this, "");
+
+    /**
+     * The column <code>public.person.avatar_attachment_uuid</code>. The person
+     * image shown as this person's avatar. One of the person's own images,
+     * never a pointer into an asset.
+     */
+    public final TableField<JooqPersonRecord, java.util.UUID> AVATAR_ATTACHMENT_UUID = createField(DSL.name("avatar_attachment_uuid"), SQLDataType.UUID, this, "The person image shown as this person's avatar. One of the person's own images, never a pointer into an asset.");
 
     private JooqPerson(Name alias, Table<JooqPersonRecord> aliased) {
         this(alias, aliased, null);
@@ -144,28 +147,23 @@ public class JooqPerson extends TableImpl<JooqPersonRecord> {
     }
 
     @Override
+    public List<Index> getIndexes() {
+        return Arrays.asList(Indexes.IDX_PERSON_AVATAR_ATTACHMENT_UUID);
+    }
+
+    @Override
     public UniqueKey<JooqPersonRecord> getPrimaryKey() {
         return Keys.PERSON_PKEY;
     }
 
     @Override
     public List<ForeignKey<JooqPersonRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.PERSON__PERSON_PRIMARY_IMAGE_UUID_FKEY, Keys.PERSON__PERSON_CREATOR_UUID_FKEY, Keys.PERSON__PERSON_EDITOR_UUID_FKEY);
+        return Arrays.asList(Keys.PERSON__PERSON_CREATOR_UUID_FKEY, Keys.PERSON__PERSON_EDITOR_UUID_FKEY, Keys.PERSON__PERSON_AVATAR_ATTACHMENT_UUID_FKEY);
     }
 
-    private transient JooqAsset _asset;
     private transient JooqUser _personCreatorUuidFkey;
     private transient JooqUser _personEditorUuidFkey;
-
-    /**
-     * Get the implicit join path to the <code>public.asset</code> table.
-     */
-    public JooqAsset asset() {
-        if (_asset == null)
-            _asset = new JooqAsset(this, Keys.PERSON__PERSON_PRIMARY_IMAGE_UUID_FKEY);
-
-        return _asset;
-    }
+    private transient JooqAttachment _attachment;
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -187,6 +185,16 @@ public class JooqPerson extends TableImpl<JooqPersonRecord> {
             _personEditorUuidFkey = new JooqUser(this, Keys.PERSON__PERSON_EDITOR_UUID_FKEY);
 
         return _personEditorUuidFkey;
+    }
+
+    /**
+     * Get the implicit join path to the <code>public.attachment</code> table.
+     */
+    public JooqAttachment attachment() {
+        if (_attachment == null)
+            _attachment = new JooqAttachment(this, Keys.PERSON__PERSON_AVATAR_ATTACHMENT_UUID_FKEY);
+
+        return _attachment;
     }
 
     @Override
@@ -233,14 +241,14 @@ public class JooqPerson extends TableImpl<JooqPersonRecord> {
     // -------------------------------------------------------------------------
 
     @Override
-    public Row10<java.util.UUID, String, String, String, JsonObject, java.util.UUID, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID> fieldsRow() {
+    public Row10<java.util.UUID, String, String, String, JsonObject, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, java.util.UUID> fieldsRow() {
         return (Row10) super.fieldsRow();
     }
 
     /**
      * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
      */
-    public <U> SelectField<U> mapping(Function10<? super java.util.UUID, ? super String, ? super String, ? super String, ? super JsonObject, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Function10<? super java.util.UUID, ? super String, ? super String, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(Records.mapping(from));
     }
 
@@ -248,7 +256,7 @@ public class JooqPerson extends TableImpl<JooqPersonRecord> {
      * Convenience mapping calling {@link SelectField#convertFrom(Class,
      * Function)}.
      */
-    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super java.util.UUID, ? super String, ? super String, ? super String, ? super JsonObject, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? extends U> from) {
+    public <U> SelectField<U> mapping(Class<U> toType, Function10<? super java.util.UUID, ? super String, ? super String, ? super String, ? super JsonObject, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super java.util.UUID, ? extends U> from) {
         return convertFrom(toType, Records.mapping(from));
     }
 }

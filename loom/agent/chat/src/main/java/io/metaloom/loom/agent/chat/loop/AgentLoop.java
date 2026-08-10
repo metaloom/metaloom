@@ -138,10 +138,19 @@ public class AgentLoop {
 	}
 
 	/**
-	 * Request the loop to stop. Checked between turns and between tool calls.
+	 * Request the loop to stop. The flag is checked between turns and between tool calls; the turn streamer is additionally asked to interrupt the turn that
+	 * is in flight right now, so an abort on the streaming path stops generation instead of waiting the turn out.
+	 *
+	 * <p>Called from the Vert.x event loop (client disconnect or {@code DELETE /chats/:uuid/stream}), which must still be able to answer — a streamer that
+	 * fails to cancel degrades to the post-turn check rather than failing the request.</p>
 	 */
 	public void abort() {
 		cancelled.set(true);
+		try {
+			turnStreamer.cancel();
+		} catch (Exception e) {
+			log.warn("Cancelling the in-flight turn of chat {} failed", request.chatUuid(), e);
+		}
 	}
 
 	/**

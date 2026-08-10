@@ -23,13 +23,14 @@ import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, assetBinaryUrl, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
+import { loadAsset as apiLoadAsset, updateAsset, deleteAsset, AssetResponse, TagReference, AssetLocationInfo } from "../../api/assets";
 import { uploadAssetBinary, downloadAssetBinary, deleteAssetBinary, createAssetBinaryMeta } from "../../api/binaries";
 import MediaPlaceholder from "../../components/MediaPlaceholder";
 import { listPipelines, runPipeline, PipelineResponse } from "../../api/pipelines";
 import { tagAsset as apiTagAsset, untagAsset as apiUntagAsset, DEFAULT_TAG_COLLECTION } from "../../api/tags";
 import { AreaInfo } from "../../api/annotations";
 import { listPersons, PersonResponse } from "../../api/persons";
+import { toUiPerson } from "../faceDetection/personMapping";
 import { listAssetClusters, ClusterResponse as ClusterApiResponse } from "../../api/clusters";
 import {
   listAssetDetections, createDetection, updateDetection, deleteDetection,
@@ -254,12 +255,8 @@ export default function AssetDetail() {
         score: c.score,
         personId: c.personUuid,
       }))) : Promise.resolve([] as FaceCluster[]),
-      token ? listPersons(token, { limit: PAGE_SIZE }).then(r => r.data.map((p: PersonResponse): Person => ({
-        id: p.uuid, name: [p.firstname, p.lastname].filter(Boolean).join(" ") || p.alias,
-        description: p.alias,
-        avatarUrl: p.primaryImageUuid ? assetBinaryUrl(p.primaryImageUuid) : "",
-        clusterIds: [], createdAt: p.status?.created ?? "",
-      }))) : Promise.resolve([] as Person[]),
+      token ? listPersons(token, { limit: PAGE_SIZE }).then(r => r.data.map((p: PersonResponse) => toUiPerson(p)))
+        : Promise.resolve([] as Person[]),
     ]).then(([c, t, tr, faces, clusters, pers]) => {
       setComments(c);
       setTasks(t);

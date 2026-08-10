@@ -367,6 +367,40 @@ The cropped faces on these cards were cut by the detection node and stored by yo
 Face images and the vectors derived from them are biometric data; they are never fetched from, or
 sent to, any outside service.
 
+[#persons]
+=== People and their pictures
+
+Clicking a person's name opens their own page: everything attributed to them, and the pictures you
+keep of them.
+
+image::persons.png[A person's page, with their pictures and avatar,role=img-fluid]
+
+==== Giving somebody a face
+
+A person starts with no picture and shows as a plain initial wherever they appear. There are two ways
+to give them one.
+
+*Upload a picture.* Choose any image from your machine. This is the right choice when you have a
+proper portrait of somebody and the frames they happen to appear in are not it.
+
+*Take one from a group you confirmed.* Below the pictures, the page offers the faces from every group
+confirmed to this person. Clicking one adds it to their pictures. For people who only ever turn up in
+footage, this is usually the fastest route to a recognisable face — one click, and it is a picture of
+them rather than of the video they were found in.
+
+Whichever way a picture got there, you can mark any of them as the avatar: the small round image shown
+beside their name everywhere else. Marking a different one replaces it, and deleting the current
+avatar simply leaves them without one.
+
+==== A person's pictures are their own
+
+These pictures belong to the person, not to the material they came from. Deleting the video somebody
+was found in — or the whole library it was in — leaves their pictures and their avatar exactly where
+they were. A face taken from a confirmed group is copied into their keeping at the moment you add it,
+precisely so that it survives.
+
+They are stored by your own installation like everything else here, and never sent anywhere.
+
 [#rating-and-tagging]
 === Rating and Tagging at Keyboard Speed
 

@@ -12,6 +12,10 @@ public class ClusterResponse extends AbstractCreatorEditorRestResponse<ClusterRe
 
 	private String personUuid;
 
+	private String reviewedAt;
+
+	private String reviewerUuid;
+
 	private String assetUuid;
 
 	private Integer clusterIndex;
@@ -67,6 +71,40 @@ public class ClusterResponse extends AbstractCreatorEditorRestResponse<ClusterRe
 
 	public ClusterResponse setPersonUuid(String personUuid) {
 		this.personUuid = personUuid;
+		return this;
+	}
+
+	/**
+	 * When a human recorded the verdict, or null while nobody has.
+	 *
+	 * <p>
+	 * Distinct from the {@code edited} timestamp inside the audit block: the producing node touches that on every re-run, so it says nothing about
+	 * whether anybody reviewed the cluster.
+	 * </p>
+	 */
+	public String getReviewedAt() {
+		return reviewedAt;
+	}
+
+	public ClusterResponse setReviewedAt(String reviewedAt) {
+		this.reviewedAt = reviewedAt;
+		return this;
+	}
+
+	/**
+	 * The user who recorded the verdict, or null while nobody has.
+	 *
+	 * <p>
+	 * Distinct from the {@code editor} inside the audit block, which is the producing node's provenance and is absent for a node-written cluster.
+	 * Attributing a face to a named person is a biometric decision and keeps its author across every later run of that node.
+	 * </p>
+	 */
+	public String getReviewerUuid() {
+		return reviewerUuid;
+	}
+
+	public ClusterResponse setReviewerUuid(String reviewerUuid) {
+		this.reviewerUuid = reviewerUuid;
 		return this;
 	}
 

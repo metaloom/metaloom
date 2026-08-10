@@ -651,8 +651,8 @@ docker rm -f loom postgres-demo cortex-demo
 ```
 
 Filenames must stay stable so refreshes overwrite in place: `chat`, `chat-sessions`, `skills`,
-`memory`, `assets`, `asset-detail`, `library`, `tags`, `tasks`, `face-detection`, `pipeline-editor`,
-`pipeline-versions`, `cortex`, `monitoring`, `users`, `acl-roles`, `api-keys`. The two remaining
+`memory`, `assets`, `asset-detail`, `library`, `tags`, `tasks`, `face-detection`, `persons`,
+`pipeline-editor`, `pipeline-versions`, `cortex`, `monitoring`, `users`, `acl-roles`, `api-keys`. The two remaining
 images in the bundle — `uploads` and `uploads-sidebar` — come from a **different, mocked** script
 ([Capturing the upload screen](#capturing-the-upload-screen-docsui)); this one does not take them.
 

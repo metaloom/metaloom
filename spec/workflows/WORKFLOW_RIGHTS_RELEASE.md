@@ -191,7 +191,7 @@ Steps 1-4 are worth building on their own. Steps 5-7 should not start until thei
 - [x] Rights metadata extracted by the `metadata` node (Q1 evidence)
 - [x] `guard` verdicts produced (Q3 evidence)
 - [x] `asset_node_result` records model provenance for every generated value (Q4 evidence)
-- [x] `person` / `person_image` entities (Q2 foundation)
+- [x] `person` entity, and the pictures a person owns (`PERSON_IMAGE` attachments, `V2.90`) (Q2 foundation)
 - [ ] 🔵 Licence model replacing free-text `asset_location.license` (§2.3)
 - [ ] 🔵 AI-provenance query: generated pixels vs generated description (§2.4)
 - [ ] 🔵 `release_clearance` with a purpose key and an evidence snapshot (§2.1)
@@ -252,7 +252,7 @@ variables where a change leaves no trace. That is the same argument as
 | `GuardNode` | `io.metaloom.cortex.node.guard` | Q3 evidence |
 | `ImagegenNode` / `VideogenNode` | `io.metaloom.cortex.node.{imagegen,videogen}` | Q4: generated **pixels** |
 | `AbstractMediaNode.recordNodeResult` | `io.metaloom.cortex.common.node` | The ledger every provenance query reads |
-| `person` / `person_image` DAOs | `io.metaloom.loom.db.*` | Q2 foundation |
+| `PersonDao`, and `AttachmentDao.listByPerson` for a person's pictures | `io.metaloom.loom.db.*` | Q2 foundation |
 | `AssetEndpoint` `/binary/data` | `io.metaloom.loom.rest.endpoint.impl` | An exit the gate must cover |
 | `S3SinkNode` | `io.metaloom.cortex.node.s3sink` | Another exit |
 | `ImageManipulationNode` | `io.metaloom.cortex.node.imagemanipulation` | Redaction: blur an unconsented region |

@@ -111,7 +111,11 @@ import io.metaloom.loom.rest.model.library.LibraryCreateRequest;
 import io.metaloom.loom.rest.model.library.LibraryListResponse;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
 import io.metaloom.loom.rest.model.library.LibraryUpdateRequest;
+import io.metaloom.loom.rest.model.person.PersonAvatarRequest;
 import io.metaloom.loom.rest.model.person.PersonCreateRequest;
+import io.metaloom.loom.rest.model.person.PersonImageImportRequest;
+import io.metaloom.loom.rest.model.person.PersonImageListResponse;
+import io.metaloom.loom.rest.model.person.PersonImageResponse;
 import io.metaloom.loom.rest.model.person.PersonListResponse;
 import io.metaloom.loom.rest.model.person.PersonResponse;
 import io.metaloom.loom.rest.model.person.PersonUpdateRequest;
@@ -627,6 +631,37 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<PersonListResponse> listPersons() {
 		return getRequest("persons", PersonListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonImageListResponse> listPersonImages(UUID personUuid) {
+		return getRequest("persons/" + personUuid + "/images", PersonImageListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonImageResponse> uploadPersonImage(UUID personUuid, java.io.File file, String mimeType, UUID poolUuid) {
+		return multipartRequest("persons/" + personUuid + "/images", PersonImageResponse.class, file, mimeType,
+			"poolUuid", poolUuid == null ? null : poolUuid.toString());
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonImageResponse> importPersonImage(UUID personUuid, PersonImageImportRequest request) {
+		return postRequest("persons/" + personUuid + "/images/from-detection", request, PersonImageResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<LoomBinaryResponse> downloadPersonImage(UUID personUuid, UUID imageUuid) {
+		return getDownloadRequest("persons/" + personUuid + "/images/" + imageUuid + "/data");
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deletePersonImage(UUID personUuid, UUID imageUuid) {
+		return deleteRequest("persons/" + personUuid + "/images/" + imageUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<PersonResponse> setPersonAvatar(UUID personUuid, PersonAvatarRequest request) {
+		return postRequest("persons/" + personUuid + "/avatar", request, PersonResponse.class);
 	}
 
 	// SPACE

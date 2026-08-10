@@ -382,6 +382,10 @@ export interface FaceCluster {
   assetId?: string;
   /** Review verdict: PENDING, CONFIRMED or REJECTED. */
   reviewStatus?: string;
+  /** When a human decided, or undefined while nobody has. Not the `edited` audit timestamp. */
+  reviewedAt?: string;
+  /** The user who decided, or undefined while nobody has. Not the `editor`, which the node overwrites. */
+  reviewerUuid?: string;
   /** Cohesion, or undefined for a single-member cluster. */
   score?: number;
   personId?: string;

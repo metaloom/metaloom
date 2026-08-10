@@ -38,6 +38,7 @@ import io.metaloom.loom.db.jooq.tables.JooqMemoryDenyRule;
 import io.metaloom.loom.db.jooq.tables.JooqMemoryEntry;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqNotification;
+import io.metaloom.loom.db.jooq.tables.JooqPerson;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRunItem;
@@ -109,6 +110,7 @@ public class Indexes {
     public static final Index IDX_ASSET_VIDEO_COMP_ASSET_UUID = Internal.createIndex(DSL.name("idx_asset_video_comp_asset_uuid"), JooqAssetVideoComp.ASSET_VIDEO_COMP, new OrderField[] { JooqAssetVideoComp.ASSET_VIDEO_COMP.ASSET_UUID }, false);
     public static final Index IDX_ATTACHMENT_ASSET_UUID = Internal.createIndex(DSL.name("idx_attachment_asset_uuid"), JooqAttachment.ATTACHMENT, new OrderField[] { JooqAttachment.ATTACHMENT.ASSET_UUID }, false);
     public static final Index IDX_ATTACHMENT_DETECTION_UUID = Internal.createIndex(DSL.name("idx_attachment_detection_uuid"), JooqAttachment.ATTACHMENT, new OrderField[] { JooqAttachment.ATTACHMENT.DETECTION_UUID }, false);
+    public static final Index IDX_ATTACHMENT_PERSON_UUID = Internal.createIndex(DSL.name("idx_attachment_person_uuid"), JooqAttachment.ATTACHMENT, new OrderField[] { JooqAttachment.ATTACHMENT.PERSON_UUID }, false);
     public static final Index IDX_CHAT_SESSION_CONTEXT_REF_SOURCE = Internal.createIndex(DSL.name("idx_chat_session_context_ref_source"), JooqChatSessionContextRef.CHAT_SESSION_CONTEXT_REF, new OrderField[] { JooqChatSessionContextRef.CHAT_SESSION_CONTEXT_REF.SOURCE_SESSION_UUID }, false);
     public static final Index IDX_CHAT_SESSION_CREATOR = Internal.createIndex(DSL.name("idx_chat_session_creator"), JooqChatSession.CHAT_SESSION, new OrderField[] { JooqChatSession.CHAT_SESSION.CREATOR_UUID }, false);
     public static final Index IDX_CHAT_SESSION_PUBLISHED = Internal.createIndex(DSL.name("idx_chat_session_published"), JooqChatSession.CHAT_SESSION, new OrderField[] { JooqChatSession.CHAT_SESSION.PUBLISHED }, false);
@@ -140,6 +142,7 @@ public class Indexes {
     public static final Index IDX_NOTIFICATION_RECIPIENT_UNREAD = Internal.createIndex(DSL.name("idx_notification_recipient_unread"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.RECIPIENT_UUID, JooqNotification.NOTIFICATION.CREATED.desc() }, false);
     public static final Index IDX_NOTIFICATION_RUN = Internal.createIndex(DSL.name("idx_notification_run"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.PIPELINE_RUN_UUID }, false);
     public static final Index IDX_NOTIFICATION_TASK = Internal.createIndex(DSL.name("idx_notification_task"), JooqNotification.NOTIFICATION, new OrderField[] { JooqNotification.NOTIFICATION.TASK_UUID }, false);
+    public static final Index IDX_PERSON_AVATAR_ATTACHMENT_UUID = Internal.createIndex(DSL.name("idx_person_avatar_attachment_uuid"), JooqPerson.PERSON, new OrderField[] { JooqPerson.PERSON.AVATAR_ATTACHMENT_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_EXPIRED_LEASE = Internal.createIndex(DSL.name("idx_pipeline_node_task_expired_lease"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.LEASE_EXPIRES_AT }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_ITEM_UUID = Internal.createIndex(DSL.name("idx_pipeline_node_task_item_uuid"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.ITEM_UUID }, false);
     public static final Index IDX_PIPELINE_NODE_TASK_RUN_STATE = Internal.createIndex(DSL.name("idx_pipeline_node_task_run_state"), JooqPipelineNodeTask.PIPELINE_NODE_TASK, new OrderField[] { JooqPipelineNodeTask.PIPELINE_NODE_TASK.RUN_UUID, JooqPipelineNodeTask.PIPELINE_NODE_TASK.STATE }, false);

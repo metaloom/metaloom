@@ -105,7 +105,9 @@ public class ClusterEndpoint extends AbstractEndpoint {
 		addRoute(basePath() + "/:uuid/confirm", POST,
 			"Confirm that a cluster is a person, linking an existing one or creating a new one. Requires CREATE_PERSON in addition to UPDATE_CLUSTER when it creates.",
 			examples.clusterConfirmExample(),
-			examples.clusterResponseExample(),
+			// The reviewed shape, not the pending one: these two routes are the only writers of reviewedAt/reviewerUuid, and the response is where a
+			// client learns that a verdict carries its author.
+			examples.clusterReviewedResponseExample(),
 			lrc -> {
 				service.confirm(lrc, lrc.pathParamUUID("uuid"));
 			});
@@ -114,7 +116,7 @@ public class ClusterEndpoint extends AbstractEndpoint {
 		addRoute(basePath() + "/:uuid/reject", POST,
 			"Reject a cluster: it is not a subject worth keeping. The person pointer is left as it was, so an earlier verdict stays readable.",
 			null,
-			examples.clusterResponseExample(),
+			examples.clusterReviewedResponseExample(),
 			lrc -> {
 				service.reject(lrc, lrc.pathParamUUID("uuid"));
 			});

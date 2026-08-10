@@ -1,15 +1,18 @@
 package io.metaloom.loom.db.jooq.dao;
 
-import static io.metaloom.loom.db.jooq.tables.JooqPersonImage.PERSON_IMAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.attachment.AttachmentType;
 import io.metaloom.loom.db.CRUDDaoTestcases;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
-import io.metaloom.loom.db.model.asset.Asset;
+import io.metaloom.loom.db.model.attachment.Attachment;
 import io.metaloom.loom.db.model.person.Person;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.user.User;
@@ -47,76 +50,100 @@ public class PersonDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<
 	}
 
 	/**
-	 * Generate a unique SHA-512 hash based on the index so two gallery assets do not collide on the asset PK.
+	 * Generate a unique SHA-512 hash based on the index so two person images do not collide on the attachment_binary PK.
 	 */
 	private SHA512 uniqueSha(int i) {
 		return SHA512.fromString(SHA512SUM.toString().substring(0, 124) + String.format("%04x", i));
 	}
 
-	private Asset storeAsset(User user, int i) {
-		Asset asset = assetDao().createAsset(user.getUuid(), uniqueSha(i), IMAGE_MIMETYPE, DUMMY_IMAGE_FILENAME, DUMMY_IMAGE_ORIGIN, 42L);
-		assetDao().store(asset);
-		return asset;
-	}
-
-	private void addGalleryImage(Person person, Asset asset) {
-		context.ctx()
-			.insertInto(PERSON_IMAGE)
-			.set(PERSON_IMAGE.PERSON_UUID, person.getUuid())
-			.set(PERSON_IMAGE.ASSET_UUID, asset.getUuid())
-			.execute();
-	}
-
-	private int galleryImageCount(Person person) {
-		return context.ctx().fetchCount(PERSON_IMAGE, PERSON_IMAGE.PERSON_UUID.eq(person.getUuid()));
+	private Attachment addPersonImage(User user, Person person, int i) {
+		Attachment image = attachmentDao().createAttachment(user.getUuid(), uniqueSha(i), "hero_" + i + ".jpg", 42L, IMAGE_MIMETYPE,
+			AttachmentType.PERSON_IMAGE);
+		image.setPersonUuid(person.getUuid());
+		attachmentDao().store(image);
+		return image;
 	}
 
 	/**
-	 * Deleting a person cascades its {@code person_image} gallery rows (FK {@code person_uuid ... ON DELETE CASCADE} from
-	 * {@code V2.26__add_person.sql}); the referenced assets are a shared resource and must survive.
+	 * Deleting a person cascades its images (FK {@code attachment.person_uuid ... ON DELETE CASCADE}, {@code V2.90}).
+	 *
+	 * <p>
+	 * A person's pictures belong to nobody else - unlike the {@code person_image} gallery this replaced, which pointed at shared assets and could only
+	 * cascade the link row.
+	 * </p>
 	 */
 	@Test
-	public void testDeletingPersonCascadesGalleryImages() {
+	public void testDeletingPersonCascadesItsImages() {
 		User user = adminUser();
-		Asset first = storeAsset(user, 1);
-		Asset second = storeAsset(user, 2);
-
 		Person person = personDao().createPerson(user, "gallery_person");
-		person.setPrimaryImageUuid(first.getUuid());
 		personDao().store(person);
 
-		addGalleryImage(person, first);
-		addGalleryImage(person, second);
-		assertEquals(2, galleryImageCount(person), "Both gallery rows should exist before the delete");
+		Attachment first = addPersonImage(user, person, 1);
+		Attachment second = addPersonImage(user, person, 2);
+		person.setAvatarAttachmentUuid(first.getUuid());
+		personDao().update(person);
+
+		assertEquals(2, attachmentDao().listByPerson(person.getUuid()).size(), "Both images should exist before the delete");
 
 		personDao().delete(person.getUuid());
 
 		assertNull(personDao().load(person.getUuid()), "The person row is gone");
-		assertEquals(0, galleryImageCount(person), "The person_image gallery rows must have cascaded with the person");
-		assertNotNull(assetDao().load(first.getUuid()), "The primary gallery asset is shared and must survive the person delete");
-		assertNotNull(assetDao().load(second.getUuid()), "The secondary gallery asset must survive the person delete");
+		assertNull(attachmentDao().load(first.getUuid()), "The avatar image must have cascaded with the person");
+		assertNull(attachmentDao().load(second.getUuid()), "The second image must have cascaded with the person");
 	}
 
 	/**
-	 * Pins the FK action on {@code person.primary_image_uuid}: {@code V2.26__add_person.sql} declares it {@code ON DELETE
-	 * SET NULL}, so deleting the referenced asset must null the pointer rather than cascade the person or block the delete.
+	 * Pins the FK action on {@code person.avatar_attachment_uuid}: {@code V2.90} declares it {@code ON DELETE SET NULL}, so deleting the picture a
+	 * person happens to be shown by nulls the pointer rather than deleting the person.
 	 */
 	@Test
-	public void testDeletingPrimaryImageAssetNullsThePointer() {
+	public void testDeletingTheAvatarImageNullsThePointer() {
 		User user = adminUser();
-		Asset primary = storeAsset(user, 3);
-
-		Person person = personDao().createPerson(user, "primary_person");
-		person.setPrimaryImageUuid(primary.getUuid());
+		Person person = personDao().createPerson(user, "avatar_person");
 		personDao().store(person);
-		assertEquals(primary.getUuid(), personDao().load(person.getUuid()).getPrimaryImageUuid(),
-			"The primary image pointer should resolve before the asset is deleted");
 
-		assetDao().delete(primary.getUuid());
+		Attachment avatar = addPersonImage(user, person, 3);
+		Attachment other = addPersonImage(user, person, 4);
+		person.setAvatarAttachmentUuid(avatar.getUuid());
+		personDao().update(person);
+		assertEquals(avatar.getUuid(), personDao().load(person.getUuid()).getAvatarAttachmentUuid(),
+			"The avatar pointer should resolve before the image is deleted");
+
+		attachmentDao().delete(avatar.getUuid());
 
 		Person reloaded = personDao().load(person.getUuid());
-		assertNotNull(reloaded, "The person must survive deletion of its primary image asset (SET NULL, not CASCADE)");
-		assertNull(reloaded.getPrimaryImageUuid(), "primary_image_uuid must be SET NULL when the referenced asset is deleted");
+		assertNotNull(reloaded, "The person must survive deletion of its avatar image (SET NULL, not CASCADE)");
+		assertNull(reloaded.getAvatarAttachmentUuid(), "avatar_attachment_uuid must be SET NULL when the referenced image is deleted");
+
+		List<Attachment> remaining = attachmentDao().listByPerson(person.getUuid());
+		assertEquals(1, remaining.size(), "The person's other image is untouched");
+		assertEquals(other.getUuid(), remaining.get(0).getUuid());
+	}
+
+	/**
+	 * {@code listByPerson} is scoped to one person and to {@code PERSON_IMAGE}, so a person never sees another's pictures and a face crop written
+	 * against the same person by some future producer would not silently appear in their gallery.
+	 */
+	@Test
+	public void testListByPersonIsScopedToThePersonAndTheType() {
+		User user = adminUser();
+		Person person = personDao().createPerson(user, "listing_person");
+		personDao().store(person);
+		Person other = personDao().createPerson(user, "other_person");
+		personDao().store(other);
+
+		Attachment mine = addPersonImage(user, person, 5);
+		addPersonImage(user, other, 6);
+
+		Attachment thumbnail = attachmentDao().createAttachment(user.getUuid(), uniqueSha(7), "thumb.jpg", 42L, IMAGE_MIMETYPE,
+			AttachmentType.ASSET_THUMBNAIL);
+		thumbnail.setPersonUuid(person.getUuid());
+		attachmentDao().store(thumbnail);
+
+		List<Attachment> images = attachmentDao().listByPerson(person.getUuid());
+		assertEquals(1, images.size(), "Only this person's PERSON_IMAGE rows are listed");
+		assertEquals(mine.getUuid(), images.get(0).getUuid());
+		assertTrue(images.stream().allMatch(a -> a.getType() == AttachmentType.PERSON_IMAGE));
 	}
 
 }

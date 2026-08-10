@@ -1,5 +1,6 @@
 package io.metaloom.loom.db.jooq.dao.cluster;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import io.metaloom.loom.db.jooq.AbstractEditableElement;
@@ -14,6 +15,10 @@ public class ClusterImpl extends AbstractEditableElement<Cluster> implements Clu
 	private String status;
 
 	private UUID personUuid;
+
+	private Instant reviewedAt;
+
+	private UUID reviewerUuid;
 
 	private UUID assetUuid;
 
@@ -78,6 +83,28 @@ public class ClusterImpl extends AbstractEditableElement<Cluster> implements Clu
 	@Override
 	public Cluster setPersonUuid(UUID personUuid) {
 		this.personUuid = personUuid;
+		return this;
+	}
+
+	@Override
+	public Instant getReviewedAt() {
+		return reviewedAt;
+	}
+
+	@Override
+	public Cluster setReviewedAt(Instant reviewedAt) {
+		this.reviewedAt = reviewedAt;
+		return this;
+	}
+
+	@Override
+	public UUID getReviewerUuid() {
+		return reviewerUuid;
+	}
+
+	@Override
+	public Cluster setReviewerUuid(UUID reviewerUuid) {
+		this.reviewerUuid = reviewerUuid;
 		return this;
 	}
 

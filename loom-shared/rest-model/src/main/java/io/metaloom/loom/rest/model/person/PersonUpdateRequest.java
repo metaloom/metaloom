@@ -22,10 +22,6 @@ public class PersonUpdateRequest implements RestRequestModel, MetaModel<PersonUp
 	private String lastname;
 
 	@JsonProperty(required = false)
-	@JsonPropertyDescription("UUID of the primary gallery image.")
-	private String primaryImageUuid;
-
-	@JsonProperty(required = false)
 	@JsonPropertyDescription("Additional custom meta properties for the element.")
 	private JsonObject meta;
 
@@ -56,15 +52,6 @@ public class PersonUpdateRequest implements RestRequestModel, MetaModel<PersonUp
 
 	public PersonUpdateRequest setLastname(String lastname) {
 		this.lastname = lastname;
-		return this;
-	}
-
-	public String getPrimaryImageUuid() {
-		return primaryImageUuid;
-	}
-
-	public PersonUpdateRequest setPrimaryImageUuid(String primaryImageUuid) {
-		this.primaryImageUuid = primaryImageUuid;
 		return this;
 	}
 

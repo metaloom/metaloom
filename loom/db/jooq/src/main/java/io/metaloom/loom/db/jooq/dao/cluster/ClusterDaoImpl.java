@@ -45,8 +45,14 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 	 * The review verdict belongs to the reviewer, not to the node that proposed the cluster. Without this, re-running face detection over an asset
 	 * would silently reset every cluster a human had already confirmed back to PENDING and drop the person link.
 	 * </p>
+	 *
+	 * <p>
+	 * {@code reviewed_at}/{@code reviewer_uuid} are here for the same reason and are why they exist at all (V2.88): {@code editor_uuid} is deliberately
+	 * <em>not</em> preserved, because it is the producer's own provenance and moves with every run - which is precisely what used to erase the record of
+	 * who attributed a face to a person.
+	 * </p>
 	 */
-	private static final Set<String> REVIEW_COLUMNS = Set.of("status", "person_uuid");
+	private static final Set<String> REVIEW_COLUMNS = Set.of("status", "person_uuid", "reviewed_at", "reviewer_uuid");
 
 	@Inject
 	public ClusterDaoImpl(DSLContext ctx) {
@@ -241,11 +247,17 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 	}
 
 	@Override
-	public Cluster updateStatus(UUID clusterUuid, String status, UUID personUuid, UUID editorUuid) {
+	public Cluster updateStatus(UUID clusterUuid, String status, UUID personUuid, UUID reviewerUuid) {
+		LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+		// The author is written here rather than in ClusterEndpointService so every caller records one - including the bulk review endpoint the queue
+		// will eventually grow. edited/editor_uuid are set alongside for continuity, but they are not the audit trail: the producing node overwrites
+		// them on its next run, which is why V2.88 added the reviewer pair.
 		var step = ctx().update(CLUSTER)
 			.set(CLUSTER.STATUS, status(status))
-			.set(CLUSTER.EDITED, LocalDateTime.now(ZoneOffset.UTC))
-			.set(CLUSTER.EDITOR_UUID, editorUuid);
+			.set(CLUSTER.REVIEWED_AT, now)
+			.set(CLUSTER.REVIEWER_UUID, reviewerUuid)
+			.set(CLUSTER.EDITED, now)
+			.set(CLUSTER.EDITOR_UUID, reviewerUuid);
 		if (personUuid != null) {
 			step = step.set(CLUSTER.PERSON_UUID, personUuid);
 		}
@@ -254,7 +266,7 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 	}
 
 	@Override
-	public Cluster confirm(UUID clusterUuid, UUID personUuid, PersonDraft draft, UUID editorUuid) {
+	public Cluster confirm(UUID clusterUuid, UUID personUuid, PersonDraft draft, UUID reviewerUuid) {
 		// One transaction: a person created without its cluster pointer is an orphan, and a CONFIRMED cluster without a person is a verdict with no
 		// subject. Every statement below runs on DSL.using(cfg) - ctx() would take its own connection and fall outside the transaction.
 		return ctx().transactionResult(cfg -> {
@@ -265,16 +277,21 @@ public class ClusterDaoImpl extends AbstractJooqDao<Cluster> implements ClusterD
 					.set(PERSON.ALIAS, draft == null ? null : draft.alias())
 					.set(PERSON.FIRSTNAME, draft == null ? null : draft.firstname())
 					.set(PERSON.LASTNAME, draft == null ? null : draft.lastname())
-					.set(PERSON.CREATOR_UUID, editorUuid)
-					.set(PERSON.EDITOR_UUID, editorUuid)
+					.set(PERSON.CREATOR_UUID, reviewerUuid)
+					.set(PERSON.EDITOR_UUID, reviewerUuid)
 					.returning(PERSON.UUID)
 					.fetchOne(PERSON.UUID);
 			}
+			LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+			// reviewed_at/reviewer_uuid land in the same statement as the verdict they belong to: an attribution of a face to a named person is
+			// biometric, and it must not be possible to read one back without its author (V2.88).
 			tx.update(CLUSTER)
 				.set(CLUSTER.STATUS, JooqReviewStatus.CONFIRMED)
 				.set(CLUSTER.PERSON_UUID, resolvedPerson)
-				.set(CLUSTER.EDITED, LocalDateTime.now(ZoneOffset.UTC))
-				.set(CLUSTER.EDITOR_UUID, editorUuid)
+				.set(CLUSTER.REVIEWED_AT, now)
+				.set(CLUSTER.REVIEWER_UUID, reviewerUuid)
+				.set(CLUSTER.EDITED, now)
+				.set(CLUSTER.EDITOR_UUID, reviewerUuid)
 				.where(CLUSTER.UUID.eq(clusterUuid))
 				.execute();
 			return tx.selectFrom(CLUSTER)

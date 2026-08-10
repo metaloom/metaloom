@@ -31,6 +31,10 @@ public interface ClusterExamples extends ExampleValues {
 		return new ExampleImpl(clusterConfirmRequest(), "The cluster confirmation request", HttpResponseStatus.OK);
 	}
 
+	default Example clusterReviewedResponseExample() {
+		return new ExampleImpl(clusterReviewedResponse(), "The reviewed cluster response", HttpResponseStatus.OK);
+	}
+
 	default Example clusterBulkCreateRequestExample() {
 		return new ExampleImpl(clusterBulkCreateRequest(), "The cluster bulk create request", HttpResponseStatus.CREATED);
 	}
@@ -75,6 +79,25 @@ public interface ClusterExamples extends ExampleValues {
 		model.setNodeKind("facedetect");
 		model.setMeta(meta());
 		setCreatorEditor(model);
+		return model;
+	}
+
+	/**
+	 * A cluster somebody has decided on.
+	 *
+	 * <p>
+	 * Separate from {@link #clusterResponse()}, which is a PENDING machine proposal and therefore has no reviewer to show. The confirm and reject
+	 * routes answer with this shape, and the pair is what documents that {@code reviewedAt}/{@code reviewerUuid} appear only once a human has acted -
+	 * and that they are not the {@code status} audit block, which the producing node writes.
+	 * </p>
+	 */
+	default ClusterResponse clusterReviewedResponse() {
+		ClusterResponse model = clusterResponse();
+		model.setName("Anna Meyer");
+		model.setReviewStatus("CONFIRMED");
+		model.setPersonUuid(uuidA().toString());
+		model.setReviewedAt("2026-08-09T10:15:30Z");
+		model.setReviewerUuid(uuidB().toString());
 		return model;
 	}
 

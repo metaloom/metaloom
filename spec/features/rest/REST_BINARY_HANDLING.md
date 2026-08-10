@@ -139,6 +139,8 @@ UNIQUE). `POST /assets/upload` answers 200 rather than 201 and does **not** re-p
 | `DELETE /assets/:uuid/binary` | all of the asset's rows | each reclaimed if unreferenced |
 | `DELETE /assets/:uuid` | rows via FK `ON DELETE CASCADE` | **leaked** (`AssetEndpointService.delete` does not call the reclaimer) |
 | `DELETE /attachments/:uuid` | the attachment row | **leaked** (deliberate — see below) |
+| `DELETE /persons/:uuid/images/:imageUuid` | the person's image row (an attachment) | **leaked**, same reason |
+| `DELETE /persons/:uuid` | the person's image rows via FK `ON DELETE CASCADE` (V2.90) | **leaked** |
 
 ### 3.4 Byte reclamation
 
@@ -154,6 +156,15 @@ tell the caller the delete failed when the part they asked for succeeded, and a 
 **Not reclaimed** (G13): bytes behind `DELETE /assets/:uuid` (the FK cascade bypasses the endpoint),
 and `attachment_binary` bytes (a shared content-addressed row keyed by `sha512sum` that outlives any
 single attachment; no reference count spans both tables).
+
+Person images (V2.90) are attachments and inherit all of the above unchanged. They are worth naming
+because they are the first binaries owned by something other than an asset: `attachment.person_uuid`
+cascades from `person` only, so a person's pictures survive deleting the material they were found in
+— which is the entire point of the model ([WORKFLOW_FACE.md](../../workflows/WORKFLOW_FACE.md) §3.4).
+Sharing works in their favour here: `POST /persons/:uuid/images/from-detection` copies a face crop by
+writing a second row against the same hash, so the bytes stay put when the crop's own row cascades
+away with its detection. The reclamation gap is what makes that safe today, and closing G13 must not
+break it — a reference count that covers `attachment_binary` has to see person images too.
 
 ---
 
@@ -587,7 +598,9 @@ Helm: `persistence.uploads.*` in `helm/loom/values.yaml` provisions the PVC moun
 - [ ] **G2** Cortex artefact write-back — [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](../../concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md)
       Phase B. The endpoints and client methods exist; no node calls them
 - [ ] **G14** Expose attachment provenance (V2.44 columns) through REST — plan Phase A
-- [ ] **G13** Reclaim attachment bytes, and bytes behind a cascade-deleted asset (§3.3)
+- [ ] **G13** Reclaim attachment bytes, and bytes behind a cascade-deleted asset (§3.3). Any such count
+      must span person images as well, which deliberately share a hash with the face crop they were
+      copied from
 - [ ] **G15** Invalidate the `BinaryStorageResolver` cache when a pool is edited, or surface the restart
       requirement in the UI
 - [ ] Presigned S3 URLs, so a thumbnail does not proxy through Loom (§5.4)

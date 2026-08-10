@@ -1496,10 +1496,12 @@
       "alias": "Alias",
       "firstname": "First Name",
       "lastname": "Last Name",
-      "unnamedCluster": "Unnamed cluster"
+      "unnamedCluster": "Unnamed cluster",
+      "reviewedOn": "reviewed {{date}}"
     },
     "tooltip": {
-      "assign": "Assign to person"
+      "assign": "Assign to person",
+      "reviewer": "Reviewed by user {{uuid}}"
     },
     "empty": {
       "clusters": "No clusters found",
@@ -2085,6 +2087,40 @@
     },
     "emptyState": {
       "noSearch": "No sessions match your search"
+    }
+  },
+  "person": {
+    "button": {
+      "uploadImage": "Upload image",
+      "back": "Back to detection"
+    },
+    "label": {
+      "images": "Pictures",
+      "avatar": "Avatar",
+      "faces": "Faces confirmed to this person",
+      "facesHint": "Add one of these to their pictures. The copy stays with the person even if the material it came from is deleted."
+    },
+    "tooltip": {
+      "makeAvatar": "Use as avatar",
+      "deleteImage": "Delete this picture",
+      "importCrop": "Add this face to the person's pictures"
+    },
+    "empty": {
+      "images": "No pictures yet",
+      "imagesHint": "Upload one, or add a face from a group confirmed to this person.",
+      "notFound": "This person could not be loaded",
+      "notFoundHint": "They may have been deleted."
+    },
+    "toast": {
+      "imageUploaded": "Picture added",
+      "uploadFailed": "The picture could not be uploaded",
+      "cropImported": "Face added to the person's pictures",
+      "importFailed": "The face could not be added",
+      "avatarSet": "Avatar updated",
+      "avatarFailed": "The avatar could not be updated",
+      "imageDeleted": "Picture deleted",
+      "deleteFailed": "The picture could not be deleted",
+      "loadFailed": "This person could not be loaded"
     }
   }
 }

@@ -15,18 +15,13 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import org.jooq.Field;
 import org.jooq.ForeignKey;
-import org.jooq.Function21;
 import org.jooq.Index;
 import org.jooq.Name;
 import org.jooq.Record;
-import org.jooq.Records;
-import org.jooq.Row21;
 import org.jooq.Schema;
-import org.jooq.SelectField;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.TableOptions;
@@ -186,6 +181,20 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
      */
     public final TableField<JooqClusterRecord, Integer> DIMENSIONS = createField(DSL.name("dimensions"), SQLDataType.INTEGER, this, "Length of \"centroid\"; qualifies it together with \"model\".");
 
+    /**
+     * The column <code>public.cluster.reviewed_at</code>. When a human decided.
+     * NULL while PENDING. Distinct from "edited", which the producing node
+     * touches on every re-run.
+     */
+    public final TableField<JooqClusterRecord, LocalDateTime> REVIEWED_AT = createField(DSL.name("reviewed_at"), SQLDataType.LOCALDATETIME(6), this, "When a human decided. NULL while PENDING. Distinct from \"edited\", which the producing node touches on every re-run.");
+
+    /**
+     * The column <code>public.cluster.reviewer_uuid</code>. The user who
+     * decided. Distinct from editor_uuid, which is machine-written provenance
+     * (V2.47).
+     */
+    public final TableField<JooqClusterRecord, java.util.UUID> REVIEWER_UUID = createField(DSL.name("reviewer_uuid"), SQLDataType.UUID, this, "The user who decided. Distinct from editor_uuid, which is machine-written provenance (V2.47).");
+
     private JooqCluster(Name alias, Table<JooqClusterRecord> aliased) {
         this(alias, aliased, null);
     }
@@ -241,7 +250,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
 
     @Override
     public List<ForeignKey<JooqClusterRecord, ?>> getReferences() {
-        return Arrays.asList(Keys.CLUSTER__CLUSTER_CREATOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_EDITOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_RUN_UUID_FKEY, Keys.CLUSTER__CLUSTER_TASK_UUID_FKEY, Keys.CLUSTER__CLUSTER_ASSET_UUID_FKEY, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY);
+        return Arrays.asList(Keys.CLUSTER__CLUSTER_CREATOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_EDITOR_UUID_FKEY, Keys.CLUSTER__CLUSTER_RUN_UUID_FKEY, Keys.CLUSTER__CLUSTER_TASK_UUID_FKEY, Keys.CLUSTER__CLUSTER_ASSET_UUID_FKEY, Keys.CLUSTER__CLUSTER_PERSON_UUID_FKEY, Keys.CLUSTER__CLUSTER_REVIEWER_UUID_FKEY);
     }
 
     private transient JooqUser _clusterCreatorUuidFkey;
@@ -250,6 +259,7 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     private transient JooqPipelineNodeTask _pipelineNodeTask;
     private transient JooqAsset _asset;
     private transient JooqPerson _person;
+    private transient JooqUser _clusterReviewerUuidFkey;
 
     /**
      * Get the implicit join path to the <code>public.user</code> table, via the
@@ -314,6 +324,17 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
         return _person;
     }
 
+    /**
+     * Get the implicit join path to the <code>public.user</code> table, via the
+     * <code>cluster_reviewer_uuid_fkey</code> key.
+     */
+    public JooqUser clusterReviewerUuidFkey() {
+        if (_clusterReviewerUuidFkey == null)
+            _clusterReviewerUuidFkey = new JooqUser(this, Keys.CLUSTER__CLUSTER_REVIEWER_UUID_FKEY);
+
+        return _clusterReviewerUuidFkey;
+    }
+
     @Override
     public JooqCluster as(String alias) {
         return new JooqCluster(DSL.name(alias), this);
@@ -351,29 +372,5 @@ public class JooqCluster extends TableImpl<JooqClusterRecord> {
     @Override
     public JooqCluster rename(Table<?> name) {
         return new JooqCluster(name.getQualifiedName(), null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Row21 type methods
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row21<java.util.UUID, String, JsonObject, String, LocalDateTime, java.util.UUID, LocalDateTime, java.util.UUID, String, String, String, java.util.UUID, java.util.UUID, java.util.UUID, Integer, JooqReviewStatus, java.util.UUID, Float, Float[], String, Integer> fieldsRow() {
-        return (Row21) super.fieldsRow();
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Function)}.
-     */
-    public <U> SelectField<U> mapping(Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqReviewStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
-        return convertFrom(Records.mapping(from));
-    }
-
-    /**
-     * Convenience mapping calling {@link SelectField#convertFrom(Class,
-     * Function)}.
-     */
-    public <U> SelectField<U> mapping(Class<U> toType, Function21<? super java.util.UUID, ? super String, ? super JsonObject, ? super String, ? super LocalDateTime, ? super java.util.UUID, ? super LocalDateTime, ? super java.util.UUID, ? super String, ? super String, ? super String, ? super java.util.UUID, ? super java.util.UUID, ? super java.util.UUID, ? super Integer, ? super JooqReviewStatus, ? super java.util.UUID, ? super Float, ? super Float[], ? super String, ? super Integer, ? extends U> from) {
-        return convertFrom(toType, Records.mapping(from));
     }
 }

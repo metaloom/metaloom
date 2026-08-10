@@ -132,6 +132,9 @@ spec/
 │   ├── WORKFLOW_TASKS.md              # NEW 2026-08-07 — W1–W15 for the workflows/ family.
 │   │                                  #   W1 (FilterBy.TAG/RATING) is the keystone: without it no
 │   │                                  #   pipeline can act on a human decision
+│   ├── WORKFLOW_FACE_TASKS.md         # NEW 2026-08-10 — open items only for the face identity loop.
+│   │                                  #   Task 1 (retire clusters on a pack change) is blocking:
+│   │                                  #   today a new pack keeps verdicts decided on old vectors
 │   ├── PIPELINE_TASKS.md              # Pipeline work items (Task 14: FilterPortResolver.asList)
 │   ├── PERSISTENCE_TASKS.md           # Open persistence-layer gaps
 │   ├── LOOM_UI_TASKS.md               # UI work items
@@ -196,8 +199,8 @@ spec/
 │   │   ├── CHAT_MEMORY_PLAN.md        # 🟢 Agent memory bank (scoped markdown notes)
 │   │   ├── CHAT_SESSIONS_CONCEPT.md   # 🟡 Sessions shipped (V2.52 + DAO + endpoints + UI);
 │   │   │                              #   filesystem snapshot & run-time context assembly are not built
-│   │   └── CHAT_TASKS.md              # 🟡 B1–B9 done; F1 (vLLM tool streaming throws) and
-│   │                                  #   F2 (turn-granular abort) are open defects
+│   │   └── CHAT_TASKS.md              # 🟡 B1–B9 + F2 (mid-turn abort) done; F1 (vLLM tool
+│   │                                  #   streaming throws) is an open defect
 │   ├── cli/
 │   │   └── CLI_PLAN.md                # 🟢 The top-level cli/ module (native image)
 │   ├── db/
@@ -800,7 +803,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
       the DB directly instead of the search provider
 - [ ] Semantic/vector search is unbuilt behind shipped API seams (§6)
 - [ ] Dedup review UI is still a mock ([NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md))
-- [ ] Chat defects F1 (vLLM tool streaming throws) and F2 (turn-granular abort) are open
+- [ ] Chat defect F1 (vLLM tool streaming throws) is open — F2 (turn-granular abort) is fixed
       ([CHAT_TASKS.md](features/chat/CHAT_TASKS.md)); the session filesystem snapshot and run-time
       context assembly in [CHAT_SESSIONS_CONCEPT.md](features/chat/CHAT_SESSIONS_CONCEPT.md) are vapour
 - [x] ~~`objectdetect` is faces-only~~ — **wrong, corrected 2026-08-07.** `YoloObjectDetector` loads
@@ -855,8 +858,9 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (registered features/db/DB_INTEGRITY.md — the database integrity checks — and
+_Git HEAD revision: `8e6f4915`_
+_Last updated: 2026-08-10 (chat defect F2 — turn-granular abort — is fixed. Earlier:
+registered features/db/DB_INTEGRITY.md — the database integrity checks — and
 corrected the features/db/ block, which listed DATABASE_TASKS.md (it lives in tasks/) and placed
 DB_SCHEMA_FEEDBACK.md a level too high; file count 127 → 131. Earlier: registered
 features/pipeline/PIPELINE_VALIDATION.md, and the pipeline validation cheat-sheet row: one authority,

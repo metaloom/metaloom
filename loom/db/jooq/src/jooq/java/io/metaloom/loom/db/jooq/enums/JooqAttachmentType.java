@@ -31,7 +31,9 @@ public enum JooqAttachmentType implements EnumType {
 
     EXTRACTED_AUDIO("EXTRACTED_AUDIO"),
 
-    FACE_CROP("FACE_CROP");
+    FACE_CROP("FACE_CROP"),
+
+    PERSON_IMAGE("PERSON_IMAGE");
 
     private final String literal;
 

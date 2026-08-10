@@ -10,6 +10,14 @@ from .base import CreatorEditorResponse, ListResponse, Model
 
 
 @dataclass
+class PersonAvatarRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonAvatarRequest``."""
+
+    #: UUID of one of the person's images, or null/blank to clear the avatar.
+    image_uuid: str | None = None
+
+
+@dataclass
 class PersonCreateRequest(Model):
     """Mirrors ``io.metaloom.loom.rest.model.person.PersonCreateRequest``."""
 
@@ -19,10 +27,40 @@ class PersonCreateRequest(Model):
     firstname: str | None = None
     #: The last name of the person.
     lastname: str | None = None
-    #: UUID of the primary gallery image.
-    primary_image_uuid: str | None = None
     #: Additional custom meta properties for the element.
     meta: dict[str, Any] | None = None
+
+
+@dataclass
+class PersonImageImportRequest(Model):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonImageImportRequest``."""
+
+    #: UUID of the detection whose face crop should become one of the person's images.
+    detection_uuid: str | None = None
+
+
+@dataclass
+class PersonImageListResponse(ListResponse):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonImageListResponse``."""
+
+    #: Array which contains the found elements.
+    data: list[PersonImageResponse] = field(default_factory=list)
+
+
+@dataclass
+class PersonImageResponse(CreatorEditorResponse):
+    """Mirrors ``io.metaloom.loom.rest.model.person.PersonImageResponse``."""
+
+    #: The original filename of the image.
+    filename: str | None = None
+    #: The mime type of the image.
+    mime_type: str | None = None
+    #: The size of the image in bytes.
+    size: int = 0
+    #: URL the image bytes can be loaded from.
+    url: str | None = None
+    #: Whether this image is the person's avatar.
+    avatar: bool = False
 
 
 @dataclass
@@ -43,8 +81,9 @@ class PersonResponse(CreatorEditorResponse):
     firstname: str | None = None
     #: The last name of the person
     lastname: str | None = None
-    #: UUID of the primary gallery image
-    primary_image_uuid: str | None = None
+    #: URL of the person's avatar image, or null when they have none. Read-only: set the avatar via POST
+    #: /persons/:uuid/avatar.
+    avatar_url: str | None = None
 
 
 @dataclass
@@ -57,7 +96,5 @@ class PersonUpdateRequest(Model):
     firstname: str | None = None
     #: The last name of the person.
     lastname: str | None = None
-    #: UUID of the primary gallery image.
-    primary_image_uuid: str | None = None
     #: Additional custom meta properties for the element.
     meta: dict[str, Any] | None = None

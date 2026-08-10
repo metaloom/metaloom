@@ -11,10 +11,7 @@ import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import org.jooq.Field;
 import org.jooq.Record1;
-import org.jooq.Record21;
-import org.jooq.Row21;
 import org.jooq.impl.UpdatableRecordImpl;
 
 
@@ -24,7 +21,7 @@ import org.jooq.impl.UpdatableRecordImpl;
  * per asset by the facedetect node and confirmed into a person.
  */
 @SuppressWarnings({ "all", "unchecked", "rawtypes" })
-public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> implements Record21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqReviewStatus, UUID, Float, Float[], String, Integer> {
+public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> {
 
     private static final long serialVersionUID = 1L;
 
@@ -366,6 +363,42 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
         return (Integer) get(20);
     }
 
+    /**
+     * Setter for <code>public.cluster.reviewed_at</code>. When a human decided.
+     * NULL while PENDING. Distinct from "edited", which the producing node
+     * touches on every re-run.
+     */
+    public void setReviewedAt(LocalDateTime value) {
+        set(21, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.reviewed_at</code>. When a human decided.
+     * NULL while PENDING. Distinct from "edited", which the producing node
+     * touches on every re-run.
+     */
+    public LocalDateTime getReviewedAt() {
+        return (LocalDateTime) get(21);
+    }
+
+    /**
+     * Setter for <code>public.cluster.reviewer_uuid</code>. The user who
+     * decided. Distinct from editor_uuid, which is machine-written provenance
+     * (V2.47).
+     */
+    public void setReviewerUuid(UUID value) {
+        set(22, value);
+    }
+
+    /**
+     * Getter for <code>public.cluster.reviewer_uuid</code>. The user who
+     * decided. Distinct from editor_uuid, which is machine-written provenance
+     * (V2.47).
+     */
+    public UUID getReviewerUuid() {
+        return (UUID) get(22);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -373,487 +406,6 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     @Override
     public Record1<UUID> key() {
         return (Record1) super.key();
-    }
-
-    // -------------------------------------------------------------------------
-    // Record21 type implementation
-    // -------------------------------------------------------------------------
-
-    @Override
-    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqReviewStatus, UUID, Float, Float[], String, Integer> fieldsRow() {
-        return (Row21) super.fieldsRow();
-    }
-
-    @Override
-    public Row21<UUID, String, JsonObject, String, LocalDateTime, UUID, LocalDateTime, UUID, String, String, String, UUID, UUID, UUID, Integer, JooqReviewStatus, UUID, Float, Float[], String, Integer> valuesRow() {
-        return (Row21) super.valuesRow();
-    }
-
-    @Override
-    public Field<UUID> field1() {
-        return JooqCluster.CLUSTER.UUID;
-    }
-
-    @Override
-    public Field<String> field2() {
-        return JooqCluster.CLUSTER.NAME;
-    }
-
-    @Override
-    public Field<JsonObject> field3() {
-        return JooqCluster.CLUSTER.META;
-    }
-
-    @Override
-    public Field<String> field4() {
-        return JooqCluster.CLUSTER.TYPE;
-    }
-
-    @Override
-    public Field<LocalDateTime> field5() {
-        return JooqCluster.CLUSTER.CREATED;
-    }
-
-    @Override
-    public Field<UUID> field6() {
-        return JooqCluster.CLUSTER.CREATOR_UUID;
-    }
-
-    @Override
-    public Field<LocalDateTime> field7() {
-        return JooqCluster.CLUSTER.EDITED;
-    }
-
-    @Override
-    public Field<UUID> field8() {
-        return JooqCluster.CLUSTER.EDITOR_UUID;
-    }
-
-    @Override
-    public Field<String> field9() {
-        return JooqCluster.CLUSTER.NODE_KIND;
-    }
-
-    @Override
-    public Field<String> field10() {
-        return JooqCluster.CLUSTER.NODE_ID;
-    }
-
-    @Override
-    public Field<String> field11() {
-        return JooqCluster.CLUSTER.PRODUCER_VERSION;
-    }
-
-    @Override
-    public Field<UUID> field12() {
-        return JooqCluster.CLUSTER.RUN_UUID;
-    }
-
-    @Override
-    public Field<UUID> field13() {
-        return JooqCluster.CLUSTER.TASK_UUID;
-    }
-
-    @Override
-    public Field<UUID> field14() {
-        return JooqCluster.CLUSTER.ASSET_UUID;
-    }
-
-    @Override
-    public Field<Integer> field15() {
-        return JooqCluster.CLUSTER.CLUSTER_INDEX;
-    }
-
-    @Override
-    public Field<JooqReviewStatus> field16() {
-        return JooqCluster.CLUSTER.STATUS;
-    }
-
-    @Override
-    public Field<UUID> field17() {
-        return JooqCluster.CLUSTER.PERSON_UUID;
-    }
-
-    @Override
-    public Field<Float> field18() {
-        return JooqCluster.CLUSTER.SCORE;
-    }
-
-    @Override
-    public Field<Float[]> field19() {
-        return JooqCluster.CLUSTER.CENTROID;
-    }
-
-    @Override
-    public Field<String> field20() {
-        return JooqCluster.CLUSTER.MODEL;
-    }
-
-    @Override
-    public Field<Integer> field21() {
-        return JooqCluster.CLUSTER.DIMENSIONS;
-    }
-
-    @Override
-    public UUID component1() {
-        return getUuid();
-    }
-
-    @Override
-    public String component2() {
-        return getName();
-    }
-
-    @Override
-    public JsonObject component3() {
-        return getMeta();
-    }
-
-    @Override
-    public String component4() {
-        return getType();
-    }
-
-    @Override
-    public LocalDateTime component5() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID component6() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime component7() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID component8() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public String component9() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String component10() {
-        return getNodeId();
-    }
-
-    @Override
-    public String component11() {
-        return getProducerVersion();
-    }
-
-    @Override
-    public UUID component12() {
-        return getRunUuid();
-    }
-
-    @Override
-    public UUID component13() {
-        return getTaskUuid();
-    }
-
-    @Override
-    public UUID component14() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public Integer component15() {
-        return getClusterIndex();
-    }
-
-    @Override
-    public JooqReviewStatus component16() {
-        return getStatus();
-    }
-
-    @Override
-    public UUID component17() {
-        return getPersonUuid();
-    }
-
-    @Override
-    public Float component18() {
-        return getScore();
-    }
-
-    @Override
-    public Float[] component19() {
-        return getCentroid();
-    }
-
-    @Override
-    public String component20() {
-        return getModel();
-    }
-
-    @Override
-    public Integer component21() {
-        return getDimensions();
-    }
-
-    @Override
-    public UUID value1() {
-        return getUuid();
-    }
-
-    @Override
-    public String value2() {
-        return getName();
-    }
-
-    @Override
-    public JsonObject value3() {
-        return getMeta();
-    }
-
-    @Override
-    public String value4() {
-        return getType();
-    }
-
-    @Override
-    public LocalDateTime value5() {
-        return getCreated();
-    }
-
-    @Override
-    public UUID value6() {
-        return getCreatorUuid();
-    }
-
-    @Override
-    public LocalDateTime value7() {
-        return getEdited();
-    }
-
-    @Override
-    public UUID value8() {
-        return getEditorUuid();
-    }
-
-    @Override
-    public String value9() {
-        return getNodeKind();
-    }
-
-    @Override
-    public String value10() {
-        return getNodeId();
-    }
-
-    @Override
-    public String value11() {
-        return getProducerVersion();
-    }
-
-    @Override
-    public UUID value12() {
-        return getRunUuid();
-    }
-
-    @Override
-    public UUID value13() {
-        return getTaskUuid();
-    }
-
-    @Override
-    public UUID value14() {
-        return getAssetUuid();
-    }
-
-    @Override
-    public Integer value15() {
-        return getClusterIndex();
-    }
-
-    @Override
-    public JooqReviewStatus value16() {
-        return getStatus();
-    }
-
-    @Override
-    public UUID value17() {
-        return getPersonUuid();
-    }
-
-    @Override
-    public Float value18() {
-        return getScore();
-    }
-
-    @Override
-    public Float[] value19() {
-        return getCentroid();
-    }
-
-    @Override
-    public String value20() {
-        return getModel();
-    }
-
-    @Override
-    public Integer value21() {
-        return getDimensions();
-    }
-
-    @Override
-    public JooqClusterRecord value1(UUID value) {
-        setUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value2(String value) {
-        setName(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value3(JsonObject value) {
-        setMeta(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value4(String value) {
-        setType(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value5(LocalDateTime value) {
-        setCreated(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value6(UUID value) {
-        setCreatorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value7(LocalDateTime value) {
-        setEdited(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value8(UUID value) {
-        setEditorUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value9(String value) {
-        setNodeKind(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value10(String value) {
-        setNodeId(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value11(String value) {
-        setProducerVersion(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value12(UUID value) {
-        setRunUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value13(UUID value) {
-        setTaskUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value14(UUID value) {
-        setAssetUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value15(Integer value) {
-        setClusterIndex(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value16(JooqReviewStatus value) {
-        setStatus(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value17(UUID value) {
-        setPersonUuid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value18(Float value) {
-        setScore(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value19(Float[] value) {
-        setCentroid(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value20(String value) {
-        setModel(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord value21(Integer value) {
-        setDimensions(value);
-        return this;
-    }
-
-    @Override
-    public JooqClusterRecord values(UUID value1, String value2, JsonObject value3, String value4, LocalDateTime value5, UUID value6, LocalDateTime value7, UUID value8, String value9, String value10, String value11, UUID value12, UUID value13, UUID value14, Integer value15, JooqReviewStatus value16, UUID value17, Float value18, Float[] value19, String value20, Integer value21) {
-        value1(value1);
-        value2(value2);
-        value3(value3);
-        value4(value4);
-        value5(value5);
-        value6(value6);
-        value7(value7);
-        value8(value8);
-        value9(value9);
-        value10(value10);
-        value11(value11);
-        value12(value12);
-        value13(value13);
-        value14(value14);
-        value15(value15);
-        value16(value16);
-        value17(value17);
-        value18(value18);
-        value19(value19);
-        value20(value20);
-        value21(value21);
-        return this;
     }
 
     // -------------------------------------------------------------------------
@@ -870,7 +422,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
     /**
      * Create a detached, initialised JooqClusterRecord
      */
-    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, UUID assetUuid, Integer clusterIndex, JooqReviewStatus status, UUID personUuid, Float score, Float[] centroid, String model, Integer dimensions) {
+    public JooqClusterRecord(UUID uuid, String name, JsonObject meta, String type, LocalDateTime created, UUID creatorUuid, LocalDateTime edited, UUID editorUuid, String nodeKind, String nodeId, String producerVersion, UUID runUuid, UUID taskUuid, UUID assetUuid, Integer clusterIndex, JooqReviewStatus status, UUID personUuid, Float score, Float[] centroid, String model, Integer dimensions, LocalDateTime reviewedAt, UUID reviewerUuid) {
         super(JooqCluster.CLUSTER);
 
         setUuid(uuid);
@@ -894,5 +446,7 @@ public class JooqClusterRecord extends UpdatableRecordImpl<JooqClusterRecord> im
         setCentroid(centroid);
         setModel(model);
         setDimensions(dimensions);
+        setReviewedAt(reviewedAt);
+        setReviewerUuid(reviewerUuid);
     }
 }

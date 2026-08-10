@@ -148,8 +148,9 @@ degrades the number's meaning instead of silently reporting zero.
 new, or linking an existing one. `SET NULL` rather than `CASCADE` because deleting a person must not
 erase the record that a human looked at these faces and made a call.
 
-`person_image` still has **no writer**; the person's avatar is `primary_image_uuid`, which
-`PersonEndpointService` now actually applies (§6.9).
+Confirmation does **that and nothing else**. It does not choose the person's avatar: attributing a
+face to somebody and deciding what they look like are separate decisions, and only the second one is
+about appearance. A person's pictures are their own (§3.4).
 
 ---
 
@@ -275,6 +276,49 @@ so `cluster.status` is unaffected. The generated enum is now `JooqReviewStatus`,
 in `io.metaloom.loom.db.model.review.ReviewStatus` (which `Cluster.STATUS_*` points at). See
 [WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) §2.1.
 
+#### 3.1.1 `V2.88` — who decided, and when
+
+`V2.79` recorded the verdict and its subject but not its **author**. `ClusterEndpointService` passed
+the deciding user into the DAO, which had nowhere to put it but `editor_uuid` — and
+`editor_uuid`/`edited` are the machine-nullable audit block (`V2.47`) that `FacedetectNode` rewrites
+on **every** re-run. So the record of which human attributed a face to a named person survived until
+the next pipeline pass and no longer. Face data is biometric (gotcha 12); that was the weakest audit
+trail in the repository.
+
+| Column | Type | Notes |
+|---|---|---|
+| `reviewed_at` | `timestamp` | When a human decided. `NULL` while nobody has. **Not `edited`.** |
+| `reviewer_uuid` | `uuid` → `user(uuid)`, no `ON DELETE` | The user who decided. **Not `editor_uuid`.** |
+
+Identical in shape and reasoning to what `V2.81` did for `detection`; no `ON DELETE` action, matching
+`detection_reviewer_uuid_fkey` and `cluster_creator_uuid_fkey` — users are not deleted casually, and
+losing the reviewer's identity would be worse than blocking the delete. No back-fill: every
+`CONFIRMED` row at that point was set so by `V2.79`'s own `UPDATE` over the human-authored,
+`NULL`-`asset_uuid` rows, and inventing a reviewer for them would be the same lie the columns exist to
+prevent.
+
+**The rule, extended.** `ClusterDaoImpl.upsertCluster` now preserves
+`{status, person_uuid, reviewed_at, reviewer_uuid}` on conflict. `editor_uuid` is deliberately **not**
+in that set — it is the producer's own provenance and moves with every run, which is precisely why the
+reviewer needed columns of its own. `ClusterDaoTest#testNodeReRunDoesNotClobberTheReviewer` asserts
+the pair: the editor moves, the reviewer does not.
+
+Both fields are written inside `ClusterDaoImpl.confirm` and `.updateStatus` rather than at the service
+layer, so a future bulk-review endpoint cannot record a verdict without its author.
+
+> ⚠️ **`reviewedAt` is only reliable to the millisecond.** Confirming *with a `name`* runs a trailing
+> whole-POJO `dao().update(cluster)`, and `AbstractJooqDao.update` maps the POJO's `Instant` through
+> jOOQ's `LocalDateTime` conversion, which drops sub-millisecond digits — so the value in the confirm
+> response can differ from the stored row in its last three digits. This is generic and long-standing
+> (`created` and `edited` have always behaved this way), not specific to these columns. Compare
+> truncated to millis; `ClusterEndpointTest#testConfirmRecordsTheReviewer` does, and says why.
+
+> ⚠️ Task 1 of [../tasks/WORKFLOW_FACE_TASKS.md](../tasks/WORKFLOW_FACE_TASKS.md) — the
+> `producer_version` gate — is **still open**, and when it lands the reset must null these two columns
+> alongside `status` and `person_uuid`. Until then a pack change carries the verdict *and* its author
+> forward onto a regrouping the reviewer never saw. That is Task 1's defect, not this one's, but the
+> two columns are part of its blast radius.
+
 ### 3.2 `embedding_cluster` — now carries facts
 
 It gained `confidence real`, `origin` (`CHECK (origin IN ('AUTO','MANUAL'))`) and `created`, so an
@@ -295,11 +339,42 @@ node-produced derived binaries (`V2.44`), with content-addressed bytes and machi
 columns (`V2.47`). The existing `attachment_asset_variant_key` could not serve — an asset has many
 faces, so crops key by detection.
 
-### 3.4 `person` — left alone
+`V2.90` adds a fourth target, `attachment.person_uuid`, for the pictures a person owns (§3.4). It is
+the one target that is not derived from an asset, and the only one whose cascade runs from something
+other than the material — which is exactly what it is for.
+
+### 3.4 `person` — owns its pictures
 
 `creator_uuid` / `editor_uuid` stay `NOT NULL`: a person is only ever created by a human confirming a
-cluster. No schema change needed. (Its `primaryImageUuid` write path is broken for an unrelated
-reason — §6.9.)
+cluster.
+
+What did change is what a person's picture *is*. `V2.89`–`V2.91` replace the two things V2.26 left
+behind — the `person_image` gallery table, which never had a writer, and `primary_image_uuid`, which
+pointed at an `asset`:
+
+| | before | after |
+|---|---|---|
+| gallery | `person_image (person_uuid, asset_uuid)`, both FKs `CASCADE`, no DAO and no endpoint | `attachment` rows of type `PERSON_IMAGE` carrying `person_uuid`, `ON DELETE CASCADE` from `person` only |
+| avatar | `person.primary_image_uuid` → `asset` | `person.avatar_attachment_uuid` → `attachment`, `ON DELETE SET NULL` |
+| REST | none | `/persons/:uuid/images`, `/images/:imageUuid/data`, `/images/from-detection`, `/persons/:uuid/avatar` |
+
+The decision the shape encodes is **lifetime**. Both of `person_image`'s foreign keys cascaded, so a
+person's gallery evaporated with the material it was drawn from; and for the population this workflow
+actually produces — people discovered in video — `primary_image_uuid` resolved to the whole video
+file. A person image references no asset at all, so no asset deletion can reach it. `AssetCascadeTest`
+asserts exactly that, in place of the row it used to pin (§6.12).
+
+No new table, for the reason §3.3 gives: `attachment` is already the sink for binaries that are not
+assets, with content-addressed bytes and machine-nullable audit columns. It is also why the copy is
+cheap — `POST /persons/:uuid/images/from-detection` takes a face crop into the person's own keeping by
+writing one row against the same `binary_sha512sum`, moving no bytes.
+
+No new permissions either: `READ_PERSON` to look and `UPDATE_PERSON` to change. Who may see a person's
+pictures and who may change them is the same trust decision as for their name.
+
+`attachment_binary` bytes are still never reclaimed, so a deleted person image leaks its content the
+same way every other attachment does — the standing gap G13 in
+[REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md), not a new one.
 
 ### 3.5 What deliberately did **not** change
 
@@ -346,11 +421,23 @@ All permissions already exist in the `loom_permission` enum — **no new permiss
 which avoids the Flyway single-transaction trap (`SEARCH_PLAN.md` gotcha 7).
 
 `ClusterResponse` gained **`reviewStatus`**, `personUuid`, `assetUuid`, `clusterIndex`, `score`,
-`memberCount` and `nodeKind`.
+`memberCount` and `nodeKind`, plus **`reviewedAt`** and **`reviewerUuid`** (`V2.88`, §3.1.1).
 
 > ⚠️ **It is `reviewStatus`, not `status`.** `AbstractCreatorEditorRestResponse` already publishes a
 > `status` object carrying the creator/editor audit block, so the review verdict had to give way.
 > `DedupGroupResponse` gets away with a plain `status` only because it has no audit envelope.
+
+> ⚠️ **`reviewerUuid` is not `status.editor`, and `reviewedAt` is not `status.edited`.** The audit
+> block is machine-written provenance the facedetect node rewrites on every pass; the review pair is
+> the durable record of a human decision. Any client that sources "who confirmed this?" from the audit
+> block will credit the pipeline with a biometric attribution a person made. The confirm and reject
+> routes document the reviewed shape (`ClusterExamples#clusterReviewedResponse`); the pending shape
+> shows both fields absent, which is what a proposal nobody has looked at actually looks like.
+
+The UI renders the pair as a date with the reviewer uuid in a tooltip and a `data-reviewer-uuid`
+attribute, in `ClustersPanel.tsx` and the `FaceDetectionMode` block of `WorkflowView.tsx`. It does
+**not** resolve the uuid to a username: that needs `READ_USER`, which a reviewer is not required to
+hold, and a card that fails to render for the very people who operate it would be the worse trade.
 
 The inverse lookup is `GET /persons/:uuid/clusters` rather than a `clusterUuids` field on
 `PersonResponse`: a person can appear in arbitrarily many assets, and that does not belong inline on
@@ -406,7 +493,7 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
 
 ## 6. Defects found while writing this spec
 
-**All eleven are fixed**; 6.12 remains open. Each row records what the defect was and what closed it.
+**All twelve are fixed.** Each row records what the defect was and what closed it.
 
 | # | Sev | Defect | Location |
 |---|---|---|---|
@@ -418,10 +505,10 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
 | 6.6 | ✅ | **`resultRef("detection")` is called with zero uuids**, and `resultRef` returns `null` when `uuids.length == 0`. The ledger's `result_ref` is therefore always empty for facedetect; the bulk-create response uuids are discarded. | `AbstractMediaNode.java:169-179` |
 | 6.7 | ✅ | **`facedescription` has a descriptor but no `@IntoMap` binding** — advertised in the pipeline editor, not instantiable. Pinned deliberately: `assertThat(kinds).doesNotContain("facedescription")`. | `FacedetectNodeModule`, `NodeRegistrarTest:100` |
 | 6.8 | ✅ | **`maxFaceAngle` gates the video path only.** The check sits in `detectFaces(VideoFrame)` with no counterpart in `detectFaces(BufferedImage)` — the same frame yields faces as an image and none as a video. | `InspireFacedetectorImpl` (video4j) |
-| 6.9 | ✅ | **`PersonEndpointService.update` silently drops `primaryImageUuid`.** The DTO carries it, the validator passes it, `update()` never applies it — person avatars can never be set. | `PersonEndpointService.java:65-79`; already [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) Task 3 |
+| 6.9 | ✅ | **`PersonEndpointService.update` silently drops `primaryImageUuid`.** The DTO carries it, the validator passes it, `update()` never applies it — person avatars can never be set. Fixed at the time; the field has since been **retired** altogether (§3.4), because being able to write it was never enough — it pointed at an asset. The avatar is now `POST /persons/:uuid/avatar`. | `PersonEndpointService.java:65-79`; [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) Task 3 |
 | 6.10 | ✅ | **Dead node options.** `videoChopRate` and `videoScaleSize` are validated but unused — `VideoFaceScanner` uses its own `WINDOW_STEPS = 15` and `DETECTION_SCALE_SIZE = 640`. Same class of defect as the cluster options. | `FacedetectNodeOptions` |
 | 6.11 | ✅ | **Face crops are fetched from `https://i.pravatar.cc`**, a third-party avatar service, for data that is by definition PII-adjacent. There is no face-crop endpoint. | `ClustersPanel.tsx:103` |
-| 6.12 | ⚪ | `person_image` has **no writer** — only cascade tests touch it. `AssetCascadeTest` pins it so *"the table cannot grow a writer and an orphan problem at the same time."* | `V2.26` |
+| 6.12 | ✅ | **`person_image` had no writer** — no DAO, no endpoint, no UI, only the cascade test pinning it so *"the table cannot grow a writer and an orphan problem at the same time."* Closed by building the gallery it named on storage that survives an asset delete, and dropping the table and `primary_image_uuid` with it (§3.4). | `V2.26` → `V2.89`-`V2.91` |
 
 > ℹ️ **Stale claim corrected elsewhere.** `FACEDETECTION_OVERVIEW.md` §6.3 lists *"Add a
 > `video4j-facedetect-opencv` module"* as not started. That module **exists**
@@ -432,6 +519,14 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
 ---
 
 ## 7. Progress Assessment
+
+> 📋 **The open half of this section is now a task list**:
+> [../tasks/WORKFLOW_FACE_TASKS.md](../tasks/WORKFLOW_FACE_TASKS.md). It carried eight actionable items
+> — the pack-change invalidation the migration promised but nobody wrote, the missing reviewer audit
+> columns, member-level corrections, `faceClusterEPS` calibration, cross-asset identity, the person
+> avatar / `person_image` decision, the OpenCV backend, and the confirm/reject REST convention.
+> **Task 2 (the reviewer columns) shipped as `V2.88`** — §3.1.1. Seven remain; Task 1 is still the
+> blocking one.
 
 **Research / documentation (this file)**
 - [x] Trace the real end-to-end path and locate where it breaks (link 1, not confirmation)
@@ -446,6 +541,8 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
 
 **Implementation**
 - [x] Cluster migration `V2.79`: provenance, nullable audit columns, `status`, `person_uuid`, upsert key (§3.1)
+- [x] Reviewer audit columns `V2.88`: `reviewed_at` / `reviewer_uuid`, preserved across a node re-run,
+      exposed as `reviewedAt` / `reviewerUuid` and shown in both review surfaces (§3.1.1, §4)
 - [x] `embedding_cluster` gains `confidence` / `origin` / `created`, plus the missing member index (§3.2)
 - [x] jOOQ regen + `./setup-pool.sh` after the migration (§3.6)
 - [x] ~~`EmbeddingCreateRequest.detectionUuid`~~ — already existed
@@ -460,8 +557,16 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
 - [x] UI: review queue, real member crops, persistent confirm
 - [x] Face-crop endpoint + node-written crops, retiring the `i.pravatar.cc` placeholder (§6.11)
 - [x] Demo data: face detections seeded as `type='face'` so the demo matches the pipeline
-- [ ] Customer-facing docs under `website/content/english/docs/` (required by CODING.md)
-- [ ] A PENDING face **cluster** in `DemoDatabaseInitializer` — the detections are seeded, the cluster is not
+- [x] Customer-facing docs under `website/content/english/docs/` — `docs/nodes/facedetect/index.adoc`
+      covers embedding, grouping, review, re-runs and the PII stance
+- [x] A PENDING face **cluster** in `DemoDatabaseInitializer` — `createPendingFaceCluster(...)` seeds one
+      through `createMachineCluster` + `link`, so the demo exercises the real review path
+- [x] **A person owns their pictures** (§3.4): `PERSON_IMAGE` attachments keyed by `person_uuid`,
+      `person.avatar_attachment_uuid`, the `/persons/:uuid/images` sub-resource and `/avatar`, a
+      `/persons/:id` detail view with gallery, upload and crop picker, and demo persons that have
+      pictures. `person_image` and `primary_image_uuid` are gone (`V2.89`-`V2.91`)
+- [x] `PersonImageEndpointTest`, incl. the property the model exists for: an imported crop and the
+      avatar pointing at it both survive deleting the asset the face was found in
 
 **Not built — the honest gap**
 - [ ] **Cross-asset identity.** Clustering is per asset, so the same person in two videos is two
@@ -470,14 +575,14 @@ new kinds; this is a change to an existing one. Note that `facedetect` (kind) an
       same table.
 - [ ] **`faceClusterEPS` is still calibrated against nothing.** `0.6` is a guess (§2.3).
 
-**Defects — eleven of twelve fixed**
+**Defects — all twelve fixed**
 - [x] 6.1 `"facedetection"` vs `"face"` — fixed in the UI **and** the demo seed, which had the same wrong string
 - [x] 6.2 assignment no-op · [x] 6.3 hardcoded empty membership
 - [x] 6.4 bbox units · [x] 6.5 confidence 1.0 · [x] 6.6 empty `result_ref`
 - [x] 6.7 `facedescription` unbound — it was **unconstructable**, not merely unbound (§6)
 - [x] 6.8 `maxFaceAngle` asymmetry · [x] 6.9 `primaryImageUuid` dropped
 - [x] 6.10 dead options — wired, with their defaults corrected to what the code actually did
-- [x] 6.11 third-party crops · [ ] 6.12 `person_image` still has no writer
+- [x] 6.11 third-party crops · [x] 6.12 `person_image` — replaced by person-owned images (§3.4)
 
 **Open questions**
 - [ ] Is per-asset identity useful on its own, or is phase 2 (library-wide) required before shipping? §2.2 is honest that phase 1 answers *"who is in this video"*, not *"who is this"*.
@@ -595,6 +700,7 @@ pipeline node options. Server-side env vars are in [CONFIGURATION.md](../loom/CO
 | Open UI tasks for these entities | [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) |
 | Vector search / pgvector decision | [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
 | Schema criticism of the cluster/person split | [DB_SCHEMA_FEEDBACK.md](../features/DB_SCHEMA_FEEDBACK.md) §4.3 |
+| What is still open, as actionable tasks | [../tasks/WORKFLOW_FACE_TASKS.md](../tasks/WORKFLOW_FACE_TASKS.md) |
 | Definition of done for a code change | [CODING.md](../guidelines/CODING.md) |
 | Customer-facing face docs | `website/content/english/docs/nodes/facedetect/` |
 
@@ -605,11 +711,17 @@ Written 2026-08-06 to close the "Rework the face workflow" item in
 enumerated by reading each cited file rather than by inference. The `Face.cosineSimilarity` claim in
 an earlier draft was checked and **removed as false** (§2.3) — it exists only in javadoc prose.
 
-_Git HEAD revision: `aefeca40`_
-_Last updated: 2026-08-08 — **the loop was closed.** `V2.79` made `cluster` machine-writable and
-linked it to `person`; `FacedetectNode` now clusters per asset with DBSCAN over cosine distance;
-`/clusters/:uuid/confirm` and `/reject` exist; the UI shows real member crops served from this
-deployment. Eleven of the twelve §6 defects are fixed. Three claims in the previous revision were
-wrong and are corrected here: `generate.sh` is not destructive, `centroid`/`meta` need no
-`forcedTypes`, and `EmbeddingType` must **not** gain an InspireFace value. What is still missing is
-cross-asset identity (§2.2) and a calibrated `faceClusterEPS`._
+_Git HEAD revision: `8e6f4915`_
+_2026-08-10 — the open work was distilled into
+[../tasks/WORKFLOW_FACE_TASKS.md](../tasks/WORKFLOW_FACE_TASKS.md), and the two §7 implementation
+checkboxes were re-checked against the checkout: the customer docs and the demo PENDING cluster had
+both already shipped._
+_Last updated: 2026-08-10 — **a person now has a face of their own.** `V2.89`-`V2.91` give a person
+pictures they own: `PERSON_IMAGE` attachments keyed by `person_uuid`, one of them designated by
+`person.avatar_attachment_uuid`, reachable at `/persons/:uuid/images` and shown by a `/persons/:id`
+detail view. The two things V2.26 left behind are gone — the `person_image` gallery that never had a
+writer, and `primary_image_uuid`, which pointed at an asset and so illustrated a person discovered in
+a video with the video file. All twelve §6 defects are now fixed. Confirmation deliberately did not
+change: it records who attributed a face to whom, and choosing what somebody looks like is a separate
+act (§1.4). What is still missing is unchanged — cross-asset identity (§2.2) and a calibrated
+`faceClusterEPS`._

@@ -168,7 +168,7 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.84`.
 | `V2.23__add_asset_json_comp` | generic JSON component sink |
 | `V2.24__add_asset_pool_free_space` | free_space / used_space |
 | `V2.25__add_blacklist_and_person_permissions` | permissions |
-| `V2.26__add_person` | person, person_image |
+| `V2.26__add_person` | person, person_image (both retired by V2.91) |
 | `V2.27__add_detection` | detection + permissions |
 | `V2.28__add_chat` | chat + permissions |
 | `V2.29__add_pipeline_run` | pipeline_run + `*_PIPELINE_RUN` |
@@ -320,7 +320,7 @@ Entity semantics: [DOMAIN.md](DOMAIN.md).
 | Embedding | `EmbeddingDao` | `embedding`, `embedding_cluster` | `EmbeddingDaoTest` CRUD +4 (two models side by side, same-model upsert, dirty/markSynced, derived dimensions) | `ClusterDaoTest`, `AssetCascadeTest` |
 | Cluster | `ClusterDao` | `cluster`(+joins) | `ClusterDaoTest` CRUD +1 | own |
 | Detection | `DetectionDao` | `detection` | `DetectionDaoTest` CRUD +11 (provenance/geometry round trip, `detection_unique_key` from both sides, run/task SET NULL, the V2.81 review columns); `DetectionUpsertReviewTest` (4: a re-run never clears a verdict) | `DetectionDaoTest`, `AssetCascadeTest` |
-| Person | `PersonDao` | `person`, `person_image` | `PersonDaoTest` CRUD +2 | own |
+| Person | `PersonDao` | `person`; pictures live in `attachment` (`type='PERSON_IMAGE'`, `person_uuid`) | `PersonDaoTest` CRUD +3 (person delete cascades their images; deleting the avatar image nulls the pointer; `listByPerson` is scoped to the person and the type) | own, `AssetCascadeTest` |
 | Blacklist | `BlacklistDao` | `blacklist` | `BlacklistDaoTest` CRUD | — |
 | Annotation | `AnnotationDao` | `annotation`(+joins) | ⚠️ `AnnotationDaoTest` (2) — no CRUD contract | own |
 | Comment | `CommentDao` | `comment` | `CommentDaoTest` CRUD +1 | `TaskDaoTest` |
@@ -438,8 +438,9 @@ config-file only. Test-side connection settings are **hard-coded** in `TestEnvHe
   see V2.57 and V2.62.
 - **Everything said about an asset dies with it; the things it was linked to do not.** After V2.72
   (`tag_asset`), V2.73 (`collection_asset`, `asset_task`, `asset_user_meta`) and V2.74 (`comment`,
-  `reaction`, `library_asset`), the only foreign keys to `asset` that are not `CASCADE` are two
-  intentional `SET NULL`s — `dedup_group.keep_asset_uuid` and `person.primary_image_uuid`. The tag,
+  `reaction`, `library_asset`), the only foreign key to `asset` that is not `CASCADE` is the one
+  intentional `SET NULL` on `dedup_group.keep_asset_uuid` (`person.primary_image_uuid` was the other
+  until V2.91 removed it). The tag,
   collection, task, library and user all survive, as does social content anchored to a task rather
   than an asset. `AssetCascadeTest` asserts both halves over a shared two-asset fixture; the second
   asset is what stops "it survived" from being true of a delete that did nothing.

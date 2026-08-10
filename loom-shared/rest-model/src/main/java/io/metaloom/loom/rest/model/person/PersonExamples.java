@@ -23,14 +23,62 @@ public interface PersonExamples extends ExampleValues {
 		return new ExampleImpl(personListResponse(), "The person list response", HttpResponseStatus.OK);
 	}
 
+	default Example personImageResponseExample() {
+		return new ExampleImpl(personImageResponse(), "The person image response", HttpResponseStatus.CREATED);
+	}
+
+	default Example personImageListResponseExample() {
+		return new ExampleImpl(personImageListResponse(), "The person image list response", HttpResponseStatus.OK);
+	}
+
+	default Example personImageImportRequestExample() {
+		return new ExampleImpl(personImageImportRequest(), "The person image import request", HttpResponseStatus.CREATED);
+	}
+
+	default Example personAvatarRequestExample() {
+		return new ExampleImpl(personAvatarRequest(), "The person avatar request", HttpResponseStatus.OK);
+	}
+
 	default PersonResponse personResponse() {
 		PersonResponse model = new PersonResponse();
 		model.setUuid(uuidC());
 		model.setAlias("jdoe");
 		model.setFirstname("John");
 		model.setLastname("Doe");
+		model.setAvatarUrl("/api/v1/persons/" + uuidC() + "/images/" + uuidA() + "/data");
 		model.setMeta(meta());
 		setCreatorEditor(model);
+		return model;
+	}
+
+	default PersonImageResponse personImageResponse() {
+		PersonImageResponse model = new PersonImageResponse();
+		model.setUuid(uuidA());
+		model.setFilename("john-doe.jpg");
+		model.setMimeType("image/jpeg");
+		model.setSize(48213L);
+		model.setUrl("/api/v1/persons/" + uuidC() + "/images/" + uuidA() + "/data");
+		model.setAvatar(true);
+		setCreatorEditor(model);
+		return model;
+	}
+
+	default PersonImageListResponse personImageListResponse() {
+		PersonImageListResponse model = new PersonImageListResponse();
+		model.setMetainfo(pagingInfo());
+		model.add(personImageResponse());
+		return model;
+	}
+
+	default PersonImageImportRequest personImageImportRequest() {
+		PersonImageImportRequest model = new PersonImageImportRequest();
+		model.setDetectionUuid(uuidB().toString());
+		return model;
+	}
+
+	default PersonAvatarRequest personAvatarRequest() {
+		PersonAvatarRequest model = new PersonAvatarRequest();
+		model.setImageUuid(uuidA().toString());
 		return model;
 	}
 

@@ -143,7 +143,12 @@ sequenceDiagram
 thread via `executeBlocking(..., false)` (unordered). `SseAgentEventSink` holds the request
 `Context` and hops SSE writes back onto it. Abort is triggered by
 `response.closeHandler` (client disconnect) or `DELETE /chats/:uuid/stream`; `AgentLoop.abort()`
-sets an `AtomicBoolean` that is checked between turns and between tool calls.
+sets an `AtomicBoolean` that is checked between turns and between tool calls, **and** calls
+`TurnStreamer.cancel()` so the turn that is in flight right now stops too. On the streaming path
+`StreamingTurnStreamer.cancel()` disposes the retained subscription — the provider's cancellable
+closes the upstream HTTP stream, so generation stops instead of billing on after the stop button.
+`BlockingTurnStreamer` keeps the default no-op `cancel()` (a `generateWithTools` call cannot be
+interrupted), so there the abort still lands turn-granular via the post-turn check.
 
 **Error taxonomy (pi-inspired).**
 
@@ -497,7 +502,7 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 |---|---|
 | Agent entry point / busy guard / abort | `loom/agent/chat/src/main/java/io/metaloom/loom/agent/chat/AgentService.java` |
 | The turn loop | `.../agent/chat/loop/AgentLoop.java` |
-| Turn abstraction | `.../agent/chat/loop/TurnStreamer.java`, `BlockingTurnStreamer`, `StreamingTurnStreamer`, `TurnListener`, `TurnResult` |
+| Turn abstraction | `.../agent/chat/loop/TurnStreamer.java` (`streamTurn`, `completeText`, `cancel`), `BlockingTurnStreamer`, `StreamingTurnStreamer`, `TurnListener`, `TurnResult` |
 | Event protocol | `.../agent/chat/event/AgentEvent*.java`, sink impl `.../rest/SseAgentEventSink.java` |
 | Stream routes | `.../agent/chat/rest/ChatStreamEndpoint.java` (+ `…Service`) |
 | Chat session routes | `.../agent/chat/rest/ChatSessionEndpoint.java` (+ `…Service`) |
@@ -534,5 +539,5 @@ Remember `./setup-pool.sh` before any DB-backed test (and after every Flyway cha
 | R9 | `AiOptions.validate()` demands provider/url/model even when `ai.enabled=false` (§9). | Short-circuit `validate()` on `!enabled`, so a Loom deployment without an LLM needs no dummy provider config. |
 | R10 | This file lives under `spec/loom/ui/` but is ~80% server-side (loop, REST, config, DB). | Move to `spec/features/chat/CHAT.md` next to its sibling chat specs and fix the relative links; `TASK_UI_CHAT.md` stays the UI-side document. |
 
-_Git HEAD revision: `a63b034b`_
-_Last updated: 2026-08-06 (built-in skills, pipeline authoring tools, permission-filtered tool advertisement)_
+_Git HEAD revision: `8e6f4915`_
+_Last updated: 2026-08-10 (mid-turn abort on the streaming path — `TurnStreamer.cancel()`)_

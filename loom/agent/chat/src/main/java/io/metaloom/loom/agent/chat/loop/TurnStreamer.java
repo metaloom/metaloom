@@ -5,9 +5,9 @@ import io.metaloom.ai.genai.llm.LLMContext;
 /**
  * Abstraction over a single LLM turn of the agentic loop.
  *
- * <p>The {@code BlockingTurnStreamer} wraps the blocking {@code LLMProvider.generateWithTools} call and emits the whole turn text as one delta
- * (turn-granular streaming). Once genai-utils supports streaming with tools a {@code StreamingTurnStreamer} can be swapped in without touching the loop —
- * it will relay real token and reasoning deltas through the {@link TurnListener}.</p>
+ * <p>The {@link BlockingTurnStreamer} wraps the blocking {@code LLMProvider.generateWithTools} call and emits the whole turn text as one delta
+ * (turn-granular streaming). The {@link StreamingTurnStreamer} relays real token and reasoning deltas through the {@link TurnListener} as they arrive from
+ * the provider; which one runs is decided by {@code LOOM_AI_STREAMING} and is invisible to the loop.</p>
  */
 public interface TurnStreamer {
 
@@ -28,6 +28,16 @@ public interface TurnStreamer {
 	 */
 	default String completeText(LLMContext ctx) {
 		return null;
+	}
+
+	/**
+	 * Interrupt the turn that is currently in flight, if any, so {@link #streamTurn(LLMContext, TurnListener)} returns without waiting for the provider to
+	 * finish. Called from the aborting thread (the Vert.x event loop) while the turn blocks on a worker thread, so implementations must be thread-safe and
+	 * must tolerate being called when no turn is running.
+	 *
+	 * <p>The default is a no-op: a turn that cannot be interrupted simply runs to completion and {@code AgentLoop}'s post-turn cancel check ends the run.</p>
+	 */
+	default void cancel() {
 	}
 
 }

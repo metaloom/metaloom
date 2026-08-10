@@ -138,7 +138,16 @@ update/delete. Run: `cd loom-ui && yarn e2e --grep detection`.
 
 ---
 
-## Task 3: Let the person editor set the primary image
+## Task 3: Let the person editor set the primary image — ✅ **DONE** (2026-08-10)
+
+> **Outcome:** superseded in shape by [WORKFLOW_FACE_TASKS.md](../../tasks/WORKFLOW_FACE_TASKS.md)
+> Task 6, which this was the UI half of. There is no `primaryImageUuid` to set any more: it pointed at
+> an *asset*, so for a person discovered in a video it resolved to the whole video file. A person now
+> owns their pictures, and `/persons/:id` (`features/persons/PersonDetail.tsx`) is where they are
+> uploaded, deleted and designated as the avatar — including the picker this task asked for, sourced
+> from the face crops of clusters confirmed to that person. The "not buildable today" note about a
+> true gallery no longer applies: `/persons/:uuid/images` is that sub-resource.
+> Specs: `e2e/person-detail-mocked.spec.ts` and the rewritten `e2e/persons-backend.spec.ts`.
 
 **Argumentation Summary:** `PersonResponse`/`PersonUpdateRequest` carry `primaryImageUuid` and
 `api/persons.ts` passes it through, but `features/faceDetection/PersonsPanel.tsx` `handleUpdate`

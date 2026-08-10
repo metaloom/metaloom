@@ -15,6 +15,7 @@ import TasksView from "../features/tasks/TasksView";
 import LibraryView from "../features/library/LibraryView";
 import FaceDetectionManagement from "../features/faceDetection/FaceDetectionManagement";
 import DetectionManagement from "../features/detection/DetectionManagement";
+import PersonDetail from "../features/persons/PersonDetail";
 import ProfileView from "../features/profile/ProfileView";
 import MaintenanceView from "../features/maintenance/MaintenanceView";
 import TagsView from "../features/tags/TagsView";
@@ -61,6 +62,9 @@ export default function AppShell() {
           <Route path="/pipelines" element={<PipelineEditor />} />
           <Route path="/detection" element={<DetectionManagement />} />
           <Route path="/faces" element={<Navigate to="/detection" replace />} />
+          {/* The only face-review surface with a route of its own: a person's pictures are theirs, not a
+              view onto the material they were found in, and they need somewhere to live that outlasts a panel. */}
+          <Route path="/persons/:id" element={<PersonDetail />} />
           <Route path="/tags" element={<TagsView />} />
           <Route path="/workflow" element={<WorkflowView />} />
           <Route path="/asset-pools" element={<AssetPoolsView />} />

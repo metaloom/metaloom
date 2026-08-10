@@ -163,6 +163,18 @@ async function main() {
     await shot("face-detection.png", { settle: 1400 });
   });
 
+  // ---- A person's own page: their pictures and their avatar ----
+  // Reached by clicking through from the Persons panel rather than by deep link, for the same reason
+  // clickNav exists. The demo seeds every person with pictures, so this has something to show.
+  await capture("persons.png", async () => {
+    await clickNav("Detection");
+    await page.locator('[data-testid="facedetection-section-persons"]').click({ timeout: 8000 });
+    await sleep(600);
+    await page.locator('[data-testid="person-name"]').first().click({ timeout: 8000 });
+    await page.locator('[data-testid="person-detail"]').waitFor({ timeout: 8000 });
+    await shot("persons.png", { settle: 1400 });
+  });
+
   // ---- Skills ----
   await capture("skills.png", async () => {
     await clickNav("Skills");

@@ -21,6 +21,7 @@ import { test, expect, Page, Route } from "@playwright/test";
  *   GET/POST /api/v1/persons
  *   POST     /api/v1/persons/:uuid             (rename)
  *   GET      /api/v1/persons/:uuid/clusters
+ *   GET      /api/v1/persons/:uuid/images/:imageUuid/data   (the avatar on a person card)
  */
 
 const ME_UUID = "11111111-1111-1111-1111-111111111111";
@@ -28,6 +29,7 @@ const ASSET_UUID = "22222222-2222-2222-2222-222222222222";
 const CLUSTER_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const CLUSTER_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 const PERSON_ANNA = "44444444-4444-4444-4444-444444444444";
+const PERSON_IMAGE = "55555555-5555-5555-5555-555555555555";
 
 /** A 1x1 JPEG, so a face crop resolves to something the browser will decode. */
 const TINY_JPEG = Buffer.from(
@@ -41,8 +43,17 @@ interface StoredCluster {
   type: string;
   reviewStatus: string;
   personUuid?: string;
+  reviewedAt?: string;
+  reviewerUuid?: string;
   assetUuid: string;
   memberCount: number;
+  /** The creator/editor audit block. Machine-written provenance — deliberately not the review record. */
+  status?: {
+    creator?: { uuid: string; name?: string };
+    created?: string;
+    editor?: { uuid: string; name?: string };
+    edited?: string;
+  };
 }
 
 interface StoredPerson {
@@ -50,6 +61,11 @@ interface StoredPerson {
   alias: string;
   firstname?: string;
   lastname?: string;
+  /**
+   * Where the person's avatar is served from. A URL rather than a uuid: the server decides how a
+   * person's picture is addressed, and the panel only renders it.
+   */
+  avatarUrl?: string;
 }
 
 interface Recorder {
@@ -179,6 +195,12 @@ async function installMocks(page: Page, rec: Recorder, opts: MockOptions = {}) {
   await page.route(/\/api\/v1\/assets\/[^/]+\/detections\/[^/]+\/crop/, route =>
     route.fulfill({ status: 200, contentType: "image/jpeg", body: TINY_JPEG })
   );
+
+  // A person's avatar comes from the person's own images, never from an asset. Serving it here is what
+  // lets the card assert a real <img> rather than the MUI fallback.
+  await page.route(/\/api\/v1\/persons\/[^/]+\/images\/[^/]+\/data$/, route =>
+    route.fulfill({ status: 200, contentType: "image/jpeg", body: TINY_JPEG })
+  );
 }
 
 async function login(page: Page) {
@@ -250,6 +272,53 @@ test.describe("Face panels – mocked e2e", () => {
     // The count comes from the list route; the crops come from GET /clusters/:uuid/members.
     await expect(card.getByTestId("cluster-face-count")).toHaveText("3 faces");
     await expect(card.getByTestId("face-crop")).toHaveCount(3, { timeout: 10_000 });
+  });
+
+  /**
+   * A decided cluster says who decided it; a pending one claims nobody.
+   *
+   * The stamp reads `reviewedAt`/`reviewerUuid`, never the `status` audit block — that block is
+   * machine-written provenance the facedetect node rewrites on every pass, so a card sourced from it
+   * would credit the pipeline with a human's attribution of a face to a named person. Both clusters
+   * below carry a full `status` block precisely so a regression to it would show up here.
+   */
+  test("a decided cluster shows who reviewed it, and a pending one shows nobody", async ({ page }) => {
+    const rec = recorder();
+    const machineAudit = {
+      creator: { uuid: ME_UUID, name: "admin" },
+      created: "2026-01-01T00:00:00Z",
+      editor: { uuid: ME_UUID, name: "admin" },
+      edited: "2026-08-10T09:00:00Z",
+    };
+    await installMocks(page, rec, {
+      clusters: [
+        {
+          ...cluster(CLUSTER_A, "Anna Meyer", 2),
+          reviewStatus: "CONFIRMED",
+          personUuid: PERSON_ANNA,
+          reviewedAt: "2026-08-09T10:15:30Z",
+          reviewerUuid: ME_UUID,
+          status: machineAudit,
+        },
+        { ...cluster(CLUSTER_B, "Group B", 1), status: machineAudit },
+      ],
+      persons: [{ uuid: PERSON_ANNA, alias: "anna", firstname: "Anna", lastname: "Meyer" }],
+    });
+    await page.goto("/");
+    await login(page);
+    await openFaces(page);
+
+    await expect(page.getByTestId("cluster-card")).toHaveCount(2, { timeout: 10_000 });
+
+    const decided = page.getByTestId("cluster-card").filter({ hasText: "Anna Meyer" });
+    const stamp = decided.getByTestId("cluster-reviewed-at");
+    await expect(stamp).toBeVisible();
+    // The uuid rides in an attribute rather than the label: resolving it to a name needs READ_USER,
+    // which a reviewer is not required to hold.
+    await expect(stamp).toHaveAttribute("data-reviewer-uuid", ME_UUID);
+
+    const pending = page.getByTestId("cluster-card").filter({ hasText: "Group B" });
+    await expect(pending.getByTestId("cluster-reviewed-at")).toHaveCount(0);
   });
 
   test("assigning a cluster to a person confirms it and it stops being unassigned", async ({ page }) => {
@@ -393,6 +462,27 @@ test.describe("Face panels – mocked e2e", () => {
     await openFaces(page);
     await showPersons(page);
     await expect(page.getByTestId("person-name")).toHaveText("Anna Meyer-Schmidt", { timeout: 10_000 });
+  });
+
+  test("a person card shows the avatar the server gave it, and links to the person", async ({ page }) => {
+    const rec = recorder();
+    const avatarUrl = `/api/v1/persons/${PERSON_ANNA}/images/${PERSON_IMAGE}/data`;
+    await installMocks(page, rec, {
+      persons: [{ uuid: PERSON_ANNA, alias: "anna", firstname: "Anna", lastname: "Meyer", avatarUrl }],
+    });
+    await page.goto("/");
+    await login(page);
+    await openFaces(page);
+    await showPersons(page);
+
+    // A real <img>, not the MUI initials fallback: the point of the whole person-image model is that
+    // there is a picture of the person to show. Before it, the card composed an asset URL from
+    // primaryImageUuid — which for somebody found in a video was the video file.
+    const avatar = page.getByTestId("person-card").locator("img");
+    await expect(avatar).toHaveAttribute("src", avatarUrl, { timeout: 10_000 });
+
+    await page.getByTestId("person-name").click();
+    await expect(page).toHaveURL(new RegExp(`/persons/${PERSON_ANNA}$`));
   });
 
   test("both panels state that they are empty rather than rendering nothing", async ({ page }) => {

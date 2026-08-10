@@ -32,8 +32,13 @@ public interface ClusterDao extends CRUDDao<Cluster> {
 	 * Insert the cluster, or update the existing row with the same {@code (asset_uuid, node_kind, cluster_index)}.
 	 *
 	 * <p>
-	 * <b>Never overwrites {@code status} or {@code person_uuid}.</b> A node re-run must not undo a reviewer's decision - the proposal's geometry is the
-	 * producer's to update, the verdict on it is not.
+	 * <b>Never overwrites {@code status}, {@code person_uuid}, {@code reviewed_at} or {@code reviewer_uuid}.</b> A node re-run must not undo a
+	 * reviewer's decision, nor erase who made it - the proposal's geometry is the producer's to update, the verdict on it is not.
+	 * </p>
+	 *
+	 * <p>
+	 * {@code editor_uuid}/{@code edited} <em>are</em> overwritten, because they are the producer's own provenance. That is the distinction
+	 * {@link Cluster#getReviewerUuid()} exists for.
 	 * </p>
 	 */
 	Cluster upsertCluster(Cluster cluster);
@@ -99,10 +104,16 @@ public interface ClusterDao extends CRUDDao<Cluster> {
 	/**
 	 * Set the review verdict, and the person when confirming, in one transaction.
 	 *
-	 * @param personUuid the person to link, or {@code null} to leave the current pointer alone
+	 * <p>
+	 * Also stamps {@code reviewed_at}/{@code reviewer_uuid}. That happens here rather than at the service layer so no caller can record a verdict
+	 * without its author.
+	 * </p>
+	 *
+	 * @param personUuid   the person to link, or {@code null} to leave the current pointer alone
+	 * @param reviewerUuid the deciding user, recorded durably as {@link Cluster#getReviewerUuid()}
 	 * @return the reloaded cluster
 	 */
-	Cluster updateStatus(UUID clusterUuid, String status, UUID personUuid, UUID editorUuid);
+	Cluster updateStatus(UUID clusterUuid, String status, UUID personUuid, UUID reviewerUuid);
 
 	/**
 	 * Confirm the cluster, linking it to an existing person or creating one, atomically.
@@ -112,11 +123,17 @@ public interface ClusterDao extends CRUDDao<Cluster> {
 	 * with no subject.
 	 * </p>
 	 *
-	 * @param personUuid the person to link, or {@code null} to create one from {@code draft}
-	 * @param draft      names for the person to create; ignored when {@code personUuid} is given
+	 * <p>
+	 * Stamps {@code reviewed_at}/{@code reviewer_uuid} in the same statement as the verdict, so a confirmed attribution can never be read back without
+	 * its author.
+	 * </p>
+	 *
+	 * @param personUuid   the person to link, or {@code null} to create one from {@code draft}
+	 * @param draft        names for the person to create; ignored when {@code personUuid} is given
+	 * @param reviewerUuid the deciding user; also the creator of a person this confirmation creates
 	 * @return the reloaded cluster
 	 */
-	Cluster confirm(UUID clusterUuid, UUID personUuid, PersonDraft draft, UUID editorUuid);
+	Cluster confirm(UUID clusterUuid, UUID personUuid, PersonDraft draft, UUID reviewerUuid);
 
 	/**
 	 * The names a confirmation may create a person with.

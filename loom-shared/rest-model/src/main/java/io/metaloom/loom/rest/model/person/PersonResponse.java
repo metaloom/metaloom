@@ -20,8 +20,8 @@ public class PersonResponse extends AbstractCreatorEditorRestResponse<PersonResp
 	private String lastname;
 
 	@JsonProperty(required = false)
-	@JsonPropertyDescription("UUID of the primary gallery image")
-	private String primaryImageUuid;
+	@JsonPropertyDescription("URL of the person's avatar image, or null when they have none. Read-only: set the avatar via POST /persons/:uuid/avatar.")
+	private String avatarUrl;
 
 	public PersonResponse() {
 	}
@@ -59,14 +59,12 @@ public class PersonResponse extends AbstractCreatorEditorRestResponse<PersonResp
 		return this;
 	}
 
-	@Override
-	public String getPrimaryImageUuid() {
-		return primaryImageUuid;
+	public String getAvatarUrl() {
+		return avatarUrl;
 	}
 
-	@Override
-	public PersonResponse setPrimaryImageUuid(String primaryImageUuid) {
-		this.primaryImageUuid = primaryImageUuid;
+	public PersonResponse setAvatarUrl(String avatarUrl) {
+		this.avatarUrl = avatarUrl;
 		return this;
 	}
 

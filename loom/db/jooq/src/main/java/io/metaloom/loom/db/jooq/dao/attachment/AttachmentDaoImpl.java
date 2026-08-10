@@ -72,6 +72,28 @@ public class AttachmentDaoImpl extends AbstractJooqDao<Attachment> implements At
 	}
 
 	@Override
+	public List<Attachment> listByPerson(UUID personUuid) {
+		if (personUuid == null) {
+			return List.of();
+		}
+		// Same left join as every other read here: the pool lives on attachment_binary and the download path needs it.
+		return ctx()
+			.select()
+			.from(ATTACHMENT)
+			.leftJoin(ATTACHMENT_BINARY)
+			.on(ATTACHMENT_BINARY.SHA512SUM.eq(ATTACHMENT.BINARY_SHA512SUM))
+			.where(ATTACHMENT.PERSON_UUID.eq(personUuid)
+				.and(ATTACHMENT.TYPE.eq(io.metaloom.loom.db.jooq.enums.JooqAttachmentType.PERSON_IMAGE)))
+			// Newest first, tie-broken by uuid: two images uploaded in the same transaction share a timestamp, and a gallery
+			// that reshuffles between two reads is worse than one in an arbitrary but stable order.
+			.orderBy(ATTACHMENT.CREATED.desc(), ATTACHMENT.UUID.desc())
+			.fetchInto(getPojoClass())
+			.stream()
+			.map(a -> (Attachment) a)
+			.toList();
+	}
+
+	@Override
 	public Attachment load(UUID uuid) {
 		return ctx()
 			.select()

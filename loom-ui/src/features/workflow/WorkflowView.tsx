@@ -603,6 +603,17 @@ function FaceDetectionMode({
                       sx={{ height: 18, fontSize: "0.65rem", bgcolor: decision === "confirmed" ? `${tokens.accent.green}22` : `${tokens.accent.red}22`, color: decision === "confirmed" ? tokens.accent.green : tokens.accent.red }} />
                   )}
                 </Box>
+                {/* Who settled it, and when. The reviewer uuid rides in a data attribute and a tooltip
+                    rather than being resolved to a name: the user directory needs READ_USER, which a
+                    reviewer need not hold, and this pane must render for them. */}
+                {c.cluster.reviewedAt && (
+                  <Tooltip title={c.cluster.reviewerUuid ? t("faceDetection.tooltip.reviewer", { uuid: c.cluster.reviewerUuid }) : ""}>
+                    <Typography variant="caption" data-testid="workflow-cluster-reviewed-at" data-reviewer-uuid={c.cluster.reviewerUuid ?? ""}
+                      sx={{ display: "block", mb: 1, color: tokens.text.tertiary, fontSize: "0.65rem" }}>
+                      {t("faceDetection.label.reviewedOn", { date: new Date(c.cluster.reviewedAt).toLocaleDateString() })}
+                    </Typography>
+                  </Tooltip>
+                )}
                 <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
                   {c.faces.map(f => (
                     <Avatar key={f.id} src={f.thumbnailUrl} variant="rounded"
@@ -1143,6 +1154,11 @@ export default function WorkflowView() {
           faceIds: (members?.members ?? []).map(m => m.detectionUuid).filter((id): id is string => Boolean(id)),
           faceCount: members?.members?.length ?? 0,
           assetId: currentAsset.id,
+          // Carried through so the queue can say who settled a cluster and when. `clusterDecisions`
+          // above only records *what* was decided, and it is rebuilt from scratch on every load.
+          reviewStatus: c.reviewStatus,
+          reviewedAt: c.reviewedAt,
+          reviewerUuid: c.reviewerUuid,
         });
       }
       if (cancelled) return;

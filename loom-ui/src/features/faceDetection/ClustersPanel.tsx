@@ -126,6 +126,21 @@ export default function ClustersPanel({ clusters, persons, onAssignCluster, onCl
                 <Typography variant="caption" data-testid="cluster-face-count" sx={{ color: tokens.text.tertiary, fontSize: "0.72rem" }}>
                   {t("faceDetection.count.faces", { count: cluster.faceCount })}
                 </Typography>
+                {/* Who attributed this face, and when.
+
+                    Shown as the date with the reviewer uuid on hover rather than a resolved name: the
+                    user directory needs READ_USER, which a reviewer is not required to hold, and a card
+                    that fails to render for the very people who use it would be the worse trade. Absent
+                    while nobody has decided — the field is only written by confirm and reject, and it is
+                    deliberately not `status.edited`, which the facedetect node rewrites on every run. */}
+                {cluster.reviewedAt && (
+                  <Tooltip title={cluster.reviewerUuid ? t("faceDetection.tooltip.reviewer", { uuid: cluster.reviewerUuid }) : ""}>
+                    <Typography variant="caption" data-testid="cluster-reviewed-at" data-reviewer-uuid={cluster.reviewerUuid ?? ""}
+                      sx={{ display: "block", color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+                      {t("faceDetection.label.reviewedOn", { date: new Date(cluster.reviewedAt).toLocaleDateString() })}
+                    </Typography>
+                  </Tooltip>
+                )}
               </Box>
               {person ? (
                 <Chip label={person.name} size="small" data-testid="cluster-person-chip" avatar={<Avatar src={person.avatarUrl} />} sx={{ height: 24, fontSize: "0.72rem", bgcolor: `${tokens.accent.green}18`, border: `1px solid ${tokens.accent.green}44` }} />

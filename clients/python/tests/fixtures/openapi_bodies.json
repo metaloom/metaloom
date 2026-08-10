@@ -3526,7 +3526,14 @@
   "verb": "GET"
  },
  {
-  "body": {},
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "filesystem": {
+    "path": "/the-current-path/bigbuckbunny-4k.mp4"
+   },
+   "libraryUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+   "poolUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
   "direction": "request",
   "media_type": "application/json",
   "operation_id": "postAssetsByUuidBinary",
@@ -3583,6 +3590,195 @@
   "path": "assets/{uuid}/binary/data",
   "status": "200",
   "verb": "POST"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "clusterIndex": 0,
+     "memberCount": 4,
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "The cluster name",
+     "nodeKind": "facedetect",
+     "reviewStatus": "PENDING",
+     "score": 0.92,
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "face",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    },
+    {
+     "clusterIndex": 0,
+     "memberCount": 4,
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "The cluster name",
+     "nodeKind": "facedetect",
+     "reviewStatus": "PENDING",
+     "score": 0.92,
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "face",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getAssetsByUuidClusters",
+  "path": "assets/{uuid}/clusters",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "clusters": [
+    {
+     "clusterIndex": 0,
+     "dimensions": 512,
+     "members": [
+      {
+       "confidence": 0.96,
+       "embeddingUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+       "origin": "AUTO"
+      }
+     ],
+     "model": "inspireface-pikachu-r18",
+     "nodeKind": "facedetect",
+     "producerVersion": "1/inspireface-pikachu-r18",
+     "score": 0.94,
+     "type": "face"
+    }
+   ]
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidClustersBulk",
+  "path": "assets/{uuid}/clusters/bulk",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "clusters": [
+    {
+     "clusterIndex": 0,
+     "memberCount": 4,
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "The cluster name",
+     "nodeKind": "facedetect",
+     "reviewStatus": "PENDING",
+     "score": 0.92,
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "face",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ],
+   "created": 1,
+   "failed": 0,
+   "pruned": 0,
+   "total": 1
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidClustersBulk",
+  "path": "assets/{uuid}/clusters/bulk",
+  "status": "201",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "The collection name",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    },
+    {
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "The collection name",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getAssetsByUuidCollections",
+  "path": "assets/{uuid}/collections",
+  "status": "200",
+  "verb": "GET"
  },
  {
   "body": {
@@ -3702,6 +3898,7 @@
       "age": 30,
       "gender": "male"
      },
+     "reviewStatus": "PENDING",
      "status": {
       "created": "2018-10-12T14:15:06Z",
       "creator": {
@@ -3724,8 +3921,11 @@
      "bboxX": 0.51,
      "bboxY": 0.34,
      "confidence": 0.88,
+     "correctedLabel": "wolf",
      "frameNumber": 120,
      "label": "dog",
+     "reviewStatus": "CONFIRMED",
+     "reviewedAt": "2026-08-09T10:15:30Z",
      "status": {
       "created": "2018-10-12T14:15:06Z",
       "creator": {
@@ -3784,6 +3984,7 @@
     "age": 30,
     "gender": "male"
    },
+   "reviewStatus": "PENDING",
    "status": {
     "created": "2018-10-12T14:15:06Z",
     "creator": {
@@ -3860,6 +4061,7 @@
       "age": 30,
       "gender": "male"
      },
+     "reviewStatus": "PENDING",
      "status": {
       "created": "2018-10-12T14:15:06Z",
       "creator": {
@@ -3887,6 +4089,7 @@
       "age": 30,
       "gender": "male"
      },
+     "reviewStatus": "PENDING",
      "status": {
       "created": "2018-10-12T14:15:06Z",
       "creator": {
@@ -3910,6 +4113,98 @@
   "media_type": "application/json",
   "operation_id": "postAssetsByUuidDetectionsBulk",
   "path": "assets/{uuid}/detections/bulk",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "reviews": [
+    {
+     "correctedLabel": "wolf",
+     "status": "CONFIRMED",
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    },
+    {
+     "status": "REJECTED",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ]
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidDetectionsReviewbulk",
+  "path": "assets/{uuid}/detections/review-bulk",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "created": 2,
+   "detections": [
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "bboxHeight": 0.2,
+     "bboxWidth": 0.12,
+     "bboxX": 0.3,
+     "bboxY": 0.2,
+     "confidence": 0.97,
+     "frameNumber": 0,
+     "meta": {
+      "age": 30,
+      "gender": "male"
+     },
+     "reviewStatus": "PENDING",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "facedetection",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    },
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "bboxHeight": 0.2,
+     "bboxWidth": 0.12,
+     "bboxX": 0.3,
+     "bboxY": 0.2,
+     "confidence": 0.97,
+     "frameNumber": 0,
+     "meta": {
+      "age": 30,
+      "gender": "male"
+     },
+     "reviewStatus": "PENDING",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "facedetection",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ],
+   "failed": 0,
+   "total": 2
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidDetectionsReviewbulk",
+  "path": "assets/{uuid}/detections/review-bulk",
   "status": "200",
   "verb": "POST"
  },
@@ -3947,6 +4242,7 @@
     "age": 30,
     "gender": "male"
    },
+   "reviewStatus": "PENDING",
    "status": {
     "created": "2018-10-12T14:15:06Z",
     "creator": {
@@ -3966,6 +4262,89 @@
   "media_type": "application/json",
   "operation_id": "postAssetsByUuidDetectionsByDetectionUuid",
   "path": "assets/{uuid}/detections/{detectionUuid}",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "correctedLabel": "wolf"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidDetectionsByDetectionUuidConfirm",
+  "path": "assets/{uuid}/detections/{detectionUuid}/confirm",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "bboxHeight": 0.2,
+   "bboxWidth": 0.12,
+   "bboxX": 0.3,
+   "bboxY": 0.2,
+   "confidence": 0.97,
+   "frameNumber": 0,
+   "meta": {
+    "age": 30,
+    "gender": "male"
+   },
+   "reviewStatus": "PENDING",
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "type": "facedetection",
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidDetectionsByDetectionUuidConfirm",
+  "path": "assets/{uuid}/detections/{detectionUuid}/confirm",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "bboxHeight": 0.2,
+   "bboxWidth": 0.12,
+   "bboxX": 0.3,
+   "bboxY": 0.2,
+   "confidence": 0.97,
+   "frameNumber": 0,
+   "meta": {
+    "age": 30,
+    "gender": "male"
+   },
+   "reviewStatus": "PENDING",
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "type": "facedetection",
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postAssetsByUuidDetectionsByDetectionUuidReject",
+  "path": "assets/{uuid}/detections/{detectionUuid}/reject",
   "status": "200",
   "verb": "POST"
  },
@@ -4212,6 +4591,60 @@
   "path": "assets/{uuid}/json-comps",
   "status": "200",
   "verb": "POST"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "MyProject",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    },
+    {
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "MyProject",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getAssetsByUuidLibraries",
+  "path": "assets/{uuid}/libraries",
+  "status": "200",
+  "verb": "GET"
  },
  {
   "body": {
@@ -4981,7 +5414,14 @@
   "verb": "GET"
  },
  {
-  "body": {},
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "filesystem": {
+    "path": "/the-current-path/bigbuckbunny-4k.mp4"
+   },
+   "libraryUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+   "poolUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
   "direction": "request",
   "media_type": "application/json",
   "operation_id": "postBinaries",
@@ -5040,7 +5480,13 @@
   "verb": "GET"
  },
  {
-  "body": {},
+  "body": {
+   "filesystem": {
+    "path": "/the-new-path/bigbuckbunny-4k.mp4"
+   },
+   "libraryUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+   "poolUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
   "direction": "request",
   "media_type": "application/json",
   "operation_id": "postBinariesByUuid",
@@ -5532,10 +5978,15 @@
    },
    "data": [
     {
+     "clusterIndex": 0,
+     "memberCount": 4,
      "meta": {
       "abc": "cdef"
      },
      "name": "The cluster name",
+     "nodeKind": "facedetect",
+     "reviewStatus": "PENDING",
+     "score": 0.92,
      "status": {
       "created": "2018-10-12T14:15:06Z",
       "creator": {
@@ -5548,13 +5999,19 @@
        "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
       }
      },
+     "type": "face",
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
     },
     {
+     "clusterIndex": 0,
+     "memberCount": 4,
      "meta": {
       "abc": "cdef"
      },
      "name": "The cluster name",
+     "nodeKind": "facedetect",
+     "reviewStatus": "PENDING",
+     "score": 0.92,
      "status": {
       "created": "2018-10-12T14:15:06Z",
       "creator": {
@@ -5567,6 +6024,7 @@
        "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
       }
      },
+     "type": "face",
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
     }
    ]
@@ -5594,10 +6052,15 @@
  },
  {
   "body": {
+   "clusterIndex": 0,
+   "memberCount": 4,
    "meta": {
     "abc": "cdef"
    },
    "name": "The cluster name",
+   "nodeKind": "facedetect",
+   "reviewStatus": "PENDING",
+   "score": 0.92,
    "status": {
     "created": "2018-10-12T14:15:06Z",
     "creator": {
@@ -5610,6 +6073,7 @@
      "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
     }
    },
+   "type": "face",
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
   },
   "direction": "response",
@@ -5621,10 +6085,15 @@
  },
  {
   "body": {
+   "clusterIndex": 0,
+   "memberCount": 4,
    "meta": {
     "abc": "cdef"
    },
    "name": "The cluster name",
+   "nodeKind": "facedetect",
+   "reviewStatus": "PENDING",
+   "score": 0.92,
    "status": {
     "created": "2018-10-12T14:15:06Z",
     "creator": {
@@ -5637,6 +6106,7 @@
      "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
     }
    },
+   "type": "face",
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
   },
   "direction": "response",
@@ -5662,10 +6132,15 @@
  },
  {
   "body": {
+   "clusterIndex": 0,
+   "memberCount": 4,
    "meta": {
     "abc": "cdef"
    },
    "name": "The cluster name",
+   "nodeKind": "facedetect",
+   "reviewStatus": "PENDING",
+   "score": 0.92,
    "status": {
     "created": "2018-10-12T14:15:06Z",
     "creator": {
@@ -5678,12 +6153,135 @@
      "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
     }
    },
+   "type": "face",
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
   },
   "direction": "response",
   "media_type": "application/json",
   "operation_id": "postClustersByUuid",
   "path": "clusters/{uuid}",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "alias": "Anna Meyer",
+   "firstname": "Anna",
+   "lastname": "Meyer"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postClustersByUuidConfirm",
+  "path": "clusters/{uuid}/confirm",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "clusterIndex": 0,
+   "memberCount": 4,
+   "meta": {
+    "abc": "cdef"
+   },
+   "name": "Anna Meyer",
+   "nodeKind": "facedetect",
+   "personUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "reviewStatus": "CONFIRMED",
+   "reviewedAt": "2026-08-09T10:15:30Z",
+   "reviewerUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+   "score": 0.92,
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "type": "face",
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postClustersByUuidConfirm",
+  "path": "clusters/{uuid}/confirm",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "members": [
+    {
+     "assetUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
+     "bboxHeight": 0.2,
+     "bboxWidth": 0.12,
+     "bboxX": 0.25,
+     "bboxY": 0.15,
+     "confidence": 0.97,
+     "detectionUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+     "embeddingUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "frameNumber": 0,
+     "origin": "AUTO"
+    },
+    {
+     "assetUuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
+     "bboxHeight": 0.2,
+     "bboxWidth": 0.12,
+     "bboxX": 0.25,
+     "bboxY": 0.15,
+     "confidence": 0.97,
+     "detectionUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+     "embeddingUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "frameNumber": 0,
+     "origin": "AUTO"
+    }
+   ],
+   "total": 2
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getClustersByUuidMembers",
+  "path": "clusters/{uuid}/members",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "clusterIndex": 0,
+   "memberCount": 4,
+   "meta": {
+    "abc": "cdef"
+   },
+   "name": "Anna Meyer",
+   "nodeKind": "facedetect",
+   "personUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "reviewStatus": "CONFIRMED",
+   "reviewedAt": "2026-08-09T10:15:30Z",
+   "reviewerUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+   "score": 0.92,
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "type": "face",
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postClustersByUuidReject",
+  "path": "clusters/{uuid}/reject",
   "status": "200",
   "verb": "POST"
  },
@@ -5858,6 +6456,394 @@
    },
    "data": [
     {
+     "annotations": [
+      {
+       "area": {
+        "from": 0,
+        "to": 10
+       },
+       "comments": [
+        {
+         "social": {
+          "rating": {
+           "downVotes": 0,
+           "stars": 10,
+           "upVotes": 42
+          },
+          "reactions": {
+           "SATISFIED": 10
+          }
+         },
+         "status": {},
+         "text": "What a great choice of colors!",
+         "title": "Great work!",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "description": "The very nice intro",
+       "meta": {
+        "abc": "cdef"
+       },
+       "status": {},
+       "tags": [
+        {
+         "name": "blue",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "tasks": [
+        {
+         "assignees": [],
+         "comments": [
+          {
+           "social": {
+            "rating": {
+             "downVotes": 0,
+             "stars": 10,
+             "upVotes": 42
+            },
+            "reactions": {
+             "SATISFIED": 10
+            }
+           },
+           "status": {},
+           "text": "What a great choice of colors!",
+           "title": "Great work!",
+           "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+          }
+         ],
+         "description": "The text is not aligned with the title",
+         "status": {},
+         "title": "Fix text offset here",
+         "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+        }
+       ],
+       "thumbnail": "???",
+       "title": "Intro Feedback"
+      }
+     ],
+     "audioComponents": [
+      {
+       "bpm": 120,
+       "channels": 2,
+       "encoding": "mp3",
+       "samplingRate": 48000
+      }
+     ],
+     "collections": [],
+     "documentComponents": [],
+     "embeddings": [],
+     "file": {
+      "filename": "bigbuckbunny-4k.mp4",
+      "firstSeen": "2018-10-12T14:15:06Z",
+      "mimeType": "video/mp4",
+      "origin": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      "size": 42000000
+     },
+     "geo": {
+      "lat": 52.156,
+      "lon": 32.56
+     },
+     "geoComponents": [],
+     "hashes": {
+      "md5": "d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "sha256": "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+      "sha512": "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123"
+     },
+     "imageComponents": [
+      {
+       "dominantColor": "#FFFF00"
+      }
+     ],
+     "locations": [
+      {
+       "filesystem": {
+        "filekey": {
+         "edate": 12,
+         "edateNano": 3,
+         "inode": 42,
+         "stDev": 12
+        },
+        "lastSeen": "2018-11-20T20:12:01Z",
+        "path": "/the-current-path/bigbuckbunny-4k.mp4"
+       },
+       "license": "CC-BY-4.0",
+       "mimeType": "video/mp4",
+       "poolUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+       "s3": {
+        "bucket": "big_bucket",
+        "objectPath": "themovie"
+       },
+       "state": "PRESENT",
+       "status": {}
+      }
+     ],
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "tags": [
+      {
+       "name": "red",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     ],
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "videoComponents": [
+      {
+       "duration": 20000,
+       "height": 2250,
+       "width": 4000
+      }
+     ]
+    },
+    {
+     "annotations": [
+      {
+       "area": {
+        "from": 0,
+        "to": 10
+       },
+       "comments": [
+        {
+         "social": {
+          "rating": {
+           "downVotes": 0,
+           "stars": 10,
+           "upVotes": 42
+          },
+          "reactions": {
+           "SATISFIED": 10
+          }
+         },
+         "status": {},
+         "text": "What a great choice of colors!",
+         "title": "Great work!",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "description": "The very nice intro",
+       "meta": {
+        "abc": "cdef"
+       },
+       "status": {},
+       "tags": [
+        {
+         "name": "blue",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "tasks": [
+        {
+         "assignees": [],
+         "comments": [
+          {
+           "social": {
+            "rating": {
+             "downVotes": 0,
+             "stars": 10,
+             "upVotes": 42
+            },
+            "reactions": {
+             "SATISFIED": 10
+            }
+           },
+           "status": {},
+           "text": "What a great choice of colors!",
+           "title": "Great work!",
+           "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+          }
+         ],
+         "description": "The text is not aligned with the title",
+         "status": {},
+         "title": "Fix text offset here",
+         "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+        }
+       ],
+       "thumbnail": "???",
+       "title": "Intro Feedback"
+      }
+     ],
+     "audioComponents": [
+      {
+       "bpm": 120,
+       "channels": 2,
+       "encoding": "mp3",
+       "samplingRate": 48000
+      }
+     ],
+     "collections": [],
+     "documentComponents": [],
+     "embeddings": [],
+     "file": {
+      "filename": "bigbuckbunny-4k.mp4",
+      "firstSeen": "2018-10-12T14:15:06Z",
+      "mimeType": "video/mp4",
+      "origin": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      "size": 42000000
+     },
+     "geo": {
+      "lat": 52.156,
+      "lon": 32.56
+     },
+     "geoComponents": [],
+     "hashes": {
+      "md5": "d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "sha256": "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+      "sha512": "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123"
+     },
+     "imageComponents": [
+      {
+       "dominantColor": "#FFFF00"
+      }
+     ],
+     "locations": [
+      {
+       "filesystem": {
+        "filekey": {
+         "edate": 12,
+         "edateNano": 3,
+         "inode": 42,
+         "stDev": 12
+        },
+        "lastSeen": "2018-11-20T20:12:01Z",
+        "path": "/the-current-path/bigbuckbunny-4k.mp4"
+       },
+       "license": "CC-BY-4.0",
+       "mimeType": "video/mp4",
+       "poolUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+       "s3": {
+        "bucket": "big_bucket",
+        "objectPath": "themovie"
+       },
+       "state": "PRESENT",
+       "status": {}
+      }
+     ],
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "tags": [
+      {
+       "name": "red",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     ],
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "videoComponents": [
+      {
+       "duration": 20000,
+       "height": 2250,
+       "width": 4000
+      }
+     ]
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getCollectionsByUuidAssets",
+  "path": "collections/{uuid}/assets",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postCollectionsByUuidAssets",
+  "path": "collections/{uuid}/assets",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "meta": {
+    "abc": "cdef"
+   },
+   "name": "The collection name",
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postCollectionsByUuidAssets",
+  "path": "collections/{uuid}/assets",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "assetUuids": [
+    "f04e89d0-076d-4d90-b192-715a25a2cd59",
+    "86abc160-4da2-4951-a91f-da0c33fbc634"
+   ]
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "putCollectionsByUuidAssets",
+  "path": "collections/{uuid}/assets",
+  "status": null,
+  "verb": "PUT"
+ },
+ {
+  "body": {
+   "added": 2,
+   "failed": 0,
+   "failedUuids": [],
+   "total": 2
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "putCollectionsByUuidAssets",
+  "path": "collections/{uuid}/assets",
+  "status": "200",
+  "verb": "PUT"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
      "meta": {
       "abc": "cdef"
      },
@@ -6019,6 +7005,155 @@
   "path": "comments/{uuid}",
   "status": "200",
   "verb": "POST"
+ },
+ {
+  "body": {
+   "checksRun": 29,
+   "clean": false,
+   "durationMs": 312,
+   "findingCount": 2,
+   "results": [
+    {
+     "check": {
+      "category": "DANGLING",
+      "code": "DANGLING_SEARCH_DOCUMENT",
+      "column": "entity_uuid",
+      "description": "A search document points at an entity that no longer exists, so a search can return a hit that resolves to nothing.",
+      "name": "Search document target",
+      "severity": "ERROR",
+      "table": "search_document"
+     },
+     "count": 2,
+     "durationMs": 4,
+     "samples": [
+      "6c1f7b1e-0d0a-4b3a-9f7c-2f1d3c4b5a60 (entity_type=asset)",
+      "8a2e9c4d-77b1-42aa-9d31-5b6c7d8e9f01 (entity_type=asset)"
+     ]
+    },
+    {
+     "check": {
+      "category": "TIMESTAMP",
+      "code": "TIMESTAMP_EDITED_BEFORE_CREATED",
+      "column": "edited",
+      "description": "A row was edited before it was created.",
+      "name": "Edited before created",
+      "severity": "ERROR",
+      "table": "(every audited table)"
+     },
+     "count": 0,
+     "durationMs": 7,
+     "samples": []
+    }
+   ],
+   "timestamp": "2026-08-09T11:24:07Z"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getDbintegrity",
+  "path": "db-integrity",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "checks": [
+    {
+     "category": "DANGLING",
+     "code": "DANGLING_SEARCH_DOCUMENT",
+     "column": "entity_uuid",
+     "description": "A search document points at an entity that no longer exists, so a search can return a hit that resolves to nothing.",
+     "name": "Search document target",
+     "severity": "ERROR",
+     "table": "search_document"
+    },
+    {
+     "category": "TIMESTAMP",
+     "code": "TIMESTAMP_EDITED_BEFORE_CREATED",
+     "column": "edited",
+     "description": "A row was edited before it was created.",
+     "name": "Edited before created",
+     "severity": "ERROR",
+     "table": "(every audited table)"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getDbintegrityChecks",
+  "path": "db-integrity/checks",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "bboxHeight": 0.2,
+     "bboxWidth": 0.12,
+     "bboxX": 0.3,
+     "bboxY": 0.2,
+     "confidence": 0.97,
+     "frameNumber": 0,
+     "meta": {
+      "age": 30,
+      "gender": "male"
+     },
+     "reviewStatus": "PENDING",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "facedetection",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    },
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "bboxHeight": 0.27,
+     "bboxWidth": 0.18,
+     "bboxX": 0.51,
+     "bboxY": 0.34,
+     "confidence": 0.88,
+     "correctedLabel": "wolf",
+     "frameNumber": 120,
+     "label": "dog",
+     "reviewStatus": "CONFIRMED",
+     "reviewedAt": "2026-08-09T10:15:30Z",
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "objectdetection",
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getDetections",
+  "path": "detections",
+  "status": "200",
+  "verb": "GET"
  },
  {
   "body": {
@@ -6543,6 +7678,366 @@
  },
  {
   "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "annotations": [
+      {
+       "area": {
+        "from": 0,
+        "to": 10
+       },
+       "comments": [
+        {
+         "social": {
+          "rating": {
+           "downVotes": 0,
+           "stars": 10,
+           "upVotes": 42
+          },
+          "reactions": {
+           "SATISFIED": 10
+          }
+         },
+         "status": {},
+         "text": "What a great choice of colors!",
+         "title": "Great work!",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "description": "The very nice intro",
+       "meta": {
+        "abc": "cdef"
+       },
+       "status": {},
+       "tags": [
+        {
+         "name": "blue",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "tasks": [
+        {
+         "assignees": [],
+         "comments": [
+          {
+           "social": {
+            "rating": {
+             "downVotes": 0,
+             "stars": 10,
+             "upVotes": 42
+            },
+            "reactions": {
+             "SATISFIED": 10
+            }
+           },
+           "status": {},
+           "text": "What a great choice of colors!",
+           "title": "Great work!",
+           "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+          }
+         ],
+         "description": "The text is not aligned with the title",
+         "status": {},
+         "title": "Fix text offset here",
+         "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+        }
+       ],
+       "thumbnail": "???",
+       "title": "Intro Feedback"
+      }
+     ],
+     "audioComponents": [
+      {
+       "bpm": 120,
+       "channels": 2,
+       "encoding": "mp3",
+       "samplingRate": 48000
+      }
+     ],
+     "collections": [],
+     "documentComponents": [],
+     "embeddings": [],
+     "file": {
+      "filename": "bigbuckbunny-4k.mp4",
+      "firstSeen": "2018-10-12T14:15:06Z",
+      "mimeType": "video/mp4",
+      "origin": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      "size": 42000000
+     },
+     "geo": {
+      "lat": 52.156,
+      "lon": 32.56
+     },
+     "geoComponents": [],
+     "hashes": {
+      "md5": "d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "sha256": "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+      "sha512": "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123"
+     },
+     "imageComponents": [
+      {
+       "dominantColor": "#FFFF00"
+      }
+     ],
+     "locations": [
+      {
+       "filesystem": {
+        "filekey": {
+         "edate": 12,
+         "edateNano": 3,
+         "inode": 42,
+         "stDev": 12
+        },
+        "lastSeen": "2018-11-20T20:12:01Z",
+        "path": "/the-current-path/bigbuckbunny-4k.mp4"
+       },
+       "license": "CC-BY-4.0",
+       "mimeType": "video/mp4",
+       "poolUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+       "s3": {
+        "bucket": "big_bucket",
+        "objectPath": "themovie"
+       },
+       "state": "PRESENT",
+       "status": {}
+      }
+     ],
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "tags": [
+      {
+       "name": "red",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     ],
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "videoComponents": [
+      {
+       "duration": 20000,
+       "height": 2250,
+       "width": 4000
+      }
+     ]
+    },
+    {
+     "annotations": [
+      {
+       "area": {
+        "from": 0,
+        "to": 10
+       },
+       "comments": [
+        {
+         "social": {
+          "rating": {
+           "downVotes": 0,
+           "stars": 10,
+           "upVotes": 42
+          },
+          "reactions": {
+           "SATISFIED": 10
+          }
+         },
+         "status": {},
+         "text": "What a great choice of colors!",
+         "title": "Great work!",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "description": "The very nice intro",
+       "meta": {
+        "abc": "cdef"
+       },
+       "status": {},
+       "tags": [
+        {
+         "name": "blue",
+         "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+        }
+       ],
+       "tasks": [
+        {
+         "assignees": [],
+         "comments": [
+          {
+           "social": {
+            "rating": {
+             "downVotes": 0,
+             "stars": 10,
+             "upVotes": 42
+            },
+            "reactions": {
+             "SATISFIED": 10
+            }
+           },
+           "status": {},
+           "text": "What a great choice of colors!",
+           "title": "Great work!",
+           "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+          }
+         ],
+         "description": "The text is not aligned with the title",
+         "status": {},
+         "title": "Fix text offset here",
+         "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+        }
+       ],
+       "thumbnail": "???",
+       "title": "Intro Feedback"
+      }
+     ],
+     "audioComponents": [
+      {
+       "bpm": 120,
+       "channels": 2,
+       "encoding": "mp3",
+       "samplingRate": 48000
+      }
+     ],
+     "collections": [],
+     "documentComponents": [],
+     "embeddings": [],
+     "file": {
+      "filename": "bigbuckbunny-4k.mp4",
+      "firstSeen": "2018-10-12T14:15:06Z",
+      "mimeType": "video/mp4",
+      "origin": "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+      "size": 42000000
+     },
+     "geo": {
+      "lat": 52.156,
+      "lon": 32.56
+     },
+     "geoComponents": [],
+     "hashes": {
+      "md5": "d8e8fca2dc0f896fd7cb4cb0031ba249",
+      "sha256": "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2",
+      "sha512": "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123"
+     },
+     "imageComponents": [
+      {
+       "dominantColor": "#FFFF00"
+      }
+     ],
+     "locations": [
+      {
+       "filesystem": {
+        "filekey": {
+         "edate": 12,
+         "edateNano": 3,
+         "inode": 42,
+         "stDev": 12
+        },
+        "lastSeen": "2018-11-20T20:12:01Z",
+        "path": "/the-current-path/bigbuckbunny-4k.mp4"
+       },
+       "license": "CC-BY-4.0",
+       "mimeType": "video/mp4",
+       "poolUuid": "86abc160-4da2-4951-a91f-da0c33fbc634",
+       "s3": {
+        "bucket": "big_bucket",
+        "objectPath": "themovie"
+       },
+       "state": "PRESENT",
+       "status": {}
+      }
+     ],
+     "meta": {
+      "abc": "cdef"
+     },
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "tags": [
+      {
+       "name": "red",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     ],
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "videoComponents": [
+      {
+       "duration": 20000,
+       "height": 2250,
+       "width": 4000
+      }
+     ]
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getLibrariesByUuidAssets",
+  "path": "libraries/{uuid}/assets",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postLibrariesByUuidAssets",
+  "path": "libraries/{uuid}/assets",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "meta": {
+    "abc": "cdef"
+   },
+   "name": "MyProject",
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postLibrariesByUuidAssets",
+  "path": "libraries/{uuid}/assets",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
    "email": "joedoe@metaloom.io",
    "enabled": false,
    "firstname": "Joe",
@@ -6571,6 +8066,274 @@
   "path": "me",
   "status": "200",
   "verb": "GET"
+ },
+ {
+  "body": {
+   "metrics": [
+    {
+     "count": 1284,
+     "maxSeconds": 3.91,
+     "meanSeconds": 0.321,
+     "name": "loom_node_task_latency_seconds",
+     "sumSeconds": 412.6,
+     "tags": {
+      "kind": "sha512",
+      "state": "completed"
+     },
+     "type": "TIMER"
+    },
+    {
+     "name": "loom_node_tasks_dispatched_total",
+     "tags": {
+      "kind": "sha512"
+     },
+     "type": "COUNTER",
+     "value": 1290.0
+    },
+    {
+     "name": "loom_node_tasks_inflight",
+     "tags": {},
+     "type": "GAUGE",
+     "value": 6.0
+    },
+    {
+     "name": "loom_node_tasks_inflight_ceiling",
+     "tags": {},
+     "type": "GAUGE",
+     "value": 16.0
+    },
+    {
+     "name": "loom_pipeline_runs_active",
+     "tags": {},
+     "type": "GAUGE",
+     "value": 2.0
+    },
+    {
+     "name": "loom_processors_by_state",
+     "tags": {
+      "state": "online"
+     },
+     "type": "GAUGE",
+     "value": 3.0
+    }
+   ],
+   "timestamp": "2026-08-09T11:24:07Z"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getMetrics",
+  "path": "metrics",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "definition": {
+      "name": "describe images",
+      "nodes": [
+       {
+        "id": "vlm",
+        "options": {
+         "prompt": "What is in this image?"
+        },
+        "type": "vlm"
+       }
+      ],
+      "version": 1
+     },
+     "failureCount": 0,
+     "mediaCount": 2,
+     "results": [
+      {
+       "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+       "durationMs": 4120,
+       "mediaPath": "/data/media/beach.jpg",
+       "nodeId": "vlm",
+       "nodeKind": "vlm",
+       "outputs": {
+        "text": {
+         "cardinality": "ONE",
+         "contentType": "text/plain",
+         "elements": [
+          {
+           "seq": 0,
+           "value": "A beach at sunset."
+          }
+         ]
+        }
+       },
+       "state": "COMPLETED"
+      }
+     ],
+     "skippedCount": 0,
+     "status": "RUNNING",
+     "successCount": 1,
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getNoderuns",
+  "path": "node-runs",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "assetUuids": [
+    "f04e89d0-076d-4d90-b192-715a25a2cd59",
+    "86abc160-4da2-4951-a91f-da0c33fbc634"
+   ],
+   "definition": {
+    "name": "describe images",
+    "nodes": [
+     {
+      "id": "vlm",
+      "options": {
+       "prompt": "What is in this image?"
+      },
+      "type": "vlm"
+     }
+    ],
+    "version": 1
+   },
+   "persist": true
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postNoderuns",
+  "path": "node-runs",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "accepted": 2,
+   "etaMs": 10000,
+   "message": "2 item(s) accepted",
+   "rejected": 0,
+   "rejectedAssetUuids": [],
+   "status": "RUNNING",
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postNoderuns",
+  "path": "node-runs",
+  "status": "202",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "kind": "vlm",
+   "options": {
+    "prompt": "What is in this image?"
+   },
+   "persist": false
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postNoderunsProbes",
+  "path": "node-runs/probes",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+   "durationMs": 4120,
+   "nodeKind": "vlm",
+   "outputs": {
+    "text": {
+     "cardinality": "ONE",
+     "contentType": "text/plain",
+     "elements": [
+      {
+       "seq": 0,
+       "value": "A beach at sunset."
+      }
+     ]
+    }
+   },
+   "state": "COMPLETED",
+   "text": "beach.jpg\n  vlm: COMPLETED (4120ms)\n    text [text/plain]: A beach at sunset.\n"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postNoderunsProbes",
+  "path": "node-runs/probes",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "definition": {
+    "name": "describe images",
+    "nodes": [
+     {
+      "id": "vlm",
+      "options": {
+       "prompt": "What is in this image?"
+      },
+      "type": "vlm"
+     }
+    ],
+    "version": 1
+   },
+   "failureCount": 0,
+   "mediaCount": 2,
+   "results": [
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "durationMs": 4120,
+     "mediaPath": "/data/media/beach.jpg",
+     "nodeId": "vlm",
+     "nodeKind": "vlm",
+     "outputs": {
+      "text": {
+       "cardinality": "ONE",
+       "contentType": "text/plain",
+       "elements": [
+        {
+         "seq": 0,
+         "value": "A beach at sunset."
+        }
+       ]
+      }
+     },
+     "state": "COMPLETED"
+    }
+   ],
+   "skippedCount": 0,
+   "status": "RUNNING",
+   "successCount": 1,
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getNoderunsByUuid",
+  "path": "node-runs/{uuid}",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "message": "Node run cancelled"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postNoderunsByUuidCancel",
+  "path": "node-runs/{uuid}/cancel",
+  "status": "200",
+  "verb": "POST"
  },
  {
   "body": {
@@ -6672,6 +8435,7 @@
    "data": [
     {
      "alias": "jdoe",
+     "avatarUrl": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
      "firstname": "John",
      "lastname": "Doe",
      "meta": {
@@ -6693,6 +8457,7 @@
     },
     {
      "alias": "jdoe",
+     "avatarUrl": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
      "firstname": "John",
      "lastname": "Doe",
      "meta": {
@@ -6740,6 +8505,7 @@
  {
   "body": {
    "alias": "jdoe",
+   "avatarUrl": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
    "firstname": "John",
    "lastname": "Doe",
    "meta": {
@@ -6769,6 +8535,7 @@
  {
   "body": {
    "alias": "jdoe",
+   "avatarUrl": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
    "firstname": "John",
    "lastname": "Doe",
    "meta": {
@@ -6814,6 +8581,7 @@
  {
   "body": {
    "alias": "jdoe",
+   "avatarUrl": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
    "firstname": "John",
    "lastname": "Doe",
    "meta": {
@@ -6838,6 +8606,216 @@
   "operation_id": "postPersonsByUuid",
   "path": "persons/{uuid}",
   "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "imageUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postPersonsByUuidAvatar",
+  "path": "persons/{uuid}/avatar",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "alias": "jdoe",
+   "avatarUrl": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+   "firstname": "John",
+   "lastname": "Doe",
+   "meta": {
+    "abc": "cdef"
+   },
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postPersonsByUuidAvatar",
+  "path": "persons/{uuid}/avatar",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "clusterIndex": 0,
+     "memberCount": 4,
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "The cluster name",
+     "nodeKind": "facedetect",
+     "reviewStatus": "PENDING",
+     "score": 0.92,
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "face",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    },
+    {
+     "clusterIndex": 0,
+     "memberCount": 4,
+     "meta": {
+      "abc": "cdef"
+     },
+     "name": "The cluster name",
+     "nodeKind": "facedetect",
+     "reviewStatus": "PENDING",
+     "score": 0.92,
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "type": "face",
+     "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getPersonsByUuidClusters",
+  "path": "persons/{uuid}/clusters",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "avatar": true,
+     "filename": "john-doe.jpg",
+     "mimeType": "image/jpeg",
+     "size": 48213,
+     "status": {
+      "created": "2018-10-12T14:15:06Z",
+      "creator": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      },
+      "edited": "2018-11-20T20:12:01Z",
+      "editor": {
+       "name": "joedoe",
+       "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+      }
+     },
+     "url": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getPersonsByUuidImages",
+  "path": "persons/{uuid}/images",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "avatar": true,
+   "filename": "john-doe.jpg",
+   "mimeType": "image/jpeg",
+   "size": 48213,
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "url": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+   "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postPersonsByUuidImages",
+  "path": "persons/{uuid}/images",
+  "status": "201",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "detectionUuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postPersonsByUuidImagesFromdetection",
+  "path": "persons/{uuid}/images/from-detection",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "avatar": true,
+   "filename": "john-doe.jpg",
+   "mimeType": "image/jpeg",
+   "size": 48213,
+   "status": {
+    "created": "2018-10-12T14:15:06Z",
+    "creator": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    "edited": "2018-11-20T20:12:01Z",
+    "editor": {
+     "name": "joedoe",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    }
+   },
+   "url": "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+   "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postPersonsByUuidImagesFromdetection",
+  "path": "persons/{uuid}/images/from-detection",
+  "status": "201",
   "verb": "POST"
  },
  {
@@ -6873,7 +8851,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 1,
-     "versionUuid": "4afc3fc6-5ebd-48ad-8e44-e3c4335209e4"
+     "versionUuid": "ff77f8cc-d0d5-479d-bb36-513639218948"
     },
     {
      "definition": {
@@ -6901,7 +8879,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 1,
-     "versionUuid": "02bf7925-31cc-4c2e-9d20-8a80d1ec5a07"
+     "versionUuid": "50d2137e-c54e-4964-8067-55ae606739fc"
     }
    ]
   },
@@ -6960,7 +8938,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 1,
-   "versionUuid": "41203b8f-5dbd-4e13-8c70-b1414d09c4fb"
+   "versionUuid": "fb87ea4f-71df-41b3-a32b-66f8c12e873b"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -6998,6 +8976,60 @@
  {
   "body": {
    "definition": {
+    "edges": [
+     {
+      "source": "source",
+      "sourcePort": "file",
+      "target": "sha512",
+      "targetPort": "file"
+     }
+    ],
+    "nodes": [
+     {
+      "id": "source",
+      "source": true,
+      "type": "filesystem-source"
+     },
+     {
+      "id": "sha512",
+      "type": "sha512"
+     }
+    ]
+   }
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postPipelinesValidate",
+  "path": "pipelines/validate",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "errors": [
+    {
+     "code": "NODE_ID_DUPLICATE",
+     "message": "Duplicate node ID: \"sha512\" \u2014 node IDs must be unique",
+     "nodeId": "sha512"
+    },
+    {
+     "code": "CYCLE",
+     "message": "Cycle detected in pipeline graph \u2014 nodes form a circular dependency"
+    }
+   ],
+   "valid": false,
+   "warnings": []
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postPipelinesValidate",
+  "path": "pipelines/validate",
+  "status": "200",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "definition": {
     "nodes": []
    },
    "description": "A sample pipeline",
@@ -7022,7 +9054,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 1,
-   "versionUuid": "6e645731-28df-4134-8f40-720e00e79233"
+   "versionUuid": "de692e04-35dc-4091-8130-dc786ca27d2a"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -7074,7 +9106,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 1,
-   "versionUuid": "79e01180-d876-4003-8445-3034b23fe9d2"
+   "versionUuid": "5593feed-04b1-4ec1-9a33-7eb8d7a8fe1d"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -7104,7 +9136,7 @@
    "dispatched": true,
    "message": "Pipeline run dispatched",
    "processorNodeId": "cortex-01",
-   "runUuid": "7d582bfb-5b17-4672-afb0-66c8bc487434"
+   "runUuid": "7fc93ac1-f9d4-4aec-8a13-ee6a6e553eb9"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -7124,29 +9156,29 @@
      "dryRun": false,
      "durationMs": 45000,
      "failureCount": 3,
-     "finished": "2026-08-08T09:58:31.573699103Z",
+     "finished": "2026-08-10T19:02:02.812381795Z",
      "mediaCount": 100,
-     "pipelineUuid": "26d7d89a-d237-4bc2-8149-ed9aa7dfd652",
+     "pipelineUuid": "ad5cabb2-ba0e-49be-a09e-8d0caba46f6f",
      "pipelineVersion": 1,
      "skippedCount": 2,
-     "started": "2026-08-08T09:58:31.573599173Z",
+     "started": "2026-08-10T19:02:02.812278245Z",
      "status": "SUCCESS",
      "successCount": 95,
-     "uuid": "c1eaaffe-bfbc-4ee0-97de-83c2ac3326cc"
+     "uuid": "161a43c0-3f2b-4744-b124-0d5acc4846ec"
     },
     {
      "dryRun": false,
      "durationMs": 45000,
      "failureCount": 3,
-     "finished": "2026-08-08T09:58:31.573834343Z",
+     "finished": "2026-08-10T19:02:02.812528335Z",
      "mediaCount": 100,
-     "pipelineUuid": "2b3910ab-e348-432c-84ac-a8d0ab0a0e99",
+     "pipelineUuid": "699ab088-ee83-4df0-85cc-f9e7e407e311",
      "pipelineVersion": 1,
      "skippedCount": 2,
-     "started": "2026-08-08T09:58:31.573830113Z",
+     "started": "2026-08-10T19:02:02.812524055Z",
      "status": "SUCCESS",
      "successCount": 95,
-     "uuid": "7c0d3291-01ec-496c-bda5-4d785d6792ce"
+     "uuid": "a18387d3-46b9-4c18-976b-0511c8da07e0"
     }
    ]
   },
@@ -7162,15 +9194,15 @@
    "dryRun": false,
    "durationMs": 45000,
    "failureCount": 3,
-   "finished": "2026-08-08T09:58:31.574662992Z",
+   "finished": "2026-08-10T19:02:02.813379754Z",
    "mediaCount": 100,
-   "pipelineUuid": "04dd93f9-a09c-4e14-8208-09592f170ea8",
+   "pipelineUuid": "26754576-04dd-4e55-9d95-38ab474ae872",
    "pipelineVersion": 1,
    "skippedCount": 2,
-   "started": "2026-08-08T09:58:31.574655892Z",
+   "started": "2026-08-10T19:02:02.813373174Z",
    "status": "SUCCESS",
    "successCount": 95,
-   "uuid": "df73d5d5-482a-4673-a66a-e0e8d37ec9db"
+   "uuid": "b652ba35-da83-4401-a2c1-c46ba280bf85"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -7242,20 +9274,20 @@
     {
      "itemSeq": 1,
      "mediaPath": "/media/example.mp4",
-     "runUuid": "c1576aca-ee10-439b-80ea-670bbcc6b50c",
+     "runUuid": "f4694acf-9f19-4fc8-842e-48abb031d853",
      "sha512": "0f8ef1c9...",
      "sizeBytes": 1048576,
      "state": "SUCCESS",
-     "uuid": "40e066e0-2a0b-43a8-b1a4-f5388667d475"
+     "uuid": "b520cbbb-45bb-4ccb-9008-71e30da28f85"
     },
     {
      "itemSeq": 1,
      "mediaPath": "/media/example.mp4",
-     "runUuid": "3e7a74ed-fafa-430a-912d-1190dc2e4974",
+     "runUuid": "2d290080-7782-45b4-9436-93e01d2ee6f8",
      "sha512": "0f8ef1c9...",
      "sizeBytes": 1048576,
      "state": "SUCCESS",
-     "uuid": "d8685689-54ca-431e-ad82-18462cc83944"
+     "uuid": "e6622325-f0bd-4085-9353-771ba01a1bfb"
     }
    ]
   },
@@ -7278,7 +9310,7 @@
      "durationMs": 42,
      "elementSeq": 0,
      "generation": 0,
-     "itemUuid": "425fb98f-f167-466c-b6ef-63626c8d6032",
+     "itemUuid": "07198a67-2a1f-4752-85ab-5808baf1ac33",
      "maxAttempts": 3,
      "nodeId": "pn2",
      "nodeKind": "sha512",
@@ -7298,9 +9330,9 @@
        ]
       }
      },
-     "runUuid": "264f4bbf-a30f-46dd-94f0-f1268dc9bd7c",
+     "runUuid": "b6e61070-6594-4c92-ad65-62a77e7f2f62",
      "state": "COMPLETED",
-     "uuid": "a060c765-98b8-41f1-b366-fd6e4e0308a7"
+     "uuid": "948b0da0-3c4d-4e28-92a1-597e628062d7"
     }
    ]
   },
@@ -7394,7 +9426,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 2,
-     "versionUuid": "6f4ce01b-7f77-4aab-a9d8-001ad7c8b587"
+     "versionUuid": "51e59ce1-88cc-4e38-bbf6-0fcdeb86e074"
     },
     {
      "definition": {
@@ -7422,7 +9454,7 @@
      },
      "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
      "versionNumber": 2,
-     "versionUuid": "626f45b3-7031-4e56-bdaf-ad42d3462f0f"
+     "versionUuid": "e523b03b-01a8-4c17-952c-cc8f0f00bc39"
     }
    ]
   },
@@ -7460,7 +9492,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 2,
-   "versionUuid": "0b752303-53a3-425b-b924-98dea8befe83"
+   "versionUuid": "48b22846-a2e6-4b14-abc8-c18ab99413c4"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -7508,7 +9540,7 @@
    },
    "uuid": "0f3332a6-e404-4777-88a9-1fa984a311bc",
    "versionNumber": 2,
-   "versionUuid": "797ab3b6-9e92-4a3a-b657-8b19f7c320bb"
+   "versionUuid": "1abcd0ad-816b-415b-9127-697c32f023b0"
   },
   "direction": "response",
   "media_type": "application/json",
@@ -7958,6 +9990,410 @@
   "path": "roles/{uuid}",
   "status": "200",
   "verb": "POST"
+ },
+ {
+  "body": {
+   "backends": [
+    {
+     "available": true,
+     "deletedCount": 0,
+     "documentCount": 41286,
+     "enabled": true,
+     "id": "lexical",
+     "provider": "postgres",
+     "sizeBytes": 612368384
+    },
+    {
+     "available": true,
+     "deletedCount": 3100,
+     "documentCount": 128402,
+     "enabled": true,
+     "id": "vector",
+     "provider": "lucene",
+     "sizeBytes": 1476395008
+    },
+    {
+     "available": true,
+     "deletedCount": 0,
+     "documentCount": 9140,
+     "enabled": true,
+     "id": "fingerprint",
+     "provider": "lucene",
+     "sizeBytes": 37748736
+    }
+   ],
+   "data": [
+    {
+     "available": true,
+     "backendId": "lexical",
+     "documentCount": 41286,
+     "enabled": true,
+     "id": "lexical",
+     "indexedCount": 41286,
+     "kind": "LEXICAL",
+     "label": "Lexical search documents",
+     "pendingCount": 0,
+     "reason": "Maintained synchronously by database triggers.",
+     "supportedActions": [
+      "REINDEX"
+     ]
+    },
+    {
+     "available": true,
+     "backendId": "vector",
+     "dimensions": 512,
+     "documentCount": 128402,
+     "enabled": true,
+     "id": "vector-face-inspireface-r18-512",
+     "indexedCount": 127590,
+     "kind": "VECTOR",
+     "label": "Face embeddings",
+     "model": "inspireface-r18",
+     "pendingCount": 812,
+     "supportedActions": [
+      "REINDEX",
+      "DELTA_SYNC",
+      "DROP"
+     ],
+     "type": "face"
+    },
+    {
+     "available": false,
+     "backendId": "vector",
+     "dimensions": 768,
+     "documentCount": 0,
+     "enabled": true,
+     "id": "vector-text-nomic-embed-text-v1-5-768",
+     "indexedCount": 0,
+     "kind": "VECTOR",
+     "label": "Semantic text embeddings",
+     "model": "nomic-embed-text-v1.5",
+     "pendingCount": 41286,
+     "reason": "The vector index is configured but could not be opened.",
+     "supportedActions": [
+      "REINDEX",
+      "DELTA_SYNC",
+      "DROP"
+     ],
+     "type": "text"
+    },
+    {
+     "algorithm": "metaloom-multisector-v1",
+     "available": true,
+     "backendId": "fingerprint",
+     "documentCount": 9140,
+     "enabled": true,
+     "id": "fingerprint",
+     "indexedCount": 9140,
+     "kind": "FINGERPRINT",
+     "label": "Duplicate fingerprints",
+     "pendingCount": 0,
+     "supportedActions": [
+      "REINDEX",
+      "DELTA_SYNC",
+      "DROP"
+     ]
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchindices",
+  "path": "search-indices",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "available": true,
+   "backendId": "vector",
+   "dimensions": 512,
+   "documentCount": 128402,
+   "enabled": true,
+   "id": "vector-face-inspireface-r18-512",
+   "indexedCount": 127590,
+   "kind": "VECTOR",
+   "label": "Face embeddings",
+   "model": "inspireface-r18",
+   "pendingCount": 812,
+   "supportedActions": [
+    "REINDEX",
+    "DELTA_SYNC",
+    "DROP"
+   ],
+   "type": "face"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchindicesById",
+  "path": "search-indices/{id}",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "data": [
+    {
+     "action": "REINDEX",
+     "indexId": "vector-face-inspireface-r18-512",
+     "processed": 18420,
+     "removed": 0,
+     "startedAt": 1786270500.0,
+     "state": "RUNNING",
+     "total": 128402,
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    {
+     "action": "DELTA_SYNC",
+     "finishedAt": 1786266012.0,
+     "indexId": "vector-face-inspireface-r18-512",
+     "processed": 812,
+     "removed": 4,
+     "startedAt": 1786266000.0,
+     "state": "SUCCEEDED",
+     "total": 812,
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchindicesByIdJobs",
+  "path": "search-indices/{id}/jobs",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "action": "REINDEX"
+  },
+  "direction": "request",
+  "media_type": "application/json",
+  "operation_id": "postSearchindicesByIdJobs",
+  "path": "search-indices/{id}/jobs",
+  "status": null,
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "action": "REINDEX",
+   "indexId": "vector-face-inspireface-r18-512",
+   "processed": 18420,
+   "removed": 0,
+   "startedAt": 1786270500.0,
+   "state": "RUNNING",
+   "total": 128402,
+   "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "postSearchindicesByIdJobs",
+  "path": "search-indices/{id}/jobs",
+  "status": "202",
+  "verb": "POST"
+ },
+ {
+  "body": {
+   "action": "REINDEX",
+   "indexId": "vector-face-inspireface-r18-512",
+   "processed": 18420,
+   "removed": 0,
+   "startedAt": 1786270500.0,
+   "state": "RUNNING",
+   "total": 128402,
+   "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "deleteSearchindicesByIdJobsByJobUuid",
+  "path": "search-indices/{id}/jobs/{jobUuid}",
+  "status": "202",
+  "verb": "DELETE"
+ },
+ {
+  "body": {
+   "action": "REINDEX",
+   "indexId": "vector-face-inspireface-r18-512",
+   "processed": 18420,
+   "removed": 0,
+   "startedAt": 1786270500.0,
+   "state": "RUNNING",
+   "total": 128402,
+   "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchindicesByIdJobsByJobUuid",
+  "path": "search-indices/{id}/jobs/{jobUuid}",
+  "status": "202",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "capabilities": [
+     "LEXICAL",
+     "PHRASE",
+     "FUZZY",
+     "HIGHLIGHT",
+     "FACETS",
+     "EXACT_TOTAL",
+     "SUGGEST"
+    ],
+    "offset": 0,
+    "perPage": 25,
+    "provider": "postgres",
+    "tookMs": 12,
+    "totalExact": true,
+    "totalHits": 2,
+    "warnings": []
+   },
+   "data": [
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "highlights": [
+      "<b>aurora</b> timelapse"
+     ],
+     "matchedIn": "title",
+     "mimeType": "video/mp4",
+     "score": 0.87,
+     "size": 184320000,
+     "subtitle": "/mnt/media/2026/aurora_timelapse.mp4",
+     "title": "aurora_timelapse.mp4",
+     "type": "asset",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "highlights": [
+      "the northern lights above <b>aurora</b> bay"
+     ],
+     "matchedIn": "body",
+     "score": 0.41,
+     "subtitle": "en whisper-large-v3",
+     "timeFromMs": 0,
+     "title": "aurora_timelapse.mp4",
+     "type": "transcript",
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ],
+   "facets": {}
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchAssets",
+  "path": "search/assets",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "capabilities": [
+     "LEXICAL",
+     "PHRASE",
+     "FUZZY",
+     "HIGHLIGHT",
+     "FACETS",
+     "EXACT_TOTAL",
+     "SUGGEST"
+    ],
+    "offset": 0,
+    "perPage": 25,
+    "provider": "postgres",
+    "tookMs": 12,
+    "totalExact": true,
+    "totalHits": 2,
+    "warnings": []
+   },
+   "data": [
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "highlights": [
+      "<b>aurora</b> timelapse"
+     ],
+     "matchedIn": "title",
+     "mimeType": "video/mp4",
+     "score": 0.87,
+     "size": 184320000,
+     "subtitle": "/mnt/media/2026/aurora_timelapse.mp4",
+     "title": "aurora_timelapse.mp4",
+     "type": "asset",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    {
+     "assetUuid": "f04e89d0-076d-4d90-b192-715a25a2cd59",
+     "highlights": [
+      "the northern lights above <b>aurora</b> bay"
+     ],
+     "matchedIn": "body",
+     "score": 0.41,
+     "subtitle": "en whisper-large-v3",
+     "timeFromMs": 0,
+     "title": "aurora_timelapse.mp4",
+     "type": "transcript",
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ],
+   "facets": {}
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchResults",
+  "path": "search/results",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "available": true,
+   "capabilities": [
+    "LEXICAL",
+    "PHRASE",
+    "FUZZY",
+    "HIGHLIGHT",
+    "FACETS",
+    "EXACT_TOTAL",
+    "SUGGEST"
+   ],
+   "dirtyCount": 0,
+   "documentCount": 12483,
+   "provider": "postgres"
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchStatus",
+  "path": "search/status",
+  "status": "200",
+  "verb": "GET"
+ },
+ {
+  "body": {
+   "_metainfo": {
+    "perPage": 2,
+    "totalCount": 28
+   },
+   "data": [
+    {
+     "score": 0.62,
+     "text": "aurora_timelapse.mp4",
+     "type": "asset",
+     "uuid": "f04e89d0-076d-4d90-b192-715a25a2cd59"
+    },
+    {
+     "score": 0.55,
+     "text": "aurora",
+     "type": "tag",
+     "uuid": "86abc160-4da2-4951-a91f-da0c33fbc634"
+    }
+   ]
+  },
+  "direction": "response",
+  "media_type": "application/json",
+  "operation_id": "getSearchSuggestions",
+  "path": "search/suggestions",
+  "status": "200",
+  "verb": "GET"
  },
  {
   "body": {

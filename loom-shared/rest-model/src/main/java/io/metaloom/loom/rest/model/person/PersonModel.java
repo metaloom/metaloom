@@ -17,8 +17,4 @@ public interface PersonModel<T extends PersonModel<T>> extends MetaModel<T>, Res
 
 	T setLastname(String lastname);
 
-	String getPrimaryImageUuid();
-
-	T setPrimaryImageUuid(String primaryImageUuid);
-
 }

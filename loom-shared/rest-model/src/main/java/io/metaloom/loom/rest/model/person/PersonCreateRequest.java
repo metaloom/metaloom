@@ -21,10 +21,6 @@ public class PersonCreateRequest implements RestRequestModel, PersonModel<Person
 	private String lastname;
 
 	@JsonProperty(required = false)
-	@JsonPropertyDescription("UUID of the primary gallery image.")
-	private String primaryImageUuid;
-
-	@JsonProperty(required = false)
 	@JsonPropertyDescription("Additional custom meta properties for the element.")
 	private JsonObject meta;
 
@@ -61,17 +57,6 @@ public class PersonCreateRequest implements RestRequestModel, PersonModel<Person
 	@Override
 	public PersonCreateRequest setLastname(String lastname) {
 		this.lastname = lastname;
-		return this;
-	}
-
-	@Override
-	public String getPrimaryImageUuid() {
-		return primaryImageUuid;
-	}
-
-	@Override
-	public PersonCreateRequest setPrimaryImageUuid(String primaryImageUuid) {
-		this.primaryImageUuid = primaryImageUuid;
 		return this;
 	}
 

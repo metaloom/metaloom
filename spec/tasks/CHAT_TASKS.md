@@ -15,15 +15,17 @@
 > [CHAT_MEMORY_PLAN.md](../chat/CHAT_MEMORY_PLAN.md) (memory bank) ·
 > [TASK_UI_CHAT.md](../loom/ui/TASK_UI_CHAT.md) (UI counterpart U1–U8)
 >
-> F1 gates F2 (both concern the streaming path); F3–F5 are independent and unscheduled. Blocking
-> relationships inside the enhancement backlog are stated in §Enhancement Backlog.
+> F2 is done; F1 is done on the OpenAI provider and still open for vLLM; F3–F5 are independent and
+> unscheduled. Blocking relationships inside the enhancement backlog are stated in
+> §Enhancement Backlog.
 
 ## Progress Assessment
 
 - [x] B1–B9 — the full backend chat/skills stack (see the table)
 - [ ] F1 vLLM `generateStreamWithTools` (blocks `LOOM_AI_STREAMING=true` on vLLM)
 - [x] F1 streaming tool calls on the OpenAI provider — **done**, see the F1 entry below
-- [ ] F2 mid-turn abort on the streaming path
+- [x] F2 mid-turn abort on the streaming path — **done**: `TurnStreamer.cancel()` (default no-op),
+      `StreamingTurnStreamer` retains its subscription and disposes it, `AgentLoop.abort()` calls it
 - [ ] F3 transcript normalization (`chat_message` table) — deferred, superseded in part by CTX5
 - [ ] F4 group-scoped skill library — deferred
 - [ ] F5 live-LLM smoke coverage in CI — deferred
@@ -54,7 +56,7 @@ flowchart LR
   B6[B6 MCP reference<br/>envelopes] --> B7
   B3 --> B7 --> B8[B8 SSE endpoint] --> B9[B9 streaming swap-in<br/>+ auto-title]
   B5 --> F1[F1 OpenAI stream+tools]
-  B9 -. blockingForEach .-> F2[F2 mid-turn abort]
+  B9 --> F2[F2 mid-turn abort]
 ```
 
 ## Implementation Status (verified 2026-08-01 @ `499f71f7`)
@@ -83,58 +85,6 @@ depends on the rest module · `ReferenceExtractor` consumes only the structured 
 
 ## Open Follow-ups
 
-
-
----
-
-### Task F2: Make aborts take effect mid-turn on the streaming path
-
-**Argumentation Summary:** `StreamingTurnStreamer.streamTurn` consumes the provider flowable with
-`blockingForEach`, which cannot be disposed from outside. `AgentLoop` only checks its `cancelled`
-flag between turns, so `DELETE /chats/:uuid/stream` does not stop generation until the current turn
-finishes — a long tool-heavy turn keeps burning tokens after the user pressed stop.
-
-**Improvement Summary:** Subscribe with a retained `Disposable` and wire the loop's cancel flag to
-it so an abort interrupts the in-flight turn.
-
-```
-1. In loom/agent/chat/.../loop/StreamingTurnStreamer.java replace blockingForEach with an
-   explicit subscribe(...) that retains the io.reactivex.rxjava3.disposables.Disposable, and
-   block on a CountDownLatch released by onComplete/onError.
-2. Expose a cancel()/close() on TurnStreamer (default no-op so BlockingTurnStreamer is unaffected)
-   that disposes the subscription and releases the latch.
-3. In AgentLoop, call turnStreamer.cancel() where the cancelled flag is set, and keep the existing
-   post-turn `if (cancelled.get()) return "aborted"` guard as the fallback.
-```
-
-**References:** [LOOM_UI_CHAT.md §4.1](../chat/LOOM_UI_CHAT.md) · B8, B9
-**Test Requirements:** Extend `StreamingTurnStreamerTest` with a cancel-mid-stream case (assert the
-upstream is disposed and no further deltas are emitted); `ChatStreamEndpointTest`'s 409+cancel case
-must stay green. `mvn -q test -pl loom/agent/chat`.
-
----
-
-### Task F3: Normalize the chat transcript into a `chat_message` table — deferred
-
-**Argumentation Summary:** `chat.messages` is one jsonb array rewritten in full per exchange, and
-replay reconstructs tool results from ≤2 KB summaries
-([LOOM_UI_CHAT.md §4.3](../chat/LOOM_UI_CHAT.md) R4/R5). Row-size growth and lossy replay are the
-risks; neither has bitten yet.
-
-**Improvement Summary:** Move to a normalized `chat_message` table with per-message rows and full
-tool payloads, behind a migration + DAO change.
-
-```
-Revisit only when fidelity or row growth actually hurts. Sketch: new migration adding
-chat_message(uuid, chat_uuid, ordinal, role, content, tool_calls jsonb, created); ChatDao gains
-append/loadMessages; AgentLoop appends instead of rewriting; keep chat.messages as a read fallback
-for one release.
-```
-
-**References:** [LOOM_UI_CHAT.md §4.3](../chat/LOOM_UI_CHAT.md) · **CTX5** below, which needs the
-same table and states the agent-facing reason for it
-**Test Requirements:** `ChatDaoTest` message append/ordering/cascade cases; `AgentLoopTest` replay
-fidelity case. Requires `./setup-pool.sh` after the migration.
 
 ---
 
@@ -1543,7 +1493,9 @@ mvn -q test -pl loom/core -Dtest=MCPToolReferencesTest
   endpoint module.
 - `LOOM_AI_STREAMING=true` requires a provider that implements `generateStreamWithTools`. On vLLM
   this fails the run terminally (F1) — leave it `false` there.
-- Abort is currently **turn-granular** on the streaming path (F2).
+- Abort interrupts the turn in flight on the streaming path: `AgentLoop.abort()` calls
+  `TurnStreamer.cancel()`, which disposes the provider subscription (F2). It stays **turn-granular**
+  on `BlockingTurnStreamer`, whose `cancel()` is the interface default no-op.
 - **Nothing counts tokens.** `AiOptions.getContextWindow()` is reported to the provider and used as
   a budget by nobody; `buildHistory` replays the whole transcript and tool results enter the live
   history uncapped (CTX1–CTX3).
@@ -1603,7 +1555,5 @@ mvn -q test -pl loom/core -Dtest=MCPToolReferencesTest
 | Agent memory bank | [CHAT_MEMORY_PLAN.md](../chat/CHAT_MEMORY_PLAN.md) |
 | UI-side task record | [TASK_UI_CHAT.md](../loom/ui/TASK_UI_CHAT.md) |
 
-_Git HEAD revision: `6a54f296`_
-_Last updated: 2026-08-08 (added the enhancement backlog CTX/EXE/RD/LP/SEC/ACT/QW/MEM; split out an
-Open Defects table — CTX2, CTX3 and the newly found SEC2; fixed the dead cross-links to the moved
-chat specs)_
+_Git HEAD revision: `8e6f4915`_
+_Last updated: 2026-08-10 (F2 done — mid-turn abort on the streaming path)_

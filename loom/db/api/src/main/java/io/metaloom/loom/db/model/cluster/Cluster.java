@@ -1,5 +1,6 @@
 package io.metaloom.loom.db.model.cluster;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import io.metaloom.loom.db.CUDElement;
@@ -62,6 +63,30 @@ public interface Cluster extends CUDElement<Cluster> {
 	UUID getPersonUuid();
 
 	Cluster setPersonUuid(UUID personUuid);
+
+	/**
+	 * When a human recorded the verdict, or {@code null} while nobody has.
+	 *
+	 * <p>
+	 * Deliberately not {@code edited}: the producing node touches that on every re-run, so reading it as a review timestamp would report a review that
+	 * never happened (V2.88).
+	 * </p>
+	 */
+	Instant getReviewedAt();
+
+	Cluster setReviewedAt(Instant reviewedAt);
+
+	/**
+	 * The user who recorded the verdict, or {@code null} while nobody has.
+	 *
+	 * <p>
+	 * Separate from {@code editorUuid}, which is machine-written provenance and is NULL for a node-written row (V2.47). Attributing a face to a named
+	 * person is a biometric decision, and it keeps its author across every later run of the producing node.
+	 * </p>
+	 */
+	UUID getReviewerUuid();
+
+	Cluster setReviewerUuid(UUID reviewerUuid);
 
 	/**
 	 * The asset this cluster was computed within, or {@code null} for a human-authored cluster.

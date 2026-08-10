@@ -150,6 +150,7 @@ graph TD
 | `/tasks` | `TasksView` | `features/tasks/TasksView.tsx` |
 | `/detection` | `DetectionManagement` | `features/detection/DetectionManagement.tsx` |
 | `/faces` | `<Navigate to="/detection" replace />` | `layout/AppShell.tsx` |
+| `/persons/:id` | `PersonDetail` | `features/persons/PersonDetail.tsx` — a person's own pictures, upload and avatar |
 | `/tags` | `TagsView` | `features/tags/TagsView.tsx` |
 | `/workflow` | `WorkflowView` | `features/workflow/WorkflowView.tsx` — six review modes; specs in [../../workflows/WORKFLOWS.md](../../workflows/WORKFLOWS.md) |
 | `/asset-pools` | `AssetPoolsView` | `features/assetPools/AssetPoolsView.tsx` |
@@ -168,7 +169,10 @@ graph TD
 its `<Route>`. New admin screens should follow that shape rather than growing the shared file.
 
 `FaceDetectionManagement`, `ClustersPanel`, `PersonsPanel` and `ReactionsPanel` have **no
-route of their own** — they are mounted as panels from `DetectionManagement` / asset detail.
+route of their own** — they are mounted as panels from `DetectionManagement` / asset detail. The one
+exception is `PersonDetail` at `/persons/:id`, reached from the name on a person card: a person's
+pictures belong to the person rather than being a view onto the material they were found in, so they
+need an address that outlives a panel, and one that can be linked to.
 `DetectionManagement` is a three-tab shell (Faces / Objects / LLM, `role="tab"`); the Faces tab is
 `FaceDetectionManagement`, which switches between `ClustersPanel` and `PersonsPanel` with the two
 chips in `facedetection-switcher`. An E2E spec therefore reaches either panel via `/detection` plus

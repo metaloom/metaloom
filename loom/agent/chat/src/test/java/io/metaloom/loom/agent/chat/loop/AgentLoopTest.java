@@ -19,6 +19,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -335,6 +336,33 @@ public class AgentLoopTest {
 		assertNull(firstEvent(AgentEventType.TOOL_START));
 		// The partial content is persisted
 		assertEquals("partial answer", persistedMessages.get().getJsonObject(1).getString("content"));
+	}
+
+	@Test
+	public void testAbortCancelsTurnStreamer() {
+		AtomicReference<AgentLoop> loopRef = new AtomicReference<>();
+		AtomicBoolean cancelled = new AtomicBoolean(false);
+		TurnStreamer streamer = new TurnStreamer() {
+			@Override
+			public TurnResult streamTurn(LLMContext ctx, TurnListener listener) {
+				listener.onTextDelta("partial answer");
+				loopRef.get().abort();
+				return new TurnResult("partial answer", null, List.of());
+			}
+
+			@Override
+			public void cancel() {
+				cancelled.set(true);
+			}
+		};
+
+		AgentLoop loop = loop(new AiOptions(), streamer, List.of());
+		loopRef.set(loop);
+		loop.run();
+
+		// Without this the streaming path would keep generating until the provider finishes on its own
+		assertTrue(cancelled.get(), "abort() must ask the streamer to interrupt the in-flight turn");
+		assertEquals("aborted", firstEvent(AgentEventType.AGENT_END).data().getString("status"));
 	}
 
 	@Test

@@ -119,6 +119,13 @@ Crucially, **re-running the node never undoes your decision.** It rewrites the g
 proposals — new boxes, new vectors — and leaves the verdicts alone. A group you confirmed last month
 is still confirmed, still attached to the same person, after the asset is processed again.
 
+Every decision is also **signed and dated**: the group records which member of your team confirmed or
+rejected it, and when. That record is kept apart from the processing history the node writes, so it
+survives every later run — six months on you can still answer "who said this is Anna, and when?".
+Naming a face is a decision about a real person, and it is not one that should be traceable only to
+"the pipeline". A group nobody has looked at carries no reviewer at all, so "unreviewed" and "reviewed
+by the software" can never be confused.
+
 === Where the face pictures come from
 
 Every cropped face you see in the review screen was cut by the node at detection time and stored in

@@ -55,7 +55,6 @@ import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptor;
 import io.metaloom.loom.db.jooq.tables.JooqNodeDescriptorInstance;
 import io.metaloom.loom.db.jooq.tables.JooqNotification;
 import io.metaloom.loom.db.jooq.tables.JooqPerson;
-import io.metaloom.loom.db.jooq.tables.JooqPersonImage;
 import io.metaloom.loom.db.jooq.tables.JooqPipeline;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineNodeTask;
 import io.metaloom.loom.db.jooq.tables.JooqPipelineRun;
@@ -432,11 +431,6 @@ public class JooqPublic extends SchemaImpl {
     public final JooqPerson PERSON = JooqPerson.PERSON;
 
     /**
-     * Gallery of pictures associated with a person
-     */
-    public final JooqPersonImage PERSON_IMAGE = JooqPersonImage.PERSON_IMAGE;
-
-    /**
      * The table <code>public.pipeline</code>.
      */
     public final JooqPipeline PIPELINE = JooqPipeline.PIPELINE;
@@ -669,7 +663,6 @@ public class JooqPublic extends SchemaImpl {
             JooqNodeDescriptorInstance.NODE_DESCRIPTOR_INSTANCE,
             JooqNotification.NOTIFICATION,
             JooqPerson.PERSON,
-            JooqPersonImage.PERSON_IMAGE,
             JooqPipeline.PIPELINE,
             JooqPipelineNodeTask.PIPELINE_NODE_TASK,
             JooqPipelineRun.PIPELINE_RUN,

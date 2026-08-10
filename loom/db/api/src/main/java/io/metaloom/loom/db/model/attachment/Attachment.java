@@ -63,6 +63,19 @@ public interface Attachment extends CUDElement<Attachment> {
 	Attachment setDetectionUuid(UUID detectionUuid);
 
 	/**
+	 * The person that owns this binary, for a {@link io.metaloom.loom.api.attachment.AttachmentType#PERSON_IMAGE}.
+	 *
+	 * <p>
+	 * Null for every other attachment type. A person image is the one kind of attachment that is not derived from anything: it was uploaded to the
+	 * person, or copied into the person's own keeping from a face crop. It therefore leaves {@code assetUuid} and {@code detectionUuid} null, and no
+	 * asset deletion can reach it (V2.90).
+	 * </p>
+	 */
+	UUID getPersonUuid();
+
+	Attachment setPersonUuid(UUID personUuid);
+
+	/**
 	 * Discriminator between attachments of the same type for the same target, e.g. the longest edge of a crop.
 	 *
 	 * <p>

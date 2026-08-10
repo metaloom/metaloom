@@ -685,8 +685,9 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
       producer (`asset_doc_comp`, Task 19)
 - [x] **Asset delete cascades** — `tag_asset` (`V2.72`), `collection_asset` / `asset_task` /
       `asset_user_meta` (`V2.73`), `comment` / `reaction` / `library_asset` (`V2.74`),
-      `collection_asset.collection_uuid` (`V2.80`). The only non-cascading asset FKs left are
-      two intentional `SET NULL`s (`dedup_group.keep_asset_uuid`, `person.primary_image_uuid`).
+      `collection_asset.collection_uuid` (`V2.80`). The only non-cascading asset FK left is one
+      intentional `SET NULL` (`dedup_group.keep_asset_uuid`); `person.primary_image_uuid` was the
+      other until `V2.91` removed it.
       Asserted from both sides by `AssetCascadeTest` over a shared two-asset fixture
 - [x] **`tag_asset` placements** (`V2.71`) — surrogate PK, `NULLS NOT DISTINCT` region key and
       provenance, so one tag sits on an asset once per region and every placement names its writer

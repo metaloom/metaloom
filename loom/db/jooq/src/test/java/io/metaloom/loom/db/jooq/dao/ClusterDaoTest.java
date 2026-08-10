@@ -168,6 +168,83 @@ public class ClusterDaoTest extends AbstractJooqTest implements CRUDDaoTestcases
 	}
 
 	/**
+	 * A node re-run must not erase who decided, even though it does overwrite {@code editor_uuid}.
+	 *
+	 * <p>
+	 * This is the entire reason {@code reviewed_at}/{@code reviewer_uuid} exist (V2.88). Before them the deciding user was recorded in
+	 * {@code editor_uuid}, which is machine-written provenance the producing node rewrites on every pass - so the record of which human attributed a
+	 * face to a named person survived exactly until the next pipeline run. The assertion that matters is the pair: the editor moves, the reviewer does
+	 * not.
+	 * </p>
+	 */
+	@Test
+	public void testNodeReRunDoesNotClobberTheReviewer() {
+		User user = dummyUser();
+		Person person = personDao().createPerson(user, "Anna Meyer");
+		personDao().store(person);
+
+		Cluster proposed = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 0);
+		getDao().upsertCluster(proposed);
+
+		getDao().confirm(proposed.getUuid(), person.getUuid(), null, user.getUuid());
+
+		Cluster decided = getDao().load(proposed.getUuid());
+		assertEquals(user.getUuid(), decided.getReviewerUuid(), "Confirming records who decided");
+		assertNotNull(decided.getReviewedAt(), "Confirming records when they decided");
+		assertEquals(user.getUuid(), decided.getEditorUuid(), "and touches the editor block too, for now");
+
+		// The node runs again at the same producer_version. createMachineCluster carries no editor, because a Cortex worker is not a user (V2.79).
+		Cluster reproposed = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 0);
+		reproposed.setScore(0.77f);
+		getDao().upsertCluster(reproposed);
+
+		Cluster reloaded = getDao().load(proposed.getUuid());
+		assertEquals(user.getUuid(), reloaded.getReviewerUuid(), "A re-run must not drop who decided");
+		assertEquals(decided.getReviewedAt(), reloaded.getReviewedAt(), "A re-run must not move when they decided");
+		assertNull(reloaded.getEditorUuid(), "while editor_uuid is the producer's own and moves with the run - which is why it cannot be the audit trail");
+		assertEquals(0.77f, reloaded.getScore(), 0.0001f, "The producer's own payload is still updated");
+	}
+
+	/**
+	 * Rejecting records its author as durably as confirming does.
+	 *
+	 * <p>
+	 * "Somebody looked at this and said no" is a review, and it is the half most easily lost: rejection writes no person link, so before V2.88 a
+	 * REJECTED cluster carried no trace of a human at all once the node had run again.
+	 * </p>
+	 */
+	@Test
+	public void testRejectRecordsTheReviewer() {
+		User user = dummyUser();
+
+		Cluster proposed = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 0);
+		getDao().upsertCluster(proposed);
+
+		getDao().updateStatus(proposed.getUuid(), Cluster.STATUS_REJECTED, null, user.getUuid());
+
+		Cluster rejected = getDao().load(proposed.getUuid());
+		assertEquals(Cluster.STATUS_REJECTED, rejected.getStatus());
+		assertEquals(user.getUuid(), rejected.getReviewerUuid(), "A rejection has an author too");
+		assertNotNull(rejected.getReviewedAt());
+
+		getDao().upsertCluster(getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 0));
+
+		assertEquals(user.getUuid(), getDao().load(proposed.getUuid()).getReviewerUuid(), "and it survives the node running again");
+	}
+
+	/** A proposal nobody has looked at has no reviewer, rather than a placeholder one. */
+	@Test
+	public void testAnUnreviewedClusterHasNoReviewer() {
+		Cluster proposed = getDao().createMachineCluster(Cluster.TYPE_FACE, "facedetect", asset().getUuid(), 0);
+		getDao().upsertCluster(proposed);
+
+		Cluster reloaded = getDao().load(proposed.getUuid());
+		assertEquals(Cluster.STATUS_PENDING, reloaded.getStatus());
+		assertNull(reloaded.getReviewedAt(), "Nobody has decided, so there is no review timestamp");
+		assertNull(reloaded.getReviewerUuid());
+	}
+
+	/**
 	 * Linking the same embedding twice refreshes the membership instead of violating the primary key.
 	 */
 	@Test

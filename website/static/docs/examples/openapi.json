@@ -14432,7 +14432,7 @@
         },
         "responses" : {
           "200" : {
-            "description" : "The cluster response",
+            "description" : "The reviewed cluster response",
             "content" : {
               "application/json" : {
                 "example" : {
@@ -14452,9 +14452,12 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "name" : "The cluster name",
+                  "name" : "Anna Meyer",
                   "type" : "face",
-                  "reviewStatus" : "PENDING",
+                  "reviewStatus" : "CONFIRMED",
+                  "personUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "reviewedAt" : "2026-08-09T10:15:30Z",
+                  "reviewerUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                   "clusterIndex" : 0,
                   "score" : 0.92,
                   "memberCount" : 4,
@@ -14639,7 +14642,7 @@
         "operationId" : "postClustersByUuidReject",
         "responses" : {
           "200" : {
-            "description" : "The cluster response",
+            "description" : "The reviewed cluster response",
             "content" : {
               "application/json" : {
                 "example" : {
@@ -14659,9 +14662,12 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "name" : "The cluster name",
+                  "name" : "Anna Meyer",
                   "type" : "face",
-                  "reviewStatus" : "PENDING",
+                  "reviewStatus" : "CONFIRMED",
+                  "personUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "reviewedAt" : "2026-08-09T10:15:30Z",
+                  "reviewerUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
                   "clusterIndex" : 0,
                   "score" : 0.92,
                   "memberCount" : 4,
@@ -21549,7 +21555,8 @@
                     },
                     "alias" : "jdoe",
                     "firstname" : "John",
-                    "lastname" : "Doe"
+                    "lastname" : "Doe",
+                    "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
                   }, {
                     "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
                     "status" : {
@@ -21569,7 +21576,8 @@
                     },
                     "alias" : "jdoe",
                     "firstname" : "John",
-                    "lastname" : "Doe"
+                    "lastname" : "Doe",
+                    "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
                   } ],
                   "_metainfo" : {
                     "perPage" : 2,
@@ -21664,7 +21672,8 @@
                   },
                   "alias" : "jdoe",
                   "firstname" : "John",
-                  "lastname" : "Doe"
+                  "lastname" : "Doe",
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
                 }
               }
             }
@@ -21743,7 +21752,8 @@
                   },
                   "alias" : "jdoe",
                   "firstname" : "John",
-                  "lastname" : "Doe"
+                  "lastname" : "Doe",
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
                 }
               }
             }
@@ -21843,7 +21853,8 @@
                   },
                   "alias" : "jdoe",
                   "firstname" : "John",
-                  "lastname" : "Doe"
+                  "lastname" : "Doe",
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
                 }
               }
             }
@@ -21908,6 +21919,115 @@
         "responses" : {
           "204" : {
             "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/avatar" : {
+      "description" : "Set which of the person's images is their avatar. Send a blank or absent imageUuid to clear it.",
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Set which of the person's images is their avatar. Send a blank or absent imageUuid to clear it.",
+        "description" : "Set which of the person's images is their avatar. Send a blank or absent imageUuid to clear it.",
+        "operationId" : "postPersonsByUuidAvatar",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "imageUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The person response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "alias" : "jdoe",
+                  "firstname" : "John",
+                  "lastname" : "Doe",
+                  "avatarUrl" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data"
+                }
+              }
+            }
           },
           "400" : {
             "description" : "Bad request - validation error or malformed path/query parameter",
@@ -22038,6 +22158,506 @@
                     "perPage" : 2,
                     "totalCount" : 28
                   }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/images" : {
+      "description" : "List the person's images, newest first",
+      "get" : {
+        "tags" : [ "persons" ],
+        "summary" : "List the person's images, newest first",
+        "description" : "List the person's images, newest first",
+        "operationId" : "getPersonsByUuidImages",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The person image list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "filename" : "john-doe.jpg",
+                    "mimeType" : "image/jpeg",
+                    "size" : 48213,
+                    "url" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                    "avatar" : true
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Upload a picture of this person. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage pool; without it the image lands in the deployment's default storage, since a person image has no parent asset to inherit a pool from).",
+        "description" : "Upload a picture of this person. Form fields: 'file' (required, the image) and 'poolUuid' (optional storage pool; without it the image lands in the deployment's default storage, since a person image has no parent asset to inherit a pool from).",
+        "operationId" : "postPersonsByUuidImages",
+        "responses" : {
+          "201" : {
+            "description" : "The person image response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "john-doe.jpg",
+                  "mimeType" : "image/jpeg",
+                  "size" : 48213,
+                  "url" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                  "avatar" : true
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/images/{imageUuid}" : {
+      "description" : "Delete one of the person's images. Deleting the one currently used as the avatar leaves the person without one.",
+      "delete" : {
+        "tags" : [ "persons" ],
+        "summary" : "Delete one of the person's images. Deleting the one currently used as the avatar leaves the person without one.",
+        "description" : "Delete one of the person's images. Deleting the one currently used as the avatar leaves the person without one.",
+        "operationId" : "deletePersonsByUuidImagesByImageUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "imageUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced image",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/images/{imageUuid}/data" : {
+      "description" : "Load the bytes of one of the person's images",
+      "get" : {
+        "tags" : [ "persons" ],
+        "summary" : "Load the bytes of one of the person's images",
+        "description" : "Load the bytes of one of the person's images",
+        "operationId" : "getPersonsByUuidImagesByImageUuidData",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "imageUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced image",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/persons/{uuid}/images/from-detection" : {
+      "description" : "Copy a detection's face crop into this person's images. The copy shares the crop's bytes but belongs to the person, so it survives deletion of the asset the face was found in. Requires READ_DETECTION as well as UPDATE_PERSON: the result is readable face crop content, which is biometric.",
+      "post" : {
+        "tags" : [ "persons" ],
+        "summary" : "Copy a detection's face crop into this person's images. The copy shares the crop's bytes but belongs to the person, so it survives deletion of the asset the face was found in. Requires READ_DETECTION as well as UPDATE_PERSON: the result is readable face crop content, which is biometric.",
+        "description" : "Copy a detection's face crop into this person's images. The copy shares the crop's bytes but belongs to the person, so it survives deletion of the asset the face was found in. Requires READ_DETECTION as well as UPDATE_PERSON: the result is readable face crop content, which is biometric.",
+        "operationId" : "postPersonsByUuidImagesFromdetection",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "detectionUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "description" : "The person image response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "filename" : "john-doe.jpg",
+                  "mimeType" : "image/jpeg",
+                  "size" : 48213,
+                  "url" : "/api/v1/persons/0f3332a6-e404-4777-88a9-1fa984a311bc/images/f04e89d0-076d-4d90-b192-715a25a2cd59/data",
+                  "avatar" : true
                 }
               }
             }
@@ -22399,7 +23019,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "f8cd6480-84ee-4c3d-8c72-f51c81cec62a",
+                    "versionUuid" : "ff77f8cc-d0d5-479d-bb36-513639218948",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22426,7 +23046,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "4d623b57-ab52-4438-a546-c649650214d6",
+                    "versionUuid" : "50d2137e-c54e-4964-8067-55ae606739fc",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -22533,7 +23153,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "966f5913-b4a2-4834-bc20-85d9f9a3bfb4",
+                  "versionUuid" : "fb87ea4f-71df-41b3-a32b-66f8c12e873b",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22619,7 +23239,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "2aa25b97-7dd1-48dc-a7df-cda24a3c8687",
+                  "versionUuid" : "de692e04-35dc-4091-8130-dc786ca27d2a",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22726,7 +23346,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "f3aac48c-c065-4b73-997e-5aadd87faea7",
+                  "versionUuid" : "5593feed-04b1-4ec1-9a33-7eb8d7a8fe1d",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -22888,7 +23508,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "ad4be0cc-3edd-42de-a841-446cfb7f5c8e",
+                  "runUuid" : "7fc93ac1-f9d4-4aec-8a13-ee6a6e553eb9",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -23014,11 +23634,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "f8574f61-31ee-4ab8-9b9e-4b8b3b685f32",
-                    "pipelineUuid" : "16f60650-89ab-4c68-9edf-f57339b76c34",
+                    "uuid" : "161a43c0-3f2b-4744-b124-0d5acc4846ec",
+                    "pipelineUuid" : "ad5cabb2-ba0e-49be-a09e-8d0caba46f6f",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T19:59:22.970956945Z",
-                    "finished" : "2026-08-09T19:59:22.971049595Z",
+                    "started" : "2026-08-10T19:02:02.812278245Z",
+                    "finished" : "2026-08-10T19:02:02.812381795Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -23027,11 +23647,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "87c0a845-44f8-4985-8700-cd4c52a96d09",
-                    "pipelineUuid" : "ec395f21-2739-4f6a-93e5-a35c97fb0244",
+                    "uuid" : "a18387d3-46b9-4c18-976b-0511c8da07e0",
+                    "pipelineUuid" : "699ab088-ee83-4df0-85cc-f9e7e407e311",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-09T19:59:22.971173486Z",
-                    "finished" : "2026-08-09T19:59:22.971178026Z",
+                    "started" : "2026-08-10T19:02:02.812524055Z",
+                    "finished" : "2026-08-10T19:02:02.812528335Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -23124,11 +23744,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "d40fa65f-71e7-4a33-9c53-76e00b65c881",
-                  "pipelineUuid" : "02de7a0b-c98f-4802-8794-8366343ff635",
+                  "uuid" : "b652ba35-da83-4401-a2c1-c46ba280bf85",
+                  "pipelineUuid" : "26754576-04dd-4e55-9d95-38ab474ae872",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-09T19:59:22.972008617Z",
-                  "finished" : "2026-08-09T19:59:22.972015407Z",
+                  "started" : "2026-08-10T19:02:02.813373174Z",
+                  "finished" : "2026-08-10T19:02:02.813379754Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -23618,16 +24238,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "74cd2fb5-0dd0-4b0c-b4cc-3bc94c49a9e0",
-                    "runUuid" : "ff285790-ae8e-4b57-b21d-5e20fcd27518",
+                    "uuid" : "b520cbbb-45bb-4ccb-9008-71e30da28f85",
+                    "runUuid" : "f4694acf-9f19-4fc8-842e-48abb031d853",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "74d7be34-1671-4ee1-a9e4-afc1e2fabea4",
-                    "runUuid" : "ab37f4eb-4efb-498b-a8fa-6a1332974cfa",
+                    "uuid" : "e6622325-f0bd-4085-9353-771ba01a1bfb",
+                    "runUuid" : "2d290080-7782-45b4-9436-93e01d2ee6f8",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -23728,9 +24348,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "20a75145-e840-460c-a6cb-636b940e1d1d",
-                    "itemUuid" : "28e7a22f-e284-4e5e-a915-98fafbc9d8b0",
-                    "runUuid" : "ba04dba2-47cf-4044-bb10-111036852fdc",
+                    "uuid" : "948b0da0-3c4d-4e28-92a1-597e628062d7",
+                    "itemUuid" : "07198a67-2a1f-4752-85ab-5808baf1ac33",
+                    "runUuid" : "b6e61070-6594-4c92-ad65-62a77e7f2f62",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -24396,7 +25016,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "b314b3d0-a777-45a3-bec4-97bbf935f895",
+                    "versionUuid" : "51e59ce1-88cc-4e38-bbf6-0fcdeb86e074",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24423,7 +25043,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "de66722e-56c4-4e3e-b9db-16448687e1fe",
+                    "versionUuid" : "e523b03b-01a8-4c17-952c-cc8f0f00bc39",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -24534,7 +25154,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "93f91f9b-a75e-4a27-b4ac-0faf77ab204a",
+                  "versionUuid" : "48b22846-a2e6-4b14-abc8-c18ab99413c4",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24659,7 +25279,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "a5b60356-0144-4494-8140-6ec801051ac2",
+                  "versionUuid" : "1abcd0ad-816b-415b-9127-697c32f023b0",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",

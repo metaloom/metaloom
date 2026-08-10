@@ -1,0 +1,14 @@
+-- A person owns its pictures directly: hero images uploaded to the person, and the one among them
+-- that serves as the avatar. attachment is already the sink for binaries that are not assets
+-- (V2.44, V2.79), so this needs a type rather than a table.
+--
+-- The point of routing person pictures through attachment rather than through the person_image
+-- join table V2.26 created is lifetime. person_image keyed a person to an asset, and both of its
+-- foreign keys cascaded, so a person's gallery evaporated whenever the material it was drawn from
+-- was deleted. A person-owned attachment references nothing but the person and the content-addressed
+-- bytes, so no asset deletion can reach it. V2.90 adds the columns; V2.91 retires what this replaces.
+--
+-- Enum additions live in their own migration on purpose: ALTER TYPE ... ADD VALUE cannot run inside
+-- a transaction block on older Postgres, and a value added in one transaction is not usable in it.
+-- Nothing else may go in this file.
+ALTER TYPE "attachment_type" ADD VALUE IF NOT EXISTS 'PERSON_IMAGE';

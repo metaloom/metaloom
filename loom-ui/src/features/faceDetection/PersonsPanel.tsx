@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import {
   Box, Typography, Paper, Avatar, Chip, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Button, TextField,
@@ -10,8 +11,8 @@ import { tokens } from "../../theme";
 import { FaceCluster, Person } from "../../types";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
-import { assetBinaryUrl } from "../../api/assets";
 import { deletePerson as apiDeletePerson, updatePerson as apiUpdatePerson } from "../../api/persons";
+import { toUiPerson } from "./personMapping";
 
 interface PersonsPanelProps {
   persons: Person[];
@@ -63,12 +64,7 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
       // Echo what the server stored rather than the strings that were typed. The response was
       // previously assigned and never read, so the panel showed the edit even when the write had
       // silently dropped part of it - which it did, for the avatar, on every save.
-      onPersonUpdated?.({
-        ...editPerson,
-        name: [resp.firstname, resp.lastname].filter(Boolean).join(" ") || resp.alias,
-        description: resp.alias,
-        avatarUrl: resp.primaryImageUuid ? assetBinaryUrl(resp.primaryImageUuid) : editPerson.avatarUrl,
-      });
+      onPersonUpdated?.(toUiPerson(resp, editPerson.clusterIds));
     } catch (e) {
       console.error("Failed to update person", e);
     }
@@ -94,7 +90,14 @@ export default function PersonsPanel({ persons, clusters, onPersonDeleted, onPer
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 2, py: 1.5 }}>
               <Avatar src={person.avatarUrl} sx={{ width: 48, height: 48 }} />
               <Box sx={{ flex: 1 }}>
-                <Typography variant="body2" fontWeight={600} data-testid="person-name" sx={{ fontSize: "0.88rem", color: tokens.text.primary }}>
+                <Typography
+                  variant="body2"
+                  fontWeight={600}
+                  data-testid="person-name"
+                  component={RouterLink}
+                  to={`/persons/${person.id}`}
+                  sx={{ fontSize: "0.88rem", color: tokens.text.primary, textDecoration: "none", "&:hover": { textDecoration: "underline" } }}
+                >
                   {person.name}
                 </Typography>
                 <Typography variant="caption" data-testid="person-alias" sx={{ color: tokens.text.secondary, fontSize: "0.75rem", display: "block" }}>

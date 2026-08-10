@@ -10,7 +10,7 @@ public class PersonImpl extends AbstractEditableElement<Person> implements Perso
 	private String alias;
 	private String firstname;
 	private String lastname;
-	private UUID primaryImageUuid;
+	private UUID avatarAttachmentUuid;
 
 	@Override
 	public String getAlias() {
@@ -46,13 +46,13 @@ public class PersonImpl extends AbstractEditableElement<Person> implements Perso
 	}
 
 	@Override
-	public UUID getPrimaryImageUuid() {
-		return primaryImageUuid;
+	public UUID getAvatarAttachmentUuid() {
+		return avatarAttachmentUuid;
 	}
 
 	@Override
-	public Person setPrimaryImageUuid(UUID primaryImageUuid) {
-		this.primaryImageUuid = primaryImageUuid;
+	public Person setAvatarAttachmentUuid(UUID avatarAttachmentUuid) {
+		this.avatarAttachmentUuid = avatarAttachmentUuid;
 		return this;
 	}
 

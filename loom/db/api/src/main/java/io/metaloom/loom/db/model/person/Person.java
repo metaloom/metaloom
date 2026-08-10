@@ -18,8 +18,17 @@ public interface Person extends CUDElement<Person> {
 
 	Person setLastname(String lastname);
 
-	UUID getPrimaryImageUuid();
+	/**
+	 * The person image shown as this person's avatar, or null.
+	 *
+	 * <p>
+	 * Points at one of the person's own images - an {@code attachment} of type
+	 * {@link io.metaloom.loom.api.attachment.AttachmentType#PERSON_IMAGE} owned by this person - never into an asset. Its predecessor
+	 * {@code primary_image_uuid} pointed at an asset, which for a person discovered in a video resolved to the whole video file (V2.91).
+	 * </p>
+	 */
+	UUID getAvatarAttachmentUuid();
 
-	Person setPrimaryImageUuid(UUID primaryImageUuid);
+	Person setAvatarAttachmentUuid(UUID avatarAttachmentUuid);
 
 }

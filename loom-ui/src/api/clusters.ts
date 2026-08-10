@@ -23,6 +23,20 @@ export interface ClusterResponse {
   reviewStatus?: string;
   /** The person this cluster was confirmed to be, or absent while unreviewed or rejected. */
   personUuid?: string;
+  /**
+   * When a human decided, or absent while nobody has.
+   *
+   * Not `status.edited`: the producing node touches that on every re-run, so it says nothing about
+   * whether anybody reviewed the cluster.
+   */
+  reviewedAt?: string;
+  /**
+   * The user who decided, or absent while nobody has.
+   *
+   * Not `status.editor`, which is the producing node's provenance and is absent for a machine-written
+   * cluster. Attributing a face to a named person is biometric, and the decision keeps its author.
+   */
+  reviewerUuid?: string;
   /** The asset the cluster was computed within, or absent for a human-authored cluster. */
   assetUuid?: string;
   clusterIndex?: number;

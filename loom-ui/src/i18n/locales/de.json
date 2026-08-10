@@ -1481,13 +1481,18 @@
       "clusters": "{{count}} Cluster"
     },
     "label": {
-      "since": "seit {{date}}",
-      "name": "Name",
+      "alias": "Alias",
       "description": "Beschreibung",
+      "firstname": "Vorname",
+      "lastname": "Nachname",
+      "name": "Name",
+      "reviewedOn": "geprüft am {{date}}",
+      "since": "seit {{date}}",
       "unnamedCluster": "Unbenanntes Cluster"
     },
     "tooltip": {
-      "assign": "Person zuweisen"
+      "assign": "Person zuweisen",
+      "reviewer": "Geprüft von Benutzer {{uuid}}"
     },
     "empty": {
       "clusters": "Keine Cluster gefunden",
@@ -2073,6 +2078,40 @@
     },
     "emptyState": {
       "noSearch": "Keine Sitzungen entsprechen Ihrer Suche"
+    }
+  },
+  "person": {
+    "button": {
+      "uploadImage": "Bild hochladen",
+      "back": "Zurück zur Erkennung"
+    },
+    "label": {
+      "images": "Bilder",
+      "avatar": "Avatar",
+      "faces": "Dieser Person zugeordnete Gesichter",
+      "facesHint": "Eines davon zu den Bildern hinzufügen. Die Kopie bleibt bei der Person, auch wenn das Material gelöscht wird, aus dem sie stammt."
+    },
+    "tooltip": {
+      "makeAvatar": "Als Avatar verwenden",
+      "deleteImage": "Dieses Bild löschen",
+      "importCrop": "Dieses Gesicht zu den Bildern der Person hinzufügen"
+    },
+    "empty": {
+      "images": "Noch keine Bilder",
+      "imagesHint": "Lade eines hoch oder füge ein Gesicht aus einer dieser Person zugeordneten Gruppe hinzu.",
+      "notFound": "Diese Person konnte nicht geladen werden",
+      "notFoundHint": "Möglicherweise wurde sie gelöscht."
+    },
+    "toast": {
+      "imageUploaded": "Bild hinzugefügt",
+      "uploadFailed": "Das Bild konnte nicht hochgeladen werden",
+      "cropImported": "Gesicht zu den Bildern der Person hinzugefügt",
+      "importFailed": "Das Gesicht konnte nicht hinzugefügt werden",
+      "avatarSet": "Avatar aktualisiert",
+      "avatarFailed": "Der Avatar konnte nicht aktualisiert werden",
+      "imageDeleted": "Bild gelöscht",
+      "deleteFailed": "Das Bild konnte nicht gelöscht werden",
+      "loadFailed": "Diese Person konnte nicht geladen werden"
     }
   }
 }
