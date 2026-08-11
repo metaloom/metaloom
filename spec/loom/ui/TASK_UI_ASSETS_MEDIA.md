@@ -12,14 +12,14 @@
 > gaps and are independent. Tasks 3–5 are small/decision-shaped.
 >
 > **Owned elsewhere — do not duplicate here:**
-> * **Search UI** (`/api/v1/search/{results,assets,suggestions,status}` is built; `loom-ui` has
->   no `src/api/search.ts`, no `/search` route, no search bar) →
->   [../../features/search/SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) **P1-16…P1-20**,
->   plus **P0-5** which deletes the unreachable `src/{Admin,Asset,Content,Dashboard,User}` trees.
->   `AssetBrowser`/`LibraryView` server-side paging is **P1-18/P1-19** there.
+> * **Search UI** — now **built**: `src/api/search.ts`, the `/search` route, `SearchContext` and the
+>   global sidebar field all exist, and `AssetBrowser` routes a non-empty query to `/search/assets`.
+>   See [../../features/search/SEARCH.md](../../features/search/SEARCH.md) §0. What remains is
+>   [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) **Task 4** (`LibraryView` still filters
+>   client-side) and **Task 9** (deleting the unreachable `src/{Content,Dashboard,User}` trees).
 > * **Dedup-group review UI** (`/api/v1/dedup-groups`, `/api/v1/assets/:uuid/dedup-groups`) →
 >   [TASK_UI_AI_ML.md](TASK_UI_AI_ML.md) Task 4, per
->   [../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) §"Review UI".
+>   [NODE_DEDUP.md](../../features/nodes/dedup/NODE_DEDUP.md) §10.
 > * **Reactions on assets/annotations** → [TASK_UI_COLLABORATION.md](TASK_UI_COLLABORATION.md).
 
 ---

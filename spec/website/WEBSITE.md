@@ -199,7 +199,7 @@ Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup
 | **top level** | `getting-started/` · `pipeline/` (5 debug screenshots) · `operation/` · `ui/` (17 screenshots, from **two** scripts — see below) · `cli/` · `deployment/` (`_index` + `helm/`) |
 | **`playbooks/`** | `_index` + `docker/` · `kubernetes/` · `transcription/` · `scene-analysis/` · `translation/` · `python-node/` |
 | **`nodes/`** | `_index` + **36 node pages** (35 with a staged descriptor, plus `guard`): `captioning · consistency · dedup · depthmap · dominant-color · facedescription · facedetect · filesystem-source · filter · fingerprint · gdrive-source · guard · hash · image-manipulation · imagegen · llm · metadata · objectdetect · ocr · onedrive-source · quality · s3-sink · s3-source · scene-detection · scene-layout · script · sentiment · tag · thumbnail · tika · translate · tts · videogen · vlm · watermark · whisper`. **The count drifts** — `check-node-screenshots.mjs` is what notices, by mapping every kind in the descriptor snapshot to exactly one page |
-| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` · `search-indices/` (2 screenshots) · `database-integrity/` (3 screenshots) · `storage/` (1 screenshot) |
+| **`loom/`** | `_index` + `rest-api/` (Swagger UI) · `graphql-api/` (GraphiQL) · `java-client/` · `python-client/` · `authentication/` · `configuration/` · `metrics/` · `features/` · `chat/` · `binary-storage/` · `artifacts/` · `maven-artifacts/` · `containers/` · `helm-chart/` · `examples/` · `mcp/` · `search-indices/` (2 screenshots) · `database-integrity/` (3 screenshots) · `storage/` (1 screenshot) |
 | **`cortex/`** | `_index` + `configuration/` · `monitoring/` · `metrics/` · `artifacts/` · `maven-artifacts/` · `containers/` · `examples/` |
 | **`legal/`** | `_index` + `model-licenses/` · `ai-disclosure/` · `impressum/` (German) |
 | **legacy stubs** | `rest/` · `test/` · `configuration/` — unlinked placeholders, candidates for deletion |
@@ -609,7 +609,7 @@ link, the *1.0.0 — not released yet* badge). **Footer headings carry `data-toc
   values back. Two components are **non-commercial** (`#restricted`): the **InspireFace model packs**
   used by `facedetect` (Apache-2.0 code, InsightFace academic-only packs, which taints
   `facedescription` downstream) and **Ideogram 4.0**, the backing model of the `imagegen` node
-  ([../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md)).
+  ([NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md)).
   Conditional (`#conditional`): the Gemma defaults and the gated Llama-3.2 Kartoffel TTS checkpoint.
   `#clean-stack` gives the permissive-only configuration; `#runtimes` covers redistributed native
   libraries incl. the FFmpeg `--enable-gpl` caveat.
@@ -1043,7 +1043,7 @@ review**.
       and failures, and background progress — with two mocked captures of three uploads running at
       once ([Capturing the upload screen](#capturing-the-upload-screen-docsui))
 - [x] Loom docs: REST API (Swagger UI), GraphQL API (GraphiQL), Java client, **Python client**, auth,
-      configuration, metrics, features, chat (incl. coding sandbox), binary storage, artifacts,
+      configuration, metrics, features, chat (incl. coding sandbox), **MCP server**, binary storage, artifacts,
       containers, helm, search indices (2 screenshots), database integrity (3 screenshots — clean,
       with findings, and filtered — captured against a demo database broken on purpose,
       [Capturing the database integrity screen](#capturing-the-database-integrity-screen-docsloomdatabase-integrity))
@@ -1064,7 +1064,7 @@ review**.
       (incl. a paste-ready coding-agent prompt hardened against four real generation failures)
 - [x] Legal section: Apache-2.0 hub, model licenses, AI disclosure, Austrian Impressum
 - [x] **Client-side semantic search over `/docs/**`** — a vendored 7 MB Ternlight engine, a
-      build-time index of 88 pages / 1380 chunks, and a rail box that runs both a substring pass and
+      build-time index of 88 pages / 1423 chunks, and a rail box that runs both a substring pass and
       a cosine pass in the reader's browser with nothing fetched until it is focused
       ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md))
 - [x] Both build gates shipping: the localhost-attribute check and `check-links.mjs` (targets + anchors)
@@ -1086,16 +1086,14 @@ review**.
       `cortex/nodes/image-generation/` with a registered `ImageGenDescriptorProvider`, and
       `docs/nodes/imagegen/` is a published page. Drop "(planned)" from the row and the prose while
       keeping the Ideogram 4.0 non-commercial `[WARNING]`. Plan:
-      [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md).
+      [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md).
 - [ ] **`docs/loom/_index.adoc` calls the gRPC API "(planned)"** — `loom/services/grpc` ships and
       `docs/loom/maven-artifacts/` already documents the `loom-grpc-client` coordinates.
-- [ ] **No docs page for the MCP server.** It ships (`loom/services/mcp`, spec
-      [../loom/MCP.md](../loom/MCP.md), port 4041) but appears only as rows in the configuration
-      tables — an LLM-client-facing feature with no page telling a customer how to connect.
 - [ ] **No docs page for the gRPC API** beyond the artifact coordinates — see
       [../loom/GRPC.md](../loom/GRPC.md).
-- [ ] **No `docs/nodes/loom/` page** for the Loom sink node (`cortex/nodes/loom/`), and no page for
-      the `loom-fetch` source. The sink is the node every "write results back" pipeline ends on.
+- [ ] **No page for the `loom-fetch` source.** (There is no Loom *sink* node to document: the
+      `cortex/nodes/loom/` module has no sources and its leftover directory has been deleted —
+      results are synced over the processor WebSocket, not written by a sink node.)
 - [ ] **The `guard` node page has neither picture.** It landed while these were being taken and its
       descriptor is not staged into `website/static/pipeline-editor/node-descriptors.json` yet — the
       config panel is rendered from that file, so neither picture can be taken until it is; the debug
@@ -1135,4 +1133,5 @@ review**.
 
 ---
 _Git HEAD revision: `4c02c3a5`_
-_Last updated: 2026-08-09 (client-side semantic search over /docs/ — see WEBSITE_SEARCH.md)_
+_Last updated: 2026-08-11 (docs/loom/mcp/ — the MCP server page: transports, token, tool inventory).
+Earlier: (client-side semantic search over /docs/ — see WEBSITE_SEARCH.md)_

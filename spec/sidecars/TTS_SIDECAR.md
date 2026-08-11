@@ -3,8 +3,8 @@
 Covers **`sidecars/tts/`** only: the FastAPI text-to-speech model server and its HTTP contract.
 The Java consumer (`TtsNode`) is covered by [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md);
 node option deserialization by [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md).
-Sibling sidecar specs with the same shape: [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../concept/NODE_SENTIMENT_PLAN.md) (§4 sidecar env),
-[../features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md](../concept/NODE_DEPTHMAP_PLAN.md) (§3.2).
+Sibling sidecar specs with the same shape: [NODE_SENTIMENT.md](../features/nodes/sentiment/NODE_SENTIMENT.md) (§4 sidecar env),
+[NODE_DEPTHMAP.md](../features/nodes/depthmap/NODE_DEPTHMAP.md) (§3.2).
 
 ## Status
 
@@ -237,7 +237,7 @@ Running Cortex/Loom tests still needs the pooled test DB — see the repo `CLAUD
 | metrics emitted (`recordAiCall`/`recordAiCacheHit` with `"tts"`) | [../features/ops/METRICS.md](../features/ops/METRICS.md) |
 | customer-facing docs | `website/content/english/docs/nodes/tts/index.adoc` |
 | model licence posture | `website/content/english/docs/legal/model-licenses/index.adoc` |
-| another sidecar to copy from | `sidecars/sentiment/`, `sidecars/depth/`; [../features/pipeline-nodes/NODE_SENTIMENT_PLAN.md](../concept/NODE_SENTIMENT_PLAN.md) |
+| another sidecar to copy from | `sidecars/sentiment/`, `sidecars/depth/`; [NODE_SENTIMENT.md](../features/nodes/sentiment/NODE_SENTIMENT.md) |
 | how to add a new node + sidecar | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 
 ## 10. Progress Assessment

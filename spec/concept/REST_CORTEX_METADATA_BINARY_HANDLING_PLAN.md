@@ -35,7 +35,7 @@ B5).
 
 > **Read first**: [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) — the byte endpoints, the pool
 > model, the storage layout. **Read alongside**:
-> [../pipeline-nodes/NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) (the worker-side
+> [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md) (the worker-side
 > half; this file supersedes its phases 2 and 3),
 > [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) (the node persistence template),
 > [../../loom/RESTAPI.md](../loom/RESTAPI.md) (endpoint conventions).
@@ -65,7 +65,7 @@ work in §3–§5 is what is left after subtracting it.
 | `attachment` provenance **columns** + idempotency index | `V2.44` — in the DB, but still invisible above it (§3 A1) |
 | Location cardinality question | **answered** — §2 |
 
-> ⚠️ `NODE_S3SINK_PLAN.md` §13 lists "Phase 2 (Loom)" as open. **Phase 2 is done** — `poolUuid`
+> ⚠️ `spec/features/nodes/s3-sink/NODE_S3SINK.md` §13 lists "Phase 2 (Loom)" as open. **Phase 2 is done** — `poolUuid`
 > reaches `AssetBinary` and the REST models, and the three
 > `log.error("S3 support has not yet been implemented")` branches are implemented. Its Phase 3
 > (attachment provenance) is §3 A1 here.
@@ -323,7 +323,7 @@ No new settings. Full documentation in [REST_BINARY_HANDLING.md](../features/res
 | The metadata write-back that already works | `AbstractMediaNode.recordNodeResult`, `POST /assets/:uuid/node-results`, `WhisperNode` |
 | The node persistence template | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | The byte endpoints this plan builds on | [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §2, [../../loom/RESTAPI.md](../loom/RESTAPI.md) |
-| The worker-side S3 upload that already works | `cortex/nodes/s3-sink/`, [../pipeline-nodes/NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) |
+| The worker-side S3 upload that already works | `cortex/nodes/s3-sink/`, [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md) |
 | Why `attachment` is the sanctioned sink | `loom/db/flyway/…/V2.44__attachment_provenance.sql` header |
 | The ledger table | `loom/db/flyway/…/V2.45__add_asset_node_result.sql` |
 | The typed component tables | `V2.38`–`V2.43` |

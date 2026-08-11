@@ -246,6 +246,18 @@ cortex.yml `nodes:` ──► CortexNodeOptionDeserializer ──► CortexOptio
 
 Only nodes declaring `PipelineConfigurable` see the definition; everything else runs on its code defaults.
 
+**Which nodes declare it:** `script`, `s3-sink`, `tag`, `filter`, `metadata`, `move` / `assign`
+(`relocate`) and `facedetect`. A node's *declared* parameters are not evidence — `facedetect` had
+advertised `faceClusterEPS` through its descriptor (so the editor rendered a field for it) for as long
+as clustering had existed, while dropping every value an author typed, because it did not implement
+this interface. If a parameter is meant to be authored per node, the node must be on this list.
+
+⚠️ A `PipelineConfigurable` whose options key also appears under `cortex.yml` `nodes:` must **not**
+write the per-instance value into `options()`: `AbstractNodeModule.nodeOptions(...)` returns the *same*
+options instance to every injection point, so that mutation escapes to every other node of that kind —
+and only on the workers whose YAML sets the key. `FacedetectNode` holds its per-instance values on the
+node itself for this reason.
+
 ---
 
 ## 5. Registered YAML node keys
@@ -303,7 +315,7 @@ Spot-check values; the authoritative per-field tables live in [NODES.md](../feat
 |---|---|
 | `filesystem-source` | `path` (null), `pathGlobs` (`[]`, wins over `path`), `emitStates` (`NEW, MODIFIED, MOVED`), `indexPath` (null → derived from `metaPath`) |
 | `hash` | `md5`, `sha256`, `sha512`, `chunkHash` — **all `true`** |
-| `facedetection` | `videoChopRate` 5, `videoScaleSize` 384, `minFaceHeightFactor` 0.05, `faceClusterMinimum` 2, `faceClusterEPS` 0.6, `inspirefacePackPath` `packs/Pikachu`, `capabilities` `{INSPIREFACE}` |
+| `facedetection` | `videoChopRate` 15, `videoScaleSize` 0 (= native), `minFaceHeightFactor` 0.05, `maxFaceAngle` 30, `faceClusterMinimum` 2, `faceClusterEPS` 0.6, `inspirefacePackPath` `packs/Pikachu`, `capabilities` `{INSPIREFACE}`, `embeddingsEnabled` true, `embeddingModel` `inspireface-r18`. ⚠️ `faceClusterEPS` / `faceClusterMinimum` are **also settable per pipeline node** (§4) and the node's value wins |
 | `objectdetect` | `modelPath` `models/yolo/YOLOv11n_voc.onnx`, `labelsPath` `models/yolo/voc.names`, `useGpu` true, `onnxRuntimeLibPath` null, `minConfidence` 0.5, `videoChopRate` 25, `videoScaleSize` 1024, `maxDetections` 500, `classFilter` `{}` |
 | `whisper` | `modelPath` `models/ggml-large-v3-turbo.bin`, `temperature` 0.0, `temperatureInc` 0.2, `language` null, `useGpu` true, `gpuDevice` 0 |
 | `thumbnail` | `cols` 6, `rows` 1, `tileSize` 384 |
@@ -390,7 +402,7 @@ Only the *selection* comes from the definition. Credentials are worker-level (§
 
 `driveId` resolves definition → configured node defaults → `CORTEX_<PROVIDER>_DEFAULT_DRIVE_ID`. Google treats an unresolved drive as My Drive; Microsoft app-only has no `/me` and fails with a message naming the setting.
 
-Both kinds are advertised **only when that provider's credentials are configured**, which is the reason they are two kinds rather than one with a `provider` parameter — see [NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md).
+Both kinds are advertised **only when that provider's credentials are configured**, which is the reason they are two kinds rather than one with a `provider` parameter — see [NODE_CLOUDSOURCE.md](../features/nodes/cloud-source/NODE_CLOUDSOURCE.md).
 
 ---
 

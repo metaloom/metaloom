@@ -19,7 +19,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | Deciding *which* duplicate is redundant | [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) |
 | Assigning the rating or tag that triggers disposal | [WORKFLOW_MANUAL_SORT.md](WORKFLOW_MANUAL_SORT.md) |
 | Removing an asset from the **database** (delete cascades) | [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md); every asset FK cascades since `V2.74` |
-| Copying an asset to cold storage rather than disposing of it | [WORKFLOW_INGEST_MIGRATION.md](WORKFLOW_INGEST_MIGRATION.md), [../concept/NODE_S3SINK_PLAN.md](../concept/NODE_S3SINK_PLAN.md) |
+| Copying an asset to cold storage rather than disposing of it | [WORKFLOW_INGEST_MIGRATION.md](WORKFLOW_INGEST_MIGRATION.md), [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md) |
 | Quarantining content because it is unsafe | [WORKFLOW_SAFETY_TRIAGE.md](WORKFLOW_SAFETY_TRIAGE.md) |
 | Rules for adding a node at all | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 
@@ -77,7 +77,7 @@ recording *why*:
 - Tags reach `search_document`, so "show me everything marked for disposal" is free.
 - Withdrawal is already specified: the `tag` node may only remove a placement it can prove is its own
   (`node_kind` + `node_id` + `producer_version`) — see
-  [../concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md). A human's `trash` tag can never be
+  [NODE_TAG.md](../features/nodes/tag/NODE_TAG.md). A human's `trash` tag can never be
   withdrawn by a node, which is exactly the safety property this workflow needs.
 
 ⚠️ Do not reuse `blacklist`. It is per-user (`UNIQUE (asset_uuid, creator_uuid)`), carries a
@@ -407,7 +407,7 @@ variables:
 | Rules for a new node | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | Ports and cardinality | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | Node write-back / ledger convention | [../features/nodes/NODES.md](../features/nodes/NODES.md) §2 |
-| The marker's provenance rules | [../concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md) |
+| The marker's provenance rules | [NODE_TAG.md](../features/nodes/tag/NODE_TAG.md) |
 | Asset delete cascades | `loom/db/flyway/.../V2.74__asset_social_cascade.sql`; [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) |
 | Open tasks | [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md) W1, W4 |
 

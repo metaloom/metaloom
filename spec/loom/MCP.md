@@ -762,7 +762,9 @@ unless an OpenAI-compatible server serves `openai/gpt-oss-20b` at `http://127.0.
 ### 13.8 Documentation
 
 - [x] This file; Javadoc on the public MCP classes; `MCPConstants` documents methods/codes
-- [ ] No example curl/client script in the docs
+- [x] Customer-facing page `website/content/english/docs/loom/mcp/` — both transports with worked
+      curl/URL examples, the token model, the 21-tool inventory with permissions, and a Claude
+      Desktop configuration snippet ([../website/WEBSITE.md](../website/WEBSITE.md))
 - [ ] No client SDK (raw JSON-RPC only)
 
 ---
@@ -788,4 +790,4 @@ Shared infrastructure: `LoomAuthenticationHandler`, `LoomAuthorizationProvider`,
 
 ---
 _Git HEAD revision: `da6b1760`_
-_Last updated: 2026-08-09 (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md). Earlier: (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_
+_Last updated: 2026-08-11 (customer docs page docs/loom/mcp/). Earlier: (`validate_pipeline` reports every problem; validation spec is now PIPELINE_VALIDATION.md), (pipeline authoring tools, MCP pipeline permissions, permission-filtered tool listing)_

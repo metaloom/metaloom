@@ -11,7 +11,7 @@
 > | Topic | Spec |
 > |---|---|
 > | What a `NodeDescriptor` *is*, ports, content types, cardinality | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
-> | The shipped descriptor contract and its remaining gaps | [../concept/NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md) |
+> | The shipped descriptor contract, how it is authored and harvested, and its remaining gaps | [../features/pipeline/NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md) · [../tasks/NODE_SCHEMA_TASKS.md](../tasks/NODE_SCHEMA_TASKS.md) |
 > | Node lifecycle, the `@StringKey` multibinding, worker whitelist/blacklist | [../features/nodes/NODES.md](../features/nodes/NODES.md) §5, §7 |
 > | Engine, dispatch, definition JSON, `unsupportedNodeKinds` | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
 > | WebSocket framing, auth, reconnect | [../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) |
@@ -226,8 +226,8 @@ Adopted resolution:
 Everything except `nodeId` and `version` is the existing `NodeDescriptor`, serialized exactly as
 `NodeDescriptorEndpoint` already serves it. **Do not invent a second contract shape** — the value of
 this design is that the wire, the REST response, the static snapshot and `PortGraphAnalyzer`'s input
-are one type ([NODE_SCHEMA_CONCEPT.md §9](../concept/NODE_SCHEMA_CONCEPT.md): *"the contract already
-ships; do not invent a second copy"*).
+are one type ([NODE_SCHEMA.md §15](../features/pipeline/NODE_SCHEMA.md): *"a contract that can be
+computed is never typed twice"*).
 
 ### 3.3 `version`
 
@@ -300,7 +300,7 @@ against the instance — that is how an operator sees which cortex build a worke
 must be reported (§4.5), not swallowed: an author who edits `whisper`'s ports in a fork and sees no
 effect will otherwise lose an afternoon.
 
-This closes gap C of [NODE_SCHEMA_CONCEPT.md §0.1](../concept/NODE_SCHEMA_CONCEPT.md) — "a descriptor
+This closes the descriptor-versus-registration gap ([NODE_SCHEMA.md §8](../features/pipeline/NODE_SCHEMA.md)) — "a descriptor
 is not a registration" — **structurally** for announced nodes: the spec exists only because a worker
 that can run it said so, so `registered: false` is unrepresentable. It does not fix the two built-in
 orphans (`facedescription`, `loom-fetch`); those stay a separate cleanup.
@@ -362,7 +362,8 @@ mirror in `loom-ui/src/features/pipeline/portResolvers.ts` can run it.
 lists.** It is authorable; it just does not gain per-option ports. Reject nothing — a node that
 degrades to its declared ports is more useful than one that cannot be placed.
 
-The real fix is gap A of [NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md), which this plan
+The real fix is serving the resolver over REST ([NODE_SCHEMA.md §7.1](../features/pipeline/NODE_SCHEMA.md),
+[NODE_SCHEMA_TASKS.md](../tasks/NODE_SCHEMA_TASKS.md) Task 1), which this plan
 promotes from "nice to have" to "required for full custom-node support":
 `POST /api/v1/pipeline/node-descriptors/:nodeId/resolve-ports`, proxied over the processor socket to a
 providing worker and cached by `(nodeId, optionsHash)`. Tracked separately; **do not** bundle it into
@@ -417,7 +418,7 @@ option below is really a choice of *where the 20 % lives* and *when the 80 % is 
 | **c** | **`NodeSpecProvider` interface implemented by the node**, read through an instance method | ❌ **As an instance method, actively harmful.** [NODES.md §5.1](../features/nodes/NODES.md) keeps every node behind a Dagger `Provider` precisely so booting a worker does not construct nodes that pull heavy native transitive deps. Calling `node.spec()` to build a registration would instantiate all 34. Acceptable only as a `static` method or on the node's Dagger module — at which point it is (a) with extra ceremony |
 | **d** | **Maven plugin doing source inspection** | ❌ **As source parsing, no.** Recovering `InputPort.one("text", TEXT_ANY, String.class)` means evaluating an initializer expression AST with constant folding across `ContentTypeRegistry` — fragile, and it re-implements what the JVM does for free. ✅ **As a build-time host for (b)** — see the growth path |
 | **e** | **⭐ Reflective harvest + annotations for the prose** | ✅ **Recommended.** (b) supplies everything typed; annotations on the *same* declarations supply the 20 % that is not. One source of truth, and `NodePortConformanceTest` can be **deleted** rather than maintained |
-| **f** | **Declarative resource per node** (`<nodeId>.node.json` in the module's resources) | ❌ This is Concept 1 of [NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md), already dropped: it trades `javac`-checked content-type constants for a second file that drifts |
+| **f** | **Declarative resource per node** (`<nodeId>.node.json` in the module's resources) | ❌ This is the YAML-first concept recorded in [NODE_SCHEMA.md §11](../features/pipeline/NODE_SCHEMA.md), already dropped: it trades `javac`-checked content-type constants for a second file that drifts |
 
 ### 5.3 The recommendation, concretely
 
@@ -880,7 +881,7 @@ from `loom-ui/node_modules/.bin/` directly rather than through `npx`.
 
 🔴 **The one test that must exist before anything else:** a graph using an announced-only node saves,
 validates through `PortGraphAnalyzer` with a real registry, and dispatches. Note the trap in
-[NODE_SCHEMA_CONCEPT.md §9](../concept/NODE_SCHEMA_CONCEPT.md) — `new PipelineGraphParser()` passes a
+[NODE_SCHEMA.md §15](../features/pipeline/NODE_SCHEMA.md) — `new PipelineGraphParser()` passes a
 **null** registry and `PortGraphAnalyzer.analyze` then returns immediately, validating nothing. A test
 that forgets the registry asserts success against a no-op.
 
@@ -901,7 +902,7 @@ that forgets the registry asserts success against a no-op.
 | **Announcement never gates dispatch** | Dispatch reads `nodeWhitelist`; the registry is an authoring concern. Keep the DB write off the REGISTER path |
 | **Reject per node, never per frame** | One bad custom node must not unregister a worker's other 34 specs |
 | **Copy existing labels verbatim during the sweep** | The provider prose is already customer-facing and reviewed. Rewriting it while relocating it makes the golden-fixture test useless as a check |
-| **Do not add a second contract type** | The wire payload *is* `NodeDescriptor`. A parallel "registration DTO" with the same fields is the drifting duplicate [NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md) exists to prevent |
+| **Do not add a second contract type** | The wire payload *is* `NodeDescriptor`. A parallel "registration DTO" with the same fields is the drifting duplicate [NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md) exists to prevent |
 | 🔴 **Availability is a fleet-state query, never a timestamp comparison** | `available` = a linked `cortex_instance` is `ONLINE`. Deriving it from the descriptor's own timestamp greys out the whole palette one heartbeat after a healthy fleet connects — the column is `last_announced` for exactly this reason (§6) |
 | 🔴 **The picker's filter predicate exists three times** | [PipelineEditor.tsx:2079, :3229, :3280](../../loom-ui/src/features/pipeline/PipelineEditor.tsx#L2079); two share `addNodeIdx`. Reorder one and `Enter` adds a different node than the one highlighted. Extract `selectPickerNodes` **first** (§7.4.2) |
 | 🔴 **Never filter the canvas by availability** | `nodeConnectors` gives a missing descriptor `NO_PORTS`, which drops every attached edge. Hiding an offline node redraws a saved graph as disconnected boxes, and a save persists it. The toggle is picker-only (§7.4.3) |
@@ -1214,8 +1215,9 @@ refactor away from a spurious body-hash difference between two workers announcin
 ### Phase 7 — full parity for custom nodes
 
 - [ ] `POST /pipeline/node-descriptors/:nodeId/resolve-ports`, proxied to a providing worker, cached
-      (gap A of [NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md)) — then delete `portResolvers.ts`
-- [ ] Node card markdown on the announcement (gap B) — a third-party card cannot live in
+      ([NODE_SCHEMA_TASKS.md](../tasks/NODE_SCHEMA_TASKS.md) Task 1) — then delete `portResolvers.ts`
+- [ ] Node card markdown on the announcement — only if [../tasks/NODE_SCHEMA_TASKS.md](../tasks/NODE_SCHEMA_TASKS.md)
+      Task 5 concludes cards are needed at all. A third-party card cannot live in
       `loom-shared/node-model`'s jar; serve it at `/node-descriptors/:nodeId/card` for the editor and
       the MCP `PipelineTool`
 - [ ] Admin delete of an unused spec row, gated on `MANAGE_CORTEX_INSTANCE`
@@ -1283,7 +1285,7 @@ refactor away from a spurious body-hash difference between two workers announcin
 | How the UI already renders worker liveness | [CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx) — REST snapshot + `PROCESSOR` events, relative `lastSeen`; the model §7.4 copies |
 | The editor's REST/event surface, as built | [../loom/ui/PIPELINE_EDITOR.md §8](../loom/ui/PIPELINE_EDITOR.md) |
 | The port model a spec must respect | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
-| What already ships of the schema work | [../concept/NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md) §0 |
+| What already ships of the schema work | [../features/pipeline/NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md) §13 |
 | Rules for adding a node | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |
 | Test-pool setup after a migration | [../../.claude/CLAUDE.md](../../.claude/CLAUDE.md) · `./setup-pool.sh` |
 

@@ -22,7 +22,7 @@ complex of the built-or-nearly-built ones.
 | Typed ports and cardinality | [NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | Open UI work items for AI/ML entities (Embedding, Cluster, Detection, Person) | [TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) |
 | Vector / ANN search strategy and the pgvector decision | [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
-| The human-confirms-a-machine-proposal precedent this file copies | [NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md), and its workflow half [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) |
+| The human-confirms-a-machine-proposal precedent this file copies | [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md), and its workflow half [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) |
 | Reviewing the **detections** rather than the clusters | [WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) — same table, and the `review_status` enum proposed there is the one to reuse |
 | Consent: whether a confirmed person agreed to publication | [WORKFLOW_RIGHTS_RELEASE.md](WORKFLOW_RIGHTS_RELEASE.md) §2.2 |
 | Rules for adding a node at all | [NEW_NODE.md](../guidelines/NEW_NODE.md) |
@@ -126,8 +126,8 @@ See [../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_A
 
 | Thing | State |
 |---|---|
-| `faceClusterEPS` (0.6, a cosine **distance** radius) | 🟢 read by `FaceClusterer` |
-| `faceClusterMinimum` (2) | 🟢 read by `Dbscan`; **counts the point itself**, so 2 means "needs one neighbour" |
+| `faceClusterEPS` (0.6, a cosine **distance** radius) | 🟢 read by `FaceClusterer`; **per pipeline node** — see §9.1 |
+| `faceClusterMinimum` (2) | 🟢 read by `Dbscan`; **counts the point itself**, so 2 means "needs one neighbour"; **per pipeline node** |
 | DBSCAN implementation | `cluster/Dbscan.java` — dense O(N²) matrix, which is right for the few dozen faces an asset yields |
 | `ClusterDao.link` | now `ON CONFLICT DO UPDATE`; it was a bare insert that threw on a re-run |
 | Cluster-row producers | `FacedetectNode`, plus the CRUD endpoint and the demo initializer |
@@ -380,7 +380,7 @@ same way every other attachment does — the standing gap G13 in
 
 `embedding.vector` stays `real[]` with **no ANN index**. pgvector is an open decision owned by
 [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md), and
-[SEARCH_PLAN.md](../concept/SEARCH_PLAN.md) gotcha 8 warns that
+[SEARCH.md](../features/search/SEARCH.md) §10 ("codegen environment") warns that
 `loom/db/jooq/generate.sh` re-runs every migration in a stock `postgres:latest` Testcontainer —
 **`pgvector` is not in that image**, so an unguarded `CREATE EXTENSION vector` breaks jOOQ codegen for
 everyone. Per-asset clustering (§2.2) needs no index at all, which is part of why it is phase 1.
@@ -418,7 +418,8 @@ precisely so nobody has to take that on trust again.
 | GET | `/api/v1/assets/:uuid/detections/:detectionUuid/crop` | the cropped face, from this deployment's own storage | `READ_DETECTION` |
 
 All permissions already exist in the `loom_permission` enum — **no new permission value is needed**,
-which avoids the Flyway single-transaction trap (`SEARCH_PLAN.md` gotcha 7).
+which avoids the Flyway single-transaction trap ([SEARCH.md](../features/search/SEARCH.md) §10, "enum
+migration").
 
 `ClusterResponse` gained **`reviewStatus`**, `personUuid`, `assetUuid`, `clusterIndex`, `score`,
 `memberCount` and `nodeKind`, plus **`reviewedAt`** and **`reviewerUuid`** (`V2.88`, §3.1.1).
@@ -481,7 +482,7 @@ RPC-style resources.
 |---|---|
 | Extract embeddings | Call the existing `detectEmbeddings(...)` / `extractEmbeddings(...)` on the configured backend. `Face.getEmbedding()` already carries the result. |
 | Persist them | `detections/bulk` already returns a `DetectionBulkResponse`; use the returned uuids as `detectionUuid` on `embeddings/bulk`. |
-| Cluster | DBSCAN over cosine distance with `faceClusterEPS` / `faceClusterMinimum` — **the first code to read either option**. |
+| Cluster | DBSCAN over cosine distance with `faceClusterEPS` / `faceClusterMinimum` — **the first code to read either option**. Both are now authored **per pipeline node** (§9.1), not just per worker. |
 | Emit honest counts | `OUT_FACE_COUNT` becomes the cluster count, matching its own `@PortDoc`. |
 | Ledger | Pass the real uuids to `resultRef(...)` — see §6.6. |
 
@@ -626,8 +627,8 @@ Node options live under `FacedetectNodeOptions`, `KEY = "facedetection"` (**not*
 
 | Option | Default | Used today? | After this work |
 |---|---|---|---|
-| `faceClusterEPS` | `0.6` | ✅ | DBSCAN cosine **distance** radius. Uncalibrated — Pikachu's manifest quotes *similarity* 0.48, i.e. distance 0.52 |
-| `faceClusterMinimum` | `2` | ✅ | DBSCAN min points, **counting the point itself** |
+| `faceClusterEPS` | `0.6` | ✅ | DBSCAN cosine **distance** radius, **settable per pipeline node** (§9.1). Uncalibrated — Pikachu's manifest quotes *similarity* 0.48, i.e. distance 0.52 |
+| `faceClusterMinimum` | `2` | ✅ | DBSCAN min points, **counting the point itself**; **settable per pipeline node** (§9.1) |
 | `inspirefacePackPath` | `packs/Pikachu` | ✅ | unchanged; a change invalidates every embedding and cluster |
 | `capabilities` | `{INSPIREFACE}` | ✅ | unchanged (🔴 non-commercial default — see the overview) |
 | `minFaceHeightFactor` | `0.05` | ✅ | unchanged |
@@ -635,8 +636,36 @@ Node options live under `FacedetectNodeOptions`, `KEY = "facedetection"` (**not*
 | `videoChopRate` | `15` | ✅ | frames sampled per scan window. **Default changed from 5**, which never matched the hard-coded 15 |
 | `videoScaleSize` | `0` | ✅ | longest edge before detection; **0 = native resolution**, which is what the scanner always did |
 
-**No environment variables are specific to this feature.** The node is configured entirely through
-pipeline node options. Server-side env vars are in [CONFIGURATION.md](../loom/CONFIGURATION.md).
+**No environment variables are specific to this feature.** Server-side env vars are in
+[CONFIGURATION.md](../loom/CONFIGURATION.md).
+
+### 9.1 Which of these are per pipeline node
+
+`FacedetectNode` implements `PipelineConfigurable`, so **`faceClusterEPS` and `faceClusterMinimum`
+are read off the pipeline node definition** and two face-detection nodes in one graph may cluster at
+different radii. Everything else in the table above stays worker-scoped in `cortex.yml`.
+
+The split is not arbitrary — it is exactly the options that are read **per item**:
+
+| Option | Where it is read | Per node? |
+|---|---|---|
+| `faceClusterEPS`, `faceClusterMinimum` | `FacedetectNode.cluster(...)`, once per asset | ✅ |
+| `inspirefacePackPath`, `minFaceHeightFactor`, `maxFaceAngle` | `FacedetectNodeModule.inspirefaceDetector(...)`, when Dagger builds the detector | ❌ — accepting them per node would advertise a knob that quietly did nothing |
+
+Two traps worth knowing:
+
+- 🔴 **Do not write the per-instance value back into `options()`.** When `cortex.yml` carries a
+  `facedetection:` block, `AbstractNodeModule.nodeOptions(...)` hands **every** injection point the
+  same instance, so mutating it lets one node retune every other one — and only on the workers whose
+  YAML happens to set the key. The values are held on the node (`faceClusterEPS()` /
+  `faceClusterMinimum()`), which is why this node does *not* follow the `TagNode` / `S3SinkNode`
+  shape. `FacedetectNodePipelineConfigTest#testConfiguringOneNodeLeavesTheSharedOptionsAlone` guards it.
+- ⚠️ `configure(...)` re-checks that both are positive. `FacedetectNodeOptions.validate()` only ever
+  sees the worker's options, so a `0` typed in the editor would otherwise reach DBSCAN, where every
+  face becomes its own subject and the run merely looks disappointing.
+
+For how the definition reaches the worker at all, see
+[../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) §4.
 
 ---
 
@@ -692,7 +721,7 @@ pipeline node options. Server-side env vars are in [CONFIGURATION.md](../loom/CO
 | How embeddings are produced and stored | §1.2; `FacedetectNode.persist`/`persistEmbeddings`, [SEMANTIC_SEARCH.md](../features/search/SEMANTIC_SEARCH.md) |
 | The embedder that is never called | `InspireFacedetectorImpl.detectEmbeddings` (video4j) |
 | Current cluster/person DDL | `V2.12__add_embedding.sql`, `V2.26__add_person.sql`, `V2.51__…_delete_cascade.sql` |
-| The review-model precedent to copy | `V2.61__add_dedup_group.sql` + [NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
+| The review-model precedent to copy | `V2.61__add_dedup_group.sql` + [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) |
 | The component/provenance contract | `V2.38__rework_asset_components.sql` |
 | Machine-written audit columns precedent | `V2.47__machine_written_audit_columns.sql` |
 | Model licensing and pack internals | [FACEDETECTION_OVERVIEW.md](../features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) |

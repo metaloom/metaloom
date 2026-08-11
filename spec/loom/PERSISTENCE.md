@@ -73,6 +73,7 @@ Element<T extends Element<T>>      getUuid/setUuid, self()
 | `DedupGroupDao` | `Dao` | Group + member rows with role semantics |
 | `LoomDao` | `Dao` | Singleton row (`load`/`createLoom`/`update`) |
 | `PermissionDao` | *(nothing)* | Grant/read only; no revoke API, no element type |
+| `ShareFeedbackDao` | `Dao` | One facade over the three tables a share visitor writes. Every method is scoped by share - a guest request arrives authenticated by nothing but a slug, so resolving a row by uuid alone would make every comment addressable from any link |
 
 ### `AbstractJooqDao<T>`
 
@@ -226,6 +227,10 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.84`.
 | `V2.81__detection_review_state` | Review state on `detection` (`status`, `reviewed_at`, `reviewer_uuid`, `corrected_label`) plus both review-queue indexes. Renames `cluster_status` → **`review_status`**: one shared vocabulary rather than three identical enums (`ALTER TYPE … RENAME` is catalog-only and transactional, unlike `ADD VALUE`). A node upsert must not clear a non-`PENDING` verdict — enforced in `DetectionDaoImpl.upsertDetection` |
 | `V2.82__execute_mcp_node_permission` | `EXECUTE_MCP_NODE` enum value only. Separate from the V2.76 trio: designing a pipeline is a different trust decision from spending compute |
 | `V2.83__adhoc_pipeline_run` | Ad-hoc ("pipelineless") runs — `pipeline_run.pipeline_uuid` becomes nullable and a `kind varchar + CHECK` discriminator (`PIPELINE`/`ADHOC`) pairs the two, so no consumer has to defend against the impossible third state. The definition rides in `pipeline_run.meta.definition`; the run row is the record |
+| `V2.96__share_permissions` | `CREATE/READ/UPDATE/DELETE_SHARE` enum values only |
+| `V2.97__add_share` | `share` - a capability URL over one asset or collection, openable without an account. Target is a CHECK pair (`target_type` plus exactly one FK) and CASCADEs; **the owner FKs are `ON DELETE SET NULL`**, against the grain of every other audit column, because deleting a user must not delete their shares. `visitor_name` is a column rather than a `share_visitor` table: one link is one identity, which is a deliberate simplification whose cost is documented in [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) §2.2 |
+| `V2.98__grant_share_permissions` | Grants the V2.96 values to `admin-role` for the upgrade path |
+| `V2.99__add_share_feedback` | `share_comment`, `share_annotation`, `share_reaction` - what a visitor says back. Separate from `comment`/`reaction`/`annotation` because all three require `creator_uuid NOT NULL REFERENCES "user"` and a share visitor has none. Geometry is **normalised 0..1** and time is **seconds as a float**, unlike `annotation`'s pixels and whole seconds. Reaction uniqueness is three PARTIAL unique indexes with the share standing in for the creator. ⚠️ Also rewrites `notification_type_check` in full - the replacement must carry every value added since V2.70, not only the ones that file listed |
 | `V2.84__read_metric_permission` | `READ_METRIC` enum value only — gates `GET /api/v1/metrics` on the app port. The unauthenticated Prometheus scrape on the monitoring port is unaffected |
 
 ### Migration patterns

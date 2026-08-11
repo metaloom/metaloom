@@ -17,7 +17,6 @@
 | The node system, lifecycle, registration, caching layers | [../NODES.md](../NODES.md) |
 | Port content types and cardinality across all nodes | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) §4 |
 | Rules for adding a node at all | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
-| The decision record for why this node exists and what it rejected | [../../../concept/NODE_SAM2_PLAN.md](../../../concept/NODE_SAM2_PLAN.md) |
 | Where the prompt boxes come from | `objectdetect`, `facedetect` — [../NODES.md](../NODES.md) §3.1 |
 | Keeping the produced masks off the worker | `s3-sink`, [../NODES.md](../NODES.md) §2.1 |
 | The customer-facing page and its two screenshots | [../../../website/WEBSITE.md](../../../website/WEBSITE.md) § Node pages |
@@ -173,6 +172,45 @@ it reports `SUCCESS` with the message dropped. This node aborts. `depthmap` stil
 and is wrong — see [../NODES.md](../NODES.md) and the nineteen-node list in
 [../../../website/WEBSITE.md](../../../website/WEBSITE.md).
 
+### 3.9 A new `struct/masks` content type, not `struct/segments`
+
+The `segments` output carries a **new** content type, `struct/masks` ("Segmentation Masks"), added to
+`ContentTypeRegistry` for this node. `struct/segments` was the obvious candidate and was rejected: it
+is labelled **"Timeframes"**, it means *time-coded* segments of a media item, and it is already wired
+to time-range consumers — `scene-detection`'s `scenes` port and the `script` node's `TIMEFRAMES` value
+type. Reusing it would have let a spatial mask list be plugged into a port expecting a timeline, and
+the port model has no way to catch that afterwards. The registry constant carries the same warning:
+
+```java
+/** Spatial per-object segmentation masks. Deliberately not {@link #STRUCT_SEGMENTS}, which is time-coded. */
+public static final String STRUCT_MASKS = "struct/masks";
+```
+
+This node is the first and so far only producer of `struct/masks`
+(`NodeDescriptorServiceLoaderTest` records it as such).
+
+### 3.10 Design decisions and rejected alternatives
+
+The condensed decision record — what shipped, what was considered instead, and why the alternative
+lost. Each row points at the section that carries the detail.
+
+| Decision | What shipped | Rejected alternative | Why the alternative lost |
+|---|---|---|---|
+| Scope (§2) | All three SAM 2 capabilities in one node: `AUTOMATIC`, `PROMPTED`, `TRACK` | Ship one mode, add the others as sibling nodes later | They are different jobs, not quality levels; leaving any out would have meant a second node covering the same model and the same sidecar |
+| Mode selection (§3.1) | An explicit `mode` option | Derive the mode from `ctx.isWired` | `NodeContext.create(media)` builds empty inputs, so `isWired` is false for every docs fixture and unit test — the documented node would not be the node that runs. Wiring also cannot separate `AUTOMATIC`-on-video from `TRACK` |
+| Content type (§3.9) | A new `struct/masks` | Reuse `struct/segments` | `struct/segments` is "Timeframes", time-coded, and already wired to time-range consumers |
+| Persistence (§4) | Ledger only: mask files on the worker, one `asset_node_result` row, `result_ref == null` | An RLE or polygon in `detection.meta`, or a migration adding a geometry column | `detection` has no polygonal geometry column, and a payload in `meta` would be a write path with no read path — the defect [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) §1.4 exists to prevent. Ledger-only meant no migration and no schema risk |
+| Runtime (§6) | FastAPI sidecar on **9130**, Java side a pure `java.net.http` client | An in-JVM inference path | Same shape as `depthmap`; 9100 TTS, 9110 sentiment, 9120 depth, so 9130 continues the 91xx analysis band |
+| Sidecar dependency (§6) | `transformers` | The PyPI `sam2` distribution, or Meta's own repository | The PyPI package is a third-party upload; Meta's route builds a CUDA extension and pins hydra. `setup.sh` asserts the four classes import instead of pinning a `transformers` minor, because which release first shipped the video classes moves |
+| Video decoding (§6) | Frames sampled in **Java** (`Sam2FrameSampler`, video4j) and POSTed as base64 JPEGs | Post the video file and let the sidecar decode | The tree already owns this policy three times over; a server-side path would silently require the sidecar to be co-located with the media, and the video bytes are unbounded |
+| Port shape (§3.6) | Exactly one `MANY` output (`masks`); per-mask labels live inside `segments` | A second `MANY` port for labels or scores | `ObjectDetectNode` documents that two `MANY` outputs of different lengths zip incorrectly when both are wired downstream |
+| Preview (§3.5) | An `overlay` port, `ONE` `artifact/image`, on by default | Rely on the `masks` port previewing itself | `NodePreviews` downsamples only the first element of a `MANY` port, so a segment-everything run would illustrate itself with one cut-out. This is why `emitOverlay` defaults to **true** |
+| Prompt frame alignment (§3.4) | `SampledFrames.nearestIndex` snaps an upstream box to the nearest sampled frame | Require the detector and this node to use the same `videoChopRate` | Dropping an unmatched box silently loses an object, and forcing the two rates to agree is a `nodeId:outputKey`-shaped coupling that [../NODES.md](../NODES.md) §6.4 forbids |
+| Cache identity (§3.7) | The option digest — **including the prompt boxes** — is in the artifact *directory name*, not only in the cache key | Digest in the cache key alone | Two `sam2` instances in one graph (an automatic pass and a `person`-only prompted pass) must neither serve nor overwrite each other's masks. `image-manipulation`'s lesson |
+| Commit marker (§3.7) | `manifest.json` written **last**; its presence is what the skip cache stats | Stat the mask files, or a per-file check | One stat call regardless of mask count, and a directory a killed worker left half-written has no manifest, so the node recomputes instead of handing out a manifest naming files that are gone |
+| Failure signalling (§3.8) | `ctx.failure(msg).abort()` | `ctx.failure(msg).next()`, as `depthmap` does | `next()` reads `skipReason` but not `failureCause`, so the run reports `SUCCESS` with the message dropped |
+| Demo data (§10) | None seeded | A demo pipeline containing `sam2` | Explicit `imagegen` / `tts` / `depthmap` / `videogen` precedent: the demo container has no sidecar, and a demo pipeline that cannot run is worse than an absent one |
+
 ---
 
 ## 4. Persistence: ledger only
@@ -237,9 +275,11 @@ because FastAPI rejects the JDK client's default HTTP/2 upgrade attempt (`Depthm
   route builds a CUDA extension and pins hydra. `setup.sh` asserts `Sam2Model` / `Sam2VideoModel` /
   `Sam2Processor` / `Sam2VideoProcessor` import rather than pinning a `transformers` minor, because
   which release first shipped the video classes moves.
-* **One GPU lock plus `--workers 1`.** Two concurrent requests do not go faster; they run the card out
-  of memory. The node declares `defaultConcurrency = 1` to say so; the lock is what guarantees it when
-  something else calls the server.
+* **One GPU lock plus `--workers 1`.** `pointsPerSide=32` is 1024 forward passes for a single image,
+  and the video predictor holds a **per-request memory bank** that grows with objects x frames. Two
+  concurrent requests do not go faster; they run the card out of memory. The node declares
+  `defaultConcurrency = 1` to say so; the lock is what guarantees it when something else calls the
+  server.
 
 ### 6.1 Known limitation
 
@@ -420,12 +460,13 @@ cd loom-ui && node scripts/capture-node-config-screenshots.mjs sam2 \
 | The sidecar | [sidecars/sam2/](../../../../sidecars/sam2/) — `server.py`, `setup.sh`, `run.sh`, `README.md` |
 | The docs fixture recipe | `integration-test/…/node/docs/SidecarRecipes.java` (`sam2()`) |
 | The customer page | [website/content/english/docs/nodes/sam2/index.adoc](../../../../website/content/english/docs/nodes/sam2/index.adoc) |
-| Why this node looks the way it does | [../../../concept/NODE_SAM2_PLAN.md](../../../concept/NODE_SAM2_PLAN.md) |
+| Why this node looks the way it does | §3 of this file — the decisions worth keeping, and §3.10 for the rejected alternatives |
+| The `struct/masks` content type | [ContentTypeRegistry.java](../../../../loom-shared/node-model/src/main/java/io/metaloom/loom/nodes/spec/ContentTypeRegistry.java) — `STRUCT_MASKS` |
 | The node system as a whole | [../NODES.md](../NODES.md) |
 | The port/content-type model | [../../pipeline/NODE_DATA_TYPES.md](../../pipeline/NODE_DATA_TYPES.md) |
 | Rules for building the next node | [../../../guidelines/NEW_NODE.md](../../../guidelines/NEW_NODE.md) |
 
 ---
 
-_Git HEAD revision: `7388fefc`_
-_Last updated: 2026-08-06_
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11_

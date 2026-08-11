@@ -213,7 +213,7 @@ Java-side coverage lives with the node and **mocks `VideoGenClient`** — no ser
   so the sidecar's own defaults only apply to direct HTTP callers. `negative_prompt` is the one
   exception — the node omits it when blank so the sidecar default applies.
 - Generated MP4s go to `metaPath/videogen_bin/<hash-segment>/<sha512>.mp4` — worker-local, not Loom
-  binaries. Wire an `s3-sink` to keep them (see [NODE_S3SINK_PLAN.md](../concept/NODE_S3SINK_PLAN.md)).
+  binaries. Wire an `s3-sink` to keep them (see [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md)).
 
 ## Key Files Reference
 
@@ -246,7 +246,7 @@ Java-side coverage lives with the node and **mocks `VideoGenClient`** — no ser
 | Why the MP4 is not stored in Loom | [REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | The metric names emitted per AI call | [METRICS.md](../features/ops/METRICS.md) |
 | How to add another sidecar-backed node | [NEW_NODE.md](../guidelines/NEW_NODE.md), [CODING.md](../guidelines/CODING.md) |
-| The pattern this sidecar was copied from | `sidecars/mage-flow-sidecar/`, [imagegen-node.md](../plans/imagegen-node.md), [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) |
+| The pattern this sidecar was copied from | `sidecars/mage-flow-sidecar/`, [imagegen-node.md](../plans/imagegen-node.md), [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md) |
 | Customer-facing docs for the node | `website/content/english/docs/nodes/videogen/index.adoc` |
 | Where the sidecar sits in the repo map | [CONTEXT.md](../CONTEXT.md), [METALOOM.md](../METALOOM.md) |
 

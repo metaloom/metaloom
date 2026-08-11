@@ -119,7 +119,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-131 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+138 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -136,8 +136,41 @@ spec/
 │   │                                  #   Task 1 (retire clusters on a pack change) is blocking:
 │   │                                  #   today a new pack keeps verdicts decided on old vectors
 │   ├── PIPELINE_TASKS.md              # Pipeline work items (Task 14: FilterPortResolver.asList)
+│   ├── NODE_SCHEMA_TASKS.md           # NEW 2026-08-11 — 6 tasks for the node-contract surface.
+│   │                                  #   Task 1 is the only real machine gap: resolvePorts is not
+│   │                                  #   served over REST, so loom-ui mirrors all four resolvers
+│   │                                  #   in TypeScript. See features/pipeline/NODE_SCHEMA.md
+│   ├── SHARE_TASKS.md                 # NEW 2026-08-11 — 9 tasks for the customer-facing share
+│   │                                  #   area, written the day it shipped. Tasks 1-3 are the
+│   │                                  #   blocking cluster: the server collects the customer's
+│   │                                  #   feedback, the bell announces it, and NOTHING in the
+│   │                                  #   product renders it — six owner-side client functions are
+│   │                                  #   written and called by nobody. See features/share/SHARE_SYSTEM.md
 │   ├── PERSISTENCE_TASKS.md           # Open persistence-layer gaps
 │   ├── LOOM_UI_TASKS.md               # UI work items
+│   ├── DOC_TASKS.md                   # NEW 2026-08-11 — 16 tasks for the customer-facing website
+│   │                                  #   docs: 5 corrections to published pages (a legally
+│   │                                  #   incomplete Impressum, two "(planned)" claims for shipped
+│   │                                  #   features, three metrics nothing emits), 5 missing pages
+│   │                                  #   (MCP, gRPC, events socket, search, permissions), 6 gates
+│   ├── NODE_TASKS.md                  # NEW 2026-08-11 — 20 tasks for the cortex/nodes/* family,
+│   │                                  #   from the audit that migrated fourteen node plans out of
+│   │                                  #   concept/ into features/nodes/<kind>/. Tasks 1-4 are the
+│   │                                  #   blocking ones (s3-sink has no rights gate; script's two
+│   │                                  #   security options enforce nothing; two script or imagegen
+│   │                                  #   instances collide). Per-node follow-ups stay in each
+│   │                                  #   node spec's Progress Assessment — the closing table routes
+│   ├── SEARCH_LUCENE_TASKS.md         # NEW 2026-08-11 — 6 open items for the fingerprint k-NN
+│   │                                  #   index (spec: loom/SEARCH_LUCENE.md). Task 1 is the only
+│   │                                  #   defect (sha512 is null on every hit); Task 2 blocks
+│   │                                  #   Helm deployment; 3 demo data, 4 shutdown, 5 multi-sector,
+│   │                                  #   6 UI panel
+│   ├── SEARCH_TASKS.md                # NEW 2026-08-11 — 24 tasks for lexical/semantic/ES search,
+│   │                                  #   replacing the retired concept/SEARCH_PLAN.md. Tasks 1–2
+│   │                                  #   are the only defects (MCP search_assets ignores its
+│   │                                  #   query; DETECTION/SEGMENT can never hit); Task 11 (the ES
+│   │                                  #   client spike) gates all of Phase 2; Task 20 (CLIP node)
+│   │                                  #   is the only thing between here and text→image search
 │   ├── IMAGEGEN_NODE.md               # imagegen follow-ups
 │   ├── METALOOM_ARCHITECTURE_TASK.md  # Open architecture tasks (+ explicitly dropped ideas)
 │   └── METALOOM_CODEREVIEW.md         # Review findings
@@ -154,12 +187,8 @@ spec/
 │   │                                  #   embedded derivatives, incl. marking AI-written values
 │   │                                  #   (IPTC DigitalSourceType, C2PA). The inverse of the built
 │   │                                  #   `metadata` node under features/nodes/metadata/
-│   └── NODE_TAG_CONCEPT.md            # 🟢 BUILT (cortex/nodes/tag): design record for the `tag` node —
-│                                      #   declarative rules over wired ports, a `TagBy` seam like
-│                                      #   `FilterBy`, and the provenance-guarded withdrawal rule.
-│                                      #   Records the two write-path defects it had to fix first:
-│                                      #   POST /assets/:uuid/tags INSERTed a new tag row, so a second
-│                                      #   asset violated UNIQUE (name, collection)
+│                                      #   (the built `tag` node moved to
+│                                      #   features/nodes/tag/NODE_TAG.md on 2026-08-11)
 ├── plans/
 │   ├── TASKS.md                       # Captured, not-yet-scheduled work (TASKS.template.md format)
 │   ├── CLUSTERING.md                  # 🔵 Loom is single-writer; a 2nd instance is destructive
@@ -170,7 +199,8 @@ spec/
 │   │                                  #   (available/lastSeen/providedBy) + the loom-ui task: live
 │   │                                  #   palette refresh, offline nodes last, show-offline toggle.
 │   │                                  #   Nothing built; §13 is the order
-│   └── imagegen-node.md               # ⚠️ superseded draft — NODE_IMAGEGEN_PLAN.md is authoritative
+│   └── imagegen-node.md               # ⚠️ superseded draft — features/nodes/image-generation/
+│                                      #   NODE_IMAGEGEN.md is authoritative
 ├── chat/                              # The chat / agent feature family. Start at AGENTIC_CHAT_PLAN.md
 │   ├── LOOM_UI_CHAT.md                # 🟢 The BUILT loop: agentic turn loop, SSE protocol, skills,
 │   │                                  #   chat UI contract (moved here from loom/ui/CHAT.md)
@@ -218,15 +248,38 @@ spec/
 │   ├── helm/
 │   │   ├── HELM_LOOM.md               # Loom chart (helm/loom) — 🔴 two live env-var bugs, see §6
 │   │   └── HELM_CORTEX.md             # Cortex chart (helm/cortex) — custom-image override, StatefulSet id
-│   ├── nodes/
+│   ├── nodes/                         # One directory per node kind. NODES.md is the system-wide
+│   │   │                              #   reference; a NODE_*.md is the deep spec for one kind
 │   │   ├── NODES.md                   # 🟢 The node system: lifecycle, ports, persistence, caching,
 │   │   │                              #   registration counts, per-node options. Start here
-│   │   ├── SERVICE_TIKA.md            # 🟡 The `tika` node — document body text (🔴 open defects)
+│   │   ├── captioning/
+│   │   │   └── NODE_VIDEO_CAPTIONING.md  # 🟢 BUILT: the `captioning` node — images via SmolVLM,
+│   │   │                              #   video via an OpenAI-compatible VLM. Not a kind of its own:
+│   │   │                              #   video is the `videoStrategy` option (WHOLE/SCENE/NATIVE)
+│   │   ├── cloud-source/
+│   │   │   └── NODE_CLOUDSOURCE.md    # 🟢 BUILT: kinds `gdrive-source` + `onedrive-source`, and the
+│   │   │                              #   shared cortex/cloud-common module (Drive v3 + MS Graph).
+│   │   │                              #   The only home of why a rename is detectable here but not
+│   │   │                              #   on S3. Kinds are advertised only when credentials exist
+│   │   ├── dedup/
+│   │   │   └── NODE_DEDUP.md          # 🟢 BUILT: kinds `fingerprint-dedup`,
+│   │   │                              #   `fingerprint-dedup-apply`, `hash-dedup`/`sha512-dedup`.
+│   │   │                              #   ⚠️ They decide and emit ports; a downstream `move` node
+│   │   │                              #   acts. `dupFolder` is gone. Workflow half:
+│   │   │                              #   workflows/WORKFLOW_DEDUP.md
+│   │   ├── depthmap/
+│   │   │   └── NODE_DEPTHMAP.md       # 🟢 BUILT end to end incl. sidecars/depth (:9120)
+│   │   ├── dominant-color/
+│   │   │   └── NODE_DOMINANT_COLOR.md # 🟢 BUILT (CIELAB k-means, EN/DE naming), 93 unit tests
 │   │   ├── facedetect/
 │   │   │   └── FACEDETECTION_OVERVIEW.md  # 🟢 Reference: face model landscape — InsightFace/
 │   │   │                              #   InspireFace licensing (🔴 default pack is non-commercial),
 │   │   │                              #   reverse-engineered pack format, permissive alternatives
 │   │   │                              #   (YuNet/SFace), de-facto standard pipeline
+│   │   ├── image-generation/
+│   │   │   └── NODE_IMAGEGEN.md       # 🟢 BUILT: kind `imagegen` — generate/remix via the ideogram
+│   │   │                              #   (:9200) or mage-flow (:9210) sidecar. Authoritative over
+│   │   │                              #   the superseded draft plans/imagegen-node.md
 │   │   ├── image-manipulation/
 │   │   │   └── NODE_IMAGE_MANIPULATION.md  # 🟢 BUILT: the `image-manipulation` node — EXIF
 │   │   │                              #   autorotate, crop, subject crop, aspect/VVS blur-pad,
@@ -236,10 +289,38 @@ spec/
 │   │   │                              #   metadata onto Dublin Core, into asset_json_comp +
 │   │   │                              #   asset_geo_comp + search. Precedence rules, envelope
 │   │   │                              #   contract, privacy policy; §11 tracks phases 2-3
-│   │   └── sam2/
-│   │       └── NODE_SAM2.md           # 🟢 BUILT: the `sam2` node — per-pixel segmentation via the
-│   │                                  #   sidecar on :9130. AUTOMATIC/PROMPTED/TRACK, the three
-│   │                                  #   coordinate spaces, ledger-only masks under sam2_bin
+│   │   ├── s3-sink/
+│   │   │   └── NODE_S3SINK.md         # 🟢 BUILT: kind `s3-sink` — uploads artefact ports to S3.
+│   │   │                              #   ⚠️ `{sourceNode}`/`{sourceKey}` render the PORT id
+│   │   ├── s3-source/
+│   │   │   └── NODE_S3SOURCE.md       # 🟢 BUILT: kind `s3-source` + the shared cortex/s3-common
+│   │   │                              #   module (lazy materializer, Avro object index, event buffer)
+│   │   ├── sam2/
+│   │   │   └── NODE_SAM2.md           # 🟢 BUILT: the `sam2` node — per-pixel segmentation via the
+│   │   │                              #   sidecar on :9130. AUTOMATIC/PROMPTED/TRACK, the three
+│   │   │                              #   coordinate spaces, ledger-only masks under sam2_bin.
+│   │   │                              #   §3.10 is the decision record (rejected alternatives)
+│   │   ├── scene-layout/
+│   │   │   └── NODE_SCENE_LAYOUT.md   # 🟢 BUILT: kind `scene-layout` — spatial-relation predicates
+│   │   │                              #   over upstream detections
+│   │   ├── script/
+│   │   │   └── NODE_SCRIPT.md         # 🟢 BUILT: kind `script` — GraalJS, declared multi-valued
+│   │   │                              #   outputs. Read §sandbox before widening what a script reaches
+│   │   ├── sentiment/
+│   │   │   └── NODE_SENTIMENT.md      # 🟢 BUILT: kind `sentiment` — EN/DE, commercially licensed
+│   │   │                              #   checkpoints, sidecars/sentiment (:9110). ⚠️ the `score`
+│   │   │                              #   port is confidence, not polarity, whatever its doc says
+│   │   ├── tag/
+│   │   │   └── NODE_TAG.md            # 🟢 BUILT: kind `tag` — declarative rules over wired PORTS,
+│   │   │                              #   the `TagBy` seam, provenance-guarded withdrawal.
+│   │   │                              #   🔴 §6 is why `tagAsset` resolves rather than inserts
+│   │   ├── tika/
+│   │   │   └── SERVICE_TIKA.md        # 🟡 The `tika` node — document body text (🔴 open defects)
+│   │   ├── video-captioning-results/  # Raw benchmark data for the captioning report (JSON + RUN_ENV)
+│   │   └── watermark/
+│   │       └── NODE_WATERMARK.md      # 🟢 BUILT: kind `watermark` — APPLIES a watermark (Graphics2D
+│   │                                  #   for stills, ffmpeg overlay for video). There is no
+│   │                                  #   watermark *detection* anywhere in the tree
 │   ├── ops/
 │   │   ├── METRICS.md                 # 🟢 Prometheus /metrics on both components
 │   │   └── MONITORING.md              # 🟢 Health & readiness endpoints
@@ -254,39 +335,13 @@ spec/
 │   │   ├── NODE_DATA_TYPES.md         # 🟢 The typed-port model: family/subtype lattice, ONE/MANY
 │   │   │                              #   cardinality, XOR groups, port-to-port edges, fan-out/gather
 │   │   ├── NODE_DATA_TYPES_PLAN.md    # Design rationale + design-vs-implementation divergences
-│   │   ├── NODE_SCHEMA_CONCEPT.md     # 🟡 Descriptors shipped (NodeDescriptor, /node-descriptors,
-│   │   │                              #   generated snapshot, conformance test); the prose "node card"
-│   │   │                              #   and a REST-served resolvePorts remain unbuilt
+│   │   ├── NODE_SCHEMA.md             # 🟢 NEW 2026-08-11 — where a node's contract comes from:
+│   │   │                              #   @NodeSpec/@PortDoc/@ParamDoc on the node, build-time
+│   │   │                              #   harvest, committed resource, REST + static snapshot.
+│   │   │                              #   Replaced concept/NODE_SCHEMA_CONCEPT.md; open work moved
+│   │   │                              #   to tasks/NODE_SCHEMA_TASKS.md
 │   │   ├── PIPELINE_REQUIREMENTS.md   # Non-technical requirements + gap status
 │   │   └── PIPELINE_TASKS.md          # Actionable pipeline work items
-│   ├── pipeline-nodes/
-│   │   ├── NODES.md                   # 🟢 Cortex node system + per-node reference
-│   │   ├── SERVICE_IMAGE.md           # ⚪ loom/services/image — empty stub, zero consumers
-│   │   ├── SERVICE_LOGGER.md          # ⚪ loom/services/logger — stub; real logging is loom/common
-│   │   ├── SERVICE_PLUGINS.md         # ⚪ loom/services/plugins — marker interface only, no loader
-│   │   ├── SERVICE_TIKA.md            # 🔴 loom/services/tika is a stub; the real node is
-│   │   │                              #   cortex/nodes/tika — whose parser always returns null
-│   │   ├── SERVICE_VIDEO.md           # ⚪ loom/services/video — empty stub, zero consumers
-│   │   ├── NODE_DEDUP_PLAN.md         # 🟡 BUILT: V2.61/V2.62, 4 DEDUP permissions, DedupGroupDao,
-│   │   │                              #   6 REST routes, 3 nodes, 3 descriptors. Review UI still a mock
-│   │   ├── NODE_DEPTHMAP_PLAN.md      # 🟢 BUILT end to end incl. sidecars/depth (:9120)
-│   │   ├── NODE_DOMINANT_COLOR_PLAN.md# 🟢 BUILT (CIELAB k-means, EN/DE naming)
-│   │   ├── NODE_IMAGEGEN_PLAN.md      # 🟢 BUILT — authoritative over plans/imagegen-node.md
-│   │   ├── NODE_S3SINK_PLAN.md        # 🟢 BUILT (phase 1) — kind s3-sink
-│   │   ├── NODE_CLOUDSOURCE_PLAN.md   # 🟢 BUILT — kinds gdrive-source + onedrive-source and the
-│   │   │                              #   shared cortex/cloud-common module (Drive v3 + MS Graph)
-│   │   ├── NODE_S3SOURCE_PLAN.md      # 🟢 BUILT — kind s3-source + the shared cortex/s3-common module
-│   │   ├── NODE_SAM2_PLAN.md          # 🟢 BUILT end to end incl. sidecars/sam2 (:9130) — kind sam2,
-│   │   │                              #   3 modes, ledger-only, first producer of struct/masks
-│   │   ├── NODE_SCENE_LAYOUT_PLAN.md  # 🟡 BUILT (12 spatial-relation predicates); objectdetect is
-│   │   │                              #   still faces-only
-│   │   ├── NODE_SCRIPT_PLAN.md        # 🟢 BUILT (GraalJS, declared multi-valued outputs)
-│   │   ├── NODE_SENTIMENT_PLAN.md     # 🟢 BUILT (EN/DE, commercial-license models, sidecar)
-│   │   ├── NODE_VIDEO_CAPTIONING_PLAN.md   # 🟢 BUILT — not a kind of its own: it is captioning's
-│   │   │                                   #   videoStrategy
-│   │   ├── NODE_VIDEO_CAPTIONING_REPORT.md # Benchmark report (real runs, Qwen2.5-VL-7B)
-│   │   ├── NODE_WATERMARK_PLAN.md     # 🟢 BUILT — kind watermark
-│   │   └── video-captioning-results/  # Raw benchmark data (JSON + RUN_ENV.txt)
 │   ├── rbac/
 │   │   └── RBAC.md                    # RBAC reference incl. known enforcement gaps (overlaps
 │   │                                  #   PERMISSIONS.md — see §7)
@@ -301,29 +356,39 @@ spec/
 │       ├── SEARCH.md                  # 🟢 Lexical search SHIPPED: V2.57–V2.59 search_document +
 │       │                              #   triggers, PostgresSearchProvider, SearchEndpoint, loom-ui
 │       │                              #   (/search view + sidebar field), 25 LOOM_SEARCH_* options.
-│       │                              #   Remaining gaps: GraphQL field, MCP tools still bypass it
-│       ├── SEARCH_PLAN.md             # Build order: P0 ✅ → P1 Postgres + UI ✅ → P2 Elasticsearch 🔵
-│       │                              #   → P3 semantic: text ✅, image ⬜
+│       │                              #   Remaining gaps (GraphQL field, MCP tools still bypass the
+│       │                              #   SPI, Elasticsearch): tasks/SEARCH_TASKS.md — 24 tasks
 │       ├── SEMANTIC_SEARCH.md         # 🟡 Text→text semantic + hybrid BUILT (off by default):
 │       │                              #   TextEmbedder + RankFusion RRF over the same search_document
 │       │                              #   corpus, via the VectorIndex SPI — NO pgvector, no migration.
 │       │                              #   🔴 Read its §0.4: §2–§6 are the superseded pgvector design.
 │       │                              #   Text→IMAGE (CLIP node) is the remaining gap
-│       ├── SEARCH_INDEX_ADMIN.md      # 🟢 BUILT: /api/v1/search-indices + /admin/indices — one
-│       │                              #   operator surface over the lexical, embedding-vector and
-│       │                              #   fingerprint indices. Size/model/backlog, reindex,
-│       │                              #   delta sync + orphan sweep, drop, all as 202 jobs.
-│       │                              #   READ_/MANAGE_SEARCH_INDEX (V2.85/V2.86)
-│       └── LUCENE_PLAN.md             # 🟢 BUILT: loom/services/lucene LuceneSimilarityIndex,
-│                                      #   SimilarityModule, LOOM_SIMILARITY_* (default off),
-│                                      #   /similarity-index/rebuild, /assets/:uuid/similar-assets
+│       └── SEARCH_INDEX_ADMIN.md      # 🟢 BUILT: /api/v1/search-indices + /admin/indices — one
+│                                      #   operator surface over the lexical, embedding-vector and
+│                                      #   fingerprint indices. Size/model/backlog, reindex,
+│                                      #   delta sync + orphan sweep, drop, all as 202 jobs.
+│                                      #   READ_/MANAGE_SEARCH_INDEX (V2.85/V2.86)
+│   └── share/
+│       └── SHARE_SYSTEM.md            # 🟢 BUILT: the customer-facing area — a capability URL that
+│                                      #   lets somebody with NO Loom account view an asset or a
+│                                      #   collection and leave comments, marks and reactions.
+│                                      #   The 5th unauthenticated path prefix (/api/v1/shares);
+│                                      #   authorization is ShareAccessService against the share
+│                                      #   row, never requirePerm. ⚠️ Read §3.1 before touching the
+│                                      #   session token: it is deliberately NOT a JWT, because the
+│                                      #   JWT handler accepts any validly-signed token on every
+│                                      #   secured route. Guest feedback lives in its own tables
+│                                      #   (V2.99) because comment/reaction/annotation all require
+│                                      #   a creator_uuid referencing a real user
 ├── cortex/
 │   ├── BUILD.md                       # Maven modules, container image, native deps
 │   ├── CONFIGURATION.md               # YAML config, CLI flags, env vars, per-node options
 │   ├── CORTEX.md                      # Architecture, module map, startup lifecycle, CLI
 │   ├── METALOOM_ARCHITECTURE.md       # Plain-language Loom↔Cortex interaction (as built)
 │   ├── METALOOM_ARCHITECTURE_TASK.md  # Open architecture tasks (+ explicitly dropped ideas)
-│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md  # Variant C build record — COMPLETE (merge candidate, §7)
+│   └── METALOOM_ARCHITECTURE_V2_PLAN_C.md  # Variant C deferred scheduling/batching tasks +
+│                                      #   the Q1/Q4/Q5 decision record (build record removed
+│                                      #   2026-08-11; it is METALOOM_ARCHITECTURE.md §11)
 ├── loom/
 │   ├── BUILD.md                       # Loom build pipeline
 │   ├── CONFIGURATION.md               # LoomOptions, config file, env vars, validation
@@ -334,8 +399,19 @@ spec/
 │   ├── LOOM.md                        # Main entry point: architecture, modules, lifecycle, DI
 │   ├── MCP.md                         # Model Context Protocol server
 │   ├── PERSISTENCE.md                 # DAO layer, jOOQ, Flyway, test infrastructure
+│   ├── SHARE_TASKS.md                 # NEW 2026-08-11 — 9 tasks for the customer-facing share
+│   │                                  #   area, written the day it shipped. Tasks 1-3 are the
+│   │                                  #   blocking cluster: the server collects the customer's
+│   │                                  #   feedback, the bell announces it, and NOTHING in the
+│   │                                  #   product renders it — six owner-side client functions are
+│   │                                  #   written and called by nobody. See features/share/SHARE_SYSTEM.md
 │   ├── PERSISTENCE_TASKS.md           # Open persistence-layer gaps
 │   ├── RESTAPI.md                     # REST endpoints, auth, clients, OpenAPI
+│   ├── SEARCH_LUCENE.md               # 🟢 NEW 2026-08-11 (was concept/LUCENE_PLAN.md) — BUILT:
+│   │                                  #   the fingerprint k-NN index. LuceneSimilarityIndex,
+│   │                                  #   SimilarityModule, LOOM_SIMILARITY_* (default off),
+│   │                                  #   /assets/:uuid/similar-assets, the fingerprint index row.
+│   │                                  #   Open items: tasks/SEARCH_LUCENE_TASKS.md
 │   ├── SERVER.md                      # Server startup & lifecycle
 │   ├── WEBSOCKET.md                   # Processor WS + pipeline-events WS protocols
 │   └── ui/
@@ -382,7 +458,7 @@ spec/
     ├── WORKFLOW_MANUAL_SORT.md        # 🟡 Rate + tag. Rating persists (as a reaction); 🔴 tagging
     │                                  #   writes nothing, and no filter/trigger can read either
     ├── WORKFLOW_DEDUP.md              # 🟡 The review half of dedup. Backend complete; 🔴 the screen
-    │                                  #   is a mock. Node detail stays in concept/NODE_DEDUP_PLAN.md
+    │                                  #   is REAL. Node detail: features/nodes/dedup/NODE_DEDUP.md
     ├── WORKFLOW_TRASH.md              # 🔵 Marker (tag) → filter → a NEW `move` node. 🔴 cross-device
     │                                  #   moves silently copy; asset_location.filekey_stdev already
     │                                  #   records the device id
@@ -411,14 +487,15 @@ spec/
 | I am working on… | Start with |
 |------------------|------------|
 | Anything at all | [guidelines/CODING.md](guidelines/CODING.md), then this file |
-| **Adding a Cortex node** | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) (rules) + [features/pipeline-nodes/NODES.md](features/nodes/NODES.md) (system) |
+| **Adding a Cortex node** | [guidelines/NEW_NODE.md](guidelines/NEW_NODE.md) (rules) + [features/nodes/NODES.md](features/nodes/NODES.md) (system) |
+| The deep spec for **one** node kind — ports, options, persistence, gotchas, follow-ups | `features/nodes/<kind>/NODE_*.md` — one directory per kind (§2). [features/nodes/NODES.md](features/nodes/NODES.md) stays the cross-node reference; open work is in [tasks/NODE_TASKS.md](tasks/NODE_TASKS.md) |
 | **Auditing existing Java** (duplicates, hallucinations, contradictions) | [guidelines/METALOOM_STATIC_CODE_ANALYSIS.md](guidelines/METALOOM_STATIC_CODE_ANALYSIS.md) |
 | Understanding the system end to end | [cortex/METALOOM_ARCHITECTURE.md](cortex/METALOOM_ARCHITECTURE.md), then [METALOOM.md](METALOOM.md) |
 | Pipelines (engine, runs, dispatch) | [features/pipeline/PIPELINE.md](features/pipeline/PIPELINE.md) |
 | "Why was my pipeline rejected?" — validation rules, error codes, `POST /pipelines/validate` | [features/pipeline/PIPELINE_VALIDATION.md](features/pipeline/PIPELINE_VALIDATION.md) |
 | "What actually travels between nodes?" — the mental model | [features/pipeline/PIPELINE_FLOW.md](features/pipeline/PIPELINE_FLOW.md) |
 | Node inputs/outputs — ports, content types, cardinality, fan-out | [features/pipeline/NODE_DATA_TYPES.md](features/pipeline/NODE_DATA_TYPES.md) (built model); [NODE_DATA_TYPES_PLAN.md](concept/NODE_DATA_TYPES_PLAN.md) for rationale and divergences |
-| Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA_CONCEPT.md](concept/NODE_SCHEMA_CONCEPT.md) — descriptors are built; the "node card" prose format is not |
+| Node descriptors / the palette / validating a graph outside the JVM | [features/pipeline/NODE_SCHEMA.md](features/pipeline/NODE_SCHEMA.md) — how a contract is authored, harvested, served and exported; open work in [tasks/NODE_SCHEMA_TASKS.md](tasks/NODE_SCHEMA_TASKS.md) |
 | A REST endpoint | [loom/RESTAPI.md](loom/RESTAPI.md) + [features/permissions/PERMISSIONS.md](features/permissions/PERMISSIONS.md) |
 | Binary upload/download, storage layout, S3 vs filesystem | [features/rest/REST_BINARY_HANDLING.md](features/rest/REST_BINARY_HANDLING.md) |
 | Getting Cortex-produced artefacts (thumbnails, depth maps, TTS) into Loom | [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) — **plan**; the endpoints it needs exist |
@@ -437,29 +514,31 @@ spec/
 | **Face detection/recognition models & their licences** | [features/nodes/facedetect/FACEDETECTION_OVERVIEW.md](features/nodes/facedetect/FACEDETECTION_OVERVIEW.md) — 🔴 the default InspireFace pack is **non-commercial**; also documents the pack format and permissive alternatives |
 | **Anything a human reviews in bulk** — rating, tagging, confirming, rejecting | [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) — the family index. Read §3 (the 7-piece anatomy) before adding a workflow and §4 (defects X1–X10) before debugging one. 🔴 Of six shipped modes, exactly one writes to the server |
 | **The face identity workflow** — detect → embed → cluster → confirm a person | [workflows/WORKFLOW_FACE.md](workflows/WORKFLOW_FACE.md) — 🟡 **stages 1–2 of 4 run.** Detections and embeddings persist; there is no clustering code and `cluster.creator_uuid` is `NOT NULL`, so a worker cannot write one. ⚠️ moved here from `features/facedetection/` on 2026-08-07; ⚠️ not to be confused with [concept/CLUSTERING.md](concept/CLUSTERING.md), which is about multi-instance deployment |
-| Reviewing dedup candidates (the human step) | [workflows/WORKFLOW_DEDUP.md](workflows/WORKFLOW_DEDUP.md) — the workflow half; the nodes and algorithm stay in [concept/NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md) |
+| Reviewing dedup candidates (the human step) | [workflows/WORKFLOW_DEDUP.md](workflows/WORKFLOW_DEDUP.md) — the workflow half; the nodes and algorithm are in [features/nodes/dedup/NODE_DEDUP.md](features/nodes/dedup/NODE_DEDUP.md) |
 | Confirming or rejecting object detections | [workflows/WORKFLOW_OBJECT_DETECT.md](workflows/WORKFLOW_OBJECT_DETECT.md) — 🟢 `detection` carries `status`/`reviewer_uuid`/`corrected_label` (V2.81); `/confirm`, `/reject`, `/review-bulk` |
 | **What happens after a file is uploaded** — which pipeline runs and why | [workflows/WORKFLOW_UPLOAD.md](workflows/WORKFLOW_UPLOAD.md) — 🟢 built. The trigger is untyped JSON in `pipeline_version.meta.trigger`, matched on mime type only |
 | Moving or disposing of an asset's bytes from a pipeline | [workflows/WORKFLOW_TRASH.md](workflows/WORKFLOW_TRASH.md) — 🔵 the `move` node does not exist; 🔴 cross-device moves silently copy |
 | Making a rating or a tag actually *do* something | [workflows/WORKFLOW_MANUAL_SORT.md](workflows/WORKFLOW_MANUAL_SORT.md) §5 — 🔴 `FilterBy` has no `TAG`/`RATING` strategy, which is why every manual decision is inert. Task W1 in [tasks/WORKFLOW_TASKS.md](tasks/WORKFLOW_TASKS.md) |
 | **Segmentation** — masks rather than boxes, and video object tracking | [features/nodes/sam2/NODE_SAM2.md](features/nodes/sam2/NODE_SAM2.md) — the `sam2` node + its :9130 sidecar. 🔴 the only per-pixel geometry in the tree, and it is **ledger only**: masks are worker-local files, so there is no way to query them |
-| **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining phases in [SEARCH_PLAN.md](concept/SEARCH_PLAN.md) |
+| **Lexical search** (`/api/v1/search/*`, `search_document`, ranking) | [features/search/SEARCH.md](features/search/SEARCH.md) — **shipped**; remaining work in [tasks/SEARCH_TASKS.md](tasks/SEARCH_TASKS.md) |
 | **Operating an index** — size, backlog, reindex, drop, orphan sweep, the two permissions | [features/search/SEARCH_INDEX_ADMIN.md](features/search/SEARCH_INDEX_ADMIN.md) — **shipped**. Read it before touching `VectorIndex.rebuild(...)`: it clears every space, and per-space work must use `drop(space)` |
+| **Showing something to somebody without an account** — share links, the customer viewer, guest comments/marks/reactions | [features/share/SHARE_SYSTEM.md](features/share/SHARE_SYSTEM.md) — 🟢 built. The only unauthenticated feature surface. ⚠️ Every guest route's first statement is a `ShareAccessService` call; there is no `checkPerm` to fall back on |
+| **What is still missing from sharing** — reading the feedback, managing the links, retention | [tasks/SHARE_TASKS.md](tasks/SHARE_TASKS.md) — 9 tasks. Tasks 1-3 block each other in order; the rest are independent |
 | Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — text→text **built**, off by default (`LOOM_SEARCH_SEMANTIC_ENABLED`); text→image (CLIP) not built. Read §0.4 before §2–§6 |
-| Perceptual **fingerprint** similarity (near-duplicate video) | [features/search/LUCENE_PLAN.md](concept/LUCENE_PLAN.md) — **built**, off by default |
-| Deduplication (discover, review, apply) | [features/pipeline-nodes/NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md) — nodes + REST built, review UI is a mock |
-| S3 as a source or sink | [NODE_S3SOURCE_PLAN.md](concept/NODE_S3SOURCE_PLAN.md), [NODE_S3SINK_PLAN.md](concept/NODE_S3SINK_PLAN.md) — also the only home of the `cortex/s3-common` design |
-| Google Drive / OneDrive / SharePoint as a source | [NODE_CLOUDSOURCE_PLAN.md](concept/NODE_CLOUDSOURCE_PLAN.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3 |
+| Perceptual **fingerprint** similarity (near-duplicate video) | [loom/SEARCH_LUCENE.md](loom/SEARCH_LUCENE.md) — **built**, off by default; open items in [tasks/SEARCH_LUCENE_TASKS.md](tasks/SEARCH_LUCENE_TASKS.md) |
+| Deduplication (discover, review, apply) | [features/nodes/dedup/NODE_DEDUP.md](features/nodes/dedup/NODE_DEDUP.md) — nodes, REST and the review UI are all built. ⚠️ the nodes decide and emit ports; a downstream `move` node acts |
+| S3 as a source or sink | [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md), [features/nodes/s3-sink/NODE_S3SINK.md](features/nodes/s3-sink/NODE_S3SINK.md) — the source spec is also the only home of the `cortex/s3-common` design |
+| Google Drive / OneDrive / SharePoint as a source | [features/nodes/cloud-source/NODE_CLOUDSOURCE.md](features/nodes/cloud-source/NODE_CLOUDSOURCE.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3. SharePoint is `onedrive-source` against a Graph drive id |
 | Running more than one Loom instance / per-process state | [CLUSTERING.md](concept/CLUSTERING.md) — 🔴 Loom is **single-writer** (`replicaCount: 1`) |
 | Helm deployment | [features/helm/HELM_LOOM.md](features/helm/HELM_LOOM.md), [features/helm/HELM_CORTEX.md](features/helm/HELM_CORTEX.md) |
-| Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) |
+| Customer-facing docs | [website/WEBSITE.md](website/WEBSITE.md) — open work items in [tasks/DOC_TASKS.md](tasks/DOC_TASKS.md) (🔴 Task 1: the Impressum is legally incomplete; Tasks 6–10: MCP, gRPC, the events socket, search and permissions have **no** customer page) |
 | The website's in-browser editor + simulator | [website/WEBSITE_PIPELINE_EDITOR.md](website/WEBSITE_PIPELINE_EDITOR.md) — distinct from the product editor in [loom/ui/PIPELINE_EDITOR.md](loom/ui/PIPELINE_EDITOR.md) |
 | Search on the documentation site | [website/WEBSITE_SEARCH.md](website/WEBSITE_SEARCH.md) — client-side embeddings, no server, `/docs/**` only |
 | The commercial edition / hosted service | ➜ **sibling repo** `metaloom-saas` — see §2.2 |
 | Picking up queued work | any `*_TASKS.md` incl. [plans/TASKS.md](plans/TASKS.md), format per [TASKS.template.md](tasks/TASKS.template.md) |
 | **Metadata inside asset files** (EXIF, GPS, XMP, IPTC, Dublin Core, licence/rights) | [features/nodes/metadata/METADATA_OVERVIEW.md](features/nodes/metadata/METADATA_OVERVIEW.md) — 🟢 **built**: the `metadata` node. Also the only place that records the source-precedence rules, the envelope contract, and where a licence should live |
 | **Writing metadata back into files** — sidecars, embedded copies, marking AI-generated content, redaction on export | [concept/ASSET_METADATA_WRITE.md](concept/ASSET_METADATA_WRITE.md) — 🔵 **concept, nothing built**. Obeys the attachment-vs-new-asset decision in [features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](concept/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) §2 |
-| **Tagging assets automatically** — the `tag` node, and the tag write path in general | [concept/NODE_TAG_CONCEPT.md](concept/NODE_TAG_CONCEPT.md) — 🟢 built. The design record; [features/nodes/NODES.md](features/nodes/NODES.md) §3.4 is the current-state reference. 🔴 §2 is why `tagAsset` resolves rather than inserts |
+| **Tagging assets automatically** — the `tag` node, and the tag write path in general | [features/nodes/tag/NODE_TAG.md](features/nodes/tag/NODE_TAG.md) — 🟢 built. [features/nodes/NODES.md](features/nodes/NODES.md) §3.4 is the one-paragraph summary. 🔴 §6 is why `tagAsset` resolves rather than inserts |
 | Dumping a half-formed idea | [METALOOM_NOTES.md](tasks/METALOOM_NOTES.md) — scratch only, promoted to a real spec once it has teeth |
 
 ### 2.2 The `metaloom-saas` sibling project
@@ -618,6 +697,7 @@ options classes in `loom-shared/api/.../options/`.
 | `LOOM_STORAGE_UPLOAD_DIR` | — | Upload storage directory |
 | `LOOM_OAUTH*` | — | OAuth2 provider settings (Keycloak/Auth0/Okta) |
 | `LOOM_WS_STRICT_AUTH` | lenient | Reject unauthenticated WebSocket upgrades (read directly via `System.getenv`) |
+| `LOOM_PROCESSOR_EXPIRY_ENABLED` / `_HEARTBEAT_INTERVAL_MS` / `_MISSED_HEARTBEATS` | `true` / `10000` / `6` | Evict a Cortex worker that stopped heartbeating (60 s of silence) and reclaim its leases (read directly via `System.getenv`) |
 | `LOOM_MCP_AUTH_ENABLED` / `_STRICT_MODE` / `_ALLOWED_ORIGINS` | — | MCP authentication |
 | `LOOM_AI_ENABLED` / `_PROVIDER_TYPE` / `_URL` / `_MODEL_ID` | — | Chat agent LLM provider |
 | `LOOM_AI_STREAMING` / `_THINK_ENABLED` / `_MAX_TURNS` / `_CONTEXT_WINDOW` / `_TOOL_TIMEOUT_MS` / `_TITLE_GENERATION` | — | Agentic loop tuning |
@@ -698,8 +778,8 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | Loom↔Cortex control channel & task handler | `cortex/core/.../impl/loom/` |
 | Node kind registration | the node's own module (`@Binds @IntoMap @StringKey`) + `cortex/cli/.../dagger/RegistryNodeRegistrar.java` |
 | Cortex processing nodes | `cortex/nodes/` (29 modules) |
-| Shared S3 support for nodes | `cortex/s3-common/` (design currently only in `NODE_S3SOURCE_PLAN.md`) |
-| Shared cloud-drive support for nodes | `cortex/cloud-common/` — the provider seam, the hand-rolled Drive/Graph clients, the OAuth token sources and the lazy materializer (design in `NODE_CLOUDSOURCE_PLAN.md`) |
+| Shared S3 support for nodes | `cortex/s3-common/` (design in [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md)) |
+| Shared cloud-drive support for nodes | `cortex/cloud-common/` — the provider seam, the hand-rolled Drive/Graph clients, the OAuth token sources and the lazy materializer (design in [features/nodes/cloud-source/NODE_CLOUDSOURCE.md](features/nodes/cloud-source/NODE_CLOUDSOURCE.md)) |
 | Shared LLM support for nodes | `cortex/llm-common/` — the one `LLMProvider` Dagger binding (`LLMProviderModule`), the endpoint options, `LlmInvoker`, `TextChunker`. Used by `llm` and `translate` |
 | Python model servers | `sidecars/{depth,tts,sentiment,ideogram-sidecar,ltx2-sidecar,mage-flow-sidecar}/` — specs in [sidecars/SIDECARS.md](sidecars/SIDECARS.md) |
 | The LLM backend those `llm`/`translate` options point at | `sidecars/llamacpp/` — llama.cpp's official image on :8080, docker or podman ([sidecars/LLAMACPP_SIDECAR.md](sidecars/LLAMACPP_SIDECAR.md)) |
@@ -802,15 +882,17 @@ and subcomponents for request scope (`RestComponent` per REST request).
 - [ ] Search has **no consumers**: no UI surface, no GraphQL field, and the MCP tools still query
       the DB directly instead of the search provider
 - [ ] Semantic/vector search is unbuilt behind shipped API seams (§6)
-- [ ] Dedup review UI is still a mock ([NODE_DEDUP_PLAN.md](concept/NODE_DEDUP_PLAN.md))
+- [x] ~~Dedup review UI is still a mock~~ — **wrong, corrected 2026-08-11.** `DeduplicationMode` in
+      `WorkflowView.tsx` renders live `/dedup-groups` data with optimistic write + rollback, 35 tests
+      ([features/nodes/dedup/NODE_DEDUP.md](features/nodes/dedup/NODE_DEDUP.md))
 - [ ] Chat defect F1 (vLLM tool streaming throws) is open — F2 (turn-granular abort) is fixed
       ([CHAT_TASKS.md](features/chat/CHAT_TASKS.md)); the session filesystem snapshot and run-time
       context assembly in [CHAT_SESSIONS_CONCEPT.md](features/chat/CHAT_SESSIONS_CONCEPT.md) are vapour
 - [x] ~~`objectdetect` is faces-only~~ — **wrong, corrected 2026-08-07.** `YoloObjectDetector` loads
       an arbitrary ONNX model + labels file and reports `YoloLib.labels().size()` classes at init;
       `ObjectDetectNode` writes `detection.label` per box.
-      [NODE_SCENE_LAYOUT_PLAN.md](concept/NODE_SCENE_LAYOUT_PLAN.md) should be re-read with this
-      corrected — it was written against the false constraint
+      [features/nodes/scene-layout/NODE_SCENE_LAYOUT.md](features/nodes/scene-layout/NODE_SCENE_LAYOUT.md)
+      was rewritten against the corrected fact on 2026-08-11
 - [ ] ⚠️ **The workflow family is still mostly a screen without write paths.** Of the six modes in
       `WorkflowView.tsx`, rating, tagging and dedup persist; faces, objects and llm still discard
       the user's decisions. See [workflows/WORKFLOWS.md](workflows/WORKFLOWS.md) §4 and
@@ -829,23 +911,26 @@ and subcomponents for request scope (`RestComponent` per REST request).
 
 ### Recommended spec-tree restructuring (recorded, not yet done)
 
-- [ ] Merge `cortex/METALOOM_ARCHITECTURE_V2_PLAN_C.md` away, then delete it. Only ~40 lines are
-      unique and live: the Q1/Q4/Q5 decision rationale (→ `METALOOM_ARCHITECTURE.md`, after §14) and
-      the deferred-refinement set (→ `METALOOM_ARCHITECTURE_TASK.md` as a new section). The rest is a
-      build record. Referrers to repoint: this file, `METALOOM.md`, `plans/TASKS.md`,
-      `METALOOM_ARCHITECTURE_TASK.md`
+- [x] 🟢 2026-08-11: `concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md` no longer duplicates the build
+      record — the phase table and the ticked checkboxes were deleted and the file is now a task list
+      (Tasks 1-6: dispatch width, priority aging, straggler re-dispatch, dispatch batching, adaptive
+      result batch size, stale dispatch javadocs) plus the Q1/Q4/Q5 decision record in its Appendix A.
+      Remaining, optional: fold Appendix A into `cortex/METALOOM_ARCHITECTURE.md` after §14 and move
+      the file to `tasks/` under a `*_TASKS.md` name — both mean repointing referrers
+      (this file, `cortex/METALOOM_ARCHITECTURE.md`, `tasks/METALOOM_ARCHITECTURE_TASK.md`,
+      `tasks/PIPELINE_TASKS.md`, `features/pipeline/PIPELINE_REQUIREMENTS.md`)
 - [ ] Delete `plans/imagegen-node.md` — superseded draft;
-      [NODE_IMAGEGEN_PLAN.md](concept/NODE_IMAGEGEN_PLAN.md) has absorbed its three
-      unique items
+      [features/nodes/image-generation/NODE_IMAGEGEN.md](features/nodes/image-generation/NODE_IMAGEGEN.md)
+      has absorbed its three unique items
 - [ ] Fold `features/rbac/RBAC.md` into `features/permissions/PERMISSIONS.md`, leaving a stub
       redirect — one subsystem, two drifting files
 - [ ] Move `loom/ui/CHAT.md` → `features/chat/CHAT.md`; it is ~80% server-side. `TASK_UI_CHAT.md`
       stays as the UI document
-- [ ] Rename now-shipped plans: `CHAT_MEMORY_PLAN.md` → `CHAT_MEMORY.md`, `CLI_PLAN.md` → `CLI.md`,
-      `NODE_DOMINANT_COLOR_PLAN.md` → `NODE_DOMINANT_COLOR.md`
-- [ ] `cortex/s3-common`, `cortex/llm-common` and `cortex/node-runtime` have **no spec owner** — the
-      S3 design lives only inside `NODE_S3SOURCE_PLAN.md`, and `llm-common` only in the `NODES.md`
-      reference tables. All three are candidates for their own file
+- [ ] Rename now-shipped plans: `CHAT_MEMORY_PLAN.md` → `CHAT_MEMORY.md`, `CLI_PLAN.md` → `CLI.md`
+      (the node plans were migrated to `features/nodes/<kind>/NODE_*.md` on 2026-08-11)
+- [ ] `cortex/llm-common` and `cortex/node-runtime` have **no spec owner** — `llm-common` is covered
+      only by the `NODES.md` reference tables. Both are candidates for their own file. (`cortex/s3-common`
+      is now owned by [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md))
 
 ---
 
@@ -858,8 +943,15 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `8e6f4915`_
-_Last updated: 2026-08-10 (chat defect F2 — turn-granular abort — is fixed. Earlier:
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11 (concept/SEARCH_PLAN.md retired — its shipped work folded into
+features/search/SEARCH.md and its remaining work into the new tasks/SEARCH_TASKS.md (24 tasks); tree
+entries and the lexical-search routing row updated. Earlier the same day:
+concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md converted from build plan to
+task list — tree entry and the §7 restructuring bullet updated. Earlier: migrated fourteen built node plans from concept/ into
+features/nodes/<kind>/NODE_*.md, removed the fictional features/pipeline-nodes/ block, and registered
+tasks/NODE_TASKS.md. Earlier: registered tasks/DOC_TASKS.md — the website-docs backlog — in the tree
+listing and on the customer-facing-docs routing row. Earlier: chat defect F2 — turn-granular abort — is fixed. Earlier:
 registered features/db/DB_INTEGRITY.md — the database integrity checks — and
 corrected the features/db/ block, which listed DATABASE_TASKS.md (it lives in tasks/) and placed
 DB_SCHEMA_FEEDBACK.md a level too high; file count 127 → 131. Earlier: registered

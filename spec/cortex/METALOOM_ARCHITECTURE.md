@@ -15,7 +15,9 @@
 > binary/asset locations → [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md).
 >
 > **Open work:** [METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md) ·
-> **build record:** [METALOOM_ARCHITECTURE_V2_PLAN_C.md](../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md)
+> **deferred scheduling/batching refinements + the Variant C decision record:**
+> [METALOOM_ARCHITECTURE_V2_PLAN_C.md](../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md) (a task list
+> since 2026-08-11; the build record it used to carry is §11 of this file)
 
 ---
 
@@ -113,11 +115,21 @@ Reconnect backoff is **linear**: `2 s × attempt`, capped at 30 s
 (`RECONNECT_BASE_DELAY_MS`, `RECONNECT_MAX_DELAY_MS`), re-registering each time.
 [CORTEX.md](CORTEX.md) calling it exponential is wrong.
 
-> 🔴 **The heartbeat is not enforced.** `ProcessorRegistry.heartbeat()` only stamps
-> an in-memory `lastSeen`; nothing sweeps for expiry, and `cortex_instance.last_seen`
-> is written only at REGISTER. A worker whose socket half-opens stays `ONLINE` and
-> keeps being selected. Only a clean socket close evicts it. `LeaseReaper` (60 s)
-> rescues the *tasks*, not the worker.
+**The heartbeat is enforced.** `ProcessorPresenceReaper` sweeps every heartbeat
+interval and evicts any worker whose in-memory `lastSeen` is older than
+`interval × missedBeats` (10 s × 6 = **60 s of silence**, tunable via
+`LOOM_PROCESSOR_HEARTBEAT_INTERVAL_MS` / `LOOM_PROCESSOR_MISSED_HEARTBEATS`, switchable
+off with `LOOM_PROCESSOR_EXPIRY_ENABLED=false`). The eviction runs the same
+`OFFLINE` → unregister path a socket close does, and then hands the worker's in-flight
+tasks straight back through `LeaseReaper.reclaimWorker` instead of waiting out each
+lease. Without it a half-open socket left a dead worker `ONLINE`, selectable, and
+receiving back the very tasks the lease reaper had just rescued from it. See
+[../loom/WEBSOCKET.md](../loom/WEBSOCKET.md) §3.6.1.
+
+> 🔴 `cortex_instance.last_seen` is still written only at REGISTER — the durable row's
+> timestamp is a registration time, not a liveness signal. Only the in-memory `lastSeen`
+> is maintained, so presence does not survive a Loom restart (nor does it need to: every
+> worker re-registers).
 
 ---
 
@@ -331,6 +343,8 @@ There are no flags — the environment is the whole runtime surface.
 | `CORTEX_NODE_BLACKLIST` | none | wins over the whitelist |
 | `CORTEX_S3_*` | — | endpoint, region, keys, path-style, cache/index paths, size budgets, reconcile interval, events (mode/webhook/secret/queue) |
 | `LOOM_WS_STRICT_AUTH` | `false` (Loom side) | reject token-less WebSockets |
+| `LOOM_PROCESSOR_EXPIRY_ENABLED` | `true` (Loom side) | evict a worker that stops heartbeating; `false` while debugging a worker |
+| `LOOM_PROCESSOR_HEARTBEAT_INTERVAL_MS` / `LOOM_PROCESSOR_MISSED_HEARTBEATS` | `10000` / `6` (Loom side) | the silence a worker is allowed before eviction (§3) |
 | — | `-Xms256m -Xmx512m` | container `JAVA_TOOL_OPTIONS`; low for video work |
 
 > 🔴 **`cortex.yml` is loaded, but not from where the container mounts it.**
@@ -394,14 +408,14 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 - [x] Prometheus `/metrics` on the monitoring port; health + readiness probes
 - [x] Run inspection API: `GET .../runs`, `.../runs/:runUuid`, `.../runs/:runUuid/items`, `/runs/stats`
 - [x] Helm charts for Loom and Cortex
-- [ ] 🔴 **No heartbeat/`lastSeen` expiry sweep** — a half-open worker stays `ONLINE` and dispatchable
+- [x] Heartbeat/`lastSeen` expiry sweep (`ProcessorPresenceReaper`) — a silent worker is evicted after 6 missed beats and its leases reclaimed at once
 - [ ] 🔴 **Control channel is unauthenticated by default** (`LOOM_WS_STRICT_AUTH=false`) and has **no TLS**
 - [ ] 🔴 `gpuLoad` never populated and `GPU` never advertised — GPU routing matches nothing
 - [ ] `PipelineEventBroadcaster` has no bounded queue despite its Javadoc; drops newest
 - [ ] `syncToLoom` not settable from the UI editor
 - [ ] 9 palette kinds (8 `filter-*`, `facedescription`) have descriptors but no producer — savable, then 503 at run start. `loom-fetch` is no longer one of them: Loom executes it itself as the source of an ad-hoc node run ([AGENTIC_NODE_EXECUTION.md](../chat/AGENTIC_NODE_EXECUTION.md))
 - [ ] `PipelineGraphParser` is built without the descriptor registry on the run path, so the unknown-kind check is skipped there
-- [ ] `cortex/nodes/loom/` is a dead directory (stale `target/`, no `src/`, not a Maven module)
+- [x] `cortex/nodes/loom/` was a dead directory (stale `target/`, no `src/`, not a Maven module) — deleted
 - [ ] Round-trip cost of per-node dispatch, and the saving from affinity segments, **unmeasured**
 - [ ] No run at 100 000-item scale executed; multi-worker placement proven in tests only
 
@@ -432,7 +446,8 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 | `WebSocketNodeDispatcher` | `io.metaloom.loom.rest.service.impl` | Turns a ready node/segment into a dispatched task |
 | `PipelineEndpointService` | `io.metaloom.loom.rest.service.impl` | Run start/cancel/pause/resume, 503 precheck, stats timer |
 | `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` (loom/pipeline) | Graph walk, readiness, retries, flow control |
-| `LeaseReaper` | `io.metaloom.loom.rest.service.impl` | Reclaims expired task leases every 60 s |
+| `LeaseReaper` | `io.metaloom.loom.rest.service.impl` | Reclaims expired task leases every 60 s; `reclaimWorker` empties a departed worker at once |
+| `ProcessorPresenceReaper` | `io.metaloom.loom.rest.service.impl` | Evicts a worker that stopped heartbeating and reclaims its work (§3) |
 | `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Fan-out to UI subscribers, drop-newest |
 | `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl` | `?token=` handshake auth, `LOOM_WS_STRICT_AUTH` |
 | `ProcessorMessageType` | `io.metaloom.loom.rest.model.processor.message` (loom-shared/rest-model) | The 19-value protocol enum |
@@ -496,5 +511,6 @@ A failure affects one item, not the run. Runs can be cancelled, paused and resum
 Run DB-backed tests only after `./setup-pool.sh`.
 
 ---
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11 (repointed the PLAN_C reference: that file is a task list now, this file's
+§11 is the build record). Earlier: 2026-08-06 (reference sweep — no content changes)_

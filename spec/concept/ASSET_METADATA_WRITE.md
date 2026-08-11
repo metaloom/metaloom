@@ -18,9 +18,9 @@ Dublin Core mapping, or the precedence rules.
 |---|---|
 | [../features/rest/REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) | **The single most relevant existing plan.** It already settled *"which shape does a produced artifact take"* — attachment vs new asset. This concept obeys that table rather than inventing a parallel answer |
 | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) | The byte endpoints, the pool model, the content-addressed layout |
-| [../features/pipeline-nodes/NODE_WATERMARK_PLAN.md](NODE_WATERMARK_PLAN.md) | The **worked example of a node that produces new bytes** — `.part` + atomic move, `FfmpegRunner`, artifact cache path, "the source file is never modified" |
+| [NODE_WATERMARK.md](../features/nodes/watermark/NODE_WATERMARK.md) | The **worked example of a node that produces new bytes** — `.part` + atomic move, `FfmpegRunner`, artifact cache path, "the source file is never modified" |
 | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) | Rules: registration touch-points, persistence template, required tests |
-| [../features/pipeline-nodes/NODE_S3SINK_PLAN.md](NODE_S3SINK_PLAN.md) | The existing "get bytes out of MetaLoom" node — the natural downstream of this one |
+| [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md) | The existing "get bytes out of MetaLoom" node — the natural downstream of this one |
 | [../loom/DOMAIN.md](../loom/DOMAIN.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) | `asset`, `attachment`, `asset_remix` |
 
 ---

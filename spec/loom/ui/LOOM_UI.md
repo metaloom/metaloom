@@ -25,6 +25,7 @@
 |-----------|----------|
 | [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) | Pipeline editor: React Flow canvas, typed ports, node/edge rendering, validation, CRUD, versions, diff, run history, live events |
 | [CHAT.md](CHAT.md) | Chat / Loom Agent: server-side agentic loop, SSE streaming, references, skills, sessions |
+| [../../features/share/SHARE_SYSTEM.md](../../features/share/SHARE_SYSTEM.md) | The customer-facing share area (`/share/:slug`) - the only route outside `AppShell`, the only screen with no account behind it, and the home of the application's first real media player |
 | [LOOM_UI_UPLOAD.md](LOOM_UI_UPLOAD.md) | Upload screen (`/uploads`): background upload queue, multi-file + drag-and-drop, progress/cancel/retry, library → pool targeting |
 | [TASK_UI_AI_ML.md](TASK_UI_AI_ML.md) | Gap matrix — embeddings, clusters, detections, persons, chat |
 | [TASK_UI_ASSETS_MEDIA.md](TASK_UI_ASSETS_MEDIA.md) | Gap matrix — assets, locations, pools, components, attachments, annotations |
@@ -130,7 +131,15 @@ graph TD
 ```
 
 `main.tsx` holds the provider tree and `AuthGate`; **all `<Route>` declarations live in
-`src/layout/AppShell.tsx`** (admin sub-routes in `src/features/admin/AdminArea.tsx`).
+`src/layout/AppShell.tsx`** (admin sub-routes in `src/features/admin/AdminArea.tsx`) — with exactly
+one exception.
+
+> **`/share/:slug` is declared in `main.tsx`, above `AuthGate`.** It has to be: authentication here
+> is a conditional render rather than a route guard, so `AuthGate` answers every URL with
+> `LoginPage` when there is no token and `AppShell` is only mounted once there is one. A share route
+> inside `AppShell` would be unreachable by the customers it exists for, and `AppShell`'s catch-all
+> redirect would swallow it besides. It stays inside `ThemedApp`, because `tokens` is read at render
+> time. See [../../features/share/SHARE_SYSTEM.md](../../features/share/SHARE_SYSTEM.md) §6.1.
 
 ### 4.2 Registered routes
 
@@ -161,6 +170,7 @@ graph TD
 | `/profile` | `ProfileView` | `features/profile/ProfileView.tsx` |
 | `/maintenance` | `MaintenanceView` | `features/maintenance/MaintenanceView.tsx` |
 | `*` | `<Navigate to="/" replace />` | `layout/AppShell.tsx` |
+| `/share/:slug` | `SharePage` | `features/share/SharePage.tsx` — **declared in `main.tsx`, not here**. Unauthenticated: no sidebar, no shell, no account |
 
 `AdminArea` nests: `spaces`, `users`, `groups`, `permissions`, `api-keys`, `blacklist`,
 `memory-denylist`, `indices`. The first seven are defined **inside the single
@@ -267,6 +277,8 @@ export const API_BASE_URL =
 | `assets.ts` | `/assets`, `/assets/:uuid`, `/assets/upload`, `/assets/bulk/{create,update}`, `/assets/:uuid/binary/data` (`assetBinaryUrl`) |
 | `binaries.ts` | `/assets/:uuid/binary`, `/assets/:uuid/binary/data` |
 | `libraries.ts` · `collections.ts` · `spaces.ts` | `/libraries` · `/collections` · `/spaces` |
+| `shareLinks.ts` | `/share-links`, `/:uuid/feedback`, `/assets/:uuid/share-links`, `/collections/:uuid/share-links` — the owner side, ordinary bearer auth |
+| `shares.ts` | `/shares/:slug[/sessions\|/assets\|/comments\|/annotations\|/reactions]` — **the one client that never sends a bearer token.** Carries the share session in `X-Loom-Share-Session` plus `credentials: "include"` so the `loom_share_session` cookie reaches `<video src>`, which cannot set a header. Typed error `ShareApiError` (`status`), because 401/403/404 mean three different things to the viewer |
 | `search.ts` | `/search/{results,assets,suggestions,status}` — one of two clients with a typed error (`SearchApiError`, carries `status`) |
 | `dbIntegrity.ts` | `/db-integrity[/checks]` — the database integrity report and its catalogue. Pure helpers `failuresAtLeast`, `severityCounts`, `checkStatus`, `passedCount`, `notRunCount`, `groupByCategory` and `integrityQuery` are unit-tested in `dbIntegrity.test.ts`. `checkStatus` is the one to reach for: a check that *could not run* returns `NOT_RUN`, never `PASSED`, which is the distinction this screen must not lose |
 | `storage.ts` | `/storage[/backends]` — the storage report. Carries `StorageApiError` (`status`) so a 403 is distinguishable from a failed refresh, plus the pure helpers `dedupeSavings`, `savingsPercent`, `usedFraction`, `watermarkTone`, `sortBackends`, `sortCategories` (unit-tested in `storage.test.ts`). `usedFraction` returns **null**, not 0, for a backend that reports no capacity — 0 renders as an empty bar, which reads as "plenty of room" for a bucket whose capacity is not a thing that exists |
@@ -652,6 +664,8 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `DbIntegrityAdmin` | `src/features/admin/DbIntegrityAdmin.tsx` | `/admin/db-integrity`. Runs the integrity checks on demand — deliberately **not** polled, unlike the index screen next door: there is no background job to watch and a sweep is real database work. Lists the **whole catalogue** grouped by category — every check by name and code, with a status of Passed, its severity, or "Did not run" — because "what was looked at" is half the answer to "is anything broken". A *Findings only* toggle narrows to the failures; a check that threw is never rendered as a pass |
 | `StorageAdmin` | `src/features/admin/StorageAdmin.tsx` | `/admin/storage`. What is stored and how much room is left. Two byte columns per kind of content, because neither alone is the truth — "claimed" overstates what deleting would free on a deduplicated install, "on disk" gives no sense of how much material there is. A backend that reports no capacity renders as *Not measurable* with **no bar at all**; an empty bar would read as plenty of room. Backends sort worst-first with unmeasurable last. Not polled, like the integrity screen next door |
 | `SearchIndicesAdmin` | `src/features/admin/SearchIndicesAdmin.tsx` | `/admin/indices`. Groups indices under their storage backend (size is per backend — Lucene segments interleave the vector spaces, so there is no per-index byte figure). Action buttons are driven by each index's `supportedActions`, never hardcoded. Polls at 2 s while a job runs and 15 s otherwise, keeping the last good snapshot on a failed poll |
+| `SharePage` / `ShareGate` / `ShareViewer` | `src/features/share/` | The customer-facing area. `ShareMedia.tsx` holds a plain `<video controls>` — **the first real player in this application**; `AssetDetail`'s `videoRef` is unattached and its playback is a `setInterval` simulation. Seeking works because the share binary route inherits `Range`/206 from `AssetBinaryEndpointService` |
+| `ShareDialog` | `src/features/share/ShareDialog.tsx` | Creates the link when it **opens**, not on save — the point of the dialog is the URL. First `navigator.clipboard` use in the app; a Playwright spec asserting on it needs `permissions: ["clipboard-read","clipboard-write"]` |
 | `AssetDetail` | `src/features/assetDetail/AssetDetail.tsx` | Media, timeline, annotations, comments, reactions, tasks, transcripts, faces, tags |
 | `VideoTimeline` / `ZoomableImage` | `src/features/assetDetail/` | Marker timeline · pan/zoom viewer |
 | `PipelineEditor` | `src/features/pipeline/PipelineEditor.tsx` | ~3.7k lines — see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md) |
@@ -694,6 +708,8 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | Unsaved pipeline edits | The `dirty` flag warns but nothing blocks navigation; edits are lost |
 | No error boundaries | A render throw blanks the app; there is no fallback UI |
 | Missing i18n key | Renders the raw key — always add to both locale files |
+| MUI `select` test ids | `inputProps` lands on the hidden native input, which is never clickable. Use `SelectProps.SelectDisplayProps` (`ShareDialog`'s expiry field) |
+| Deep-link **then** sign in | A mocked spec that logs in and *then* calls `page.goto` throws the in-memory token away and lands back on the login form |
 
 ### 11.3 Performance
 
@@ -812,8 +828,11 @@ Shell-level only. Feature/endpoint gaps belong in the `TASK_UI_*.md` files (§1.
 
 ---
 
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-10 (storage admin screen — `/admin/storage`, `api/storage.ts`, `api/format.ts`,
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11 (the customer-facing share area — `/share/:slug` declared in `main.tsx`
+above `AuthGate`, `features/share/`, `api/shares.ts` + `api/shareLinks.ts`, the application's first
+real media player, and the first clipboard use; 25 vitest cases and 14 Playwright cases, of which
+ten never sign in at all. Earlier: storage admin screen — `/admin/storage`, `api/storage.ts`, `api/format.ts`,
 `StorageAdmin.tsx`, 20 vitest cases and 9 Playwright cases; and the profile picture on `/profile`,
 whose picker had until now only ever produced a local preview that vanished on reload — 4 more
 Playwright cases. Earlier: database integrity admin screen — `/admin/db-integrity`,

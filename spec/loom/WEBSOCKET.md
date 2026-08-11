@@ -72,6 +72,9 @@ REST auth handler uses.
 | Setting | Default | Side | Effect |
 |---|---|---|---|
 | `LOOM_WS_STRICT_AUTH` / `-Dloom.ws.strictAuth` | `false` | Loom | Require a token on every WS handshake |
+| `LOOM_PROCESSOR_EXPIRY_ENABLED` / `-Dloom.processor.expiryEnabled` | `true` | Loom | Sweep for workers that stopped heartbeating (§3.6.1). Set `false` locally so a worker paused on a breakpoint is not evicted |
+| `LOOM_PROCESSOR_HEARTBEAT_INTERVAL_MS` / `-Dloom.processor.heartbeatIntervalMs` | `10000` | Loom | How often a worker is expected to be heard from; also the sweep interval |
+| `LOOM_PROCESSOR_MISSED_HEARTBEATS` / `-Dloom.processor.missedHeartbeats` | `6` | Loom | Beats that may be missed before eviction. Tolerance = interval × this = **60 s** |
 | `LOOM_TOKEN` / `--loom-token` | none | Cortex | JWT the worker appends as `?token=` |
 | `LOOM_HOST` | none | Cortex | Loom host; unset ⇒ control channel disabled |
 | `LOOM_PORT` / `--port` | none | Cortex | Loom port; `<= 0` ⇒ control channel disabled |
@@ -206,6 +209,11 @@ sequenceDiagram
     P->>E: onNodeTaskReturned → re-placed immediately
     W->>P: (close)
     P->>R: disconnect(nodeId, ws) → OFFLINE, then unregister
+
+    Note over R: ungraceful: no close ever arrives (§3.6.1)
+    R->>R: presence sweep — lastSeen older than 6 beats
+    R->>B: ProcessorEvent STATE_CHANGED(OFFLINE) + DISCONNECTED
+    R->>E: LeaseReaper.reclaimWorker → tasks re-placed at once
 ```
 
 ### 3.5 Wire models
@@ -322,13 +330,61 @@ comes. Fabricating one would mark a truncated scan as whole. See "Reclaim work
 from a vanished worker" in
 [../tasks/METALOOM_ARCHITECTURE_TASK.md](../tasks/METALOOM_ARCHITECTURE_TASK.md).
 
+#### 3.6.1 Ungraceful departure — the presence sweep
+
+A drain is what a worker does when it gets the chance. A worker that is killed,
+partitioned or frozen gets no chance, and — this is the part that used to have no
+answer — **its socket does not necessarily close.** A half-open TCP connection
+never fires the close handler, so `disconnect(nodeId, ws)` never runs.
+
+`ProcessorPresenceReaper` is the timer that closes that hole. It runs on the
+`LeaseReaper` pattern (own daemon thread, `scheduleWithFixedDelay`, exceptions
+swallowed so one bad sweep cannot cancel the schedule), started from
+`RESTService.start()` alongside the lease reaper:
+
+1. **Detect.** Every heartbeat interval (default 10 s), `ProcessorRegistry.expireStale`
+   compares each worker's `lastSeen` against `now - interval × missedBeats`
+   (default 6 ⇒ **60 s of silence**). `lastSeen` is stamped by `REGISTER`,
+   `HEARTBEAT`, `STATUS_UPDATE` and `STATE_CHANGE`, so any traffic at all keeps a
+   worker alive.
+2. **Evict.** A silent worker goes through the *same* path a socket close uses —
+   `updateState(OFFLINE)` then unregister — so the `STATE_CHANGED` and
+   `DISCONNECTED` frames and the `presenceChanged()` bookkeeping fire exactly once
+   per departure, from one place.
+3. **Reclaim.** The evicted worker's in-flight tasks are handed straight back via
+   `LeaseReaper.reclaimWorker(nodeId, limit)`, which reads
+   `PipelineNodeTaskDao.loadLeasedBy` — the worker-keyed counterpart of
+   `loadExpiredLeases`. Waiting out each lease individually is the wrong answer
+   once the worker is *known* to be gone, and the lease is deliberately generous
+   because its other job is tolerating a merely slow worker. A reclaim failure
+   never cancels the eviction; those leases simply lapse into the ordinary sweep.
+4. **Bound.** At most `DEFAULT_SWEEP_LIMIT` (100) workers per sweep, so a
+   fleet-wide network blip cannot evict — and reclaim the work of — the entire
+   fleet inside one tick. A truncated sweep says so in the log.
+
+**A reconnect must survive a sweep of its old entry.** This is the same trap
+`disconnect` avoids by comparing sockets, in the form a sweep needs: a worker that
+came back under the same id holds a *different* `ConnectedProcessor`, so eviction
+is scoped by object identity and the removal itself is conditional
+(`ConcurrentHashMap.remove(key, value)`). A worker that re-registers mid-eviction
+keeps its fresh registration and no `DISCONNECTED` is emitted for it.
+
+**Eviction is not punishment.** A worker that comes back simply re-registers and
+is placeable again; its persisted `cortex_instance` row (and any admin-managed
+restriction) is untouched, and `GET /api/v1/processors` still lists it as an
+offline instance. The cost of evicting a worker that was only briefly unreachable
+is duplicated work, which is why the tolerance is six missed beats rather than one.
+`LOOM_PROCESSOR_EXPIRY_ENABLED=false` switches the sweep off for local development,
+where a worker paused on a breakpoint stops heartbeating for as long as you look at it.
+
 ### 3.7 Placement
 
 `ProcessorRegistry.selectProcessorForKinds(capability, kinds)` filters, then
 orders:
 
 1. **Filter** — `isPlaceable` (state is `ONLINE`, and nothing else: `PAUSED`,
-   `STARTING` and `TERMINATING` are all excluded), has the required capability
+   `STARTING` and `TERMINATING` are all excluded; a worker evicted for silence is
+   no longer in the map at all, §3.6.1), has the required capability
    (`PipelineEndpointService` currently asks for `CPU`), and `accepts()` **every**
    requested node kind.
 2. **Order** — `priority` descending first: an operator's explicit placement
@@ -612,9 +668,9 @@ Run the pooled-DB setup before the Java suites — see
 - [x] Graceful drain: `TERMINATING`, `TASK_RETURNED`, attempt refund, flush before close
 - [x] Duplicate-`nodeId` rejection with close code `4409`
 - [x] Socket-scoped `disconnect(nodeId, ws)` so a superseded close cannot evict a reconnect
+- [x] Server-side heartbeat timeout (§3.6.1): a silent worker is evicted and its leases reclaimed at once
 - [ ] `gpuLoad` is on the wire but never populated by the worker
 - [ ] A `SOURCE_TASK` in progress is abandoned by a drain; the run waits for a `SOURCE_COMPLETE` that never arrives
-- [ ] No server-side heartbeat timeout: a silent worker stays registered until its socket closes
 - [ ] No max message size, no binary frames, no protocol version negotiation
 - [ ] `ProcessorMessageType` files `SEGMENT_TASK_RESULT` / `NODE_TASK_RESULT_BATCH` under the wrong direction banner
 
@@ -653,7 +709,9 @@ Run the pooled-DB setup before the Java suites — see
 - [x] UI backs off exponentially with jitter and stops on `4401`
 - [ ] Worker backoff is **linear and unjittered** — a fleet restarting together reconnects in lock-step
 - [ ] Worker retries forever, including after a `4401` that will never succeed
-- [ ] Work in flight at the moment of an unplanned disconnect still waits out its lease
+- [x] Work in flight when a worker is evicted for silence is reclaimed at once (§3.6.1)
+- [ ] Work in flight at the moment of an unplanned socket **close** still waits out its lease —
+      `disconnect()` does not yet drive `reclaimWorker` (Task 2(a))
 
 ### 7.5 Documentation and tooling
 
@@ -713,7 +771,8 @@ Run the pooled-DB setup before the Java suites — see
 | `PipelineEventEndpoint` | `io.metaloom.loom.rest.endpoint.impl` | UI events socket, filter extraction, `order(-1000)` |
 | `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl` | `?token=` validation, strict mode, `4401` |
 | `PipelineEventBroadcaster` | `io.metaloom.loom.rest.service.impl` | Subscriber set, filters, write-queue drop |
-| `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Connected workers, placement, `send`, processor events |
+| `ProcessorRegistry` | `io.metaloom.loom.rest.service.impl` | Connected workers, placement, `send`, processor events, `expireStale` |
+| `ProcessorPresenceReaper` | `io.metaloom.loom.rest.service.impl` | Timed presence sweep; evicts a silent worker and reclaims its work (§3.6.1) |
 | `WebSocketNodeDispatcher` | `io.metaloom.loom.rest.service.impl` | Turns a `NodeTask`/`SegmentTask` into a dispatched frame |
 | `RunStatsAggregator` | `io.metaloom.loom.rest.service.impl` | Counts settles, emits `NODE_STATS` / `NODE_FAILED` |
 | `PipelineRunRegistry` / `PipelineRunTracker` | `io.metaloom.loom.rest.service.impl` | Live engines by run uuid; terminal status and counters |
@@ -738,6 +797,8 @@ Run the pooled-DB setup before the Java suites — see
 | Token check and strict mode | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WebSocketAuthenticator.java` |
 | Broadcast, filtering, drop rule | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEventBroadcaster.java` |
 | Placement, load score, `isPlaceable` | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/ProcessorRegistry.java` |
+| Heartbeat expiry, its tolerance and off switch | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/ProcessorPresenceReaper.java` |
+| Reclaiming a departed worker's leases | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/LeaseReaper.java` (`reclaimWorker`) |
 | `NODE_STATS` cadence (`STATS_INTERVAL_MS`) | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/PipelineEndpointService.java` |
 | Message vocabulary | `loom-shared/rest-model/src/main/java/io/metaloom/loom/rest/model/processor/message/` |
 | Work-plane wire model | `loom-shared/pipeline-model/src/main/java/io/metaloom/loom/pipeline/model/` |

@@ -16,7 +16,8 @@
 > * **Semantic / vector search UI** → [../../features/search/SEMANTIC_SEARCH.md](../../features/search/SEMANTIC_SEARCH.md).
 >   Nothing can be built here yet: `embedding.vector` is a staging buffer with **no ANN index and
 >   no producer**, so any similarity query is a full scan.
-> * **Lexical search UI** → [../../features/search/SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) P1-16…P1-20.
+> * **Lexical search UI** → **built**; see [../../features/search/SEARCH.md](../../features/search/SEARCH.md) §0.
+>   Remaining UI work is [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Tasks 4, 8, 17 and 19.
 
 ---
 
@@ -220,7 +221,7 @@ strings and `features/workflow/WorkflowView.tsx`'s "deduplication" mode, which r
 computed candidates and persists nothing. The dedup pipeline node therefore writes PENDING groups
 that no operator can confirm, and the apply node has nothing CONFIRMED to act on: the feature is
 end-to-end blocked on this UI.
-[NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) names this file as the
+[NODE_DEDUP.md](../../features/nodes/dedup/NODE_DEDUP.md) names this file as the
 owner of the task.
 
 **Improvement Summary:** Add `api/dedupGroups.ts` and make the workflow deduplication mode read
@@ -247,7 +248,7 @@ Edge cases: a group whose members were deleted between discovery and review; a c
 ```
 
 **References:** [DedupGroupEndpoint.java](../../../loom/services/rest/src/main/java/io/metaloom/loom/rest/endpoint/impl/DedupGroupEndpoint.java) ·
-[../../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../../concept/NODE_DEDUP_PLAN.md) §2.1 (route/permission table) ·
+[NODE_DEDUP.md](../../features/nodes/dedup/NODE_DEDUP.md) §6 (route/permission table) ·
 [WorkflowView.tsx](../../../loom-ui/src/features/workflow/WorkflowView.tsx) · migration `V2.61`
 
 **Test Requirements:** `loom-ui/src/api/dedupGroups.test.ts`; `loom-ui/e2e/dedup-mocked.spec.ts`

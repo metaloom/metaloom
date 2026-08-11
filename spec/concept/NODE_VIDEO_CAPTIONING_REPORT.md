@@ -23,7 +23,7 @@
 > | `SceneVideoCaptioningNode` / kind `video-captioning-scene` | `videoStrategy = SCENE` | `VideoCaptioner.captionScene` |
 > | `NativeVideoCaptioningNode` / kind `video-captioning-native` | `videoStrategy = NATIVE` | `VideoCaptioner.captionNative` |
 >
-> Design rationale and remaining work: [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md).
+> Design rationale and remaining work: [NODE_VIDEO_CAPTIONING.md](../features/nodes/captioning/NODE_VIDEO_CAPTIONING.md).
 > Node reference: [NODES.md](../features/nodes/NODES.md).
 
 ---
@@ -66,14 +66,14 @@ one node kind, three strategies:
 
 Supporting classes, at their current paths:
 
-- [`VideoVLMClient`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoVLMClient.java)
+- [`VideoVLMClient`](../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoVLMClient.java)
   — OpenAI `/v1/chat/completions`, multi-image **and** `video_url`
-- [`FrameSampler`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/FrameSampler.java)
+- [`FrameSampler`](../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/FrameSampler.java)
   — video4j `seekToFrame` sampling
-- [`VideoCaptioner`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioner.java)
-  and [`VideoCaptioningStrategy`](../../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioningStrategy.java)
+- [`VideoCaptioner`](../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioner.java)
+  and [`VideoCaptioningStrategy`](../../cortex/nodes/captioning/core/src/main/java/io/metaloom/cortex/node/captioning/VideoCaptioningStrategy.java)
 - `CaptioningNodeOptions` (was `VideoCaptioningNodeOptions`)
-- the env-gated harness [`VideoCaptioningComparisonIT`](../../../cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/VideoCaptioningComparisonIT.java)
+- the env-gated harness [`VideoCaptioningComparisonIT`](../../cortex/nodes/captioning/core/src/test/java/io/metaloom/cortex/node/captioning/VideoCaptioningComparisonIT.java)
 
 Persistence reuses the `asset_json_comp` + node-result-ledger pattern (skipped during the
 benchmark, since the harness runs with a null Loom client). The backend is pure config
@@ -157,7 +157,7 @@ clips, or needs a much larger context window (Qwen3-VL / higher `max-model-len`)
 
 > Still true today: `VideoCaptioningStrategy.NATIVE` exposes no `fps` / `max_frames` cap,
 > so the failure mode above is unchanged — see
-> [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) §3.3.
+> [NODE_VIDEO_CAPTIONING.md](../features/nodes/captioning/NODE_VIDEO_CAPTIONING.md) §3.3.
 
 ## 6. Scene-first variant: scene detector fixed
 
@@ -284,7 +284,7 @@ breaks a normal build.
 
 Node-side options used during the runs (`frameCount=8`, `targetFrameSize=512`,
 `maxTokens=256`, `videoModel`, `videoEndpointUrl`) are documented in
-[NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) §4.
+[NODE_VIDEO_CAPTIONING.md](../features/nodes/captioning/NODE_VIDEO_CAPTIONING.md) §4.
 
 ---
 
@@ -330,7 +330,7 @@ Node-side options used during the runs (`frameCount=8`, `targetFrameSize=512`,
 | Concept | Path |
 |---|---|
 | Raw result sets + captured environment | [video-captioning-results/](video-captioning-results/) |
-| Design rationale, options and open work | [NODE_VIDEO_CAPTIONING_PLAN.md](NODE_VIDEO_CAPTIONING_PLAN.md) |
+| Design rationale, options and open work | [NODE_VIDEO_CAPTIONING.md](../features/nodes/captioning/NODE_VIDEO_CAPTIONING.md) |
 | Node system reference | [NODES.md](../features/nodes/NODES.md) |
 | Typed port / content-type model | [../pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) |
 | New-node checklist | [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) |

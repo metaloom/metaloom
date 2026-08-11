@@ -175,8 +175,8 @@ worker** as the producer and nothing enforces that (§10).
 
 ## 3. Node Reference
 
-**35 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` is a stale
-leftover directory with no `pom.xml` and is not a module — do not list or resurrect it.
+**36 modules** under `cortex/nodes/` (per `cortex/nodes/pom.xml`). `cortex/nodes/loom/` was a stale
+leftover directory with no `pom.xml`; it has been deleted — do not resurrect it.
 
 Layout is `cortex/nodes/<name>/core/` except `filesystem-source`, `s3-source` and `cloud-source`,
 which are flat.
@@ -393,7 +393,7 @@ tag but not untag has to run with `removeWithdrawn` off.
 insert a new `tag` row unconditionally, so the second asset to receive one name violated
 `UNIQUE (name, collection)`; `TagDao.resolveOrCreateAssetTag` now resolves on the natural key and the
 join insert upserts on `(tag_uuid, asset_uuid)`. Resolving never overwrites the existing tag's meta,
-rating, colour or creation audit. See [../../concept/NODE_TAG_CONCEPT.md](../../concept/NODE_TAG_CONCEPT.md) §2.
+rating, colour or creation audit. See [NODE_TAG.md](tag/NODE_TAG.md) §6.
 
 ---
 
@@ -574,7 +574,7 @@ fields), `consistency` (no fields), `ocr`, `tika` (no fields), `whisper`, `faced
 | `thumbnail` | `cols`, `rows`, `tileSize` |
 | `ocr` | `tessDataPath` (`/usr/share/tesseract-ocr/5/tessdata`), `language` (`eng`) |
 | `whisper` | `modelPath` (`models/ggml-large-v3-turbo.bin`), `temperature` (0.0), `temperatureInc` (0.2), `language`, `useGpu` (true), `gpuDevice` (0) |
-| `facedetection` | `videoChopRate` (15), `videoScaleSize` (0 = native), `minFaceHeightFactor` (0.05), `maxFaceAngle` (30), `inspirefacePackPath`, `capabilities` (`{INSPIREFACE}`), `embeddingsEnabled`, `embeddingModel`, `faceClusterMinimum` (2), `faceClusterEPS` (0.6). All are read; the first two had their defaults corrected to the behaviour that was actually shipping |
+| `facedetection` | `videoChopRate` (15), `videoScaleSize` (0 = native), `minFaceHeightFactor` (0.05), `maxFaceAngle` (30), `inspirefacePackPath`, `capabilities` (`{INSPIREFACE}`), `embeddingsEnabled`, `embeddingModel`, `faceClusterMinimum` (2), `faceClusterEPS` (0.6). All are read; the first two had their defaults corrected to the behaviour that was actually shipping. `faceClusterEPS` / `faceClusterMinimum` are **per pipeline node** — the node is a `PipelineConfigurable`; the rest are worker-scoped because the detector is built from them once |
 | `objectdetect` | `modelPath` (`models/yolo/YOLOv11n_voc.onnx`), `labelsPath` (`models/yolo/voc.names`), `useGpu` (true), `onnxRuntimeLibPath` (null, hidden), `minConfidence` (0.5, floor 0.4), `videoChopRate` (25), `videoScaleSize` (1024), `maxDetections` (500), `classFilter` (empty = all) |
 | `quality` | `checkBlurriness`, `checkResolution`, `checkVideoBitrate`, `checkAudioBitrate` (all true) |
 | `captioning` | `smolVLMHost` (`localhost`), `smolVLMPort` (8000), `videoStrategy` (`WHOLE`), `videoEndpointUrl` (`http://localhost:8000`), `videoModel` (`qwen25vl-awq`), `videoApiKey` (``), `frameCount` (8), `targetFrameSize` (512), `maxScenes` (32), `maxTokens` (256), `temperature` (0.2), `videoPrompt` |
@@ -884,7 +884,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 | Sidecars + the port table | `sidecars/README.md` (`tts` 9100, `sentiment` 9110, `depthmap` 9120, `sam2` 9130, `imagegen` 9200/9210, `videogen` 9220) |
 | Ledger endpoint + its tests | `loom/services/rest/.../AssetEndpoint.java` · `loom/core/.../endpoint/test/NodeResultEndpointTest.java` |
 | Customer-facing node docs | `website/content/english/docs/nodes/<kind>/index.adoc` |
-| Per-node design plans | `spec/features/pipeline-nodes/NODE_*_PLAN.md` |
+| Per-node design specs | `spec/features/nodes/<kind>/NODE_*.md` |
 
 ---
 

@@ -1,137 +1,109 @@
 # NOTES — scratch backlog
 
 Scratch pad for raw ideas and open questions that do **not yet have a spec file of their own**; once
-an item grows teeth it moves into a real spec under `spec/features/…` or a task in
-[plans/TASKS.md](plans/TASKS.md) and is deleted here. This file tracks no progress — the linked specs do.
+an item grows teeth it moves into a real spec under `spec/features/…` or into a sibling task file in
+this directory ([WORKFLOW_TASKS.md](WORKFLOW_TASKS.md), [PIPELINE_TASKS.md](PIPELINE_TASKS.md),
+[DATABASE_TASKS.md](DATABASE_TASKS.md), [LOOM_UI_TASKS.md](LOOM_UI_TASKS.md), …) and is deleted here.
+This file tracks no progress — the linked specs do.
+
+> **Workflows have graduated out of this file.** The twelve workflow specs live in
+> [../workflows/](../workflows/) (start at [WORKFLOWS.md](../workflows/WORKFLOWS.md)) and their
+> actionable work items in [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md). Do not add workflow items here.
+> W1–W4 (`FilterBy.TAG`/`RATING`, the `move` node, review state on `detection`, the review record on
+> the `asset_node_result` ledger) are done as of 2026-08-08.
 
 ---
 
 ## Tasks
 
-* Shareable link system (e.g. with password), Shareable collection, folder
-* Customer faceing area, deliverable area
-
-## Test failure
-
-One thing I did not fix: mvn -pl loom/core test has 7 pre-existing failures in PipelineRunCancel/Pause/CompletionEndpointTest, all expected: "SUCCESS" but was: SUCCESS — they assert a PipelineRunStatus enum equals a String, so they can never pass. Neither those tests nor PipelineRun.java are touched by this change (last commit on them is 716953c0). My own endpoint tests pass inside that same run. Left alone as unrelated; the fix is .isEqualTo(PipelineRunStatus.SUCCESS) in each.
-
-
-## Feedback from dedup workflow impl
-The demo seeding path has no test anywhere in the repo — BootstrapInitializer swallows failures, so if seedDemoDedupGroup threw, the group would vanish silently. Its four DAO calls are exactly the ones DedupGroupDaoTest exercises against the pooled DB, and I placed the call last so nothing else could be lost behind it, but it is unverified until you boot the demo container. That is the one item from the plan's manual-verification list I could not run here.
-
-One real backend inconsistency I found but did not fix: PATCH keepAssetUuid writes only the denormalised pointer and never rewrites dedup_group_member.role, so after a reassignment the two disagree — despite DedupGroup's javadoc claiming "the DAO keeps them consistent". I corrected that javadoc, made every reader prefer keepAssetUuid, and recorded it as open in both specs. Rewriting the roles server-side is the actual fix and was outside the approved scope.
-
-
-
-> **Workflows have graduated out of this file.** The twelve workflow specs live in
-> [../workflows/](../workflows/) (start at [WORKFLOWS.md](../workflows/WORKFLOWS.md)) and their
-> actionable work items in [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md). Do not add workflow items here.
-> The keystone is **W1** — `FilterBy.TAG` / `FilterBy.RATING`; without it no pipeline can act on a
-> human decision, which is why manual sorting, trash and safety quarantine are all stuck.
-
-- tests: Run full testsuite and check peak memory and test duration. We want to know which tests are slow and if you could improve concurrency for tests.
-- sam2: stabilityScoreThresh is a dead option. The transformers "mask-generation" pipeline has no analogue, so the sidecar ignores it while the UI advertises it. Recorded as a follow-up, not fixed — it's a product decision whether to wire the real generator or mark it unsupported.
-
-- Content Classification Model support? BERT?
-- CliIntegerationTest? What is this? Do we need it?
-- Video Manipulation Node: the video half of
-  [concept/NODE_IMAGE_MANIPULATION_PLAN.md](../concept/NODE_IMAGE_MANIPULATION_PLAN.md) — autorotate
-  by container rotation side-data, crop, aspect ratio fix, VVS (blurred pad for vertical video).
-  Should reuse that node's `ManipulationGeometry` and `watermark`'s `FfmpegRunner`; would also close
-  watermark's open "rotation/SAR is not handled" item. *(The image half is now specified.)*
-- Focalpoint node? — partly answered: the image-manipulation node's `SUBJECT_CROP` frames upstream
-  `detection/*` boxes, and an open item there proposes emitting the subject centroid as a
-  `focalPoint` output instead of building a second node. Still open for saliency without detections.
-- Chapter extraction from video?
-- How about a AI aware agentic supported sync program which automagically syncs assets which are relevant for a user to the client of the user (e.g https://www.lucidlink.com/) - how could this be implemented for loom-app?
-- Add semantic ingestion node. This allows constructed semantic data to be ingested into loom
-- Would a merge node be useful to combine assets in a reactive pipeline? (e.g. zip them)
-- Promoted 2026-08-07 into [../workflows/](../workflows/) + [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md):
-  the `move` node (trash/quarantine, filesystem-border aware), `FilterBy.TAG`/`RATING`, review state
-  on `detection`, and a review record hung off the `asset_node_result` ledger.
-
+* **Video Manipulation Node** — the video half of
+  [../features/nodes/image-manipulation/NODE_IMAGE_MANIPULATION.md](../features/nodes/image-manipulation/NODE_IMAGE_MANIPULATION.md):
+  autorotate by container rotation side-data, crop, aspect ratio fix, VVS (blurred pad for vertical
+  video). Should reuse that node's `ManipulationGeometry` and `watermark`'s `FfmpegRunner`; would
+  also close watermark's open "rotation/SAR is not handled" item. *(The image half is specified and
+  built; the plan moved out of `concept/`.)*
+* Add a semantic ingestion node — lets constructed semantic data be ingested into Loom.
+* Chapter extraction from video. Storage is already solved: `asset_segment_comp` (`V2.42`, see
+  [DATABASE_TASKS.md](DATABASE_TASKS.md) task 5) keys chapters alongside scenes/shots/silence — but
+  no node under `cortex/nodes/` produces them, and loom-ui would need a chapter strip on the asset
+  detail view.
+* Content-classification node (topic / zero-shot). Partly answered: `sentiment` already ships
+  per-language transformer checkpoints (`SentimentNodeOptions.modelDe`/`modelEn`) and `guard`/`llm`
+  cover safety and free-form verdicts — so the gap is a general-purpose classifier, not "BERT
+  support" as such.
+* Saliency-based focal point. The detection-driven half now has a home: `SUBJECT_CROP` frames
+  upstream `detection/*` boxes, and an open item in
+  [NODE_IMAGE_MANIPULATION.md](../features/nodes/image-manipulation/NODE_IMAGE_MANIPULATION.md)
+  proposes emitting the subject centroid as a `focalPoint` output. Still homeless: saliency
+  **without** detections.
+* AI-aware agentic sync client that automatically mirrors the assets relevant to a user onto their
+  machine (à la lucidlink) — how would that work for loom-app?
 
 ## Open ideas / questions
 
-
-* **Binary delivery to the frontend.** How do asset bytes and derivatives reach a browser at scale —
-  CDN in front of the pool, pre-encoded renditions, signed URLs, range/HLS?
-  [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) stops at
-  "stream it through the REST endpoint"; nothing beyond that is specified.
+* **Binary delivery to the frontend.** How do asset bytes and derivatives reach a browser at scale?
+  `Range` / 206 / 416 / `Accept-Ranges` landed on `/assets/:uuid/binary/data`, but
+  [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) still records
+  "Presigned URLs — not built: every S3 download is proxied through Loom, a hop per thumbnail", and
+  nothing specifies a CDN in front of the pool, pre-encoded renditions, or HLS/DASH. Attachment
+  downloads (`/attachments/:uuid/data`) still ignore `Range` entirely.
 
 * **Complete the node provenance record.** The `asset_node_result` ledger already carries
   `node_kind` + `node_id` + `producer_version`, which identifies *which node kind* wrote a value but
-  not *which worker build*. Still missing, so faulty data cannot be traced back to a worker:
-  cortex instance name/version on the row (`cortex_instance` exists but is never joined),
-  `run_uuid` / `task_uuid` (columns exist; `NodeResultCreateRequest` has no fields for them), and a
-  real `origin` (hard-coded `COMPUTED`).
+  not *which worker build*. The schema is not the problem — `V2.45__add_asset_node_result.sql`
+  already has `run_uuid`, `task_uuid` and a nullable `origin` with a
+  `NULL|COMPUTED|LOCAL|REMOTE` CHECK. The write path is:
+  - `NodeResultCreateRequest` has only 8 fields and none of them are `runUuid` / `taskUuid` /
+    `cortexInstance` / `started` / `finished`, so the REST model cannot carry them even though
+    `NodeResultEndpointService` passes `origin` through faithfully;
+  - `origin` is hard-coded at both writers — `AbstractMediaNode.recordNodeResult` sets
+    `ResultOrigin.COMPUTED` and ignores `ctx.resultOrigin()`, and `AdhocNodeResultWriter` uses a
+    constant — so a `LOCAL` cache hit is indistinguishable from real work;
+  - the `cortex_instance` table (`V2.33`) exists but is written only by worker registration and is
+    never referenced from the node-result path; `V2.66` even notes that `asset_node_result.node_id`
+    and `cortex_instance.node_id` mean different things, so there is no implicit join key either.
+  Consequence: faulty data cannot be traced back to a worker. Blocks the review record in
+  [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) and is cross-referenced from
+  [WORKFLOW_AI_REVIEW.md](../workflows/WORKFLOW_AI_REVIEW.md). Line-level gaps are pinned in
+  [features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md). loom-ui would gain
+  a provenance row on `NodeResultDetail.tsx`, which today shows only the element seq.
+
+
+## Unowned defects (verified 2026-08-11)
+
+Real code/spec disagreements found during the audit that no task file owns.
+
+* **`ctx.failure(cause).next()` reports SUCCESS.** `NodeContextImpl.next()` reads only `skipReason`;
+  `failureCause` is read by `abort()` alone, so `failure(...).next()` returns
+  `ResultState.SUCCESS` with a `null` message and the diagnosis is dropped on the floor. ~20 call
+  sites under `cortex/` do exactly that. Fix is a choice: have `next()` honour `failureCause`, or
+  make `failure()` before `next()` illegal.
+
+* **Dedup: `PATCH keepAssetUuid` never rewrites `dedup_group_member.role`.**
+  `DedupGroupDaoImpl.updateStatus` updates `dedup_group` only; `role` is written solely by
+  `addMember`. Readers were taught to prefer the `keepAssetUuid` pointer and `DedupGroup`'s javadoc
+  was corrected, but two "the DAO keeps them consistent" claims survive and are now wrong: the
+  comment in `V2.61__add_dedup_group.sql`, and
+  [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) §4 — which
+  contradicts its own open item further down the same file. No test asserts member roles *after* a
+  reassignment (`DedupGroupEndpointTest` and `DedupGroupDaoTest` both re-send the asset that is
+  already KEEP). Recorded as "still open" under [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) Task 3, but
+  that task is ✅ DONE, so nothing live owns it. Server-side role rewrite is the actual fix.
+
+* **The demo seeding path has no test anywhere in the repo.** `BootstrapInitializer` catches and
+  logs (`"Error while populating demo data — continuing startup"`) where the migration and
+  `DatabaseInitializer` blocks above it rethrow, so anything thrown inside
+  `DemoDatabaseInitializer.init()` — `seedDemoDedupGroup` included — vanishes silently and the demo
+  data is simply absent. Nothing invokes `init()` from a test; `DemoPipelineDefinitionTest` only
+  exercises the static pipeline-definition strings.
+
+* **A dead sam2 option still busts its cache.** `stabilityScoreThresh` is ignored by the sidecar
+  (documented in [NODE_SAM2.md](../features/nodes/sam2/NODE_SAM2.md) §6.1) yet is part of the sam2
+  cache-key digest in [NODES.md](../features/nodes/NODES.md), and the digest names the artifact
+  directory — so nudging a knob that does nothing forces a full re-segment. The website options
+  table (`website/content/english/docs/nodes/sam2/index.adoc`) omits the option entirely while the
+  served descriptor advertises it.
 
 ---
-
-## Known test noise (not regressions)
-
-Mostly cleared 2026-08-01 — what was written off as environmental noise was largely real:
-
-- **`/extra/vid/*` media paths** — gone. The two scene detectors already resolved proper test
-  media and then overwrote it with a dead path on the next line; the facedetect tests now use the
-  shared test media. `VideoFaceScannerTest` was an interactive scratchpad (Swing viewer plus
-  `System.in.read()`) that would have *hung* rather than failed once its video existed.
-- **"OpenCV natives not loaded"** — not a test problem. The system moved to FFmpeg 8 while the
-  OpenCV build and its `opencv-ffm` wrapper were still linked against FFmpeg 7
-  (`libavcodec.so.61`), and the FFmpeg `-dev` packages had been removed, so rebuilding silently
-  dropped FFmpeg support altogether. Reinstalling `lib{avcodec,avformat,avutil,swscale,avdevice}-dev`
-  and rebuilding opencv `videoio` + `opencv-ffm` fixed thumbnail, fingerprint and
-  scene-detection at once. Re-run `opencv-ffm/build.sh` after any system FFmpeg bump.
-- **Scene detector tests OOM the module** — `FeatureSceneDetectorTest` / `OpticalFlowSceneDetectorTest`
-  call the unbounded `detect()` over a whole video, and surefire reuses one forked JVM per module,
-  so the retained native buffers pushed the later `SceneDetectionNodeTest` past the OOM killer
-  (exit 137, ~22 GB RSS). They now run against the ~3 MB `video3` instead of the ~17 MB `video2`
-  and assert their result. Only visible once the dead `/extra/vid` path stopped failing them
-  instantly.
-- **No local LLM endpoint** — the llm node tests now run against the llama.cpp server in
-  [../loom-test-env/llamacpp](../loom-test-env/llamacpp) and *skip* rather than fail when it is
-  not up, matching the `LlmBackendAvailability` pattern in `loom/core`.
-
-- **No local SmolVLM endpoint** — `SmolVLMClientTest` now skips via `SmolVLMAvailability` instead of
-  failing, and asserts a non-blank caption rather than printing one. Override with
-  `-Dloom.test.smolvlm.host` / `-Dloom.test.smolvlm.port`.
-
-Still genuinely environmental: `xattr` unsupported on some test filesystems.
-
-### ✅ facedetect — resolved 2026-08-02, and it was hiding three separate bugs
-
-The module crashed its forked JVM (exit 134) rather than failing tests: `inspireface4j` shipped a
-`libjinspireface.so` linked against Debian's **OpenCV 4.10** while `video4j` → `opencv-ffm` loads
-the locally built **OpenCV 5.1**, so the `cv::Mat*` crossing `InspirefaceLib.detect()` was read
-with the wrong struct layout (`SIGSEGV in cv::Mat::Mat(cv::Mat const&)`). Fixed upstream by
-`inspireface4j@7f13a09` "Bump to inspireface 1.2.3 and OpenCV5" — **remember to `mvn install`
-inspireface4j**, the stale jar in `~/.m2` keeps the old native and the crash with it.
-
-Removing the crash exposed two real defects underneath, both of which had made the video face
-path return **zero faces no matter what it detected**:
-
-- **`processFaces()` required `face.hasEmbedding()`.** Embeddings were attached by `processFace()`
-  through a remote InsightFace HTTP service; that call sits commented out a few lines above and
-  nothing replaced it, so no face could ever satisfy the filter. `FacedetectNode` reads only the
-  box and the frame index, so the gate tested for data no consumer wants. Removed.
-- **`BLUR_THRESHOLD` was 10 and unreachable under OpenCV 5.** Real faces in the test video measure
-  2.71–4.24 (median 3.43) mean-absolute-Laplacian. Worse than a filter: `scanWindow()` stops
-  scanning a window the moment one frame yields no faces, so an unreachable threshold truncated the
-  scan after a single frame. Now 2.0 — **derived from one video and still wants calibration**; the
-  sharpest-first sort plus the 10-face cap in `processFaces()` is what actually selects quality.
-
-Two test expectations were wrong as well: `FacedetectNodeTest.testVideo` asserted `faceCount > 10`
-against a scanner hard-capped at 10, and the `InspirefaceTest` session asked for attributes and
-embeddings without enabling `ENABLE_FACE_ATTRIBUTE` / `ENABLE_FACE_RECOGNITION` (a session opened
-without them still detects faces, but returns empty attributes).
-
-`FacedescriptionNodeTest.testProcessImage` needs a local vision model
-(`google/gemma-3-27b-it` on an OpenAI-compatible server at 8080) and now skips via
-`VisionBackendAvailability` instead of failing on the
-`null` that `processFace()` returns after three failed calls.
-
-Module result: 45 tests, 0 failures, 1 skipped.
-
----
-_Git HEAD revision: `742dae2d`_
-_Last updated: 2026-08-06 (reference sweep — no content changes)_
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11 (code audit)_

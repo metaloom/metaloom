@@ -18,8 +18,8 @@ description of a working subsystem.
 | Covered here | Covered elsewhere |
 | --- | --- |
 | The Maven module `loom/services/image` and its two types | Actual image work in Cortex nodes → [NODES.md](../features/nodes/NODES.md) |
-| Why it is orphaned and what the options are | Image generation → [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) |
-| Its (non-)configuration and (non-)tests | Colour analysis → [NODE_DOMINANT_COLOR_PLAN.md](../concept/NODE_DOMINANT_COLOR_PLAN.md) |
+| Why it is orphaned and what the options are | Image generation → [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md) |
+| Its (non-)configuration and (non-)tests | Colour analysis → [NODE_DOMINANT_COLOR.md](../features/nodes/dominant-color/NODE_DOMINANT_COLOR.md) |
 | — | Binary/thumbnail storage → [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 
 This file is filed under `spec/features/pipeline-nodes/` because every consumer that *would*
@@ -156,9 +156,9 @@ Route work here instead of extending this stub:
 | Need | Real location | Spec |
 | --- | --- | --- |
 | Thumbnail / sprite generation | `cortex/nodes/thumbnail/core/…/ThumbnailNode.java` (video4j) | [NODES.md](../features/nodes/NODES.md) `thumbnail` |
-| Dominant colour, palettes, colour naming | `cortex/nodes/dominant-color/core/…/DominantColorNode.java` | [NODE_DOMINANT_COLOR_PLAN.md](../concept/NODE_DOMINANT_COLOR_PLAN.md) |
-| Image generation / remix | `cortex/nodes/image-generation/core/…/ImageGenNode.java` + sidecars `:9200`/`:9210` | [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) |
-| Depth maps, watermarks | `cortex/nodes/…` | [NODE_DEPTHMAP_PLAN.md](../concept/NODE_DEPTHMAP_PLAN.md), [NODE_WATERMARK_PLAN.md](../concept/NODE_WATERMARK_PLAN.md) |
+| Dominant colour, palettes, colour naming | `cortex/nodes/dominant-color/core/…/DominantColorNode.java` | [NODE_DOMINANT_COLOR.md](../features/nodes/dominant-color/NODE_DOMINANT_COLOR.md) |
+| Image generation / remix | `cortex/nodes/image-generation/core/…/ImageGenNode.java` + sidecars `:9200`/`:9210` | [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md) |
+| Depth maps, watermarks | `cortex/nodes/…` | [NODE_DEPTHMAP.md](../features/nodes/depthmap/NODE_DEPTHMAP.md), [NODE_WATERMARK.md](../features/nodes/watermark/NODE_WATERMARK.md) |
 | Storing/serving image binaries | `loom/services/fs`, `loom/services/s3` (`BinaryStorage` SPI) | [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | Image metadata extraction | `loom/services/tika/…/TikaProcessorImpl.java` | none yet |
 | Alt text / captions (the thing `altText()` gestures at) | Cortex `captioning` / `vlm` nodes → `asset_json_comp` | [NODES.md](../features/nodes/NODES.md) §result persistence |

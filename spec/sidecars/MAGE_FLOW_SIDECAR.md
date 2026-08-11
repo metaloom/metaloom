@@ -8,7 +8,7 @@
 > matches only markdown/adoc plus the sidecar's own Python).
 >
 > This file is the **sidecar spec**. The consuming node is specified in
-> [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md)
+> [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md)
 > — do not restate node lifecycle, persistence, ports or options here.
 
 ---
@@ -25,7 +25,7 @@
 - [x] `generate_examples.py` + five checked-in reference PNGs (drives the running HTTP server)
 - [x] `README.md` in the sidecar folder — thorough; this spec is a condensation, not a replacement
 - [x] Referenced from [`sidecars/README.md`](../../sidecars/README.md),
-      [NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) §3,
+      [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md) §3,
       [NODES.md](../features/nodes/NODES.md), [CONTEXT.md](../CONTEXT.md) and
       `website/content/english/docs/nodes/imagegen/index.adoc`
 - [ ] **No automated test of any kind.** No pytest, no smoke script beyond `generate_examples.py`
@@ -43,7 +43,7 @@
 
 **Honesty note on the audit that triggered this file:** the claim "zero documentation coverage" is
 inaccurate. There was no *dedicated spec file* (this is it), but the sidecar was already documented
-in `sidecars/mage-flow-sidecar/README.md`, in NODE_IMAGEGEN_PLAN.md §1/§2/§3 (as "Sidecar B"), in
+in `sidecars/mage-flow-sidecar/README.md`, in spec/features/nodes/image-generation/NODE_IMAGEGEN.md §1/§2/§3 (as "Sidecar B"), in
 `sidecars/README.md`, in `spec/CONTEXT.md` and on the customer website.
 
 ---
@@ -242,7 +242,7 @@ monkeypatched to a fake pipeline: it would pin `_side()` snapping, the `400` mat
 | Why the model reloads between calls | `mage_loader._evict` / `_resident` (§2) |
 | flash-attn vs SDPA selection | `mage_loader.resolve_attn_backend` + §6.5 |
 | How to start it | `sidecars/mage-flow-sidecar/run.sh`, or the `Dockerfile` `CMD` |
-| Which node calls it, and how | [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md) §1–§3 |
+| Which node calls it, and how | [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md) §1–§3 |
 | The node's options and persistence | [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md) |
 | The other image sidecar (SDXL/Ideogram, :9200) | `sidecars/ideogram-sidecar/README.md` |
 | The port allocation across all sidecars | [`sidecars/README.md`](../../sidecars/README.md) — tts 9100, sentiment 9110, depth 9120, imagegen 9200/**9210**, videogen 9220 |

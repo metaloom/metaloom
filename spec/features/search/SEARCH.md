@@ -4,15 +4,17 @@
 > works, and what is deliberately not built yet.
 >
 > **Scope split.** Vectors / embeddings / hybrid ranking → [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
-> Remaining build order and task IDs → [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md). Perceptual fingerprint
-> k-NN (a *different* index, on Lucene) → [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md). Table/column reference →
-> [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
+> Remaining work items and task IDs → [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md).
+> Administering the indices (`/search-indices`, reindex jobs) → [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md).
+> Perceptual fingerprint k-NN (a *different* index, on Lucene) → [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md).
+> Table/column reference → [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
 
 ## 0. Status — read this first
 
 🟢 **Lexical search is implemented, wired and green.** The Postgres provider, the `search_document`
-index, its triggers, the REST routes, the options, the client methods and 49 tests all exist in the
-tree. This is **not** a green-field feature; do not write it again.
+index, its triggers, the REST routes, the options, the client methods, the whole loom-ui consumer and
+84 tests (55 DB-side, 16 endpoint, 13 fusion) all exist in the tree. This is **not** a green-field
+feature; do not write it again.
 
 🔴 **The stale premise to unlearn:** older revisions of this document opened with "there was no search
 feature of any kind". That was true before `V2.57`–`V2.59` landed and is false now.
@@ -25,7 +27,8 @@ feature of any kind". That was true before `V2.57`–`V2.59` landed and is false
 | REST: `GET /api/v1/search/{results,assets,suggestions,status}` | ✅ built | `SearchEndpoint`, `SearchEndpointService` |
 | Dagger binding, boot-safe fallback | ✅ built | `SearchModule` in `LoomCoreComponent` |
 | `LOOM_SEARCH_*` options (10 lexical + 15 semantic) | ✅ built | `SearchOptions` |
-| Client methods + endpoint tests | ✅ built | `SearchMethods`, `LoomHttpClientImpl`, 49 tests |
+| Client methods + endpoint tests | ✅ built | `SearchMethods`, `LoomHttpClientImpl`, 84 tests |
+| Index administration (`/search-indices`, reindex jobs) | ✅ built | `SearchIndexEndpoint` — [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
 | **loom-ui** | ✅ built — client, `/search` view, global sidebar field, capability gating | `src/api/search.ts`, `features/search/`, `SearchContext` |
 | **MCP `search_assets` / `search_transcript`** | 🔴 still stubs, still bypass the SPI | `loom/services/mcp` |
 | **GraphQL `search` field** | 🔴 absent | `loom.graphqls` |
@@ -34,11 +37,11 @@ feature of any kind". That was true before `V2.57`–`V2.59` landed and is false
 | **Semantic / hybrid (text)** | ✅ built, **off by default** — `LOOM_SEARCH_SEMANTIC_ENABLED`. RRF over the lexical ranker plus embeddings of the same documents | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
 | **Semantic (text→image, CLIP)** | 🔴 nothing | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §4 |
 | Website docs | ✅ built | `website/content/english/docs/ui/index.adoc` — "Search" section |
-| Purpose-built demo fixtures | 🔴 absent — but the demo corpus **is** indexed | triggers cannot be bypassed (§4) |
+| Demo fixtures | ✅ built | `DemoDatabaseInitializer` — the shared magic string is **`quarterly`**, which is what `e2e/search-backend.spec.ts` queries. `aurora` survives only as the OpenAPI example in `SearchExamples`. The rest of the demo corpus is indexed regardless, because triggers cannot be bypassed (§4) |
 
 ⚠️ **`loom/services/lucene` is NOT a stub and must not be deleted.** It holds
 `LuceneSimilarityIndex` + `NoopSimilarityIndex` + a test, and serves the perceptual **fingerprint**
-k-NN index ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)). Lucene is rejected for *lexical* search only (§3).
+k-NN index ([SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md)). Lucene is rejected for *lexical* search only (§3).
 
 ---
 
@@ -165,7 +168,7 @@ call, so a host that dies later still retracts the capability.
 
 🔴 **Lucene's rejection is scoped to lexical search.** A lexical index is a queryable system of record
 spanning many entities; making it per-replica local state means two pods answer the same query
-differently. The **fingerprint** index in [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) is one float vector per
+differently. The **fingerprint** index in [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md) is one float vector per
 asset derived entirely from `asset_fingerprint_comp` and rebuildable with one REST call, so the same
 argument does not apply. Both statements are simultaneously true; §0 records the consequence.
 
@@ -261,6 +264,12 @@ one without the other silently desynchronises them.
 and `search_document_rebuild()` share one implementation, which the rebuild-equals-incremental test
 asserts (§8).
 
+ℹ️ **Per-entity refresh, not per-source patching.** Each trigger only *identifies* the affected entity;
+one refresh function then recomputes that entity's whole document family. This is what makes
+rebuild-equals-incremental hold by construction rather than by care. Measured cost: **~0.13 ms per
+asset insert** (200 inserts, 31.7 ms with triggers vs. 4.8 ms without). Any new document type must
+preserve this shape.
+
 ### 4.3 What is populated but unread
 
 | Thing | Written by | Read by |
@@ -334,7 +343,7 @@ Learned while wiring `loom-ui`; each one is a 400 or a crash if ignored.
 | Clamp `offset` to `LOOM_SEARCH_MAX_OFFSET` before sending | Past the cap is a 400, not an empty page |
 | Gate the UI on `available`, not on `provider != "none"` | `PostgresSearchProvider.info()` can report `available:false` while still naming itself |
 | `/search/status` can 403 | It is gated on `READ_SEARCH`. Treat a failure as "no search box", never as an app error |
-| `detection` and `segment` are accepted but never hit | No documents are built for them; offering them as filters offers a guaranteed-empty result |
+| `detection` and `segment` are accepted but never hit | No documents are built for them; offering them as filters offers a guaranteed-empty result. Fixed by [SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Task 2 — re-check before relying on this |
 | Facets are computed against the **filtered** query | Selecting an `entity_type` facet collapses that facet, so a client needs a visible way to undo it |
 | `Instant` fields serialize as **numeric epoch seconds** | `sortDate`, `lastSyncedAt` — not ISO strings |
 
@@ -416,14 +425,35 @@ columns — jOOQ has no `tsvector` binding, and a generated column that reaches 
 `AssetComponentDaoImpl` already does. The provider builds every predicate as a bind parameter; the only
 interpolated SQL comes from enums it owns (`orderBy`, facet column whitelist, threshold).
 
-### 8.1 What exists — 49 tests, all green
+```bash
+./setup-pool.sh                              # after every Flyway migration (§10)
+loom/db/jooq/generate.sh                     # after any codegen-exclusion change (§10)
+mvn -o -pl loom-shared/api test -Dtest='RankFusionTest,LoomOptionsValidationTest'
+mvn -o -pl loom/db/jooq    test -Dtest='Search*'      # 55
+mvn -o -pl loom/core       test -Dtest=SearchEndpointTest   # 16
+```
+
+ℹ️ The semantic work added **no migration**, so neither `setup-pool.sh` nor `generate.sh` is needed to
+run or extend it.
+
+⚠️ Add `-Dmaven.javadoc.skip=true` for a full `install` — the `javadoc` goal fails on pre-existing
+doclint errors in `PipelineRunEngine`, `ProcessorEndpoint`, `WebSocketAuthenticator` and `MCPService`.
+Unrelated to search, but it will stop your build.
+
+### 8.1 What exists — 84 tests, all green
 
 | Class | Path | Tests | Covers |
 |---|---|---|---|
 | `SearchDocumentSourceTest` | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/` | 15 | one method per source: filename, `initial_origin`, transcript, transcript-gets-its-own-hit, ocr, tika, caption, video-caption scene captions, llm answer, face-description, ingested `metadata` (title, description, the keyword and creator **arrays**), `metadata` camera settings **not** indexed, `quality` **not** indexed, tag by name, asset by its tag name |
 | `SearchQueryBehaviourTest` | same | 15 | stemming, phrase, negation, typo tolerance, title outranks body, malformed queries do not error, blank/oversized rejected, offset cap, `SEMANTIC` mode rejected not downgraded, type filter, `totalHits` counts all matches, stable paging, highlighting, suggest |
 | `SearchDocumentLifecycleTest` | same | 5 | insert/update/delete lifecycle, **delete-cascade** (only the deleted asset's documents), **rebuild-equals-incremental**, oversized body truncated but still indexed |
+| `SearchSemanticQueryTest` | same | 20 | the fused path — `SEMANTIC`/`HYBRID` dispatch, capability gating, RRF ordering, embedding-host failure retracting the capability. Uses `FakeTextEmbedder` + `InMemoryVectorIndex` in the same package ([SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §10) |
+| `RankFusionTest` | `loom-shared/api/src/test/…/search/` | 13 | RRF arithmetic in isolation, no DB |
 | `SearchEndpointTest` | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/` | 16 | extends `AbstractEndpointTest` (not the CRUD base); finds an asset, `/assets` restricts, suggestions, status, paging, highlighting, missing `READ_SEARCH` ⇒ 403, **type narrowing**, `/assets` needs `READ_ASSET`, only-`READ_SEARCH` ⇒ 403, missing/oversized `q` ⇒ 400, offset cap, unsupported mode, unknown type, malformed queries |
+
+**loom-ui:** 25 client + 32 helper vitest cases; Playwright `search-mocked` (27),
+`asset-search-mocked` (9), `list-search-mocked` (7), `search-indices-mocked`, and `search-backend` (14)
+against a live server. ⚠️ Run Playwright and vitest through `./node_modules/.bin/…` — `npx` hangs here.
 
 ⚠️ Grant test permissions via **role → group → user**, never a direct `user_permission` row — its PK is
 `user_uuid`, so a user can hold exactly one.
@@ -432,9 +462,9 @@ is why the DB-side tests are split into three classes of ≤ 15.
 
 ### 8.2 Test gaps
 
-- ⬜ `SearchDocumentCodegenTest` (assert `JooqSearchDocument` never regains the generated columns) — **does not exist**.
-- ⬜ No coverage for `annotation`, `person`, `collection`, `library`, `cluster` document sources, nor for `detection.label` / `asset_segment_comp.title` folding into `keywords`.
-- ⬜ No demo data in `DemoDatabaseInitializer`, no loom-ui vitest/Playwright tests (there is no UI).
+- ⬜ `SearchDocumentCodegenTest` (assert `JooqSearchDocument` never regains the generated columns) — **does not exist**. [SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Task 5.
+- ⬜ No coverage for `annotation`, `person`, `collection`, `library`, `cluster` document sources, nor for `detection.label` / `asset_segment_comp.title` folding into `keywords`. Task 6.
+- ⬜ Semantic retrieval quality is unmeasured — every semantic test uses a deterministic fake embedder, which proves the plumbing and nothing about recall. Task 24.
 
 ---
 
@@ -460,7 +490,7 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | `SearchMethods` | `io.metaloom.loom.client.common.method` | ✅ in `ClientMethods:36`, impl `LoomHttpClientImpl:1537+` |
 | `JooqSearchDocument(Record)`, `JooqSearchDocumentDeleted(Record)` | `loom/db/jooq/src/jooq/java/...tables` | ✅ generated |
 | `ElasticsearchSearchProvider`, `ElasticsearchIndexSyncService` | `loom/services/elasticsearch` | ⬜ module has **no `src/`** |
-| `LuceneSimilarityIndex`, `NoopSimilarityIndex` | `io.metaloom.loom.similarity(.lucene)` (`loom/services/lucene`) | ✅ but **fingerprint k-NN, not search** — [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) |
+| `LuceneSimilarityIndex`, `NoopSimilarityIndex` | `io.metaloom.loom.similarity(.lucene)` (`loom/services/lucene`) | ✅ but **fingerprint k-NN, not search** — [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md) |
 
 ## 10. Conventions and Gotchas
 
@@ -479,7 +509,9 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | **`ts_headline`** | 🔴 O(document size), unindexable. Only ever for the returned page. |
 | **Body cap** | 🔴 512 KB, and it is **hardcoded in `search_body_cap()`** — `LOOM_SEARCH_BODY_MAX_BYTES` does not drive the trigger (§7). |
 | **Path tokenization** | 🔴 Postgres classifies `/archive/expedition7/clip.mp4` as one `file` token, so no segment is searchable alone. `search_tokenize_path()` translates `/\_-.` to spaces into `keywords`; the raw path stays in `subtitle` for exact match. |
-| **Enum migration** | 🔴 `ALTER TYPE loom_permission ADD VALUE` cannot be *used* in the migration that adds it (Flyway wraps each in one transaction). `V2.57` is standalone for exactly this reason. |
+| **Enum migration** | 🔴 `ALTER TYPE loom_permission ADD VALUE` cannot be *used* in the migration that adds it (Flyway wraps each in one transaction). Other DDL alongside is fine; a `role_permission` insert referencing the new value is not. `V2.57` is standalone for exactly this reason. |
+| **Claiming a migration version** | ⚠️ Check the highest existing migration **sorting numerically** (`ls … \| sort -t. -k2 -n \| tail`) — a lexical sort puts `V2.9` after `V2.99`. Search took `V2.57`–`V2.59` and `V2.65`; unrelated work has since reached `V2.99`. Another branch may be taking the next one. |
+| **`pg_trgm` is not a *trusted* extension** | ⚠️ `CREATE EXTENSION pg_trgm` needs superuser or `rds_superuser`. Every environment here qualifies, so it has never bitten — but on managed Postgres the failure is at migration time, and the remedy is "ask your DBA to pre-create the extension". Say so in the operator docs before anyone deploys there. |
 | **Filter operators** | 🔴 The external lhs-filter `Operation` enum has only `EQUALS/NOT_EQUALS/AFTER/BEFORE/RANGE/GREATER/LESSER` — no `LIKE`/`CONTAINS`. `?filter=` can never carry the query term; that is why `q` is first-class. |
 | **Keyset vs. relevance** | ⚠️ `seek(Field<UUID>)` cannot express a relevance ordering. `/search/*` uses capped offset; CRUD list routes keep keyset. |
 | **`?sort=`** | ⚠️ Pre-existing bug: `AbstractJooqDao.getField(SortKey)` casts any column to `Field<UUID>`, so `?sort=name` emits `WHERE name > '<uuid>'::uuid`. Already broken for every non-UUID column; out of scope, but it blocks "sort list results by name". |
@@ -495,9 +527,10 @@ is why the DB-side tests are split into three classes of ≤ 15.
 
 | Need | Look here |
 |---|---|
-| Remaining build order, task IDs, build-order rules | [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) |
+| Remaining work items and task IDs | [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) |
 | Vector / embedding / hybrid search | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) |
-| Fingerprint similarity (the *other* index, on Lucene) | [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) |
+| Administering the indices — reindex, delta sync, drop, backlog | [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
+| Fingerprint similarity (the *other* index, on Lucene) | [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md) |
 | `search_document` column reference, schema-wide open items | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
 | Full DDL, extraction + refresh functions | `loom/db/flyway/src/main/resources/db/migration/V2.58__add_search_document.sql` |
 | Triggers + backfill | `…/V2.59__add_search_triggers.sql` |
@@ -509,19 +542,25 @@ is why the DB-side tests are split into three classes of ≤ 15.
 | Client methods | `loom-client/common/.../method/SearchMethods.java`, `loom-client/rest/.../LoomHttpClientImpl.java:1537+` |
 | Tests | `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/search/`, `loom/core/src/test/java/.../SearchEndpointTest.java` |
 | Semantic/hybrid ranking, the embedder and its host | [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §5, §9; `sidecars/llamacpp-embeddings/README.md` |
+| The semantic/hybrid query path | `PostgresSearchProvider.fusedSearch`; `RankFusion` in `loom-shared/api` |
+| How documents become vectors | `loom/db/jooq/…/search/SearchEmbeddingService.java`; `loom/services/rest/…/search/SearchEmbeddingDrainer.java` |
+| The loom-ui search code | `loom-ui/src/api/search.ts`, `src/features/search/`, `src/context/SearchContext.tsx`, `src/layout/GlobalSearchField.tsx` |
 | What users are told about search | `website/content/english/docs/ui/index.adoc` |
-| Highest migration | `V2.84__read_metric_permission.sql` at the time of writing — **always re-check**, sorted numerically, before claiming a version |
+| Highest migration | `V2.99__add_share_feedback.sql` at the time of writing — **always re-check**, sorted numerically, before claiming a version |
 | Permission model / REST conventions | [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md), [../../loom/RESTAPI.md](../../loom/RESTAPI.md), [../../guidelines/CODING.md](../../guidelines/CODING.md) |
 | Node → text mapping | [../pipeline-nodes/NODES.md](../nodes/NODES.md) |
 
 ## 12. Progress Assessment
+
+Every unchecked box below has a numbered work item in
+[../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md); the task number is named inline.
 
 **Phase 0 — prerequisites** ✅
 - [x] `Page.totalCount` + `AbstractJooqDao` count + `ModelBuilder` fix (3-arg `Page` ctor, `TOTAL_COUNT_UNKNOWN`, `ctx.fetchCount(query)` so `fetchStreamInto` keeps working)
 - [x] Regression sweep of the ~20 list endpoints; `ListResponseModelAssert.hasSize()`/`hasTotalCount()` split
 - [x] `LoomRoutingContext.permissions()` — request-scoped `Future<Predicate<Permission>>`
 - [x] `SEARCH_UNAVAILABLE` / `SEARCH_UNSUPPORTED` added to **both** copies of `LoomRestErrorCode`
-- [ ] Orphaned `loom-ui/src/{Dashboard,User,Content}` trees still present (unreachable from `AppShell`); the search UI landed alongside them rather than replacing them
+- [ ] Orphaned `loom-ui/src/{Dashboard,User,Content}` trees still present (unreachable from `AppShell`); the search UI landed alongside them rather than replacing them — **Task 9**
 
 **Phase 1 — Postgres lexical search** — backend ✅ complete, `loom-ui` ✅ wired, MCP + GraphQL ⬜
 - [x] `io.metaloom.loom.api.search` SPI + value types
@@ -532,26 +571,28 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [x] `SearchEndpoint` (4 GET routes) + `SearchEndpointService` + `SearchModule` + `addSearchRoute`
 - [x] `SearchQueryParameterKey`, `SearchParameters`, `rest.model.search.*`, `SearchExamples`
 - [x] `SearchMethods` + `LoomHttpClientImpl` + `ClientMethods` registration
-- [x] 49 tests green, incl. delete-cascade, rebuild-equals-incremental, type-narrowing permission case
-- [ ] `SearchDocumentCodegenTest` — never written (§8.2)
-- [ ] Source coverage for annotation / person / collection / library / cluster documents (§8.2)
+- [x] 84 tests green, incl. delete-cascade, rebuild-equals-incremental, type-narrowing permission case
+- [ ] `SearchDocumentCodegenTest` — never written (§8.2) — **Task 5**
+- [ ] Source coverage for annotation / person / collection / library / cluster documents (§8.2) — **Task 6**
 - [ ] `/search/suggestions` ranks by trigram similarity only — no dedicated prefix index
-- [ ] `/search/assets` returns `SearchResultResponse`, not `AssetResponse` — a UI grid cannot render it unchanged
-- [ ] `DETECTION` and `SEGMENT` documents are not emitted; the labels/titles live in the owning asset's `keywords`
-- [ ] Demo data (`DemoDatabaseInitializer`) not seeded with *purpose-built* search fixtures — the existing corpus is nonetheless indexed, because triggers cannot be bypassed, and `search-backend.spec.ts` asserts against it (magic string: `quarterly`)
+- [ ] `/search/assets` returns `SearchResultResponse`, not `AssetResponse` — a UI grid cannot render it unchanged. Settled deliberately (one hit model, no subclassing); recorded here because it surprises every new client author
+- [ ] `DETECTION` and `SEGMENT` documents are not emitted; the labels/titles live in the owning asset's `keywords`, so the two types are accepted by the API but can never produce a hit — **Task 2**
+- [x] Demo fixtures in `DemoDatabaseInitializer`; `search-backend.spec.ts` asserts against them (magic string: `quarterly`)
 - [x] Customer-facing docs — the "Search" section of `website/content/english/docs/ui/index.adoc`
-- [ ] MCP `SearchAssetsTool` (ignores `query`/`mimeType`, calls `loadPage(null, limit, null, null, null)`) and `SearchTranscriptTool` (hardcoded string) still stubs
-- [ ] GraphQL `search` field not added
+- [x] Spec sync into [../rbac/RBAC.md](../rbac/RBAC.md), [../permissions/PERMISSIONS.md](../permissions/PERMISSIONS.md) and [../../loom/RESTAPI.md](../../loom/RESTAPI.md)
+- [ ] MCP `SearchAssetsTool` (declares `query`/`mimeType`, discards both, calls `loadPage(null, limit, null, null, null)`) and `SearchTranscriptTool` (hardcoded string) still stubs; [../../loom/MCP.md](../../loom/MCP.md) still documents them as such — **Task 1**
+- [ ] GraphQL `search` field not added — **Task 7**
 - [x] loom-ui: `api/search.ts` (typed `SearchApiError`), `SearchContext` (fail-closed capability gate), global sidebar field with trigram typeahead, `/search` view with type filters, facet chips, highlights, pager and honest degradation
 - [x] loom-ui tests: 25 client + 32 helper vitest cases; Playwright `search-mocked` (27), `asset-search-mocked` (9), `list-search-mocked` (7), `search-backend` (14)
-- [ ] A transcript hit deep-links to its asset but not to its timecode — `AssetDetail` has no seek parameter; the offset is shown as a badge only
+- [ ] `LibraryView.tsx` still filters client-side over a loaded page; every other asset surface routes to `/search/assets` — **Task 4**
+- [ ] A transcript hit deep-links to its asset but not to its timecode — `AssetDetail` has no seek parameter; the offset is shown as a badge only — **Task 8**
 - [ ] `asset_doc_comp` remains deliberately unread (§4.3)
 
 **Phase 2 — Elasticsearch / OpenSearch** — not started
 - [x] The outbox already exists and is maintained: `dirty` / `synced_at` / `es_synced_at` + `search_document_deleted`
 - [ ] Nothing consumes it — `loom/services/elasticsearch` has **no `src/`**; `LOOM_SEARCH_PROVIDER=elasticsearch` binds `NoopSearchProvider`
 - [ ] No `LOOM_SEARCH_ES_*` options exist yet
-- [ ] Everything else — see [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) Phase 2, gated on the P2-1 spike
+- [ ] 🔴 Gated on the client spike — the module's `io.metaloom.elasticsearch:elasticsearch-client` `1.2.0-SNAPSHOT` dependency is unverified against bulk / `search_after` / aliases / templates / `knn`. **Task 11 blocks Tasks 12–16 and 23**
 - [ ] ⚠️ Correction to older plans: **do not delete `loom/services/lucene`** — it now serves fingerprint k-NN
 
 **Phase 3 — Semantic / hybrid** — text ✅ shipped (off by default), image ⬜
@@ -562,15 +603,16 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [x] 15 new `LOOM_SEARCH_*` vars, validated; `sidecars/llamacpp-embeddings` resolves the P3-1 spike
 - [x] 46 new tests (13 fusion, 20 provider, 13 options)
 - [x] No migration, no pgvector, no new cortex node — [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §0.4 explains why
-- [ ] Text→image (CLIP) — [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §4; the ranker and UI would consume it unchanged
-- [ ] `vector_config` profiles — fusion weights are still env vars, so `?profile=` reaches nothing
-- [ ] No real-model verification: retrieval quality is unmeasured, every test uses a deterministic fake
-- [ ] No demo vectors, so a demo container shows no mode toggle
+- [ ] Text→image (CLIP): `cortex/nodes/embedding` does not exist and is **the only thing missing** — the ranker, the fusion and the UI mode toggle would consume its output unchanged. [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md) §4 — **Task 20**
+- [ ] `vector_config` profiles — fusion weights are still env vars, so `?profile=` reaches nothing — **Task 21**
+- [ ] `SearchRequest.clusterUuid` exists and nothing sets it; no face-similarity query route — **Task 22**
+- [ ] No real-model verification: retrieval quality is unmeasured, every test uses a deterministic fake — **Task 24**
+- [ ] No demo vectors, so a demo container shows no mode toggle — **Task 24**
 - [ ] `loom/services/qdrant` still has no `src/`, and is now unlikely to be needed
 
 **Row-level ACL** — not started
 - [x] `library_uuids` / `space_uuids` / `collection_uuids` populated and GIN-indexed; `SearchRequest.userUuid` carried
-- [ ] `allowedLibraryUuids` / `allowedSpaceUuids` never populated — the narrowing clause in `appendFilters` is dead code
+- [ ] `allowedLibraryUuids` / `allowedSpaceUuids` never populated — the narrowing clause in `appendFilters` is dead code that reads like an enforced control — **Task 3**
 - [ ] `project_library` fan-out needs a batched reindex job (not a trigger)
 
 **Known gaps search exposes but does not own**
@@ -582,6 +624,12 @@ is why the DB-side tests are split into three classes of ≤ 15.
 - [ ] `tag_asset.asset_uuid` has no `ON DELETE CASCADE`, so a tagged asset cannot be deleted — shapes the delete-cascade test
 
 ---
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (text semantic + hybrid search shipped: TextEmbedder, RankFusion,
-SearchEmbeddingService, dynamic capabilities. Design and departures in SEMANTIC_SEARCH.md §0.4)_
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11 (`spec/concept/SEARCH_PLAN.md` retired — its shipped work folded into §0/§8/§12,
+its build-order rules into §4.2/§8/§10, and its outstanding work into
+[../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) as 24 numbered tasks now cited from §12.
+Corrected against the tree: test count 49 → 84 (`SearchSemanticQueryTest` and `RankFusionTest` were
+missing from §8.1), demo fixtures are present rather than absent, the P1-24 spec sync into RBAC /
+PERMISSIONS / RESTAPI is done, and the highest migration is `V2.99`, not `V2.84`. Earlier: 2026-08-09
+(text semantic + hybrid search shipped: TextEmbedder, RankFusion, SearchEmbeddingService, dynamic
+capabilities. Design and departures in SEMANTIC_SEARCH.md §0.4))_

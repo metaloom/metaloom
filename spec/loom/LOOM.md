@@ -19,7 +19,7 @@ split. Everything else is delegated — do not duplicate it here.
 | Chat agent, memory, coding sandbox | [ui/CHAT.md](ui/CHAT.md) · [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
 | Pipeline execution engine + Loom↔Cortex protocol | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
 | Permissions / RBAC | [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md) · [../features/rbac/RBAC.md](../features/rbac/RBAC.md) |
-| Search & similarity | [../features/search/SEARCH.md](../features/search/SEARCH.md) · [../features/search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| Search & similarity | [../features/search/SEARCH.md](../features/search/SEARCH.md) · [SEARCH_LUCENE.md](SEARCH_LUCENE.md) |
 | UI | [ui/LOOM_UI.md](ui/LOOM_UI.md) · [ui/PIPELINE_EDITOR.md](ui/PIPELINE_EDITOR.md) |
 
 ---
@@ -121,7 +121,6 @@ are the top-level `helm/loom` and `helm/cortex`), `io/` (⚠️ stray misplaced 
 
 > ⚠️ `loom/cli` **does not exist**. The CLI is the top-level `cli/` module —
 > [../features/cli/CLI_PLAN.md](../features/cli/CLI_PLAN.md).
-> `cortex/nodes/loom` is likewise a leftover directory, not a module.
 
 ### 2.2 Shared modules (outside `loom/`)
 
@@ -226,7 +225,7 @@ Core server/database variables only:
 | `LOOM_WS_STRICT_AUTH` | Reject untokenised WebSocket upgrades | `false` |
 | `LOOM_MCP_AUTH_ENABLED` / `LOOM_MCP_AUTH_STRICT_MODE` | MCP authentication | see [MCP.md](MCP.md) |
 | `LOOM_SEARCH_ENABLED` / `LOOM_SEARCH_PROVIDER` | Search backend | see [SEARCH.md](../features/search/SEARCH.md) |
-| `LOOM_SIMILARITY_ENABLED` | Fingerprint k-NN index | see [LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| `LOOM_SIMILARITY_ENABLED` | Fingerprint k-NN index | see [SEARCH_LUCENE.md](SEARCH_LUCENE.md) |
 | `LOOM_AI_*`, `LOOM_AGENT_SANDBOX_*`, `LOOM_AGENT_MEMORY_*` | Chat agent, sandbox, memory | see [ui/CHAT.md](ui/CHAT.md) |
 | `LOOM_STORAGE_*`, `LOOM_S3_*` | Binary storage | see [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 

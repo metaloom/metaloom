@@ -192,10 +192,11 @@ Container images produced: `metaloom/loom-server`, `metaloom/loom-demo`
   that directory and package do not always line up: `loom/agent/*` is `io.metaloom.loom.agent.*`,
   but `cortex/node-runtime` is `io.metaloom.cortex.runtime`, `cortex/s3-common` is
   `io.metaloom.cortex.s3`, and `loom/services/s3` is `io.metaloom.loom.storage.s3`.
-- **`cortex/nodes/loom/` is a directory, not a module.** It is absent from
-  `cortex/nodes/pom.xml`; the 27 modules listed in §2 are the real set. Same for `loom/helm/`
-  (README placeholder — real charts are top-level `helm/`), `loom/design/`, `loom/agent/deploy/`
-  and `loom/agent/session-runner/`. `loom/io/` is a stray misplaced source folder — nothing builds it.
+- **Directories that are not modules.** `loom/helm/` (README placeholder — real charts are
+  top-level `helm/`), `loom/design/`, `loom/agent/deploy/` and `loom/agent/session-runner/` are
+  absent from their parent `pom.xml`. `loom/io/` is a stray misplaced source folder — nothing
+  builds it. `cortex/nodes/loom/` used to be one of these and has been deleted; the modules listed
+  in §2 are the real set.
 - **There is no Cortex DAG executor any more.** `ReactivePipelineExecutor`, `DefaultPipeline` and
   `PipelineExecutor` are gone; Loom's `PipelineRunEngine` owns the graph and dispatches one task at
   a time. `cortex/pipeline-*` now only holds the node abstractions (`AbstractPipelineNode`,
@@ -237,8 +238,8 @@ Container images produced: `metaloom/loom-server`, `metaloom/loom-demo`
 - [x] Non-Maven top-level directories documented (`helm/`, `sidecars/`, `loom-app/`, `loom-ui/`)
 - [ ] Java version is inherited from the sibling `maven-parent` checkout — it is not visible from
       this repo alone, so it can drift silently
-- [ ] `cortex/nodes/loom/`, `loom/io/` and `loom/helm/` are dead directories that should be deleted
-      rather than documented
+- [ ] `loom/io/` and `loom/helm/` are dead directories that should be deleted rather than
+      documented (`cortex/nodes/loom/` was the third and is now gone)
 - [ ] This file overlaps [CONTEXT.md](CONTEXT.md) §1 and §3 by design (component table, module
       trees). If that pair drifts again, consider folding §1–§2 into CONTEXT.md and keeping this
       file as the framework/version map only.

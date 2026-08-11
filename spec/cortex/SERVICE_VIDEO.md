@@ -71,11 +71,11 @@ Real video work happens entirely outside this module:
 |---|---|---|
 | Extract video thumbnails | `cortex/nodes/thumbnail/core` (`ThumbnailNode`) | [NODES.md](../features/nodes/NODES.md) |
 | Compute video quality metrics (blur, fps, frame count) | `cortex/nodes/quality/core` (`QualityNode`) | [NODES.md](../features/nodes/NODES.md) |
-| Detect scenes / shot boundaries | `cortex/nodes/scene-detection/core` | [NODES.md](../features/nodes/NODES.md), [NODE_SCENE_LAYOUT_PLAN.md](../concept/NODE_SCENE_LAYOUT_PLAN.md) |
-| Perceptual video fingerprints / near-duplicate detection | `cortex/nodes/fingerprint/core` + `loom/services/lucene` | [../search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md), [NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
-| Caption a video with a VLM | `cortex/nodes/captioning/core` | [NODE_VIDEO_CAPTIONING_PLAN.md](../concept/NODE_VIDEO_CAPTIONING_PLAN.md), [NODE_VIDEO_CAPTIONING_REPORT.md](../concept/NODE_VIDEO_CAPTIONING_REPORT.md) |
+| Detect scenes / shot boundaries | `cortex/nodes/scene-detection/core` | [NODES.md](../features/nodes/NODES.md), [NODE_SCENE_LAYOUT.md](../features/nodes/scene-layout/NODE_SCENE_LAYOUT.md) |
+| Perceptual video fingerprints / near-duplicate detection | `cortex/nodes/fingerprint/core` + `loom/services/lucene` | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md), [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) |
+| Caption a video with a VLM | `cortex/nodes/captioning/core` | [NODE_VIDEO_CAPTIONING.md](../features/nodes/captioning/NODE_VIDEO_CAPTIONING.md), [NODE_VIDEO_CAPTIONING_REPORT.md](../concept/NODE_VIDEO_CAPTIONING_REPORT.md) |
 | Face detection in video | `cortex/nodes/facedetect/core` | [NODES.md](../features/nodes/NODES.md) |
-| Watermark detection | `cortex/nodes/watermark/core` | [NODE_WATERMARK_PLAN.md](../concept/NODE_WATERMARK_PLAN.md) |
+| Apply a watermark to an image or video | `cortex/nodes/watermark/core` | [NODE_WATERMARK.md](../features/nodes/watermark/NODE_WATERMARK.md) |
 | Store/serve video bytes | `loom/services/rest` binary routes | [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | Persist node output for a video asset | Loom REST comp endpoints | [NODES.md](../features/nodes/NODES.md) §persistence, [../../loom/RESTAPI.md](../loom/RESTAPI.md) |
 | Model a video asset in the DB | `asset*` tables, not a Java `VideoAsset` | [../../loom/DOMAIN.md](../loom/DOMAIN.md), [../../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) |
@@ -197,7 +197,7 @@ Tests that *do* exercise video today, for reference:
 | OpenCV native staging & ABI rules | [../../cortex/BUILD.md](../../cortex/BUILD.md) §6 |
 | Node → persistence mapping | [NODES.md](../features/nodes/NODES.md) |
 | Video binary storage/serving | [../rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
-| Fingerprint similarity index | [../search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| Fingerprint similarity index | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) |
 | Spec tree entry point | [../../CONTEXT.md](../../CONTEXT.md) |
 
 ---

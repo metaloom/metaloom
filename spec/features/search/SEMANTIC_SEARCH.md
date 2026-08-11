@@ -4,8 +4,8 @@
 >
 > **Scope split — do not duplicate:**
 > - Lexical search (`search_document`, `SearchProvider` SPI, REST surface, options) → [SEARCH.md](SEARCH.md). **Read it first; it is built.**
-> - Remaining build order and task IDs → [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) Phase 3.
-> - Perceptual **fingerprint** k-NN (a different corpus, on Lucene, **built**) → [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md).
+> - Remaining work items and task IDs → [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) Tasks 20-24.
+> - Perceptual **fingerprint** k-NN (a different corpus, on Lucene, **built**) → [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md).
 > - Table/column reference → [../../loom/DOMAIN.md](../../loom/DOMAIN.md).
 >
 > **Source of truth is the code.** Where a claim here disagrees with the tree, the code wins — fix
@@ -48,7 +48,7 @@ The contract the lexical phase reserved is now filled in rather than merely decl
 | `VectorIndex` SPI + `LuceneVectorIndex` + `NoopVectorIndex` | ✅ built | `loom-shared/api/…/api/search/VectorIndex.java`, `loom/services/lucene/…/vector/` |
 | `POST /assets/:uuid/embeddings/bulk` | ✅ built | `EmbeddingEndpointService.bulkCreateAssetEmbeddings` |
 | `/vector-index/{rebuild,sync,status}` | ✅ built, **superseded** | `VectorIndexEndpoint`. Kept as a deprecated delegate; the operator surface is now `/api/v1/search-indices`, which is per-space rather than per-backend and reports size, model and backlog — [SEARCH_INDEX_ADMIN.md](SEARCH_INDEX_ADMIN.md) |
-| pgvector / `CREATE EXTENSION vector` / HNSW / IVFFlat / cosine operator anywhere | 🔴 Absent, and **no longer needed for the text path** (§0.4). The only `hnsw` in the tree is Lucene's ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)) |
+| pgvector / `CREATE EXTENSION vector` / HNSW / IVFFlat / cosine operator anywhere | 🔴 Absent, and **no longer needed for the text path** (§0.4). The only `hnsw` in the tree is Lucene's ([SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md)) |
 | `embedding.vector real[]` (`V2.43`) | ✅ The **system of record**. ANN lives outside Postgres behind `VectorIndex`; `V2.75` added `dirty`/`synced_at`/`index_version`/`normalized`, the dimensions CHECK, and `model` in the unique key |
 | `vector_config(name, weights jsonb)` (`V2.6`) | 🟡 Table + jOOQ record only. **No DAO, no endpoint, no reader** — fusion weights are `LOOM_SEARCH_RRF_*` env vars today, so §6 is still owed and `?profile=` still reaches nothing |
 | `TextEmbedder` SPI + `OpenAiTextEmbedder` + `NoopTextEmbedder` | ✅ built | `loom-shared/api/…/api/search/TextEmbedder.java`, `loom/core/…/core/search/` |
@@ -241,7 +241,7 @@ only a producer. What it cannot do is find an untranscribed, untagged photo by w
 
 > ⚠️ **A second vector workload already ships.** Perceptual **fingerprint** similarity (near-duplicate
 > video detection) is served by a Lucene HNSW index — `LuceneSimilarityIndex` in
-> `loom/services/lucene`, **built and verified** ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)). Different corpus
+> `loom/services/lucene`, **built and verified** ([SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md)). Different corpus
 > (one 256-dim fingerprint per asset), different question ("same recording?" vs "about this?"). It
 > deliberately avoids pgvector because it must not depend on a Postgres extension — see §2.2. Its
 > `SimilarityIndex` SPI mirrors the `VectorIndex` SPI in §8, so the two can be unified later if that
@@ -299,7 +299,9 @@ check only has to keep the capability set honest.
 
 **The alternative** — switching every image to `pgvector/pgvector:pg17` — is cleaner but is an
 infrastructure decision spanning local dev, CI and Helm. The guard is what lets Phase 3 land without
-blocking on it. [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) P3-2 is the spike that picks one.
+blocking on it. ℹ️ The spike that would have picked one (old plan ID P3-2) is **moot** — the text path
+took the `VectorIndex` SPI rather than pgvector, so nothing waits on this answer. Reopen it only if a
+`PgVectorIndex` is ever built.
 
 ### 2.4 When to revisit Qdrant
 
@@ -574,7 +576,7 @@ Clusters are the **output** of similarity, not an input to search.
 | `SearchProvider` / `PostgresSearchProvider` | `…/api/search`, `io.metaloom.loom.db.jooq.search` | The SPI a vector-capable provider extends |
 | `SearchOptions` | `io.metaloom.loom.api.options` | Where the `LOOM_SEARCH_*` vars in §9 land |
 | `EmbeddingDao` / `Embedding` | `io.metaloom.loom.db.model.embedding` | CRUD + `upsertEmbedding`; **no kNN method** — the text path writes through it unchanged |
-| `SimilarityIndex` / `LuceneSimilarityIndex` | `io.metaloom.loom.similarity[.lucene]` | The *fingerprint* index — the shape `VectorIndex` should mirror ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)) |
+| `SimilarityIndex` / `LuceneSimilarityIndex` | `io.metaloom.loom.similarity[.lucene]` | The *fingerprint* index — the shape `VectorIndex` should mirror ([SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md)) |
 | `VideoFace` / `VideoFaceScanner` | `io.metaloom.cortex.node.facedetect.video` | Where the face vectors are produced (`scan(video, n, withEmbeddings)`) |
 | `VectorIndex` / `VectorSpace` / `VectorRecord` / `VectorQuery` / `VectorHit` | `io.metaloom.loom.api.search` | ✅ built — the ANN SPI. Every operation is scoped by `(type, model, dimensions)` |
 | `LuceneVectorIndex` / `NoopVectorIndex` | `io.metaloom.loom.vector[.lucene]` | ✅ built — HNSW backend and its honest-rejection fallback |
@@ -744,8 +746,8 @@ Both live in `loom/db/jooq/src/test/.../search/`:
 | Need | Look here |
 |---|---|
 | Lexical search design (SPI, REST, `search_document`) — **built** | [SEARCH.md](SEARCH.md) |
-| Task order, IDs and dependencies | [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) Phase 3 |
-| Fingerprint k-NN (the other vector index) — **built** | [LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md) |
+| Task order, IDs and dependencies | [../../tasks/SEARCH_TASKS.md](../../tasks/SEARCH_TASKS.md) — Tasks 20-24 are the vector half |
+| Fingerprint k-NN (the other vector index) — **built** | [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md) |
 | Table/column reference for `embedding`, `cluster`, `vector_config` | [../../loom/DOMAIN.md](../../loom/DOMAIN.md) |
 | The original open decision | `V2.43__rework_detection_embedding.sql:124`; [../db/DB_SCHEMA_FEEDBACK.md](../db/DB_SCHEMA_FEEDBACK.md) §4.2 |
 | DDL | `loom/db/flyway/src/main/resources/db/migration/{V2.43,V2.12,V2.6}…` |
@@ -771,7 +773,7 @@ Both live in `loom/db/jooq/src/test/.../search/`:
 - [x] `SearchRequest.{mode, profile, clusterUuid}` and the `?profile=` query parameter
 - [x] Honest 400 rejection of an unsupported mode + `/search/status` capability reporting, with tests
 - [x] `cluster` rows indexed into `search_document` (`V2.59`) — searchable with no vectors at all
-- [x] Fingerprint k-NN on Lucene ([LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md)) — a separate, working vector path
+- [x] Fingerprint k-NN on Lucene ([SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md)) — a separate, working vector path
 
 **Decisions closed by this document**
 
@@ -817,7 +819,7 @@ Both live in `loom/db/jooq/src/test/.../search/`:
 - [x] `V2.75` — exporter columns, dimensions CHECK, `model` in the unique key
 - [x] `EmbeddingType` removed from the embedding path; `type` is free text
 - [ ] Face similarity **query** route (`/assets/:uuid/similar-faces`) and person clustering off `embedding_cluster` — the SPI is shaped for it, nothing calls it yet
-- [x] UI mode toggle — [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md)'s loom-ui work landed, and
+- [x] UI mode toggle — the loom-ui search work landed, and
       `SearchView.tsx` renders LEXICAL/SEMANTIC/HYBRID chips *gated on `/search/status` capabilities*.
       No UI change is owed by this document: the toggle appears when the ranker advertises itself
 - [ ] UI: "more like this" and the cluster filter — still owed, and both need a query route first

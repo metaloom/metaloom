@@ -185,6 +185,7 @@ All paths are relative to `/api/v1`. "Class" is under
 | `/pipeline/content-types` | GET | `NodeDescriptorEndpoint` | Content type catalog |
 | `/processors/ws` | WS | `ProcessorEndpoint` | Post-upgrade token auth |
 | `/pipelines/events/ws` | WS | `PipelineEventEndpoint` | Post-upgrade token auth, `order(-1000)` |
+| `/shares/:slug` and everything under it | GET, POST, DELETE | `PublicShareEndpoint` | **The customer-facing share area.** Unauthenticated by design - the caller has no account. Authorized entirely by `ShareAccessService` against the `share` row, using the opaque session token from `POST /shares/:slug/sessions`. See [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) |
 
 ### 4.2 Standard CRUD endpoints
 
@@ -199,7 +200,8 @@ Pattern: `POST /x` create · `GET /x` list · `GET /x/:uuid` load · `POST /x/:u
 | `/persons` | `PersonEndpoint` | — |
 | `/spaces` | `SpaceEndpoint` | — |
 | `/libraries` | `LibraryEndpoint` | — |
-| `/collections` | `CollectionEndpoint` | — |
+| `/collections` | `CollectionEndpoint` | + `/:uuid/assets` membership (POST, PUT, GET, DELETE); + `/:uuid/share-links` (GET) |
+| `/share-links` | `ShareLinkEndpoint` | Owner-side share links. + `/:uuid/feedback` (GET) - what the customer said. Separate base path from the unsecured `/shares` on purpose: `secure()` is applied by path wildcard, so one base path for both halves would either secure the customer routes or force this endpoint to enumerate its own. Also reachable as `/assets/:uuid/share-links` and `/collections/:uuid/share-links` |
 | `/blacklists` | `BlacklistEndpoint` | — |
 | `/clusters` | `ClusterEndpoint` | — |
 | `/chats` | `ChatEndpoint` | — |
@@ -584,6 +586,9 @@ has a `*EndpointTest` **and** permission test cases asserting fine-grained permi
   an explicit `null` at all (`Include.NON_NULL`).
 - **`/assets/:uuid/binary` is singular on purpose** — a one-to-one sub-resource. The collection is
   `/assets/:uuid/binaries`. Ditto `/assets/:uuid/binary/data` for the bytes.
+- **`/shares` is unauthenticated, `/share-links` is not.** They are two endpoints on two base paths
+  for exactly that reason. Adding a route to `PublicShareEndpoint` without a `ShareAccessService`
+  call at the top of its handler publishes whatever it reads to the open internet.
 - **Two reaction shapes coexist:** `/assets/:uuid/reactions` (sub-resource, like tasks and comments)
   and `/reactions/assets/:assetUuid` (`ReactionEndpoint`). New code should prefer the former.
 - **`ProcessorEndpoint` `:uuid` is a node id, not always a UUID.** Lookup falls back from the

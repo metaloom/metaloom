@@ -19,7 +19,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | Byte-carrying routes, storage layout, pools, Range downloads, reclaim | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | The engine that runs the graph once it is dispatched | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) |
 | Ingesting an existing corpus rather than one file | [WORKFLOW_INGEST_MIGRATION.md](WORKFLOW_INGEST_MIGRATION.md) |
-| Pulling from S3 / Google Drive / OneDrive instead | [../concept/NODE_S3SOURCE_PLAN.md](../concept/NODE_S3SOURCE_PLAN.md), [../concept/NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md) |
+| Pulling from S3 / Google Drive / OneDrive instead | [NODE_S3SOURCE.md](../features/nodes/s3-source/NODE_S3SOURCE.md), [NODE_CLOUDSOURCE.md](../features/nodes/cloud-source/NODE_CLOUDSOURCE.md) |
 | Authoring the pipeline that gets triggered | [../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) |
 
 ---

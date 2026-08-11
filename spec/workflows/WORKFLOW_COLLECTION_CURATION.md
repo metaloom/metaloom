@@ -20,7 +20,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | Collection CRUD screens, the library tree | [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md), [../loom/ui/TASK_UI_ORGANIZATION.md](../loom/ui/TASK_UI_ORGANIZATION.md) |
 | Rating and tagging the same assets | [WORKFLOW_MANUAL_SORT.md](WORKFLOW_MANUAL_SORT.md) |
 | The search that produces the queue | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
-| Perceptual similarity ("more like this") | [../concept/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| Perceptual similarity ("more like this") | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) |
 | Publishing a finished collection | [WORKFLOW_RIGHTS_RELEASE.md](WORKFLOW_RIGHTS_RELEASE.md) |
 
 ---
@@ -178,7 +178,7 @@ No new variable.
 | Collection client + screens | `loom-ui/src/api/collections.ts`, `loom-ui/src/features/collections/` |
 | Collection schema and cascades | `loom/db/flyway/.../V2.*` (`collection`, `collection_asset`, `library_collection`, `project_collection`) |
 | Search | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
-| Similarity | [../concept/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| Similarity | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) |
 | UI organisation gap tasks | [../loom/ui/TASK_UI_ORGANIZATION.md](../loom/ui/TASK_UI_ORGANIZATION.md) |
 | Open tasks | [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md) W10 |
 

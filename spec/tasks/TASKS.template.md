@@ -48,7 +48,7 @@ command to run them.
 * Number tasks (`## Task 1:`, `## Task 2:`) and keep the numbers stable — other files cite them.
 * Mark completion in the heading: `— ✅ DONE (YYYY-MM-DD)`; keep the task text and add an outcome
   note rather than deleting it. Larger files may instead carry an "Implementation Status" table
-  plus an "Open Follow-ups" section (see `features/chat/CHAT_TASKS.md`).
+  plus an "Open Follow-ups" section.
 * Order by severity, and say up front which tasks are blocking.
 * Separate tasks with `---`.
 * All four labelled fields are mandatory: **Argumentation Summary**, **Improvement Summary**,

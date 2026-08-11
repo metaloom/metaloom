@@ -16,7 +16,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 
 | Not here | There |
 |---|---|
-| Machine tagging from pipeline rules | [../concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md) — the `tag` node |
+| Machine tagging from pipeline rules | [NODE_TAG.md](../features/nodes/tag/NODE_TAG.md) — the `tag` node |
 | Confirming a face cluster / a detection | [WORKFLOW_FACE.md](WORKFLOW_FACE.md), [WORKFLOW_OBJECT_DETECT.md](WORKFLOW_OBJECT_DETECT.md) |
 | Putting assets into a collection | [WORKFLOW_COLLECTION_CURATION.md](WORKFLOW_COLLECTION_CURATION.md) |
 | What happens to a rated-low asset | [WORKFLOW_TRASH.md](WORKFLOW_TRASH.md) |
@@ -108,7 +108,7 @@ provenance needs it.
 ⚠️ **`tagAsset` resolves rather than inserts.** `tag` is `UNIQUE (name, collection)`; an endpoint that
 INSERTed a new `tag` row per asset broke on the second asset. The fixed write path resolves an
 existing tag by `(name, collection)` and creates the **placement**. See
-[../concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md) §2. Do not reintroduce an insert.
+[NODE_TAG.md](../features/nodes/tag/NODE_TAG.md) §6. Do not reintroduce an insert.
 
 ---
 
@@ -444,7 +444,7 @@ programmatically built filter resolved no bucket ports at all. Half of task 14 i
 | The two modes and the shared chip/input component | `loom-ui/src/features/workflow/WorkflowView.tsx` — `TagEditor`, `RatingMode`, `TaggingMode` |
 | The two write paths | `loom-ui/src/features/workflow/ratingPersistence.ts` and `tagPersistence.ts` |
 | Tag placement schema and its rationale | `loom/db/flyway/.../V2.71__tag_asset_placements.sql` |
-| Why `tagAsset` resolves rather than inserts | [../concept/NODE_TAG_CONCEPT.md](../concept/NODE_TAG_CONCEPT.md) §2 |
+| Why `tagAsset` resolves rather than inserts | [NODE_TAG.md](../features/nodes/tag/NODE_TAG.md) §6 |
 | Reaction schema, and the rating's own type | `V2.17__add_social.sql`, `V2.78__rating_reaction_type.sql` |
 | The filter seam | `cortex/nodes/filter/core/src/main/java/io/metaloom/cortex/node/filter/` |
 | Bucket-port routing rules | [../features/pipeline/NODE_DATA_TYPES.md](../features/pipeline/NODE_DATA_TYPES.md) §8.6 |

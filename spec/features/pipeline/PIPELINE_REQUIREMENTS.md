@@ -114,7 +114,7 @@ Each open line names the task that owns it; none is re-argued here.
 | **Events & metrics** | Aggregated per-node counters to the UI; failures immediate | `[x]` |
 | | Prometheus `/metrics` on both components | `[x]` |
 | | The run engine is instrumented | `[ ]` Task 13 — `loom/pipeline` has **zero** `LoomMetrics` references; 5 documented meters have no registration ([../ops/METRICS.md §5.2](../ops/METRICS.md)) |
-| | Per-item opt-in event stream for debugging one file | `[ ]` [PLAN_C §3.3](../../concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md) |
+| | Per-item opt-in event stream for debugging one file | `[ ]` [METALOOM_ARCHITECTURE_TASK.md](../../tasks/METALOOM_ARCHITECTURE_TASK.md) **Task 3** |
 | **Validation** | Port rules single-sourced in the parser | `[x]` |
 | | Structural rules single-sourced; standalone validate endpoint | `[ ]` Task 8 (**closes R11**) |
 | **API & clients** | Full REST surface: CRUD, run, pause/resume/cancel, run history, run items, cross-pipeline stats, versions + restore | `[x]` |
@@ -187,5 +187,6 @@ Requirement-level traps. Implementation-level ones live in [PIPELINE.md §16](PI
 - [ ] Tracked elsewhere: retention sweep, per-node task API, per-item events, artifact cache
 
 ---
-_Git HEAD revision: `da6b1760`_
-_Last updated: 2026-08-09 (R11 closed; validation spec split out to PIPELINE_VALIDATION.md). Earlier: (typed run status/state closed; the versioning and dispatch endpoint tests landed)_
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11 (per-item event stream row repointed to METALOOM_ARCHITECTURE_TASK.md Task 3;
+PLAN_C §3.3 no longer exists). Earlier: 2026-08-09 (R11 closed; validation spec split out to PIPELINE_VALIDATION.md). Earlier: (typed run status/state closed; the versioning and dispatch endpoint tests landed)_

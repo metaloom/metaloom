@@ -17,7 +17,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | Face detections and the identity loop | [WORKFLOW_FACE.md](WORKFLOW_FACE.md) — same table, different downstream |
 | The YOLO node itself: models, options, GPU, video scanning | `cortex/nodes/objectdetect/`, [../features/nodes/NODES.md](../features/nodes/NODES.md) |
 | Per-pixel masks rather than boxes | [../features/nodes/sam2/NODE_SAM2.md](../features/nodes/sam2/NODE_SAM2.md) |
-| Spatial relations between detections | [../concept/NODE_SCENE_LAYOUT_PLAN.md](../concept/NODE_SCENE_LAYOUT_PLAN.md) |
+| Spatial relations between detections | [NODE_SCENE_LAYOUT.md](../features/nodes/scene-layout/NODE_SCENE_LAYOUT.md) |
 | UI gap tasks for detections as an entity | [../loom/ui/TASK_UI_AI_ML.md](../loom/ui/TASK_UI_AI_ML.md) |
 
 ---
@@ -332,7 +332,7 @@ No new environment variable. The node's options (pipeline JSON / worker YAML):
 | **`producer_version` names the model** | 🟢 Deliberate — it is what makes an invalidation sweep possible after a model change |
 | **One YOLO per JVM** | ⚠️ `YoloLib.init` populates a single native detector; a second instance with different options is refused |
 | **Bulk over chatty** | ⚠️ Keyboard review outruns per-item round trips. Batch on navigation, and roll back the chips a failed batch did not persist |
-| **`objectdetect` is not faces-only** | ⚠️ A stale claim in [../METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md) §7 — it also constrains [../concept/NODE_SCENE_LAYOUT_PLAN.md](../concept/NODE_SCENE_LAYOUT_PLAN.md), which should be re-read with this corrected |
+| **`objectdetect` is not faces-only** | ⚠️ A stale claim in [../METALOOM_CONTEXT.md](../METALOOM_CONTEXT.md) §7 — it also constrains [NODE_SCENE_LAYOUT.md](../features/nodes/scene-layout/NODE_SCENE_LAYOUT.md), which should be re-read with this corrected |
 
 ---
 

@@ -5,7 +5,7 @@
 > the job routes beneath it, the two permissions that gate them, and the `/admin/indices` screen.
 >
 > Lexical design: [SEARCH.md](SEARCH.md). Vector design: [SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md).
-> Fingerprint index: [../../concept/LUCENE_PLAN.md](../../concept/LUCENE_PLAN.md). UI shell:
+> Fingerprint index: [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md). UI shell:
 > [../../loom/ui/LOOM_UI.md](../../loom/ui/LOOM_UI.md).
 
 ## 0. Status
@@ -161,7 +161,7 @@ effect); fingerprints sweep only; the lexical index does not support the action 
 | `READ_SEARCH_INDEX` | `GET /search-indices`, `/:id`, `/:id/jobs`, `/:id/jobs/:jobUuid` |
 | `MANAGE_SEARCH_INDEX` | `POST /:id/jobs`, `DELETE /:id/jobs/:jobUuid` |
 
-This resolves [SEARCH_PLAN.md](../../concept/SEARCH_PLAN.md) open item 3. The routes were gated on
+This resolves the long-open question of which permission guards a reindex. The routes were gated on
 `UPDATE_ASSET`/`READ_ASSET`, which conflated two unrelated authorities — an editor who can retag a
 photo should not be able to empty the face index. `SearchIndexEndpointTest` asserts both directions:
 `READ_SEARCH_INDEX` alone cannot start a job, and `UPDATE_ASSET` no longer can either.

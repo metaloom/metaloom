@@ -13,15 +13,15 @@ Family index and shared anatomy: [WORKFLOWS.md](WORKFLOWS.md). Status legend: �
 built · 🔵 plan · 🔴 defect · ⚪ stub.
 
 > ⚠️ **This file is the workflow half only.** The nodes, options, algorithm, safeguards, schema and
-> node-level defects live in [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) and are
+> node-level defects live in [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) and are
 > **not** restated here. Read that file for anything below the REST line.
 
 **Out of scope, and where it lives instead:**
 
 | Not here | There |
 |---|---|
-| `fingerprint-dedup`, `fingerprint-dedup-apply`, `sha512-dedup` — options, algorithm, safeguards | [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
-| The similarity index the discovery query runs against | [../concept/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| `fingerprint-dedup`, `fingerprint-dedup-apply`, `sha512-dedup` — options, algorithm, safeguards | [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) |
+| The similarity index the discovery query runs against | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) |
 | The reference algorithm this was ported from | `xdb-clean/FPDEDUP_PROCESS.md` (sibling checkout) |
 | Where the moved duplicate ends up, and moving in general | [WORKFLOW_TRASH.md](WORKFLOW_TRASH.md) |
 | Dedup entities in the domain model | [../loom/DOMAIN.md](../loom/DOMAIN.md) |
@@ -192,7 +192,7 @@ ever returns.
 
 ## 6. Progress Assessment
 
-### Built (see [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §9 for the full list)
+### Built (see [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) §10 for the full list)
 - [x] `V2.61` review record (`dedup_status`, `dedup_group`, `dedup_group_member`), `V2.62` permissions
 - [x] `DedupGroupDao` + jOOQ impl, delete-cascade tests green
 - [x] Six REST routes, keyset paged, in `openapi.json`; `DedupGroupEndpointTest` (14), `DedupGroupDaoTest` (7)
@@ -252,9 +252,11 @@ and a delta sync can only remove, never add. Anything missing is a reindex.
 See [../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md).
 
 Node options (`fingerprint-dedup`: `algorithm`, `scoreThreshold`, `topK`, `allowPartial`,
-`abortOnLargerDup`; apply: `dupFolder`) are documented in
-[../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) §4. ⚠️ Only `enabled` and `dupFolder`
-are descriptor parameters — the rest are YAML-only and unreachable from the pipeline editor.
+`abortOnLargerDup`; apply: `keepExcludeFolder`) are documented in
+[NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) §6.1. All of the discovery options are
+descriptor parameters and reachable from the pipeline editor. ⚠️ `dupFolder` no longer exists: the
+nodes decide and emit ports, and a downstream `move` node acts — see
+[NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) §1.
 
 ---
 
@@ -301,14 +303,14 @@ are descriptor parameters — the rest are YAML-only and unreachable from the pi
 
 | Need | Look here |
 |---|---|
-| The nodes, options, algorithm and their defects | [../concept/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
+| The nodes, options, algorithm and their defects | [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) |
 | The review screen | `loom-ui/src/features/workflow/WorkflowView.tsx` (`DeduplicationMode`) |
 | Its pure logic and its tests | `loom-ui/src/features/workflow/dedupGroups.ts` + `.test.ts` |
 | The REST client | `loom-ui/src/api/dedup.ts` + `dedup.test.ts` |
 | The keyset-paging template this DAO copied | `loom/db/jooq/.../dao/notification/NotificationDaoImpl.loadPageForRecipient` |
 | Schema + permissions | `loom/db/flyway/.../V2.61__add_dedup_group.sql`, `V2.62__add_dedup_permission.sql` |
 | REST implementation | `loom/services/rest/.../endpoint/impl/DedupGroupEndpoint.java` |
-| The similarity query | [../concept/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| The similarity query | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) |
 | Customer docs | `website/content/english/docs/nodes/dedup/index.adoc`; `website/content/english/docs/ui/index.adoc` §Reviewing Duplicates |
 | Demo data | `DemoDatabaseInitializer.seedDemoDedupGroup` |
 | Shared workflow defects | [WORKFLOWS.md](WORKFLOWS.md) §4 |

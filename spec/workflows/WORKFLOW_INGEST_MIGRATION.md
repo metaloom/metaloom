@@ -18,7 +18,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | Not here | There |
 |---|---|
 | One file uploaded from a browser | [WORKFLOW_UPLOAD.md](WORKFLOW_UPLOAD.md) |
-| The source kinds themselves | [../concept/NODE_S3SOURCE_PLAN.md](../concept/NODE_S3SOURCE_PLAN.md), [../concept/NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md) |
+| The source kinds themselves | [NODE_S3SOURCE.md](../features/nodes/s3-source/NODE_S3SOURCE.md), [NODE_CLOUDSOURCE.md](../features/nodes/cloud-source/NODE_CLOUDSOURCE.md) |
 | Deciding which duplicate to keep | [WORKFLOW_DEDUP.md](WORKFLOW_DEDUP.md) |
 | Where bytes physically live | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | Running a second Loom to go faster | [../concept/CLUSTERING.md](../concept/CLUSTERING.md) — 🔴 Loom is single-writer; a second instance is destructive |
@@ -106,7 +106,7 @@ MATCHED | MISSING | SIZE_MISMATCH | UNREADABLE | SKIPPED_BY_FILTER | DUPLICATE_O
 🔴 **A rename is detectable on a cloud drive but not on S3** — the drive providers expose a file id
 that survives a move, S3 does not. So on S3 a renamed object is a delete plus a create, and
 reconciliation must fall back to content identity (SHA-512) rather than key identity. That asymmetry
-is documented in [../concept/NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md) and is a
+is documented in [NODE_CLOUDSOURCE.md](../features/nodes/cloud-source/NODE_CLOUDSOURCE.md) and is a
 correctness requirement here, not a footnote.
 
 ---
@@ -218,7 +218,7 @@ The densest configuration surface in the product. Full lists:
 
 | Need | Look here |
 |---|---|
-| The source kinds | [../concept/NODE_S3SOURCE_PLAN.md](../concept/NODE_S3SOURCE_PLAN.md), [../concept/NODE_CLOUDSOURCE_PLAN.md](../concept/NODE_CLOUDSOURCE_PLAN.md) |
+| The source kinds | [NODE_S3SOURCE.md](../features/nodes/s3-source/NODE_S3SOURCE.md), [NODE_CLOUDSOURCE.md](../features/nodes/cloud-source/NODE_CLOUDSOURCE.md) |
 | The differential-scan pattern | `cortex/s3-common/`, `cortex/cloud-common/` |
 | Run and item state | [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md); `V2.56`, `V2.77` |
 | Why a second Loom is destructive | [../concept/CLUSTERING.md](../concept/CLUSTERING.md) |

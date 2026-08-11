@@ -272,7 +272,7 @@ ability to *invoke* them and to *get the bytes back*. Two changes unlock ten req
 | 61 | "Is this cleared for commercial use?" | licence/rights model | `NEW N10` — `dc.rights` is captured by the `metadata` node and there is no rights *model* |
 | 62 | "Strip GPS before publishing" | metadata write-back — [ASSET_METADATA_WRITE.md](../concept/ASSET_METADATA_WRITE.md) is a concept, nothing built | `NEW N19` |
 | 63 | "Mark anything the AI generated" | IPTC `DigitalSourceType` / C2PA provenance marking | `NEW N19` |
-| 64 | "Send Maria a link to these five" | share links | `NEW N20` — no sharing/link model |
+| 64 | "Send Maria a link to these five" | share links | ✅ **N20 BUILT** — [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md). The share model exists (`POST /api/v1/share-links`); the agent does not yet call it |
 
 ---
 
@@ -357,7 +357,7 @@ Every `NEW` item, with a suggested home.
 | N17 | **Upscale / restore node** | 57 | New node |
 | N18 | **Document / report generation** | 60,83 | Could ride the sandbox instead of a node |
 | N19 | **Metadata write-back and AI marking** | 62,63 | [ASSET_METADATA_WRITE.md](../concept/ASSET_METADATA_WRITE.md) — concept exists |
-| N20 | **Share links** | 64 | New |
+| N20 | **Share links** | 64 | ✅ Built — [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md). Remaining gap is agent-side only: no MCP tool or chat skill creates one |
 | N21 | **Cost / throughput estimation** | 67,84 | Needs per-node timing history — `pipeline_node_task` has durations |
 | N22 | **External corpus comparison** | 78 | New |
 | N23 | **Constraint-satisfying sampling** (diverse training sets) | 79 | New — high commercial value |

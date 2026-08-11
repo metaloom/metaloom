@@ -7,7 +7,10 @@
 > §5 onwards are the **open schema work items** owned by this file.
 > Format follows [TASKS.template.md](TASKS.template.md).
 >
-> Schema now runs to **`V2.84`**. DAO/model/test gaps are *not* tracked here — they live in
+> Schema now runs to **`V2.99`** (`V2.97`/`V2.99` added the share model; `V2.88`–`V2.93` the
+> review author and the person/user avatar attachments; `V2.91` dropped `person_image`).
+> **Sort migration versions numerically, not lexically** — `V2.9` is not the newest file.
+> DAO/model/test gaps are *not* tracked here — they live in
 > [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md); the entity inventory lives in
 > [../loom/DOMAIN.md](../loom/DOMAIN.md); the audit these tasks descend from is
 > [../features/db/DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md), whose section
@@ -16,6 +19,13 @@
 > **Context:** [../features/nodes/NODES.md](../features/nodes/NODES.md) (what nodes produce) ·
 > [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) (run/task ledger) ·
 > [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) (DAO layer, jOOQ codegen, migration workflow)
+>
+> **Not owned here.** The `asset_node_result` write path — `origin` hard-coded to `COMPUTED`,
+> no `runUuid`/`taskUuid` on `NodeResultCreateRequest`, `cortex_instance` never joined — is
+> [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 18**. The columns already exist (`V2.45`); only
+> the writer is missing, so it is not a schema task. The `dedup_group.keep_asset_uuid` vs.
+> `dedup_group_member.role` inconsistency, including the false *"The DAO keeps them consistent"*
+> comment in `V2.61__add_dedup_group.sql:12`, is [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 3**.
 
 ---
 
@@ -148,7 +158,10 @@ never generalised to JSON-blob or legitimately-empty results.
 
 Established by `V2.61` (`dedup_group`), generalised by `V2.79` (`cluster`) and `V2.81`
 (`detection`), which renamed `cluster_status` to the shared enum **`review_status`**
-(`PENDING` / `CONFIRMED` / `REJECTED`). The workflow specs
+(`PENDING` / `CONFIRMED` / `REJECTED`). `cluster` got only the *verdict* in `V2.79`; its
+**author** (`reviewed_at` / `reviewer_uuid`) arrived in `V2.88`, because until then
+`ClusterDaoImpl` had nowhere to put the deciding user but `editor_uuid`, which the producing
+node rewrites on every re-run. The workflow specs
 ([../workflows/WORKFLOW_FACE.md](../workflows/WORKFLOW_FACE.md),
 [../workflows/WORKFLOW_OBJECT_DETECT.md](../workflows/WORKFLOW_OBJECT_DETECT.md),
 [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md)) reuse it — **do not create a second, structurally
@@ -235,9 +248,17 @@ inventing a second shape.
 
 `asset_transcript_comp` carries **both** `audio_comp_uuid` and `stream_index`: the FK is
 for navigation and cascade, the index is in the key because an audio-only asset may be
-transcribed before any audio component row exists. Column-level detail is in the
-migrations and in [../loom/DOMAIN.md](../loom/DOMAIN.md); the ER diagram is
-`loom/design/DB/dbdiagram.yaml`, current through `V2.84`.
+transcribed before any audio component row exists.
+
+`attachment` now has **five** nullable target columns — `asset_uuid` (`V2.44`),
+`embedding_uuid` (`V2.43`), `detection_uuid` (`V2.79`), `person_uuid` (`V2.90`) and
+`user_uuid` (`V2.93`). They are deliberately not alternatives and carry no `num_nonnulls`
+CHECK (§1.1). Only the last two are lifetime-owned: both `CASCADE` from their owner and
+nothing else can reach them, which is why `V2.91` could drop `person_image` and
+`person.primary_image_uuid` outright.
+
+Column-level detail is in the migrations and in [../loom/DOMAIN.md](../loom/DOMAIN.md); the ER
+diagram is `loom/design/DB/dbdiagram.yaml`, **currently stale at `V2.84` — Task 21**.
 
 ---
 
@@ -245,19 +266,36 @@ migrations and in [../loom/DOMAIN.md](../loom/DOMAIN.md); the ER diagram is
 
 At a glance, in the order they should be taken:
 
-| # | Task | Severity | Migration? |
-|---|---|---|---|
-| 15 | `user_permission` / `token_permission` primary keys discard grants | 🔴 HIGH | yes |
-| 16 | Three soft references in the pipeline tables become real FKs | 🔴 HIGH | yes |
-| 17 | Widen `asset_location.filekey_*` to `bigint` | 🟠 MEDIUM | yes |
-| 18 | Dispatch index on `pipeline_node_task` | 🟠 MEDIUM | yes |
-| 19 | Give `asset_doc_comp` a producer, or drop the table | 🟡 decision | maybe |
-| 20 | Re-sync the resolved findings in `DB_SCHEMA_FEEDBACK.md` | 🟡 docs | no |
-| ~~14~~ | ~~Re-sync `dbdiagram.yaml` to `V2.84`~~ | ✅ done 2026-08-09 | no |
+| # | Task | Severity | Migration? | loom-ui? |
+|---|---|---|---|---|
+| 15 | `user_permission` / `token_permission` primary keys discard grants | 🔴 HIGH | yes | no |
+| 24 | `vector_config` has no primary key; four actor FKs missing across three tables | 🔴 HIGH | yes | no |
+| 16 | Three soft references in the pipeline tables become real FKs | 🔴 HIGH | yes | no |
+| 22 | Index the referencing side of the cascade and provenance FKs | 🟠 MEDIUM | yes | no |
+| 17 | Widen `asset_location.filekey_*` to `bigint` | 🟠 MEDIUM | yes | no |
+| 18 | Index the lease-holder query; retire the speculative dispatch index | 🟠 MEDIUM | yes | no |
+| 19 | Give `asset_doc_comp` a producer, or drop the table | 🟡 decision | maybe | **yes** |
+| 23 | Drop the duplicate `collection.parent_collection_uuid` foreign key | 🟢 LOW | yes | no |
+| 21 | Re-sync `dbdiagram.yaml` from `V2.84` to `V2.99` | 🟡 docs | no | no |
+| 20 | Re-sync the resolved findings in `DB_SCHEMA_FEEDBACK.md` | 🟡 docs | no | no |
 
-Tasks 15–18 are independent migrations; each needs `loom/db/jooq/generate.sh` **and**
-`./setup-pool.sh` after it. Do not batch them into one migration file — a failure in one
-would roll back the others' verification.
+**Blocking relationships.** Task 24 **blocks**
+[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6: `JooqVectorConfigRecord` is generated as a
+`TableRecordImpl` precisely because the table has no primary key, so a DAO written against it
+today cannot `update()` or `delete()` a row. Task 15 **blocks** every endpoint permission test
+that currently has to grant through group+role. Task 22 should land **after** Task 16, so the
+two columns that task adds are indexed in one pass rather than two.
+
+Tasks 15–18 and 22–24 are independent migrations; each needs `loom/db/jooq/generate.sh` **and**
+`./setup-pool.sh` after it, with `loom/db/flyway` installed first or the pool silently keeps the
+old schema. Do not batch them into one migration file — a failure in one would roll back the
+others' verification. Each writes `V2.100`; **whoever lands second renumbers**, sorting the
+migration directory numerically.
+
+The task bodies below stay in **numeric** order so the numbers other files cite remain stable;
+the table above is the severity order. Tasks 1–14 are closed and their text has been removed —
+§1 keeps the record of the 1–13 rework, and Task 14 (`dbdiagram.yaml` → `V2.84`, closed
+2026-08-09) is superseded by Task 21.
 
 ---
 
@@ -280,34 +318,50 @@ so a column that looks like a scope but scopes nothing invites grants that confe
 authority than they appear to.
 
 ```
-1. V2.XX__fix_direct_permission_keys.sql:
-   - For "user_permission" and "token_permission", in that order:
-     * DROP the (…, resource, permission) unique index by its generated name (check
-       pg_indexes; V2.1 created them without an explicit name, exactly like the
-       role_permission one V2.64 had to name by hand).
-     * ALTER TABLE … DROP CONSTRAINT "<table>_pkey";
-     * ALTER TABLE … DROP COLUMN IF EXISTS "resource";
-     * ALTER TABLE … ADD PRIMARY KEY ("user_uuid", "permission") / ("token_uuid", "permission").
-   - No data migration is possible in the other direction, but none is needed: at most one
-     row per subject exists today, so the wider key cannot collide. State that in the file
-     comment rather than adding a NOT EXISTS guard.
-   - COMMENT ON TABLE both, copying the wording V2.64 used for role_permission.
-2. PermissionDaoImpl: the grant path must now be an upsert on the wider key
-   (insertInto(...).onConflict(USER_UUID, PERMISSION).doNothing()), and any code that
-   relied on "one row per user" — look for load()/loadByUser() returning a single row —
-   must return a collection.
-3. Delete the "one direct grant per user" workaround note wherever tests explain it.
-4. Regenerate jOOQ (loom/db/jooq/generate.sh) and re-run ./setup-pool.sh.
+1. loom/db/flyway/src/main/resources/db/migration/V2.100__fix_direct_permission_keys.sql —
+   for "user_permission" and "token_permission", in that order:
+     * DROP the (…, resource, permission) unique index. V2.1:140 and V2.1:150 created them
+       with CREATE UNIQUE INDEX ON "<table>" (...) and no name, so Postgres generated one:
+       resolve it from pg_indexes rather than guessing, exactly as V2.64 had to for
+       role_permission.
+     * ALTER TABLE "<table>" DROP CONSTRAINT "<table>_pkey";
+     * ALTER TABLE "<table>" DROP COLUMN IF EXISTS "resource";
+     * ALTER TABLE "<table>" ADD PRIMARY KEY ("user_uuid", "permission")
+       / ("token_uuid", "permission").
+   No backfill is possible and none is needed: the narrow PK means at most one row per
+   subject exists today, so the wider key cannot collide. State that in the file comment
+   rather than adding a NOT EXISTS guard.
+   COMMENT ON TABLE both, reusing the wording V2.64 wrote for role_permission.
+2. loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/perm/PermissionDaoImpl.java: the
+   grant path becomes an upsert on the wider key
+   (insertInto(...).onConflict(USER_UUID, PERMISSION).doNothing()). Check every method on
+   loom/db/api/src/main/java/io/metaloom/loom/db/model/perm/PermissionDao.java that assumes
+   one row per subject and widen its return type to a collection.
+3. loom/services/auth/auth-common/.../PermissionCache.java: confirm it aggregates direct
+   grants rather than reading a single row, and that the ResourcePermissionSet it builds is
+   unaffected by the dropped resource column.
+4. Delete the "one direct grant per user" workaround note wherever a test explains it, and
+   the matching bullet in §8 of this file.
+5. Regenerate jOOQ (loom/db/jooq/generate.sh) and re-run ./setup-pool.sh — install
+   loom/db/flyway first. Clean-rebuild loom/core afterwards if the DAO signature changed.
+6. No loom-ui change. Checked: the UI edits role permissions only (loom-ui/src/api/roles.ts,
+   loom-ui/src/features/admin/AdminArea.tsx); loom-ui/src/api/users.ts never touches direct
+   grants, so nothing in the SPA can observe this key.
 ```
 
 **References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §7.1 ·
-migrations `V2.1__add_acl.sql`, `V2.64__fix_role_permission_key.sql` (its scope note names
-this task) · [../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md)
-**Test Requirements:** Extend `PermissionDaoTest` with a test that grants **two different**
-permissions directly to one user and reads both back, and the same for a token — that test
-fails today. `AclCascadeTest` must still pass (the cascade is on the subject FK, untouched).
-`mvn test -pl loom/db/jooq -Dtest='PermissionDaoTest,AclCascadeTest'`, then the endpoint
-permission tests in `loom/core`.
+migrations `V2.1__add_acl.sql:134-152`, `V2.64__fix_role_permission_key.sql` (its scope note
+names this task) ·
+[../features/permissions/PERMISSIONS.md](../features/permissions/PERMISSIONS.md)
+**Test Requirements:** Extend
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/perm/PermissionDaoTest.java` with a case that
+grants **two different** permissions directly to one user and reads both back, and the same
+for a token — that case fails today with a primary-key violation, which is the proof the task
+is real. `AclCascadeTest` must still pass (the cascade is on the subject FK, untouched).
+`mvn test -pl loom/db/jooq -Dtest='PermissionDaoTest,AclCascadeTest'`, then
+`mvn test -pl loom/core -Dtest='RolePermissionEnforcementTest'` and
+`mvn test -pl loom/services/rest -Dtest=RolePermissionParityTest`. Re-run `./setup-pool.sh`
+before any of them.
 
 ---
 
@@ -330,36 +384,56 @@ instead of referencing it, and all three predate `V2.46` making `asset.uuid` a p
 `leased_by`, each nullable, each with the delete behaviour its lifecycle implies.
 
 ```
-1. V2.XX__pipeline_reference_integrity.sql:
+1. loom/db/flyway/src/main/resources/db/migration/V2.100__pipeline_reference_integrity.sql
+   (renumber if another task lands first — sort the migration directory NUMERICALLY):
    a) ALTER TABLE "pipeline_run_item" ADD COLUMN "asset_uuid" uuid
         REFERENCES "asset" ("uuid") ON DELETE SET NULL;
-      CREATE INDEX idx_pipeline_run_item_asset ON "pipeline_run_item" ("asset_uuid");
+      CREATE INDEX "idx_pipeline_run_item_asset" ON "pipeline_run_item" ("asset_uuid");
       Backfill: UPDATE … SET asset_uuid = a.uuid FROM "asset" a WHERE a.sha512sum = item.sha512.
-      Nullable and SET NULL, not CASCADE: the item exists before hashing (§2.2/§3), and
-      deleting an asset must not erase the record that a run processed it. Keep the sha512
-      column — it is the pre-hash identity, not a duplicate.
+      Nullable and SET NULL, not CASCADE: the item exists before hashing (§3), and deleting an
+      asset must not erase the record that a run processed it. Keep the sha512 column — it is
+      the pre-hash identity, not a duplicate.
    b) ALTER TABLE "pipeline_run" ADD COLUMN "pipeline_version_uuid" uuid
         REFERENCES "pipeline_version" ("uuid") ON DELETE SET NULL;
-      Backfill by joining pipeline_version on (pipeline_uuid, version_number). Note runs with
+      CREATE INDEX "idx_pipeline_run_pipeline_version" ON "pipeline_run" ("pipeline_version_uuid");
+      Backfill by joining pipeline_version on (pipeline_uuid, version_number). Runs with
       kind = 'ADHOC' (V2.83) have no pipeline and must stay NULL — do not add a NOT NULL.
       Keep the int column for one release; drop it in a follow-up once readers are migrated.
    c) ALTER TABLE "pipeline_node_task" ADD CONSTRAINT "pipeline_node_task_leased_by_fkey"
         FOREIGN KEY ("leased_by") REFERENCES "cortex_instance" ("node_id") ON DELETE SET NULL;
+      CREATE INDEX "idx_pipeline_node_task_leased_by" ON "pipeline_node_task" ("leased_by");
       Clear orphans first (UPDATE … SET leased_by = NULL WHERE leased_by NOT IN (…)) or the
       constraint will not validate. Verify LeaseReaper still releases a lease by setting the
       column to NULL rather than to a sentinel string.
-2. Model + DAO: PipelineRunItem gains assetUuid, PipelineRun gains pipelineVersionUuid; add
-   PipelineRunItemDao.loadByAsset(UUID) — that is the query this task exists to enable.
-3. Regenerate jOOQ, re-run ./setup-pool.sh.
+   All three indexes are required by the rule in §8 and by Task 22: Postgres indexes only the
+   referenced side, so a parent delete would seq-scan the largest tables in the schema.
+2. Model + DAO: loom/db/api/.../db/model/pipeline/PipelineRunItem.java gains assetUuid,
+   PipelineRun gains pipelineVersionUuid; implement them in
+   loom/db/jooq/.../dao/pipeline/PipelineRunItemImpl.java and PipelineRunImpl.java. Add
+   PipelineRunItemDao.loadByAsset(UUID) with its PipelineRunItemDaoImpl body — that is the
+   query this task exists to enable.
+3. Regenerate jOOQ (loom/db/jooq/generate.sh), re-run ./setup-pool.sh with loom/db/flyway
+   installed first, and clean-rebuild loom/core (a new DAO method changes no constructor, but
+   a new DaoCollection entry would).
+4. No loom-ui change. Checked: loom-ui/src/api/pipelines.ts and
+   loom-ui/src/features/pipeline/ read run state and item paths, never the version number or
+   the lease holder, so no DTO field is required. If a later task surfaces "which runs touched
+   this asset" in the asset detail view, that is where the UI work belongs.
 ```
 
 **References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §6.1, §6.2, §6.4
 (recommendation 4) · [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) ·
-migrations `V2.29`, `V2.31`, `V2.46`, `V2.83` · [PIPELINE_TASKS.md](PIPELINE_TASKS.md)
-**Test Requirements:** `PipelineRunItemDaoTest` — an item resolves to its asset, `loadByAsset`
-returns it, and deleting the asset nulls the column while the item survives.
-`PipelineNodeTaskDaoTest` — a lease against an unknown worker id is rejected, and deleting a
-`cortex_instance` releases its leases. `LeaseReaperTest` must still pass unchanged.
+migrations `V2.29`, `V2.31`, `V2.46`, `V2.83` · [PIPELINE_TASKS.md](PIPELINE_TASKS.md) ·
+Task 22 (the index rule)
+**Test Requirements:**
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/PipelineRunItemDaoTest.java` — an item
+resolves to its asset, `loadByAsset` returns it, and deleting the asset nulls the column while
+the item survives (a delete-cascade case is required by
+[../guidelines/CODING.md](../guidelines/CODING.md)). `PipelineNodeTaskDaoTest` — a lease against
+an unknown worker id is rejected, and deleting a `cortex_instance` releases its leases.
+`LeaseReaperTest` must still pass unchanged. Assert **relative to your own fixtures**: the
+pooled test DB is pre-populated and shared, so never assert an absolute row count or emptiness.
+`./setup-pool.sh`, then `mvn test -pl loom/db/jooq -Dtest='PipelineRunItemDaoTest,PipelineNodeTaskDaoTest'`.
 
 ---
 
@@ -379,163 +453,175 @@ round-tripped at all until `AssetBinaryDaoTest` was written.
 a value above `Integer.MAX_VALUE` survives the round trip.
 
 ```
-1. V2.XX__widen_filekey_columns.sql — for each of filekey_inode, filekey_stdev,
-   filekey_edate, filekey_edate_nano:
+1. loom/db/flyway/src/main/resources/db/migration/V2.100__widen_filekey_columns.sql —
+   for each of filekey_inode, filekey_stdev, filekey_edate, filekey_edate_nano
+   (V2.10__add_asset_location.sql:6-9, all four still "int"):
      ALTER TABLE "asset_location" ALTER COLUMN "<col>" TYPE bigint;
-   int -> bigint is a widening cast Postgres performs without a table rewrite of the values'
-   meaning, and no data can be lost. Add a COMMENT ON COLUMN naming the unit for each
-   (inode number, device id, epoch seconds, nanosecond fraction).
-2. Confirm AssetBinaryImpl's fields are `Long` (they are named filekeyInode / filekeyStdev /
-   filekeyEdate / filekeyEdateNano — camel-cased from the column, see PERSISTENCE.md's mapper
-   gotcha) and that FileKey in loom-shared/rest-model carries longs end to end.
-3. Regenerate jOOQ (the generated field type changes from Integer to Long — downstream
-   compile errors are the point) and re-run ./setup-pool.sh.
+   int -> bigint is a widening cast; no data can be lost. Add a COMMENT ON COLUMN naming the
+   unit for each (inode number, device id, epoch seconds, nanosecond fraction).
+2. No Java model change is needed on the interface: AssetBinary.java:80-94 already declares
+   getFilekeyInode / getFilekeyStDev / getFilekeyEdate / getFilekeyEdateNano as Long. What
+   must be re-checked is the POJO FIELD spelling in
+   loom/db/jooq/src/main/java/io/metaloom/loom/db/jooq/dao/asset/binary/AssetBinaryImpl.java —
+   the default record mapper matches the camel-cased COLUMN name (filekeyStdev), not the
+   interface getter (getFilekeyStDev), and that exact mismatch already caused this column to
+   silently never round-trip once. Confirm FileKey in loom-shared/rest-model carries longs
+   end to end.
+3. Regenerate jOOQ (loom/db/jooq/generate.sh). The generated field type changes from Integer
+   to Long — the downstream compile errors are the point. Re-run ./setup-pool.sh with
+   loom/db/flyway installed first.
+4. No loom-ui change. The file key is scanner state; nothing in loom-ui/src reads it.
 ```
 
 **References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §2.4
 (recommendation 5) · migration `V2.10__add_asset_location.sql` ·
 [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Conventions (the `filekeyStDev` mapper gotcha)
-**Test Requirements:** Extend `AssetBinaryDaoTest`'s full-column round trip to store
-`Integer.MAX_VALUE + 1L` in all four columns and read the exact value back — that assertion
-fails against the current schema with an out-of-range error, which is the proof the task is
-real. `mvn test -pl loom/db/jooq -Dtest=AssetBinaryDaoTest`.
+**Test Requirements:**
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/AssetBinaryDaoTest.java:287-303`
+already round-trips these four columns, but only with small values (4711, 66, 1600000000,
+123456) that fit an `int`. Raise them past `Integer.MAX_VALUE` (e.g. `4294967296L`) and read
+the exact value back — that assertion fails against the current schema with an out-of-range
+error, which is the proof the task is real. `./setup-pool.sh`, then
+`mvn test -pl loom/db/jooq -Dtest=AssetBinaryDaoTest`.
 
 ---
 
-### Task 18: Add the worker-dispatch index on `pipeline_node_task`
+### Task 18: Index the lease-holder query, and retire the speculative dispatch index
 
-**Argumentation Summary:** Dispatch asks *"give me `PENDING` tasks whose `node_kind` this
-worker accepts"*. The table's indexes are `(item_uuid)`, `(run_uuid, state)` and the partial
-lease index `(lease_expires_at) WHERE state = 'RUNNING'` — none serves that query, so it
-degrades to a scan filtered by `state` on the largest table in the schema. `V2.60` and `V2.68`
-both multiplied the row count per run (`element_seq` fan-out, then a row per re-execution
-`generation`), so the scan gets worse with every feature.
+**Argumentation Summary:** This task previously proposed
+`("node_kind") WHERE "state" = 'PENDING'` to serve worker dispatch. **That query does not
+exist.** A sweep of every `PipelineNodeTaskDao` caller
+(`PipelineRunRecovery`, `PipelineEndpointService`, `NodeRunService`, `LeaseReaper`,
+`DaoRunStateStore`, all in `loom/services/rest/.../service/impl/`) and of
+`PipelineNodeTaskDaoImpl` finds no `WHERE state = 'PENDING' AND node_kind …` anywhere —
+`node_kind` is written by `createNodeTask` and read back, never filtered on. Building an index
+for it would be maintenance cost against a query no code issues. What *is* unindexed and does
+run is `PipelineNodeTaskDaoImpl.java:131`,
+`STATE = 'RUNNING' AND LEASED_BY = ?` — "what is this worker holding" — on the largest table
+in the schema, which `V2.60` (`element_seq` fan-out) and `V2.68` (a row per `generation`)
+have each multiplied. The existing indexes are `(item_uuid)`, `(run_uuid, state)` and the
+partial `(lease_expires_at) WHERE state = 'RUNNING'`; the last one serves `LeaseReaper`'s
+expiry sweep at `:114` but not the by-holder lookup.
 
-**Improvement Summary:** One partial index.
+**Improvement Summary:** Index the lease-holder lookup that exists, and record in the
+migration why the `node_kind` index is deferred, so the next audit does not re-propose it.
 
 ```
-1. V2.XX__pipeline_node_task_dispatch_index.sql:
-     CREATE INDEX "idx_pipeline_node_task_dispatch"
-       ON "pipeline_node_task" ("node_kind") WHERE "state" = 'PENDING';
-   Partial on purpose: PENDING is a small and shrinking fraction of the table, so the index
-   stays small and does not have to be maintained for rows that reached a terminal state.
-2. Read the actual dispatch query first (the dispatcher in loom/services/rest, and
-   PipelineNodeTaskDaoImpl) and confirm the column order matches. If it also orders by
-   priority or created, make the index (node_kind, created) rather than adding a second one.
-3. Confirm with EXPLAIN against a pooled DB that the plan changes to an index scan.
+1. loom/db/flyway/src/main/resources/db/migration/V2.100__pipeline_node_task_lease_index.sql:
+     CREATE INDEX "idx_pipeline_node_task_leased_by"
+       ON "pipeline_node_task" ("leased_by") WHERE "state" = 'RUNNING';
+   Partial on purpose: a lease only exists while RUNNING, so the index never has to be
+   maintained for rows in a terminal state, which is almost all of them.
+   ⚠️ COORDINATE WITH TASK 16c, which adds a plain FK index on the same column. Land one or
+   the other, not both: if Task 16 goes first, the partial index here is redundant for the
+   lookup but still wanted for cascade checks — in that case, skip this migration and only do
+   step 2.
+2. In the same file (or, if step 1 is skipped, as a COMMENT ON TABLE amendment), record the
+   finding: no PENDING-by-node_kind dispatcher exists in this codebase, so the partial
+   dispatch index is deliberately NOT created. State the condition that would change the
+   answer — a dispatcher that claims work by node kind, which
+   [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) describes as intended
+   but which is not built. Add the index in the same change that adds the dispatcher, with
+   its real column order (add `created` as a second column if it orders by age).
+3. Confirm with EXPLAIN against a pooled DB that the by-holder plan changes to an index scan.
+   Record the before/after in the migration comment.
+4. No loom-ui change — an index changes no response.
 ```
 
 **References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §3.7
-(recommendation 6) · migrations `V2.31`, `V2.60`, `V2.68` ·
-[../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md)
-**Test Requirements:** No behavioural test — an index changes no results. Record the `EXPLAIN`
-output before and after in the migration comment. `PipelineNodeTaskDaoTest` must stay green.
+(recommendation 6 — its premise is corrected here) · migrations `V2.31`, `V2.60`, `V2.68` ·
+[../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) · Task 16c, Task 22
+**Test Requirements:** No behavioural test — an index changes no results.
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/PipelineNodeTaskDaoTest.java` and
+`LeaseReaperTest` must stay green. `./setup-pool.sh`, then
+`mvn test -pl loom/db/jooq -Dtest=PipelineNodeTaskDaoTest` and
+`mvn test -pl loom/services/rest -Dtest=LeaseReaperTest`.
 
 ---
 
 ### Task 19: Give `asset_doc_comp` a producer, or drop the table
 
 **Argumentation Summary:** `asset_doc_comp` was reworked in `V2.38` with a `page_number`
-grain and a generated `text_search tsvector`, and its own table comment says *"Tika writes the
-whole document as page 0, OCR writes one row per page"*. Neither does. `TikaNode` and
-`OCRNode` both call `createAssetJsonComp`
-(`cortex/nodes/tika/core/…/TikaNode.java:109`, `cortex/nodes/ocr/core/…/OCRNode.java:104`),
-so the schema's only per-page full-text surface is empty while the extracted text sits in an
-opaque `jsonb`. This is the one remaining gap in §3.1 of the audit, and it is exactly the
-promotion trigger §2 describes: the text must be searchable per page.
+grain and a generated `text_search tsvector`, and its own table comment
+(`V2.38__rework_asset_components.sql:118`) says *"Tika writes the whole document as page 0,
+OCR writes one row per page"*. **Neither does** — the comment is a description of an intention,
+not of the code. `TikaNode` and `OCRNode` both call `createAssetJsonComp`
+(`cortex/nodes/tika/core/src/main/java/io/metaloom/cortex/node/tika/TikaNode.java:109`,
+`cortex/nodes/ocr/core/src/main/java/io/metaloom/cortex/node/ocr/OCRNode.java:104`), and
+`createAssetDocComp` **does not exist on `LoomClient` at all** — a grep across `loom-shared/`
+and `clients/` finds no such method, so no Cortex node could write the table even if it tried.
+The only writers are the manual REST paths
+(`AssetComponentEndpointService.java:153-163`, `AssetEndpointService.java:265`, both with
+`NODE_KIND_MANUAL`). So the schema's only per-page full-text surface is empty while the
+extracted text sits in an opaque `jsonb`. Two smaller defects ride along: the read path
+`AssetModelBuilder.toDocumentInfo` sets only `source`, `wordCount` and `plainText` — it never
+reads `page_count` or `text_lang`, though both columns exist and `DocumentInfo` has fields for
+them — and the UI type `loom-ui/src/api/assets.ts:84` declares `DocumentInfo` with only
+`wordCount`/`pageCount`, with `documentComponents` (`assets.ts:157`) **never rendered by any
+component**. This is the last gap in §3.1 of the audit, and exactly the promotion trigger §2
+describes: the text must be searchable per page.
 
 **Improvement Summary:** Decide, then act — either point both nodes at the typed table (with
-the JSON write retired, not doubled), or drop the table and its `text_search` column and make
-`asset_json_comp` the documented home for extracted text.
+the JSON write retired, not doubled) and finish the read path through to the UI, or drop the
+table and its `text_search` column and make `asset_json_comp` the documented home for
+extracted text.
 
 ```
 Recommended direction: implement the producer. Search is the reason the table exists, and
 V2.65 shows the alternative — teaching search_extract_json_text about another schema_type —
 does not give per-page granularity.
 
-1. LoomClient / REST: confirm createAssetDocComp exists on the client (the endpoint side is
-   AssetComponentEndpointService, which already handles doc comps). Add the client method if
-   it is missing, and the Python client mirror + parity test (see spec/loom/PYTHON_CLIENT.md).
+1. LoomClient: ADD createAssetDocComp (it is missing — verified). The endpoint side already
+   exists in loom/services/rest/.../service/impl/AssetComponentEndpointService.java:153-163.
+   Mirror it in the Python client and update the parity test that guards the client method
+   count (see ../loom/PYTHON_CLIENT.md).
 2. TikaNode: write ONE asset_doc_comp with page_number = 0 carrying doc_plain_text,
    doc_word_count, text_lang and page_count. Keep the json comp only for fields the typed
    table has no column for; do not write the same text twice.
 3. OCRNode: one row per page, page_number 1..N. Because the set can shrink between runs,
    follow the segment-set rule in §3 — delete rows with page_number > N for that
    (asset, node_kind) after the upserts.
-4. Search: verify the generated text_search column feeds search_document. If the trigger set
+4. Read path: loom/services/rest/.../builder/AssetModelBuilder.java toDocumentInfo currently
+   drops two columns — add info.setPageCount(comp.getPageCount()) and
+   info.setTextLang(comp.getTextLang()). Both fields already exist on the DocumentInfo REST
+   model; they are simply never populated.
+5. Search: verify the generated text_search column feeds search_document. If the trigger set
    (V2.58/V2.59) has no branch for asset_doc_comp, add one — otherwise this task moves the
    text into a table that is still unfindable.
-5. Update ../features/nodes/NODES.md for both nodes and note the schema_type retirement.
+6. loom-ui (REQUIRED — this task is the reason the UI has a dead type):
+   a) loom-ui/src/api/assets.ts:84 — extend the DocumentInfo interface with
+      source?: string, plainText?: string, textLang?: string, pageNumber?: number, so it
+      matches the REST DocumentInfo model instead of a two-field subset.
+   b) loom-ui/src/features/assetDetail/AssetDetail.tsx — render documentComponents. It is
+      declared at assets.ts:157 and read by NOTHING today. Follow the existing panel pattern:
+      TranscriptPanel.tsx is the closest analogue (per-segment text with a producer label),
+      and loom-ui/src/features/assetDetail/helpers.ts is where the other component arrays are
+      grouped for display. Group rows by node_kind (tika vs ocr) and order by page_number.
+7. Update ../features/nodes/NODES.md for both nodes, note the schema_type retirement, and FIX
+   the V2.38:118 table comment so it describes what the code does rather than what was
+   planned.
 
 If instead the decision is to drop it: remove the table in a migration, delete AssetDocComp,
-its DAO methods, the REST/GraphQL surface and DocumentInfo, and record the reason here.
+AssetComponentDao's six doc-comp methods, the REST/GraphQL surface, DocumentInfo, and the
+loom-ui DocumentInfo type plus the documentComponents field — and record the reason here.
 ```
 
 **References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §3.1, §10 ·
 §2 above (promotion policy) · migrations `V2.38`, `V2.58`, `V2.59`, `V2.65` ·
-[../features/nodes/NODES.md](../features/nodes/NODES.md)
+[../features/nodes/NODES.md](../features/nodes/NODES.md) ·
+[../guidelines/CODING.md](../guidelines/CODING.md) (customer-facing website docs are part of
+done for a node behaviour change)
 **Test Requirements:** A node test per node asserting the typed rows (`TikaNodeTest`,
-`OCRNodeTest` against `LoomClientMock`), a DAO test for the multi-page upsert and the
-shrink-set delete, and a `SearchDocumentSourceTest` case proving the extracted text is
-findable through `search_document`.
-
----
-
-### Task 14: Re-sync `loom/design/DB/dbdiagram.yaml` to the current schema — ✅ DONE (2026-08-09)
-
-**Outcome.** The diagram now covers all **80 tables** and all **138 `loom_permission` values** the
-migrations produce through `V2.84`, verified by diffing it against
-`CREATE TABLE` / `ALTER TYPE` across the whole migration chain — both diffs are empty, every
-`ref:` target resolves, and every table belongs to a tablegroup. New tablegroups: `Search`,
-`DedupReview`; `Agent` grew the chat-session and memory tables, `Pipeline` the two node-descriptor
-tables, `Task` `task_assignee` + `notification`. Reworked in place: `cluster` (V2.79 — the whole
-review model), `detection` (V2.81), `embedding` (V2.75 index contract, `model` in the key),
-`tag_asset` (V2.71 placements), `pipeline_run` (V2.83 `kind`), `pipeline_node_task`
-(`element_seq`/`generation`/`previews` and the four-column key), `role_permission` (V2.64), plus
-every asset delete cascade from V2.72–V2.74 and V2.80. Three known defects are now annotated
-where a reader meets them rather than only in the audit: the `user_permission` primary key, the
-`filekey_*` widths, and the missing dispatch index.
-
-**Deviation:** step 2 was a no-op — the V2.50 diagram never contained `webhook` or `loom_events`,
-so there was nothing to remove. The task text below is kept as written.
-
-**Argumentation Summary:** Task 13 regenerated the diagram through `V2.50` and its header
-still says *"up to and including V2.50"*. **Thirty-four migrations have landed since.** The
-diagram documents tables that no longer exist (`webhook` and the `loom_events` enum, dropped
-by `V2.55`) and is silent about a third of the schema — including every entity the agent,
-search, dedup, notification and review features added. It is the artefact people read before
-they read SQL, and it is now wrong in both directions.
-
-**Improvement Summary:** Regenerate from the migrations through `V2.84` and update the header,
-keeping the existing conventions.
-
-```
-1. Update loom/design/DB/dbdiagram.yaml from the migrations through V2.84. Preserve the
-   conventions already in the file: headercolor per group, tablegroup blocks, notes on
-   non-obvious columns.
-2. Remove `webhook` and the `loom_events` enum (dropped by V2.55).
-3. Add tablegroups for everything added since V2.50:
-   - agent:        chat_session (+skill, +context_ref), memory_entry, memory_deny_rule
-   - search:       search_document, search_document_deleted
-   - review:       dedup_group, dedup_group_member; the review_status enum and the
-                   status/reviewed_at/reviewer_uuid block on cluster (V2.79) and
-                   detection (V2.81)
-   - pipeline:     node_descriptor (V2.66), pipeline_node_task.previews (V2.67),
-                   .generation (V2.68), pipeline_run.kind + nullable pipeline_uuid (V2.83)
-   - workflow:     task_assignee (V2.69), notification (V2.70)
-4. Update the changed shapes on existing tables: library.pool_uuid and
-   attachment_binary.pool_uuid (V2.63, both ON DELETE RESTRICT); tag_asset's surrogate uuid
-   PK and provenance columns (V2.71); the embedding index contract columns
-   dirty/synced_at/index_version/normalized and `model` in the unique key (V2.75); the
-   asset delete cascades (V2.72–V2.74, V2.80).
-5. Update the Project note's "up to and including V2.xx" line (line ~6) and its list of
-   permission enum values (V2.76, V2.82, V2.84 added four).
-```
-
-**References:** `loom/design/DB/dbdiagram.yaml` · [../loom/DOMAIN.md](../loom/DOMAIN.md) ·
-migrations `V2.51`–`V2.84`
-**Test Requirements:** None (documentation). Verify by pasting into dbdiagram.io and
-confirming it renders without parse errors.
+`OCRNodeTest` against `LoomClientMock` — note `LoomClientMock` works fine, the "Java 25
+Mockito restrictions" comment in that area is wrong, so do not fall back to a null client and
+skip the write-back coverage). A DAO case in
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/AssetComponentKeyTest.java` (it
+already exercises the `(asset_uuid, node_kind, page_number)` key at :109-116) for the
+multi-page upsert and the shrink-set delete. A `SearchDocumentSourceTest` case proving the
+extracted text is findable through `search_document`. A Playwright mocked e2e under
+`loom-ui/e2e/` for the new panel — component tests in this repo are mocked Playwright specs,
+not RTL. `mvn test -pl loom/db/jooq -Dtest=AssetComponentKeyTest` and
+`./node_modules/.bin/playwright test` from `loom-ui/` (never `npx` — it hangs).
 
 ---
 
@@ -560,34 +646,306 @@ without being marked. Reading it today produces work that is already done:
 - **§7.1** — the `role_permission` third of it is resolved by `V2.64`, differently from the
   recommendation (the `resource` column was dropped rather than the key widened). The
   `user_permission` / `token_permission` two-thirds is Task 15 and stays open.
-- **The header and the Gotchas section** both say the migrations run to `V2.63`; they run to
-  `V2.84`.
+- **The header (line 7-8) still says the chain was re-verified to `V2.63`.** It runs to
+  `V2.99` — thirty-six migrations later, including the whole share model.
+- **§6.4 (`leased_by` soft reference)** and **§3.7 (dispatch index)** — §3.7's premise is
+  wrong and is corrected by Task 18 here: there is no `PENDING`-by-`node_kind` query in the
+  codebase. Do not mark it resolved; mark it **superseded** and point at Task 18.
 
-**Improvement Summary:** Mark the four in place — never renumber — and refresh the two
-version claims and the prioritised list in §9.
+**Improvement Summary:** Mark the resolved findings in place — never renumber — and refresh
+the version claims and the prioritised list in §9.
 
 ```
-1. §4.2: retitle to "✅ RESOLVED (V2.75 + VectorIndex SPI)", keep the original text, append
-   what was decided and where the code lives. Update the two inbound citations that call it
-   an open decision: spec/features/search/SEMANTIC_SEARCH.md §1.3 and
+1. §4.2 (line 219): retitle to "RESOLVED (V2.75 + VectorIndex SPI)", keep the original text,
+   append what was decided and where the code lives. Update the two inbound citations that
+   call it an open decision: spec/features/search/SEMANTIC_SEARCH.md §1.3 and
    spec/features/search/SEARCH.md.
-2. §4.3: mark "✅ RESOLVED (V2.79)".
-3. §7.1: mark the role_permission third resolved by V2.64, keep the other two open and point
-   at Task 15 in this file.
-4. §3.1: strike the "no Cortex node writes embeddings" sentence; keep the asset_doc_comp gap
-   and point it at Task 19.
-5. Header line 8 and the "migrations are the source of truth" gotcha: V2.63 -> V2.84.
-6. §9 Remaining prioritised recommendations: drop item 7 (vector storage), renumber nothing
-   else, and note that items 1, 4, 5 and 6 are now Tasks 15–18 here.
-7. Same sweep for the Progress Assessment checkboxes at the end of that file.
+2. §4.3 (line 236): mark "RESOLVED (V2.79)".
+3. §7.1 (line 347): mark the role_permission third resolved by V2.64, keep the other two open
+   and point at Task 15 in this file.
+4. §3.1 (line 169): strike the "no Cortex node writes embeddings" sentence; keep the
+   asset_doc_comp gap and point it at Task 19, noting the additional finding that
+   LoomClient has no createAssetDocComp method at all.
+5. §3.7: mark SUPERSEDED and point at Task 18 with its reason.
+6. Header lines 7-8 and the "migrations are the source of truth" gotcha: V2.63 -> V2.99.
+7. §9 Remaining prioritised recommendations (line 430): drop item 7 (vector storage),
+   renumber nothing else, and note that items 1, 4, 5 and 6 are now Tasks 15-18 here.
+8. The blockquote at lines 23-25 lists three structural findings detected at runtime by
+   DB_INTEGRITY (DANGLING_TOKEN_EDITOR, DANGLING_ASSET_REMIX_EDITOR,
+   DANGLING_VECTOR_CONFIG_ACTOR / DUPLICATE_VECTOR_CONFIG_UUID). Point them at Task 24 here,
+   which is the migration that makes them unreachable.
+9. Same sweep for the Progress Assessment checkboxes at the end of that file.
+10. No loom-ui change — documentation only.
 ```
 
 **References:** [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) (its own
 "section numbers are an API" rule) · migrations `V2.64`, `V2.75`, `V2.79` ·
-[../guidelines/SPEC_RULES.md](../guidelines/SPEC_RULES.md)
-**Test Requirements:** None (documentation). `MetricsCatalogScrapeTest`-style parsing does not
-apply to this file, but re-run `grep -rn "§4.2\|§4.3\|§7.1" spec/` and fix every citation that
-now contradicts the marked state.
+[../guidelines/SPEC_RULES.md](../guidelines/SPEC_RULES.md) · Tasks 15, 18, 19, 24
+**Test Requirements:** None (documentation). No test parses this file — unlike
+`spec/features/metrics/METRICS.md`, whose §3/§5 tables `MetricsCatalogScrapeTest` reads at
+runtime — but re-run `grep -rn "§3.7\|§4.2\|§4.3\|§7.1" spec/` and fix every citation that now
+contradicts the marked state.
+
+---
+
+### Task 21: Re-sync `loom/design/DB/dbdiagram.yaml` from `V2.84` to `V2.99`
+
+**Argumentation Summary:** Task 14 re-synced the diagram from `V2.50` to `V2.84` on
+2026-08-09 and it has gone stale again: `dbdiagram.yaml:6` still says *"up to and including
+V2.84"* while the migration chain runs to `V2.99`. It is wrong in **both** directions, which is
+the failure mode that makes a diagram worse than no diagram. It documents a table that no
+longer exists — `person_image` is still drawn at `dbdiagram.yaml:1021` with its
+`(person_uuid, asset_uuid)` primary key, and `person.primary_image_uuid` alongside it, both
+**dropped by `V2.91`** — and it is silent about the entire share subsystem (`share`,
+`share_annotation`, `share_comment`, `share_reaction`), the four new `loom_permission` values
+for it, and the person/user avatar model that replaced what it still shows.
+
+**Improvement Summary:** Bring the diagram forward fifteen migrations, keeping the file's
+existing conventions.
+
+```
+1. Update loom/design/DB/dbdiagram.yaml from the migrations V2.85-V2.99. Preserve the
+   conventions already in the file: headercolor per group, tablegroup blocks, notes on
+   non-obvious columns, and the practice Task 14 established of annotating a known defect
+   where a reader meets it.
+2. REMOVE what V2.91 dropped: the person_image table (currently at :1021) and
+   person.primary_image_uuid. Both are gone from the schema.
+3. ADD a "Share" tablegroup: share (V2.97) with its slug/target_type/expiry/capability
+   columns and its three CHECK constraints, plus share_annotation, share_comment and
+   share_reaction (V2.99). Note in the group that these are guest-authored rows with an
+   author_name string and NO creator_uuid, which is why they are a separate group from the
+   internal social tables.
+4. UPDATE the changed shapes on existing tables:
+   - attachment: person_uuid (V2.90) and user_uuid (V2.93), bringing its nullable target
+     columns to five; the partial unique index on (user_uuid) WHERE type = 'USER_AVATAR'
+     (V2.93) and the deliberate ABSENCE of one for person_uuid (V2.90 argues why).
+   - person: avatar_attachment_uuid (V2.90), ON DELETE SET NULL, and the person <-> attachment
+     FK cycle it forms.
+   - cluster: reviewed_at / reviewer_uuid (V2.88) — the review AUTHOR, which V2.79 did not add.
+   - notification: the type CHECK gained SHARE_FEEDBACK (V2.99).
+   - attachment_type enum: PERSON_IMAGE (V2.89), USER_AVATAR (V2.92).
+5. Update the Project note's "up to and including V2.xx" line (line 6) to V2.99 and its list
+   of loom_permission values — V2.85, V2.87, V2.94 and V2.96 added eight between them
+   (READ_SEARCH_INDEX, MANAGE_SEARCH_INDEX, READ_DB_INTEGRITY, READ_STORAGE, CREATE_SHARE,
+   READ_SHARE, UPDATE_SHARE, DELETE_SHARE).
+6. Re-verify the way Task 14 did: diff the diagram's tables against CREATE TABLE / DROP TABLE
+   across the whole chain and its enum values against ALTER TYPE, and confirm both diffs are
+   empty, every ref: target resolves, and every table belongs to a tablegroup.
+7. No loom-ui change — this is a design artefact.
+```
+
+**References:** `loom/design/DB/dbdiagram.yaml` · [../loom/DOMAIN.md](../loom/DOMAIN.md) ·
+migrations `V2.85`–`V2.99` · Task 14 (closed 2026-08-09, did the `V2.50`→`V2.84` pass)
+**Test Requirements:** None (documentation). Verify by pasting into dbdiagram.io and
+confirming it renders without parse errors, and by the two empty diffs from step 6.
+
+---
+
+### Task 22: Index the referencing side of the cascade and provenance foreign keys
+
+**Argumentation Summary:** §8 of this file states the rule — *"Index the referencing side of
+every FK you add. Postgres indexes only the referenced side, so without it each parent delete
+seq-scans the child hunting cascade victims."* — and the schema does not follow it. Counting
+against the generated `Keys.java` / `Indexes.java` (which reflect the migrated schema, not the
+SQL text): **252 foreign keys, 158 with no index on the referencing column.** Most are
+`creator_uuid` / `editor_uuid` and only cost on a user delete, but three groups are on paths
+the product exercises routinely:
+
+- **The asset delete cascade.** `V2.72`–`V2.74` and `V2.80` made every asset FK cascade — and
+  added no indexes. `annotation.asset_uuid`, `comment.asset_uuid`, `library_asset.asset_uuid`,
+  `annotation_asset.asset_uuid` and `asset_location.asset_uuid` are all unindexed, so
+  `DELETE /assets/:uuid` seq-scans five tables. `AssetCascadeTest` proves the cascade is
+  *correct*; nothing measures what it costs.
+- **The provenance links.** `run_uuid` and `task_uuid` are unindexed on **all nine**
+  `asset_*_comp` tables and on `detection`, `embedding`, `cluster` and `attachment`
+  (`asset_node_result.run_uuid` is the one exception — `V2.45:57` indexed it). These are
+  `ON DELETE SET NULL`, so pruning one `pipeline_run` scans thirteen tables. This is what the
+  execution-ledger retention work in
+  [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) will run into.
+- **`attachment.binary_sha512sum`**, unindexed, while `asset_uuid`, `detection_uuid`,
+  `person_uuid` and `user_uuid` on the same table all have one — `embedding_uuid` is unindexed
+  too. The newest columns follow the rule and the oldest do not.
+
+**Improvement Summary:** One migration adding the indexes on the paths that are actually
+walked, leaving the pure-audit `creator_uuid`/`editor_uuid` columns alone with a written
+reason.
+
+```
+1. Regenerate the finding before writing SQL — do not trust the list above. Parse
+   loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/Keys.java (createForeignKey) and
+   Indexes.java (createIndex) plus the unique keys, and report every FK whose LEADING column
+   is not the leading column of some existing index. That is the same method that produced
+   these numbers and it re-runs in seconds.
+2. loom/db/flyway/src/main/resources/db/migration/V2.100__cascade_fk_indexes.sql — create,
+   with explicit idx_<table>_<column> names:
+   a) The asset cascade: annotation(asset_uuid), comment(asset_uuid),
+      library_asset(asset_uuid), annotation_asset(asset_uuid), asset_location(asset_uuid).
+   b) The provenance links: (run_uuid) and (task_uuid) on asset_geo_comp, asset_doc_comp,
+      asset_image_comp, asset_video_comp, asset_audio_comp, asset_transcript_comp,
+      asset_json_comp, asset_fingerprint_comp, asset_segment_comp, detection, embedding,
+      cluster, attachment; plus asset_node_result(task_uuid) only — its run_uuid is already
+      indexed by V2.45.
+   c) attachment(binary_sha512sum) and attachment(embedding_uuid).
+   d) The remaining non-actor links a re-run of step 1 reports: comment(parent_uuid),
+      comment(annotation_uuid), comment(task_uuid), reaction(annotation_uuid),
+      reaction(comment_uuid), reaction(task_uuid), asset_task(task_uuid),
+      annotation_tag(tag_uuid), annotation_task(task_uuid), library_collection(collection_uuid),
+      project_collection(collection_uuid), project_library(library_uuid),
+      tag_collection(collection_uuid), tag_cluster(cluster_uuid), user_group(group_uuid),
+      role_group(role_uuid), chat_session(chat_uuid), chat_session(pool_uuid),
+      chat_session_skill(skill_uuid), memory_entry(chat_uuid), library(pool_uuid),
+      attachment_binary(pool_uuid).
+3. DELIBERATELY SKIP every creator_uuid / editor_uuid / reviewer_uuid / locked_by_uuid FK and
+   write the reason into the migration comment: users are not deleted in bulk, these columns
+   are read by uuid rather than scanned, and ~120 single-column indexes would cost more write
+   amplification than they save. State the condition that would reverse the decision (a bulk
+   user-purge feature).
+4. Do NOT touch pipeline_run_item.asset_uuid, pipeline_run.pipeline_version_uuid or
+   pipeline_node_task.leased_by here — Task 16 creates those columns WITH their indexes, and
+   Task 18 owns the partial lease index. Land Task 16 first.
+5. Regenerate jOOQ (loom/db/jooq/generate.sh) — Indexes.java changes — and re-run
+   ./setup-pool.sh with loom/db/flyway installed first.
+6. No loom-ui change — an index changes no response.
+```
+
+**References:** §8 of this file (the rule) · [../guidelines/CODING.md](../guidelines/CODING.md)
+(delete-cascade tests are part of done) · migrations `V2.44`, `V2.45`, `V2.72`–`V2.74`,
+`V2.80`, `V2.90`, `V2.93` · Task 16, Task 18 ·
+[METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) (ledger retention, the consumer
+of the provenance indexes)
+**Test Requirements:** An index changes no results, so there is no new behavioural assertion.
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/AssetCascadeTest.java` and
+`ShareCascadeTest` must stay green — they are the proof the cascades still behave. Record an
+`EXPLAIN (ANALYZE)` of `DELETE FROM asset WHERE uuid = ?` before and after in the migration
+comment. Assert relative to your own fixtures, never absolute counts: the pooled DB is shared
+and pre-populated. `./setup-pool.sh`, then
+`mvn test -pl loom/db/jooq -Dtest='AssetCascadeTest,ShareCascadeTest,AclCascadeTest'`.
+
+---
+
+### Task 23: Drop the duplicate `collection.parent_collection_uuid` foreign key
+
+**Argumentation Summary:** `V2.7__add_collection.sql` declares the same foreign key twice —
+lines 16 and 17 are byte-identical
+(`ALTER TABLE "collection" ADD FOREIGN KEY ("parent_collection_uuid") REFERENCES "collection" ("uuid");`).
+Postgres accepts it and creates two constraints, which is why the generated `Keys.java` carries
+both `collection_parent_collection_uuid_fkey` and `collection_parent_collection_uuid_fkey1`.
+It is the only duplicated FK in the schema — a sweep of all 252 generated foreign keys finds no
+other table with two constraints over the same column set. The cost is small but real: every
+insert and update of `collection.parent_collection_uuid` performs the same referential check
+twice, and a reader of the generated jOOQ or of `\d collection` is left wondering which of the
+two is meaningful and whether they differ.
+
+**Improvement Summary:** Drop the redundant constraint, and index the column while it is open —
+it is unindexed, and a self-referencing parent pointer is walked on every collection tree read.
+
+```
+1. loom/db/flyway/src/main/resources/db/migration/V2.100__collection_parent_fk_cleanup.sql:
+     ALTER TABLE "collection" DROP CONSTRAINT IF EXISTS "collection_parent_collection_uuid_fkey1";
+     CREATE INDEX "idx_collection_parent_collection_uuid"
+       ON "collection" ("parent_collection_uuid");
+   Verify the generated name against pg_constraint first rather than trusting jOOQ's rendering;
+   V2.7 named neither constraint, so both names are Postgres-generated and an installation
+   that ran the migrations in a different order could in principle differ.
+   Write into the file comment that V2.7:16-17 is a duplicated line, so the next reader does
+   not conclude the two constraints once meant different things.
+2. Regenerate jOOQ (loom/db/jooq/generate.sh) — Keys.java loses the ...fkey1 entry, and any
+   code that referenced it by name will fail to compile, which is the point. Re-run
+   ./setup-pool.sh with loom/db/flyway installed first.
+3. No loom-ui change — no DTO field changes.
+```
+
+**References:** migration `V2.7__add_collection.sql:16-17` ·
+`loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/Keys.java` · §8 of this file (the FK index
+rule) · Task 22 (the same rule at scale)
+**Test Requirements:** `loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/dao/CollectionDaoTest.java`
+must stay green, including whatever it asserts about nesting a collection under a parent. Add a
+case that deleting a parent collection behaves as the single remaining constraint says it does
+(`V2.7` declares no ON DELETE action, so the delete is RESTRICTed) — that is the delete-cascade
+test [../guidelines/CODING.md](../guidelines/CODING.md) requires and it does not exist today.
+`./setup-pool.sh`, then `mvn test -pl loom/db/jooq -Dtest=CollectionDaoTest`.
+
+---
+
+### Task 24: Give `vector_config` a primary key, and add the four missing actor foreign keys
+
+**Argumentation Summary:** `V2.6__add_vector_config.sql` creates a table with **no primary key,
+no unique constraint on `uuid`, and no foreign keys at all**, while declaring
+`creator_uuid uuid NOT NULL` and `editor_uuid uuid NOT NULL`. Two things follow. First, the
+codegen consequence is already visible and already blocking:
+`loom/db/jooq/src/jooq/java/io/metaloom/loom/db/jooq/tables/records/JooqVectorConfigRecord.java:29`
+extends **`TableRecordImpl`**, not `UpdatableRecordImpl` (compare `JooqShareRecord:27`), because
+jOOQ has no key to update or delete by — so
+[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6, which asks for a `VectorConfigDao extends
+CRUDDao<VectorConfig>`, **cannot be implemented against this table as it stands**. Second, the
+defect is not theoretical: the runtime integrity report already hunts for its consequences —
+`DbIntegrityCodes.DUPLICATE_VECTOR_CONFIG_UUID` (`RowCountCheck.java:57`) and
+`DANGLING_VECTOR_CONFIG_ACTOR` exist precisely because the schema cannot prevent them. The
+same file carries two more: `DANGLING_TOKEN_EDITOR` and `DANGLING_ASSET_REMIX_EDITOR`
+(`DanglingUserReferenceCheck.java:53,66`) — `V2.1:141` gives `token` a FK for `creator_uuid`
+only, and `V2.8:76-78` does the same for `asset_remix`, so in both tables `editor_uuid` is a
+`NOT NULL uuid` referencing nothing. Detecting a broken invariant at runtime is a fallback for
+data that predates a constraint; here there is no constraint to have predated.
+
+**Improvement Summary:** Add the primary key and the four foreign keys the schema always
+implied, turning three runtime integrity checks into structural impossibilities.
+
+```
+1. Establish that the repair is a no-op before writing it. vector_config has NO writer at all
+   — PERSISTENCE_TASKS.md Task 6 records that a repo-wide grep finds it only under
+   loom/db/jooq/src/jooq/ — so the table is empty on every installation and no dedup or
+   backfill step is needed. Confirm that against a pooled DB rather than assuming it, and for
+   token / asset_remix run the two integrity checks first (GET /api/v1/db-integrity, or call
+   DanglingUserReferenceCheck directly) to see whether any real row would block the
+   constraint.
+2. loom/db/flyway/src/main/resources/db/migration/V2.100__vector_config_constraints.sql:
+     ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_pkey" PRIMARY KEY ("uuid");
+     ALTER TABLE "vector_config" ALTER COLUMN "uuid" SET NOT NULL;   -- if not implied
+     ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_creator_uuid_fkey"
+       FOREIGN KEY ("creator_uuid") REFERENCES "user" ("uuid");
+     ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_editor_uuid_fkey"
+       FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
+   No ON DELETE action, matching detection_creator_uuid_fkey (V2.43) and
+   cluster_reviewer_uuid_fkey (V2.88): users are not deleted casually and losing the author
+   is worse than blocking the delete. If step 1 found rows with a dangling actor, decide
+   between repairing them and relaxing the column to nullable per the V2.47 precedent — and
+   write which, and why, into the file comment.
+3. In the SAME migration, the two omissions of the same shape:
+     ALTER TABLE "token" ADD CONSTRAINT "token_editor_uuid_fkey"
+       FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
+     ALTER TABLE "asset_remix" ADD CONSTRAINT "asset_remix_editor_uuid_fkey"
+       FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
+   V2.1:141 and V2.8:78 declared the creator side and forgot the editor side.
+4. Update spec/features/db/DB_INTEGRITY.md: the three checks stay (they still guard older
+   installations mid-upgrade) but must now record that the schema prevents the condition from
+   V2.100 onward. Do not delete the checks or their tests.
+5. Regenerate jOOQ (loom/db/jooq/generate.sh). JooqVectorConfigRecord becomes an
+   UpdatableRecordImpl — that type change is the unblocking effect and is the thing to verify.
+   Re-run ./setup-pool.sh with loom/db/flyway installed first.
+   ⚠️ If you also land PERSISTENCE_TASKS.md Task 6 in the same change, a new DAO alters the
+   DaoCollection constructor and loom/core must be CLEAN-rebuilt or setup-pool.sh fails with
+   NoSuchMethodError.
+6. No loom-ui change. Checked: nothing under loom-ui/src references vector_config or a vector
+   configuration; the search index admin screen (loom-ui/src/features/admin/SearchIndicesAdmin.tsx)
+   operates on indices, not on this table.
+```
+
+**References:** migrations `V2.6__add_vector_config.sql`, `V2.1__add_acl.sql:141`,
+`V2.8__add_asset.sql:76-78` ·
+[DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) (its opening blockquote lists all
+three as runtime-detected) · [../features/db/DB_INTEGRITY.md](../features/db/DB_INTEGRITY.md) ·
+[PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6 (blocked by this) ·
+[../loom/PERSISTENCE.md](../loom/PERSISTENCE.md)
+**Test Requirements:**
+`loom/db/jooq/src/test/java/io/metaloom/loom/db/jooq/integrity/DbIntegrityServiceTest.java`
+seeds the very rows these constraints forbid in order to assert the findings — **it will fail
+after this migration**, and fixing it is part of the task: the seeding must move to a path the
+constraints permit, or those cases must assert that the insert is now rejected. Same for
+`loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/DbIntegrityEndpointTest.java:104`.
+Add a `VectorConfigDaoTest` only if Task 6 lands with this; otherwise assert the key exists by
+round-tripping an insert and an update through jOOQ. `./setup-pool.sh`, then
+`mvn test -pl loom/db/jooq -Dtest='DbIntegrityServiceTest'` and
+`mvn test -pl loom/core -Dtest=DbIntegrityEndpointTest`.
 
 ---
 
@@ -595,7 +953,9 @@ now contradicts the marked state.
 
 | Item | Owner |
 |---|---|
-| DAO / model / DAO-test gaps (`VectorConfigDao`, `asset_remix` operations, `SpaceDaoTest`, missing cascade suites) | [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Progress Assessment |
+| **`asset_node_result` write path** — `origin` hard-coded to `COMPUTED` in `AbstractMediaNode:149`, no `runUuid`/`taskUuid` on `NodeResultCreateRequest`, `cortex_instance` never joined. The **columns already exist** (`V2.45`); this is a writer gap, not a schema gap | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 18** |
+| **`dedup_group.keep_asset_uuid` vs. `dedup_group_member.role`** — `DedupGroupDaoImpl.updateStatus` never rewrites `role`, and the *"The DAO keeps them consistent"* comment at `V2.61__add_dedup_group.sql:12` is false. Fix the comment there, not here | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 3** |
+| DAO / model / DAO-test gaps (`VectorConfigDao` — **blocked by Task 24**, `asset_remix` operations, `SpaceDaoTest`, missing cascade suites) | [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Progress Assessment |
 | Execution-ledger retention / partitioning — decided, not built (7 days of per-item detail, 30 for failures, the `pipeline_run` row forever) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) · [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §10.1a |
 | `timestamptz` sweep (§8.1) — no migration uses it; converting is a whole-schema change | [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §8.1 |
 | Content-mutation model (§2.2) — a changed file is a different asset and nothing migrates the old row's tags/detections/components; no `superseded_by_uuid` | [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §2.2 |
@@ -669,6 +1029,21 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
   new tables follow suit (converting is out of scope, §6).
 - **jOOQ codegen output is committed** under `loom/db/jooq/src/jooq/java` — regenerate and
   commit it with the migration, or downstream modules fail to compile.
+- 🔴 **Not all of that output is generated.** Five registry files — `Tables.java`, `Keys.java`,
+  `Indexes.java`, `JooqPublic.java`, `DefaultCatalog.java` — and the `JooqLoomPermission` enum
+  are **hand-written** and must be edited by hand when a table, key, index or permission value
+  is added. A new table that is not registered in `Tables.java` is invisible to every DAO.
+- **A table with no single-column primary key generates a `TableRecordImpl`**, not an
+  `UpdatableRecordImpl`, so jOOQ gives it no `update()` or `delete()`. `vector_config` is the
+  live example (Task 24). Any task proposing a **new table** must give it a `uuid PRIMARY KEY`
+  unless it deliberately wants an insert-only record — and must say which.
+- **Sort migration versions numerically, not lexically.** `ls` puts `V2.9` after `V2.99`; the
+  next free version today is `V2.100`. Getting this wrong produces a duplicate-version file.
+- **The pooled test database is shared and pre-populated.** Never assert an absolute row count,
+  or that a table is empty — seed your own fixtures and assert relative to them. A test that
+  passes alone and fails in the suite is almost always this.
+- **A new DAO changes the `DaoCollection` constructor**, which fans out through Dagger:
+  `loom/core` must be **clean**-rebuilt or even `./setup-pool.sh` fails with `NoSuchMethodError`.
 
 ---
 
@@ -701,18 +1076,38 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
       `resource` column are gone
 - [x] **`cluster.name`** (`V2.79`) — `UNIQUE (type, name)`, plus the provenance block, the
       `person_uuid` link and nullable audit columns that let a node write a cluster at all
+- [x] **The review author** (`V2.88`) — `cluster.reviewed_at` / `reviewer_uuid`, so a node
+      re-run can no longer erase which human attributed a face to a person. `V2.81` did the
+      same for `detection`; `ClusterDaoImpl.upsertCluster` excludes both from `DO UPDATE`
+- [x] **Person- and user-owned images** (`V2.89`–`V2.93`) — `attachment.person_uuid` and
+      `attachment.user_uuid`, `person.avatar_attachment_uuid`, and a partial unique index
+      making "one avatar per user" a schema fact. `V2.91` dropped the asset-backed
+      `person_image` gallery and `person.primary_image_uuid` that this replaced
+- [x] **The share model** (`V2.96`–`V2.99`) — `share` plus `share_annotation` /
+      `share_comment` / `share_reaction` for guest feedback, kept apart from the internal
+      social tables because guest rows have an `author_name` and no `creator_uuid`. Full DAO
+      stack (`ShareDao`, `ShareFeedbackDao`) and delete-cascade coverage in `ShareCascadeTest`
 
 ### Open — this file
 
 - [ ] **Task 15** — `user_permission` / `token_permission` primary keys (🔴 HIGH)
+- [ ] **Task 24** — `vector_config` primary key + four missing actor FKs (`vector_config`
+      creator/editor, `token.editor_uuid`, `asset_remix.editor_uuid`)
+      (🔴 HIGH; **blocks** [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6)
 - [ ] **Task 16** — `pipeline_run_item.asset_uuid`, `pipeline_run.pipeline_version_uuid`,
       `pipeline_node_task.leased_by` FKs (🔴 HIGH)
+- [ ] **Task 22** — index the referencing side of the cascade and provenance FKs
+      (158 of 252 FKs unindexed; the asset cascade and the 13 provenance tables are the ones
+      that matter)
 - [ ] **Task 17** — widen `asset_location.filekey_*` to `bigint`
-- [ ] **Task 18** — dispatch index on `pipeline_node_task`
-- [ ] **Task 19** — `asset_doc_comp` producer, or drop the table
+- [ ] **Task 18** — index the lease-holder query; retire the speculative dispatch index
+- [ ] **Task 19** — `asset_doc_comp` producer, or drop the table (**needs loom-ui work**)
+- [ ] **Task 23** — drop the duplicate `collection.parent_collection_uuid` FK
+- [ ] **Task 21** — re-sync `dbdiagram.yaml` from `V2.84` to `V2.99`
 - [ ] **Task 20** — re-sync the resolved findings in `DB_SCHEMA_FEEDBACK.md`
-- [x] **Task 14** — `dbdiagram.yaml` re-synced to `V2.84` (2026-08-09): 80 tables, 138 permission
-      values, both diffs against the migrations empty
+
+Closed tasks are removed rather than marked, so this list is the whole of the open work owned
+here. See §5 for severity order and the blocking relationships.
 
 ### Open — tracked elsewhere
 
@@ -752,7 +1147,8 @@ DAO/test gap have owners outside this file.
 | Test pool provisioning | `./setup-pool.sh` → `io.metaloom.loom.test.PoolSetupRunner` |
 | DAO interfaces / implementations | `loom/db/api/…/db/model/asset/` · `loom/db/jooq/…/dao/asset/comp/` |
 | REST models / services | `loom-shared/rest-model/…/model/asset/` · `loom/services/rest/…/service/impl/` |
-| ER diagram | `loom/design/DB/dbdiagram.yaml` (current through `V2.84`) |
+| ER diagram | `loom/design/DB/dbdiagram.yaml` (**stale — through `V2.84` only, Task 21**) |
+| Which FKs lack an index | parse `Keys.java` + `Indexes.java` under `loom/db/jooq/src/jooq/java/…/db/jooq/` — they reflect the migrated schema, the SQL text does not |
 | Entity inventory | [../loom/DOMAIN.md](../loom/DOMAIN.md) |
 | Persistence layer design | [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) |
 | Open DAO / DAO-test work | [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) |
@@ -760,16 +1156,5 @@ DAO/test gap have owners outside this file.
 | Schema audit (section numbers are an API) | [../features/db/DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) |
 
 ---
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (closed Task 14 — `dbdiagram.yaml` re-synced from `V2.50` to `V2.84`:
-80 tables and 138 permission values, both diffs against the migrations empty, with the three known
-schema defects annotated where a reader meets them. Earlier the same day: task sweep against the
-live schema at `V2.84`. Closed as delivered:
-the vector-storage decision — `V2.75` plus the `VectorIndex` SPI, with `FacedetectNode` as the
-producer — and `cluster.name` uniqueness, `role_permission`'s key and the `tag_asset` placement
-model. Opened Tasks 15–20: the `user_permission`/`token_permission` primary keys `V2.64`
-deferred, the three pipeline soft references, the `filekey_*` widening, the dispatch index, the
-missing `asset_doc_comp` producer and the audit-file re-sync. Task 14 retargeted from `V2.63` to
-`V2.84` with the entities added since. Added §3.1 documenting the shipped `review_status`
-contract four workflow specs call "proposed", §6 listing what is open but owned elsewhere, and
-fixed every relative link — this file moved to `spec/tasks/` and none of them resolved.)_
+_Git HEAD revision: `8c153347`_
+_Last updated: 2026-08-11 (code audit)_

@@ -4,7 +4,7 @@
 > thin status page for the remaining open items.
 >
 > ⚠️ **Superseded**: the authoritative design/spec for this node is
-> [../features/pipeline-nodes/NODE_IMAGEGEN_PLAN.md](../concept/NODE_IMAGEGEN_PLAN.md)
+> [NODE_IMAGEGEN.md](../features/nodes/image-generation/NODE_IMAGEGEN.md)
 > (architecture, ports, options table, gotchas, key-classes reference). Do not add design
 > detail here — put it there. Node catalog: [../features/pipeline-nodes/NODES.md](../features/nodes/NODES.md).
 
@@ -45,9 +45,9 @@
 - [ ] **Commercial-safe default model.** The `ideogram-sidecar` default (SDXL-Turbo) and its
       opt-in Ideogram-4 weights are both non-commercial. Decide whether MIT-licensed Mage-Flow
       becomes the documented default for shipping deployments, and record the decision in
-      `NODE_IMAGEGEN_PLAN.md` §7 and `docs/legal/model-licenses/`.
+      `spec/features/nodes/image-generation/NODE_IMAGEGEN.md` §7 and `docs/legal/model-licenses/`.
 - [ ] **Spec coverage for `sidecars/mage-flow-sidecar`.** It is absent from the whole `spec/`
-      tree; `NODE_IMAGEGEN_PLAN.md` §7 still names only the ideogram sidecar.
+      tree; `spec/features/nodes/image-generation/NODE_IMAGEGEN.md` §7 still names only the ideogram sidecar.
 - [ ] **Prompt templating.** The `IN_PROMPT` port already lets an upstream caption or LLM answer
       drive generation, so caption chaining is done; placeholder substitution inside
       `options.prompt` (e.g. `${caption}`) is still not implemented.

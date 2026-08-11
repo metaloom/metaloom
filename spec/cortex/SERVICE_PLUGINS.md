@@ -10,9 +10,9 @@
 **Scope delineation.** This file covers the Maven module `loom/services/plugins` only.
 It does **not** cover the shipped extension mechanisms — those have their own specs:
 Cortex nodes → [NODES.md](../features/nodes/NODES.md) and [../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md);
-node descriptors → [../pipeline/NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md);
+node descriptors → [NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md);
 MCP tools → [../../loom/MCP.md](../loom/MCP.md);
-scripted logic → [NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md).
+scripted logic → [NODE_SCRIPT.md](../features/nodes/script/NODE_SCRIPT.md).
 
 ---
 
@@ -83,7 +83,7 @@ file, no classpath scan, no `URLClassLoader`, no directory watcher, no jar loadi
 no sandbox, no permission gate. A plugin would today run — if anything loaded it — on the flat
 application classpath with full JVM privileges. The only sandboxing that exists in Loom is unrelated:
 the agent coding sandbox (`loom/agent/sandbox`, podman/kubernetes) and the GraalJS script node
-([NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md)).
+([NODE_SCRIPT.md](../features/nodes/script/NODE_SCRIPT.md)).
 
 ## 5. Extension points the module hooks into
 
@@ -214,9 +214,9 @@ When the subsystem gets real code, follow the repo conventions:
 
 1. **Do not "extend the plugin system" — there isn't one.** A request to "add a plugin" almost always
    means one of: a Cortex node ([../../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md)), a node
-   descriptor provider ([../pipeline/NODE_SCHEMA_CONCEPT.md](../concept/NODE_SCHEMA_CONCEPT.md)), an
+   contract declared with `@NodeSpec` ([NODE_SCHEMA.md](../features/pipeline/NODE_SCHEMA.md)), an
    MCP tool ([../../loom/MCP.md](../loom/MCP.md)), or a script node
-   ([NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md)). Route there first.
+   ([NODE_SCRIPT.md](../features/nodes/script/NODE_SCRIPT.md)). Route there first.
 2. **The `/plugins` volume is a trap.** It exists in every container image, in the Helm chart and in
    the public Docker playbook, which makes the subsystem look shipped. No Java code opens that path.
 3. **The module is built but not linked.** Because no pom depends on `loom-service-plugins`, adding
@@ -248,7 +248,7 @@ When the subsystem gets real code, follow the repo conventions:
 | An example of extending MetaLoom | `examples/cortex-custom-node/` (node), `examples/cortex-custom/` (daemon), `examples/cortex-python/` (Python worker); `examples/README.md` |
 | How a custom node persists results | `POST /api/v1/assets/:uuid/json-comps` → `asset_json_comp`; see `examples/cortex-custom-node/README.md` and [NODES.md](../features/nodes/NODES.md) |
 | The "API key" primitive | `loom/services/rest/.../endpoint/impl/TokenEndpoint.java` (`/api/v1/tokens`), [../../loom/RESTAPI.md](../loom/RESTAPI.md) §3 |
-| Sandboxing prior art | `loom/agent/sandbox/` (podman/k8s), GraalJS script node [NODE_SCRIPT_PLAN.md](../concept/NODE_SCRIPT_PLAN.md) |
+| Sandboxing prior art | `loom/agent/sandbox/` (podman/k8s), GraalJS script node [NODE_SCRIPT.md](../features/nodes/script/NODE_SCRIPT.md) |
 | The module map for all of Loom | [../../loom/LOOM.md](../loom/LOOM.md) §"services/*", [../../METALOOM.md](../METALOOM.md) |
 | Rules before changing code here | [../../guidelines/CODING.md](../guidelines/CODING.md), [../../SPEC_RULES.md](../guidelines/SPEC_RULES.md) |
 

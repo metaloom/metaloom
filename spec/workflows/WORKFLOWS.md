@@ -230,7 +230,7 @@ belong to the subsystems they sit on:
 
 | Variable | Default | Which workflow it gates |
 |---|---|---|
-| `LOOM_SIMILARITY_ENABLED` | off | Dedup — without it `NoopSimilarityIndex` is bound and discovery finds nothing ([../concept/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md)) |
+| `LOOM_SIMILARITY_ENABLED` | off | Dedup — without it `NoopSimilarityIndex` is bound and discovery finds nothing ([SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md)) |
 | `LOOM_SEARCH_ENABLED` / `_PROVIDER` | off / — | Curation and metadata repair — the queue is a search result; off ⇒ 503 |
 | `LOOM_AI_ENABLED` / `_PROVIDER_TYPE` / `_URL` / `_MODEL_ID` | — | AI review — the producer side of the queue |
 | `CORTEX_NODE_WHITELIST` / `_BLACKLIST` | — | Any workflow whose producer node is disabled on the only online worker. A run whose kinds have no worker is rejected with **503** naming them |

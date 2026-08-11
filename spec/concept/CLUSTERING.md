@@ -119,7 +119,7 @@ through V2.63). The authority over a live run remains an in-heap `PipelineRunEng
 2. 🔴 **The failure is silent by design.** `SimilarityModule` catches every failure path — disabled,
    unwritable path, unopenable index, any exception — and binds `NoopSimilarityIndex` rather than
    failing boot; similarity is a capability, not a dependency
-   ([features/search/LUCENE_PLAN.md](LUCENE_PLAN.md) §3). The instance starts normally
+   ([SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §4). The instance starts normally
    and every similar-assets route answers **503**. Nothing else about that instance looks wrong, so
    behind a load balancer the symptom presents as "duplicate detection stopped working on *some*
    requests" — the shape of bug that costs a day.
@@ -156,7 +156,7 @@ So a future clustering effort does not "fix" it twice:
 | **Agent memory** | Postgres-backed on purpose; `LOOM_AGENT_MEMORY_MOUNT_PATH` is a path *inside the Session Runner container*, not server-local disk. [features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
 | **Lexical search** | Postgres `tsvector` maintained by DB triggers; no per-instance index by deliberate choice. [features/search/SEARCH.md](../features/search/SEARCH.md) §2 |
 | **OAuth2 / PKCE** | `OAuth2EndpointService` keeps the PKCE verifier and OAuth state in `__Host-` cookies, not a server-side map — no affinity needed. |
-| **Everything in Postgres** | assets, components, pipelines, RBAC, the dedup review model. [features/pipeline-nodes/NODE_DEDUP_PLAN.md](NODE_DEDUP_PLAN.md) |
+| **Everything in Postgres** | assets, components, pipelines, RBAC, the dedup review model. [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) |
 | **Cortex workers** | Stateless; identity is `CORTEX_NODE_ID`. |
 
 ---
@@ -281,7 +281,7 @@ directory or a live run it does not own. The current silence is the real hazard.
 | **Heap-counter quotas** | ⚠️ `SandboxOrchestrator.maxConcurrent` and `PipelineRunEngine`'s per-kind caps are `map.size()` / `int` checks. Every such limit silently becomes **N× configured**, and reads as a config bug rather than a topology bug when it happens. |
 | **Metrics are per-instance** | ⚠️ `loom_processors_connected` and `loom_pipeline_event_subscribers` are gauges bound to *local* collections (`processors::size`, `subscribers::size`). Under N>1 they must be summed across scrape targets, never read as a fleet total. [features/ops/MONITORING.md](../features/ops/MONITORING.md) |
 | **Local EventBus** | ⚠️ `vertx.eventBus()` reaches handlers in this JVM only. `vertx-hazelcast` sits in root `<dependencyManagement>` and is on no runtime classpath — do not infer clustering from a pinned version. |
-| **Tests boot a server per method** | ⚠️ Anything the server opens exclusively (an index, a lock file, a fixed port) needs per-test isolation. See [features/search/LUCENE_PLAN.md](LUCENE_PLAN.md) §9. |
+| **Tests boot a server per method** | ⚠️ Anything the server opens exclusively (an index, a lock file, a fixed port) needs per-test isolation. See [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §9. |
 | **Cortex ≠ Loom** | ⚠️ Cortex scaling is supported and unrelated. Do not generalise this document to workers. |
 
 ---
@@ -291,7 +291,7 @@ directory or a live run it does not own. The current silence is the real hazard.
 | Need | Look here |
 |---|---|
 | Why `replicaCount` must stay 1 | `helm/loom/values.yaml:7`; [features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) |
-| The index-lock rule and its rebuild escape hatch | [features/search/LUCENE_PLAN.md](LUCENE_PLAN.md) §4, §9 |
+| The index-lock rule and its rebuild escape hatch | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §7, §9 |
 | Why Lucene was rejected for *lexical* search | [features/search/SEARCH.md](../features/search/SEARCH.md) §2 |
 | S3 pools / the shared-binary story | [features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md); `loom/services/s3`, migration `V2.63__library_storage_pool.sql` |
 | Clustered-EventBus TODOs | [loom/EVENTBUS.md](../loom/EVENTBUS.md); `loom/services/eventbus/README.md` |

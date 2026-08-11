@@ -58,7 +58,7 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 | 5 | AI / ML | Embedding, Cluster, Detection, Person, Vector Config |
 | 6 | Agent | Chat, Chat Session, Skill, Skill Version, Memory Entry, Memory Deny Rule |
 | 7 | Pipeline / Processing (Cortex) | Pipeline, Pipeline Version, Pipeline Run, Run Item, Node Task, Cortex Instance |
-| 8 | Collaboration / Social | Task, Comment, Reaction, Notification |
+| 8 | Collaboration / Social | Task, Comment, Reaction, Notification, Share, Share Comment, Share Annotation, Share Reaction |
 | 9 | Search | Search Document, Search Document Deleted |
 | 10 | Deduplication | Dedup Group, Dedup Group Member |
 | 11 | System | Loom |
@@ -179,6 +179,14 @@ are ON DELETE SET NULL; `asset_uuid` is ON DELETE CASCADE.
 | **Comment** | `comment` | Threaded comment on a task, asset or annotation. A comment about an asset dies with the asset (V2.74), taking its reply subtree and the reactions on it (V2.35); comments on tasks and annotations are unaffected. | self-parent (CASCADE V2.35); → Task/Asset (CASCADE V2.74)/Annotation (CASCADE V2.48) | V2.17, V2.74 |
 | **Reaction** | `reaction` | Social reaction/rating (e.g. thumbsup) on asset, task, comment or annotation. A reaction to an asset dies with it (V2.74); reactions on tasks, comments and annotations are unaffected. | → Asset (CASCADE V2.74)/Task/Comment (CASCADE V2.35)/Annotation | V2.17, V2.74 |
 | **Notification** | `notification` | One durable inbox entry for **one** user. `recipient_uuid` is always a concrete user: a group notification is **fanned out to one row per member at dispatch time**, deliberately the opposite choice to `task_assignee`, because "you were told" is a historical fact while ownership is a live one. `type` is a varchar + CHECK (∈ TASK_ASSIGNED, TASK_UNASSIGNED, TASK_STATUS_CHANGED, TASK_COMMENT, COMMENT_REPLY, PIPELINE_RUN_FAILED) rather than an enum — V2.55 shows what removing an enum value costs. `creator_uuid` is the **actor**, not the recipient, and is nullable for machine-generated events. Subject FKs CASCADE (a bell row that deep-links to a 404 is worse than none); actor and group SET NULL. | → User (recipient CASCADE, actor SET NULL), Task/Comment/PipelineRun/Asset (CASCADE), Group (SET NULL) | V2.70 |
+| **Share** | `share` | A capability URL over one asset or one collection, openable **without a Loom account**. Carries the bcrypt password hash, an expiry, five per-link capability toggles, and the name the first visitor gave. The row is the authority: expiry, password and capabilities are re-read on every request rather than baked into the token the visitor carries, so revoking a link takes effect immediately. `slug` is 128 random bits in base64url - never the uuid, and never containing a dot (`UIService` would route it to the static handler). **The owner FKs are `ON DELETE SET NULL`**: deleting a user must not delete their shares. | → Asset/Collection (CASCADE), User (creator/editor **SET NULL**) | V2.97 |
+| **Share Comment** | `share_comment` | A comment left through a share link. One level of replies, optionally anchored to a Share Annotation. No `creator_uuid` at all - the author is a name a visitor typed, denormalised onto the row as a historical fact. | → Share/Asset/self-parent/ShareAnnotation (all CASCADE) | V2.99 |
+| **Share Annotation** | `share_annotation` | A mark a visitor drew: a timecode, a region, or both. Coordinates are **normalised 0..1** and times are **seconds as a float**, where `annotation` stores pixels and whole seconds - a responsive full-bleed viewer has no fixed pixel frame, and an integer second is 25 frames of ambiguity. A CHECK requires each kind to carry the geometry it names. | → Share/Asset (CASCADE) | V2.99 |
+| **Share Reaction** | `share_reaction` | A visitor's verdict on an asset, guest comment or guest mark. Its own vocabulary (APPROVE/REJECT/...), not `ReactionType`. Uniqueness is `(share_uuid, type, subject)` via three partial indexes - the share stands in for the creator, because identity here is the link. | → Share/Asset/ShareComment/ShareAnnotation (CASCADE) | V2.99 |
+
+> The four share entities are deliberately **not** reusing `comment`, `reaction` and `annotation`.
+> All three of those declare `creator_uuid uuid NOT NULL REFERENCES "user"`, and a share visitor has
+> no user row and must not be given one. Full argument: [../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) §7.1.
 
 ### 9. Search
 
@@ -497,7 +505,7 @@ ledger row in `asset_node_result`. "The node ran and produced nothing" is expres
 | REST paths & permissions per entity | [RESTAPI.md](RESTAPI.md) |
 | Binary upload / pool routing | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) |
 | Node/port model, node results | [../cortex/CORTEX.md](../cortex/CORTEX.md) |
-| Dedup review workflow | [../features/pipeline-nodes/NODE_DEDUP_PLAN.md](../concept/NODE_DEDUP_PLAN.md) |
+| Dedup review workflow | [NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) |
 | Open schema questions | `spec/features/DB_SCHEMA_FEEDBACK.md`, [PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
 | Test DB pool setup | `./setup-pool.sh` (`io.metaloom.loom.test.PoolSetupRunner`) |
 | Spec index / routing | [../CONTEXT.md](../CONTEXT.md) |

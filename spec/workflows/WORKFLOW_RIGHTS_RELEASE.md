@@ -22,7 +22,7 @@ built · 🔵 plan · 🔴 defect · ⚪ stub.
 | Fixing wrong rights metadata | [WORKFLOW_METADATA_REPAIR.md](WORKFLOW_METADATA_REPAIR.md) |
 | The mechanics of writing metadata into a file | [../concept/ASSET_METADATA_WRITE.md](../concept/ASSET_METADATA_WRITE.md) |
 | Pricing, contracts, customers | ➜ sibling repo `metaloom-saas` |
-| Where an exported file physically goes | [../concept/NODE_S3SINK_PLAN.md](../concept/NODE_S3SINK_PLAN.md) |
+| Where an exported file physically goes | [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md) |
 
 ⚠️ **This file specifies a capability, not legal advice.** "Cleared" means "an accountable person
 recorded a decision against stated evidence". Whether that decision is legally sufficient is the

@@ -11,7 +11,7 @@ Covers the **Loom server** configuration system: `loom.yml`, the `Option` tree i
 | Helm chart values → env wiring | [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) |
 | Binary storage backends, pools, S3 semantics | [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) §5, §11 |
 | Search behaviour behind `search.*` | [../features/search/SEARCH.md](../features/search/SEARCH.md) |
-| Similarity index behind `similarity.*` | [../features/search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) |
+| Similarity index behind `similarity.*` | [SEARCH_LUCENE.md](SEARCH_LUCENE.md) |
 | Chat agent / memory bank behaviour behind `ai.*`, `memory.*` | [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) |
 | MCP auth behaviour behind `auth.mcpAuth*` | [MCP.md](MCP.md) |
 
@@ -283,6 +283,9 @@ nothing is lost, but nothing is indexed until one of the two runs.
 | Variable | Default | Read by | Purpose |
 |----------|---------|---------|---------|
 | `LOOM_WS_STRICT_AUTH` | `false` | `WebSocketAuthenticator` | Require a `?token=` on every WebSocket handshake. JVM property `loom.ws.strictAuth` wins over it. **Not** an option field and not validated |
+| `LOOM_PROCESSOR_EXPIRY_ENABLED` | `true` | `ProcessorPresenceReaper` | Sweep for Cortex workers that stopped heartbeating. JVM property `loom.processor.expiryEnabled` wins over it. **Not** an option field and not validated |
+| `LOOM_PROCESSOR_HEARTBEAT_INTERVAL_MS` | `10000` | `ProcessorPresenceReaper` | Expected heartbeat cadence, and the sweep interval. Property `loom.processor.heartbeatIntervalMs`. A non-positive or unparseable value falls back to the default |
+| `LOOM_PROCESSOR_MISSED_HEARTBEATS` | `6` | `ProcessorPresenceReaper` | Beats a worker may miss before eviction; tolerance is the product of the two (60 s). Property `loom.processor.missedHeartbeats` |
 | `LOOM_NAME` | random "adjective Noun" | `LoomNameProvider` | Instance name used in log patterns. JVM property `loom.name` wins over it |
 | `LOOM_UI_DIR` | `../loom-ui` | `E2ETest` (test only) | Location of the built UI for the e2e suite |
 
@@ -296,7 +299,7 @@ nothing is lost, but nothing is indexed until one of the two runs.
 
 ### 4.15 Read in code but undocumented outside this file
 
-`LOOM_WS_STRICT_AUTH`, `LOOM_BINARY_DIR` (as an alias), the whole `LOOM_SEARCH_*` and
+`LOOM_WS_STRICT_AUTH`, the `LOOM_PROCESSOR_*` family, `LOOM_BINARY_DIR` (as an alias), the whole `LOOM_SEARCH_*` and
 `LOOM_SIMILARITY_*` families, and most of `LOOM_AGENT_SANDBOX_*` / `LOOM_AGENT_MEMORY_*` are not
 surfaced by the Helm chart at all — set them through `.Values.extraEnv` /
 `.Values.ai.extraEnv` / `.Values.sandbox.extraEnv`.
@@ -460,6 +463,7 @@ therefore yields an invalid tree.
 | `LoomServerRunner` | `io.metaloom.loom.container.server` | `main`, `--validate-config`, exit codes |
 | `LoomNameProvider` | `io.metaloom.loom.log` | `LOOM_NAME` / `loom.name` instance naming |
 | `WebSocketAuthenticator` | `io.metaloom.loom.rest.service.impl` | `LOOM_WS_STRICT_AUTH` / `loom.ws.strictAuth` |
+| `ProcessorPresenceReaper` | `io.metaloom.loom.rest.service.impl` | `LOOM_PROCESSOR_EXPIRY_ENABLED` / `_HEARTBEAT_INTERVAL_MS` / `_MISSED_HEARTBEATS` |
 
 ---
 
@@ -501,6 +505,7 @@ therefore yields an invalid tree.
 | `--validate-config`, exit codes | `loom/containers/server/src/main/java/io/metaloom/loom/container/server/LoomServerRunner.java` |
 | Keystore resolution from `baseConfigFolder` | `loom/services/auth/auth-jwt/src/main/java/io/metaloom/loom/auth/jwt/AuthModule.java` |
 | `LOOM_WS_STRICT_AUTH` handling | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/WebSocketAuthenticator.java` |
+| `LOOM_PROCESSOR_*` handling | `loom/services/rest/src/main/java/io/metaloom/loom/rest/service/impl/ProcessorPresenceReaper.java` |
 | `LOOM_NAME` handling | `loom/common/src/main/java/io/metaloom/loom/log/LoomNameProvider.java` |
 | Kubernetes sandbox env (`KUBERNETES_SERVICE_*`) | `loom/agent/sandbox/src/main/java/io/metaloom/loom/agent/sandbox/backend/KubernetesBackend.java` |
 | Example configs | `e2e-test/config/loom.yml`, `loom/containers/server/config/loom.yml` |
@@ -607,7 +612,7 @@ enabled/disabled gate, and an assertion that secrets are not echoed
 - [WEBSOCKET.md](WEBSOCKET.md) — behaviour behind `LOOM_WS_STRICT_AUTH`
 - [../features/helm/HELM_LOOM.md](../features/helm/HELM_LOOM.md) — chart values → env mapping
 - [../features/rest/REST_BINARY_HANDLING.md](../features/rest/REST_BINARY_HANDLING.md) — `storage.*` and `s3.*` in context
-- [../features/search/SEARCH.md](../features/search/SEARCH.md), [../features/search/LUCENE_PLAN.md](../concept/LUCENE_PLAN.md) — `search.*`, `similarity.*`
+- [../features/search/SEARCH.md](../features/search/SEARCH.md), [SEARCH_LUCENE.md](SEARCH_LUCENE.md) — `search.*`, `similarity.*`
 - [../features/chat/CHAT_MEMORY_PLAN.md](../features/chat/CHAT_MEMORY_PLAN.md) — `ai.*`, `memory.*`, `sandbox.*`
 - [../cortex/CONFIGURATION.md](../cortex/CONFIGURATION.md) — the separate Cortex configuration system
 - [../guidelines/CODING.md](../guidelines/CODING.md) — definition of done for a code change

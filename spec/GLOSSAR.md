@@ -172,6 +172,10 @@ when they disagree, the code wins and this file gets fixed in the same change
 | **Task** | Loom | A workflow item (title, status PENDING/REJECTED/ACCEPTED/REVIEW, priority, due date) attachable to assets and annotations. Unrelated to a pipeline **Node Task**. |
 | **Comment** | Loom | A threaded comment on a task, asset or annotation. |
 | **Reaction** | Loom | A social reaction/rating (e.g. thumbsup) on an asset, task, comment or annotation. |
+| **Share / Share Link** | Loom | A capability URL that lets somebody with no Loom account view one asset or one collection. Optionally password-protected and time-limited. |
+| **Slug** | Loom | The public half of a share link - 128 random bits in base64url, appearing in the URL in place of a uuid. |
+| **Share Session** | Loom | The opaque token a share visitor holds after satisfying a link's password. Not a JWT, and not an account: it grants nothing by itself. |
+| **Share Visitor** | Loom | Whoever opens a share link. Identified only by the name given on the first visit, which is stored on the share row - one link is one identity. |
 
 ---
 
