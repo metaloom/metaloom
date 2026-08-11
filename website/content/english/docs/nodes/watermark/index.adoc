@@ -63,7 +63,7 @@ overlay's own pixel dimensions instead, which will look different on every resol
 .The node's settings in the pipeline editor
 image::config.png[The Watermark settings panel: Watermark Image (base64), Horizontal Position, Vertical Position and 8 more settings,role="ml-panel-shot"]
 
-`WatermarkNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

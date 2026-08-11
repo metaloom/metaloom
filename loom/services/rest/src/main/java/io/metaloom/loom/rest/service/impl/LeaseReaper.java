@@ -124,24 +124,59 @@ public class LeaseReaper {
 	 * @return how many tasks were handed back to an engine
 	 */
 	public int sweep(Instant now, int limit) {
-		List<PipelineNodeTask> expired = taskDao.loadExpiredLeases(now, limit);
-		if (expired.isEmpty()) {
+		return reclaimAll(taskDao.loadExpiredLeases(now, limit), limit, "with lapsed leases", "Lease sweep");
+	}
+
+	/**
+	 * Hand back everything a departed worker still holds, without waiting out its leases.
+	 *
+	 * <p>Waiting is what the timed sweep is for, and it is the wrong answer once the worker
+	 * is <em>known</em> to be gone — evicted for silence, or its socket closed. Each task
+	 * would then cost a full, deliberately generous lease before anything moved, and the
+	 * lease exists to tolerate a worker that is merely slow, not one that has been struck
+	 * off the fleet.</p>
+	 *
+	 * <p>This shares the timed sweep's reclaim path, so the "duplicate work is possible, and
+	 * preferred" contract above holds here unchanged: a task this reclaims that the timed
+	 * sweep is concurrently reclaiming reaches the same engine, and an engine ignores a loss
+	 * reported against an execution that has already settled.</p>
+	 *
+	 * @param nodeId the departed worker
+	 * @param limit  maximum tasks to reclaim for it
+	 * @return how many tasks were handed back to an engine
+	 */
+	public int reclaimWorker(String nodeId, int limit) {
+		if (nodeId == null || nodeId.isBlank()) {
 			return 0;
 		}
+		return reclaimAll(taskDao.loadLeasedBy(nodeId, limit), limit, "held by departed worker '" + nodeId + "'",
+			"Reclaim of '" + nodeId + "'");
+	}
 
+	/**
+	 * @param tasks the batch to hand back
+	 * @param limit the bound the batch was read under, so a truncated read can be reported
+	 * @param what  how to describe the batch in the reclaim log line
+	 * @param who   how to describe the caller in the truncation warning
+	 * @return how many tasks were handed back to an engine
+	 */
+	private int reclaimAll(List<PipelineNodeTask> tasks, int limit, String what, String who) {
+		if (tasks.isEmpty()) {
+			return 0;
+		}
 		int reclaimed = 0;
-		for (PipelineNodeTask task : expired) {
+		for (PipelineNodeTask task : tasks) {
 			if (reclaim(task)) {
 				reclaimed++;
 			}
 		}
 		if (reclaimed > 0) {
 			metrics.recordLeasesReclaimed(reclaimed);
-			log.warn("Reclaimed {} task(s) with lapsed leases", reclaimed);
+			log.warn("Reclaimed {} task(s) {}", reclaimed, what);
 		}
-		if (expired.size() == limit) {
+		if (tasks.size() == limit) {
 			// Say so rather than let a truncated sweep read as "nothing more to do".
-			log.warn("Lease sweep hit its limit of {} - more expired tasks remain", limit);
+			log.warn("{} hit its limit of {} - more tasks remain", who, limit);
 		}
 		return reclaimed;
 	}

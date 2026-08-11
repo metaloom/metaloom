@@ -28,6 +28,15 @@ import io.metaloom.video.facedetect.dlib.DLibFacedetector;
 import io.metaloom.video.facedetect.dlib.impl.DLibFacedetectorImpl;
 import io.metaloom.video.facedetect.inspireface.InspireFacedetector;
 
+/**
+ * Wiring for the {@code facedetect} and {@code facedescription} kinds.
+ *
+ * <p>
+ * {@link FacedetectNode} is deliberately <strong>not</strong> {@code @Singleton}: it is a {@code PipelineConfigurable} and {@code configure(...)}
+ * stores the pipeline node's own clustering radius on the instance. Two face-detection nodes in one graph legitimately cluster at different radii, and
+ * sharing an instance would have the second silently retune the first.
+ * </p>
+ */
 @Module
 public abstract class FacedetectNodeModule extends AbstractNodeModule {
 

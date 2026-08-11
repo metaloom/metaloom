@@ -41,7 +41,7 @@ strategy — the per-scene breakdown, so the timeline is available for search an
 .The node's settings in the pipeline editor
 image::config.png[The Image Captioning settings panel, which offers only the common node fields,role="ml-panel-shot"]
 
-`CaptioningNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

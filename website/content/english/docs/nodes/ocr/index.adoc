@@ -24,7 +24,7 @@ recognized text is stored so it can be indexed and searched.
 .The node's settings in the pipeline editor
 image::config.png[The OCR settings panel, which offers only the common node fields,role="ml-panel-shot"]
 
-`OCRNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

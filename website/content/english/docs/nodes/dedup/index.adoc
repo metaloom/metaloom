@@ -81,7 +81,8 @@ rather than in a worker's configuration is the point: it is visible to whoever d
 .The node's settings in the pipeline editor
 image::config.png[The Deduplication settings panel,role="ml-panel-shot"]
 
-The apply step (`DedupNodeOptions`):
+The apply step. Set these in the panel above, or in the node's `options` block in a
+pipeline definition:
 
 [options="header",cols="1,2"]
 |===

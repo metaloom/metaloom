@@ -24,7 +24,8 @@ the UI a fast visual summary of the content.
 .The node's settings in the pipeline editor
 image::config.png[The Thumbnail Generator settings panel: Grid Columns, Grid Rows, Tile Size (px),role="ml-panel-shot"]
 
-`ThumbnailNodeOptions` control the contact-sheet layout:
+These settings control the contact-sheet layout. Set them in the panel above, or in the
+node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

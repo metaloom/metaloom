@@ -24,7 +24,7 @@ import io.metaloom.utils.hash.SHA512;
  *
  * <p>
  * The interesting part is the <b>write path</b>: posting a fingerprint component must make the asset findable, because the index is maintained by a hook
- * on the component write. That is what makes the derived index usable at all - see spec/features/search/LUCENE_PLAN.md §4.
+ * on the component write. That is what makes the derived index usable at all - see spec/loom/SEARCH_LUCENE.md §4.
  * </p>
  */
 public class SimilarAssetsEndpointTest extends AbstractEndpointTest {

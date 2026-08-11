@@ -84,6 +84,14 @@ public class LoomClientRequestImpl<T extends RestResponseModel<T>> implements Lo
 		if (token != null) {
 			builder.header("Authorization", "Bearer " + token);
 		}
+		// The share session travels in its own header rather than as a bearer token. The public share routes are
+		// not behind the authentication handler at all, so an Authorization header would be ignored there - and
+		// putting a share credential in the same slot as a user's JWT is exactly the confusion this feature is
+		// built to avoid.
+		String shareSessionToken = loomClient.getShareSessionToken();
+		if (shareSessionToken != null) {
+			builder.header("X-Loom-Share-Session", shareSessionToken);
+		}
 		return builder.build();
 	}
 

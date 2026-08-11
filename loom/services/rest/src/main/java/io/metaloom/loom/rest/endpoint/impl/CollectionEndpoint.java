@@ -15,17 +15,21 @@ import io.metaloom.loom.rest.AbstractEndpoint;
 import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.model.ModelExamples;
 import io.metaloom.loom.rest.service.impl.CollectionEndpointService;
+import io.metaloom.loom.rest.service.impl.ShareLinkEndpointService;
 
 public class CollectionEndpoint extends AbstractEndpoint {
 
 	private static final Logger log = LoggerFactory.getLogger(CollectionEndpoint.class);
 	private final CollectionEndpointService service;
+	private final ShareLinkEndpointService shareService;
 	private final ModelExamples examples;
 
 	@Inject
-	public CollectionEndpoint(CollectionEndpointService service, EndpointDependencies deps, ModelExamples examples) {
+	public CollectionEndpoint(CollectionEndpointService service, ShareLinkEndpointService shareService, EndpointDependencies deps,
+		ModelExamples examples) {
 		super(deps);
 		this.service = service;
+		this.shareService = shareService;
 		this.examples = examples;
 	}
 
@@ -118,6 +122,14 @@ public class CollectionEndpoint extends AbstractEndpoint {
 			examples.assetListResponseExample(),
 			lrc -> {
 				service.listAssets(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// The links that publish this collection.
+		addListRoute(basePath() + "/:uuid/share-links", GET,
+			"Load a paged list of the share links pointing at this collection",
+			examples.shareListResponseExample(),
+			lrc -> {
+				shareService.listByCollection(lrc, lrc.pathParamUUID("uuid"));
 			});
 	}
 

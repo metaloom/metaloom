@@ -180,6 +180,42 @@ public class NotificationDispatcher {
 			n -> n.setPipelineRunUuid(runUuid));
 	}
 
+	/**
+	 * A share visitor left feedback on a link.
+	 *
+	 * <p>
+	 * The only trigger whose actor is not a Loom user, so {@code actorUuid} is null and nothing is suppressed - the link's owner is told even though
+	 * the dispatcher cannot name who acted. The visitor's chosen name goes in the title instead, which is also why it is passed in rather than
+	 * resolved: there is no user row to resolve it from.
+	 * </p>
+	 *
+	 * <p>
+	 * The subject is the shared <b>asset</b> when there is one, so the bell entry deep-links to material the owner can actually open. A share of a
+	 * collection has no single asset to point at and carries none, which the inbox renders as an entry without a link.
+	 * </p>
+	 *
+	 * @param ownerUuid
+	 *            the user who created the link, or null when that account has since been deleted - in which case nobody is notified
+	 * @param visitorName
+	 *            how the visitor identified themselves
+	 * @param targetName
+	 *            the shared asset or collection, for the title
+	 * @param assetUuid
+	 *            the asset the feedback is about, or null
+	 * @param body
+	 *            what they said, when they said anything
+	 */
+	public void shareFeedbackLeft(UUID ownerUuid, String visitorName, String targetName, UUID assetUuid, String body) {
+		if (ownerUuid == null) {
+			return;
+		}
+		dispatch(NotificationType.SHARE_FEEDBACK, null,
+			List.of(ownerUuid),
+			visitorName + " left feedback on \"" + targetName + "\"",
+			body,
+			n -> n.setAssetUuid(assetUuid));
+	}
+
 	// ── Core ──────────────────────────────────────────────────────────────
 
 	/**

@@ -39,7 +39,8 @@ operating the installation.
 * *Library* — browse assets grouped into libraries
 * *Assets* — grid/list browser with search, status and type filters, plus a rich per-asset detail view
 * *Uploads* — multi-file drag-and-drop ingest with per-file progress that keeps running in the background
-* *Collections* — organise assets into colour-coded collections
+* *Collections* — organise assets into colour-coded collections, and share one with somebody
+  outside your installation (see link:../loom/sharing/[Sharing])
 * *Tasks* — a Kanban-style task board with priority, status, due dates and per-asset tasks
 * *Detection* — review face, object and LLM detections; manage face clusters and persons
 * *Tags* — manage tags grouped by collection

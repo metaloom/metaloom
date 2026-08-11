@@ -17,7 +17,7 @@ import io.metaloom.loom.api.search.SimilarityIndex;
  * <p>
  * Similarity is a capability, not a dependency: a missing index must never stop Loom from booting or break unrelated routes. Every mutation is a
  * no-op and {@link #query} returns an empty list. {@link #isAvailable()} returns {@code false} so the endpoint can <b>reject</b> queries with a clear
- * reason rather than silently returning "no duplicates" (see LUCENE_PLAN.md §5).
+ * reason rather than silently returning "no duplicates" (see spec/loom/SEARCH_LUCENE.md §5).
  * </p>
  */
 public class NoopSimilarityIndex implements SimilarityIndex {

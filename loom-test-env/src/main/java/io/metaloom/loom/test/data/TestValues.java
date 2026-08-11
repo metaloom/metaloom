@@ -101,6 +101,14 @@ public interface TestValues {
 
 	public static final UUID COLLECTION_UUID = UUID.fromString("5293b186-64e9-4713-8565-97d6a5ac22a6");
 
+	public static final UUID SHARE_UUID = UUID.fromString("9c1f6b2e-05d7-4f3a-b8e1-6a7c4d29e310");
+
+	/**
+	 * The fixture share's slug. Deliberately not random: a test that reads a share by slug needs a stable one, and 22 characters of base64url is the
+	 * shape the generator produces.
+	 */
+	public static final String SHARE_SLUG = "fixtureShareSlug000001";
+
 	public static final UUID REACTION_1_UUID = UUID.fromString("b24b03d3-67e3-482a-8bcc-fbf3eb6fefd1");
 
 	public static final UUID REACTION_2_UUID = UUID.fromString("213295ec-a851-4257-b687-1a358498a642");

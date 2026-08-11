@@ -37,6 +37,17 @@ public enum NotificationType {
 	 * signal. See {@code spec/chat/AGENTIC_NODE_EXECUTION.md}.
 	 * </p>
 	 */
-	NODE_RUN_COMPLETED;
+	NODE_RUN_COMPLETED,
+
+	/**
+	 * Somebody reviewing a share link left a comment or drew a mark on the material.
+	 *
+	 * <p>
+	 * The only notification whose actor is not a Loom user - a share visitor has no account - so the row carries a null {@code creator_uuid} and the
+	 * inbox renders the visitor's chosen name from the title instead. Fired once per piece of feedback; the recipient is the person who created the
+	 * link, and nobody at all when that account has since been deleted.
+	 * </p>
+	 */
+	SHARE_FEEDBACK;
 
 }

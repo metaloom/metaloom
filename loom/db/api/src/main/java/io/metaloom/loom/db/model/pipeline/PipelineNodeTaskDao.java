@@ -74,6 +74,20 @@ public interface PipelineNodeTaskDao extends CRUDDao<PipelineNodeTask> {
 	long countByRunAndState(UUID runUuid, NodeTaskState state);
 
 	/**
+	 * Which tasks a worker currently holds, across all runs.
+	 *
+	 * <p>The counterpart to {@link #loadExpiredLeases}, keyed on the worker rather than on
+	 * the clock. When a worker is known to be gone — its socket closed, or it stopped
+	 * heartbeating and was evicted — waiting out each lease individually hands the work
+	 * back one generous timeout at a time, and hands it back to a worker that is no longer
+	 * there. This is the query that lets a departure re-place its work at once.</p>
+	 *
+	 * @param processorNodeId the worker identity leases are keyed on
+	 * @param limit           maximum rows to return, so one departure cannot become an outage
+	 */
+	List<PipelineNodeTask> loadLeasedBy(String processorNodeId, int limit);
+
+	/**
 	 * How many tasks a worker currently holds, across all runs.
 	 *
 	 * <p>Feeds the per-worker in-flight cap so one worker cannot be handed more than

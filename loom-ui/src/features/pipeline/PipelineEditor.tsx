@@ -1764,7 +1764,20 @@ function NodeDetailSidebar({
                                 fullWidth
                                 type={isInt || isFloat ? "number" : "text"}
                                 value={String(fieldValue ?? "")}
-                                inputProps={{ "data-testid": `pipeline-node-param-${param.key}` }}
+                                inputProps={{
+                                  "data-testid": `pipeline-node-param-${param.key}`,
+                                  // Spread conditionally: a bound of 0 is meaningful, and passing
+                                  // min/max/step as undefined on a text field emits stray attributes.
+                                  ...(isInt || isFloat
+                                    ? {
+                                      ...(param.min !== undefined ? { min: param.min } : {}),
+                                      ...(param.max !== undefined ? { max: param.max } : {}),
+                                      // Without an explicit step the browser assumes 1, which makes a
+                                      // 0-2 radius unreachable with the spinner and flags 0.6 invalid.
+                                      ...(param.step !== undefined ? { step: param.step } : { step: isFloat ? "any" : 1 }),
+                                    }
+                                    : {}),
+                                }}
                                 onChange={e => {
                                   let val: unknown = e.target.value;
                                   if (isInt) val = e.target.value === "" ? "" : parseInt(e.target.value, 10);

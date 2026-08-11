@@ -7,7 +7,7 @@ import io.metaloom.loom.rest.model.NoResponse;
 import io.metaloom.loom.rest.model.similarity.SimilarAssetListResponse;
 
 /**
- * Client access to the fingerprint similarity routes (see spec/features/search/LUCENE_PLAN.md).
+ * Client access to the fingerprint similarity routes (see spec/loom/SEARCH_LUCENE.md).
  *
  * <p>
  * Drives the near-duplicate discovery performed by the {@code fingerprint-dedup} node.

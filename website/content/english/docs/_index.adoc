@@ -190,8 +190,8 @@ The MetaLoom platform revolves around a small set of concepts that appear throug
 	<div class="col-md-6 col-xl-4 mb-4">
 		<div class="note p-4 h-100">
 			<h3>API and Client</h3>
-			<p>Loom exposes a REST API, clients for Java and Python, and the <code>metaloom</code> command line client for creating assets, authenticating, managing users and orchestrating processing workflows.</p>
-			<p><a href="loom/rest-api/">REST API</a> · <a href="loom/java-client/">Java Client</a> · <a href="loom/python-client/">Python Client</a> · <a href="cli/">Command Line</a></p>
+			<p>Loom exposes a REST API, clients for Java and Python, the <code>metaloom</code> command line client, and an MCP server that connects AI clients such as Claude Desktop straight to your library.</p>
+			<p><a href="loom/rest-api/">REST API</a> · <a href="loom/java-client/">Java Client</a> · <a href="loom/python-client/">Python Client</a> · <a href="cli/">Command Line</a> · <a href="loom/mcp/">MCP Server</a></p>
 		</div>
 	</div>
 	<div class="col-md-6 col-xl-4 mb-4">

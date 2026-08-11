@@ -110,4 +110,25 @@ test.describe("Cortex live updates – mocked", () => {
     pushProcessorEvent(ws, "STATUS_UPDATED", "node-2", proc("node-2", "cortex-cpu-02", { cpu: 77 }));
     await expect(page.getByTestId("worker-card-node-2")).toContainText("CPU 77%", { timeout: 5_000 });
   });
+
+  test("a worker evicted by the presence sweep leaves online without dropping its card", async ({ page }) => {
+    await mockRest(page);
+    const { registered, ready } = mockEventsSocket(page);
+    await registered;
+    await loginAndOpenCortex(page);
+
+    const ws = await ready;
+    await expect(page.getByTestId("worker-status-node-1")).toHaveText("online");
+
+    // Exactly what ProcessorPresenceReaper produces for a worker that stopped heartbeating:
+    // the shared eviction path emits STATE_CHANGED(OFFLINE) and then DISCONNECTED. No socket
+    // closed and no reload happened - the frames are the only signal the view gets.
+    pushProcessorEvent(ws, "STATE_CHANGED", "node-1", proc("node-1", "cortex-gpu-01", { state: "OFFLINE", cpu: 0, caps: ["GPU", "CPU"] }));
+    pushProcessorEvent(ws, "DISCONNECTED", "node-1");
+
+    await expect(page.getByTestId("worker-status-node-1")).toHaveText("offline", { timeout: 5_000 });
+    // The card stays: the instance is persisted, and an operator still has to be able to see
+    // and edit the restrictions of a worker that just went away.
+    await expect(page.getByTestId("worker-card-node-1")).toContainText("cortex-gpu-01");
+  });
 });

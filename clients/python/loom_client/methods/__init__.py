@@ -49,6 +49,7 @@ from .role import RoleMethods
 from .search import SearchMethods
 from .search_index import SearchIndexMethods
 from .segment_comp import SegmentCompMethods
+from .share import ShareMethods
 from .similarity import SimilarityMethods
 from .skill import SkillMethods
 from .space import SpaceMethods
@@ -97,6 +98,7 @@ ALL_METHOD_GROUPS: tuple[type, ...] = (
     SearchIndexMethods,
     SearchMethods,
     SegmentCompMethods,
+    ShareMethods,
     SimilarityMethods,
     SkillMethods,
     SpaceMethods,
@@ -145,6 +147,7 @@ __all__ = [
     "SearchIndexMethods",
     "SearchMethods",
     "SegmentCompMethods",
+    "ShareMethods",
     "SimilarityMethods",
     "SkillMethods",
     "SpaceMethods",

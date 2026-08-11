@@ -17,6 +17,12 @@ public abstract class AbstractLoomClient implements LoomHttpClient {
 	protected String token;
 
 	/**
+	 * The customer-facing share credential, kept apart from {@link #token} on purpose - see
+	 * {@link LoomHttpClient#getShareSessionToken()}.
+	 */
+	protected String shareSessionToken;
+
+	/**
 	 * @param scheme
 	 * @param hostname
 	 * @param port
@@ -79,6 +85,16 @@ public abstract class AbstractLoomClient implements LoomHttpClient {
 	@Override
 	public String getToken() {
 		return token;
+	}
+
+	@Override
+	public void setShareSessionToken(String shareSessionToken) {
+		this.shareSessionToken = shareSessionToken;
+	}
+
+	@Override
+	public String getShareSessionToken() {
+		return shareSessionToken;
 	}
 
 	@Override

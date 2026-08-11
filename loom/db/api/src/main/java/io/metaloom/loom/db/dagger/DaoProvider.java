@@ -11,6 +11,8 @@ import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.share.ShareDao;
+import io.metaloom.loom.db.model.share.ShareFeedbackDao;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
@@ -106,6 +108,14 @@ public interface DaoProvider extends DaoCollection {
 
 	default CollectionDao collectionDao() {
 		return daos().collectionDao();
+	}
+
+	default ShareDao shareDao() {
+		return daos().shareDao();
+	}
+
+	default ShareFeedbackDao shareFeedbackDao() {
+		return daos().shareFeedbackDao();
 	}
 
 	default BlacklistDao blacklistDao() {

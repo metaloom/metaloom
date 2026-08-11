@@ -126,6 +126,18 @@ public class PipelineNodeTaskDaoImpl extends AbstractJooqDao<PipelineNodeTask> i
 	}
 
 	@Override
+	public List<PipelineNodeTask> loadLeasedBy(String processorNodeId, int limit) {
+		return ctx().selectFrom(PIPELINE_NODE_TASK)
+			.where(PIPELINE_NODE_TASK.STATE.eq(STATE_RUNNING))
+			.and(PIPELINE_NODE_TASK.LEASED_BY.eq(processorNodeId))
+			// Oldest lease first, so a truncated sweep reclaims the work that has been
+			// stranded longest rather than an arbitrary slice of it.
+			.orderBy(PIPELINE_NODE_TASK.LEASE_EXPIRES_AT.asc())
+			.limit(limit)
+			.fetchInto(getPojoClass());
+	}
+
+	@Override
 	public long countLeasedBy(String processorNodeId) {
 		return ctx().fetchCount(PIPELINE_NODE_TASK,
 			PIPELINE_NODE_TASK.STATE.eq(STATE_RUNNING).and(PIPELINE_NODE_TASK.LEASED_BY.eq(processorNodeId)));

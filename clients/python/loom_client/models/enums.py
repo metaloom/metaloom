@@ -82,6 +82,7 @@ class NotificationType(str, Enum):
     COMMENT_REPLY = "COMMENT_REPLY"
     PIPELINE_RUN_FAILED = "PIPELINE_RUN_FAILED"
     NODE_RUN_COMPLETED = "NODE_RUN_COMPLETED"
+    SHARE_FEEDBACK = "SHARE_FEEDBACK"
 
 
 class PipelineEventType(str, Enum):

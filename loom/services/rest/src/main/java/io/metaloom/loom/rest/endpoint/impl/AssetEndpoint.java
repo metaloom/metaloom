@@ -28,6 +28,7 @@ import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
 import io.metaloom.loom.rest.service.impl.ClusterEndpointService;
 import io.metaloom.loom.rest.service.impl.CollectionEndpointService;
+import io.metaloom.loom.rest.service.impl.ShareLinkEndpointService;
 import io.metaloom.loom.rest.service.impl.LibraryEndpointService;
 import io.metaloom.loom.rest.service.impl.DedupGroupEndpointService;
 import io.metaloom.loom.rest.service.impl.SegmentCompEndpointService;
@@ -61,6 +62,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 
 	private final ClusterEndpointService clusterService;
 	private final CollectionEndpointService collectionService;
+	private final ShareLinkEndpointService shareService;
 	private final LibraryEndpointService libraryService;
 	private final ModelExamples examples;
 
@@ -82,6 +84,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		ClusterEndpointService clusterService,
 		CollectionEndpointService collectionService,
 		LibraryEndpointService libraryService,
+		ShareLinkEndpointService shareService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
@@ -102,6 +105,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.dedupGroupService = dedupGroupService;
 		this.clusterService = clusterService;
 		this.collectionService = collectionService;
+		this.shareService = shareService;
 		this.libraryService = libraryService;
 		this.examples = examples;
 	}
@@ -313,6 +317,15 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.collectionListResponseExample(),
 			lrc -> {
 				collectionService.listCollectionsOfAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// The links that publish this asset. Read-only here: creating one needs a target type, so it goes through
+		// POST /share-links rather than being implied by the path.
+		addListRoute(basePath() + "/:uuid/share-links", GET,
+			"Load a paged list of the share links pointing at this asset",
+			examples.shareListResponseExample(),
+			lrc -> {
+				shareService.listByAsset(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		addListRoute(basePath() + "/:uuid/libraries", GET,

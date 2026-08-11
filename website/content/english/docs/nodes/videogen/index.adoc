@@ -30,7 +30,7 @@ model runtime of its own. The shipped sidecar serves **LTX-2**, which fits a sin
 .The node's settings in the pipeline editor
 image::config.png[The Video Generation settings panel: Mode, Prompt, Negative Prompt and 12 more settings,role="ml-panel-shot"]
 
-`VideoGenNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

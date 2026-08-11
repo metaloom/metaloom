@@ -120,6 +120,12 @@
     "name" : "sessions",
     "description" : "Files of a chat's coding sandbox session"
   }, {
+    "name" : "share-links",
+    "description" : "Share links: create, change, revoke, and read what a customer said through one"
+  }, {
+    "name" : "shares",
+    "description" : "The customer-facing area. Unauthenticated - opened with a share link, and authorized by the link itself rather than by a Loom account"
+  }, {
     "name" : "similarity-index"
   }, {
     "name" : "skills",
@@ -8151,6 +8157,202 @@
         }
       } ]
     },
+    "/api/v1/assets/{uuid}/share-links" : {
+      "description" : "Load a paged list of the share links pointing at this asset",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Load a paged list of the share links pointing at this asset",
+        "description" : "Load a paged list of the share links pointing at this asset",
+        "operationId" : "getAssetsByUuidSharelinks",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The share link list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                    "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                    "targetType" : "COLLECTION",
+                    "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "targetName" : "Autumn campaign - rough cuts",
+                    "passwordProtected" : true,
+                    "expired" : false,
+                    "expiresAt" : 1.542744721084E9,
+                    "allowDownload" : true,
+                    "showMetadata" : true,
+                    "allowComments" : true,
+                    "allowReactions" : true,
+                    "allowAnnotations" : true,
+                    "visitorName" : "Maria from Acme",
+                    "firstVisitedAt" : 1.539353706024E9,
+                    "lastViewedAt" : 1.542744721084E9,
+                    "viewCount" : 4,
+                    "feedbackCount" : 7
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                    "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                    "targetType" : "COLLECTION",
+                    "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "targetName" : "Autumn campaign - rough cuts",
+                    "passwordProtected" : true,
+                    "expired" : false,
+                    "expiresAt" : 1.542744721084E9,
+                    "allowDownload" : true,
+                    "showMetadata" : true,
+                    "allowComments" : true,
+                    "allowReactions" : true,
+                    "allowAnnotations" : true,
+                    "visitorName" : "Maria from Acme",
+                    "firstVisitedAt" : 1.539353706024E9,
+                    "lastViewedAt" : 1.542744721084E9,
+                    "viewCount" : 4,
+                    "feedbackCount" : 7
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/assets/{uuid}/similar-assets" : {
       "description" : "Find near-duplicate assets by perceptual fingerprint similarity. Excludes the asset itself.",
       "get" : {
@@ -15866,6 +16068,202 @@
         }
       } ]
     },
+    "/api/v1/collections/{uuid}/share-links" : {
+      "description" : "Load a paged list of the share links pointing at this collection",
+      "get" : {
+        "tags" : [ "collections" ],
+        "summary" : "Load a paged list of the share links pointing at this collection",
+        "description" : "Load a paged list of the share links pointing at this collection",
+        "operationId" : "getCollectionsByUuidSharelinks",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The share link list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                    "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                    "targetType" : "COLLECTION",
+                    "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "targetName" : "Autumn campaign - rough cuts",
+                    "passwordProtected" : true,
+                    "expired" : false,
+                    "expiresAt" : 1.542744721084E9,
+                    "allowDownload" : true,
+                    "showMetadata" : true,
+                    "allowComments" : true,
+                    "allowReactions" : true,
+                    "allowAnnotations" : true,
+                    "visitorName" : "Maria from Acme",
+                    "firstVisitedAt" : 1.539353706024E9,
+                    "lastViewedAt" : 1.542744721084E9,
+                    "viewCount" : 4,
+                    "feedbackCount" : 7
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                    "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                    "targetType" : "COLLECTION",
+                    "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "targetName" : "Autumn campaign - rough cuts",
+                    "passwordProtected" : true,
+                    "expired" : false,
+                    "expiresAt" : 1.542744721084E9,
+                    "allowDownload" : true,
+                    "showMetadata" : true,
+                    "allowComments" : true,
+                    "allowReactions" : true,
+                    "allowAnnotations" : true,
+                    "visitorName" : "Maria from Acme",
+                    "firstVisitedAt" : 1.539353706024E9,
+                    "lastViewedAt" : 1.542744721084E9,
+                    "viewCount" : 4,
+                    "feedbackCount" : 7
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
     "/api/v1/comments" : {
       "description" : "Create new comment",
       "get" : {
@@ -23275,7 +23673,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "3317fa70-8f6e-4295-94a0-06f5d48fa812",
+                    "versionUuid" : "d18071c5-80dc-41a7-82ac-c88d7832550a",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23302,7 +23700,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "8e4f4224-6992-4efa-a953-acaf5a95ed7b",
+                    "versionUuid" : "ba5eab6b-ac90-4a99-8393-daced47423fb",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23409,7 +23807,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "7f17888e-7e58-40cf-8950-e5eb598b0941",
+                  "versionUuid" : "31bb2818-9177-41e5-8529-050cfbd52dc7",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23495,7 +23893,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "aa8dff4d-bf21-4b86-a0ff-4bff71343abe",
+                  "versionUuid" : "07cab25f-5933-491a-9129-b4b586b685e0",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23602,7 +24000,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "ae9b35d3-7b80-4f0c-8e4d-0ba7e030a086",
+                  "versionUuid" : "03a00b7a-e6da-4bc6-8787-909840faaa49",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23764,7 +24162,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "029af3f9-3110-4214-a020-b02a005b4c81",
+                  "runUuid" : "4ef0a790-b460-42a3-bf85-b601a74b027a",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -23890,11 +24288,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "9ee7adb0-cf58-40d1-9550-ff024104be97",
-                    "pipelineUuid" : "5e487521-06e1-4aa9-be08-96aaa1e39eaf",
+                    "uuid" : "0ecb40e1-38d5-4fb1-a18d-a83634c75b73",
+                    "pipelineUuid" : "c1f5bc9d-1e33-42f8-ad81-a0caedbbd58f",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-10T20:55:59.662806828Z",
-                    "finished" : "2026-08-10T20:55:59.663192358Z",
+                    "started" : "2026-08-11T21:25:20.852093434Z",
+                    "finished" : "2026-08-11T21:25:20.852191034Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -23903,11 +24301,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "e7fc7733-c53e-4a71-9b1b-0f8fd79da402",
-                    "pipelineUuid" : "aafecd05-c84a-49cb-b5f9-0a64a884a7b0",
+                    "uuid" : "9beafce8-1b49-4fc3-9a45-4584457d1fb2",
+                    "pipelineUuid" : "20117c56-d97d-43b8-878e-74e4c892255f",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-10T20:55:59.663708139Z",
-                    "finished" : "2026-08-10T20:55:59.663731129Z",
+                    "started" : "2026-08-11T21:25:20.852331323Z",
+                    "finished" : "2026-08-11T21:25:20.852336113Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -24000,11 +24398,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "1126e120-76f9-485e-8ae9-72e42e5609d9",
-                  "pipelineUuid" : "f4e397d4-e9ec-48b1-897c-2996cfd9d6e1",
+                  "uuid" : "b7251947-3a38-4019-891c-0d909faa64f6",
+                  "pipelineUuid" : "4e6249fc-f8ce-4b14-aa19-749a45a2c343",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-10T20:55:59.667307321Z",
-                  "finished" : "2026-08-10T20:55:59.667331201Z",
+                  "started" : "2026-08-11T21:25:20.853067189Z",
+                  "finished" : "2026-08-11T21:25:20.853074079Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -24494,16 +24892,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "869c2f4a-b60e-4160-a7a2-db5539a5aa20",
-                    "runUuid" : "e522a2a0-252f-41d7-bc20-231992a45e38",
+                    "uuid" : "c4b7705c-1b58-43c9-be52-342344e6f3c3",
+                    "runUuid" : "56943ecc-e347-4360-9440-a4132023d9d8",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "d3fbbd0f-1843-4e49-b4de-abfa04758433",
-                    "runUuid" : "5a3cf492-d34f-449b-8034-850c61720d1a",
+                    "uuid" : "88ddd964-11bc-4a64-857c-19e71ae3b5f2",
+                    "runUuid" : "39687310-7ee4-4370-bd77-88eb5665a47c",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -24604,9 +25002,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "b666fd27-9985-46a5-9a34-01f25dedc962",
-                    "itemUuid" : "c54ca1f8-567c-4225-9a37-76395c713ef6",
-                    "runUuid" : "194b0dd5-c76b-4adb-a61a-c706d541efaa",
+                    "uuid" : "a1bea1c8-3c40-47ba-9654-e2095d3e7645",
+                    "itemUuid" : "538baffa-877d-4948-9511-d2248d102b8a",
+                    "runUuid" : "d021551c-8438-435d-b6cf-1df362bf8bdd",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -25272,7 +25670,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "2b0f9980-31a4-46f0-8dd6-5943ec054961",
+                    "versionUuid" : "eff72c0a-bc47-4c8e-9cbe-ad7cb0643f1d",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25299,7 +25697,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "54804131-70bb-4568-b2ff-148e496a24b6",
+                    "versionUuid" : "38b847e2-d0a6-480f-82dd-ab193f432d02",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25410,7 +25808,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "36ab90f1-1f30-40c3-9b03-cf837779a51d",
+                  "versionUuid" : "e6b6c38b-f3ea-4569-8448-7d0846d77e1c",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -25535,7 +25933,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "1665888e-1b0d-4c3a-a773-d44de0434ec1",
+                  "versionUuid" : "4d0472c7-d990-4f87-9095-e0a0cac2bbd4",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",
@@ -29038,6 +29436,1840 @@
         "schema" : {
           "type" : "string",
           "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/share-links" : {
+      "description" : "Create a share link over an asset or a collection",
+      "get" : {
+        "tags" : [ "share-links" ],
+        "summary" : "Load a paged list of share links",
+        "description" : "Load a paged list of share links",
+        "operationId" : "getSharelinks",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The share link list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                    "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                    "targetType" : "COLLECTION",
+                    "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "targetName" : "Autumn campaign - rough cuts",
+                    "passwordProtected" : true,
+                    "expired" : false,
+                    "expiresAt" : 1.542744721084E9,
+                    "allowDownload" : true,
+                    "showMetadata" : true,
+                    "allowComments" : true,
+                    "allowReactions" : true,
+                    "allowAnnotations" : true,
+                    "visitorName" : "Maria from Acme",
+                    "firstVisitedAt" : 1.539353706024E9,
+                    "lastViewedAt" : 1.542744721084E9,
+                    "viewCount" : 4,
+                    "feedbackCount" : 7
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                    "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                    "targetType" : "COLLECTION",
+                    "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "targetName" : "Autumn campaign - rough cuts",
+                    "passwordProtected" : true,
+                    "expired" : false,
+                    "expiresAt" : 1.542744721084E9,
+                    "allowDownload" : true,
+                    "showMetadata" : true,
+                    "allowComments" : true,
+                    "allowReactions" : true,
+                    "allowAnnotations" : true,
+                    "visitorName" : "Maria from Acme",
+                    "firstVisitedAt" : 1.539353706024E9,
+                    "lastViewedAt" : 1.542744721084E9,
+                    "viewCount" : 4,
+                    "feedbackCount" : 7
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "share-links" ],
+        "summary" : "Create a share link over an asset or a collection",
+        "description" : "Create a share link over an asset or a collection",
+        "operationId" : "postSharelinks",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "meta" : {
+                  "abc" : "cdef"
+                },
+                "targetType" : "COLLECTION",
+                "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                "password" : "wander-lamp-42",
+                "expiresAt" : 1.542744721084E9,
+                "allowDownload" : true,
+                "showMetadata" : true,
+                "allowComments" : true,
+                "allowReactions" : true,
+                "allowAnnotations" : true
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The share link response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                  "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                  "targetType" : "COLLECTION",
+                  "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "targetName" : "Autumn campaign - rough cuts",
+                  "passwordProtected" : true,
+                  "expired" : false,
+                  "expiresAt" : 1.542744721084E9,
+                  "allowDownload" : true,
+                  "showMetadata" : true,
+                  "allowComments" : true,
+                  "allowReactions" : true,
+                  "allowAnnotations" : true,
+                  "visitorName" : "Maria from Acme",
+                  "firstVisitedAt" : 1.539353706024E9,
+                  "lastViewedAt" : 1.542744721084E9,
+                  "viewCount" : 4,
+                  "feedbackCount" : 7
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/share-links/{uuid}" : {
+      "description" : "Update a share link - its expiry, its password, or what the visitor may do",
+      "get" : {
+        "tags" : [ "share-links" ],
+        "summary" : "Load a share link",
+        "description" : "Load a share link",
+        "operationId" : "getSharelinksByUuid",
+        "responses" : {
+          "200" : {
+            "description" : "The share link response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                  "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                  "targetType" : "COLLECTION",
+                  "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "targetName" : "Autumn campaign - rough cuts",
+                  "passwordProtected" : true,
+                  "expired" : false,
+                  "expiresAt" : 1.542744721084E9,
+                  "allowDownload" : true,
+                  "showMetadata" : true,
+                  "allowComments" : true,
+                  "allowReactions" : true,
+                  "allowAnnotations" : true,
+                  "visitorName" : "Maria from Acme",
+                  "firstVisitedAt" : 1.539353706024E9,
+                  "lastViewedAt" : 1.542744721084E9,
+                  "viewCount" : 4,
+                  "feedbackCount" : 7
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "share-links" ],
+        "summary" : "Update a share link - its expiry, its password, or what the visitor may do",
+        "description" : "Update a share link - its expiry, its password, or what the visitor may do",
+        "operationId" : "postSharelinksByUuid",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "expiresAt" : 1.542744721084E9,
+                "allowDownload" : false
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The share link response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "slug" : "k3Rm2pQwXbN7vTsLd9aYc1",
+                  "url" : "https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1",
+                  "targetType" : "COLLECTION",
+                  "targetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "targetName" : "Autumn campaign - rough cuts",
+                  "passwordProtected" : true,
+                  "expired" : false,
+                  "expiresAt" : 1.542744721084E9,
+                  "allowDownload" : true,
+                  "showMetadata" : true,
+                  "allowComments" : true,
+                  "allowReactions" : true,
+                  "allowAnnotations" : true,
+                  "visitorName" : "Maria from Acme",
+                  "firstVisitedAt" : 1.539353706024E9,
+                  "lastViewedAt" : 1.542744721084E9,
+                  "viewCount" : 4,
+                  "feedbackCount" : 7
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "share-links" ],
+        "summary" : "Revoke a share link. The URL stops working immediately and any feedback left through it is removed",
+        "description" : "Revoke a share link. The URL stops working immediately and any feedback left through it is removed",
+        "operationId" : "deleteSharelinksByUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/share-links/{uuid}/feedback" : {
+      "description" : "Load the comments, marks and reactions a visitor left through this link",
+      "get" : {
+        "tags" : [ "share-links" ],
+        "summary" : "Load the comments, marks and reactions a visitor left through this link",
+        "description" : "Load the comments, marks and reactions a visitor left through this link",
+        "operationId" : "getSharelinksByUuidFeedback",
+        "responses" : {
+          "200" : {
+            "description" : "Everything the visitor said, for the owner",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "visitorName" : "Maria from Acme",
+                  "comments" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "text" : "The second cut runs long - can we lose the establishing shot?",
+                    "authorName" : "Maria from Acme",
+                    "created" : 1.539353706024E9,
+                    "edited" : 1.539353706024E9
+                  } ],
+                  "annotations" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "kind" : "SPATIOTEMPORAL",
+                    "timeFrom" : 14.25,
+                    "timeTo" : 19.5,
+                    "areaX" : 0.42,
+                    "areaY" : 0.18,
+                    "areaWidth" : 0.16,
+                    "areaHeight" : 0.22,
+                    "text" : "The logo is clipped on the right here.",
+                    "authorName" : "Maria from Acme",
+                    "created" : 1.539353706024E9,
+                    "edited" : 1.539353706024E9
+                  } ],
+                  "reactions" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "type" : "APPROVE",
+                    "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "authorName" : "Maria from Acme",
+                    "created" : 1.542744721084E9
+                  } ]
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}" : {
+      "description" : "What a share link asks for before it will open - whether it needs a password, and what kind of material is behind it",
+      "get" : {
+        "tags" : [ "shares" ],
+        "summary" : "What a share link asks for before it will open - whether it needs a password, and what kind of material is behind it",
+        "description" : "What a share link asks for before it will open - whether it needs a password, and what kind of material is behind it",
+        "operationId" : "getSharesBySlug",
+        "responses" : {
+          "200" : {
+            "description" : "What an unopened share link tells a visitor",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "targetType" : "COLLECTION",
+                  "passwordRequired" : true,
+                  "visitorNameKnown" : false
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/annotations" : {
+      "description" : "The marks drawn through this link. Narrow to one asset with ?asset=<uuid>",
+      "get" : {
+        "tags" : [ "shares" ],
+        "summary" : "The marks drawn through this link. Narrow to one asset with ?asset=<uuid>",
+        "description" : "The marks drawn through this link. Narrow to one asset with ?asset=<uuid>",
+        "operationId" : "getSharesBySlugAnnotations",
+        "responses" : {
+          "200" : {
+            "description" : "The guest annotations on a share",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "kind" : "SPATIOTEMPORAL",
+                    "timeFrom" : 14.25,
+                    "timeTo" : 19.5,
+                    "areaX" : 0.42,
+                    "areaY" : 0.18,
+                    "areaWidth" : 0.16,
+                    "areaHeight" : 0.22,
+                    "text" : "The logo is clipped on the right here.",
+                    "authorName" : "Maria from Acme",
+                    "created" : 1.539353706024E9,
+                    "edited" : 1.539353706024E9
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "post" : {
+        "tags" : [ "shares" ],
+        "summary" : "Mark a moment, a region, or a region over a stretch of time",
+        "description" : "Mark a moment, a region, or a region over a stretch of time",
+        "operationId" : "postSharesBySlugAnnotations",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                "kind" : "SPATIOTEMPORAL",
+                "timeFrom" : 14.25,
+                "timeTo" : 19.5,
+                "areaX" : 0.42,
+                "areaY" : 0.18,
+                "areaWidth" : 0.16,
+                "areaHeight" : 0.22,
+                "text" : "The logo is clipped on the right here."
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "A guest annotation",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "kind" : "SPATIOTEMPORAL",
+                  "timeFrom" : 14.25,
+                  "timeTo" : 19.5,
+                  "areaX" : 0.42,
+                  "areaY" : 0.18,
+                  "areaWidth" : 0.16,
+                  "areaHeight" : 0.22,
+                  "text" : "The logo is clipped on the right here.",
+                  "authorName" : "Maria from Acme",
+                  "created" : 1.539353706024E9,
+                  "edited" : 1.539353706024E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/annotations/{annotationUuid}" : {
+      "description" : "Move or retitle a mark drawn through this link",
+      "post" : {
+        "tags" : [ "shares" ],
+        "summary" : "Move or retitle a mark drawn through this link",
+        "description" : "Move or retitle a mark drawn through this link",
+        "operationId" : "postSharesBySlugAnnotationsByAnnotationUuid",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                "kind" : "SPATIOTEMPORAL",
+                "timeFrom" : 14.25,
+                "timeTo" : 19.5,
+                "areaX" : 0.42,
+                "areaY" : 0.18,
+                "areaWidth" : 0.16,
+                "areaHeight" : 0.22,
+                "text" : "The logo is clipped on the right here."
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "A guest annotation",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "kind" : "SPATIOTEMPORAL",
+                  "timeFrom" : 14.25,
+                  "timeTo" : 19.5,
+                  "areaX" : 0.42,
+                  "areaY" : 0.18,
+                  "areaWidth" : 0.16,
+                  "areaHeight" : 0.22,
+                  "text" : "The logo is clipped on the right here.",
+                  "authorName" : "Maria from Acme",
+                  "created" : 1.539353706024E9,
+                  "edited" : 1.539353706024E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "delete" : {
+        "tags" : [ "shares" ],
+        "summary" : "Remove a mark drawn through this link",
+        "description" : "Remove a mark drawn through this link",
+        "operationId" : "deleteSharesBySlugAnnotationsByAnnotationUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "annotationUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced annotation",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/assets" : {
+      "description" : "The material behind a share link",
+      "get" : {
+        "tags" : [ "shares" ],
+        "summary" : "The material behind a share link",
+        "description" : "The material behind a share link",
+        "operationId" : "getSharesBySlugAssets",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The assets behind a share link",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "filename" : "autumn-cut-02.mp4",
+                    "mimeType" : "video/mp4",
+                    "size" : 184320512,
+                    "duration" : 92.5,
+                    "width" : 1920,
+                    "height" : 1080,
+                    "title" : "Autumn campaign, cut 2",
+                    "description" : "Second assembly, no grade yet.",
+                    "created" : 1.539353706024E9
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/assets/{assetUuid}" : {
+      "description" : "One shared asset",
+      "get" : {
+        "tags" : [ "shares" ],
+        "summary" : "One shared asset",
+        "description" : "One shared asset",
+        "operationId" : "getSharesBySlugAssetsByAssetUuid",
+        "responses" : {
+          "200" : {
+            "description" : "One asset as a share visitor sees it",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "filename" : "autumn-cut-02.mp4",
+                  "mimeType" : "video/mp4",
+                  "size" : 184320512,
+                  "duration" : 92.5,
+                  "width" : 1920,
+                  "height" : 1080,
+                  "title" : "Autumn campaign, cut 2",
+                  "description" : "Second assembly, no grade yet.",
+                  "created" : 1.539353706024E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "assetUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced asset",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/assets/{assetUuid}/binary/data" : {
+      "description" : "Stream the bytes of a shared asset. Inline by default; add ?download=1 to receive it as a file",
+      "get" : {
+        "tags" : [ "shares" ],
+        "summary" : "Stream the bytes of a shared asset. Inline by default; add ?download=1 to receive it as a file",
+        "description" : "Stream the bytes of a shared asset. Inline by default; add ?download=1 to receive it as a file",
+        "operationId" : "getSharesBySlugAssetsByAssetUuidBinaryData",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "assetUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced asset",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/comments" : {
+      "description" : "The comments left through this link. Narrow to one asset with ?asset=<uuid>",
+      "get" : {
+        "tags" : [ "shares" ],
+        "summary" : "The comments left through this link. Narrow to one asset with ?asset=<uuid>",
+        "description" : "The comments left through this link. Narrow to one asset with ?asset=<uuid>",
+        "operationId" : "getSharesBySlugComments",
+        "responses" : {
+          "200" : {
+            "description" : "The guest comments on a share",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "text" : "The second cut runs long - can we lose the establishing shot?",
+                    "authorName" : "Maria from Acme",
+                    "created" : 1.539353706024E9,
+                    "edited" : 1.539353706024E9
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "post" : {
+        "tags" : [ "shares" ],
+        "summary" : "Leave a comment",
+        "description" : "Leave a comment",
+        "operationId" : "postSharesBySlugComments",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                "text" : "The second cut runs long - can we lose the establishing shot?"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "A guest comment",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "text" : "The second cut runs long - can we lose the establishing shot?",
+                  "authorName" : "Maria from Acme",
+                  "created" : 1.539353706024E9,
+                  "edited" : 1.539353706024E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/comments/{commentUuid}" : {
+      "description" : "Edit a comment left through this link",
+      "post" : {
+        "tags" : [ "shares" ],
+        "summary" : "Edit a comment left through this link",
+        "description" : "Edit a comment left through this link",
+        "operationId" : "postSharesBySlugCommentsByCommentUuid",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                "text" : "The second cut runs long - can we lose the establishing shot?"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "A guest comment",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "text" : "The second cut runs long - can we lose the establishing shot?",
+                  "authorName" : "Maria from Acme",
+                  "created" : 1.539353706024E9,
+                  "edited" : 1.539353706024E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "delete" : {
+        "tags" : [ "shares" ],
+        "summary" : "Remove a comment left through this link",
+        "description" : "Remove a comment left through this link",
+        "operationId" : "deleteSharesBySlugCommentsByCommentUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "commentUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced comment",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/reactions" : {
+      "description" : "The reactions left through this link. Narrow to one asset with ?asset=<uuid>",
+      "get" : {
+        "tags" : [ "shares" ],
+        "summary" : "The reactions left through this link. Narrow to one asset with ?asset=<uuid>",
+        "description" : "The reactions left through this link. Narrow to one asset with ?asset=<uuid>",
+        "operationId" : "getSharesBySlugReactions",
+        "responses" : {
+          "200" : {
+            "description" : "The guest reactions on a share",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "type" : "APPROVE",
+                    "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                    "authorName" : "Maria from Acme",
+                    "created" : 1.542744721084E9
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "post" : {
+        "tags" : [ "shares" ],
+        "summary" : "React to an asset, a comment or a mark",
+        "description" : "React to an asset, a comment or a mark",
+        "operationId" : "postSharesBySlugReactions",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "type" : "APPROVE",
+                "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "A guest reaction",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "type" : "APPROVE",
+                  "assetUuid" : "86abc160-4da2-4951-a91f-da0c33fbc634",
+                  "authorName" : "Maria from Acme",
+                  "created" : 1.542744721084E9
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/reactions/{reactionUuid}" : {
+      "description" : "Take back a reaction",
+      "delete" : {
+        "tags" : [ "shares" ],
+        "summary" : "Take back a reaction",
+        "description" : "Take back a reaction",
+        "operationId" : "deleteSharesBySlugReactionsByReactionUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
+        }
+      }, {
+        "name" : "reactionUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced reaction",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/shares/{slug}/sessions" : {
+      "description" : "Open a share link: check its password, record the visitor's name and issue a session",
+      "post" : {
+        "tags" : [ "shares" ],
+        "summary" : "Open a share link: check its password, record the visitor's name and issue a session",
+        "description" : "Open a share link: check its password, record the visitor's name and issue a session",
+        "operationId" : "postSharesBySlugSessions",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "password" : "wander-lamp-42",
+                "visitorName" : "Maria from Acme"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The redeemed share session",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "sessionToken" : "c2x1Zy1leGFtcGxlfDE3NjQ1MDAwMDA.9mZ0aXNub3RhcmVhbHNpZ25hdHVyZQ",
+                  "sessionExpiresAt" : 1.542744721084E9,
+                  "visitorName" : "Maria from Acme",
+                  "targetType" : "COLLECTION",
+                  "targetName" : "Autumn campaign - rough cuts",
+                  "targetDescription" : "Three cuts for sign-off before the grade.",
+                  "allowDownload" : true,
+                  "showMetadata" : true,
+                  "allowComments" : true,
+                  "allowReactions" : true,
+                  "allowAnnotations" : true
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      },
+      "parameters" : [ {
+        "name" : "slug",
+        "in" : "path",
+        "description" : "UUID of the referenced slug",
+        "required" : true,
+        "schema" : {
+          "type" : "string"
         }
       } ]
     },

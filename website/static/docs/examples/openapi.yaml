@@ -85,6 +85,12 @@ tags:
 - name: search-indices
 - name: sessions
   description: Files of a chat's coding sandbox session
+- name: share-links
+  description: "Share links: create, change, revoke, and read what a customer said\
+    \ through one"
+- name: shares
+  description: "The customer-facing area. Unauthenticated - opened with a share link,\
+    \ and authorized by the link itself rather than by a Loom account"
 - name: similarity-index
 - name: skills
   description: "Agent skills, the published skill library and installs"
@@ -5714,6 +5720,153 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/assets/{uuid}/share-links:
+    description: Load a paged list of the share links pointing at this asset
+    get:
+      tags:
+      - assets
+      summary: Load a paged list of the share links pointing at this asset
+      description: Load a paged list of the share links pointing at this asset
+      operationId: getAssetsByUuidSharelinks
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The share link list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  slug: k3Rm2pQwXbN7vTsLd9aYc1
+                  url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                  targetType: COLLECTION
+                  targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  targetName: Autumn campaign - rough cuts
+                  passwordProtected: true
+                  expired: false
+                  expiresAt: 1.542744721084E9
+                  allowDownload: true
+                  showMetadata: true
+                  allowComments: true
+                  allowReactions: true
+                  allowAnnotations: true
+                  visitorName: Maria from Acme
+                  firstVisitedAt: 1.539353706024E9
+                  lastViewedAt: 1.542744721084E9
+                  viewCount: 4
+                  feedbackCount: 7
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  slug: k3Rm2pQwXbN7vTsLd9aYc1
+                  url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                  targetType: COLLECTION
+                  targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  targetName: Autumn campaign - rough cuts
+                  passwordProtected: true
+                  expired: false
+                  expiresAt: 1.542744721084E9
+                  allowDownload: true
+                  showMetadata: true
+                  allowComments: true
+                  allowReactions: true
+                  allowAnnotations: true
+                  visitorName: Maria from Acme
+                  firstVisitedAt: 1.539353706024E9
+                  lastViewedAt: 1.542744721084E9
+                  viewCount: 4
+                  feedbackCount: 7
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/assets/{uuid}/similar-assets:
     description: Find near-duplicate assets by perceptual fingerprint similarity.
       Excludes the asset itself.
@@ -11086,6 +11239,153 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/collections/{uuid}/share-links:
+    description: Load a paged list of the share links pointing at this collection
+    get:
+      tags:
+      - collections
+      summary: Load a paged list of the share links pointing at this collection
+      description: Load a paged list of the share links pointing at this collection
+      operationId: getCollectionsByUuidSharelinks
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The share link list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  slug: k3Rm2pQwXbN7vTsLd9aYc1
+                  url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                  targetType: COLLECTION
+                  targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  targetName: Autumn campaign - rough cuts
+                  passwordProtected: true
+                  expired: false
+                  expiresAt: 1.542744721084E9
+                  allowDownload: true
+                  showMetadata: true
+                  allowComments: true
+                  allowReactions: true
+                  allowAnnotations: true
+                  visitorName: Maria from Acme
+                  firstVisitedAt: 1.539353706024E9
+                  lastViewedAt: 1.542744721084E9
+                  viewCount: 4
+                  feedbackCount: 7
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  slug: k3Rm2pQwXbN7vTsLd9aYc1
+                  url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                  targetType: COLLECTION
+                  targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  targetName: Autumn campaign - rough cuts
+                  passwordProtected: true
+                  expired: false
+                  expiresAt: 1.542744721084E9
+                  allowDownload: true
+                  showMetadata: true
+                  allowComments: true
+                  allowReactions: true
+                  allowAnnotations: true
+                  visitorName: Maria from Acme
+                  firstVisitedAt: 1.539353706024E9
+                  lastViewedAt: 1.542744721084E9
+                  viewCount: 4
+                  feedbackCount: 7
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
   /api/v1/comments:
     description: Create new comment
     get:
@@ -16167,7 +16467,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 7d14ff12-5358-4154-bc54-5e2ee6bfd8c6
+                  versionUuid: 89b1865e-9ff8-4670-a5b4-571616f34553
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16188,7 +16488,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: ca50e193-3855-49e0-9d06-039f58b9324a
+                  versionUuid: 029226ab-3f03-4c6c-bb86-fc0ec274aedd
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16261,7 +16561,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 08fe3702-3dcd-4c3a-95a9-c23dd8fee510
+                versionUuid: 951d49d5-4351-423e-be83-3ac59d2496ce
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16320,7 +16620,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 309b556e-3948-48e6-b70d-111015fdb99d
+                versionUuid: db6e7603-7c9f-4e86-a00b-542183c9b3c9
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16392,7 +16692,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: d57f30e9-bd62-4c6f-881a-c102afd3672d
+                versionUuid: cb20c3d5-ded9-4e4d-97eb-f58f3639f854
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16501,7 +16801,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: bda9d980-d8c8-4276-a09e-48a0a5cf3b97
+                runUuid: e7fa2579-3b22-4a0b-9974-43a33b9e2dc4
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -16589,11 +16889,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 5f99ba39-eb1b-4875-be12-aea241f44114
-                  pipelineUuid: 5df52b3d-f19e-4c80-84cb-1f2a6d9a989c
+                - uuid: 6ce965fb-23d7-4632-ab3e-519a229ca0eb
+                  pipelineUuid: 4ba8c323-fb9c-41cf-84c9-837d2c6b1680
                   pipelineVersion: 1
-                  started: 2026-08-10T20:56:00.407588271Z
-                  finished: 2026-08-10T20:56:00.407631021Z
+                  started: 2026-08-11T21:25:21.004531416Z
+                  finished: 2026-08-11T21:25:21.004544346Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -16601,11 +16901,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 51f92ae4-0b04-4dee-a18f-20ab416d7ae6
-                  pipelineUuid: 72e0888c-89d7-4541-b015-7e9d1a33327a
+                - uuid: 8c84ede1-c470-421a-aabc-525804994ec0
+                  pipelineUuid: ec89c697-503d-4b94-b0da-e774f7d83ee3
                   pipelineVersion: 1
-                  started: 2026-08-10T20:56:00.407667641Z
-                  finished: 2026-08-10T20:56:00.407670751Z
+                  started: 2026-08-11T21:25:21.004569336Z
+                  finished: 2026-08-11T21:25:21.004571956Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -16668,11 +16968,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: dd1497e6-15e0-4de3-a4dd-a21e9ea91592
-                pipelineUuid: c98d9368-28ff-48ad-b7bd-67974b33977f
+                uuid: db4925fa-41e9-4c58-bca9-e674e5c8250a
+                pipelineUuid: dc4c76b0-7443-46fb-96d7-9b03c1ffd8c7
                 pipelineVersion: 1
-                started: 2026-08-10T20:56:00.407773691Z
-                finished: 2026-08-10T20:56:00.407779181Z
+                started: 2026-08-11T21:25:21.004615496Z
+                finished: 2026-08-11T21:25:21.004618306Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -17014,15 +17314,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 3b7db01b-1a54-47a7-9dd4-32481b08d1fd
-                  runUuid: a41d2991-5d6a-4f87-a2f0-932b50cbb557
+                - uuid: 037a403c-5c31-4d48-933d-3e4f8a24f24f
+                  runUuid: 7ee0ddd2-9930-4469-a3a9-5e74456f80e6
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 9e491921-424c-4490-bfa9-5d6a08ae55a8
-                  runUuid: 82687eaa-e9f1-45ae-baf5-03a2101dfa90
+                - uuid: 30d2dec9-2c46-42d2-a61c-0f763122ea99
+                  runUuid: f05f69fa-a638-4c8d-9fcc-362072d07702
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -17094,9 +17394,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 728f5b83-88f7-4198-8042-0773be5533aa
-                  itemUuid: 40265ee1-e0a9-45b6-9916-0cc3d7de6123
-                  runUuid: b869462c-0ca8-4484-9e29-f54917b9cde7
+                - uuid: 12b126af-3f27-4ed5-8d09-5858630de4f4
+                  itemUuid: 4df81fa2-c320-44c6-b42d-cdf71e4b4ce7
+                  runUuid: 1f71a33c-7477-41de-9938-1d50f9d4a4f2
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -17559,7 +17859,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 02b2c428-682d-4bdd-9e64-1cd1c2f81a29
+                  versionUuid: 4c922170-f432-42dd-a15e-f757ee6ffd49
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -17580,7 +17880,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: a4942fcf-ae86-49ab-bb5a-d5465eb63063
+                  versionUuid: 2ed85466-8f56-463c-ae53-8743da64c21b
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -17656,7 +17956,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: a1e1e2ce-8e61-4b4f-9702-5f95acf08bbc
+                versionUuid: ad5f0706-5a63-492b-9e96-3fea3ef0d913
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -17742,7 +18042,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 12ec344f-140e-449d-89f8-0b245fb1f140
+                versionUuid: 0646809e-2846-45ad-842b-b61071c67944
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1
@@ -20240,6 +20540,1326 @@ paths:
       schema:
         type: string
         format: uuid
+  /api/v1/share-links:
+    description: Create a share link over an asset or a collection
+    get:
+      tags:
+      - share-links
+      summary: Load a paged list of share links
+      description: Load a paged list of share links
+      operationId: getSharelinks
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The share link list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  slug: k3Rm2pQwXbN7vTsLd9aYc1
+                  url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                  targetType: COLLECTION
+                  targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  targetName: Autumn campaign - rough cuts
+                  passwordProtected: true
+                  expired: false
+                  expiresAt: 1.542744721084E9
+                  allowDownload: true
+                  showMetadata: true
+                  allowComments: true
+                  allowReactions: true
+                  allowAnnotations: true
+                  visitorName: Maria from Acme
+                  firstVisitedAt: 1.539353706024E9
+                  lastViewedAt: 1.542744721084E9
+                  viewCount: 4
+                  feedbackCount: 7
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  slug: k3Rm2pQwXbN7vTsLd9aYc1
+                  url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                  targetType: COLLECTION
+                  targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  targetName: Autumn campaign - rough cuts
+                  passwordProtected: true
+                  expired: false
+                  expiresAt: 1.542744721084E9
+                  allowDownload: true
+                  showMetadata: true
+                  allowComments: true
+                  allowReactions: true
+                  allowAnnotations: true
+                  visitorName: Maria from Acme
+                  firstVisitedAt: 1.539353706024E9
+                  lastViewedAt: 1.542744721084E9
+                  viewCount: 4
+                  feedbackCount: 7
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - share-links
+      summary: Create a share link over an asset or a collection
+      description: Create a share link over an asset or a collection
+      operationId: postSharelinks
+      requestBody:
+        content:
+          application/json:
+            example:
+              meta:
+                abc: cdef
+              targetType: COLLECTION
+              targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+              password: wander-lamp-42
+              expiresAt: 1.542744721084E9
+              allowDownload: true
+              showMetadata: true
+              allowComments: true
+              allowReactions: true
+              allowAnnotations: true
+      responses:
+        "200":
+          description: The share link response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                slug: k3Rm2pQwXbN7vTsLd9aYc1
+                url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                targetType: COLLECTION
+                targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                targetName: Autumn campaign - rough cuts
+                passwordProtected: true
+                expired: false
+                expiresAt: 1.542744721084E9
+                allowDownload: true
+                showMetadata: true
+                allowComments: true
+                allowReactions: true
+                allowAnnotations: true
+                visitorName: Maria from Acme
+                firstVisitedAt: 1.539353706024E9
+                lastViewedAt: 1.542744721084E9
+                viewCount: 4
+                feedbackCount: 7
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/share-links/{uuid}:
+    description: "Update a share link - its expiry, its password, or what the visitor\
+      \ may do"
+    get:
+      tags:
+      - share-links
+      summary: Load a share link
+      description: Load a share link
+      operationId: getSharelinksByUuid
+      responses:
+        "200":
+          description: The share link response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                slug: k3Rm2pQwXbN7vTsLd9aYc1
+                url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                targetType: COLLECTION
+                targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                targetName: Autumn campaign - rough cuts
+                passwordProtected: true
+                expired: false
+                expiresAt: 1.542744721084E9
+                allowDownload: true
+                showMetadata: true
+                allowComments: true
+                allowReactions: true
+                allowAnnotations: true
+                visitorName: Maria from Acme
+                firstVisitedAt: 1.539353706024E9
+                lastViewedAt: 1.542744721084E9
+                viewCount: 4
+                feedbackCount: 7
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - share-links
+      summary: "Update a share link - its expiry, its password, or what the visitor\
+        \ may do"
+      description: "Update a share link - its expiry, its password, or what the visitor\
+        \ may do"
+      operationId: postSharelinksByUuid
+      requestBody:
+        content:
+          application/json:
+            example:
+              expiresAt: 1.542744721084E9
+              allowDownload: false
+      responses:
+        "200":
+          description: The share link response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                slug: k3Rm2pQwXbN7vTsLd9aYc1
+                url: https://loom.example.com/ui/share/k3Rm2pQwXbN7vTsLd9aYc1
+                targetType: COLLECTION
+                targetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                targetName: Autumn campaign - rough cuts
+                passwordProtected: true
+                expired: false
+                expiresAt: 1.542744721084E9
+                allowDownload: true
+                showMetadata: true
+                allowComments: true
+                allowReactions: true
+                allowAnnotations: true
+                visitorName: Maria from Acme
+                firstVisitedAt: 1.539353706024E9
+                lastViewedAt: 1.542744721084E9
+                viewCount: 4
+                feedbackCount: 7
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - share-links
+      summary: Revoke a share link. The URL stops working immediately and any feedback
+        left through it is removed
+      description: Revoke a share link. The URL stops working immediately and any
+        feedback left through it is removed
+      operationId: deleteSharelinksByUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/share-links/{uuid}/feedback:
+    description: "Load the comments, marks and reactions a visitor left through this\
+      \ link"
+    get:
+      tags:
+      - share-links
+      summary: "Load the comments, marks and reactions a visitor left through this\
+        \ link"
+      description: "Load the comments, marks and reactions a visitor left through\
+        \ this link"
+      operationId: getSharelinksByUuidFeedback
+      responses:
+        "200":
+          description: "Everything the visitor said, for the owner"
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                visitorName: Maria from Acme
+                comments:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  text: The second cut runs long - can we lose the establishing shot?
+                  authorName: Maria from Acme
+                  created: 1.539353706024E9
+                  edited: 1.539353706024E9
+                annotations:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  kind: SPATIOTEMPORAL
+                  timeFrom: 14.25
+                  timeTo: 19.5
+                  areaX: 0.42
+                  areaY: 0.18
+                  areaWidth: 0.16
+                  areaHeight: 0.22
+                  text: The logo is clipped on the right here.
+                  authorName: Maria from Acme
+                  created: 1.539353706024E9
+                  edited: 1.539353706024E9
+                reactions:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  type: APPROVE
+                  assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  authorName: Maria from Acme
+                  created: 1.542744721084E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/shares/{slug}:
+    description: "What a share link asks for before it will open - whether it needs\
+      \ a password, and what kind of material is behind it"
+    get:
+      tags:
+      - shares
+      summary: "What a share link asks for before it will open - whether it needs\
+        \ a password, and what kind of material is behind it"
+      description: "What a share link asks for before it will open - whether it needs\
+        \ a password, and what kind of material is behind it"
+      operationId: getSharesBySlug
+      responses:
+        "200":
+          description: What an unopened share link tells a visitor
+          content:
+            application/json:
+              example:
+                targetType: COLLECTION
+                passwordRequired: true
+                visitorNameKnown: false
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+  /api/v1/shares/{slug}/annotations:
+    description: The marks drawn through this link. Narrow to one asset with ?asset=<uuid>
+    get:
+      tags:
+      - shares
+      summary: The marks drawn through this link. Narrow to one asset with ?asset=<uuid>
+      description: The marks drawn through this link. Narrow to one asset with ?asset=<uuid>
+      operationId: getSharesBySlugAnnotations
+      responses:
+        "200":
+          description: The guest annotations on a share
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  kind: SPATIOTEMPORAL
+                  timeFrom: 14.25
+                  timeTo: 19.5
+                  areaX: 0.42
+                  areaY: 0.18
+                  areaWidth: 0.16
+                  areaHeight: 0.22
+                  text: The logo is clipped on the right here.
+                  authorName: Maria from Acme
+                  created: 1.539353706024E9
+                  edited: 1.539353706024E9
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    post:
+      tags:
+      - shares
+      summary: "Mark a moment, a region, or a region over a stretch of time"
+      description: "Mark a moment, a region, or a region over a stretch of time"
+      operationId: postSharesBySlugAnnotations
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+              kind: SPATIOTEMPORAL
+              timeFrom: 14.25
+              timeTo: 19.5
+              areaX: 0.42
+              areaY: 0.18
+              areaWidth: 0.16
+              areaHeight: 0.22
+              text: The logo is clipped on the right here.
+      responses:
+        "200":
+          description: A guest annotation
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                kind: SPATIOTEMPORAL
+                timeFrom: 14.25
+                timeTo: 19.5
+                areaX: 0.42
+                areaY: 0.18
+                areaWidth: 0.16
+                areaHeight: 0.22
+                text: The logo is clipped on the right here.
+                authorName: Maria from Acme
+                created: 1.539353706024E9
+                edited: 1.539353706024E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+  /api/v1/shares/{slug}/annotations/{annotationUuid}:
+    description: Move or retitle a mark drawn through this link
+    post:
+      tags:
+      - shares
+      summary: Move or retitle a mark drawn through this link
+      description: Move or retitle a mark drawn through this link
+      operationId: postSharesBySlugAnnotationsByAnnotationUuid
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+              kind: SPATIOTEMPORAL
+              timeFrom: 14.25
+              timeTo: 19.5
+              areaX: 0.42
+              areaY: 0.18
+              areaWidth: 0.16
+              areaHeight: 0.22
+              text: The logo is clipped on the right here.
+      responses:
+        "200":
+          description: A guest annotation
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                kind: SPATIOTEMPORAL
+                timeFrom: 14.25
+                timeTo: 19.5
+                areaX: 0.42
+                areaY: 0.18
+                areaWidth: 0.16
+                areaHeight: 0.22
+                text: The logo is clipped on the right here.
+                authorName: Maria from Acme
+                created: 1.539353706024E9
+                edited: 1.539353706024E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    delete:
+      tags:
+      - shares
+      summary: Remove a mark drawn through this link
+      description: Remove a mark drawn through this link
+      operationId: deleteSharesBySlugAnnotationsByAnnotationUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+    - name: annotationUuid
+      in: path
+      description: UUID of the referenced annotation
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/shares/{slug}/assets:
+    description: The material behind a share link
+    get:
+      tags:
+      - shares
+      summary: The material behind a share link
+      description: The material behind a share link
+      operationId: getSharesBySlugAssets
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The assets behind a share link
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  filename: autumn-cut-02.mp4
+                  mimeType: video/mp4
+                  size: 184320512
+                  duration: 92.5
+                  width: 1920
+                  height: 1080
+                  title: "Autumn campaign, cut 2"
+                  description: "Second assembly, no grade yet."
+                  created: 1.539353706024E9
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+  /api/v1/shares/{slug}/assets/{assetUuid}:
+    description: One shared asset
+    get:
+      tags:
+      - shares
+      summary: One shared asset
+      description: One shared asset
+      operationId: getSharesBySlugAssetsByAssetUuid
+      responses:
+        "200":
+          description: One asset as a share visitor sees it
+          content:
+            application/json:
+              example:
+                uuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                filename: autumn-cut-02.mp4
+                mimeType: video/mp4
+                size: 184320512
+                duration: 92.5
+                width: 1920
+                height: 1080
+                title: "Autumn campaign, cut 2"
+                description: "Second assembly, no grade yet."
+                created: 1.539353706024E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+    - name: assetUuid
+      in: path
+      description: UUID of the referenced asset
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/shares/{slug}/assets/{assetUuid}/binary/data:
+    description: Stream the bytes of a shared asset. Inline by default; add ?download=1
+      to receive it as a file
+    get:
+      tags:
+      - shares
+      summary: Stream the bytes of a shared asset. Inline by default; add ?download=1
+        to receive it as a file
+      description: Stream the bytes of a shared asset. Inline by default; add ?download=1
+        to receive it as a file
+      operationId: getSharesBySlugAssetsByAssetUuidBinaryData
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+    - name: assetUuid
+      in: path
+      description: UUID of the referenced asset
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/shares/{slug}/comments:
+    description: The comments left through this link. Narrow to one asset with ?asset=<uuid>
+    get:
+      tags:
+      - shares
+      summary: The comments left through this link. Narrow to one asset with ?asset=<uuid>
+      description: The comments left through this link. Narrow to one asset with ?asset=<uuid>
+      operationId: getSharesBySlugComments
+      responses:
+        "200":
+          description: The guest comments on a share
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  text: The second cut runs long - can we lose the establishing shot?
+                  authorName: Maria from Acme
+                  created: 1.539353706024E9
+                  edited: 1.539353706024E9
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    post:
+      tags:
+      - shares
+      summary: Leave a comment
+      description: Leave a comment
+      operationId: postSharesBySlugComments
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+              text: The second cut runs long - can we lose the establishing shot?
+      responses:
+        "200":
+          description: A guest comment
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                text: The second cut runs long - can we lose the establishing shot?
+                authorName: Maria from Acme
+                created: 1.539353706024E9
+                edited: 1.539353706024E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+  /api/v1/shares/{slug}/comments/{commentUuid}:
+    description: Edit a comment left through this link
+    post:
+      tags:
+      - shares
+      summary: Edit a comment left through this link
+      description: Edit a comment left through this link
+      operationId: postSharesBySlugCommentsByCommentUuid
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+              text: The second cut runs long - can we lose the establishing shot?
+      responses:
+        "200":
+          description: A guest comment
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                text: The second cut runs long - can we lose the establishing shot?
+                authorName: Maria from Acme
+                created: 1.539353706024E9
+                edited: 1.539353706024E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    delete:
+      tags:
+      - shares
+      summary: Remove a comment left through this link
+      description: Remove a comment left through this link
+      operationId: deleteSharesBySlugCommentsByCommentUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+    - name: commentUuid
+      in: path
+      description: UUID of the referenced comment
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/shares/{slug}/reactions:
+    description: The reactions left through this link. Narrow to one asset with ?asset=<uuid>
+    get:
+      tags:
+      - shares
+      summary: The reactions left through this link. Narrow to one asset with ?asset=<uuid>
+      description: The reactions left through this link. Narrow to one asset with
+        ?asset=<uuid>
+      operationId: getSharesBySlugReactions
+      responses:
+        "200":
+          description: The guest reactions on a share
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  type: APPROVE
+                  assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                  authorName: Maria from Acme
+                  created: 1.542744721084E9
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    post:
+      tags:
+      - shares
+      summary: "React to an asset, a comment or a mark"
+      description: "React to an asset, a comment or a mark"
+      operationId: postSharesBySlugReactions
+      requestBody:
+        content:
+          application/json:
+            example:
+              type: APPROVE
+              assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+      responses:
+        "200":
+          description: A guest reaction
+          content:
+            application/json:
+              example:
+                uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                type: APPROVE
+                assetUuid: 86abc160-4da2-4951-a91f-da0c33fbc634
+                authorName: Maria from Acme
+                created: 1.542744721084E9
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+  /api/v1/shares/{slug}/reactions/{reactionUuid}:
+    description: Take back a reaction
+    delete:
+      tags:
+      - shares
+      summary: Take back a reaction
+      description: Take back a reaction
+      operationId: deleteSharesBySlugReactionsByReactionUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
+    - name: reactionUuid
+      in: path
+      description: UUID of the referenced reaction
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/shares/{slug}/sessions:
+    description: "Open a share link: check its password, record the visitor's name\
+      \ and issue a session"
+    post:
+      tags:
+      - shares
+      summary: "Open a share link: check its password, record the visitor's name and\
+        \ issue a session"
+      description: "Open a share link: check its password, record the visitor's name\
+        \ and issue a session"
+      operationId: postSharesBySlugSessions
+      requestBody:
+        content:
+          application/json:
+            example:
+              password: wander-lamp-42
+              visitorName: Maria from Acme
+      responses:
+        "200":
+          description: The redeemed share session
+          content:
+            application/json:
+              example:
+                sessionToken: c2x1Zy1leGFtcGxlfDE3NjQ1MDAwMDA.9mZ0aXNub3RhcmVhbHNpZ25hdHVyZQ
+                sessionExpiresAt: 1.542744721084E9
+                visitorName: Maria from Acme
+                targetType: COLLECTION
+                targetName: Autumn campaign - rough cuts
+                targetDescription: Three cuts for sign-off before the grade.
+                allowDownload: true
+                showMetadata: true
+                allowComments: true
+                allowReactions: true
+                allowAnnotations: true
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+      security: []
+    parameters:
+    - name: slug
+      in: path
+      description: UUID of the referenced slug
+      required: true
+      schema:
+        type: string
   /api/v1/similarity-index/rebuild:
     description: Rebuild the fingerprint similarity index from the stored fingerprint
       components

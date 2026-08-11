@@ -28,7 +28,7 @@ chosen worker and streams discovered items back; path discovery lives in `Filesy
 .The node's settings in the pipeline editor
 image::config.png[The Filesystem Source settings panel: Path, Path globs, Emit states and 1 more setting,role="ml-panel-shot"]
 
-`FilesystemSourceNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

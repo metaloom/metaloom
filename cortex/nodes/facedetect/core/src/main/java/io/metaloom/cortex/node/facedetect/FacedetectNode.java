@@ -34,6 +34,7 @@ import io.metaloom.cortex.api.node.spec.PortGroupDoc;
 import io.metaloom.cortex.api.option.CortexOptions;
 import io.metaloom.cortex.common.cache.LocalResultCache;
 import io.metaloom.cortex.common.node.AbstractMediaNode;
+import io.metaloom.cortex.common.node.PipelineConfigurable;
 import io.metaloom.cortex.node.facedetect.cluster.FaceCluster;
 import io.metaloom.cortex.node.facedetect.cluster.FaceClusterResult;
 import io.metaloom.cortex.node.facedetect.cluster.FaceClusterer;
@@ -70,7 +71,7 @@ import io.vertx.core.json.JsonObject;
 	description = "Detect and cluster faces in images and video frames.",
 	defaultConcurrency = 2,
 	inputGroups = @PortGroupDoc(id = "media_alt", mode = PortGroupMode.XOR, label = "Media"))
-public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
+public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> implements PipelineConfigurable {
 
 	public static final Logger log = LoggerFactory.getLogger(FacedetectNode.class);
 
@@ -176,11 +177,88 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 	private InspireFacedetector inspireface;
 	private VideoFaceScanner videoScanner;
 
+	/**
+	 * Per-instance override of {@link FacedetectNodeOptions#getFaceClusterEPS()}, or null to use the worker's value.
+	 *
+	 * <p>
+	 * Held on the node rather than written back into {@link #options()} because that object is <em>shared</em>: when {@code cortex.yml} carries a
+	 * {@code facedetection} block, {@code AbstractNodeModule.nodeOptions(...)} hands every injection point the same instance, and the
+	 * {@code InspireFacedetector} was already built from it. Mutating it here would let one node in a graph rewrite the worker's configuration for
+	 * every other one - and only on the workers whose YAML happens to configure the key, which is the worst possible way for it to differ.
+	 * </p>
+	 */
+	private Float faceClusterEPS;
+
+	/** Per-instance override of {@link FacedetectNodeOptions#getFaceClusterMinimum()}. See {@link #faceClusterEPS} for why it lives here. */
+	private Integer faceClusterMinimum;
+
 	@Inject
 	public FacedetectNode(@Nullable LoomClient client, CortexOptions cortexOption, FacedetectNodeOptions options, InspireFacedetector inspireface, VideoFaceScanner videoScanner) {
 		super(client, cortexOption, options);
 		this.inspireface = inspireface;
 		this.videoScanner = videoScanner;
+	}
+
+	/**
+	 * Apply the clustering options carried by this pipeline node instance.
+	 *
+	 * <p>
+	 * Only the two DBSCAN knobs are per-instance, and deliberately so: they are the only options read
+	 * <em>per item</em>, in {@link #cluster(List)}. {@code inspirefacePackPath}, {@code minFaceHeightFactor} and {@code maxFaceAngle} are baked into
+	 * the {@link InspireFacedetector} when Dagger provides it, so accepting them here would advertise a knob that quietly did nothing. They stay
+	 * worker-scoped in {@code cortex.yml}.
+	 * </p>
+	 */
+	@Override
+	public void configure(JsonObject nodeDef) {
+		String id = nodeDef.getString("id", name());
+
+		if (nodeDef.containsKey("faceClusterEPS")) {
+			// Same rule as FacedetectNodeOptions.validate(). Enforced here too because that validates the
+			// worker's options, which a per-instance value never passes through.
+			this.faceClusterEPS = positive(nodeDef, "faceClusterEPS", id).floatValue();
+		}
+
+		if (nodeDef.containsKey("faceClusterMinimum")) {
+			// Checked after the narrowing, not before: 0.5 is a positive Number that truncates to a
+			// neighbourhood size of zero.
+			int minimum = positive(nodeDef, "faceClusterMinimum", id).intValue();
+			if (minimum <= 0) {
+				throw new IllegalStateException("Face detection node '" + id + "': faceClusterMinimum must be a positive whole number");
+			}
+			this.faceClusterMinimum = minimum;
+		}
+	}
+
+	/**
+	 * Read a strictly positive number off the node definition, or explain what is wrong with it.
+	 *
+	 * <p>
+	 * Read through {@link JsonObject#getValue(String)} rather than {@code getNumber}, which throws a bare {@link ClassCastException} naming neither
+	 * the node nor the key. Both failures surface as an immediate task failure, so the message is the whole diagnostic an operator gets.
+	 * </p>
+	 */
+	private static Number positive(JsonObject nodeDef, String key, String id) {
+		Object raw = nodeDef.getValue(key);
+		if (!(raw instanceof Number number)) {
+			throw new IllegalStateException("Face detection node '" + id + "': " + key + " must be a number, got '" + raw + "'");
+		}
+		// Rejected here rather than left to DBSCAN, where a zero radius makes every face its own subject
+		// and the run merely looks disappointing instead of broken.
+		if (number.doubleValue() <= 0) {
+			throw new IllegalStateException("Face detection node '" + id + "': " + key + " must be positive, got " + number);
+		}
+		return number;
+	}
+
+	/** The cosine-distance radius this instance clusters at - its own, or the worker's when it was not configured. */
+	float faceClusterEPS() {
+		return faceClusterEPS != null ? faceClusterEPS : options().getFaceClusterEPS();
+	}
+
+	/** The minimum neighbourhood size this instance clusters at. See {@link #faceClusterEPS()}. */
+	int faceClusterMinimum() {
+		return faceClusterMinimum != null ? faceClusterMinimum : options().getFaceClusterMinimum();
 	}
 
 	@Override
@@ -339,7 +417,7 @@ public class FacedetectNode extends AbstractMediaNode<FacedetectNodeOptions> {
 			return new FaceClusterResult(List.of(), 0, count);
 		}
 		try {
-			FaceClusterResult result = FaceClusterer.cluster(detections, options().getFaceClusterEPS(), options().getFaceClusterMinimum());
+			FaceClusterResult result = FaceClusterer.cluster(detections, faceClusterEPS(), faceClusterMinimum());
 			log.info("Clustered {} embedded face(s) into {} subject(s); {} face(s) had no vector",
 				result.embeddedCount(), result.count(), result.skippedCount());
 			return result;

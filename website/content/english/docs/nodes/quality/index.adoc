@@ -24,7 +24,8 @@ blurriness (via a Laplacian measure) and bitrate — so low-quality assets can b
 .The node's settings in the pipeline editor
 image::config.png[The Quality Analysis settings panel: Check Blurriness, Check Resolution, Check Video Bitrate and 1 more setting,role="ml-panel-shot"]
 
-`QualityNodeOptions` toggle individual checks:
+Set these in the panel above, or in the node's `options` block in a pipeline
+definition. Each one toggles an individual check:
 
 [options="header",cols="1,2"]
 |===

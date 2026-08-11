@@ -16,6 +16,7 @@ import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.collection.Collection;
+import io.metaloom.loom.db.model.share.Share;
 import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.embedding.Embedding;
 import io.metaloom.loom.db.model.group.Group;
@@ -106,6 +107,27 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		// Create chat
 		Chat chat = createChat(user);
 
+		// A share link over the fixture collection, so a test can read one without creating it first.
+		createShare(user, collection);
+
+	}
+
+	/**
+	 * One share link over the fixture collection.
+	 *
+	 * <p>
+	 * Left unopened - no visitor name, no view count - because "nobody has been here yet" is the state a test wanting to exercise the first visit
+	 * needs, and a test wanting the opposite can redeem it in a line.
+	 * </p>
+	 */
+	private Share createShare(User user, Collection collection) {
+		Share share = shareDao().createCollectionShare(user.getUuid(), collection.getUuid(), SHARE_SLUG);
+		share.setUuid(SHARE_UUID);
+		share.setAllowComments(true);
+		share.setAllowReactions(true);
+		share.setAllowAnnotations(true);
+		shareDao().store(share);
+		return share;
 	}
 
 	private Comment commentOn(User user, Task task, String text) {

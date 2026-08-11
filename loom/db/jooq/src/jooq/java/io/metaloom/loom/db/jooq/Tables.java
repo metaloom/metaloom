@@ -69,6 +69,10 @@ import io.metaloom.loom.db.jooq.tables.JooqRoleGroup;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocument;
 import io.metaloom.loom.db.jooq.tables.JooqSearchDocumentDeleted;
+import io.metaloom.loom.db.jooq.tables.JooqShare;
+import io.metaloom.loom.db.jooq.tables.JooqShareAnnotation;
+import io.metaloom.loom.db.jooq.tables.JooqShareComment;
+import io.metaloom.loom.db.jooq.tables.JooqShareReaction;
 import io.metaloom.loom.db.jooq.tables.JooqSkill;
 import io.metaloom.loom.db.jooq.tables.JooqSkillVersion;
 import io.metaloom.loom.db.jooq.tables.JooqTag;
@@ -492,6 +496,37 @@ public class Tables {
      * indexer; unused by the Postgres provider.
      */
     public static final JooqSearchDocumentDeleted SEARCH_DOCUMENT_DELETED = JooqSearchDocumentDeleted.SEARCH_DOCUMENT_DELETED;
+
+    /**
+     * One shareable link to one asset or collection, viewable without a Loom
+     * account. The row is the authority: expiry, password and per-visitor
+     * capabilities are re-read on every request rather than baked into the
+     * token the visitor carries
+     */
+    public static final JooqShare SHARE = JooqShare.SHARE;
+
+    /**
+     * A mark a share visitor drew on the media - a timecode, a region, or both.
+     * Separate from `annotation` because that table requires a creator_uuid
+     * referencing a real user, and because its region columns are pixels where
+     * a responsive full-bleed viewer needs normalised coordinates
+     */
+    public static final JooqShareAnnotation SHARE_ANNOTATION = JooqShareAnnotation.SHARE_ANNOTATION;
+
+    /**
+     * A comment left through a share link by somebody with no Loom account.
+     * Kept apart from `comment` so outside opinion never merges with the
+     * internal record - which also matters before this text reaches the chat
+     * agent
+     */
+    public static final JooqShareComment SHARE_COMMENT = JooqShareComment.SHARE_COMMENT;
+
+    /**
+     * A share visitor reacting to an asset, a guest comment or a guest
+     * annotation. Its own type vocabulary rather than ReactionType, so neither
+     * list churns the other
+     */
+    public static final JooqShareReaction SHARE_REACTION = JooqShareReaction.SHARE_REACTION;
 
     /**
      * Stores user-owned agent skills (SKILL.md-style instruction packages for

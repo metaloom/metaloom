@@ -30,7 +30,7 @@ in the same pipeline.
 .The node's settings in the pipeline editor
 image::config.png[The VLM (Vision-Language Model) settings panel: Endpoint URL, API Key, Prompts,role="ml-panel-shot"]
 
-`VlmNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

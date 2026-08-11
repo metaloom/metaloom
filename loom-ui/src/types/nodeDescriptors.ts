@@ -80,6 +80,18 @@ export interface NodeParameter {
   defaultValue?: unknown;
   label: string;
   description: string;
+  /**
+   * Bounds and granularity for an `INTEGER`/`NUMBER` field, from the parameter's `@ParamDoc`.
+   *
+   * The backend has always emitted these — `facedetect`'s cluster radius declares `0 … 2` in steps
+   * of `0.05` — but the editor ignored them, so a field whose valid range the node knows exactly
+   * still accepted any number and failed at the worker instead. All three are optional: most
+   * parameters declare none, and a bound of `0` is meaningful, so read them with `!== undefined`
+   * rather than as truthy.
+   */
+  min?: number;
+  max?: number;
+  step?: number;
   /** The field the backend actually emits for enum choices. */
   values?: string[];
   /** @deprecated legacy alias for `values` */

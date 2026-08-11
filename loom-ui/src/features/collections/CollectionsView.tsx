@@ -4,7 +4,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField,
   InputAdornment,
 } from "@mui/material";
-import { AddOutlined, CollectionsOutlined, DeleteOutlined, EditOutlined, SearchOutlined } from "@mui/icons-material";
+import { AddOutlined, CollectionsOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ShareOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import EmptyState from "../../components/EmptyState";
 import { useToast } from "../../context/ToastContext";
@@ -16,6 +16,7 @@ import type { PagingParams } from "../../api/paging";
 import ListPaging from "../../components/ListPaging";
 import { pageFrom, usePagedList } from "../../hooks/usePagedList";
 import { useTranslation } from "react-i18next";
+import ShareDialog from "../share/ShareDialog";
 
 interface CollectionItem {
   id: string;
@@ -34,7 +35,7 @@ function mapResponseToItem(r: CollectionResponse): CollectionItem {
 }
 
 // ── Collection Card ───────────────────────────────────────────────────────
-function CollectionCard({ item, onEdit, onDelete }: { item: CollectionItem; onEdit: () => void; onDelete: () => void }) {
+function CollectionCard({ item, onEdit, onDelete, onShare }: { item: CollectionItem; onEdit: () => void; onDelete: () => void; onShare: () => void }) {
   return (
     <Paper
       elevation={0}
@@ -57,6 +58,16 @@ function CollectionCard({ item, onEdit, onDelete }: { item: CollectionItem; onEd
           display: "flex", gap: 0.5, opacity: 0, transition: "opacity 140ms ease",
         }}
       >
+        <Tooltip title="Share collection">
+          <IconButton
+            size="small"
+            onClick={onShare}
+            data-testid="collection-share"
+            sx={{ bgcolor: "rgba(0,0,0,0.6)", color: tokens.primary.light, width: 24, height: 24, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
+          >
+            <ShareOutlined sx={{ fontSize: 13 }} />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="Edit collection">
           <IconButton
             size="small"
@@ -131,6 +142,7 @@ export default function CollectionsView() {
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<CollectionItem | null>(null);
+  const [shareTarget, setShareTarget] = useState<CollectionItem | null>(null);
 
   useEffect(() => {
     if (page.error) showToast(t("collections.toast.loadFailed"), "error");
@@ -258,6 +270,7 @@ export default function CollectionsView() {
                 item={c}
                 onEdit={() => openEdit(c)}
                 onDelete={() => setDeleteTarget(c)}
+                onShare={() => setShareTarget(c)}
               />
             ))}
           </Box>
@@ -318,6 +331,19 @@ export default function CollectionsView() {
           <Button onClick={handleDelete} size="small" variant="contained" sx={{ bgcolor: tokens.accent.red, "&:hover": { bgcolor: tokens.accent.red } }}>{t("collections.button.delete")}</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Share dialog. Keyed on the target so reopening on a different collection remounts it and
+          mints a link for that one, rather than reusing the previous target's state. */}
+      {shareTarget && (
+        <ShareDialog
+          key={shareTarget.id}
+          open
+          onClose={() => setShareTarget(null)}
+          targetType="COLLECTION"
+          targetUuid={shareTarget.id}
+          targetName={shareTarget.name}
+        />
+      )}
     </Box>
   );
 }

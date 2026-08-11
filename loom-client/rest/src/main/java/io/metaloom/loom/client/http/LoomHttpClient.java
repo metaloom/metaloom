@@ -77,6 +77,28 @@ public interface LoomHttpClient extends ClientSettings, LoomClient {
 	String getToken();
 
 	/**
+	 * Return the share session token, when this client is being used to read a customer-facing share link.
+	 *
+	 * <p>
+	 * A second, entirely separate credential from {@link #getToken()}. A share visitor is not a user: the token proves only that a link's password was
+	 * satisfied, and it is sent as {@code X-Loom-Share-Session} rather than as a bearer token precisely so that it can never be mistaken for one. Both
+	 * may be set on the same client without interfering - which is what lets an integration test drive the owner side and the customer side of the
+	 * same link.
+	 * </p>
+	 *
+	 * @return the token, or null when this client is not holding a share session
+	 */
+	String getShareSessionToken();
+
+	/**
+	 * Set the share session token returned by {@code POST /shares/{slug}/sessions}.
+	 *
+	 * @param token
+	 *            the opaque session token, or null to clear it
+	 */
+	void setShareSessionToken(String token);
+
+	/**
 	 * Execute a GraphQL query
 	 * 
 	 * @param request the GraphQL request containing query, variables, and operationName

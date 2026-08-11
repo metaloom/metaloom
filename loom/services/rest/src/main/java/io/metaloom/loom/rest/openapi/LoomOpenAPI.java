@@ -30,6 +30,8 @@ import io.metaloom.loom.rest.endpoint.impl.BlacklistEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ChatEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ClusterEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.PublicShareEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.ShareLinkEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DedupGroupEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.DetectionEndpoint;
@@ -143,7 +145,13 @@ public class LoomOpenAPI {
 		"/api/v1/login",
 		"/api/v1/auth/oauth2",
 		"/api/v1/health",
-		"/api/v1/openapi");
+		"/api/v1/openapi",
+		// The customer-facing share area. Unauthenticated by design - a share link is opened by somebody with no
+		// Loom account - so declaring bearerAuth on these operations would make a spec viewer demand a token for
+		// routes that must never see one. They are not unprotected: every one of them is authorized by
+		// ShareAccessService against the share row, using the session token issued by POST /shares/{slug}/sessions.
+		// Note this covers /shares and NOT /share-links, which is the owner-facing CRUD and is fully secured.
+		"/api/v1/shares");
 
 	/**
 	 * Human readable descriptions for the generated tags. A tag which is not listed here is still emitted - it just carries no description.
@@ -177,8 +185,8 @@ public class LoomOpenAPI {
 			endpoints.addAll(extraEndpoints.apply(deps));
 			ServerFailureHandler failureHandler = null;
 			// Only the router is needed to describe the API; start() - which is what would
-			// use the reaper - is never called here.
-			RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, null, null, null);
+			// use the reapers - is never called here.
+			RESTService rest = new RESTService(vertx, options, server, router, endpoints, failureHandler, null, null, null, null);
 			rest.setupRouter();
 			return describe(router, DEFAULT_BASE_URL);
 		} finally {
@@ -231,14 +239,16 @@ public class LoomOpenAPI {
 		endpoints.add(new AssetBinaryEndpoint(null, deps, examples));
 		endpoints.add(new AssetComponentEndpoint(null, deps, examples));
 		endpoints.add(
-			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps,
+			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps,
 				examples));
 		endpoints.add(new AssetPoolEndpoint(null, deps, examples));
 		endpoints.add(new AttachmentEndpoint(null, deps, examples));
 		endpoints.add(new BlacklistEndpoint(null, deps, examples));
 		endpoints.add(new ChatEndpoint(null, deps, examples));
 		endpoints.add(new ClusterEndpoint(null, deps, examples));
-		endpoints.add(new CollectionEndpoint(null, deps, examples));
+		endpoints.add(new CollectionEndpoint(null, null, deps, examples));
+		endpoints.add(new ShareLinkEndpoint(null, deps, examples));
+		endpoints.add(new PublicShareEndpoint(null, deps, examples));
 		endpoints.add(new CommentEndpoint(null, null, deps, examples));
 		endpoints.add(new DedupGroupEndpoint(null, deps));
 		endpoints.add(new DetectionEndpoint(null, deps, examples));
@@ -546,6 +556,9 @@ public class LoomOpenAPI {
 	private static Map<String, String> tagDescriptions() {
 		Map<String, String> map = new LinkedHashMap<>();
 		map.put("annotations", "Annotations on assets, plus their reactions and tasks");
+		map.put("share-links", "Share links: create, change, revoke, and read what a customer said through one");
+		map.put("shares", "The customer-facing area. Unauthenticated - opened with a share link, and authorized by "
+			+ "the link itself rather than by a Loom account");
 		map.put("notifications", "The caller's notification inbox: list, mark read, dismiss and clear");
 		map.put("assets", "Assets and their sub-resources: tags, tasks, reactions, detections, transcripts, binaries and components");
 		map.put("attachments", "Binary file attachments (multipart upload and download)");

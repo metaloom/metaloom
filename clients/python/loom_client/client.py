@@ -130,6 +130,26 @@ class LoomClient(*ALL_METHOD_GROUPS):  # type: ignore[misc]
     def token(self, value: str | None) -> None:
         self._transport.token = value
 
+    @property
+    def share_session_token(self) -> str | None:
+        """The share session token sent as ``X-Loom-Share-Session``, or ``None``.
+
+        Returned by :meth:`~loom_client.methods.share.ShareMethods.open_share`.
+        Entirely separate from :attr:`token`: it authorises one customer-facing
+        share link and nothing else, and setting it does not make the client a
+        logged-in user.
+        """
+        return self._transport.share_session_token
+
+    @share_session_token.setter
+    def share_session_token(self, value: str | None) -> None:
+        self._transport.share_session_token = value
+
+    def set_share_session_token(self, token: str | None) -> LoomClient:
+        """Set the share session token. Returns ``self`` so it chains."""
+        self._transport.share_session_token = token
+        return self
+
     def set_token(self, token: str | None) -> LoomClient:
         """Set the bearer token. Returns ``self`` so it chains."""
         self._transport.token = token

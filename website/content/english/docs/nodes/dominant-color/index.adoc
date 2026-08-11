@@ -106,7 +106,7 @@ detector at all, using the `region` options below.
 .The node's settings in the pipeline editor
 image::config.png[The Dominant Colour settings panel: Colours per Region, Max Samples, Max Iterations and 16 more settings,role="ml-panel-shot"]
 
-`DominantColorNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

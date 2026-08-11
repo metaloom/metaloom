@@ -2170,5 +2170,91 @@
       "deleteFailed": "Das Bild konnte nicht gelöscht werden",
       "loadFailed": "Diese Person konnte nicht geladen werden"
     }
+  },
+  "share": {
+    "gate": {
+      "title": "Ihnen wurde etwas zum Ansehen geschickt",
+      "welcomeBack": "Willkommen zurück, {{name}}",
+      "subtitleAsset": "Sagen Sie uns, wer Sie sind, damit Ihre Anmerkungen zugeordnet werden können.",
+      "subtitleCollection": "Sagen Sie uns, wer Sie sind, damit Ihre Anmerkungen zugeordnet werden können.",
+      "nameLabel": "Ihr Name",
+      "namePlaceholder": "z. B. Maria von Acme",
+      "passwordLabel": "Passwort",
+      "anonymous": "Unbekannt",
+      "skip": "Überspringen",
+      "open": "Öffnen",
+      "opening": "Wird geöffnet ...",
+      "wrongPassword": "Dieses Passwort ist nicht korrekt.",
+      "tooManyAttempts": "Zu viele Versuche. Bitte versuchen Sie es in einigen Minuten erneut.",
+      "notAvailable": "Dieser Link ist nicht mehr verfügbar.",
+      "failed": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut."
+    },
+    "unavailable": {
+      "title": "Dieser Link ist nicht verfügbar",
+      "body": "Er ist möglicherweise abgelaufen oder wurde zurückgezogen. Bitten Sie den Absender um einen neuen Link."
+    },
+    "viewer": {
+      "back": "Alle Dateien",
+      "download": "Herunterladen",
+      "empty": "Hier ist noch nichts vorhanden.",
+      "gone": "Dieser Link ist nicht mehr verfügbar.",
+      "failed": "Beim Laden ist etwas schiefgelaufen."
+    },
+    "media": {
+      "noPreview": "Für diese Datei ist keine Vorschau verfügbar."
+    },
+    "feedback": {
+      "comments": "Kommentare",
+      "reactions": "Ihre Einschätzung",
+      "marks": "Markierte Stellen",
+      "noComments": "Noch keine Kommentare.",
+      "noMarks": "Noch keine Stellen markiert.",
+      "untitledMark": "Markierte Stelle",
+      "commentPlaceholder": "Anmerkung hinterlassen ...",
+      "markPlaceholder": "Anmerkung zu {{time}} ...",
+      "mark": "Markieren",
+      "send": "Senden",
+      "reply": "Antworten",
+      "replyingTo": "Antwort an {{name}}",
+      "cancelReply": "Abbrechen",
+      "delete": "Löschen",
+      "drawRegion": "Bereich markieren",
+      "drawRegionActive": "Ziehen Sie einen Rahmen auf …"
+    },
+    "reaction": {
+      "APPROVE": "Freigeben",
+      "REJECT": "Ablehnen",
+      "THUMBSUP": "Ja",
+      "THUMBSDOWN": "Nein",
+      "LOVE": "Gefällt mir",
+      "QUESTION": "Frage"
+    },
+    "expiry": {
+      "1d": "1 Tag",
+      "7d": "7 Tage",
+      "30d": "1 Monat",
+      "1y": "1 Jahr",
+      "never": "Nie"
+    },
+    "dialog": {
+      "title": "{{name}} teilen",
+      "linkLabel": "Teilbarer Link",
+      "copy": "Link kopieren",
+      "copied": "Link in die Zwischenablage kopiert",
+      "copyFailed": "Der Link konnte nicht kopiert werden",
+      "expiryLabel": "Link läuft ab nach",
+      "passwordProtect": "Mit Passwort schützen",
+      "passwordHint": "Wird nur einmal angezeigt. Senden Sie es getrennt vom Link.",
+      "regenerate": "Neues Passwort erzeugen",
+      "allowDownload": "Herunterladen der Originaldatei erlauben",
+      "allowFeedback": "Kommentare, Markierungen und Reaktionen erlauben",
+      "oneLinkPerReviewer": "Senden Sie einen Link pro Person - alle, die denselben Link öffnen, teilen sich einen Namen.",
+      "createFailed": "Der Link konnte nicht erstellt werden.",
+      "updateFailed": "Die Änderung konnte nicht gespeichert werden.",
+      "done": "Fertig"
+    },
+    "action": {
+      "share": "Teilen"
+    }
   }
 }

@@ -78,7 +78,7 @@ more.
 .The node's settings in the pipeline editor
 image::config.png[The Translate settings panel: Target Language, Source Language, Model and 5 more settings,role="ml-panel-shot"]
 
-`TranslateNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

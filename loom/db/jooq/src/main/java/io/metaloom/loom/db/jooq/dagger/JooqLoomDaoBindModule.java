@@ -18,6 +18,8 @@ import io.metaloom.loom.db.jooq.dao.skill.SkillDaoImpl;
 import io.metaloom.loom.db.jooq.dao.skill.SkillVersionDaoImpl;
 import io.metaloom.loom.db.jooq.dao.cluster.ClusterDaoImpl;
 import io.metaloom.loom.db.jooq.dao.collection.CollectionDaoImpl;
+import io.metaloom.loom.db.jooq.dao.share.ShareDaoImpl;
+import io.metaloom.loom.db.jooq.dao.share.ShareFeedbackDaoImpl;
 import io.metaloom.loom.db.jooq.dao.comment.CommentDaoImpl;
 import io.metaloom.loom.db.jooq.dao.embedding.EmbeddingDaoImpl;
 import io.metaloom.loom.db.jooq.dao.pipeline.PipelineDaoImpl;
@@ -51,6 +53,8 @@ import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.share.ShareDao;
+import io.metaloom.loom.db.model.share.ShareFeedbackDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
@@ -117,6 +121,12 @@ public abstract class JooqLoomDaoBindModule {
 
 	@Binds
 	abstract CollectionDao collectionDao(CollectionDaoImpl dao);
+
+	@Binds
+	abstract ShareDao shareDao(ShareDaoImpl dao);
+
+	@Binds
+	abstract ShareFeedbackDao shareFeedbackDao(ShareFeedbackDaoImpl dao);
 
 	@Binds
 	abstract PermissionDao permissionDao(PermissionDaoImpl dao);

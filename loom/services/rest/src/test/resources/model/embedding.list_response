@@ -10,7 +10,24 @@
         "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
         "name" : "creatorEditor"
       }
-    }
+    },
+    "meta" : {
+      "abc" : "efg",
+      "nested" : {
+        "key" : 42
+      },
+      "array" : [ 42, 24 ]
+    },
+    "source" : "facedetect",
+    "type" : "face",
+    "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+    "assetUuid" : "56ac17f2-a003-413a-ad38-303a05808eb7",
+    "model" : "inspireface-r18",
+    "dimensions" : 4,
+    "detectionUuid" : "1c2c0f0e-8f27-4c2f-9b5a-6f1f7b0f7a11",
+    "frameNumber" : 42,
+    "subjectIndex" : 1,
+    "normalized" : true
   }, {
     "uuid" : "daf9c614-524d-4215-a9da-6ca7451f342a",
     "status" : {
@@ -22,7 +39,24 @@
         "uuid" : "6793ad7e-200c-432b-8e64-62b9f9544ece",
         "name" : "creatorEditor"
       }
-    }
+    },
+    "meta" : {
+      "abc" : "efg",
+      "nested" : {
+        "key" : 42
+      },
+      "array" : [ 42, 24 ]
+    },
+    "source" : "facedetect",
+    "type" : "face",
+    "vector" : [ 0.42, 0.24, 0.44, 21.5 ],
+    "assetUuid" : "56ac17f2-a003-413a-ad38-303a05808eb7",
+    "model" : "inspireface-r18",
+    "dimensions" : 4,
+    "detectionUuid" : "1c2c0f0e-8f27-4c2f-9b5a-6f1f7b0f7a11",
+    "frameNumber" : 42,
+    "subjectIndex" : 1,
+    "normalized" : true
   } ],
   "_metainfo" : {
     "lastUuid" : "daf9c614-524d-4215-a9da-6ca7451f342a",

@@ -295,55 +295,80 @@ public class AssetBinaryEndpointService extends AbstractCRUDEndpointService<Asse
 	 * </p>
 	 */
 	public void downloadByAssetUuid(LoomRoutingContext lrc, UUID assetUuid) {
-		checkPerm(lrc, READ_ASSET_BINARY, () -> {
-			AssetBinary binary = dao().loadPrimaryByAssetUuid(assetUuid);
-			if (binary == null || binary.getPath() == null) {
-				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "No binary found for asset.");
-			}
-			BinaryStorage storage = storageResolver.forPool(binary.getPoolUuid());
-			String locator = binary.getPath();
-			if (!storage.exists(locator)) {
-				throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Binary file is missing in " + storage.describe() + ".");
-			}
+		checkPerm(lrc, READ_ASSET_BINARY, () -> streamPrimaryBinary(lrc, assetUuid, true));
+	}
 
-			long total = storage.size(locator);
-			String mimeType = binary.getMimeType() != null ? binary.getMimeType() : "application/octet-stream";
-			String fileName = fileNameOf(locator);
+	/**
+	 * Stream an asset's primary binary <b>without checking any permission</b>.
+	 *
+	 * <p>
+	 * Extracted from {@link #downloadByAssetUuid(LoomRoutingContext, UUID)} so that the public share routes can serve bytes to a visitor who has no
+	 * user and therefore no permissions, having been authorized instead by {@code ShareAccessService} against the share row. Range handling, the
+	 * {@code sendFile} fast path and object-store streaming are worth exactly one implementation - a second copy in the share service is how the two
+	 * would drift until video seeking worked on one route and not the other.
+	 * </p>
+	 *
+	 * <p>
+	 * <b>Callers are responsible for authorization.</b> There are two, and both authorize first: this class through {@code checkPerm}, and
+	 * {@code PublicShareEndpointService} through {@code ShareAccessService.requireAssetAccess}.
+	 * </p>
+	 *
+	 * @param asAttachment
+	 *            true to offer the file as a download ({@code Content-Disposition: attachment}), false to serve it inline so a browser plays it in
+	 *            place. The internal route always downloads; the share viewer needs inline for its player, and switches to attachment only when the
+	 *            visitor presses Download on a share that allows it
+	 */
+	public void streamPrimaryBinary(LoomRoutingContext lrc, UUID assetUuid, boolean asAttachment) {
+		AssetBinary binary = dao().loadPrimaryByAssetUuid(assetUuid);
+		if (binary == null || binary.getPath() == null) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "No binary found for asset.");
+		}
+		BinaryStorage storage = storageResolver.forPool(binary.getPoolUuid());
+		String locator = binary.getPath();
+		if (!storage.exists(locator)) {
+			throw new LoomRestException(404, LoomRestErrorCode.NOT_FOUND, "Binary file is missing in " + storage.describe() + ".");
+		}
 
-			HttpServerResponse response = lrc.routingContext().response();
-			response.putHeader(HttpHeaders.CONTENT_TYPE, mimeType);
-			response.putHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
-			// Advertise range support even on the full-entity response, otherwise clients never ask.
-			response.putHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+		long total = storage.size(locator);
+		String mimeType = binary.getMimeType() != null ? binary.getMimeType() : "application/octet-stream";
+		String fileName = fileNameOf(locator);
 
-			ByteRange range = ByteRange.parse(lrc.routingContext().request().getHeader(RANGE_HEADER), total);
-			if (range != null && range.unsatisfiable()) {
-				response.setStatusCode(416).putHeader(HttpHeaders.CONTENT_RANGE, "bytes */" + total).end();
-				return;
+		HttpServerResponse response = lrc.routingContext().response();
+		response.putHeader(HttpHeaders.CONTENT_TYPE, mimeType);
+		// The filename is quoted and any quote inside it escaped: a stored name containing one would otherwise
+		// terminate the header value early and let the rest of it be read as further parameters.
+		response.putHeader("Content-Disposition",
+			(asAttachment ? "attachment" : "inline") + "; filename=\"" + fileName.replace("\"", "\\\"") + "\"");
+		// Advertise range support even on the full-entity response, otherwise clients never ask.
+		response.putHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+
+		ByteRange range = ByteRange.parse(lrc.routingContext().request().getHeader(RANGE_HEADER), total);
+		if (range != null && range.unsatisfiable()) {
+			response.setStatusCode(416).putHeader(HttpHeaders.CONTENT_RANGE, "bytes */" + total).end();
+			return;
+		}
+		if (range != null) {
+			response.setStatusCode(206);
+			response.putHeader(HttpHeaders.CONTENT_RANGE, "bytes " + range.start() + "-" + range.end() + "/" + total);
+			response.putHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(range.length()));
+		} else if (total >= 0) {
+			response.putHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(total));
+		}
+
+		long offset = range == null ? 0 : range.start();
+		long length = range == null ? -1 : range.length();
+
+		Optional<Path> local = storage.localPath(locator);
+		if (local.isPresent()) {
+			// Zero-copy. sendFile sets Content-Length itself for the ranged form.
+			if (range == null) {
+				response.sendFile(local.get().toString());
+			} else {
+				response.sendFile(local.get().toString(), offset, length);
 			}
-			if (range != null) {
-				response.setStatusCode(206);
-				response.putHeader(HttpHeaders.CONTENT_RANGE, "bytes " + range.start() + "-" + range.end() + "/" + total);
-				response.putHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(range.length()));
-			} else if (total >= 0) {
-				response.putHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(total));
-			}
-
-			long offset = range == null ? 0 : range.start();
-			long length = range == null ? -1 : range.length();
-
-			Optional<Path> local = storage.localPath(locator);
-			if (local.isPresent()) {
-				// Zero-copy. sendFile sets Content-Length itself for the ranged form.
-				if (range == null) {
-					response.sendFile(local.get().toString());
-				} else {
-					response.sendFile(local.get().toString(), offset, length);
-				}
-				return;
-			}
-			streamTo(response, storage, locator, offset, length);
-		});
+			return;
+		}
+		streamTo(response, storage, locator, offset, length);
 	}
 
 	/**

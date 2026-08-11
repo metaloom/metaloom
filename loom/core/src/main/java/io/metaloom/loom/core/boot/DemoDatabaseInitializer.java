@@ -81,7 +81,16 @@ import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.person.Person;
 import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.collection.Collection;
+import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.share.Share;
+import io.metaloom.loom.db.model.share.ShareAnnotation;
+import io.metaloom.loom.db.model.share.ShareAnnotationKind;
+import io.metaloom.loom.db.model.share.ShareComment;
+import io.metaloom.loom.db.model.share.ShareDao;
+import io.metaloom.loom.db.model.share.ShareFeedbackDao;
+import io.metaloom.loom.db.model.share.ShareReaction;
+import io.metaloom.loom.db.model.share.ShareReactionType;
 import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.group.Group;
@@ -174,6 +183,21 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_POOL_INGEST = "Ingest Hot Storage";
 	private static final String DEMO_POOL_ARCHIVE = "Archive S3";
 
+	/**
+	 * Fixed slugs for the two demo share links.
+	 *
+	 * <p>
+	 * Fixed rather than generated so the documentation, the screenshot script and anybody following the getting-started guide can all name the same
+	 * URL. A real link's slug is 128 random bits; these are readable on purpose, and are only ever this predictable in the demo container.
+	 * </p>
+	 */
+	private static final String DEMO_SHARE_SLUG_OPEN = "demoOpenCollection001";
+
+	private static final String DEMO_SHARE_SLUG_LOCKED = "demoLockedAssetLink01";
+
+	/** Quoted verbatim in the customer-facing documentation. */
+	private static final String DEMO_SHARE_PASSWORD = "amber-lantern-42";
+
 	private final UserDao userDao;
 	private final AssetDao assetDao;
 	private final SpaceDao spaceDao;
@@ -211,6 +235,9 @@ public class DemoDatabaseInitializer {
 	private final ChatSessionDao chatSessionDao;
 	private final MemoryEntryDao memoryEntryDao;
 	private final DedupGroupDao dedupGroupDao;
+	private final ShareDao shareDao;
+	private final ShareFeedbackDao shareFeedbackDao;
+	private final AuthenticationService authService;
 	private final LoomOptions options;
 
 	/** Running detection ordinal per {@code asset|nodeKind|frame}; see {@link #createDetection}. */
@@ -225,12 +252,16 @@ public class DemoDatabaseInitializer {
 		DetectionDao detectionDao, EmbeddingDao embeddingDao,
 		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao,
 		PipelineRunDao pipelineRunDao, AssetBinaryDao assetBinaryDao, SkillDao skillDao, SkillVersionDao skillVersionDao,
-		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, DedupGroupDao dedupGroupDao, AttachmentDao attachmentDao, LoomOptions options) {
+		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, DedupGroupDao dedupGroupDao, AttachmentDao attachmentDao,
+		ShareDao shareDao, ShareFeedbackDao shareFeedbackDao, AuthenticationService authService, LoomOptions options) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
 		this.tagDao = tagDao;
 		this.collectionDao = collectionDao;
+		this.shareDao = shareDao;
+		this.shareFeedbackDao = shareFeedbackDao;
+		this.authService = authService;
 		this.libraryDao = libraryDao;
 		this.pipelineDao = pipelineDao;
 		this.assetPoolDao = assetPoolDao;
@@ -941,6 +972,9 @@ public class DemoDatabaseInitializer {
 		// --- Deduplication review queue ---
 		seedDemoDedupGroup(admin, videoAssets[0]);
 
+		// --- Customer-facing share links ---
+		seedDemoShares(admin, videosCollection, videoAssets[0]);
+
 		log.info(
 			"Demo data initialization complete — created {} assets ({} with previewable binaries), {} tags, {} collections, {} pipelines, {} users, "
 				+ "{} groups, {} roles, {} tasks, {} skills, {} chat sessions, {} memory entries, {} annotations, {} reactions.",
@@ -1337,6 +1371,88 @@ public class DemoDatabaseInitializer {
 		assetDao.store(asset);
 		log.info("Created demo asset: {}", filename);
 		return asset;
+	}
+
+	/**
+	 * Two share links, so the customer-facing area has something to open on first boot.
+	 *
+	 * <p>
+	 * One of each kind, because they answer different questions. The open collection link shows what a client sees when there is nothing in the way:
+	 * a tiled set of clips, downloadable, with comments and marks turned on so the feedback surface has something in it. The password-protected asset
+	 * link shows the front door - it is the one worth opening second, and the one the getting-started guide quotes the password for.
+	 * </p>
+	 *
+	 * <p>
+	 * The collection link already carries feedback from a visitor called "Maria from Acme". Seeding it matters more than it looks: an empty feedback
+	 * panel and a broken feedback panel render identically, and the owner-side Feedback tab is otherwise impossible to evaluate without opening a
+	 * second browser and typing a review by hand.
+	 * </p>
+	 *
+	 * <p>
+	 * Neither link expires. A demo container that has been running for a fortnight should still be able to show the feature.
+	 * </p>
+	 */
+	private void seedDemoShares(User admin, Collection videosCollection, Asset featuredVideo) {
+		Share collectionShare = shareDao.createCollectionShare(admin.getUuid(), videosCollection.getUuid(), DEMO_SHARE_SLUG_OPEN);
+		collectionShare.setUuid(UUIDUtils.randomUUID());
+		collectionShare.setAllowDownload(true);
+		collectionShare.setShowMetadata(true);
+		collectionShare.setAllowComments(true);
+		collectionShare.setAllowReactions(true);
+		collectionShare.setAllowAnnotations(true);
+		// Already opened once, by somebody who gave a name - so the share list has a visitor to show rather than
+		// "not opened yet" on every row.
+		collectionShare.setVisitorName("Maria from Acme");
+		collectionShare.setFirstVisitedAt(Instant.now().minusSeconds(3 * 24 * 3600));
+		collectionShare.setLastViewedAt(Instant.now().minusSeconds(2 * 3600));
+		collectionShare.setViewCount(4);
+		shareDao.store(collectionShare);
+		log.info("Created demo share link: /ui/share/{}", DEMO_SHARE_SLUG_OPEN);
+
+		Share assetShare = shareDao.createAssetShare(admin.getUuid(), featuredVideo.getUuid(), DEMO_SHARE_SLUG_LOCKED);
+		assetShare.setUuid(UUIDUtils.randomUUID());
+		// Hashed with the same encoder a login uses. Storing the clear password here would be the one place in the
+		// codebase where a share password existed in readable form, which is exactly what the column comment forbids.
+		assetShare.setPasswordHash(authService.encodePassword(DEMO_SHARE_PASSWORD));
+		assetShare.setAllowDownload(false);
+		assetShare.setShowMetadata(true);
+		assetShare.setAllowComments(true);
+		assetShare.setAllowReactions(true);
+		assetShare.setAllowAnnotations(false);
+		shareDao.store(assetShare);
+		log.info("Created demo share link (password {}): /ui/share/{}", DEMO_SHARE_PASSWORD, DEMO_SHARE_SLUG_LOCKED);
+
+		seedDemoShareFeedback(collectionShare, featuredVideo);
+	}
+
+	/**
+	 * What the demo's customer said back: a comment with a reply, a mark on the timeline, and a sign-off.
+	 */
+	private void seedDemoShareFeedback(Share share, Asset video) {
+		String author = share.getVisitorName();
+
+		ShareComment note = shareFeedbackDao.createComment(share.getUuid(), video.getUuid(), author,
+			"The second cut runs long - could we lose the establishing shot at the top?");
+		shareFeedbackDao.storeComment(note);
+
+		ShareComment reply = shareFeedbackDao.createComment(share.getUuid(), video.getUuid(), author,
+			"Ignore that, the client wants the wide. Leave it as is.");
+		reply.setParentUuid(note.getUuid());
+		shareFeedbackDao.storeComment(reply);
+
+		ShareAnnotation mark = shareFeedbackDao.createAnnotation(share.getUuid(), video.getUuid(),
+			ShareAnnotationKind.SPATIOTEMPORAL, author);
+		mark.setTimeFrom(14.25).setTimeTo(19.5);
+		// Normalised 0..1 against the frame, which is what the viewer draws with - see V2.99.
+		mark.setAreaX(0.42).setAreaY(0.18).setAreaWidth(0.16).setAreaHeight(0.22);
+		mark.setText("The logo is clipped on the right here.");
+		shareFeedbackDao.storeAnnotation(mark);
+
+		ShareReaction approval = shareFeedbackDao.createReaction(share.getUuid(), ShareReactionType.APPROVE, author);
+		approval.setAssetUuid(video.getUuid());
+		shareFeedbackDao.storeReaction(approval);
+
+		log.info("Seeded demo share feedback for {}", share.getSlug());
 	}
 
 	/**

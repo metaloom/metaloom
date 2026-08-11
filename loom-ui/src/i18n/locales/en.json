@@ -2179,5 +2179,91 @@
       "deleteFailed": "The picture could not be deleted",
       "loadFailed": "This person could not be loaded"
     }
+  },
+  "share": {
+    "gate": {
+      "title": "You have been sent something to look at",
+      "welcomeBack": "Welcome back, {{name}}",
+      "subtitleAsset": "Tell us who you are so your notes can be attributed.",
+      "subtitleCollection": "Tell us who you are so your notes can be attributed.",
+      "nameLabel": "Your name",
+      "namePlaceholder": "e.g. Maria from Acme",
+      "passwordLabel": "Password",
+      "anonymous": "Anonymous",
+      "skip": "Skip",
+      "open": "Open",
+      "opening": "Opening...",
+      "wrongPassword": "That password is not correct.",
+      "tooManyAttempts": "Too many attempts. Please try again in a few minutes.",
+      "notAvailable": "This link is no longer available.",
+      "failed": "Something went wrong. Please try again."
+    },
+    "unavailable": {
+      "title": "This link is not available",
+      "body": "It may have expired, or it may have been withdrawn. Ask whoever sent it to you for a new one."
+    },
+    "viewer": {
+      "back": "All files",
+      "download": "Download",
+      "empty": "There is nothing here yet.",
+      "gone": "This link is no longer available.",
+      "failed": "Something went wrong loading this."
+    },
+    "media": {
+      "noPreview": "No preview available for this file."
+    },
+    "feedback": {
+      "comments": "Comments",
+      "reactions": "Your verdict",
+      "marks": "Marked moments",
+      "noComments": "No comments yet.",
+      "noMarks": "No moments marked yet.",
+      "untitledMark": "Marked moment",
+      "commentPlaceholder": "Leave a note...",
+      "markPlaceholder": "Note about {{time}}...",
+      "mark": "Mark",
+      "send": "Send",
+      "reply": "Reply",
+      "replyingTo": "Replying to {{name}}",
+      "cancelReply": "Cancel",
+      "delete": "Delete",
+      "drawRegion": "Draw a box on the media",
+      "drawRegionActive": "Drag a box on the media…"
+    },
+    "reaction": {
+      "APPROVE": "Approve",
+      "REJECT": "Reject",
+      "THUMBSUP": "Yes",
+      "THUMBSDOWN": "No",
+      "LOVE": "Love it",
+      "QUESTION": "Question"
+    },
+    "expiry": {
+      "1d": "1 day",
+      "7d": "7 days",
+      "30d": "1 month",
+      "1y": "1 year",
+      "never": "Never"
+    },
+    "dialog": {
+      "title": "Share {{name}}",
+      "linkLabel": "Shareable link",
+      "copy": "Copy link",
+      "copied": "Link copied to the clipboard",
+      "copyFailed": "Could not copy the link",
+      "expiryLabel": "Link expires after",
+      "passwordProtect": "Protect with a password",
+      "passwordHint": "Shown here only once. Send it separately from the link.",
+      "regenerate": "Generate a new password",
+      "allowDownload": "Allow downloading the original file",
+      "allowFeedback": "Allow comments, marks and reactions",
+      "oneLinkPerReviewer": "Send one link per reviewer - everyone opening the same link shares one name.",
+      "createFailed": "The link could not be created.",
+      "updateFailed": "The change could not be saved.",
+      "done": "Done"
+    },
+    "action": {
+      "share": "Share"
+    }
   }
 }

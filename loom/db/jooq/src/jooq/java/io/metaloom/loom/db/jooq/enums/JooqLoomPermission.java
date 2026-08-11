@@ -299,7 +299,15 @@ public enum JooqLoomPermission implements EnumType {
 
     READ_DB_INTEGRITY("READ_DB_INTEGRITY"),
 
-    READ_STORAGE("READ_STORAGE");
+    READ_STORAGE("READ_STORAGE"),
+
+    CREATE_SHARE("CREATE_SHARE"),
+
+    READ_SHARE("READ_SHARE"),
+
+    UPDATE_SHARE("UPDATE_SHARE"),
+
+    DELETE_SHARE("DELETE_SHARE");
 
     private final String literal;
 

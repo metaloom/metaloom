@@ -102,6 +102,28 @@ Environment variables take precedence over values in `loom.yml`.
 | `LOOM_SERVER_MON_PORT` | `8989` | Monitoring/health port
 |===
 
+=== Cortex worker presence
+
+Cortex workers heartbeat over the processor WebSocket. A worker whose host dies, is
+partitioned or freezes may leave a half-open connection behind: the socket never closes,
+so without a timeout Loom would keep the worker online and keep sending it work. Loom
+therefore expires a worker that has gone silent, marks it offline, and immediately
+re-places whatever it was running on another worker. A worker that comes back simply
+re-registers; its saved node restrictions are untouched.
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_PROCESSOR_EXPIRY_ENABLED` | `true` | Expire workers that stop heartbeating. Set to `false` when debugging a worker locally — a worker paused on a breakpoint stops heartbeating
+| `LOOM_PROCESSOR_HEARTBEAT_INTERVAL_MS` | `10000` | How often a worker is expected to report in; also how often Loom checks
+| `LOOM_PROCESSOR_MISSED_HEARTBEATS` | `6` | Reports a worker may miss before it is expired. With the defaults that is 60 seconds of silence
+|===
+
+TIP: Raise `LOOM_PROCESSOR_MISSED_HEARTBEATS` rather than lowering it on a congested
+network. Expiring a worker that was only briefly unreachable is safe but costs duplicated
+work, because the tasks it was running are handed to another worker while it may still be
+finishing them.
+
 === Storage
 
 [options="header",cols="2,1,2"]

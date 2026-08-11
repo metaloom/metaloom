@@ -18,6 +18,8 @@ import io.metaloom.loom.db.model.group.GroupDao;
 import io.metaloom.loom.db.model.library.LibraryDao;
 import io.metaloom.loom.db.model.loom.LoomDao;
 import io.metaloom.loom.db.model.perm.PermissionDao;
+import io.metaloom.loom.db.model.share.ShareDao;
+import io.metaloom.loom.db.model.share.ShareFeedbackDao;
 import io.metaloom.loom.db.model.space.SpaceDao;
 import io.metaloom.loom.db.model.reaction.ReactionDao;
 import io.metaloom.loom.db.model.role.RoleDao;
@@ -82,6 +84,16 @@ public interface DaoCollection {
 	CollectionDao collectionDao();
 
 	BlacklistDao blacklistDao();
+
+	// Sharing
+
+	ShareDao shareDao();
+
+	/**
+	 * Comments, annotations and reactions left by share visitors. One facade over three tables - see {@link ShareFeedbackDao} for why it is not a
+	 * {@code CRUDDao}.
+	 */
+	ShareFeedbackDao shareFeedbackDao();
 
 	// Tagging
 

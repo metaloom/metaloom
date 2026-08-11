@@ -58,7 +58,7 @@ and combines them weighted by length — so a long complaint is not diluted by a
 .The node's settings in the pipeline editor
 image::config.png[The Sentiment Analysis settings panel: Sidecar Host, Sidecar Port, Language and 3 more settings,role="ml-panel-shot"]
 
-`SentimentNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

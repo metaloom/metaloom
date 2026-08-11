@@ -43,7 +43,8 @@ code change is required — but the pack must be API-compatible with the Inspire
 
 [WARNING]
 ====
-**Ideogram 4.0 — non-commercial model agreement.** The planned `imagegen` node is designed around the
+**Ideogram 4.0 — non-commercial model agreement.** The link:../../nodes/imagegen/[Image Generation]
+node is built around the
 open-weight **Ideogram 4.0** image generation model (`ideogram-ai/ideogram-4-nf4`). The inference
 *code* is Apache-2.0, but the **weights are released under the Ideogram 4 Non-Commercial Model
 Agreement**. Using them in a commercial MetaLoom deployment would violate the weight license.
@@ -218,7 +219,7 @@ native libraries listed under link:#runtimes[Runtimes & Libraries] applies.
 | Code Apache-2.0; **model packs follow InsightFace — academic use only**
 | ❌ **No** — see link:#restricted[restrictions]
 
-| `imagegen` (planned)
+| link:../../nodes/imagegen/[Image Generation]
 | Ideogram 4.0 (`ideogram-ai/ideogram-4-nf4`) behind a Python sidecar
 | Code Apache-2.0; **weights under the Ideogram 4 Non-Commercial Model Agreement**
 | ❌ **No** — see link:#restricted[restrictions]
@@ -283,7 +284,7 @@ configuration stays inside permissive licenses:
 * **Drop** link:../../nodes/facedetect/[Face Detection] and
   link:../../nodes/facedescription/[Face Description], or replace the InspireFace pack with a
   commercially licensed face model.
-* **Do not deploy** the `imagegen` node against Ideogram 4.0 weights.
+* **Do not deploy** the link:../../nodes/imagegen/[Image Generation] node against Ideogram 4.0 weights.
 * **Set `ORPHEUS_REPO_DE=Thorsten-Voice/tv-orpheus-v1`** for German
   link:../../nodes/tts/[Text-to-Speech] (Apache-2.0, ungated) instead of the Kartoffel checkpoint.
 * **Replace the Gemma defaults** in the link:../../nodes/llm/[LLM] node with an Apache-2.0 or

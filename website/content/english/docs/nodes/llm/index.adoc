@@ -26,7 +26,7 @@ one answer they care about rather than to the node as a whole.
 .The node's settings in the pipeline editor
 image::config.png[The LLM (Large Language Model) settings panel: OpenAI URL,role="ml-panel-shot"]
 
-`LLMNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

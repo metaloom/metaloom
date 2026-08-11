@@ -65,6 +65,7 @@ class Transport:
         path_prefix: str = "",
         timeout: float = 10.0,
         token: str | None = None,
+        share_session_token: str | None = None,
         opener: urllib.request.OpenerDirector | None = None,
     ) -> None:
         self.scheme = scheme
@@ -73,6 +74,10 @@ class Transport:
         self.path_prefix = path_prefix.strip("/")
         self.timeout = timeout
         self.token = token
+        #: The customer-facing share credential, kept apart from ``token`` on purpose.
+        #: A share visitor is not a user, so it travels in its own header and can
+        #: never be mistaken for a bearer token by the authentication handler.
+        self.share_session_token = share_session_token
         # No HTTPCookieProcessor: the server also issues a `__Host-loom_token`
         # cookie, but honouring it would let a stale cookie authenticate a request
         # the caller believes is anonymous. The Java client ignores it too.
@@ -106,6 +111,8 @@ class Transport:
             http_request.add_header("Content-Type", content_type)
         if self.token:
             http_request.add_header("Authorization", "Bearer " + self.token)
+        if self.share_session_token:
+            http_request.add_header("X-Loom-Share-Session", self.share_session_token)
 
         timeout = request._timeout if request._timeout is not None else self.timeout
         log.debug("%s %s", request.method, url)

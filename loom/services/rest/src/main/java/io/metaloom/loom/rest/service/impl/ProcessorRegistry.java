@@ -206,13 +206,32 @@ public class ProcessorRegistry {
 	 * Unregister a processor node.
 	 */
 	public void unregister(String nodeId) {
-		ConnectedProcessor removed = processors.remove(nodeId);
-		if (removed != null) {
-			metrics.recordProcessorDisconnected();
-			log.info("Processor unregistered: {} ({})", removed.name, nodeId);
-			broadcast(new ProcessorEventMessage(ProcessorEventType.DISCONNECTED, nodeId));
-			presenceChanged();
+		unregister(nodeId, null);
+	}
+
+	/**
+	 * @param nodeId   the worker identity
+	 * @param expected when non-null, remove the mapping only while this exact registration
+	 *                 still owns the id. A worker that reconnected while the removal was
+	 *                 being decided must survive it, and only a conditional remove can say
+	 *                 that without a window between the check and the removal.
+	 * @return true when this call is the one that removed the registration
+	 */
+	private boolean unregister(String nodeId, ConnectedProcessor expected) {
+		ConnectedProcessor removed;
+		if (expected == null) {
+			removed = processors.remove(nodeId);
+		} else {
+			removed = processors.remove(nodeId, expected) ? expected : null;
 		}
+		if (removed == null) {
+			return false;
+		}
+		metrics.recordProcessorDisconnected();
+		log.info("Processor unregistered: {} ({})", removed.name, nodeId);
+		broadcast(new ProcessorEventMessage(ProcessorEventType.DISCONNECTED, nodeId));
+		presenceChanged();
+		return true;
 	}
 
 	/**
@@ -233,8 +252,72 @@ public class ProcessorRegistry {
 			log.debug("Ignoring close of superseded socket for '{}'", nodeId);
 			return;
 		}
+		evict(current, "socket closed");
+	}
+
+	/**
+	 * Evict every worker that has stopped heartbeating.
+	 *
+	 * <p>Presence is otherwise write-only: {@link #register}, {@link #heartbeat},
+	 * {@link #updateStatus} and {@link #updateState} all stamp {@code lastSeen} and nothing
+	 * ever compares it to the clock. The only transition to {@code OFFLINE} lives in
+	 * {@link #disconnect}, which runs from the socket close handler — and a half-open
+	 * connection (silent host, network partition, frozen JVM) never fires it. Without this
+	 * sweep such a worker stays {@code ONLINE} and keeps being chosen by
+	 * {@link #selectProcessor}, so every task placed on it is only recovered a full lease
+	 * later and is then handed straight back to the same dead worker.</p>
+	 *
+	 * <p>Note this is a different question from the one {@code STATUS_MAX_AGE} answers: that
+	 * one only stops <em>trusting a stale load figure</em>, and deliberately leaves the
+	 * worker placeable.</p>
+	 *
+	 * @param now    the moment the sweep is made
+	 * @param maxAge how long silence is tolerated before a worker is presumed gone
+	 * @param limit  upper bound on one sweep, so the sweep cannot itself become the outage
+	 * @return the node ids evicted, so the caller can hand their work back
+	 */
+	public List<String> expireStale(Instant now, Duration maxAge, int limit) {
+		Instant cutoff = now.minus(maxAge);
+		List<String> evicted = new ArrayList<>();
+		for (ConnectedProcessor processor : processors.values()) {
+			if (processor.lastSeen != null && processor.lastSeen.isAfter(cutoff)) {
+				continue;
+			}
+			if (evicted.size() >= limit) {
+				// Say so rather than let a truncated sweep read as "the fleet is healthy".
+				log.warn("Presence sweep hit its limit of {} - more silent workers remain", limit);
+				break;
+			}
+			if (evict(processor, "last seen " + processor.lastSeen)) {
+				evicted.add(processor.nodeId);
+			}
+		}
+		return evicted;
+	}
+
+	/**
+	 * Take a worker out of the fleet: {@code OFFLINE}, then unregistered.
+	 *
+	 * <p>Both departure paths — a socket close and a presence sweep — go through here, so
+	 * the {@code STATE_CHANGED} / {@code DISCONNECTED} pair and the {@link #presenceChanged()}
+	 * bookkeeping fire exactly once per departure from exactly one place.</p>
+	 *
+	 * @param observed the registration the caller decided to evict
+	 * @param reason   why, for the log
+	 * @return true when this call is the one that removed it
+	 */
+	private boolean evict(ConnectedProcessor observed, String reason) {
+		String nodeId = observed.nodeId;
+		// The same trap disconnect() avoids by comparing sockets, in the form a sweep needs:
+		// a worker that reconnected under this id holds a *different* ConnectedProcessor, and
+		// evicting on the strength of the one we observed would take the live reconnection down.
+		if (processors.get(nodeId) != observed) {
+			log.debug("Ignoring eviction of superseded registration for '{}' ({})", nodeId, reason);
+			return false;
+		}
+		log.info("Evicting processor '{}': {}", nodeId, reason);
 		updateState(nodeId, ProcessorState.OFFLINE);
-		unregister(nodeId);
+		return unregister(nodeId, observed);
 	}
 
 	/**

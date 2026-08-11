@@ -52,6 +52,14 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 	}
 
 	@Override
+	public boolean matchesPassword(String password, String hash) {
+		if (password == null || hash == null) {
+			return false;
+		}
+		return passwordEncoder.matches(password, hash);
+	}
+
+	@Override
 	public User login(String username, String password) {
 		User user = userDao.loadByUsername(username);
 		if (user == null) {

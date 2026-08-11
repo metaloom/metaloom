@@ -194,7 +194,7 @@ public interface AssetComponentDao extends Dao {
 	 * Every fingerprint component recorded for one algorithm.
 	 *
 	 * <p>
-	 * Feeds the full rebuild of the derived similarity index (spec/features/search/LUCENE_PLAN.md §4): the Lucene k-NN index is a cache of this table
+	 * Feeds the full rebuild of the derived similarity index (spec/loom/SEARCH_LUCENE.md §4): the Lucene k-NN index is a cache of this table
 	 * and is reconstructed from exactly this query.
 	 * </p>
 	 */

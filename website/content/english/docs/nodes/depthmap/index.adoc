@@ -64,7 +64,7 @@ Two further details matter if you process the map yourself:
 .The node's settings in the pipeline editor
 image::config.png[The Depth Map settings panel: Sidecar Host, Sidecar Port, Depth Mode and 3 more settings,role="ml-panel-shot"]
 
-`DepthmapNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

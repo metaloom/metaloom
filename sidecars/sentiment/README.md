@@ -12,7 +12,7 @@ FastAPI server behind the Cortex `sentiment` node. One endpoint,
 The Java `SentimentNode` (`io.metaloom.cortex.node.sentiment`) is a pure HTTP client
 of this server — it never loads a model. This mirrors the `tts` sidecar.
 
-See [NODE_SENTIMENT_PLAN.md](../../spec/features/pipeline-nodes/NODE_SENTIMENT_PLAN.md)
+See [NODE_SENTIMENT.md](../../spec/features/nodes/sentiment/NODE_SENTIMENT.md)
 for the model survey, including the checkpoints that were rejected on licence
 grounds.
 

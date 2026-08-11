@@ -9,6 +9,7 @@ import { listLibraries } from "./libraries";
 import { listPersons } from "./persons";
 import { listPools } from "./pools";
 import { listRoles } from "./roles";
+import { listShareLinks } from "./shareLinks";
 import { listSkillLibrary, listSkills } from "./skills";
 import { listSpaces } from "./spaces";
 import { listTags } from "./tags";
@@ -52,6 +53,7 @@ const CLIENTS: [name: string, fn: (t: string, p?: { limit?: number; from?: strin
   ["listClusters", listClusters, "/clusters"],
   ["listPersons", listPersons, "/persons"],
   ["listBlacklists", listBlacklists, "/blacklists"],
+  ["listShareLinks", listShareLinks, "/share-links"],
 ];
 
 describe.each(CLIENTS)("%s paging", (_name, listFn, path) => {

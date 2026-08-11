@@ -14,7 +14,7 @@ import io.metaloom.loom.rest.EndpointDependencies;
 import io.metaloom.loom.rest.service.impl.SimilarityEndpointService;
 
 /**
- * Administrative routes for the fingerprint similarity index (spec/features/search/LUCENE_PLAN.md §5).
+ * Administrative routes for the fingerprint similarity index (spec/loom/SEARCH_LUCENE.md §5).
  *
  * <p>
  * The per-asset query lives on {@code /assets/:uuid/similar-assets} ({@link AssetEndpoint}); this endpoint carries only the index-wide operations.

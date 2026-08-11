@@ -18,7 +18,7 @@ import io.metaloom.loom.similarity.NoopSimilarityIndex;
 import io.metaloom.loom.similarity.lucene.LuceneSimilarityIndex;
 
 /**
- * Binds the fingerprint similarity index selected by {@code LOOM_SIMILARITY_ENABLED} (see spec/features/search/LUCENE_PLAN.md).
+ * Binds the fingerprint similarity index selected by {@code LOOM_SIMILARITY_ENABLED} (see spec/loom/SEARCH_LUCENE.md).
  *
  * <p>
  * 🔴 <b>Similarity must never fail server boot.</b> Like search, it is a capability, not a dependency: if the index directory is unusable or the

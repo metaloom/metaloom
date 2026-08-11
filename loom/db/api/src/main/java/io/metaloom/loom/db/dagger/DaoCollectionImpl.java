@@ -37,6 +37,8 @@ import io.metaloom.loom.db.model.memory.MemoryDenyRuleDao;
 import io.metaloom.loom.db.model.memory.MemoryEntryDao;
 import io.metaloom.loom.db.model.notification.NotificationDao;
 import io.metaloom.loom.db.model.skill.SkillDao;
+import io.metaloom.loom.db.model.share.ShareDao;
+import io.metaloom.loom.db.model.share.ShareFeedbackDao;
 import io.metaloom.loom.db.model.skill.SkillVersionDao;
 import io.metaloom.loom.db.model.tag.TagDao;
 import io.metaloom.loom.db.model.task.TaskDao;
@@ -57,6 +59,8 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
 	private final Lazy<CollectionDao> collectionDao;
+	private final Lazy<ShareDao> shareDao;
+	private final Lazy<ShareFeedbackDao> shareFeedbackDao;
 	private final Lazy<LibraryDao> libraryDao;
 	private final Lazy<SpaceDao> spaceDao;
 	private final Lazy<BlacklistDao> blacklistDao;
@@ -93,6 +97,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
 		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao,
 		Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
+		Lazy<ShareDao> shareDao, Lazy<ShareFeedbackDao> shareFeedbackDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
 		Lazy<ClusterDao> clusterDao, Lazy<EmbeddingDao> embeddingDao, Lazy<TokenDao> tokenDao,
@@ -116,6 +121,8 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.assetBinaryDao = assetBinaryDao;
 		this.libraryDao = libraryDao;
 		this.collectionDao = collectionDao;
+		this.shareDao = shareDao;
+		this.shareFeedbackDao = shareFeedbackDao;
 		this.annotationDao = annotationDao;
 		this.taskDao = taskDao;
 		this.reactionDao = reactionDao;
@@ -205,6 +212,16 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public CollectionDao collectionDao() {
 		return collectionDao.get();
+	}
+
+	@Override
+	public ShareDao shareDao() {
+		return shareDao.get();
+	}
+
+	@Override
+	public ShareFeedbackDao shareFeedbackDao() {
+		return shareFeedbackDao.get();
 	}
 
 	@Override

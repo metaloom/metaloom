@@ -81,6 +81,25 @@ import io.metaloom.loom.rest.model.collection.CollectionAssetRequest;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
+import io.metaloom.loom.rest.model.share.ShareAnnotationListResponse;
+import io.metaloom.loom.rest.model.share.ShareAnnotationRequest;
+import io.metaloom.loom.rest.model.share.ShareAnnotationResponse;
+import io.metaloom.loom.rest.model.share.ShareChallengeResponse;
+import io.metaloom.loom.rest.model.share.ShareCommentListResponse;
+import io.metaloom.loom.rest.model.share.ShareCommentRequest;
+import io.metaloom.loom.rest.model.share.ShareCommentResponse;
+import io.metaloom.loom.rest.model.share.ShareCreateRequest;
+import io.metaloom.loom.rest.model.share.ShareFeedbackResponse;
+import io.metaloom.loom.rest.model.share.ShareListResponse;
+import io.metaloom.loom.rest.model.share.ShareReactionListResponse;
+import io.metaloom.loom.rest.model.share.ShareReactionRequest;
+import io.metaloom.loom.rest.model.share.ShareReactionResponse;
+import io.metaloom.loom.rest.model.share.ShareResponse;
+import io.metaloom.loom.rest.model.share.ShareSessionRequest;
+import io.metaloom.loom.rest.model.share.ShareSessionResponse;
+import io.metaloom.loom.rest.model.share.ShareUpdateRequest;
+import io.metaloom.loom.rest.model.share.SharedAssetListResponse;
+import io.metaloom.loom.rest.model.share.SharedAssetResponse;
 import io.metaloom.loom.rest.model.collection.CollectionUpdateRequest;
 import io.metaloom.loom.rest.model.comment.CommentCreateRequest;
 import io.metaloom.loom.rest.model.comment.CommentListResponse;
@@ -1065,6 +1084,126 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<CollectionListResponse> listAssetCollections(UUID assetUuid) {
 		return getRequest("assets/" + assetUuid + "/collections", CollectionListResponse.class);
+	}
+
+
+	// SHARE LINKS (owner side)
+
+	@Override
+	public LoomClientHttpRequest<ShareResponse> createShare(ShareCreateRequest request) {
+		return postRequest("share-links", request, ShareResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareResponse> loadShare(UUID shareUuid) {
+		return getRequest("share-links/" + shareUuid, ShareResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareResponse> updateShare(UUID shareUuid, ShareUpdateRequest request) {
+		return postRequest("share-links/" + shareUuid, request, ShareResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareListResponse> listShares() {
+		return getRequest("share-links", ShareListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteShare(UUID shareUuid) {
+		return deleteRequest("share-links/" + shareUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareListResponse> listAssetShares(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/share-links", ShareListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareListResponse> listCollectionShares(UUID collectionUuid) {
+		return getRequest("collections/" + collectionUuid + "/share-links", ShareListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareFeedbackResponse> loadShareFeedback(UUID shareUuid) {
+		return getRequest("share-links/" + shareUuid + "/feedback", ShareFeedbackResponse.class);
+	}
+
+	// SHARES (customer side - no account, session token in X-Loom-Share-Session)
+
+	@Override
+	public LoomClientHttpRequest<ShareChallengeResponse> loadShareChallenge(String slug) {
+		return getRequest("shares/" + slug, ShareChallengeResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareSessionResponse> openShare(String slug, ShareSessionRequest request) {
+		return postRequest("shares/" + slug + "/sessions", request, ShareSessionResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SharedAssetListResponse> listSharedAssets(String slug) {
+		return getRequest("shares/" + slug + "/assets", SharedAssetListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<SharedAssetResponse> loadSharedAsset(String slug, UUID assetUuid) {
+		return getRequest("shares/" + slug + "/assets/" + assetUuid, SharedAssetResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareCommentListResponse> listSharedComments(String slug) {
+		return getRequest("shares/" + slug + "/comments", ShareCommentListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareCommentResponse> createSharedComment(String slug, ShareCommentRequest request) {
+		return postRequest("shares/" + slug + "/comments", request, ShareCommentResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareCommentResponse> updateSharedComment(String slug, UUID commentUuid, ShareCommentRequest request) {
+		return postRequest("shares/" + slug + "/comments/" + commentUuid, request, ShareCommentResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteSharedComment(String slug, UUID commentUuid) {
+		return deleteRequest("shares/" + slug + "/comments/" + commentUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareAnnotationListResponse> listSharedAnnotations(String slug) {
+		return getRequest("shares/" + slug + "/annotations", ShareAnnotationListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareAnnotationResponse> createSharedAnnotation(String slug, ShareAnnotationRequest request) {
+		return postRequest("shares/" + slug + "/annotations", request, ShareAnnotationResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareAnnotationResponse> updateSharedAnnotation(String slug, UUID annotationUuid, ShareAnnotationRequest request) {
+		return postRequest("shares/" + slug + "/annotations/" + annotationUuid, request, ShareAnnotationResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteSharedAnnotation(String slug, UUID annotationUuid) {
+		return deleteRequest("shares/" + slug + "/annotations/" + annotationUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareReactionListResponse> listSharedReactions(String slug) {
+		return getRequest("shares/" + slug + "/reactions", ShareReactionListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<ShareReactionResponse> createSharedReaction(String slug, ShareReactionRequest request) {
+		return postRequest("shares/" + slug + "/reactions", request, ShareReactionResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteSharedReaction(String slug, UUID reactionUuid) {
+		return deleteRequest("shares/" + slug + "/reactions/" + reactionUuid);
 	}
 
 	// TASK REACTION

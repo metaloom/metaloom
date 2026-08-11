@@ -26,6 +26,13 @@ import io.metaloom.loom.db.model.pipeline.PipelineVersionDao;
 import io.metaloom.loom.db.model.user.User;
 import io.vertx.core.json.JsonObject;
 
+/**
+ * ⚠️ <b>This class is at the connection ceiling.</b> {@code JooqTestContext.afterEach} is commented
+ * out, so every test leaves its c3p0 pool and leased database behind; at 21 test methods the next
+ * one fails with {@code FATAL: sorry, too many clients already} — which surfaces 30 seconds later
+ * as an unrelated-looking "could not acquire a connection" on whichever test ran last. Until that
+ * teardown is restored, fold new coverage into an existing method rather than adding one.
+ */
 public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDaoTestcases<PipelineNodeTaskDao, PipelineNodeTask> {
 
 	@Override
@@ -200,6 +207,50 @@ public class PipelineNodeTaskDaoTest extends AbstractJooqTest implements CRUDDao
 
 		assertEquals(1, pipelineNodeTaskDao().countLeasedBy("worker-a"));
 		assertEquals(0, pipelineNodeTaskDao().countLeasedBy("worker-b"));
+	}
+
+	@Test
+	public void testLoadLeasedByFindsUnexpiredWorkOfOneWorker() {
+		User user = dummyUser();
+		PipelineRunItem item = storeItem(user, 0);
+		Instant now = Instant.now();
+
+		// Lease still valid: loadExpiredLeases cannot see it, which is exactly why this query
+		// exists. A worker evicted for silence must give its work back now, not a lease later.
+		PipelineNodeTask held = storeTask(user, item, "held", "hash-sha512", NodeTaskState.RUNNING);
+		held.setLeasedBy("evicted-worker");
+		held.setLeaseExpiresAt(now.plus(Duration.ofMinutes(5)));
+		pipelineNodeTaskDao().update(held);
+
+		PipelineNodeTask other = storeTask(user, item, "other", "hash-md5", NodeTaskState.RUNNING);
+		other.setLeasedBy("surviving-worker");
+		other.setLeaseExpiresAt(now.plus(Duration.ofMinutes(5)));
+		pipelineNodeTaskDao().update(other);
+
+		// Finished, but still stamped with the worker. Handing this back would re-run work
+		// that already has a result.
+		PipelineNodeTask done = storeTask(user, item, "done", "hash-md5", NodeTaskState.COMPLETED);
+		done.setLeasedBy("evicted-worker");
+		pipelineNodeTaskDao().update(done);
+
+		List<PipelineNodeTask> reclaimable = pipelineNodeTaskDao().loadLeasedBy("evicted-worker", 100);
+
+		assertEquals(1, reclaimable.size(), "Only the departed worker's running work is reclaimable");
+		assertEquals("held", reclaimable.get(0).getNodeId());
+		assertTrue(pipelineNodeTaskDao().loadExpiredLeases(now, 1000).stream()
+			.noneMatch(task -> held.getUuid().equals(task.getUuid())),
+			"and it was not reachable through the lapsed-lease query");
+
+		// Bounded, like the lapsed-lease sweep: one departure must not be able to load an
+		// unbounded number of rows. Asserted here rather than in a test of its own because this
+		// class already sits at the connection ceiling described in the class comment.
+		for (int i = 0; i < 4; i++) {
+			PipelineNodeTask task = storeTask(user, item, "bounded-" + i, "hash-sha512", NodeTaskState.RUNNING);
+			task.setLeasedBy("evicted-worker");
+			task.setLeaseExpiresAt(now.plus(Duration.ofMinutes(i + 1L)));
+			pipelineNodeTaskDao().update(task);
+		}
+		assertEquals(2, pipelineNodeTaskDao().loadLeasedBy("evicted-worker", 2).size());
 	}
 
 	@Test

@@ -28,7 +28,7 @@ import io.metaloom.loom.rest.service.AbstractEndpointService;
 import io.metaloom.loom.rest.validation.LoomModelValidator;
 
 /**
- * Serves the perceptual fingerprint similarity routes (spec/features/search/LUCENE_PLAN.md §5).
+ * Serves the perceptual fingerprint similarity routes (spec/loom/SEARCH_LUCENE.md §5).
  *
  * <p>
  * <b>No silent degradation.</b> When the index is disabled or unavailable the routes answer 503 naming the reason rather than returning an empty list:

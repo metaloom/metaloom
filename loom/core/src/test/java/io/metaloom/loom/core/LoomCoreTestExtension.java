@@ -82,10 +82,21 @@ public class LoomCoreTestExtension implements BeforeEachCallback, AfterEachCallb
 		// Auth
 		AuthenticationOptions authOptions = options.getAuth();
 		authOptions.setKeystorePassword("ABCD");
-		// TODO use tempfile to avoid collisions
 		File baseFolder = new File("target", "test-config");
 		File keystoreFile = new File(baseFolder, "keystore.jceks");
-		if (keystoreFile.exists()) {
+		// Reuse a usable keystore instead of deleting it before every test method.
+		//
+		// This file is shared by every test in the module and the password is a constant, so a fresh
+		// one per method bought nothing and cost a race: KeyStoreHelper.gen() creates the file and
+		// then fills it, so a method that deleted and regenerated it while another was reading left
+		// a zero-byte file behind. That surfaces as "Tag number over 30 is not supported" out of the
+		// JWT provider, or as a token signed with the previous keystore being rejected by the next -
+		// a 401 on a request that had just logged in successfully. Both were intermittent, both hit
+		// whichever class happened to be running, and both grew with the number of test methods.
+		//
+		// A file that is present but empty or truncated is the wreckage of exactly that race, so it
+		// is still removed; only a plausible one is kept.
+		if (keystoreFile.exists() && keystoreFile.length() == 0) {
 			keystoreFile.delete();
 		}
 		// Apply test-specific option overrides before the component is built. Auth flags such as

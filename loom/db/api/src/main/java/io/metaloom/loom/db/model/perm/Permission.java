@@ -95,6 +95,15 @@ public enum Permission {
 	DELETE_COLLECTION,        // doc:yes  ui:yes test:none
 	UPDATE_COLLECTION,        // doc:yes  ui:yes test:none
 
+	// Share link. Governs the share ROW - creating a link, changing its expiry or password, revoking it.
+	// The visitor who opens the link holds no permission at all and is never resolved to a user; what they
+	// may do is decided entirely from the share row in ShareAccessService. There is deliberately no
+	// VIEW_SHARE: a constant no code path can check would advertise an enforcement point that is not there.
+	CREATE_SHARE,             // doc:yes  ui:yes test:ShareLinkEndpointTest (403 cases)
+	READ_SHARE,               // doc:yes  ui:yes test:ShareLinkEndpointTest (403 cases)
+	DELETE_SHARE,             // doc:yes  ui:yes test:ShareLinkEndpointTest (403 cases)
+	UPDATE_SHARE,             // doc:yes  ui:yes test:ShareLinkEndpointTest
+
 	// Comment
 	CREATE_COMMENT,           // doc:yes  ui:yes test:none
 	READ_COMMENT,             // doc:yes  ui:yes test:none

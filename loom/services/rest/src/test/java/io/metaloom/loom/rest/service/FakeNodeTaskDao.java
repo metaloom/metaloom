@@ -27,12 +27,23 @@ public class FakeNodeTaskDao implements PipelineNodeTaskDao {
 	/** Returned by {@link #loadExpiredLeases}. */
 	public final List<PipelineNodeTask> expired = new ArrayList<>();
 
+	/** Returned by {@link #loadLeasedBy}, keyed on {@link PipelineNodeTask#getLeasedBy()}. */
+	public final List<PipelineNodeTask> leased = new ArrayList<>();
+
 	/** Everything passed to {@link #update}. */
 	public final List<PipelineNodeTask> updated = new ArrayList<>();
 
 	@Override
 	public List<PipelineNodeTask> loadExpiredLeases(Instant now, int limit) {
 		return expired.size() > limit ? new ArrayList<>(expired.subList(0, limit)) : new ArrayList<>(expired);
+	}
+
+	@Override
+	public List<PipelineNodeTask> loadLeasedBy(String processorNodeId, int limit) {
+		return leased.stream()
+			.filter(task -> processorNodeId.equals(task.getLeasedBy()))
+			.limit(limit)
+			.collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 	}
 
 	@Override
@@ -121,6 +132,7 @@ public class FakeNodeTaskDao implements PipelineNodeTaskDao {
 	@Override
 	public void clear() {
 		expired.clear();
+		leased.clear();
 		updated.clear();
 	}
 

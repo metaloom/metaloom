@@ -25,7 +25,7 @@ summarized.
 .The node's settings in the pipeline editor
 image::config.png[The Whisper (Speech-to-Text) settings panel: Model Path, Temperature, Temperature Increment and 3 more settings,role="ml-panel-shot"]
 
-`WhisperOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===

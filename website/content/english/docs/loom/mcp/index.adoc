@@ -1,0 +1,383 @@
+---
+title: MCP Server
+---
+
+Loom speaks the **Model Context Protocol (MCP)** — the open protocol AI clients use to reach the
+tools and data of another system. Point Claude Desktop, an MCP-capable IDE or your own agent at
+Loom, and the assistant can search your media library, read an asset's metadata, explain a
+processing pipeline, design a new one, and run a node against a file — all with the permissions of
+the account whose token it was given.
+
+This is the same tool set the built-in link:../chat/[Chat & AI Agent] uses. The difference is only
+where the assistant lives: the chat runs inside Loom, an MCP client runs on your machine.
+
+++++
+<div class="ml-figure">
+<svg viewBox="0 0 900 268" role="img" aria-labelledby="ml-mcp-title ml-mcp-desc" class="ml-arch-svg">
+  <title id="ml-mcp-title">How an external AI client reaches a Loom library</title>
+  <desc id="ml-mcp-desc">An MCP client — Claude Desktop, an IDE or your own agent — connects to Loom's MCP port, on either the HTTP and Server-Sent Events transport or the WebSocket transport. Loom checks the token the client supplied, then checks the permissions declared by the tool being called, and only then runs the tool against your media library.</desc>
+  <defs>
+    <marker id="ml-mcp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#57cbcc"></path></marker>
+  </defs>
+
+  <rect x="16" y="92" width="184" height="68" rx="6" class="ml-box-part"></rect>
+  <text x="108" y="120" text-anchor="middle" class="ml-part-title">MCP client</text>
+  <text x="108" y="140" text-anchor="middle" class="ml-part-sub">desktop app · IDE · agent</text>
+
+  <polyline points="200,112 290,112" class="ml-edge" marker-end="url(#ml-mcp-arrow)"></polyline>
+  <text x="245" y="104" text-anchor="middle" class="ml-edge-label">SSE</text>
+  <polyline points="200,148 290,148" class="ml-edge" marker-end="url(#ml-mcp-arrow)"></polyline>
+  <text x="245" y="168" text-anchor="middle" class="ml-edge-label">WebSocket</text>
+
+  <rect x="290" y="28" width="414" height="212" rx="10" class="ml-box-container"></rect>
+  <text x="310" y="56" class="ml-box-title">Loom · MCP port 4041</text>
+
+  <rect x="312" y="76" width="180" height="56" rx="6" class="ml-box-part"></rect>
+  <text x="402" y="100" text-anchor="middle" class="ml-part-title">Token check</text>
+  <text x="402" y="120" text-anchor="middle" class="ml-part-sub">login token or API key</text>
+
+  <rect x="502" y="76" width="180" height="56" rx="6" class="ml-box-part"></rect>
+  <text x="592" y="100" text-anchor="middle" class="ml-part-title">Permission check</text>
+  <text x="592" y="120" text-anchor="middle" class="ml-part-sub">per tool call</text>
+
+  <rect x="312" y="152" width="370" height="56" rx="6" class="ml-box-part"></rect>
+  <text x="497" y="176" text-anchor="middle" class="ml-part-title">Tools</text>
+  <text x="497" y="196" text-anchor="middle" class="ml-part-sub">assets · collections · pipelines · nodes · memory</text>
+
+  <polyline points="704,134 760,134" class="ml-edge" marker-end="url(#ml-mcp-arrow)"></polyline>
+
+  <rect x="760" y="100" width="124" height="68" rx="6" class="ml-box-part"></rect>
+  <text x="822" y="128" text-anchor="middle" class="ml-part-title">Your library</text>
+  <text x="822" y="148" text-anchor="middle" class="ml-part-sub">assets · pipelines</text>
+</svg>
+</div>
+++++
+
+== Enabling the Server
+
+The MCP server runs on its own port, separate from the REST API, and starts with Loom. It listens on
+port *4041* by default:
+
+[source,yaml]
+----
+server:
+  mcpPort: 4041
+auth:
+  mcpAuthEnabled: true          # off by default — see below
+  mcpAuthStrictMode: true       # reject calls that carry no credentials
+  mcpAuthAllowedOrigins: "https://*.example.com"
+----
+
+The same settings as environment variables:
+
+[options="header",cols="2,1,3"]
+|===
+| Variable | Default | Purpose
+
+| `LOOM_SERVER_MCP_PORT`
+| `4041`
+| The port the MCP server listens on.
+
+| `LOOM_MCP_AUTH_ENABLED`
+| `false`
+| Require a token on every MCP connection.
+
+| `LOOM_MCP_AUTH_STRICT_MODE`
+| `false`
+| Reject a request that carries no credentials at all. With authentication enabled but strict mode
+  off, a request without credentials is still served — as an anonymous caller, for which no
+  permission check runs.
+
+| `LOOM_MCP_AUTH_ALLOWED_ORIGINS`
+| `*`
+| Comma-separated browser origins allowed to connect. Entries may contain wildcards, for example
+  `https://*.example.com`.
+
+| `LOOM_AGENT_MEMORY_ENABLED`
+| `false`
+| Turns on the four memory tools. While it is off they are not offered at all.
+|===
+
+For the full option reference and the config-file layout see link:../configuration/[Configuration].
+
+[WARNING]
+====
+**Authentication is off by default, and an unauthenticated MCP port is an unauthenticated door into
+your library.** With `mcpAuthEnabled` false, every read tool answers anyone who can reach the port,
+because there is no account to check permissions against. That default suits a workstation and
+nothing else. Turn authentication on — with strict mode — for any deployment other people can
+reach, and keep port 4041 behind your firewall or VPN even then.
+====
+
+== Connecting a Client
+
+Both transports carry the same JSON-RPC messages and expose the same tools. Use whichever your
+client supports; if it supports both, either is fine.
+
+=== HTTP and Server-Sent Events
+
+The client opens a stream and receives the address to send its messages to:
+
+[source,bash]
+----
+curl -N http://localhost:4041/mcp/sse
+----
+
+[source]
+----
+event: endpoint
+data: /mcp/message?sessionId=8f2c7e1a-3b45-4a90-9d2f-6c1e5b7a0d33
+----
+
+It then posts JSON-RPC requests to that address. The answer comes back in the HTTP response and is
+also pushed onto the open stream:
+
+[source,bash]
+----
+curl -s 'http://localhost:4041/mcp/message?sessionId=8f2c7e1a-3b45-4a90-9d2f-6c1e5b7a0d33' \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <token>' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+----
+
+[source,json]
+----
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2025-03-26",
+    "capabilities": { "tools": { "listChanged": true } },
+    "serverInfo": { "name": "loom-mcp-server", "version": "1.0.0-SNAPSHOT" }
+  }
+}
+----
+
+From there it is the ordinary MCP conversation: `tools/list` to discover what is available,
+`tools/call` to run one.
+
+=== WebSocket
+
+[source,bash]
+----
+ws://localhost:4041/mcp/ws?token=<token>
+----
+
+Each text frame is one JSON-RPC request, each answer one frame back. Nothing else differs — the same
+`initialize`, `tools/list` and `tools/call` messages apply. A connection whose token is rejected is
+closed immediately with code `4401`.
+
+=== Authentication
+
+The token is an ordinary Loom login token or an API key, so an MCP client is exactly as privileged as
+the account behind it. See link:../authentication/[Authentication] for how to obtain one; API keys
+are created on the API Keys screen and are the better choice here, because they do not expire after
+an hour.
+
+How the token travels depends on the endpoint:
+
+[options="header",cols="1,2"]
+|===
+| Endpoint | Accepted credentials
+
+| `/mcp/sse`
+| `?token=<token>` query parameter, or an `Authorization: Bearer` header
+
+| `/mcp/message`
+| `Authorization: Bearer` header, or an `X-API-Key` header
+
+| `/mcp/ws`
+| `?token=<token>` query parameter
+|===
+
+The query parameter exists because of a browser limitation, not as a shortcut: a browser cannot
+attach an `Authorization` header to an EventSource or WebSocket handshake, so a token that has to
+survive the upgrade has nowhere else to ride. Treat such a URL as a credential — it belongs in a
+client's configuration file, not in a shared document or a shell history.
+
+TIP: A client always sees the whole tool list. Permissions are checked when a tool is *called*, so
+an assistant offered a tool the account may not use gets a plain error back and can carry on with
+something else.
+
+== Configuring Claude Desktop
+
+Claude Desktop launches its MCP servers as local commands, so a remote server is reached through the
+standard `mcp-remote` bridge. Add an entry to `claude_desktop_config.json`:
+
+[source,json]
+----
+{
+  "mcpServers": {
+    "loom": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "https://loom.example.com:4041/mcp/sse?token=YOUR_API_KEY"
+      ]
+    }
+  }
+}
+----
+
+Restart Claude Desktop; Loom's tools appear in the tool picker. A client that speaks HTTP+SSE
+natively needs no bridge — give it the same URL directly.
+
+Ask for something you can verify at a glance to confirm the connection, for example *"how many
+assets are in the library?"*, which the assistant answers with `asset_statistics`.
+
+== What the Tools Do
+
+Twenty-one tools in total. The permission column is the one your role must grant for the call to
+succeed; where two are listed, *both* are required. Roles are edited on the ACL screens — see
+link:../features/[Features].
+
+=== Reading the library
+
+[options="header",cols="1,3,1"]
+|===
+| Tool | What it does | Permission
+
+| `search_assets`
+| Returns a page of assets with filename, MIME type, size and hash.
+| `READ_ASSET`
+
+| `get_asset`
+| Loads one asset by UUID or SHA-512 hash: file details, hashes, origin and storage location.
+| `READ_ASSET`
+
+| `search_transcript`
+| Searches transcripts and extracted document text.
+| `READ_ASSET`
+
+| `list_collections`
+| Lists the collections assets are grouped into.
+| `READ_COLLECTION`
+
+| `asset_statistics`
+| Aggregate figures for the library: how many assets, how much storage, and the split across images,
+  video, audio and documents.
+| `READ_ASSET`
+|===
+
+NOTE: Two of these are narrower today than their names suggest. `search_assets` returns a page of
+the library but does not yet apply the query and MIME-type filters, and `search_transcript` reports
+that full-text search is not available yet rather than returning matches. `asset_statistics` covers
+the whole library; it does not yet narrow to a single collection.
+
+=== Understanding and designing pipelines
+
+[options="header",cols="1,3,1"]
+|===
+| Tool | What it does | Permission
+
+| `list_pipelines`
+| Lists the processing pipelines with their description, version and whether they are enabled.
+| `READ_PIPELINE`
+
+| `get_pipeline`
+| Loads one pipeline by name or UUID, including its node graph and the connections between nodes.
+| `READ_PIPELINE`
+
+| `list_node_descriptors`
+| Lists the processing node kinds this deployment offers, by category.
+| `READ_PIPELINE`
+
+| `get_node_descriptor`
+| The full contract of one node kind: its inputs and outputs, what they carry, and the settings it
+  accepts.
+| `READ_PIPELINE`
+
+| `pipeline_authoring_guide`
+| The rules for writing a pipeline definition, so an assistant does not have to guess the format.
+| `READ_PIPELINE`
+
+| `validate_pipeline`
+| Checks a draft and reports every problem it finds. Stores nothing.
+| `READ_PIPELINE` + `VALIDATE_MCP_PIPELINE`
+
+| `create_pipeline`
+| Stores a new pipeline. It is created but not started — running it stays your decision.
+| `CREATE_PIPELINE` + `CREATE_MCP_PIPELINE`
+
+| `update_pipeline`
+| Stores a new version of an existing pipeline. Earlier versions are kept and can be restored.
+| `UPDATE_PIPELINE` + `UPDATE_MCP_PIPELINE`
+|===
+
+Letting an assistant *write* a pipeline is a different decision from letting a person draw one, which
+is why each write tool needs both the ordinary permission and its assistant counterpart. Granting
+only the assistant permission can never widen what an account may do. Checking a draft is separate
+again: `VALIDATE_MCP_PIPELINE` stores nothing, so you can let an assistant design and check a
+pipeline while keeping the saving to yourself.
+
+=== Running nodes
+
+[options="header",cols="1,3,1"]
+|===
+| Tool | What it does | Permission
+
+| `run_node_probe`
+| Runs a single node against a single asset and returns the result immediately — describe this image,
+  transcribe this clip, hash this file. Writes nothing unless you ask it to.
+| `READ_ASSET` + `EXECUTE_MCP_NODE`
+
+| `run_node_graph`
+| Runs a graph of nodes over a set of assets as a background job and returns a job id.
+| `READ_ASSET` + `EXECUTE_MCP_NODE`
+
+| `get_job`
+| Reads the progress and results of such a job; a job still running reports what has settled so far.
+| `EXECUTE_MCP_NODE`
+
+| `cancel_job`
+| Stops a job. Nodes already running on a worker finish; nothing further is started.
+| `EXECUTE_MCP_NODE`
+|===
+
+`EXECUTE_MCP_NODE` is the only permission that lets a caller occupy your processing workers and GPUs,
+which is why it is separate from everything above. Grant it when you want an assistant to be able to
+*look inside* your media, not merely talk about it.
+
+=== Remembering things between conversations
+
+These four appear only when the memory bank is enabled (`LOOM_AGENT_MEMORY_ENABLED`), and they are
+always tied to the account that called them — an anonymous caller cannot reach them at all.
+
+[options="header",cols="1,3,1"]
+|===
+| Tool | What it does | Permission
+
+| `list_memory`
+| Lists stored notes with their titles and when they were last written.
+| `READ_MEMORY`
+
+| `get_memory`
+| Reads one note.
+| `READ_MEMORY`
+
+| `put_memory`
+| Stores or overwrites a note.
+| `UPDATE_MEMORY`
+
+| `delete_memory`
+| Deletes a note. Permanent — there is no version history.
+| `DELETE_MEMORY`
+|===
+
+Notes are scoped to you, to a group or to a space, and a client can only ever narrow that to what
+your account already has. The memory bank itself is described on the
+link:../chat/[Chat & AI Agent] page.
+
+== Good to Know
+
+* *The write surface is deliberately small.* Pipelines and memory notes are the only things an MCP
+  client can create or change. Assets, tags, tasks, comments and users are read-only over this
+  protocol.
+* *A request body may be up to 1 MB.* That is ample for a pipeline definition and is not a limit on
+  results.
+* *Long-lived streams need a tolerant path.* Loom does not send keepalive traffic on an idle SSE
+  stream, so a proxy that drops quiet connections will close one. Clients reconnect; a proxy timeout
+  well above your idle periods avoids the churn.
+* *There is no per-call rate limit and no audit log of tool calls yet.* An API key is the unit of
+  control: give the client its own, scoped to a role that grants only what it needs, and revoke that
+  key rather than changing a person's account when you want it to stop.

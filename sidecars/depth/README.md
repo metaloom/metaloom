@@ -121,4 +121,4 @@ Then open `depth.png` and check the foreground is bright.
 
 The `depthmap` node addresses this sidecar via `depthHost` / `depthPort`
 (default `localhost:9120`) and selects the mode with its own `mode` option. See
-[`spec/features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md`](../../spec/features/pipeline-nodes/NODE_DEPTHMAP_PLAN.md).
+[`spec/features/nodes/depthmap/NODE_DEPTHMAP.md`](../../spec/features/nodes/depthmap/NODE_DEPTHMAP.md).

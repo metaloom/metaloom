@@ -1,7 +1,7 @@
 package io.metaloom.loom.api.options;
 
 /**
- * Options which control the perceptual fingerprint similarity index (see spec/features/search/LUCENE_PLAN.md).
+ * Options which control the perceptual fingerprint similarity index (see spec/loom/SEARCH_LUCENE.md).
  *
  * <p>
  * Like search, similarity is a capability, not a dependency: when it is disabled or the index directory is unusable, Loom still boots and every other

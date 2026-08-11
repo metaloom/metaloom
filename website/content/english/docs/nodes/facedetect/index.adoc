@@ -30,7 +30,7 @@ video — it does not yet recognise the same person across two different files. 
 .The node's settings in the pipeline editor
 image::config.png[The Face Detection settings panel: Video Chop Rate, Min Cluster Size, Cluster Radius and 5 more settings,role="ml-panel-shot"]
 
-`FacedetectNodeOptions`:
+Set these in the panel above, or in the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,2"]
 |===
@@ -144,6 +144,11 @@ so err low and let a reviewer merge.
 `faceClusterMinimum` is how much corroboration it takes to form a group. It counts the face itself,
 so the default of `2` means "at least one lookalike". Raising it suppresses groups built from a
 single lucky frame.
+
+Both are set on the node itself in the pipeline editor — select the face-detection node and edit
+**Cluster Radius** and **Min Cluster Size** in the settings panel. They belong to that node, so a
+pipeline can run two face-detection nodes at different strictness, and changing one leaves every
+other pipeline alone. The editor holds Cluster Radius to its valid range of `0` to `2`.
 
 WARNING: The default of `0.6` is a reasonable starting point, not a value validated against your
 footage. The model pack's own documentation suggests a stricter threshold than this default implies.

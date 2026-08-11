@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import ShareDialog from "../share/ShareDialog";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box, Typography, Chip, IconButton, Tab, Tabs,
@@ -17,8 +18,7 @@ import {
   CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined,
   DownloadOutlined, UploadFileOutlined, LinkOutlined,
   StorageOutlined, LockOutlined, LaunchOutlined,
-  CenterFocusStrongOutlined, CheckOutlined, AddOutlined,
-} from "@mui/icons-material";
+  CenterFocusStrongOutlined, CheckOutlined, AddOutlined, ShareOutlined } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import { Asset, AssetType, AssetStatus, Comment, Annotation, TranscriptSection, DetectedFace, FaceCluster, Person } from "../../types";
 import { useAuth } from "../../context/AuthContext";
@@ -146,6 +146,7 @@ export default function AssetDetail() {
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
   // Create-task dialog (creates a task and assigns it to this asset)
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskPriority, setTaskPriority] = useState("MEDIUM");
@@ -845,6 +846,10 @@ export default function AssetDetail() {
             <ListItemIcon><SendOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.process")}</ListItemText>
             <Typography variant="caption" sx={{ ml: 2, color: tokens.text.tertiary }}>▸</Typography>
+          </MenuItem>
+          <MenuItem data-testid="asset-share-menu-item" onClick={() => { setActionMenuAnchor(null); setShareOpen(true); }}>
+            <ListItemIcon><ShareOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tCommon("share.action.share")}</ListItemText>
           </MenuItem>
           <MenuItem data-testid="asset-task-create-menu-item" onClick={() => { setActionMenuAnchor(null); setTaskCreateOpen(true); }}>
             <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
@@ -1751,6 +1756,16 @@ export default function AssetDetail() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {shareOpen && (
+        <ShareDialog
+          open
+          onClose={() => setShareOpen(false)}
+          targetType="ASSET"
+          targetUuid={asset.id}
+          targetName={asset.name}
+        />
+      )}
     </Box>
   );
 }

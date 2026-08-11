@@ -28,7 +28,8 @@ modified files.
 .The node's settings in the pipeline editor
 image::config.png[The SHA-512 Hash settings panel, which offers only the common node fields,role="ml-panel-shot"]
 
-Per-node options (`HashNodeOptions`) enable each algorithm individually:
+Per-node options enable each algorithm individually. Set them in the panel above, or in
+the node's `options` block in a pipeline definition:
 
 [options="header",cols="1,1,2"]
 |===
