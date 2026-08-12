@@ -43,6 +43,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BytesRef;
@@ -81,6 +82,14 @@ import io.metaloom.loom.api.search.VectorSpace;
  * <p>
  * Lucene's {@link IndexWriter} is single-writer, so all mutations serialize through {@link #writeLock}. Reads go through a {@link SearcherManager} for
  * near-real-time visibility. The index is a derived cache of {@code embedding.vector} - losing it costs a {@link #rebuild(Stream)}, never data.
+ * </p>
+ *
+ * <h2>Shutdown</h2>
+ *
+ * <p>
+ * {@link #close()} is called from the server shutdown sequence and is idempotent. Every method re-reads {@link #available} <i>inside</i> the write lock
+ * (or captures the {@link SearcherManager} before using it) so a request still in flight when the index closes degrades to a no-op or an empty result
+ * instead of an {@link AlreadyClosedException} on the way out.
  * </p>
  */
 public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
@@ -173,8 +182,12 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			// Re-checked under the lock: a write that passed the check above may have been waiting here while close() ran.
+			if (!available) {
+				return;
+			}
 			writer.updateDocument(new Term(EMBEDDING_FIELD, record.embeddingUuid().toString()), toDocument(record));
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to index embedding {}: {}", record.embeddingUuid(), e.getMessage());
 		} finally {
 			writeLock.unlock();
@@ -188,12 +201,15 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			if (!available) {
+				return;
+			}
 			for (VectorRecord record : records) {
 				index(record);
 			}
 			writer.commit();
 			searcherManager.maybeRefresh();
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to commit vector index batch: {}", e.getMessage());
 		} finally {
 			writeLock.unlock();
@@ -216,8 +232,11 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			if (!available) {
+				return;
+			}
 			writer.deleteDocuments(term);
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to remove vectors for {}: {}", what, e.getMessage());
 		} finally {
 			writeLock.unlock();
@@ -227,13 +246,14 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 	@Override
 	public List<VectorHit> query(VectorQuery query) {
 		List<VectorHit> hits = new ArrayList<>();
-		if (!available || query == null) {
+		SearcherManager manager = reader();
+		if (manager == null || query == null) {
 			return hits;
 		}
 		IndexSearcher searcher = null;
 		try {
-			searcherManager.maybeRefresh();
-			searcher = searcherManager.acquire();
+			manager.maybeRefresh();
+			searcher = manager.acquire();
 			TopDocs top = searcher.search(knnQuery(query), query.limit());
 			StoredFields storedFields = searcher.getIndexReader().storedFields();
 			for (ScoreDoc sd : top.scoreDocs) {
@@ -250,10 +270,10 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 				hits.add(new VectorHit(UUID.fromString(embeddingUuid), UUID.fromString(assetUuid),
 					detectionUuid == null ? null : UUID.fromString(detectionUuid), sd.score));
 			}
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Vector query failed: {}", e.getMessage());
 		} finally {
-			release(searcher);
+			release(manager, searcher);
 		}
 		return hits;
 	}
@@ -287,6 +307,9 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try (Stream<VectorRecord> stream = all) {
+			if (!available) {
+				return;
+			}
 			writer.deleteAll();
 			if (stream != null) {
 				stream.forEach(this::addQuietly);
@@ -294,7 +317,7 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 			writer.commit();
 			searcherManager.maybeRefresh();
 			log.info("Rebuilt vector index at {}", indexPath);
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.error("Failed to rebuild vector index: {}", e.getMessage(), e);
 		} finally {
 			writeLock.unlock();
@@ -308,11 +331,14 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			if (!available) {
+				return;
+			}
 			writer.deleteDocuments(spaceQuery(space));
 			writer.commit();
 			searcherManager.maybeRefresh();
 			log.info("Dropped every vector in space {} from the index at {}", space.key(), indexPath);
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.error("Failed to drop vector space {}: {}", space.key(), e.getMessage(), e);
 		} finally {
 			writeLock.unlock();
@@ -358,19 +384,20 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 	@Override
 	public IndexStatus status(VectorSpace space) {
 		IndexStatus status = new IndexStatus().setHealthy(available);
-		if (!available || space == null) {
+		SearcherManager manager = reader();
+		if (manager == null || space == null) {
 			return status;
 		}
 		IndexSearcher searcher = null;
 		try {
-			searcherManager.maybeRefresh();
-			searcher = searcherManager.acquire();
+			manager.maybeRefresh();
+			searcher = manager.acquire();
 			status.setDocumentCount(searcher.count(spaceQuery(space)));
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Could not count vectors in space {}: {}", space.key(), e.getMessage());
 			status.setHealthy(false).setDetail(e.getMessage());
 		} finally {
-			release(searcher);
+			release(manager, searcher);
 		}
 		return status;
 	}
@@ -407,14 +434,15 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 	 */
 	@Override
 	public Stream<UUID> streamIndexedEmbeddingUuids() {
-		if (!available) {
+		SearcherManager manager = reader();
+		if (manager == null) {
 			return Stream.empty();
 		}
 		IndexSearcher searcher;
 		try {
-			searcherManager.maybeRefresh();
-			searcher = searcherManager.acquire();
-		} catch (IOException e) {
+			manager.maybeRefresh();
+			searcher = manager.acquire();
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Could not open a reader to enumerate indexed embeddings: {}", e.getMessage());
 			return Stream.empty();
 		}
@@ -427,10 +455,10 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 					perLeaf.add(termStream(terms));
 				}
 			}
-			return perLeaf.stream().flatMap(s -> s).onClose(() -> release(acquired));
-		} catch (IOException e) {
+			return perLeaf.stream().flatMap(s -> s).onClose(() -> release(manager, acquired));
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Could not enumerate indexed embeddings: {}", e.getMessage());
-			release(acquired);
+			release(manager, acquired);
 			return Stream.empty();
 		}
 	}
@@ -475,13 +503,22 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(uuids, Spliterator.ORDERED | Spliterator.NONNULL), false);
 	}
 
-	private void release(IndexSearcher searcher) {
-		if (searcher == null) {
+	/**
+	 * The searcher manager to read through, or {@code null} once the index is closed or was never opened. Callers capture the returned reference for the
+	 * whole read: {@link #close()} nulls the field, so re-reading it mid-query would be a NullPointerException waiting for a shutdown to happen.
+	 */
+	private SearcherManager reader() {
+		SearcherManager manager = searcherManager;
+		return available ? manager : null;
+	}
+
+	private void release(SearcherManager manager, IndexSearcher searcher) {
+		if (manager == null || searcher == null) {
 			return;
 		}
 		try {
-			searcherManager.release(searcher);
-		} catch (IOException e) {
+			manager.release(searcher);
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to release searcher: {}", e.getMessage());
 		}
 	}
@@ -510,9 +547,12 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			if (!available) {
+				return;
+			}
 			writer.commit();
 			searcherManager.maybeRefresh();
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to commit vector index: {}", e.getMessage());
 		} finally {
 			writeLock.unlock();
@@ -533,37 +573,54 @@ public class LuceneVectorIndex implements VectorIndex, AutoCloseable {
 		return doc;
 	}
 
+	/**
+	 * Release the searcher manager, writer and directory, dropping the {@code write.lock} the {@link IndexWriter} holds on the index directory.
+	 *
+	 * <p>
+	 * Idempotent: a second call, or a call on an index that never opened, does nothing. {@code available} is cleared <b>before</b> anything is closed, so
+	 * a writer waiting on {@link #writeLock} sees the flag and no-ops instead of touching a closed {@link IndexWriter}.
+	 * </p>
+	 */
 	@Override
 	public void close() {
 		writeLock.lock();
 		try {
-			closeQuietly();
-		} finally {
+			if (!available) {
+				return;
+			}
 			available = false;
+			closeQuietly();
+			log.info("Vector index closed at {}", indexPath);
+		} finally {
 			writeLock.unlock();
 		}
 	}
 
+	/**
+	 * Close whatever is open, in dependency order, without letting one failure skip the rest - a directory left open keeps the {@code write.lock} file,
+	 * which is the whole reason this runs.
+	 */
 	private void closeQuietly() {
 		try {
 			if (searcherManager != null) {
 				searcherManager.close();
 			}
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to close searcher manager: {}", e.getMessage());
 		}
 		try {
+			// IndexWriter.close() commits pending changes on the way out; an abrupt exit is what leaves segments behind.
 			if (writer != null && writer.isOpen()) {
 				writer.close();
 			}
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to close vector index writer: {}", e.getMessage());
 		}
 		try {
 			if (directory != null) {
 				directory.close();
 			}
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to close vector index directory: {}", e.getMessage());
 		}
 		searcherManager = null;

@@ -201,7 +201,7 @@ ever returns.
 - [x] Reassign the KEEP; member size / completeness / score; `AssetThumbnail` previews
 - [x] Four `ui:yes` permissions in `PERMISSION_GROUPS` + both locale files + demo roles
 - [x] `dedup.test.ts` (12) · `dedupGroups.test.ts` (17) · `workflow-dedup-mocked.spec.ts` (6)
-- [x] Demo data: one PENDING group over two demo videos (`seedDemoDedupGroup`)
+- [x] Demo data: one PENDING group over two demo videos (`seedDemoDedupGroup`), backed by the fingerprints `seedFingerprintComps` seeds for the same pair — the group's `0.5` is the score those fingerprints actually produce ([SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §4.2)
 - [x] Customer docs: `nodes/dedup/index.adoc` + `ui/index.adoc` §Reviewing Duplicates (closes X10 for this workflow)
 - [x] 🟢 Discovery never re-proposes a decided candidate set (§5.1)
 - [x] 🟢 Apply verifies the KEEP's content via the stored xattr (§5.2)
@@ -312,13 +312,13 @@ nodes decide and emit ports, and a downstream `move` node acts — see
 | REST implementation | `loom/services/rest/.../endpoint/impl/DedupGroupEndpoint.java` |
 | The similarity query | [SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) |
 | Customer docs | `website/content/english/docs/nodes/dedup/index.adoc`; `website/content/english/docs/ui/index.adoc` §Reviewing Duplicates |
-| Demo data | `DemoDatabaseInitializer.seedDemoDedupGroup` |
+| Demo data | `DemoDatabaseInitializer.seedDemoDedupGroup` (the proposal) and `seedFingerprintComps` (the fingerprints behind it) |
 | Shared workflow defects | [WORKFLOWS.md](WORKFLOWS.md) §4 |
 | Open tasks | [../tasks/WORKFLOW_TASKS.md](../tasks/WORKFLOW_TASKS.md) W3 |
 
 ---
 
-_Git HEAD revision: `98a6dbe1`_
+_Git HEAD revision: `0b8fe39a`_
 _Last updated: 2026-08-08 (apply became a gate: it re-verifies the keeper and writes `confirmed_dup`
 rather than moving the file, and a downstream `move` node acts. `dupFolder` removed; the one safeguard
 that could not move downstream survives as `keepExcludeFolder`. See

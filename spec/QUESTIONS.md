@@ -5,6 +5,10 @@ disagrees with what is below, the code was read and the code wins.
 
 ---
 
+* What happens when a cortex node dies mid pipeline run. Will the pipeline block or fail? How should we react to this?
+
+---
+
 ## 1. How does a node display debug images? What channel do they travel back on? Do the thumbnails live on the Cortex side? Computed on demand? Cached?
 
 **Short answer:** a run started with `debug: true` makes each worker encode a small JPEG/PNG of what

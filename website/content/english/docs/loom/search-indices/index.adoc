@@ -161,4 +161,11 @@ relevant settings are:
 Both index directories should be on persistent storage in production. If they are lost, nothing is
 gone — but every affected index has to be rebuilt before those features work again.
 
+TIP: To see the duplicate index working on the demo container, start it with
+`LOOM_SIMILARITY_ENABLED=true`, then open *Admin → Indices* and run a *Reindex* on the fingerprint
+row. The demo database ships fingerprints for its videos, including one pair that is the same footage
+at two resolutions, so the duplicate review queue and the near-duplicate lookup both have something
+real to show. The reindex is needed because the fingerprints were seeded straight into the database
+while the index was switched off.
+
 On Kubernetes, set these through `extraEnv` in the link:../helm-chart/[Helm chart] values.

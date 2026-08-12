@@ -813,6 +813,11 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
       `frame_number` discriminators exist, but `whisper` hard-writes `streamIndex = 0` and
       `fingerprint` writes `sectorIndex = 0`. Only `scene-detection` emits a genuine multi-row set;
       `facedetect` rows are frame-indexed. Multi-track / multi-stream extraction is open.
+      ⚠️ `sector_index` is **not** the same discriminator as the others: it numbers *timeline
+      windows* (with `time_from`/`time_to`), and is unrelated to the internal sectors of the
+      multi-sector fingerprint algorithm, which are folded into a single vector and never become
+      rows. Nothing has ever written `sector_index > 0`; the windowed producer that would is
+      [../../tasks/NODE_FINGERPRINT_TASKS.md](../../tasks/NODE_FINGERPRINT_TASKS.md) Tasks 3-4.
 
 ### Ops
 
@@ -889,7 +894,7 @@ Run a node's tests with `mvn -pl cortex/nodes/<name>/core test -o` (install deps
 ---
 
 _Git HEAD revision: `98a6dbe1`_
-_Last updated: 2026-08-08 (the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
+_Last updated: 2026-08-12 (§"Media components": `sector_index` is timeline windows, not the fingerprint algorithm's internal sectors — the conflation is called out and routed to tasks/NODE_FINGERPRINT_TASKS.md. Earlier: the `move` and `assign` kinds landed in `cortex/nodes/relocate`, taking the counts to 40 bindings / 45 advertised kinds. The shared move mechanics live in the previously empty `cortex/fs`, which also absorbed the `AtomicFiles` class that was duplicated verbatim in `watermark` and `image-manipulation`. Both dedup nodes were superseded: they report findings on selective ports and no longer move files, `dupFolder` is gone, and the `ctx.failure(...).next()` bug was fixed in both.)_
 
 _Previously: 2026-08-06 (§3.3: the filter node's `MIME`/`SIZE`/`DATE` strategies landed, so
 all four `filterBy` values are implemented. Earlier the same day: added the routing row for

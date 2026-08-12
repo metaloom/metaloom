@@ -12,10 +12,14 @@ import org.junit.jupiter.api.io.TempDir;
 
 import io.metaloom.loom.client.common.LoomClientException;
 import io.metaloom.loom.client.http.LoomHttpClient;
+import io.metaloom.loom.core.boot.DemoDatabaseInitializer;
 import io.metaloom.loom.core.endpoint.AbstractEndpointTest;
 import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.rest.model.fingerprintcomp.FingerprintCompCreateRequest;
+import io.metaloom.loom.rest.model.searchindex.IndexJobCreateRequest;
+import io.metaloom.loom.rest.model.searchindex.IndexJobResponse;
 import io.metaloom.loom.rest.model.similarity.SimilarAssetListResponse;
+import io.metaloom.loom.rest.model.similarity.SimilarAssetResponse;
 import io.metaloom.utils.hash.SHA512;
 
 /**
@@ -54,13 +58,14 @@ public class SimilarAssetsEndpointTest extends AbstractEndpointTest {
 
 	/**
 	 * A valid v2 fingerprint hex: 2 bytes version, 1 pad, 2 bytes vector size (256), 1 pad, then 32 bytes of bit data.
+	 *
+	 * <p>
+	 * The layout lives in {@link DemoDatabaseInitializer#demoFingerprintHex(int)}, which seeds the same shape into the demo database. One copy: a hex
+	 * the video4j codec rejects is logged and skipped rather than thrown, so a drifted second copy shows up as an index that is quietly empty.
+	 * </p>
 	 */
 	private static String hexFingerprint(int fillByte) {
-		StringBuilder sb = new StringBuilder("0002" + "00" + "0100" + "00");
-		for (int i = 0; i < 32; i++) {
-			sb.append(String.format("%02x", fillByte & 0xFF));
-		}
-		return sb.toString();
+		return DemoDatabaseInitializer.demoFingerprintHex(fillByte);
 	}
 
 	private Asset seedAsset(String filename) {
@@ -152,6 +157,78 @@ public class SimilarAssetsEndpointTest extends AbstractEndpointTest {
 		SimilarAssetListResponse response = client.listSimilarAssets(a.getUuid(), ALGO, 10, 0.10f).sync().body();
 		assertTrue(response.getData().stream().anyMatch(hit -> b.getUuid().toString().equals(hit.getAssetUuid())),
 			"After a rebuild the near-duplicate must still be found");
+	}
+
+	/**
+	 * Every write path into the index must carry the matched asset's content hash.
+	 *
+	 * <p>
+	 * The hash lives on {@code asset} and not on {@code asset_fingerprint_comp}, so each of the three paths has to reach for it - and each of them used
+	 * to pass {@code null} instead. The dedup consumer identifies a duplicate by exactly this hash, so a hit without one is a hit it cannot act on.
+	 * </p>
+	 */
+	@Test
+	public void testHitCarriesTheSha512OfTheMatchedAsset() throws LoomClientException {
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+
+		Asset a = seedAsset("hash_a.mp4");
+		Asset b = seedAsset("hash_b.mp4");
+		String hex = hexFingerprint(0xFF);
+		postFingerprint(client, a, hex);
+		postFingerprint(client, b, hex);
+
+		// 1. the incremental write hook on the component write
+		assertEquals(b.getSHA512().toString(), hitFor(client, a, b).getSha512(),
+			"The write hook must index the owning asset's sha512sum");
+
+		// 2. the legacy in-request rebuild
+		client.rebuildSimilarityIndex().sync();
+		assertEquals(b.getSHA512().toString(), hitFor(client, a, b).getSha512(),
+			"The rebuild must join the hash back in rather than reindexing nulls");
+	}
+
+	/**
+	 * The third write path: the admin {@code REINDEX} job, which streams the component table rather than listing it.
+	 */
+	@Test
+	public void testTheReindexJobCarriesTheSha512() throws Exception {
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+
+		Asset a = seedAsset("job_hash_a.mp4");
+		Asset b = seedAsset("job_hash_b.mp4");
+		String hex = hexFingerprint(0xFF);
+		postFingerprint(client, a, hex);
+		postFingerprint(client, b, hex);
+
+		IndexJobResponse job = client.createSearchIndexJob("fingerprint", new IndexJobCreateRequest().setAction("REINDEX")).sync().body();
+		assertEquals("SUCCEEDED", awaitJob(client, job.getUuid()).getState(), "The reindex job must finish successfully");
+
+		assertEquals(b.getSHA512().toString(), hitFor(client, a, b).getSha512(),
+			"The reindex job must index the owning asset's sha512sum");
+	}
+
+	/**
+	 * The job runs outside the request that accepted it, so its result is only observable after polling. Bounded so a stuck job fails the test instead
+	 * of hanging the suite.
+	 */
+	private IndexJobResponse awaitJob(LoomHttpClient client, UUID jobUuid) throws Exception {
+		for (int i = 0; i < 100; i++) {
+			IndexJobResponse job = client.loadSearchIndexJob("fingerprint", jobUuid).sync().body();
+			if (!"PENDING".equals(job.getState()) && !"RUNNING".equals(job.getState())) {
+				return job;
+			}
+			Thread.sleep(100);
+		}
+		throw new AssertionError("The reindex job did not finish within 10s");
+	}
+
+	private SimilarAssetResponse hitFor(LoomHttpClient client, Asset query, Asset expected) throws LoomClientException {
+		return client.listSimilarAssets(query.getUuid(), ALGO, 10, 0.10f).sync().body().getData().stream()
+			.filter(hit -> expected.getUuid().toString().equals(hit.getAssetUuid()))
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("Asset " + expected.getUuid() + " was not reported as similar to " + query.getUuid()));
 	}
 
 	@Test

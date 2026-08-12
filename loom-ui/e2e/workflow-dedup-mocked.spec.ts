@@ -150,6 +150,61 @@ test.describe("Workflow deduplication – mocked e2e", () => {
     expect(patches[0].body.status).toBe("REJECTED");
   });
 
+  // The two buttons below duplicate what Y/N do. They are covered separately because the keyboard
+  // handler stands down while a text field has focus, so on a real review pass the buttons are the
+  // only way through — and until now no test had ever clicked either of them.
+
+  test("the Confirm button PATCHes CONFIRMED", async ({ page }) => {
+    const patches = await installMocks(page);
+    await page.goto("/");
+    await login(page);
+    await openDedupMode(page);
+    await expect(page.getByTestId("dedup-group")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("dedup-confirm").click();
+
+    await expect(page.getByTestId("dedup-decision-chip")).toBeVisible({ timeout: 10_000 });
+    expect(patches).toHaveLength(1);
+    expect(patches[0].uuid).toBe(GROUP_UUID);
+    expect(patches[0].body.status).toBe("CONFIRMED");
+  });
+
+  test("the Reject button PATCHes REJECTED", async ({ page }) => {
+    const patches = await installMocks(page);
+    await page.goto("/");
+    await login(page);
+    await openDedupMode(page);
+    await expect(page.getByTestId("dedup-group")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("dedup-reject").click();
+
+    await expect(page.getByTestId("dedup-decision-chip")).toBeVisible({ timeout: 10_000 });
+    expect(patches).toHaveLength(1);
+    expect(patches[0].body.status).toBe("REJECTED");
+  });
+
+  test("the group score is the algorithm's, rendered to two decimals", async ({ page }) => {
+    // The score is what a reviewer weighs the pair on, so it must be the server's number and not a
+    // member score: the KEEP member scores 1.0 here and the group scores 0.93.
+    await installMocks(page);
+    await page.goto("/");
+    await login(page);
+    await openDedupMode(page);
+
+    await expect(page.getByTestId("dedup-group-score")).toHaveText("Score: 0.93", { timeout: 10_000 });
+  });
+
+  test("a group without a score omits the label rather than printing NaN", async ({ page }) => {
+    const { score: _score, ...scoreless } = pendingGroup();
+    await installMocks(page, [scoreless]);
+    await page.goto("/");
+    await login(page);
+    await openDedupMode(page);
+
+    await expect(page.getByTestId("dedup-group")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("dedup-group-score")).toHaveCount(0);
+  });
+
   test("a failed PATCH reverts the chip instead of leaving a decided-looking row", async ({ page }) => {
     const patches = await installMocks(page, [pendingGroup()], 500);
     await page.goto("/");

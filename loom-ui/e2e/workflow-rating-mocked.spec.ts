@@ -40,9 +40,29 @@ function asset(uuid: string, filename: string) {
   };
 }
 
-async function installMocks(page: Page, opts: { failReactionWrites?: boolean } = {}) {
+/**
+ * @param opts.failReactionWrites answer every reaction POST with a 500 (the rollback path)
+ * @param opts.seedRating a rating this reviewer had already given ASSET_A before the queue loaded,
+ *   which is what raises the "Already rated" chip
+ * @param opts.cluster fields merged into the face cluster the asset route serves
+ */
+async function installMocks(page: Page, opts: {
+  failReactionWrites?: boolean;
+  seedRating?: number;
+  cluster?: Record<string, unknown>;
+} = {}) {
   const reactions: StoredReaction[] = [];
   let seq = 0;
+
+  if (typeof opts.seedRating === "number") {
+    reactions.push({
+      uuid: `reaction-${++seq}`,
+      assetUuid: ASSET_A,
+      type: "RATING",
+      rating: opts.seedRating,
+      status: { creator: { uuid: ME_UUID }, created: "2026-02-01T09:00:00Z" },
+    });
+  }
 
   // Catch-all first (lowest priority) — empty collections for the many list
   // endpoints the workflow view fans out to (detections, …).
@@ -53,17 +73,21 @@ async function installMocks(page: Page, opts: { failReactionWrites?: boolean } =
   // All three used to come from mock arrays in the bundle — two of which were empty, so the pane
   // rendered nothing whatever the server held, and the third seeded people who do not exist.
 
-  await page.route(/\/api\/v1\/assets\/[^/]+\/clusters$/, route =>
-    json(route, {
+  // Only ASSET_A's cluster takes the overrides, so a spec can walk to ASSET_B and see the
+  // un-overridden shape — the review stamp is per cluster, not a property of the pane.
+  await page.route(/\/api\/v1\/assets\/[^/]+\/clusters$/, route => {
+    const assetUuid = decodeURIComponent(route.request().url().split("/assets/")[1].split("/clusters")[0]);
+    return json(route, {
       data: [{
-        uuid: CLUSTER_UUID,
-        name: "Face group 1",
+        uuid: assetUuid === ASSET_A ? CLUSTER_UUID : `${CLUSTER_UUID.slice(0, -1)}b`,
+        name: assetUuid === ASSET_A ? "Face group 1" : "Face group 2",
         reviewStatus: "PENDING",
-        assetUuid: ASSET_A,
+        assetUuid,
         memberCount: 1,
+        ...(assetUuid === ASSET_A ? opts.cluster ?? {} : {}),
       }],
-    })
-  );
+    });
+  });
   await page.route(/\/api\/v1\/clusters\/[^/]+\/members$/, route =>
     json(route, {
       members: [{ detectionUuid: DETECTION_UUID, assetUuid: ASSET_A, bboxX: 0.1, bboxY: 0.1, bboxWidth: 0.2, bboxHeight: 0.2 }],
@@ -217,6 +241,23 @@ test.describe("Workflow rating – mocked e2e", () => {
     await expect(page.getByText(/could not save the rating/i)).toBeVisible({ timeout: 10_000 });
   });
 
+  test("an asset that arrived rated is marked, and one that did not is not", async ({ page }) => {
+    // The chip is the "somebody already did this one" hint, so it must reflect the rating the asset
+    // ARRIVED with. It is deliberately not driven by the live value — see WorkflowView.tsx:330.
+    await installMocks(page, { seedRating: 8 });
+    await page.goto("/");
+    await login(page);
+    await openWorkflow(page);
+
+    await expect(page.getByTestId("workflow-rating-value")).toHaveText("8", { timeout: 10_000 });
+    await expect(page.getByTestId("workflow-already-rated")).toBeVisible();
+
+    // Walk to the second asset, which nobody has rated: the chip belongs to the asset, not the pane.
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("workflow-rating-value")).toHaveText("—", { timeout: 10_000 });
+    await expect(page.getByTestId("workflow-already-rated")).toHaveCount(0);
+  });
+
   // ── Face review ────────────────────────────────────────────────────────
 
   test("the cluster card and the person list come from the server, not from a bundled seed", async ({ page }) => {
@@ -267,6 +308,32 @@ test.describe("Workflow rating – mocked e2e", () => {
     const body = JSON.parse((await confirm).postData() || "{}");
     expect(body).toMatchObject({ alias: "Ada Lovelace", name: "Ada Lovelace" });
     await expect(cluster).toContainText("Confirmed", { timeout: 10_000 });
+  });
+
+  test("a cluster somebody already reviewed says when, and carries the reviewer uuid", async ({ page }) => {
+    const REVIEWER = "9999aaaa-0000-0000-0000-00000000abcd";
+    await installMocks(page, {
+      cluster: { reviewStatus: "CONFIRMED", reviewedAt: "2026-02-03T11:30:00Z", reviewerUuid: REVIEWER },
+    });
+    await page.goto("/");
+    await login(page);
+    await openWorkflow(page);
+
+    await page.getByTestId("workflow-mode-facedetection").click();
+    const cluster = page.getByTestId("workflow-cluster");
+    await expect(cluster).toHaveCount(1, { timeout: 10_000 });
+
+    const reviewedAt = page.getByTestId("workflow-cluster-reviewed-at");
+    await expect(reviewedAt).toBeVisible();
+    // Matched loosely on purpose: the date is formatted with the *browser's* locale, so pinning the
+    // US ordering here would fail the suite on a machine that runs Chromium in another one.
+    await expect(reviewedAt).toHaveText(/reviewed .*2026/);
+    // The uuid rather than a name: resolving it needs READ_USER, which a reviewer need not hold.
+    await expect(reviewedAt).toHaveAttribute("data-reviewer-uuid", REVIEWER);
+
+    // And it is genuinely conditional: the second asset's clusters carry no review stamp.
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("workflow-cluster-reviewed-at")).toHaveCount(0, { timeout: 10_000 });
   });
 
   // ── Model-output review ────────────────────────────────────────────────

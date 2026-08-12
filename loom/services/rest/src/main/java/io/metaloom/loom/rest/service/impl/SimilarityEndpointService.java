@@ -4,6 +4,7 @@ import static io.metaloom.loom.db.model.perm.Permission.READ_ASSET;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -14,7 +15,6 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.api.options.SimilarityOptions;
-import io.metaloom.loom.api.search.HexFingerprint;
 import io.metaloom.loom.api.search.SimilarityHit;
 import io.metaloom.loom.api.search.SimilarityIndex;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
@@ -114,10 +114,12 @@ public class SimilarityEndpointService extends AbstractEndpointService {
 		checkPerm(lrc, Permission.UPDATE_ASSET, () -> {
 			requireAvailable();
 			String algorithm = param(lrc, "algorithm", options.getAlgorithm());
-			List<AssetFingerprintComp> comps = compDao.findByAlgorithm(algorithm);
-			index.rebuildFromHex(comps.stream()
-				.map(comp -> new HexFingerprint(comp.getAssetUuid(), null, comp.getAlgorithm(), comp.getFingerprint())));
-			log.info("Rebuilt the fingerprint similarity index from {} fingerprint component(s)", comps.size());
+			// The projection carries the owning asset's sha512sum, so a rebuilt index answers with the content hash rather than a null.
+			// rebuildFromHex consumes and closes the stream.
+			AtomicLong rebuilt = new AtomicLong();
+			index.rebuildFromHex(compDao.streamHexFingerprintsByAlgorithm(algorithm)
+				.peek(fingerprint -> rebuilt.incrementAndGet()));
+			log.info("Rebuilt the fingerprint similarity index from {} fingerprint component(s)", rebuilt.get());
 			lrc.sendNoContent();
 		});
 	}

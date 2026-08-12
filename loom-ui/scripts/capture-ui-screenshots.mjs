@@ -231,6 +231,38 @@ async function main() {
     await shot("tasks.png", { settle: 1200 });
   });
 
+  // ---- Workflow: the three keyboard-driven review modes ----
+  //
+  // The mode switch is a ToggleButtonGroup; only the modes an e2e spec drives carry a testid, so
+  // Rating and Tagging are picked by their exact label — "Tagging" is a substring of nothing here,
+  // but exact matching keeps that true if a label is ever added.
+  const workflowMode = async (label) => {
+    await clickNav("Workflow");
+    await page.getByRole("button", { name: label, exact: true }).click({ timeout: 8000 });
+    await sleep(900);
+  };
+
+  await capture("workflow-rating.png", async () => {
+    await workflowMode("Rating");
+    await page.locator('[data-testid="workflow-rating-value"]').waitFor({ timeout: 8000 });
+    await shot("workflow-rating.png", { settle: 1400 });
+  });
+
+  await capture("workflow-tagging.png", async () => {
+    await workflowMode("Tagging");
+    await page.locator('[data-testid="workflow-tag-input"]').waitFor({ timeout: 8000 });
+    await shot("workflow-tagging.png", { settle: 1400 });
+  });
+
+  // The dedup queue only has something to show once a fingerprint-dedup run has proposed groups; if
+  // the demo data carries none, this shot is skipped rather than capturing the empty state.
+  await capture("workflow-dedup.png", async () => {
+    await clickNav("Workflow");
+    await page.locator('[data-testid="workflow-mode-deduplication"]').click({ timeout: 8000 });
+    await page.locator('[data-testid="dedup-group"]').waitFor({ timeout: 8000 });
+    await shot("workflow-dedup.png", { settle: 1400 });
+  });
+
   // ---- User management ----
   await capture("users.png", async () => {
     await openAclGroup();

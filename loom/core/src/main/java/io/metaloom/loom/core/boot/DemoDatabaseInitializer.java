@@ -19,6 +19,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,7 @@ import io.metaloom.loom.api.pipeline.PipelineRunStatus;
 import io.metaloom.loom.agent.memory.MemoryHeader;
 import io.metaloom.loom.api.memory.MemoryScope;
 import io.metaloom.loom.api.options.LoomOptions;
+import io.metaloom.loom.api.options.SimilarityOptions;
 import io.metaloom.loom.api.reaction.ReactionType;
 import io.metaloom.loom.api.task.TaskPriority;
 import io.metaloom.loom.api.task.TaskStatus;
@@ -51,6 +54,7 @@ import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
+import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
 import io.metaloom.loom.db.model.asset.AssetDocComp;
 import io.metaloom.loom.db.model.asset.AssetGeoComp;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
@@ -205,6 +209,36 @@ public class DemoDatabaseInitializer {
 
 	/** Quoted verbatim in the customer-facing documentation. */
 	private static final String DEMO_SHARE_PASSWORD = "amber-lantern-42";
+
+	/** Bytes of bit data behind a 256 component fingerprint vector - see {@link #demoFingerprintHex(byte[])}. */
+	private static final int FINGERPRINT_BIT_BYTES = 256 / 8;
+
+	/** The node kind {@code FingerprintNode} writes its components under. */
+	private static final String DEMO_FINGERPRINT_NODE_KIND = "fingerprint";
+
+	/** Bit pattern of the original of the seeded near-duplicate pair; the re-encode flips one of its bits. */
+	private static final int DEMO_FINGERPRINT_BASE_BYTE = 0xB4;
+
+	/**
+	 * Bit patterns for the demo videos that are nobody's duplicate.
+	 *
+	 * <p>
+	 * One per video, and all four differ from {@link #DEMO_FINGERPRINT_BASE_BYTE} and from each other in at least two bits of every byte - at least 64
+	 * of the 256. Reusing one pattern for two videos would make them a perfect-score duplicate pair of each other, which is the opposite of what they
+	 * are seeded to show.
+	 * </p>
+	 */
+	private static final int[] DEMO_FINGERPRINT_UNRELATED_BYTES = { 0x4B, 0x2D, 0x96, 0x69 };
+
+	/**
+	 * The score the seeded near-duplicate pair reaches, and therefore the score the seeded dedup proposal over the same two assets records.
+	 *
+	 * <p>
+	 * Fixed by the arithmetic rather than chosen: the index scores Euclidean neighbours as {@code 1 / (1 + d²)} over 0/1 components, so a single
+	 * differing bit is {@code 1 / 2}.
+	 * </p>
+	 */
+	private static final float DEMO_FINGERPRINT_PAIR_SCORE = 0.5f;
 
 	private final UserDao userDao;
 	private final AssetDao assetDao;
@@ -980,7 +1014,12 @@ public class DemoDatabaseInitializer {
 		createDominantColorComp(admin, imageAssets[0]);
 
 		// --- Deduplication review queue ---
-		seedDemoDedupGroup(admin, videoAssets[0]);
+		Asset dupAsset = seedDemoDedupGroup(admin, videoAssets[0]);
+
+		// --- Fingerprints for the similarity index ---
+		// Seeded after the dedup group so both features demo off the same two videos: the proposal in
+		// the review queue and the k-NN hit behind it describe one pair, not two unrelated fixtures.
+		seedFingerprintComps(assetComponentDao, adminUuid, videoAssets[0], dupAsset, videoAssets[1], videoAssets[2]);
 
 		// --- Remix: an original and the two cuts made from it ---
 		seedDemoRemix(admin, videoAssets[0], videoAssets[1], imageAssets[0]);
@@ -1503,20 +1542,128 @@ public class DemoDatabaseInitializer {
 	 * Deliberately <b>PENDING</b> and never CONFIRMED. A confirmed group is an instruction to the apply node to move a file, and the demo container's
 	 * media only exists as database rows - the first apply run would report failures over seeded fiction.
 	 * </p>
+	 *
+	 * @return the duplicate asset, so {@link #seedFingerprintComps} can give the same pair the fingerprints this proposal claims to come from
 	 */
-	private void seedDemoDedupGroup(User admin, Asset keepAsset) {
+	private Asset seedDemoDedupGroup(User admin, Asset keepAsset) {
 		Asset dupAsset = createAsset(admin, "drone-coastal-720p.mp4", "video/mp4", 18_000_000, "/demo/videos/drone-coastal-720p.mp4");
 
 		DedupGroup group = dedupGroupDao.createGroup(admin.getUuid(), "metaloom-multisector-v1");
 		group.setKeepAssetUuid(keepAsset.getUuid());
-		// The group score is the *minimum* member score - how close a call the whole proposal is.
-		group.setScore(0.93f);
+		// The group score is the *minimum* member score - how close a call the whole proposal is. It is
+		// DEMO_FINGERPRINT_PAIR_SCORE because that is what the fingerprints seeded for these two assets
+		// actually score against each other: a review queue that disagrees with the similarity index it
+		// claims to come from teaches a reader arithmetic that does not exist.
+		group.setScore(DEMO_FINGERPRINT_PAIR_SCORE);
 		dedupGroupDao.storeGroup(group);
 
 		dedupGroupDao.addMember(group.getUuid(), keepAsset.getUuid(), DedupGroupMember.ROLE_KEEP, 1.0f, 52_000_000L, 0L);
-		dedupGroupDao.addMember(group.getUuid(), dupAsset.getUuid(), DedupGroupMember.ROLE_DUP, 0.93f, 18_000_000L, 0L);
+		dedupGroupDao.addMember(group.getUuid(), dupAsset.getUuid(), DedupGroupMember.ROLE_DUP, DEMO_FINGERPRINT_PAIR_SCORE, 18_000_000L, 0L);
 
 		log.info("Created demo dedup review group: {} vs {}", keepAsset.getFilename(), dupAsset.getFilename());
+		return dupAsset;
+	}
+
+	/**
+	 * Perceptual fingerprints for the demo videos, so the similarity index has a corpus to be switched on over.
+	 *
+	 * <p>
+	 * Without these rows the <code>fingerprint</code> index reports zero documents on <code>/admin/indices</code> and
+	 * <code>GET /assets/:uuid/similar-assets</code> answers an empty list for every demo asset, which reads as a broken feature rather than an empty
+	 * one. See spec/loom/SEARCH_LUCENE.md.
+	 * </p>
+	 *
+	 * <p>
+	 * <b>Independent of <code>LOOM_SIMILARITY_ENABLED</code>.</b> These are <code>asset_fingerprint_comp</code> rows, and that table is the
+	 * system-of-record; the Lucene index is a derived cache. Seeding it here would be wrong even if the index were open - the demo writes through the
+	 * DAO rather than the REST layer, so no write hook runs. An operator who switches similarity on runs a <code>REINDEX</code> job and the index is
+	 * built from exactly these rows.
+	 * </p>
+	 *
+	 * <p>
+	 * <b>The distances are chosen, not arbitrary.</b> A fingerprint decodes to 256 components that are each 0 or 1, and the index scores Euclidean
+	 * neighbours as <code>1 / (1 + d²)</code> - so with 0/1 components the score is <code>1 / (1 + hamming)</code>. One differing bit is therefore
+	 * {@link #DEMO_FINGERPRINT_PAIR_SCORE 0.5}, the highest score any pair of <em>distinct</em> fingerprints can reach, and the unrelated videos sit at
+	 * least 64 bits away (0.016 and below), well under the 0.10 floor. A query for the original consequently returns its re-encode and nothing else.
+	 * </p>
+	 *
+	 * <p>
+	 * Static, and taking its DAO rather than reading the field, so a test can drive this exact step: {@link #init()} only runs against an empty asset
+	 * table and the pooled test database is pre-populated, so the seeding could otherwise never be exercised.
+	 * </p>
+	 *
+	 * @param original      the video the near-duplicate was re-encoded from
+	 * @param nearDuplicate the re-encode; its bit data differs from the original's in a single byte, by a single bit
+	 * @param unrelated     videos that are nobody's duplicate, each far from the pair and from each other
+	 * @return the components written, in the order the assets were given
+	 */
+	static List<AssetFingerprintComp> seedFingerprintComps(AssetComponentDao assetComponentDao, UUID userUuid, Asset original,
+		Asset nearDuplicate, Asset... unrelated) {
+		if (unrelated.length > DEMO_FINGERPRINT_UNRELATED_BYTES.length) {
+			throw new IllegalArgumentException("Only " + DEMO_FINGERPRINT_UNRELATED_BYTES.length
+				+ " distinct unrelated fingerprint patterns are defined; a fifth video would silently become a duplicate of the first.");
+		}
+
+		byte[] originalBits = new byte[FINGERPRINT_BIT_BYTES];
+		Arrays.fill(originalBits, (byte) DEMO_FINGERPRINT_BASE_BYTE);
+		byte[] nearDuplicateBits = originalBits.clone();
+		// One bit, in one byte: the re-encode of the same footage.
+		nearDuplicateBits[7] ^= 0x01;
+
+		List<AssetFingerprintComp> comps = new ArrayList<>();
+		comps.add(seedFingerprintComp(assetComponentDao, userUuid, original, demoFingerprintHex(originalBits)));
+		comps.add(seedFingerprintComp(assetComponentDao, userUuid, nearDuplicate, demoFingerprintHex(nearDuplicateBits)));
+		for (int i = 0; i < unrelated.length; i++) {
+			comps.add(seedFingerprintComp(assetComponentDao, userUuid, unrelated[i], demoFingerprintHex(DEMO_FINGERPRINT_UNRELATED_BYTES[i])));
+		}
+
+		log.info("Created {} demo fingerprint components ({} and {} are the near-duplicate pair)", comps.size(),
+			original.getFilename(), nearDuplicate.getFilename());
+		return comps;
+	}
+
+	/**
+	 * One fingerprint component, in the shape {@code FingerprintNode} writes: node kind {@code fingerprint}, the default algorithm and sector 0, which
+	 * is the only sector the index reads.
+	 */
+	private static AssetFingerprintComp seedFingerprintComp(AssetComponentDao assetComponentDao, UUID userUuid, Asset asset, String hex) {
+		AssetFingerprintComp comp = assetComponentDao.createFingerprintComp(userUuid, asset.getUuid(), DEMO_FINGERPRINT_NODE_KIND);
+		comp.setAlgorithm(SimilarityOptions.DEFAULT_ALGORITHM);
+		comp.setSectorIndex(0);
+		comp.setFingerprint(hex);
+		return assetComponentDao.upsertFingerprintComp(comp);
+	}
+
+	/**
+	 * A valid v2 multi-sector fingerprint hex: 2 bytes version, 1 pad, 2 bytes vector size (256), 1 pad, then 32 bytes of bit data.
+	 *
+	 * <p>
+	 * Shared with the endpoint tests rather than copied into them. The layout is video4j's ({@code MultiSectorFingerprintCodec}), it is not validated
+	 * on the way into {@code asset_fingerprint_comp}, and a value the codec rejects is logged and skipped deep inside the Lucene module - so a second
+	 * hand-written copy of the layout drifts into an index that is simply, quietly empty.
+	 * </p>
+	 *
+	 * @param bits the 32 bytes of bit data behind the 256 component vector
+	 */
+	public static String demoFingerprintHex(byte[] bits) {
+		if (bits.length != FINGERPRINT_BIT_BYTES) {
+			throw new IllegalArgumentException("A 256 bit fingerprint carries exactly " + FINGERPRINT_BIT_BYTES + " bytes of bit data, got "
+				+ bits.length);
+		}
+		StringBuilder builder = new StringBuilder("0002" + "00" + "0100" + "00");
+		for (byte b : bits) {
+			builder.append(String.format("%02x", b & 0xFF));
+		}
+		return builder.toString();
+	}
+
+	/**
+	 * The same layout, with every one of the 32 bit-data bytes set to {@code fillByte}.
+	 */
+	public static String demoFingerprintHex(int fillByte) {
+		byte[] bits = new byte[FINGERPRINT_BIT_BYTES];
+		Arrays.fill(bits, (byte) fillByte);
+		return demoFingerprintHex(bits);
 	}
 
 	/**

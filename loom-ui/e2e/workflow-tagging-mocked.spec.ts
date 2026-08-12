@@ -174,6 +174,46 @@ test.describe("Workflow tagging – mocked e2e", () => {
     await expect(chip(page, "archive")).toHaveCount(0, { timeout: 10_000 });
   });
 
+  test("the already-tagged chip counts the curated tags the asset arrived with", async ({ page }) => {
+    await installMocks(page, {
+      seed: [
+        { uuid: "tag-a", name: "archive", collection: "default" },
+        { uuid: "tag-b", name: "hero", collection: "default" },
+        // Machine tags are not somebody's review work, so they must not inflate the count.
+        { uuid: "tag-m", name: "cat", collection: "default", nodeKind: "tag", confidence: 0.82 },
+      ],
+    });
+    await page.goto("/");
+    await login(page);
+    await openTagging(page);
+
+    await expect(page.getByTestId("workflow-already-tagged")).toHaveText("2 tags already", { timeout: 10_000 });
+
+    // The count is what the asset ARRIVED with — adding a third curated tag now must not move it,
+    // or it stops being the "somebody already did this one" hint and becomes a live tag counter.
+    await typeTag(page, "sunset");
+    await expect(chip(page, "sunset")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("workflow-already-tagged")).toHaveText("2 tags already");
+  });
+
+  test("an untagged asset shows the tag row with no chips and no already-tagged hint", async ({ page }) => {
+    await installMocks(page);
+    await page.goto("/");
+    await login(page);
+    await openTagging(page);
+
+    // The row itself is always rendered — the tag input below it needs somewhere to put chips, and
+    // an absent container would make "no tags" indistinguishable from a pane that failed to load.
+    const tagRow = page.getByTestId("workflow-tags");
+    await expect(tagRow).toBeVisible({ timeout: 10_000 });
+    await expect(tagRow.getByTestId("workflow-tag-chip")).toHaveCount(0);
+    await expect(page.getByTestId("workflow-already-tagged")).toHaveCount(0);
+
+    // A newly added tag lands inside that row rather than somewhere else on the pane.
+    await typeTag(page, "sunset");
+    await expect(tagRow.getByTestId("workflow-tag-chip")).toHaveCount(1, { timeout: 10_000 });
+  });
+
   test("a machine tag is shown but cannot be removed from here", async ({ page }) => {
     await installMocks(page, {
       seed: [{ uuid: "tag-machine", name: "cat", collection: "default", nodeKind: "tag", confidence: 0.82 }],

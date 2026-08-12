@@ -229,7 +229,7 @@ exceptions. All three endpoints (plus the new one) are now registered and those 
 | 4 | ⚠️ **`PostgresSearchProvider.info()` sets `lastSyncedAt = Instant.now()`** — it is not a freshness signal. The registry does not surface it for the lexical index |
 | 5 | **A new `loom_permission` value needs a jOOQ enum update too.** `JooqLoomPermission` is hand-maintained (`generate.sh` regenerates everything else); without it `setup-pool.sh` fails with `No enum constant JooqLoomPermission.READ_SEARCH_INDEX` |
 | 6 | **Clean-rebuild `loom/core` after the endpoint constructor change, before `./setup-pool.sh`** — stale Dagger factories throw a confusing `NoSuchMethodError` |
-| 7 | ℹ️ `SimilarityHit.sha512()` is always null. Both the write hook and the rebuild pass null because `asset_fingerprint_comp` does not carry the content hash. Consistent, and consistently empty in `SimilarAssetResponse.sha512` — a pre-existing dead field, not a regression of this change |
+| 7 | ℹ️ `SimilarityHit.sha512()` used to be always null; since 2026-08-12 the `REINDEX` job streams `AssetComponentDao.streamHexFingerprintsByAlgorithm`, which joins `asset.sha512sum` in. A new fingerprint write path must carry the hash too — the component table does not hold it. [SEARCH_LUCENE.md](../../loom/SEARCH_LUCENE.md) §5 |
 
 ## 9. Test setup
 
@@ -261,5 +261,5 @@ the demo pipelines produce.
 
 ---
 
-_Git HEAD revision: `27894151`_
-_Last updated: 2026-08-09 (initial — the search index admin surface)_
+_Git HEAD revision: `0b8fe39a`_
+_Last updated: 2026-08-12 (finding 7: the reindex job now carries the asset hash)_

@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.metaloom.loom.agent.sandbox.SandboxReaper;
+import io.metaloom.loom.api.search.SimilarityIndex;
+import io.metaloom.loom.api.search.VectorIndex;
 import io.metaloom.loom.rest.search.IndexJobRegistry;
 import io.metaloom.loom.rest.search.SearchEmbeddingDrainer;
 import io.metaloom.loom.rest.storage.StorageSpaceMonitor;
@@ -64,13 +66,17 @@ public class BootstrapInitializer {
 
 	private final DataSource dataSource;
 
+	private final SimilarityIndex similarityIndex;
+
+	private final VectorIndex vectorIndex;
+
 	@Inject
 	public BootstrapInitializer(GrpcService grpcService, RESTService restService, UIService uiService, MCPService mcpService,
 		MonitoringService monitoringService, AuthenticationService authService,
 		Flyway flyway, DatabaseInitializer initializer, DemoDatabaseInitializer demoInitializer, HttpServer httpServer,
 		AssetPipelineTrigger assetPipelineTrigger, SandboxReaper sandboxReaper, EmbeddingIndexDrainer embeddingIndexDrainer,
 		SearchEmbeddingDrainer searchEmbeddingDrainer, IndexJobRegistry indexJobRegistry, StorageSpaceMonitor storageSpaceMonitor,
-		DataSource dataSource) {
+		DataSource dataSource, SimilarityIndex similarityIndex, VectorIndex vectorIndex) {
 		this.grpcService = grpcService;
 		this.restService = restService;
 		this.uiService = uiService;
@@ -88,6 +94,8 @@ public class BootstrapInitializer {
 		this.indexJobRegistry = indexJobRegistry;
 		this.storageSpaceMonitor = storageSpaceMonitor;
 		this.dataSource = dataSource;
+		this.similarityIndex = similarityIndex;
+		this.vectorIndex = vectorIndex;
 	}
 
 	public void init(boolean migrate) throws IOException {
@@ -231,6 +239,14 @@ public class BootstrapInitializer {
 			log.error("Failed to close the HTTP server", e);
 		}
 
+		// Release the Lucene indices, now that the HTTP server no longer accepts requests and the drainers above have
+		// stopped feeding them. An IndexWriter holds an exclusive write.lock on its directory and only releases it when
+		// closed - at an abrupt stop the lock file and any uncommitted segments are left behind, and in a test suite the
+		// next server to boot on the same directory silently degrades to the Noop implementation. See
+		// spec/loom/SEARCH_LUCENE.md §4.3 and spec/concept/CLUSTERING.md §3.
+		closeIndex(similarityIndex, similarityIndex::commit, "fingerprint similarity index");
+		closeIndex(vectorIndex, vectorIndex::commit, "vector index");
+
 		// Release the JDBC connection pool. Without this the pool keeps its minPoolSize connections
 		// open forever: the pool is a @Singleton of the Dagger component, and a component that is
 		// discarded takes no action on the connections it opened. In production that leaks once, at
@@ -247,6 +263,35 @@ public class BootstrapInitializer {
 			} catch (Exception e) {
 				log.error("Failed to close the database connection pool", e);
 			}
+		}
+	}
+
+	/**
+	 * Commit and close one search index, if the bound implementation has anything to close.
+	 *
+	 * <p>
+	 * The {@code instanceof AutoCloseable} check is deliberately the seam rather than a {@code close()} on the SPI: the Noop implementations hold no
+	 * resources and an external vector service would not either, so only the embedded Lucene backends need this. A failure here is logged and swallowed
+	 * - the rest of the shutdown sequence still has to run.
+	 * </p>
+	 */
+	private void closeIndex(Object index, Runnable commit, String what) {
+		if (!(index instanceof AutoCloseable closeable)) {
+			return;
+		}
+		// Commit first: close() would flush anyway, but a failing flush inside close() loses the segments silently. It gets
+		// its own try block because a failed commit must still be followed by the close - otherwise the write.lock this
+		// whole step exists to release stays on disk.
+		try {
+			commit.run();
+		} catch (Exception e) {
+			log.error("Failed to commit the {} before shutdown", what, e);
+		}
+		try {
+			closeable.close();
+			log.info("The {} was closed", what);
+		} catch (Exception e) {
+			log.error("Failed to close the {}", what, e);
 		}
 	}
 }

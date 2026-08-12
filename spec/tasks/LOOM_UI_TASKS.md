@@ -29,6 +29,12 @@
 > **Task 11 should land before Task 13**, because `React.lazy` without an error boundary turns a
 > chunk-load failure into a blank page. Tasks 4, 9, 17, 18, 19, 20 are independent.
 >
+> **The E2E coverage batches (Tasks 21–31)** each close eight cases against
+> [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.2's mocked tier and are independent of each other
+> and of everything above; take them one at a time. **Task 9 should land first** — its ratchet is
+> what stops the backlog growing behind them — and each batch lowers its baseline by what it closed.
+> Task 32 is the documentation half of the same sweep.
+>
 > **Test conventions.** "component test" = a **mocked Playwright spec**
 > (`loom-ui/e2e/*-mocked.spec.ts`); pure logic = node-env vitest beside the module. There is no
 > RTL/jsdom in this repo ([../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.1).
@@ -575,91 +581,506 @@ vitest that fails on the next divergence.
 
 ---
 
-## Task 9: Close the remaining unreferenced-testid holes
+## Task 9: The unreferenced-testid ratchet, and the index of the batches that close the backlog
 
-**Argumentation Summary:** Re-measured against the working tree: of **330** distinct `data-testid`
-values in `loom-ui/src`, **78 (24 %)** are referenced by no spec in `loom-ui/e2e/`. Thirteen of those
-are the memory screens (Task 4), leaving **65** here. Each is a shipped affordance no test touches,
-and they cluster in features that are otherwise well covered — which is what makes them worth naming
-rather than leaving to a future sweep:
+**Argumentation Summary:** Re-measured against the working tree on 2026-08-12: of **491** distinct
+literal `data-testid` values in `loom-ui/src`, **116 (24 %)** are referenced by no spec in
+`loom-ui/e2e/`. The share and remix features shipped after the 2026-08-11 audit and brought 25 of
+their own, which is the point — **the ratio has held at roughly a quarter for two audits running**,
+so this is not a backlog that is being worked off but a rate at which new affordances arrive
+untested. Each unreferenced id is a shipped affordance no test touches, and the list is dominated by
+**loading and error testids**: they exist precisely because someone anticipated the state, and they
+are the states a `*-backend.spec.ts` against healthy demo data can never reach — only a mocked spec
+can. Seventeen of the 116 are the memory screens (Task 4) and five are the admin totals (Task 17);
+the remaining 92 are split across Tasks 21–31 below, **eight cases per task** so no single task
+becomes a sitting of forty assertions nobody finishes.
 
-* **skills** — `skills-table`, `skill-delete-dialog`, `skill-update-available`,
-  `skill-version-empty`, `skill-version-loading`
-* **chat sessions** — `chat-session-create-dialog`, `chat-session-save`, `chat-session-ctx-save`,
-  `chat-sessions-mine-tab`, `session-files-panel`, `session-files-empty`
-* **annotations** — `annotation-composer`, `annotation-region-toggle`, `annotation-cancel`
-* **comments / tasks** — `comment-reply`, `comment-cancel`, `tasks-comment-post`,
-  `tasks-comment-reply-banner`, `tasks-comment-reply-cancel`
-* **admin totals** — `admin-users-count`, `admin-groups-count`, `admin-roles-count`,
-  `admin-spaces-count`, `admin-blacklist-count` (covered by Task 17 if that lands first)
-* **workflow** — `dedup-confirm`, `dedup-reject`, `dedup-group-score`, `workflow-already-rated`,
-  `workflow-already-tagged`, `workflow-cluster-reviewed-at`, `workflow-tags`.
-  `workflow-dedup-mocked.spec.ts` drives the decision with the **Y/N keyboard shortcuts only**, so
-  the buttons at [WorkflowView.tsx:507,513](../../loom-ui/src/features/workflow/WorkflowView.tsx)
-  have never been clicked by a test
-* **storage / maintenance / integrity** — `storage-backends`, `storage-categories`,
-  `storage-categories-note`, `storage-thresholds`, `storage-loading`, `health-card-database`,
-  `health-timestamp`, `db-integrity-loading`
-* **persons** — `person-detail-name`, `person-detail-alias`, `person-detail-loading`,
-  `person-image-upload`
-* **profile** — `profile-loading`, `profile-saving`, `profile-avatar-busy`
-* **search** — `search-view`, `search-hit-timecode`, `search-pager-range`, `search-indices-loading`
-* **detection** — `facedetection-search`, `objectdetection-search`
-* **transcripts** — `asset-transcript-create-menu-item`, `transcript-create-submit-button`
-* **cortex** — `worker-whitelist-input`, `worker-blacklist-input`
-* **pipeline** — `pipeline-version-diff-empty`, `pipeline-version-diff-error`
-* **misc** — `video-timeline-bar`, `library-asset-count`, `chart-empty`
+The workflow cluster that led this list is **closed** (2026-08-12): `dedup-confirm`, `dedup-reject`,
+`dedup-group-score`, `workflow-already-rated`, `workflow-already-tagged`, `workflow-tags` and
+`workflow-cluster-reviewed-at` now have eight cases across
+[workflow-dedup-mocked.spec.ts](../../loom-ui/e2e/workflow-dedup-mocked.spec.ts),
+[workflow-rating-mocked.spec.ts](../../loom-ui/e2e/workflow-rating-mocked.spec.ts) and
+[workflow-tagging-mocked.spec.ts](../../loom-ui/e2e/workflow-tagging-mocked.spec.ts).
 
-Note the shape of the list: it is dominated by **loading and error testids**. Those exist precisely
-because someone anticipated the state, and they are the states a backend spec against healthy demo
-data can never reach — only a mocked spec can.
-
-**Improvement Summary:** Extend the existing sibling spec for each cluster — no new files needed
-except where a feature has none — and add a ratchet so the unreferenced set cannot grow.
+**Improvement Summary:** Add a vitest ratchet that fails when the unreferenced set grows, so the
+batches below are worked off against a floor that cannot slip, and record the count where the next
+agent will read it.
 
 ```
-1. Work cluster by cluster, adding cases to the existing spec:
-     skills-mocked / skills-version-mocked  -- delete dialog, update-available badge, the version
-       loading and empty states (LOOM_UI.md §7.5: SkillManagementView renders no <Table> when
-       empty -- wait on `skills-view`, not on headers).
-     chat-sessions-mocked -- create dialog, save, context save, the "mine" tab, the files panel and
-       its empty state.
-     annotations-mocked   -- composer open/cancel, the region toggle.
-     comments-mocked / tasks-comments-mocked -- reply banner, reply cancel, post.
-     workflow-dedup-mocked -- click `dedup-confirm` / `dedup-reject` (not only Y/N) and assert the
-       group score renders; workflow-rating-mocked / workflow-tagging-mocked -- the
-       already-rated/already-tagged states and `workflow-cluster-reviewed-at`.
-     storage-mocked / maintenance-mocked / db-integrity-mocked -- the loading states (delay the
-       route rather than fulfilling immediately), the database health card, the timestamp, the
-       storage thresholds/categories note.
-     person-detail-mocked -- name, alias and the loading state; `person-image-upload`.
-     profile-mocked -- the loading, saving and avatar-busy states.
-     search-mocked / search-indices-mocked -- `search-view`, the pager range, a hit with a
-       timecode, the indices loading state.
-     transcripts-mocked   -- the create menu item and submit.
-     cortex-mocked        -- whitelist/blacklist inputs and the resulting restriction call.
-     pipeline-versions-mocked -- the diff empty and diff error states.
-     empty-states-mocked  -- `chart-empty`, `library-asset-count`.
-2. Asset detail's `video-timeline-bar` has no owning spec; add
-   loom-ui/e2e/asset-timeline-mocked.spec.ts covering marker rendering and seek-on-click.
-3. Add the ratchet: loom-ui/src/testidCoverage.test.ts (node-env vitest) greps src/ for literal
-   data-testid values and e2e/ for references, and FAILS on a growth in the unreferenced set
-   against a checked-in baseline count. Keep it a ratchet, not an absolute gate -- some ids exist
-   only for scripts/capture-ui-screenshots.mjs, and the test must accept an explicit allowlist.
-   Baseline: 78 unreferenced of 330 total as of this audit (65 after Task 4).
-   Only literal `data-testid="…"` values count; the template-literal forms
-   (`memory-row-${id}`, `search-index-row-${id}`, …) must be excluded or the count is noise.
-4. Update the count in ../loom/ui/LOOM_UI.md §11.1 in the same change (see Task 10).
+1. loom-ui/src/testidCoverage.test.ts (node-env vitest -- there is no jsdom in this repo):
+     - walk src/ for literal `data-testid="…"` and `"data-testid": "…"` values; walk e2e/ for
+       references. Only LITERAL values count -- the template-literal forms (`memory-row-${id}`,
+       `search-index-row-${id}`, `dedup-member-${uuid}`, …) must be excluded or the count is noise.
+     - FAIL when the unreferenced count exceeds a checked-in baseline. A ratchet, not an absolute
+       gate: lowering the baseline is part of landing each batch, raising it needs a reason.
+     - Accept an explicit allowlist for ids that exist only for scripts/capture-*.mjs. As of this
+       audit that is `pipeline-node-detail` and `pipeline-node-detail-body`
+       (scripts/capture-node-screenshots.mjs). `storage-backends` and `storage-categories` are
+       also driven by a capture script but are real affordances -- they belong to Task 27, not the
+       allowlist.
+     - Baseline: 116 unreferenced of 491 total. Anything that reduces it should reduce the
+       constant in the same commit.
+2. Extend the same file with the `console.log`-of-a-password grep guard from Task 15 rather than
+   adding a second scanning test.
+3. Update ../loom/ui/LOOM_UI.md §8.2 (the spec count, currently "87 specs / 53 mocked / 31 backend"
+   -- recount, do not trust it) and §11.1 (the testid ratio) in the same change; Task 10 owns the
+   wider refresh of that file.
 ```
 
-**Backend dependency:** none — every case is reachable with `page.route` fixtures.
+**Backend dependency:** none.
 
-**References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.2, §11.1 · Task 4 (memory ids) ·
-Task 17 (the admin-count ids)
+**References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.1, §8.2, §11.1 · Task 4 (the 17
+memory ids) · Task 15 (the password grep) · Task 17 (the 5 admin-count ids) · Tasks 21–31 (the 92)
 
-**Test Requirements:** Extended cases in the specs named, one new `asset-timeline-mocked.spec.ts`,
-and the ratchet test.
-`cd loom-ui && ./node_modules/.bin/vitest run src/testidCoverage.test.ts && ./node_modules/.bin/playwright test`
+**Test Requirements:** `loom-ui/src/testidCoverage.test.ts`, green at the recorded baseline, and
+demonstrably red when the baseline is lowered by one.
+`cd loom-ui && ./node_modules/.bin/vitest run src/testidCoverage.test.ts`
+
+---
+
+## Task 21: E2E batch — the share viewer's media kinds and its failure states
+
+**Argumentation Summary:** [share-mocked.spec.ts](../../loom-ui/e2e/share-mocked.spec.ts) drives the
+gate, the grid, comments, reactions and `share-media-video`, and stops there. The share viewer is the
+**only screen an outside recipient ever sees**, it runs unauthenticated, and every state below it is
+one somebody outside the installation hits without anybody here watching: a revoked link, an expired
+one, a binary the browser cannot play. Eight testids in
+[ShareMedia.tsx](../../loom-ui/src/features/share/ShareMedia.tsx),
+[ShareViewer.tsx](../../loom-ui/src/features/share/ShareViewer.tsx),
+[SharePage.tsx](../../loom-ui/src/features/share/SharePage.tsx) and
+[ShareRegionOverlay.tsx](../../loom-ui/src/features/share/ShareRegionOverlay.tsx) are referenced by
+nothing.
+
+**Improvement Summary:** Eight cases added to `share-mocked.spec.ts`, one per state.
+
+```
+Extend loom-ui/e2e/share-mocked.spec.ts. The mimeType on the shared asset selects the branch, so
+most of these are one fixture field:
+  1. `share-media-image`       -- image/jpeg renders an <img>, not the video player
+  2. `share-media-audio`       -- audio/mpeg renders the audio element
+  3. `share-media-pdf`         -- application/pdf renders the embedded viewer
+  4. `share-media-unavailable` -- a mimeType with no viewer says so rather than rendering a blank
+                                  frame the recipient reads as a broken link
+  5. `share-loading`           -- delay the share-resolve route (route.fulfill after a timer)
+                                  rather than fulfilling immediately, and assert it before the
+                                  content lands
+  6. `share-empty`             -- a share whose asset list came back empty
+  7. `share-viewer-error`      -- the resolve route answers 404/410 (revoked or expired link);
+                                  assert the message, and that no asset facts render
+  8. `share-region-preview`    -- a comment carrying a region shows its preview crop
+```
+
+**Backend dependency:** none — `page.route` fixtures.
+
+**References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.2 ·
+[../features/share/SHARE_SYSTEM.md](../features/share/SHARE_SYSTEM.md) · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/share-mocked.spec.ts`
+
+---
+
+## Task 22: E2E batch — the share dialog's outcomes and the feedback panel
+
+**Argumentation Summary:** [share-dialog-mocked.spec.ts](../../loom-ui/e2e/share-dialog-mocked.spec.ts)
+covers link creation, the copy button, expiry and the password toggle — the happy path only. What
+happens when share creation *fails* (`share-dialog-error`) is untested, and so is every affordance on
+[ShareFeedbackPanel.tsx](../../loom-ui/src/features/share/ShareFeedbackPanel.tsx), which is where the
+feedback a recipient left comes back to the person who sent the link. Nine testids, no references.
+
+**Improvement Summary:** Eight cases across the dialog and the feedback panel.
+
+```
+Extend loom-ui/e2e/share-dialog-mocked.spec.ts (dialog) and loom-ui/e2e/share-mocked.spec.ts
+(panel), whichever owns the screen:
+  1. `share-dialog-error`    -- the create call answers 500; the dialog stays OPEN and says so.
+                                A dialog that closes on a failed write is Task 14's failure mode
+  2. `share-dialog-done`     -- closes the dialog and leaves the link in place
+  3. `share-dialog-download` -- toggling downloads-allowed travels in the create/update body
+  4. `share-dialog-feedback` -- toggling feedback-allowed likewise
+  5. `share-annotation`      -- an annotation left by a recipient renders in the panel
+  6. `share-comment-reply`   -- replying to a recipient comment posts with the parent uuid
+  7. `share-comment-delete`  -- deleting one issues the DELETE and drops the row
+  8. `share-mark-input` + `share-mark-submit` -- leaving a mark posts its text
+```
+
+**Backend dependency:** none.
+
+**References:** [ShareDialog.tsx](../../loom-ui/src/features/share/ShareDialog.tsx) ·
+[ShareFeedbackPanel.tsx](../../loom-ui/src/features/share/ShareFeedbackPanel.tsx) · Task 14 · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/share-dialog-mocked.spec.ts e2e/share-mocked.spec.ts`
+
+---
+
+## Task 23: E2E batch — annotation composer and the comment reply/cancel affordances
+
+**Argumentation Summary:** [annotations-mocked.spec.ts](../../loom-ui/e2e/annotations-mocked.spec.ts),
+[comments-mocked.spec.ts](../../loom-ui/e2e/comments-mocked.spec.ts) and
+[tasks-comments-mocked.spec.ts](../../loom-ui/e2e/tasks-comments-mocked.spec.ts) all test the *post*
+path and none of them test *not* posting. Every cancel and reply affordance across the three —
+`annotation-composer`, `annotation-region-toggle`, `annotation-cancel`, `comment-reply`,
+`comment-cancel`, `tasks-comment-input`, `tasks-comment-post`, `tasks-comment-reply-banner`,
+`tasks-comment-reply-cancel` — is unreferenced. Cancel paths are where half-written state leaks: a
+composer that keeps its text after a cancel, or a reply banner that survives its own cancel button,
+sends the next comment to the wrong parent.
+
+**Improvement Summary:** Eight cases covering opening, replying and abandoning.
+
+```
+  1. annotations-mocked: `annotation-composer` opens on the asset detail and takes text
+  2. annotations-mocked: `annotation-region-toggle` arms region mode -- the next drag draws a
+     region and the POST carries its bbox
+  3. annotations-mocked: `annotation-cancel` closes the composer, issues NO POST, and the composer
+     reopens EMPTY (the leak this case exists for)
+  4. comments-mocked:    `comment-reply` opens the reply composer with the parent comment named
+  5. comments-mocked:    `comment-cancel` abandons it without a POST
+  6. tasks-comments-mocked: `tasks-comment-input` + `tasks-comment-post` post a task comment
+  7. tasks-comments-mocked: `tasks-comment-reply-banner` names the comment being replied to
+  8. tasks-comments-mocked: `tasks-comment-reply-cancel` clears the banner, and the NEXT post goes
+     out with no parent uuid -- the assertion that makes case 7 worth anything
+```
+
+**Backend dependency:** none.
+
+**References:** [AssetDetail.tsx](../../loom-ui/src/features/assetDetail/AssetDetail.tsx) ·
+[CommentItem.tsx](../../loom-ui/src/features/assetDetail/CommentItem.tsx) ·
+[TasksView.tsx](../../loom-ui/src/features/tasks/TasksView.tsx) · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/annotations-mocked.spec.ts e2e/comments-mocked.spec.ts e2e/tasks-comments-mocked.spec.ts`
+
+---
+
+## Task 24: E2E batch — the asset detail overflow menu, transcript creation and the video timeline
+
+**Argumentation Summary:** The asset detail overflow menu gained three entries — share, add-to-remix
+and create-transcript — as those features landed, and no spec opens any of them; the transcript
+dialog behind one of them
+([transcripts-mocked.spec.ts](../../loom-ui/e2e/transcripts-mocked.spec.ts) tests reading transcripts,
+not creating one) is likewise untouched. Separately,
+[VideoTimeline.tsx](../../loom-ui/src/features/assetDetail/VideoTimeline.tsx) has **no owning spec at
+all**: `video-timeline-bar` is the seek surface for every video in the product and no test has ever
+clicked it.
+
+**Improvement Summary:** Seven cases on the existing asset-detail specs plus one new spec for the
+timeline.
+
+```
+  1. `asset-transcript-create-menu-item` opens the create dialog
+  2. `transcript-create-lang-input` + `transcript-create-source-input` + `transcript-create-submit-button`
+     POST the new transcript with both fields, and the dialog closes only on success
+  3. `asset-share-menu-item` opens the share dialog from an asset (not only from a collection,
+     which is all share-dialog-mocked covers today)
+  4. `asset-add-to-remix-menu-item` opens the add-to-remix dialog
+  5. `asset-remix-chip` renders on an asset that belongs to a remix and links to it
+  6. `asset-task-create-due-date-input` -- the due date travels in the task POST body
+  7. NEW loom-ui/e2e/asset-timeline-mocked.spec.ts: `video-timeline-bar` renders one marker per
+     segment/detection the asset carries, positioned by timecode
+  8. …and clicking the bar seeks the <video> element to the corresponding time (read
+     `currentTime` back through page.evaluate; jsdom is not available and the real element is)
+```
+
+**Backend dependency:** none.
+
+**References:** [AssetDetail.tsx](../../loom-ui/src/features/assetDetail/AssetDetail.tsx) ·
+[VideoTimeline.tsx](../../loom-ui/src/features/assetDetail/VideoTimeline.tsx) · Task 9
+
+**Test Requirements:** Cases 1–6 on the existing asset-detail specs, plus the new
+`e2e/asset-timeline-mocked.spec.ts`.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/asset-timeline-mocked.spec.ts e2e/transcripts-mocked.spec.ts e2e/asset-tasks-mocked.spec.ts`
+
+---
+
+## Task 25: E2E batch — the remix dialog
+
+**Argumentation Summary:** [remix-mocked.spec.ts](../../loom-ui/e2e/remix-mocked.spec.ts) covers
+creating a remix from a bulk selection and removing a member. The dialog's other half — adding an
+existing asset to a remix, renaming one, deleting one, and what it shows when a remix is empty — is
+eight unreferenced testids across
+[AddToRemixDialog.tsx](../../loom-ui/src/features/remix/AddToRemixDialog.tsx) and
+[RemixDialog.tsx](../../loom-ui/src/features/remix/RemixDialog.tsx). Remix membership decides what
+the asset grid collapses into one card, so a silent failure here hides assets from their owner.
+
+**Improvement Summary:** Eight cases on the existing remix spec.
+
+```
+  1. `add-to-remix-dialog`  opens from the asset detail menu (Task 24 case 4 opens it; this one
+                            asserts its contents -- the remixes offered)
+  2. `add-to-remix-input`   filters that list
+  3. `add-to-remix-submit`  POSTs the membership and the asset joins the remix
+  4. `remix-name-input`     renaming a remix PATCHes it and the card relabels
+  5. `remix-members`        lists the members in order
+  6. `remix-member-count`   agrees with the number of rows -- these disagree the moment one write
+                            fails, which is what makes it worth asserting together
+  7. `remix-delete`         deletes the remix and its members reappear as individual assets
+  8. `remix-empty`          a remix whose last member was removed says so
+```
+
+**Backend dependency:** none.
+
+**References:** [../features/remix/REMIX.md](../features/remix/REMIX.md) ·
+[AddToRemixDialog.tsx](../../loom-ui/src/features/remix/AddToRemixDialog.tsx) · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/remix-mocked.spec.ts`
+
+---
+
+## Task 26: E2E batch — chat session creation, saving and the files panel
+
+**Argumentation Summary:** [chat-sessions-mocked.spec.ts](../../loom-ui/e2e/chat-sessions-mocked.spec.ts)
+reads the published-session list; nothing creates or edits one. Nine testids across
+[ChatSessionsView.tsx](../../loom-ui/src/features/chatSessions/ChatSessionsView.tsx) and
+[ChatSessionDetail.tsx](../../loom-ui/src/features/chatSessions/ChatSessionDetail.tsx) are
+unreferenced, including both save buttons — a session save that silently drops the description or the
+tags is invisible until somebody goes looking for a session they published.
+
+**Improvement Summary:** Eight cases on the existing spec.
+
+```
+  1. `chat-session-create-dialog` opens and POSTs a session
+  2. `chat-session-create-tags`   tags set at creation travel in that POST
+  3. `chat-sessions-mine-tab`     narrows the list to sessions this user owns (assert the request
+                                  the tab issues, not only the rows -- filtering client-side over
+                                  one page would look identical and be wrong)
+  4. `chat-session-description-input` + `chat-session-save` persist an edited description
+  5. `chat-session-tags-input`    adds a tag on the detail screen
+  6. `chat-session-ctx-save`      saves the session CONTEXT, which is a separate write from 4 --
+                                  assert it hits its own route
+  7. `session-files-panel`        lists the files attached to a session
+  8. `session-files-empty`        a session with no files says so
+```
+
+**Backend dependency:** none.
+
+**References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7 · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/chat-sessions-mocked.spec.ts`
+
+---
+
+## Task 27: E2E batch — the admin loading states nobody can reach with real data
+
+**Argumentation Summary:** Storage, maintenance, database integrity and the search indices all have
+`*-loading` testids and none is referenced. These are the clearest case in the whole backlog for the
+mocked tier: a backend spec against healthy demo data answers in milliseconds and can never observe
+them, so the states exist in the bundle with no way to know they still render. Nine testids across
+[StorageAdmin.tsx](../../loom-ui/src/features/admin/StorageAdmin.tsx),
+[MaintenanceView.tsx](../../loom-ui/src/features/maintenance/MaintenanceView.tsx),
+[DbIntegrityAdmin.tsx](../../loom-ui/src/features/admin/DbIntegrityAdmin.tsx) and
+[SearchIndicesAdmin.tsx](../../loom-ui/src/features/admin/SearchIndicesAdmin.tsx).
+
+**Improvement Summary:** Eight cases on the four existing specs. Reach the loading states by
+delaying the route — resolve `route.fulfill` behind a timer rather than fulfilling immediately.
+
+```
+  1. storage-mocked:      `storage-loading` shows while the usage call is in flight, and is gone
+                          after it lands (assert BOTH, or a permanently-stuck spinner passes)
+  2. storage-mocked:      `storage-backends` lists the configured backends
+  3. storage-mocked:      `storage-categories` + `storage-categories-note` -- the note explains
+                          what the categories do and do not add up to; assert it renders with them
+  4. storage-mocked:      `storage-thresholds` shows the warn/critical levels
+  5. maintenance-mocked:  `health-card-database` renders the database health card
+  6. maintenance-mocked:  `health-timestamp` shows when the check last ran
+  7. db-integrity-mocked: `db-integrity-loading` during a delayed integrity check
+  8. search-indices-mocked: `search-indices-loading` during a delayed index list
+```
+
+**Backend dependency:** none.
+
+**References:** [../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md) ·
+[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.2 · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/storage-mocked.spec.ts e2e/maintenance-mocked.spec.ts e2e/db-integrity-mocked.spec.ts e2e/search-indices-mocked.spec.ts`
+
+---
+
+## Task 28: E2E batch — the skills lifecycle and the profile busy states
+
+**Argumentation Summary:** [skills-mocked.spec.ts](../../loom-ui/e2e/skills-mocked.spec.ts) and
+[skills-version-mocked.spec.ts](../../loom-ui/e2e/skills-version-mocked.spec.ts) cover installing and
+listing; deleting a skill and the update-available badge are untested, as are all three of
+[ProfileView.tsx](../../loom-ui/src/features/profile/ProfileView.tsx)'s busy states. A delete dialog
+nobody tests is how an accidental confirm-by-default ships.
+
+**Improvement Summary:** Eight cases across the three existing specs.
+
+```
+  1. skills-mocked:         `skills-table` renders installed skills. Gotcha: SkillManagementView
+                            renders NO <Table> when the list is empty (../loom/ui/LOOM_UI.md §7.5),
+                            so wait on `skills-view` and then assert the table -- never on headers
+  2. skills-mocked:         `skill-delete-dialog` opens, and DISMISSING it issues no DELETE
+  3. skills-mocked:         confirming it does, and the row goes
+  4. skills-version-mocked: `skill-update-available` badge appears when the registry version is
+                            ahead of the installed one, and NOT when they match
+  5. skills-version-mocked: `skill-version-loading` while the version call is delayed
+  6. skills-version-mocked: `skill-version-empty` when the skill has no published versions
+  7. profile-mocked:        `profile-loading` before /me resolves
+  8. profile-mocked:        `profile-saving` during a delayed save, and
+                            `profile-avatar-busy` during a delayed avatar upload
+```
+
+**Backend dependency:** none.
+
+**References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.5 · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/skills-mocked.spec.ts e2e/skills-version-mocked.spec.ts e2e/profile-mocked.spec.ts e2e/profile-avatar-mocked.spec.ts`
+
+---
+
+## Task 29: E2E batch — pipeline editor version, run-item and node-result edge states
+
+**Argumentation Summary:** The pipeline editor has more mocked specs than any other feature (fifteen)
+and still leaves eight edge-state testids unreferenced — the empty and error halves of the version
+diff, the empty version history, the run-items spinner, the empty and dead-letter node-result panes,
+the log status line and the offline palette toggle. The diff error state in particular
+([PipelineVersionDiff.tsx](../../loom-ui/src/features/pipeline/PipelineVersionDiff.tsx)) is what a
+reviewer sees when a version they are comparing against has been pruned.
+
+**Improvement Summary:** Eight cases on the existing pipeline specs.
+
+```
+Gotcha: PipelineEditor.tsx is classified as binary by GNU grep -- search it with `grep -a`.
+  1. pipeline-versions-mocked: `pipeline-version-empty` -- a pipeline that has never been saved
+                               twice has no history to show
+  2. pipeline-versions-mocked: `pipeline-version-diff-empty` -- two identical versions diff to
+                               "no changes", not to a blank pane
+  3. pipeline-versions-mocked: `pipeline-version-diff-error` -- the diff call answers 404/500
+  4. pipeline-run-items-mocked: `pipeline-run-items-loading` on a delayed run-items call
+  5. pipeline-node-results-mocked: `node-results-empty` -- a node that produced nothing
+  6. pipeline-node-results-mocked: `node-result-dead-letter` -- an item that failed past its
+                                   retries is marked as such rather than silently absent
+  7. pipeline-events-mocked:   `pipeline-log-status` reflects the live/disconnected log stream
+  8. pipeline-node-availability-mocked: `offline-toggle-palette` filters the palette to nodes with
+                                        a connected worker
+```
+
+**Backend dependency:** none.
+
+**References:** [../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) ·
+Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/pipeline-versions-mocked.spec.ts e2e/pipeline-run-items-mocked.spec.ts e2e/pipeline-node-results-mocked.spec.ts e2e/pipeline-events-mocked.spec.ts e2e/pipeline-node-availability-mocked.spec.ts`
+
+---
+
+## Task 30: E2E batch — the search view shell, its pager, and the search boxes on the detection screens
+
+**Argumentation Summary:** [search-mocked.spec.ts](../../loom-ui/e2e/search-mocked.spec.ts) is 446
+lines and drives the query path exhaustively, yet the container it all renders into (`search-view`),
+the pager range readout, the sort control and a hit's timecode are unreferenced — the parts that say
+*where you are in a result set*. Alongside them sit the two detection screens' search boxes and two
+count/empty readouts that no spec asserts.
+
+**Improvement Summary:** Eight cases across four specs.
+
+```
+  1. search-mocked:  `search-view` is the container the results land in, and it renders before the
+                     first query rather than only after one
+  2. search-mocked:  `search-sort` changing the sort re-issues the query with the new order
+  3. search-mocked:  `search-pager-range` reads "n–m of total" and follows a page change --
+                     assert it after paging, since page 1 is right by accident
+  4. search-mocked:  `search-hit-timecode` a hit inside a video shows its timecode and seeks there
+  5. face-panels-mocked: `facedetection-search` narrows the cluster/person list
+  6. detection-review-mocked: `objectdetection-search` likewise on the objects tab
+  7. library-*-mocked: `library-asset-count` agrees with the number of rows shown
+  8. empty-states-mocked or monitoring-mocked: `chart-empty` -- a metric series with no points
+     renders the empty state, not an axis with nothing on it
+```
+
+**Backend dependency:** none.
+
+**References:** [../features/search/SEARCH.md](../features/search/SEARCH.md) ·
+[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.2 · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/search-mocked.spec.ts e2e/face-panels-mocked.spec.ts e2e/detection-review-mocked.spec.ts e2e/library-scope-mocked.spec.ts e2e/empty-states-mocked.spec.ts`
+
+---
+
+## Task 31: E2E batch — person detail, cortex worker restrictions, and the last stragglers
+
+**Argumentation Summary:** The final seven unreferenced ids, grouped because they are what is left
+rather than because they belong together.
+[person-detail-mocked.spec.ts](../../loom-ui/e2e/person-detail-mocked.spec.ts) is 286 lines about
+pictures and avatars and never asserts the person's own name or alias, nor the loading state, nor the
+upload control. [CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx)'s whitelist and
+blacklist inputs decide **which nodes a worker will accept** — a restriction that fails to save is a
+worker quietly running work it was told not to.
+
+**Improvement Summary:** Eight cases across two specs.
+
+```
+  1. person-detail-mocked: `person-detail-name` and `person-detail-alias` render the person the
+                           route resolved -- the alias is what appears beside faces elsewhere
+  2. person-detail-mocked: an alias-only person (no first/last name) still renders a heading
+  3. person-detail-mocked: `person-detail-loading` on a delayed person call
+  4. person-detail-mocked: `person-image-upload` uploads a picture (setInputFiles with a buffer;
+                           /opt/metaloom/loom-testdata is unversioned -- generate the bytes in the
+                           spec, see e2e/fixtures/)
+  5. person-detail-mocked: a failed upload surfaces an error and adds no picture
+  6. cortex-mocked:        `worker-whitelist-input` -- the restriction call carries the entered
+                           node kinds
+  7. cortex-mocked:        `worker-blacklist-input` likewise, and the two are sent as separate
+                           fields rather than one overwriting the other
+  8. tasks-*-mocked:       `tasks-edit-description-input` -- editing a task description PATCHes it
+```
+
+**Backend dependency:** none.
+
+**References:** [PersonDetail.tsx](../../loom-ui/src/features/persons/PersonDetail.tsx) ·
+[CortexView.tsx](../../loom-ui/src/features/cortex/CortexView.tsx) · Task 9
+
+**Test Requirements:** The eight cases above.
+`cd loom-ui && ./node_modules/.bin/playwright test e2e/person-detail-mocked.spec.ts e2e/cortex-mocked.spec.ts e2e/tasks-comments-mocked.spec.ts`
+
+---
+
+## Task 32: The Workflow screens have no screenshot in the customer documentation
+
+**Argumentation Summary:** [../../website/content/english/docs/ui/index.adoc](../../website/content/english/docs/ui/index.adoc)
+documents the Workflow review modes in prose across three sections — `#rating-and-tagging`,
+`#reviewing-duplicates` and `#reviewing-detections` — and carries **no image for any of them**. Every
+comparable screen in that page has one (`assets.png`, `library.png`, `face-detection.png`,
+`persons.png`, `tasks.png`, `pipeline-editor.png`, …), and the dedup queue is additionally linked
+from [../../website/content/english/docs/nodes/dedup/index.adoc](../../website/content/english/docs/nodes/dedup/index.adoc)
+as the place a reader is sent to see how review works. Workflow is the most keyboard-driven, least
+self-evident part of the product, which makes it the screen a picture helps most.
+`loom-ui/scripts/capture-ui-screenshots.mjs` now has the three capture steps
+(`workflow-rating.png`, `workflow-tagging.png`, `workflow-dedup.png`), but the PNGs themselves need a
+running demo stack and are not in the page bundle yet.
+
+**Improvement Summary:** Run the capture against a demo stack, commit the three PNGs, and add the
+`image::` references.
+
+```
+1. ./start-postgres.sh && ./start-demo.sh, then `cd loom-ui && node scripts/capture-ui-screenshots.mjs`
+   (per ../website/WEBSITE.md -> "Capturing Loom UI screenshots"). The dedup shot is skipped unless
+   the demo data carries proposed duplicate groups -- seed one if it does not, since the empty
+   queue is not the picture the section needs.
+2. Add to website/content/english/docs/ui/index.adoc:
+     - image::workflow-rating.png[…] under #rating-and-tagging
+     - image::workflow-tagging.png[…] under the same section
+     - image::workflow-dedup.png[…] under #reviewing-duplicates
+   Bare filenames only -- asciidoc resolves them inside the page bundle.
+3. Verify the site still builds: cd website && ./build.sh (back up yarn.lock first; the build
+   rewrites it).
+```
+
+**Backend dependency:** a demo stack for the capture run only.
+
+**References:** [../website/WEBSITE.md](../website/WEBSITE.md) ·
+[capture-ui-screenshots.mjs](../../loom-ui/scripts/capture-ui-screenshots.mjs) ·
+[../guidelines/CODING.md](../guidelines/CODING.md) (customer-facing docs are part of done)
+
+**Test Requirements:** No automated test — a green `website/build.sh` and the three images present
+in `website/content/english/docs/ui/`.
 
 ---
 
@@ -710,7 +1131,8 @@ that produce the numbers so the next drift is a one-liner to detect.
 8. §12: "Admin sub-routes" is 10 screens, and six of them now live in their own files
    (DbIntegrityAdmin.tsx, StorageAdmin.tsx, SearchIndicesAdmin.tsx) rather than in AdminArea.tsx.
 9. §13.3: 44 API client modules. §13.4: 47 / 58 / 31.
-10. §11.1/§11.2: fold in this audit's findings -- the 78/330 testid measurement (Task 9), the
+10. §11.1/§11.2: fold in this audit's findings -- the 116/491 testid measurement (Task 9; the
+    2026-08-11 pass said 78/330 and it has already drifted, so RECOUNT rather than copying), the
     "console-error-only catch" rule (Task 14) and the corrected "unsaved pipeline edits" row
     (Task 20).
 11. Add a "how these numbers are produced" note beside §8.2 so the next agent recounts instead of
@@ -793,5 +1215,7 @@ per [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §8.3.
 
 ---
 
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (code audit)_
+_Git HEAD revision: `0b8fe39a`_
+_Last updated: 2026-08-12 (testid coverage re-measured against the working tree: 116 of 491
+unreferenced. Workflow cluster closed; the rest split into Tasks 21–31 at eight cases each, plus
+Task 32 for the missing Workflow screenshots.)_

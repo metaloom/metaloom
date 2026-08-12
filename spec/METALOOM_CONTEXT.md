@@ -119,7 +119,7 @@ Playwright.
 > ⚠️ Commercial and hosted-service planning lives in the sibling **`metaloom-saas`** checkout — §2.2.
 > Nothing under `spec/` covers monetisation, pricing or running MetaLoom as a service.
 
-138 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
+140 files. Status markers: 🟢 built · 🟡 partly built · 🔵 plan/concept, not built.
 
 ```
 spec/
@@ -160,11 +160,22 @@ spec/
 │   │                                  #   security options enforce nothing; two script or imagegen
 │   │                                  #   instances collide). Per-node follow-ups stay in each
 │   │                                  #   node spec's Progress Assessment — the closing table routes
-│   ├── SEARCH_LUCENE_TASKS.md         # NEW 2026-08-11 — 6 open items for the fingerprint k-NN
-│   │                                  #   index (spec: loom/SEARCH_LUCENE.md). Task 1 is the only
-│   │                                  #   defect (sha512 is null on every hit); Task 2 blocks
-│   │                                  #   Helm deployment; 3 demo data, 4 shutdown, 5 multi-sector,
-│   │                                  #   6 UI panel
+│   ├── NODE_FINGERPRINT_TASKS.md      # NEW 2026-08-12 — 5 items for the fingerprint PRODUCER:
+│   │                                  #   FingerprintNode + the video4j MultiSectorVideoFingerprinter.
+│   │                                  #   Tasks 1-2 are defects (the hash never samples past ~45%
+│   │                                  #   of a video; tuning is public static mutable state and
+│   │                                  #   no producer_version is stored). Tasks 3-4 build the
+│   │                                  #   windowed fingerprinter that clip matching actually needs
+│   │                                  #   and BLOCK SEARCH_LUCENE_TASKS.md Task 5. Read its header
+│   │                                  #   table before touching anything called "sector" — the
+│   │                                  #   algorithm's internal sectors and the sector_index column
+│   │                                  #   are unrelated, and conflating them produced a wrong task
+│   ├── SEARCH_LUCENE_TASKS.md         # NEW 2026-08-11 — 6 items for the fingerprint k-NN index
+│   │                                  #   (spec: loom/SEARCH_LUCENE.md). Task 1, the only defect
+│   │                                  #   (sha512 null on every hit), is DONE 2026-08-12, as are
+│   │                                  #   3 (demo data) and 4 (shutdown close); Task 2 blocks Helm
+│   │                                  #   deployment; 5 windowed indexing (BLOCKED on
+│   │                                  #   NODE_FINGERPRINT_TASKS.md), 6 UI panel
 │   ├── SEARCH_TASKS.md                # NEW 2026-08-11 — 24 tasks for lexical/semantic/ES search,
 │   │                                  #   replacing the retired concept/SEARCH_PLAN.md. Tasks 1–2
 │   │                                  #   are the only defects (MCP search_assets ignores its
@@ -525,7 +536,8 @@ spec/
 | **Showing something to somebody without an account** — share links, the customer viewer, guest comments/marks/reactions | [features/share/SHARE_SYSTEM.md](features/share/SHARE_SYSTEM.md) — 🟢 built. The only unauthenticated feature surface. ⚠️ Every guest route's first statement is a `ShareAccessService` call; there is no `checkPerm` to fall back on |
 | **What is still missing from sharing** — reading the feedback, managing the links, retention | [tasks/SHARE_TASKS.md](tasks/SHARE_TASKS.md) — 9 tasks. Tasks 1-3 block each other in order; the rest are independent |
 | Embeddings / semantic / hybrid search | [features/search/SEMANTIC_SEARCH.md](features/search/SEMANTIC_SEARCH.md) — text→text **built**, off by default (`LOOM_SEARCH_SEMANTIC_ENABLED`); text→image (CLIP) not built. Read §0.4 before §2–§6 |
-| Perceptual **fingerprint** similarity (near-duplicate video) | [loom/SEARCH_LUCENE.md](loom/SEARCH_LUCENE.md) — **built**, off by default; open items in [tasks/SEARCH_LUCENE_TASKS.md](tasks/SEARCH_LUCENE_TASKS.md) |
+| Perceptual **fingerprint** similarity (near-duplicate video) | [loom/SEARCH_LUCENE.md](loom/SEARCH_LUCENE.md) — **built**, off by default; open items in [tasks/SEARCH_LUCENE_TASKS.md](tasks/SEARCH_LUCENE_TASKS.md) (indexing/querying) and [tasks/NODE_FINGERPRINT_TASKS.md](tasks/NODE_FINGERPRINT_TASKS.md) (computing/persisting the hash) |
+| **Matching a clip against the longer video it came from** | Not built, and not an index problem: a whole-asset hash cannot match an excerpt. Needs a windowed producer first — [tasks/NODE_FINGERPRINT_TASKS.md](tasks/NODE_FINGERPRINT_TASKS.md) Tasks 3-4 — then [tasks/SEARCH_LUCENE_TASKS.md](tasks/SEARCH_LUCENE_TASKS.md) Task 5. ⚠️ `MultiSectorFingerprint`'s "sectors" are **not** timeline windows |
 | Deduplication (discover, review, apply) | [features/nodes/dedup/NODE_DEDUP.md](features/nodes/dedup/NODE_DEDUP.md) — nodes, REST and the review UI are all built. ⚠️ the nodes decide and emit ports; a downstream `move` node acts |
 | S3 as a source or sink | [features/nodes/s3-source/NODE_S3SOURCE.md](features/nodes/s3-source/NODE_S3SOURCE.md), [features/nodes/s3-sink/NODE_S3SINK.md](features/nodes/s3-sink/NODE_S3SINK.md) — the source spec is also the only home of the `cortex/s3-common` design |
 | Google Drive / OneDrive / SharePoint as a source | [features/nodes/cloud-source/NODE_CLOUDSOURCE.md](features/nodes/cloud-source/NODE_CLOUDSOURCE.md) — also the only home of the `cortex/cloud-common` design, and of why a rename is detectable there but not on S3. SharePoint is `onedrive-source` against a Graph drive id |
@@ -943,8 +955,12 @@ The authoritative specs are the ones catalogued in §2. When a spec and the code
 wins** — and fix the spec in the same change.
 
 ---
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (concept/SEARCH_PLAN.md retired — its shipped work folded into
+_Git HEAD revision: `0b8fe39a`_
+_Last updated: 2026-08-12 (registered tasks/NODE_FINGERPRINT_TASKS.md — the fingerprint producer,
+split out of SEARCH_LUCENE_TASKS.md Task 5, whose premise that per-window fingerprints already exist
+was false; tree entry, the fingerprint routing row and a new clip-matching row added. Earlier the
+same day: SEARCH_LUCENE_TASKS.md Task 1 done — similarity hits now carry the asset
+sha512sum; tree entry updated. Earlier: concept/SEARCH_PLAN.md retired — its shipped work folded into
 features/search/SEARCH.md and its remaining work into the new tasks/SEARCH_TASKS.md (24 tasks); tree
 entries and the lexical-search routing row updated. Earlier the same day:
 concept/METALOOM_ARCHITECTURE_V2_PLAN_C.md converted from build plan to

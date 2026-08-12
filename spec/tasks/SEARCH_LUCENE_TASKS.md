@@ -10,44 +10,53 @@
 > [../workflows/WORKFLOW_DEDUP.md](../workflows/WORKFLOW_DEDUP.md) (the consumer) ·
 > [../concept/CLUSTERING.md](../concept/CLUSTERING.md) §3 (the `write.lock` rule)
 >
+> **Scope boundary.** This file owns *indexing and querying* fingerprints. How a fingerprint is
+> **computed and persisted** — `FingerprintNode` and the video4j fingerprinter behind it — is
+> [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md), which also explains the `sector_index`
+> name collision that this file's Task 5 originally got wrong.
+>
 > **Removed as implemented** — this file does not carry task text for them: the SPI and both
 > implementations, the Dagger binding and boot guard, `SimilarityOptions`, the comp write/delete
 > hooks, both REST routes, the Java and Python clients, the administration surface
 > (`drop` / `status` / `streamIndexedAssetUuids` / `providerName` and the `fingerprint` index row with
-> its `REINDEX` / `DELTA_SYNC` / `DROP` jobs), the customer-facing website pages, and the boot-time
-> auto-rebuild, which was deliberately dropped rather than deferred. All recorded in
+> its `REINDEX` / `DELTA_SYNC` / `DROP` jobs), the customer-facing website pages, the shutdown hook
+> that commits and closes both Lucene indices (Task 4, done 2026-08-12 — see
+> [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §4.3), and the boot-time auto-rebuild, which
+> was deliberately dropped rather than deferred. All recorded in
 > [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §11.
 >
-> **Ordering / blocking:** Task 1 is the only correctness defect and gates Task 6 (a UI panel must not
-> surface a field that is always null). Task 2 blocks any Kubernetes deployment of the feature.
-> Task 3 is what makes Tasks 1 and 6 demonstrable without hand-seeding data. Tasks 4 and 5 are
-> independent.
+> **Ordering / blocking:** Task 1 was the only correctness defect and gated Task 6; it is now done, so
+> the UI panel may display the hash. Task 2 blocks any Kubernetes deployment of the feature.
+> Task 3 is done, so Task 6 has a demo corpus to build against without hand-seeding data. Task 4 was
+> independent and is done. **Task 5 is blocked** on
+> [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md)
+> Tasks 3 and 4 — there are no windowed fingerprints to index until the producer writes them.
 
 ## Progress Assessment
 
-- [ ] **Defect:** Task 1 — `sha512` is null on every similarity hit
-- [ ] **Operability:** Task 2 (Helm), Task 4 (shutdown)
-- [ ] **Demonstrability:** Task 3 (demo data), Task 6 (UI)
-- [ ] **Feature gap:** Task 5 (multi-sector indexing)
+- [x] **Defect:** Task 1 — `sha512` is null on every similarity hit (done 2026-08-12)
+- [ ] **Operability:** Task 2 (Helm) · Task 4 — shutdown close (done 2026-08-12)
+- [ ] **Demonstrability:** Task 3 — demo data (done 2026-08-12) · Task 6 (UI)
+- [ ] **Feature gap:** Task 5 (windowed indexing) — blocked on the producer, see
+      [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md)
 
 ---
 
-## Task 1: Populate `sha512` on similarity hits, or remove the field
+## Task 1: Populate `sha512` on similarity hits, or remove the field — ✅ DONE (2026-08-12)
 
 **Argumentation Summary:** `SimilarityHit.sha512`, `SimilarAssetResponse.sha512` and the Lucene
-`sha512sum` stored field all exist, and **every production call site passes `null`**:
-`FingerprintCompEndpointService.reindex(...)` calls `index(assetUuid, null, algorithm, hex)`, the
-legacy rebuild in `SimilarityEndpointService.rebuild(...)` builds
-`new HexFingerprint(assetUuid, null, ...)`, and `SearchIndexJobRunner.reindexFingerprints(...)` does
-the same. The cause is structural: `asset_fingerprint_comp` does not carry the content hash, so no
-path can supply one without joining `asset`. The result is a declared, documented, permanently empty
-field in a public REST response — a consumer that trusts it silently gets nulls, and the Lucene
-stored field costs disk for nothing.
+`sha512sum` stored field all exist, and **every production call site passed `null`**:
+`FingerprintCompEndpointService.reindex(...)` called `index(assetUuid, null, algorithm, hex)`, the
+legacy rebuild in `SimilarityEndpointService.rebuild(...)` built
+`new HexFingerprint(assetUuid, null, ...)`, and `SearchIndexJobRunner.reindexFingerprints(...)` did
+the same. The cause was structural: `asset_fingerprint_comp` does not carry the content hash, so no
+path could supply one without joining `asset`. The result was a declared, documented, permanently
+empty field in a public REST response — a consumer that trusted it silently got nulls, and the Lucene
+stored field cost disk for nothing.
 
-**Improvement Summary:** Decide one way: either join the asset hash into all three write paths and
-assert it end to end, or delete the field from the SPI records, the Lucene document, the REST DTO and
-both clients. Populating it is the better outcome — the dedup consumer identifies duplicates by
-content hash — but a clean removal is preferable to the current half-wiring.
+**Improvement Summary:** The preferred route was taken: the asset hash is joined into all three write
+paths, so a hit now carries the content hash the dedup consumer identifies duplicates by. No REST
+model, client or OpenAPI change was needed — the field was already declared everywhere.
 
 ```
 Preferred route — populate it:
@@ -66,26 +75,26 @@ Preferred route — populate it:
    lookup must log and skip the index write, never fail the comp write.
 5. Leave LuceneSimilarityIndex untouched — it already stores and returns the field when it is
    non-null.
-
-Fallback route — remove it, if the join is judged too costly on the hot write path:
-1. Drop sha512 from SimilarityHit, IndexedFingerprint and HexFingerprint
-   (loom-shared/api/.../api/search/), from HASH_FIELD in LuceneSimilarityIndex, and from
-   SimilarAssetResponse (loom-shared/rest-model/.../model/similarity/).
-2. Update SimilarityMethods, LoomHttpClientImpl, clients/python/loom_client/models/ and the
-   generated OpenAPI (regenerate from inside loom/doc), then run the Python parity test.
-3. Update spec/loom/SEARCH_LUCENE.md §5 and §7 to drop the "always null" note.
 ```
 
-**References:** [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §3, §5, §7 ·
-[../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md) §7 (finding 7,
-which records the null as pre-existing) · [../loom/PYTHON_CLIENT.md](../loom/PYTHON_CLIENT.md)
+**Outcome:** All five steps landed as written. `streamHexFingerprintsByAlgorithm` is an inner join
+(`asset_uuid` is a NOT NULL foreign key, so no row is lost) ordered by the component uuid, matching
+`streamByAlgorithm`'s reproducibility. `SimilarityEndpointService.rebuild` now streams rather than
+listing and counts through a `peek` for its log line. `FingerprintCompEndpointService` takes an
+`AssetDao`; a missing asset or hash logs and skips the index write, leaving the component write
+untouched. Nothing in the REST model, either client or the OpenAPI document changed.
 
-**Test Requirements:** Extend `SimilarAssetsEndpointTest` (`loom/core/.../endpoint/test/`) with a
-test asserting that a hit carries the seeded asset's `sha512sum` — or, on the removal route, that the
-DTO no longer exposes the field. Extend `LuceneSimilarityIndexTest` with a round-trip assertion for a
-non-null hash. On the removal route also run `clients/python/tests/test_parity.py`. Run
-`./setup-pool.sh`, then `mvn test -pl loom/services/lucene -Dtest=LuceneSimilarityIndexTest` and
-`mvn test -pl loom/core -Dtest=SimilarAssetsEndpointTest`.
+**References:** [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §3, §5, §7 ·
+[../features/search/SEARCH_INDEX_ADMIN.md](../features/search/SEARCH_INDEX_ADMIN.md) §7 (finding 7) ·
+[../loom/PYTHON_CLIENT.md](../loom/PYTHON_CLIENT.md)
+
+**Test Requirements:** `LuceneSimilarityIndexTest` asserts the hash round-trips through both hex
+paths; `AssetFingerprintSegmentCompDaoTest.testHexFingerprintProjectionJoinsTheAssetHash` covers the
+new DAO projection; `SimilarAssetsEndpointTest` asserts the seeded asset's `sha512sum` on a hit after
+the write hook, after the legacy rebuild and after an admin `REINDEX` job. Run `./setup-pool.sh`,
+then `mvn test -pl loom/services/lucene -Dtest=LuceneSimilarityIndexTest`,
+`mvn test -pl loom/db/jooq -Dtest=AssetFingerprintSegmentCompDaoTest` and
+`mvn test -pl loom/core -Dtest=SimilarAssetsEndpointTest,SearchIndexEndpointTest`.
 
 ---
 
@@ -130,132 +139,76 @@ volume mount, and `helm template loom helm/loom` (defaults) must emit none of th
 
 ---
 
-## Task 3: Seed near-duplicate fingerprints in the demo data
+## Task 5: Index windowed fingerprints so a clip can match a longer video — 🔒 BLOCKED on the producer
 
-**Argumentation Summary:** `DemoDatabaseInitializer` seeds pipelines that *mention* fingerprinting
-(`pn4`, "Fingerprint") but writes no `asset_fingerprint_comp` rows. With the index switched on, the
-`fingerprint` row on `/admin/indices` therefore reports zero documents and
-`GET /assets/:uuid/similar-assets` returns an empty list for every demo asset — the feature looks
-broken out of the box, and there is nothing for the dedup workflow, the admin screen or a future UI
-panel to demonstrate against.
-
-**Improvement Summary:** Seed a small set of `asset_fingerprint_comp` rows including at least one
-near-identical pair, so the demo database exercises the whole path: write hook, k-NN query,
-self-exclusion, and a non-empty index status.
-
-```
-1. In loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java, add a
-   seedFingerprintComps() step that writes asset_fingerprint_comp rows for a handful of demo video
-   assets via AssetComponentDao.upsertFingerprintComp, with nodeKind "fingerprint",
-   algorithm SimilarityOptions.DEFAULT_ALGORITHM and sectorIndex 0.
-2. Generate the hex the same way SimilarAssetsEndpointTest.hexFingerprint(int) does — 2 bytes
-   version, 1 pad, 2 bytes vector size (256), 1 pad, then 32 bytes of bit data — and share that
-   helper rather than duplicating the layout. Seed at least one pair whose bit data differs in a
-   single byte (a near-duplicate, above the 0.10 score floor) plus one clearly dissimilar
-   fingerprint, so a query returns a ranked, non-trivial result.
-3. Seeding must not depend on LOOM_SIMILARITY_ENABLED: the comp rows are the system of record and a
-   later reindex job populates the index when an operator switches similarity on.
-4. Keep the fixture aligned with the dedup demo described in
-   spec/features/nodes/dedup/NODE_DEDUP.md so both features demo off the same assets.
-```
-
-**References:** [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §4 ·
-[../features/nodes/dedup/NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md) ·
-[../guidelines/CODING.md](../guidelines/CODING.md) (demo data is part of the definition of done)
-
-**Test Requirements:** Extend `DemoPipelineDefinitionTest`
-(`loom/core/src/test/java/io/metaloom/loom/core/boot/`) — or add a sibling demo-data test — asserting
-that the demo database contains at least two `asset_fingerprint_comp` rows for the default algorithm
-and that a similarity query over the seeded pair returns the partner asset. Run `./setup-pool.sh`,
-then `mvn test -pl loom/core -Dtest=DemoPipelineDefinitionTest,SimilarAssetsEndpointTest`.
-
----
-
-## Task 4: Close the index on server shutdown
-
-**Argumentation Summary:** `LuceneSimilarityIndex` implements `AutoCloseable` and has a working
-`close()`, but nothing calls it: `SimilarityModule` provides the singleton and no shutdown path
-touches it. Today JVM exit releases the `write.lock` and the last `commit()` has usually run, so the
-practical cost is bounded — but an unclosed `IndexWriter` at an abrupt stop leaves the lock and any
-uncommitted segments behind, and in tests a server that is torn down without closing the index can
-hold the directory long enough to collide with the next fixture. `LuceneVectorIndex` has the same
-shape, so the fix should cover both rather than one.
-
-**Improvement Summary:** Wire the Lucene indices into the existing server shutdown sequence, closing
-them once, idempotently, after the HTTP server has stopped accepting requests.
-
-```
-1. Find the shutdown path used for other closeable singletons — BootstrapInitializer closes the
-   c3p0 data source via an AutoCloseable check; use the same hook rather than inventing a second
-   lifecycle.
-2. On shutdown, if the bound SimilarityIndex (and VectorIndex) instance is an AutoCloseable, call
-   commit() then close() inside a try/catch that logs and swallows: a failing close must not stop
-   the shutdown sequence.
-3. Make LuceneSimilarityIndex.close() idempotent and safe to call after close (guard on the
-   `available` flag), and make every write method a no-op once closed rather than throwing, so a
-   late in-flight request cannot produce an AlreadyClosedException stack trace.
-4. Do not add close() to the SimilarityIndex SPI: the Noop implementation has nothing to close and
-   an external backend would not either. The instanceof check is the correct seam.
-```
-
-**References:** [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §3.1, §4 ·
-[../concept/CLUSTERING.md](../concept/CLUSTERING.md) §3 (the `write.lock` rule) ·
-`loom/core/src/main/java/io/metaloom/loom/core/boot/BootstrapInitializer.java`
-
-**Test Requirements:** Add `shouldBeSafeToCloseTwiceAndIgnoreLateWrites` to
-`LuceneSimilarityIndexTest`, and a test asserting that a second `LuceneSimilarityIndex` can open the
-same directory after the first has been closed — the regression that the missing hook risks. Run
-`mvn test -pl loom/services/lucene -Dtest=LuceneSimilarityIndexTest`, then `./setup-pool.sh` and
-`mvn test -pl loom/core -Dtest=SimilarAssetsEndpointTest` to confirm the server path still tears down
-cleanly.
-
----
-
-## Task 5: Index per-sector fingerprints so a clip can match a longer video
+**Blocked by:** [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md) Tasks 3 and 4. Do not start
+this task before they land — there would be nothing to index. See the correction note below.
 
 **Argumentation Summary:** Only `sector_index == 0` — the whole-asset fingerprint — is indexed:
 `FingerprintCompEndpointService.createFingerprintComp` guards the hook with
 `if (stored.getSectorIndex() == 0)` and `SimilarityEndpointService.loadFingerprint` selects sector 0.
-`asset_fingerprint_comp` already models sectors with `sector_index`, `time_from` and `time_to`, and
-`MultiSectorFingerprint` produces them, so the schema and the producer are ahead of the index. The
-consequence is that a 30-second excerpt of a 40-minute video is not a near-duplicate of it at
-whole-asset level, which is exactly the case an operator expects a perceptual index to catch.
+A 30-second excerpt of a 40-minute video is therefore not a near-duplicate of it at whole-asset
+level, which is the case an operator most expects a perceptual index to catch.
 
-**Improvement Summary:** Extend the index to hold one document per sector, keyed by
-`(asset_uuid, sector_index)`, and return the matching time range on each hit, while keeping the
-existing whole-asset query as the default.
+> **Correction (2026-08-12).** An earlier version of this task claimed `asset_fingerprint_comp`
+> models sectors "and `MultiSectorFingerprint` produces them, so the schema and the producer are
+> ahead of the index." **That is false, and it inverted the dependency.** The `sectorCount` inside
+> `MultiSectorVideoFingerprinterImpl` is an internal sampling trick — several seek points stacked
+> into **one** 256-bit vector — and it never emits per-window values. `sector_index` /
+> `time_from` / `time_to` on the table model something different: timeline windows. The only writer
+> is `FingerprintNode.persist(...)`, which hardcodes `setSectorIndex(0)` and leaves the times NULL,
+> so **no row with `sector_index > 0` has ever existed**. Executing this task as originally written
+> would have produced a per-sector index containing exactly one sector per asset — the index that
+> already exists, with more code. The producer work now lives in
+> [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md); this task is the indexing half only.
+
+**Improvement Summary:** Once the node writes window rows, extend the index to hold one document per
+window, keyed by `(asset_uuid, sector_index)`, and return the matching time range on each hit, while
+keeping the existing whole-asset query as the default.
 
 ```
+Precondition: asset_fingerprint_comp contains rows with sector_index > 0, written under their own
+algorithm identifier ("metaloom-window-v1") by NODE_FINGERPRINT_TASKS.md Task 4. Verify that before
+writing any code here.
+
 1. Design the key change first: the Lucene document key becomes asset_uuid + sector_index, so
-   `remove(assetUuid)` must delete every sector of an asset (a term query on ASSET_FIELD, not a
+   `remove(assetUuid)` must delete every window of an asset (a term query on ASSET_FIELD, not a
    single-document delete) and `index(...)` must upsert on the compound term. Add SECTOR_FIELD and
    store time_from / time_to alongside it.
 2. Extend the SPI in loom-shared/api/.../api/search/: add the sector index and time range to
    IndexedFingerprint, HexFingerprint and SimilarityHit. Keep the existing method signatures
    working for whole-asset callers, defaulting sector to 0.
-3. Drop the sector-0 guard in FingerprintCompEndpointService and index every sector row.
+3. Drop the sector-0 guard in FingerprintCompEndpointService and index every row. The two vector
+   populations are already kept apart by the algorithm identifier, which every query filters on -
+   do not rely on the sector number for that separation.
 4. In SimilarityEndpointService, add a query mode: default stays "whole asset vs whole asset"
-   (sector 0 both sides); a new `sectors=true` query parameter queries all of the asset's sectors
-   and collapses the hits per matched asset, keeping the best-scoring sector and reporting its time
-   range on SimilarAssetResponse.
-5. Self-exclusion changes: with several documents per asset the query must drop every sector of the
+   (sector 0, whole-asset algorithm, both sides); a new `sectors=true` query parameter queries all
+   of the asset's windows under the window algorithm and collapses the hits per matched asset,
+   keeping the best-scoring window and reporting its time range on SimilarAssetResponse. A hit's
+   value to the user is largely that time range - it says where in the long video the clip came
+   from - so surface it, do not just score with it.
+5. Self-exclusion changes: with several documents per asset the query must drop every window of the
    query asset, not just one hit, and the limit + 1 over-fetch is no longer sufficient — over-fetch
-   by the asset's sector count instead.
+   by the asset's window count instead.
 6. Update SearchIndexJobRunner.reindexFingerprints and sweepFingerprintOrphans: counts become
-   per-sector, and streamIndexedAssetUuids must still yield distinct asset uuids.
-7. Note the disk cost in spec/loom/SEARCH_LUCENE.md §7 — the index grows by the mean sector count
-   per asset — and add the new query parameter to spec/loom/RESTAPI.md.
+   per-window, and streamIndexedAssetUuids must still yield distinct asset uuids.
+7. Note the disk cost in spec/loom/SEARCH_LUCENE.md §7 and be concrete about it — with the
+   recommended 10 s window / 2 s stride the index holds roughly (duration / 2 s) documents per
+   video instead of one, so a 40-minute video contributes ~1200. This is the dominant operational
+   consequence of the feature and an operator must not discover it from disk usage. Add the new
+   query parameter to spec/loom/RESTAPI.md.
 ```
 
-**References:** [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §3, §4, §7 ·
+**References:** [NODE_FINGERPRINT_TASKS.md](NODE_FINGERPRINT_TASKS.md) (the blocking producer work,
+and the "sector" name collision) · [../loom/SEARCH_LUCENE.md](../loom/SEARCH_LUCENE.md) §3, §4, §7 ·
 [../loom/DOMAIN.md](../loom/DOMAIN.md) (`asset_fingerprint_comp`) · migration
 `V2.41__add_asset_fingerprint_comp.sql` ·
 [../features/nodes/dedup/NODE_DEDUP.md](../features/nodes/dedup/NODE_DEDUP.md)
 
-**Test Requirements:** New `LuceneSimilarityIndexTest` cases: a multi-sector asset is removed in
-full by `remove(assetUuid)`; a sector query finds a clip inside a longer asset; per-algorithm counts
-still hold with several sectors per asset. New `SimilarAssetsEndpointTest` cases: the default query
-is unchanged by the presence of sector rows, and `sectors=true` returns one collapsed hit per asset
+**Test Requirements:** New `LuceneSimilarityIndexTest` cases: a multi-window asset is removed in
+full by `remove(assetUuid)`; a window query finds a clip inside a longer asset; per-algorithm counts
+still hold with several windows per asset. New `SimilarAssetsEndpointTest` cases: the default query
+is unchanged by the presence of window rows, and `sectors=true` returns one collapsed hit per asset
 with its time range. Run `./setup-pool.sh`, then
 `mvn test -pl loom/services/lucene -Dtest=LuceneSimilarityIndexTest` and
 `mvn test -pl loom/core -Dtest=SimilarAssetsEndpointTest,SearchIndexEndpointTest`.
@@ -284,7 +237,8 @@ module, that degrades honestly when the index is off.
    than an empty list: 200 with hits renders the list; 200 with no hits renders "no near-duplicates
    found"; 503 renders "the duplicate index is switched off" and must never look like an empty
    result. A 503 must not surface as an error toast on the whole asset view.
-4. Do not display SimilarAssetResponse.sha512 until Task 1 is resolved; it is always null.
+4. SimilarAssetResponse.sha512 now carries the matched asset's content hash (Task 1); show it where
+   it helps a user tell two visually identical files apart, but never as the primary label.
 5. Add en/de strings to src/i18n/locales/{en,de}.json under a new similarAssets key.
 ```
 
@@ -300,5 +254,8 @@ Run it with `./node_modules/.bin/playwright test e2e/asset-similar-mocked.spec.t
 added alongside.
 
 ---
-_Git HEAD revision: `8c153347`_
-_Last updated: 2026-08-11 (split out of `spec/concept/LUCENE_PLAN.md`)_
+_Git HEAD revision: `0b8fe39a`_
+_Last updated: 2026-08-12 (Task 5 corrected and scoped to indexing only — its false premise that a
+producer of per-sector fingerprints already exists is recorded inline; the producer work moved to
+tasks/NODE_FINGERPRINT_TASKS.md. Earlier: Task 3 done, the demo database seeds a near-duplicate
+fingerprint pair)_

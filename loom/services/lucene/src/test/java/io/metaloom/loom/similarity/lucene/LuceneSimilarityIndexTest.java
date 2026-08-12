@@ -25,6 +25,8 @@ public class LuceneSimilarityIndexTest {
 
 	private LuceneSimilarityIndex index;
 
+	private Path indexDir;
+
 	private final UUID assetNear = UUID.randomUUID();
 	private final UUID assetFar = UUID.randomUUID();
 
@@ -34,7 +36,8 @@ public class LuceneSimilarityIndexTest {
 
 	@BeforeEach
 	public void setup(@TempDir Path dir) {
-		index = new LuceneSimilarityIndex(dir.resolve("index"));
+		indexDir = dir.resolve("index");
+		index = new LuceneSimilarityIndex(indexDir);
 		base = filled(0.1f);
 		near = filled(0.1f);
 		near[0] = 0.1001f; // almost identical -> high k-NN score
@@ -114,6 +117,8 @@ public class LuceneSimilarityIndexTest {
 
 		List<SimilarityHit> hits = index.query(ALGO, hex, 10, THRESHOLD);
 		assertThat(hits).extracting(SimilarityHit::assetUuid).contains(assetNear);
+		// The hex overload is the one Loom calls, so the content hash has to survive it - a dedup consumer identifies duplicates by that hash.
+		assertThat(hits.stream().filter(h -> h.assetUuid().equals(assetNear)).findFirst().orElseThrow().sha512()).isEqualTo("sha-hex");
 	}
 
 	@Test
@@ -137,6 +142,9 @@ public class LuceneSimilarityIndexTest {
 
 		assertThat(index.query(ALGO, hex, 10, THRESHOLD))
 			.extracting(SimilarityHit::assetUuid).containsExactly(assetNear);
+		// The rebuild path carries the hash through the hex decode as well.
+		assertThat(index.query(ALGO, hex, 10, THRESHOLD))
+			.extracting(SimilarityHit::sha512).containsExactly("sha-hex");
 	}
 
 	@Test
@@ -173,6 +181,58 @@ public class LuceneSimilarityIndexTest {
 
 		try (Stream<UUID> uuids = index.streamIndexedAssetUuids()) {
 			assertThat(uuids.toList()).contains(assetNear, assetFar);
+		}
+	}
+
+	/**
+	 * The server shutdown hook calls {@code close()}, and nothing guarantees it runs exactly once or that the last request has finished. A double close
+	 * must not throw, and a write arriving after it must degrade to a no-op rather than an {@code AlreadyClosedException} out of Lucene.
+	 */
+	@Test
+	public void shouldBeSafeToCloseTwiceAndIgnoreLateWrites() {
+		index.index(assetNear, "sha-near", ALGO, base);
+		index.commit();
+
+		index.close();
+		index.close();
+		assertThat(index.isAvailable()).isFalse();
+
+		// Every mutating and reading entry point, exercised after the close.
+		index.index(assetFar, "sha-far", ALGO, far);
+		index.index(assetFar, "sha-far", ALGO, hexFingerprint(0xFF));
+		index.remove(assetNear);
+		index.commit();
+		index.drop(ALGO);
+		index.rebuild(Stream.of(new IndexedFingerprint(assetFar, "sha-far", ALGO, far)));
+		index.rebuildFromHex(Stream.of(new HexFingerprint(assetFar, "sha-far", ALGO, hexFingerprint(0xFF))));
+
+		assertThat(index.query(ALGO, near, 10, THRESHOLD)).isEmpty();
+		assertThat(index.status().isHealthy()).isFalse();
+		assertThat(index.status(ALGO).isHealthy()).isFalse();
+		try (Stream<UUID> uuids = index.streamIndexedAssetUuids()) {
+			assertThat(uuids.toList()).isEmpty();
+		}
+	}
+
+	/**
+	 * The regression the missing shutdown hook risks: an {@link org.apache.lucene.index.IndexWriter} holds an exclusive {@code write.lock} on its
+	 * directory, so a server torn down without closing its index blocks the next one from opening the same path - which is exactly what a test suite,
+	 * or a restart, does.
+	 */
+	@Test
+	public void shouldReopenTheSameDirectoryAfterClose() {
+		index.index(assetNear, "sha-near", ALGO, base);
+		index.commit();
+		index.close();
+
+		LuceneSimilarityIndex reopened = new LuceneSimilarityIndex(indexDir);
+		try {
+			assertThat(reopened.isAvailable()).isTrue();
+			// close() flushed rather than discarded: the document written before the shutdown is still there.
+			assertThat(reopened.query(ALGO, near, 10, THRESHOLD))
+				.extracting(SimilarityHit::assetUuid).containsExactly(assetNear);
+		} finally {
+			reopened.close();
 		}
 	}
 

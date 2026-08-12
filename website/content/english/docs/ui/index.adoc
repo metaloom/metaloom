@@ -468,6 +468,10 @@ Work through the queue with the keyboard:
 | `F` | Fullscreen
 |===
 
+The same two decisions sit under the group as *Confirm Dedup* and *Reject* buttons, which is what you
+use when the cursor is in a text field — the keyboard shortcuts deliberately stand down while you are
+typing, so they cannot decide a group behind your back.
+
 If you disagree with which file should be kept, press *Keep this one* on the file you would rather
 keep. That only changes the choice; it does not decide the group, so you still confirm or reject
 afterwards.

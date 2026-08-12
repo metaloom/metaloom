@@ -40,6 +40,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.BytesRef;
@@ -68,6 +69,12 @@ import io.metaloom.video4j.fingerprint.v2.MultiSectorFingerprint;
  * <b>Concurrency.</b> Lucene {@link IndexWriter} is single-writer; all mutations are serialized through {@link #writeLock}. Reads go through a
  * {@link SearcherManager} for near-real-time visibility. The index is a derived, rebuildable cache of {@code asset_fingerprint_comp} — losing it costs
  * a {@link #rebuild(Stream)}, never data.
+ * </p>
+ *
+ * <p>
+ * <b>Shutdown.</b> {@link #close()} is called from the server shutdown sequence and is idempotent. Every method re-reads {@link #available} <i>inside</i>
+ * the write lock (or captures the {@link SearcherManager} before using it) so a request still in flight when the index closes degrades to a no-op or an
+ * empty result instead of an {@link AlreadyClosedException} stack trace on the way out.
  * </p>
  */
 public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
@@ -136,8 +143,12 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			// Re-checked under the lock: a write that passed the check above may have been waiting here while close() ran.
+			if (!available) {
+				return;
+			}
 			writer.updateDocument(new Term(ASSET_FIELD, assetUuid.toString()), toDocument(assetUuid, sha512, algorithm, vector));
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to index fingerprint for asset {}: {}", assetUuid, e.getMessage());
 		} finally {
 			writeLock.unlock();
@@ -160,8 +171,11 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			if (!available) {
+				return;
+			}
 			writer.deleteDocuments(new Term(ASSET_FIELD, assetUuid.toString()));
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to remove fingerprint for asset {}: {}", assetUuid, e.getMessage());
 		} finally {
 			writeLock.unlock();
@@ -171,13 +185,14 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 	@Override
 	public List<SimilarityHit> query(String algorithm, float[] vector, int limit, float scoreThreshold) {
 		List<SimilarityHit> hits = new ArrayList<>();
-		if (!available || vector == null || limit <= 0) {
+		SearcherManager manager = reader();
+		if (manager == null || vector == null || limit <= 0) {
 			return hits;
 		}
 		IndexSearcher searcher = null;
 		try {
-			searcherManager.maybeRefresh();
-			searcher = searcherManager.acquire();
+			manager.maybeRefresh();
+			searcher = manager.acquire();
 			Query filter = algorithm == null ? null : new TermQuery(new Term(ALGORITHM_FIELD, algorithm));
 			Query knn = new KnnFloatVectorQuery(VECTOR_FIELD, vector, limit, filter);
 			TopDocs top = searcher.search(knn, limit);
@@ -193,10 +208,10 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 				}
 				hits.add(new SimilarityHit(UUID.fromString(uuidStr), doc.get(HASH_FIELD), sd.score));
 			}
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Similarity query failed: {}", e.getMessage());
 		} finally {
-			release(searcher);
+			release(manager, searcher);
 		}
 		return hits;
 	}
@@ -251,6 +266,9 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try (Stream<IndexedFingerprint> stream = all) {
+			if (!available) {
+				return;
+			}
 			writer.deleteAll();
 			if (stream != null) {
 				stream.forEach(fp -> {
@@ -264,7 +282,7 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 			writer.commit();
 			searcherManager.maybeRefresh();
 			log.info("Rebuilt fingerprint similarity index at {}", indexPath);
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.error("Failed to rebuild fingerprint similarity index: {}", e.getMessage(), e);
 		} finally {
 			writeLock.unlock();
@@ -278,6 +296,9 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			if (!available) {
+				return;
+			}
 			// A null algorithm means "everything"; documents written without one carry no ALGORITHM_FIELD and a term query would miss them.
 			if (algorithm == null || algorithm.isBlank()) {
 				writer.deleteAll();
@@ -287,7 +308,7 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 			writer.commit();
 			searcherManager.maybeRefresh();
 			log.info("Dropped fingerprints for algorithm {} from the index at {}", algorithm, indexPath);
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.error("Failed to drop fingerprints for algorithm {}: {}", algorithm, e.getMessage(), e);
 		} finally {
 			writeLock.unlock();
@@ -315,21 +336,22 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 	@Override
 	public IndexStatus status(String algorithm) {
 		IndexStatus status = new IndexStatus().setHealthy(available);
-		if (!available) {
+		SearcherManager manager = reader();
+		if (manager == null) {
 			return status;
 		}
 		IndexSearcher searcher = null;
 		try {
-			searcherManager.maybeRefresh();
-			searcher = searcherManager.acquire();
+			manager.maybeRefresh();
+			searcher = manager.acquire();
 			status.setDocumentCount(algorithm == null || algorithm.isBlank()
 				? searcher.getIndexReader().numDocs()
 				: searcher.count(new TermQuery(new Term(ALGORITHM_FIELD, algorithm))));
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Could not count fingerprints for algorithm {}: {}", algorithm, e.getMessage());
 			status.setHealthy(false).setDetail(e.getMessage());
 		} finally {
-			release(searcher);
+			release(manager, searcher);
 		}
 		return status;
 	}
@@ -357,14 +379,15 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 	 */
 	@Override
 	public Stream<UUID> streamIndexedAssetUuids() {
-		if (!available) {
+		SearcherManager manager = reader();
+		if (manager == null) {
 			return Stream.empty();
 		}
 		IndexSearcher searcher;
 		try {
-			searcherManager.maybeRefresh();
-			searcher = searcherManager.acquire();
-		} catch (IOException e) {
+			manager.maybeRefresh();
+			searcher = manager.acquire();
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Could not open a reader to enumerate indexed fingerprints: {}", e.getMessage());
 			return Stream.empty();
 		}
@@ -377,10 +400,10 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 					perLeaf.add(termStream(terms));
 				}
 			}
-			return perLeaf.stream().flatMap(s -> s).onClose(() -> release(acquired));
-		} catch (IOException e) {
+			return perLeaf.stream().flatMap(s -> s).onClose(() -> release(manager, acquired));
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Could not enumerate indexed fingerprints: {}", e.getMessage());
-			release(acquired);
+			release(manager, acquired);
 			return Stream.empty();
 		}
 	}
@@ -425,13 +448,22 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		return StreamSupport.stream(Spliterators.spliteratorUnknownSize(uuids, Spliterator.ORDERED | Spliterator.NONNULL), false);
 	}
 
-	private void release(IndexSearcher searcher) {
-		if (searcher == null) {
+	/**
+	 * The searcher manager to read through, or {@code null} once the index is closed or was never opened. Callers capture the returned reference for the
+	 * whole read: {@link #close()} nulls the field, so re-reading it mid-query would be a NullPointerException waiting for a shutdown to happen.
+	 */
+	private SearcherManager reader() {
+		SearcherManager manager = searcherManager;
+		return available ? manager : null;
+	}
+
+	private void release(SearcherManager manager, IndexSearcher searcher) {
+		if (manager == null || searcher == null) {
 			return;
 		}
 		try {
-			searcherManager.release(searcher);
-		} catch (IOException e) {
+			manager.release(searcher);
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to release searcher: {}", e.getMessage());
 		}
 	}
@@ -448,9 +480,12 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		}
 		writeLock.lock();
 		try {
+			if (!available) {
+				return;
+			}
 			writer.commit();
 			searcherManager.maybeRefresh();
-		} catch (IOException e) {
+		} catch (IOException | AlreadyClosedException e) {
 			log.warn("Failed to commit fingerprint similarity index: {}", e.getMessage());
 		} finally {
 			writeLock.unlock();
@@ -470,30 +505,49 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		return doc;
 	}
 
+	/**
+	 * Release the searcher manager, writer and directory, dropping the {@code write.lock} the {@link IndexWriter} holds on the index directory.
+	 *
+	 * <p>
+	 * Idempotent: a second call, or a call on an index that never opened, does nothing. {@code available} is cleared <b>before</b> anything is closed, so
+	 * a writer waiting on {@link #writeLock} sees the flag and no-ops instead of touching a closed {@link IndexWriter}.
+	 * </p>
+	 */
 	@Override
 	public void close() {
 		writeLock.lock();
 		try {
-			closeQuietly();
+			if (!available) {
+				return;
+			}
 			available = false;
+			closeQuietly();
+			log.info("Fingerprint similarity index closed at {}", indexPath);
 		} finally {
 			writeLock.unlock();
 		}
 	}
 
+	/**
+	 * Close whatever is open, in dependency order, without letting one failure skip the rest - a directory left open keeps the {@code write.lock} file,
+	 * which is the whole reason this runs.
+	 */
 	private void closeQuietly() {
 		if (searcherManager != null) {
 			try {
 				searcherManager.close();
-			} catch (IOException e) {
+			} catch (IOException | AlreadyClosedException e) {
 				log.warn("Failed to close searcher manager: {}", e.getMessage());
 			}
 			searcherManager = null;
 		}
 		if (writer != null) {
 			try {
-				writer.close();
-			} catch (IOException e) {
+				// IndexWriter.close() commits pending changes on the way out; an abrupt exit is what leaves segments behind.
+				if (writer.isOpen()) {
+					writer.close();
+				}
+			} catch (IOException | AlreadyClosedException e) {
 				log.warn("Failed to close index writer: {}", e.getMessage());
 			}
 			writer = null;
@@ -501,7 +555,7 @@ public class LuceneSimilarityIndex implements SimilarityIndex, AutoCloseable {
 		if (directory != null) {
 			try {
 				directory.close();
-			} catch (IOException e) {
+			} catch (IOException | AlreadyClosedException e) {
 				log.warn("Failed to close directory: {}", e.getMessage());
 			}
 			directory = null;

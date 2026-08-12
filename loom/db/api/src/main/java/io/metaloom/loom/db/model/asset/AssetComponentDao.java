@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import io.metaloom.loom.api.search.HexFingerprint;
 import io.metaloom.loom.db.Dao;
 
 /**
@@ -210,6 +211,18 @@ public interface AssetComponentDao extends Dao {
 	 * </p>
 	 */
 	Stream<AssetFingerprintComp> streamByAlgorithm(String algorithm);
+
+	/**
+	 * The same rows as {@link #streamByAlgorithm(String)}, projected onto the shape the similarity index rebuilds from and joined to the owning
+	 * asset's content hash.
+	 *
+	 * <p>
+	 * {@code asset_fingerprint_comp} does not carry the sha512sum, so every rebuild path would otherwise index a null hash and
+	 * {@code SimilarAssetResponse.sha512} would stay permanently empty. The join lives here, once, rather than in each of the three write paths. The
+	 * caller must close the stream.
+	 * </p>
+	 */
+	Stream<HexFingerprint> streamHexFingerprintsByAlgorithm(String algorithm);
 
 	/** How many fingerprint components exist for one algorithm - the total a rebuild reports progress against. */
 	long countByAlgorithm(String algorithm);

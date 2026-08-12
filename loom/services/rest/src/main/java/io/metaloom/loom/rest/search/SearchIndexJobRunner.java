@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.options.SearchOptions;
 import io.metaloom.loom.api.options.SimilarityOptions;
 import io.metaloom.loom.api.options.VectorIndexOptions;
+import io.metaloom.loom.api.search.HexFingerprint;
 import io.metaloom.loom.api.search.SearchIndexer;
 import io.metaloom.loom.api.search.SimilarityIndex;
 import io.metaloom.loom.api.search.VectorIndex;
@@ -23,7 +24,6 @@ import io.metaloom.loom.api.search.VectorRecord;
 import io.metaloom.loom.api.search.VectorSpace;
 import io.metaloom.loom.db.jooq.search.SearchEmbeddingService;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
-import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
 import io.metaloom.loom.db.model.embedding.Embedding;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.rest.vector.EmbeddingIndexSyncService;
@@ -295,15 +295,13 @@ public class SearchIndexJobRunner {
 	private void reindexFingerprints(String algorithm, IndexJob job) {
 		job.setTotal(compDao.countByAlgorithm(algorithm));
 		similarityIndex.drop(algorithm);
-		try (Stream<AssetFingerprintComp> comps = compDao.streamByAlgorithm(algorithm)) {
-			for (AssetFingerprintComp comp : (Iterable<AssetFingerprintComp>) comps::iterator) {
+		// The projection joins the owning asset, so a reindexed hit carries the content hash the dedup consumer identifies duplicates by.
+		try (Stream<HexFingerprint> fingerprints = compDao.streamHexFingerprintsByAlgorithm(algorithm)) {
+			for (HexFingerprint fingerprint : (Iterable<HexFingerprint>) fingerprints::iterator) {
 				if (job.isCancelRequested()) {
 					break;
 				}
-				// sha512 is null, matching the incremental write hook in FingerprintCompEndpointService:
-				// asset_fingerprint_comp does not carry the content hash, so neither path can supply one
-				// without a join. Consistent, and consistently empty in SimilarAssetResponse.sha512.
-				similarityIndex.index(comp.getAssetUuid(), null, comp.getAlgorithm(), comp.getFingerprint());
+				similarityIndex.index(fingerprint.assetUuid(), fingerprint.sha512(), fingerprint.algorithm(), fingerprint.fingerprint());
 				job.incrementProcessed();
 			}
 		}

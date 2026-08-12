@@ -15,7 +15,9 @@ import org.slf4j.LoggerFactory;
 import io.metaloom.loom.api.error.LoomRestErrorCode;
 import io.metaloom.loom.api.error.LoomRestException;
 import io.metaloom.loom.api.search.SimilarityIndex;
+import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
+import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
 import io.metaloom.loom.rest.LoomRoutingContext;
 import io.metaloom.loom.rest.builder.LoomModelBuilder;
@@ -39,13 +41,15 @@ public class FingerprintCompEndpointService extends AbstractEndpointService {
 	private static final Logger log = LoggerFactory.getLogger(FingerprintCompEndpointService.class);
 
 	private final AssetComponentDao compDao;
+	private final AssetDao assetDao;
 	private final SimilarityIndex similarityIndex;
 
 	@Inject
-	public FingerprintCompEndpointService(AssetComponentDao compDao, SimilarityIndex similarityIndex, LoomModelBuilder modelBuilder,
-		LoomModelValidator validator) {
+	public FingerprintCompEndpointService(AssetComponentDao compDao, AssetDao assetDao, SimilarityIndex similarityIndex,
+		LoomModelBuilder modelBuilder, LoomModelValidator validator) {
 		super(modelBuilder, validator);
 		this.compDao = compDao;
+		this.assetDao = assetDao;
 		this.similarityIndex = similarityIndex;
 	}
 
@@ -56,13 +60,23 @@ public class FingerprintCompEndpointService extends AbstractEndpointService {
 	 * Best-effort by design: {@code asset_fingerprint_comp} is the system of record and the index is a rebuildable cache, so a failed index write is
 	 * logged and never fails the component write. Drift is repaired by {@code POST /api/v1/similarity-index/rebuild}.
 	 * </p>
+	 *
+	 * <p>
+	 * The content hash lives on {@code asset}, not on the component, so it is looked up here - the indexed hit is what identifies a duplicate to the
+	 * dedup consumer. That lookup is part of the best-effort contract: if it fails the index write is skipped, never the component write.
+	 * </p>
 	 */
 	private void reindex(AssetFingerprintComp comp) {
 		if (!similarityIndex.isAvailable() || comp == null) {
 			return;
 		}
 		try {
-			similarityIndex.index(comp.getAssetUuid(), null, comp.getAlgorithm(), comp.getFingerprint());
+			Asset asset = assetDao.load(comp.getAssetUuid());
+			if (asset == null || asset.getSHA512() == null) {
+				log.warn("Skipping the similarity index write for asset {}: the asset or its sha512sum could not be loaded.", comp.getAssetUuid());
+				return;
+			}
+			similarityIndex.index(comp.getAssetUuid(), asset.getSHA512().toString(), comp.getAlgorithm(), comp.getFingerprint());
 			similarityIndex.commit();
 		} catch (Exception e) {
 			log.warn("Failed to update the similarity index for asset {}: {}", comp.getAssetUuid(), e.getMessage());

@@ -7,10 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.jooq.exception.DataAccessException;
 import org.junit.jupiter.api.Test;
 
+import io.metaloom.loom.api.search.HexFingerprint;
 import io.metaloom.loom.db.jooq.AbstractJooqTest;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
@@ -83,6 +85,32 @@ public class AssetFingerprintSegmentCompDaoTest extends AbstractJooqTest {
 		assertEquals(assetUuid, hits.get(0).getAssetUuid());
 
 		assertEquals(0, dao().findByFingerprint("v1", "cafebabe").size());
+	}
+
+	/**
+	 * The rebuild projection: {@code asset_fingerprint_comp} carries no content hash, so the similarity index would index nulls without this join.
+	 */
+	@Test
+	public void testHexFingerprintProjectionJoinsTheAssetHash() {
+		UUID assetUuid = assetUuid();
+		// The pooled database is pre-populated, so the query is scoped by an algorithm only this test writes.
+		String algorithm = "hex-projection-" + UUID.randomUUID();
+
+		AssetFingerprintComp comp = dao().createFingerprintComp(userUuid(), assetUuid, "fingerprint");
+		comp.setAlgorithm(algorithm).setSectorIndex(0).setFingerprint("deadbeef");
+		dao().upsertFingerprintComp(comp);
+
+		List<HexFingerprint> fingerprints;
+		try (Stream<HexFingerprint> stream = dao().streamHexFingerprintsByAlgorithm(algorithm)) {
+			fingerprints = stream.toList();
+		}
+
+		assertEquals(1, fingerprints.size());
+		HexFingerprint fingerprint = fingerprints.get(0);
+		assertEquals(assetUuid, fingerprint.assetUuid());
+		assertEquals(algorithm, fingerprint.algorithm());
+		assertEquals("deadbeef", fingerprint.fingerprint());
+		assertEquals(asset().getSHA512().toString(), fingerprint.sha512(), "The hash has to come from the joined asset row");
 	}
 
 	@Test

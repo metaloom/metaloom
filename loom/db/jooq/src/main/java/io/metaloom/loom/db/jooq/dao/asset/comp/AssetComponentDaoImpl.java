@@ -23,6 +23,7 @@ import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 
+import io.metaloom.loom.api.search.HexFingerprint;
 import io.metaloom.loom.db.CUDElement;
 import io.metaloom.loom.db.model.asset.AssetAudioComp;
 import io.metaloom.loom.db.model.asset.AssetComponent;
@@ -59,6 +60,8 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 	private static final Table<?> FINGERPRINT_TABLE = DSL.table("asset_fingerprint_comp");
 	private static final Table<?> SEGMENT_TABLE = DSL.table("asset_segment_comp");
 	private static final Table<?> JSON_TABLE = DSL.table("asset_json_comp");
+	/** Only joined to, never written here: the fingerprint rebuild projection needs the owning asset's content hash. */
+	private static final Table<?> ASSET_TABLE = DSL.table("asset");
 
 	// Shared component contract
 	private static final Field<UUID> F_UUID = DSL.field("uuid", UUID.class);
@@ -820,6 +823,26 @@ public class AssetComponentDaoImpl implements AssetComponentDao {
 			.orderBy(FINGERPRINT_TABLE.field("uuid", UUID.class).asc())
 			.fetchStream()
 			.map(this::mapFingerprintComp);
+	}
+
+	@Override
+	public Stream<HexFingerprint> streamHexFingerprintsByAlgorithm(String algorithm) {
+		// Qualified fields: the component table and asset share uuid/created/meta column names, so an unqualified projection would be ambiguous.
+		Field<UUID> compUuid = DSL.field(DSL.name("asset_fingerprint_comp", "uuid"), UUID.class);
+		Field<UUID> compAssetUuid = DSL.field(DSL.name("asset_fingerprint_comp", "asset_uuid"), UUID.class);
+		Field<String> compAlgorithm = DSL.field(DSL.name("asset_fingerprint_comp", "algorithm"), String.class);
+		Field<String> compFingerprint = DSL.field(DSL.name("asset_fingerprint_comp", "fingerprint"), String.class);
+		Field<UUID> assetUuid = DSL.field(DSL.name("asset", "uuid"), UUID.class);
+		Field<String> assetSha512 = DSL.field(DSL.name("asset", "sha512sum"), String.class);
+		// Inner join: asset_uuid is a NOT NULL foreign key, so no fingerprint row is lost by it.
+		return ctx.select(compAssetUuid, compAlgorithm, compFingerprint, assetSha512)
+			.from(FINGERPRINT_TABLE)
+			.join(ASSET_TABLE).on(assetUuid.eq(compAssetUuid))
+			.where(compAlgorithm.eq(algorithm))
+			// Ordered so a rebuild is reproducible and a resumed one is comparable to its predecessor.
+			.orderBy(compUuid.asc())
+			.fetchStream()
+			.map(r -> new HexFingerprint(r.get(compAssetUuid), r.get(assetSha512), r.get(compAlgorithm), r.get(compFingerprint)));
 	}
 
 	@Override
