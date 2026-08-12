@@ -16,12 +16,12 @@
 //
 // What is *not* faked is the part being photographed: the real SharePage, ShareGate, ShareViewer and
 // ShareDialog, mounted through the real router at the real /ui/share/:slug route, reading the real
-// api/shares.ts client. Only the network underneath is played by this script. The video is a real
-// one-second clip, because a <video> handed invalid bytes errors into the "no preview" placeholder
-// and the picture would silently be of the wrong thing.
+// api/shares.ts client. Only the network underneath is played by this script. The videos are the
+// demo container's own clips out of demo-content/, because a <video> handed invalid bytes errors into
+// the "no preview" placeholder and the picture would silently be of the wrong thing.
 //
-// Prerequisites: none beyond `npm install` in loom-ui/ and e2e/fixtures/tiny.mp4. A Vite dev server
-// is started automatically if one is not already listening.
+// Prerequisites: none beyond `npm install` in loom-ui/ and the checked-in demo-content/ media. A
+// Vite dev server is started automatically if one is not already listening.
 //
 // Usage (from loom-ui/):
 //   node scripts/capture-share-screenshots.mjs
@@ -58,41 +58,58 @@ const PASSWORD = "amber-lantern-42";
 const SHARE_URL = `https://loom.example.com/ui/share/${SLUG}`;
 const COLLECTION_UUID = "c0000000-0000-0000-0000-000000000001";
 
-const TINY_MP4 = fs.readFileSync(path.join(ROOT, "e2e/fixtures/tiny.mp4"));
+// The real demo clips, served as the shared bytes. The share viewer's player is a real <video>:
+// handed a stand-in it either errors into the "no preview" card or paints a single flat frame, and
+// the picture is then of the wrong thing. `demo-content/` is where the demo's media lives, so the
+// screenshots and the container a reader downloads show the same footage.
+const DEMO_CONTENT = path.resolve(ROOT, "../demo-content");
+const MEETING_MP4 = fs.readFileSync(path.join(DEMO_CONTENT, "videos/video-01-work-meeting-around-table.mp4"));
+const MEETING_CUT_MP4 = fs.readFileSync(path.join(DEMO_CONTENT, "videos/video-01-work-meeting-around-table-cut.mp4"));
+const TRAFFIC_MP4 = fs.readFileSync(path.join(DEMO_CONTENT, "videos/video-02-busy-street-traffic.mp4"));
 
+// Durations are milliseconds on the wire — asset_video_comp.media_duration is a millisecond column
+// and the share endpoint passes it through; api/shares.ts divides on the way in. Serving seconds
+// here would photograph a timecode the product does not produce.
 const ASSETS = [
   {
     uuid: "a0000000-0000-0000-0000-000000000001",
-    filename: "autumn-cut-02.mp4",
+    filename: "team-meeting.mp4",
     mimeType: "video/mp4",
-    size: 184_320_512,
-    duration: 92.5,
+    size: 5_895_293,
+    duration: 28_267,
     width: 1920,
     height: 1080,
-    title: "Autumn campaign, cut 2",
-    description: "Second assembly. Grade and titles still to come.",
+    title: "Boardroom, full take",
+    description: "The whole take. Grade and titles still to come.",
   },
   {
     uuid: "a0000000-0000-0000-0000-000000000002",
-    filename: "autumn-cut-03.mp4",
+    filename: "team-meeting-cut.mp4",
     mimeType: "video/mp4",
-    size: 152_100_000,
-    duration: 78,
+    size: 2_154_678,
+    duration: 10_000,
     width: 1920,
     height: 1080,
-    title: "Autumn campaign, cut 3",
+    title: "Boardroom, ten-second cut",
   },
   {
     uuid: "a0000000-0000-0000-0000-000000000003",
-    filename: "harbour-drone-pass.mp4",
+    filename: "city-traffic.mp4",
     mimeType: "video/mp4",
-    size: 240_800_000,
-    duration: 118.25,
-    width: 3840,
-    height: 2160,
-    title: "Harbour drone pass",
+    size: 11_342_857,
+    duration: 13_367,
+    width: 1920,
+    height: 1080,
+    title: "Establishing shot — the intersection",
   },
 ];
+
+/** Which clip each shared asset serves, so a tile's frame is a frame of the clip it names. */
+const ASSET_BYTES = {
+  [ "a0000000-0000-0000-0000-000000000001" ]: MEETING_MP4,
+  [ "a0000000-0000-0000-0000-000000000002" ]: MEETING_CUT_MP4,
+  [ "a0000000-0000-0000-0000-000000000003" ]: TRAFFIC_MP4,
+};
 
 /**
  * A review already under way.
@@ -137,7 +154,7 @@ const REACTIONS = [
 const COLLECTIONS = [
   {
     uuid: COLLECTION_UUID,
-    name: "Autumn campaign — rough cuts",
+    name: "Q3 launch film — rough cuts",
     status: { created: "2026-08-01T10:00:00Z", edited: "2026-08-08T16:20:00Z" },
   },
 ];
@@ -148,7 +165,7 @@ const SHARE = {
   url: SHARE_URL,
   targetType: "COLLECTION",
   targetUuid: COLLECTION_UUID,
-  targetName: "Autumn campaign — rough cuts",
+  targetName: "Q3 launch film — rough cuts",
   password: PASSWORD,
   passwordProtected: true,
   expired: false,
@@ -182,8 +199,10 @@ async function mockOwner(page) {
 async function mockCustomer(page, { passwordRequired = true } = {}) {
   await page.route("**/api/v1/**", route => route.fulfill(json({ data: [] })));
 
-  await page.route(/\/api\/v1\/shares\/[^/]+\/assets\/[^/]+\/binary\/data/, route =>
-    route.fulfill({ status: 200, contentType: "video/mp4", body: TINY_MP4 }));
+  await page.route(/\/api\/v1\/shares\/[^/]+\/assets\/[^/]+\/binary\/data/, route => {
+    const uuid = route.request().url().split("/assets/")[1].split("/")[0];
+    return route.fulfill({ status: 200, contentType: "video/mp4", body: ASSET_BYTES[uuid] ?? MEETING_MP4 });
+  });
 
   await page.route(/\/api\/v1\/shares\/[^/]+\/comments(\?|$)/, route => route.fulfill(json({ data: COMMENTS })));
   await page.route(/\/api\/v1\/shares\/[^/]+\/annotations(\?|$)/, route => route.fulfill(json({ data: ANNOTATIONS })));
@@ -195,7 +214,7 @@ async function mockCustomer(page, { passwordRequired = true } = {}) {
       sessionToken: "payload.signature",
       visitorName: "Maria from Acme",
       targetType: "COLLECTION",
-      targetName: "Autumn campaign — rough cuts",
+      targetName: "Q3 launch film — rough cuts",
       targetDescription: "Three cuts for sign-off before the grade.",
       allowDownload: true,
       showMetadata: true,

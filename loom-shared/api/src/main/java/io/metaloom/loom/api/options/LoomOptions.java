@@ -28,6 +28,8 @@ public class LoomOptions implements Option {
 
 	private VectorIndexOptions vectorIndex = new VectorIndexOptions();
 
+	private DemoOptions demo = new DemoOptions();
+
 	@Override
 	public void overrideWithEnv() {
 		database.overrideWithEnv();
@@ -42,6 +44,7 @@ public class LoomOptions implements Option {
 		search.overrideWithEnv();
 		similarity.overrideWithEnv();
 		vectorIndex.overrideWithEnv();
+		demo.overrideWithEnv();
 	}
 
 	public DatabaseOptions getDatabase() {
@@ -151,6 +154,15 @@ public class LoomOptions implements Option {
 		return this;
 	}
 
+	public DemoOptions getDemo() {
+		return demo;
+	}
+
+	public LoomOptions setDemo(DemoOptions demo) {
+		this.demo = demo;
+		return this;
+	}
+
 	@Override
 	public void validate(OptionErrors errors) {
 		errors.nested("database", database)
@@ -164,7 +176,8 @@ public class LoomOptions implements Option {
 			.nested("nodeExec", nodeExec)
 			.nested("search", search)
 			.nested("similarity", similarity)
-			.nested("vectorIndex", vectorIndex);
+			.nested("vectorIndex", vectorIndex)
+			.nested("demo", demo);
 	}
 
 	/**

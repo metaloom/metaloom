@@ -219,7 +219,8 @@
       "completedWithDuplicates": "{{count}} file(s) uploaded, {{duplicates}} already in Loom",
       "failed": "{{count}} upload(s) failed",
       "cancelled": "{{count}} upload(s) cancelled"
-    }
+    },
+    "unloadWarning": "Uploads are still running. Leaving this page cancels them."
   },
   "library": {
     "title": "Libraries",
@@ -2051,6 +2052,7 @@
     "new": "New note",
     "id": "Id",
     "idHelp": "Lowercase path ending in .md, e.g. projects/loom-db.md",
+    "idTaken": "A note with this id already exists in this scope. Pick another id.",
     "noteTitle": "Title",
     "updated": "Updated",
     "session": "Session",

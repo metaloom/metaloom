@@ -335,6 +335,7 @@ Pipeline-node test patterns are in
 | `BootstrapInitializer` | `io.metaloom.loom.core.boot` | Startup/shutdown order (§3) |
 | `DatabaseInitializer` | `io.metaloom.loom.core.boot` | Admin user, `admins` group, `admin-role`, permissions |
 | `DemoDatabaseInitializer` | `io.metaloom.loom.core.boot` | Demo data — **extend it when adding a feature** |
+| `DemoMediaLibrary` | `io.metaloom.loom.core.boot` | Reads `demo-content/` for the initializer; absent directory ⇒ painted images |
 | `SearchModule` / `SimilarityModule` | `io.metaloom.loom.core.dagger` | Fail-soft capability binding |
 | `LoomOptionsLoader` | `io.metaloom.loom.common.options` | YAML + env option loading |
 | `LoomOptions`, `ServerOptions` | `io.metaloom.loom.api.options` | Config root and port/bind settings |
@@ -404,6 +405,7 @@ Pipeline-node test patterns are in
 | DAO interfaces / jOOQ impls | `loom/db/api/` · `loom/db/jooq/` |
 | Flyway migrations | `loom/db/flyway/src/main/resources/db/migration/` |
 | Demo data | `loom/core/src/main/java/io/metaloom/loom/core/boot/DemoDatabaseInitializer.java` |
+| Demo media | `demo-content/` (container: `/demo-content`, `LOOM_DEMO_CONTENT_DIR`) |
 | Agent chat / memory / sandbox | `loom/agent/{chat,memory,sandbox}/src/main/java/io/metaloom/loom/agent/` |
 | Session Runner image | `loom/agent/session-runner/{runnerd.py,Containerfile}` |
 | Binary storage | `loom/services/fs/…/storage/` · `loom/services/s3/…/storage/s3/` |

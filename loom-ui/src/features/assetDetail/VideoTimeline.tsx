@@ -173,6 +173,8 @@ export function VideoTimeline({
           return (
             <Box
               key={`range_${m.id}`}
+              data-testid="video-timeline-range"
+              data-marker-id={m.id}
               sx={{
                 position: "absolute",
                 left: `${left}%`,
@@ -219,6 +221,9 @@ export function VideoTimeline({
           return (
             <Tooltip key={m.id} title={m.label}>
               <Box
+                data-testid="video-timeline-marker"
+                data-marker-id={m.id}
+                data-marker-type={m.type}
                 onClick={(e) => { e.stopPropagation(); onMarkerClick(m.id, m.type); }}
                 onMouseEnter={() => onMarkerHover(m.id)}
                 onMouseLeave={() => onMarkerHover(null)}
@@ -243,11 +248,11 @@ export function VideoTimeline({
         })}
 
         {/* Playhead indicator */}
-        <Box sx={{ position: "absolute", left: `${(currentTime / duration) * 100}%`, top: 0, bottom: 0, width: 1.5, bgcolor: tokens.primary.main, zIndex: 6, pointerEvents: "none", transition: "left 50ms linear" }} />
+        <Box data-testid="video-timeline-playhead" sx={{ position: "absolute", left: `${(currentTime / duration) * 100}%`, top: 0, bottom: 0, width: 1.5, bgcolor: tokens.primary.main, zIndex: 6, pointerEvents: "none", transition: "left 50ms linear" }} />
       </Box>
 
       <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.25 }}>
-        <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
+        <Typography data-testid="video-timeline-current-time" variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>
           {formatDuration(Math.round(currentTime))}
         </Typography>
         <Typography variant="caption" sx={{ color: tokens.text.tertiary, fontSize: "0.68rem" }}>

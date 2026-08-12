@@ -16,7 +16,7 @@ import { test, expect, Page } from "@playwright/test";
  * and asserts the region tag + its overlay box survive the round-trip.
  */
 
-const IMAGE_ASSET = "sunset-beach.jpg";
+const IMAGE_ASSET = "street-crossing.jpg";
 
 async function loginAndGoToAssets(page: Page) {
   await page.goto("/");

@@ -27,6 +27,18 @@ export function mimeFilterFor(type: AssetType | "all"): string | undefined {
   }
 }
 
+/**
+ * Convert a component's duration to the unit the rest of the UI counts in.
+ *
+ * `asset_video_comp.media_duration` is **milliseconds** and the REST layer passes it through
+ * unchanged, while every consumer here — `formatDuration`, `VideoTimeline`, and an
+ * `HTMLMediaElement.currentTime` — works in seconds. Converting at the boundary keeps the two from
+ * meeting: a 28 second clip read raw renders as "7:51:07".
+ */
+export function durationSeconds(millis: number | undefined): number | undefined {
+  return millis === undefined || millis === null ? undefined : millis / 1000;
+}
+
 /** Map a Loom REST AssetResponse to the local Asset type used by the UI. */
 export function toAsset(r: AssetResponse): Asset {
   const mime = r.file?.mimeType ?? "";
@@ -44,14 +56,16 @@ export function toAsset(r: AssetResponse): Asset {
     status: "ready" as Asset["status"],
     tags: (r.tags ?? []).map(t => t.name),
     description: "",
-    duration: video?.duration,
+    duration: durationSeconds(video?.duration),
     width: video?.width ?? image?.width,
     height: video?.height ?? image?.height,
     fileSize: r.file?.size ?? 0,
     mimeType: mime,
     sha512: r.hashes?.sha512,
-    // Only images can be shown by an <img>; everything else falls back to the type placeholder.
-    thumbnailUrl: type === "image" ? assetBinaryUrl(r.uuid) : "",
+    // Images and videos are both previewed from the stored binary — an <img> for one, a muted
+    // <video> seeking one frame for the other (see components/AssetThumbnail). Audio and PDFs have
+    // no browser-renderable preview and fall back to the type placeholder.
+    thumbnailUrl: type === "image" || type === "video" ? assetBinaryUrl(r.uuid) : "",
     url: "",
     ownerId: r.status?.creator?.uuid ?? "",
     collectionIds: (r.collections ?? []).map(c => c.uuid),
@@ -84,7 +98,7 @@ export function hitToCard(hit: SearchHitResponse): Asset {
     description: hit.subtitle ?? "",
     fileSize: hit.size ?? 0,
     mimeType: mime,
-    thumbnailUrl: type === "image" ? assetBinaryUrl(hit.uuid) : "",
+    thumbnailUrl: type === "image" || type === "video" ? assetBinaryUrl(hit.uuid) : "",
     url: "",
     ownerId: "",
     collectionIds: [],

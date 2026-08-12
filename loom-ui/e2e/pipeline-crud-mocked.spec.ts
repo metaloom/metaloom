@@ -33,9 +33,16 @@ const DEFINITION = {
  */
 const DESCRIPTORS = [
   { kind: "filesystem-source", out: { id: "media", contentType: "media/*" } },
-  { kind: "sha512", out: { id: "hash", contentType: "hash/sha512" } },
+  {
+    kind: "sha512",
+    out: { id: "hash", contentType: "hash/sha512" },
+    // The one declared parameter in this fixture. The unsaved-changes test needs an edit a user
+    // could plausibly spend time on, rather than a node drag. It hangs off `sha512` because that
+    // node is laid out clear of the minimap, which swallows clicks on the lower-right `thumbnail`.
+    parameters: [{ key: "chunkSize", type: "INTEGER", defaultValue: 8192, label: "Chunk Size", description: "Bytes read per hash update" }],
+  },
   { kind: "thumbnail", out: { id: "thumbnail", contentType: "artifact/image" } },
-].map(({ kind, out }) => ({
+].map(({ kind, out, parameters }: { kind: string; out: Record<string, string>; parameters?: unknown[] }) => ({
   kind,
   name: kind,
   description: "",
@@ -48,7 +55,7 @@ const DESCRIPTORS = [
   inputGroups: [],
   outputGroups: [],
   dynamicPorts: false,
-  parameters: [],
+  parameters: parameters ?? [],
   defaultConcurrency: 1,
   defaultMode: "SEQUENTIAL",
   defaultBlocking: false,
@@ -360,5 +367,37 @@ test.describe("Pipeline create / clone / delete – mocked", () => {
     await page.getByRole("button", { name: "Beta" }).click();
     await page.getByTestId("pipeline-switch-confirm").click();
     await expect(canvas.locator(".react-flow__node")).toHaveCount(0, { timeout: 10_000 });
+  });
+
+  test("leaving the editor with unsaved changes prompts to discard", async ({ page }) => {
+    await mockBackend(page);
+    await login(page);
+
+    const canvas = page.getByTestId("pipeline-canvas");
+    await expect(canvas.locator(".react-flow__node")).toHaveCount(3, { timeout: 10_000 });
+
+    // Edit a node parameter. The switch guard above only covers the editor's own pipeline list —
+    // every other way out of the screen used to drop the canvas without a word.
+    await page.getByTestId("pipeline-node-sha512").click();
+    const chunkSize = page.getByTestId("pipeline-node-param-chunkSize");
+    await expect(chunkSize).toBeVisible({ timeout: 5_000 });
+    await chunkSize.fill("4096");
+    await expect(page.getByText("Save", { exact: true })).toBeVisible({ timeout: 5_000 });
+
+    // The app sidebar is the main way out, so it is where the guard has to hold.
+    await page.getByTestId("sidebar-item-/assets").click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeVisible({ timeout: 5_000 });
+
+    // Cancelling keeps the route *and* the edit — a guard that dropped the value would be no
+    // better than the silent discard it replaces.
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByTestId("pipeline-switch-confirm")).toBeHidden();
+    await expect(canvas).toBeVisible();
+    await expect(chunkSize).toHaveValue("4096");
+
+    // Discarding resumes the navigation the dialog was holding.
+    await page.getByTestId("sidebar-item-/assets").click();
+    await page.getByTestId("pipeline-switch-confirm").click();
+    await expect(canvas).toBeHidden({ timeout: 10_000 });
   });
 });

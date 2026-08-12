@@ -56,6 +56,12 @@ A pipeline version has the following properties:
 Pipelines are **versioned**: every save creates a new immutable `pipeline_version`; older versions can
 be viewed and restored. See link:../loom/rest-api/[REST API] for the endpoints.
 
+Saving is always something you ask for — the editor never writes your canvas away on its own. Because
+of that, edits you have not saved live only in your browser, and the editor asks before anything can
+take them away: picking another pipeline, moving to another screen, or reloading the tab all stop on a
+confirmation while there are unsaved changes. Cancel it and you are back on your canvas with the edit
+intact.
+
 [#node-graph]
 == Node Graph
 
@@ -415,8 +421,9 @@ picture, so a crop taken from a 512-pixel preview would be barely thirty pixels 
 
 The caption under the picture is worth reading on a video. Detection runs on *sampled frames*, so
 the ten thumbnails below the picture are ten detections spread across several moments, while the
-boxes drawn on the picture are only the ones measured against *this* frame. `face_count` therefore
-counts detections, not distinct people — two people can easily account for all ten.
+boxes drawn on the picture are only the ones measured against *this* frame. `face_count` counts
+neither: it is the number of *distinct subjects* the node clustered those detections into, which is
+two. Ten crops, ten detections, two people.
 
 [#detections-over-time]
 ==== Watching detection happen
@@ -432,9 +439,9 @@ clip. Below is the same node's output over the same footage, painted in as the v
 
 Two things are worth watching for.
 
-*Boxes appear and then dissolve.* Nothing is tracking anyone. The node samples every fifth frame, so
-between two samples there is simply no new answer, and a box that fades out is saying "this is the
-most recent thing reported here" rather than following a face across the picture.
+*Boxes appear and then dissolve.* Nothing is tracking anyone. The node samples every fifteenth
+frame, so between two samples there is simply no new answer, and a box that fades out is saying
+"this is the most recent thing reported here" rather than following a face across the picture.
 
 *Long stretches have nothing at all.* The node keeps only the sharpest faces it finds, so a clip
 where two people are mostly turned away from the camera yields a handful of detections at the

@@ -15,7 +15,7 @@ import { test, expect, Page } from "@playwright/test";
  *   GET/POST /api/v1/assets/:uuid/reactions   and   DELETE /api/v1/assets/:uuid/reactions/:reactionUuid
  */
 
-/** Login and open the detail view of the demo asset "sunset-beach.jpg" on the Reactions tab. */
+/** Login and open the detail view of the demo asset "street-crossing.jpg" on the Reactions tab. */
 async function loginAndOpenReactionsTab(page: Page) {
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
@@ -26,7 +26,7 @@ async function loginAndOpenReactionsTab(page: Page) {
   await page.getByRole("button", { name: "Assets" }).first().click();
   await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible({ timeout: 10_000 });
 
-  const assetLink = page.getByText("sunset-beach.jpg").first();
+  const assetLink = page.getByText("street-crossing.jpg").first();
   await expect(assetLink).toBeVisible({ timeout: 10_000 });
   await assetLink.click();
   await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
@@ -44,18 +44,20 @@ test.describe("Asset reactions – backend e2e", () => {
     const allChips = page.getByTestId("assets-reaction-chip");
     const initialCount = await allChips.count();
 
-    // Add a THUMBSUP reaction.
+    // MINUS_ONE, not THUMBSUP: the unique index on reactions is (creator, type, asset), and the demo
+    // already seeds a THUMBSUP by admin on this asset. Adding a second one is an upsert, the count
+    // never moves, and the test reads as "the write did not persist".
     await page.getByTestId("assets-react-button").click();
-    await page.getByTestId("assets-react-option-THUMBSUP").click();
+    await page.getByTestId("assets-react-option-MINUS_ONE").click();
 
     // The reaction chip appears and round-trips through the backend.
     await expect(allChips).toHaveCount(initialCount + 1, { timeout: 10_000 });
-    const thumbsUp = allChips.filter({ hasText: "Thumbs up" });
-    await expect(thumbsUp.first()).toBeVisible({ timeout: 10_000 });
+    const added = allChips.filter({ hasText: /minus|-1/i });
+    await expect(added.first()).toBeVisible({ timeout: 10_000 });
 
     // Delete the reaction (the delete affordance is only rendered for reactions
     // authored by the current user, so its presence also proves identity resolution).
-    await thumbsUp.first().getByTestId("assets-reaction-delete").click();
+    await added.first().getByTestId("assets-reaction-delete").click();
     await expect(allChips).toHaveCount(initialCount, { timeout: 10_000 });
   });
 });

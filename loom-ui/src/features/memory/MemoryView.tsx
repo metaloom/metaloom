@@ -11,8 +11,8 @@ import { tokens } from "../../theme";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
-  deleteMemoryEntry, listMemory, listMemoryScopes, loadMemoryEntry, MemoryEntrySummary,
-  MemoryScopeInfo, saveMemoryEntry,
+  createMemoryEntry, deleteMemoryEntry, listMemory, listMemoryScopes, loadMemoryEntry,
+  MemoryApiError, MemoryEntrySummary, MemoryScopeInfo, saveMemoryEntry,
 } from "../../api/memory";
 
 interface EditorState {
@@ -56,6 +56,8 @@ export default function MemoryView() {
   const [entries, setEntries] = useState<MemoryEntrySummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [editor, setEditor] = useState<EditorState | null>(null);
+  /** Inline editor error — a taken id, which the draft has to survive. */
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MemoryEntrySummary | null>(null);
   const [query, setQuery] = useState("");
@@ -103,6 +105,7 @@ export default function MemoryView() {
 
   const openEditor = async (entry?: MemoryEntrySummary) => {
     if (!token || !activeScope) return;
+    setEditorError(null);
     if (!entry) {
       setEditor({ originalId: "", id: "", title: "", body: "" });
       return;
@@ -118,8 +121,18 @@ export default function MemoryView() {
   const handleSave = async () => {
     if (!token || !activeScope || !editor) return;
     setSaving(true);
+    setEditorError(null);
+    const request = { body: editor.body, title: editor.title || undefined };
+    // Writing an id the editor was not opened on — a new note, or a rename onto a different id —
+    // must never overwrite whatever is already stored there. POST answers 409 in that case; only
+    // the note actually being edited is upserted with PUT.
+    const claimsNewId = editor.originalId !== editor.id;
     try {
-      await saveMemoryEntry(token, activeScope.scope, editor.id, { body: editor.body, title: editor.title || undefined }, scopeRef);
+      if (claimsNewId) {
+        await createMemoryEntry(token, activeScope.scope, editor.id, request, scopeRef);
+      } else {
+        await saveMemoryEntry(token, activeScope.scope, editor.id, request, scopeRef);
+      }
       // A rename writes a new id; drop the old note so the rename is not a silent copy.
       if (editor.originalId && editor.originalId !== editor.id) {
         await deleteMemoryEntry(token, activeScope.scope, editor.originalId, scopeRef);
@@ -127,7 +140,13 @@ export default function MemoryView() {
       setEditor(null);
       refresh();
     } catch (e) {
-      showToast(String(e), "error");
+      // A taken id is the one failure the user can fix right here, so it stays in the dialog next
+      // to the field rather than in a toast that outlives the draft.
+      if (e instanceof MemoryApiError && e.status === 409) {
+        setEditorError(t("memory.idTaken", "A note with this id already exists in this scope. Pick another id."));
+      } else {
+        showToast(String(e), "error");
+      }
     } finally {
       setSaving(false);
     }
@@ -265,7 +284,7 @@ export default function MemoryView() {
         </>
       )}
 
-      <Dialog open={editor !== null} onClose={() => setEditor(null)} maxWidth="md" fullWidth>
+      <Dialog open={editor !== null} onClose={() => { setEditor(null); setEditorError(null); }} maxWidth="md" fullWidth>
         <DialogTitle>
           {editor?.originalId ? t("memory.edit", "Edit note") : t("memory.create", "New note")}
           {editor?.version ? <Chip size="small" sx={{ ml: 1 }} label={`v${editor.version}`} /> : null}
@@ -275,9 +294,15 @@ export default function MemoryView() {
             fullWidth margin="dense" label={t("memory.id", "Id")}
             helperText={t("memory.idHelp", "Lowercase path ending in .md, e.g. projects/loom-db.md")}
             value={editor?.id ?? ""}
-            onChange={e => setEditor(prev => prev && { ...prev, id: e.target.value })}
+            onChange={e => { setEditorError(null); setEditor(prev => prev && { ...prev, id: e.target.value }); }}
+            error={editorError !== null}
             data-testid="memory-editor-id"
           />
+          {editorError && (
+            <Typography variant="caption" sx={{ color: tokens.accent.red }} data-testid="memory-editor-error">
+              {editorError}
+            </Typography>
+          )}
           <TextField
             fullWidth margin="dense" label={t("memory.noteTitle", "Title")}
             value={editor?.title ?? ""}
@@ -295,7 +320,7 @@ export default function MemoryView() {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditor(null)}>{t("common.cancel", "Cancel")}</Button>
+          <Button onClick={() => { setEditor(null); setEditorError(null); }}>{t("common.cancel", "Cancel")}</Button>
           <Button variant="contained" disabled={saving || !editor?.id} onClick={handleSave} data-testid="memory-editor-save">
             {t("common.save", "Save")}
           </Button>

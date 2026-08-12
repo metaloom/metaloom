@@ -42,16 +42,18 @@ test.describe("Assets – full backend e2e", () => {
     await loginAndGoToAssets(page);
 
     // Wait for data to load — expect a non-zero asset count
-    await expect(page.getByText(/[1-9]\d* assets/)).toBeVisible({ timeout: 10_000 });
+    // By testid, not by text: a remix card in the band above the grid also reads "<n> assets", and
+    // the demo's remix has three members.
+    await expect(page.getByTestId("assets-count")).toHaveText(/^[1-9]\d* assets$/, { timeout: 10_000 });
 
     // Verify that at least one asset name from the demo data is rendered
     const assetNames = [
-      "sunset-beach.jpg",
-      "mountain-lake.jpg",
-      "city-skyline.png",
-      "drone-coastal.mp4",
+      "street-crossing.jpg",
+      "misty-forest-path.jpg",
+      "curved-architecture.jpg",
+      "team-meeting.mp4",
       "ambient-rain.mp3",
-      "project-brief.pdf",
+      "space-brief.pdf",
     ];
 
     let foundAny = false;
@@ -68,27 +70,27 @@ test.describe("Assets – full backend e2e", () => {
   test("clicking an asset navigates to asset detail", async ({ page }) => {
     await loginAndGoToAssets(page);
 
-    const assetLink = page.getByText("sunset-beach.jpg").first();
+    const assetLink = page.getByText("street-crossing.jpg").first();
     await expect(assetLink).toBeVisible({ timeout: 10_000 });
     await assetLink.click();
 
     // URL should contain /assets/ followed by a UUID
     await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
 
-    // The asset detail view should show the filename
-    await expect(page.getByText("sunset-beach.jpg")).toBeVisible({ timeout: 5_000 });
+    // The name is an editable field in the header, not a label — `getByText` never matches it.
+    await expect(page.getByTestId("asset-name")).toHaveValue("street-crossing.jpg", { timeout: 5_000 });
   });
 
   test("asset detail view shows file metadata", async ({ page }) => {
     await loginAndGoToAssets(page);
 
-    const assetLink = page.getByText("sunset-beach.jpg").first();
+    const assetLink = page.getByText("street-crossing.jpg").first();
     await expect(assetLink).toBeVisible({ timeout: 10_000 });
     await assetLink.click();
     await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
 
     // Verify metadata is displayed — file size, mime type, or filename
-    await expect(page.getByText("sunset-beach.jpg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId("asset-name")).toHaveValue("street-crossing.jpg", { timeout: 5_000 });
 
     // The detail view should render (check for Back button or tabs)
     const backButton = page.locator('[data-testid="ArrowBackIcon"]');
@@ -99,20 +101,22 @@ test.describe("Assets – full backend e2e", () => {
     await loginAndGoToAssets(page);
 
     // Wait for assets to load first
-    await expect(page.getByText(/[1-9]\d* assets/)).toBeVisible({ timeout: 10_000 });
+    // By testid, not by text: a remix card in the band above the grid also reads "<n> assets", and
+    // the demo's remix has three members.
+    await expect(page.getByTestId("assets-count")).toHaveText(/^[1-9]\d* assets$/, { timeout: 10_000 });
 
     // The box used to filter whatever the first page happened to hold. Assert the request goes
-    // out — a passing "drone-coastal.mp4 is visible" alone cannot tell the two apart.
+    // out — a passing "team-meeting.mp4 is visible" alone cannot tell the two apart.
     const searchRequest = page.waitForRequest(
-      req => req.url().includes("/search/assets") && req.url().includes("q=drone"),
+      req => req.url().includes("/search/assets") && req.url().includes("q=meeting"),
       { timeout: 10_000 },
     );
 
     const searchInput = page.getByPlaceholder("Search assets, tags…");
-    await searchInput.fill("drone");
+    await searchInput.fill("meeting");
 
     await searchRequest;
-    await expect(page.getByText("drone-coastal.mp4")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("team-meeting.mp4")).toBeVisible({ timeout: 10_000 });
   });
 
   test("the asset list requests a page rather than taking the server default of 25", async ({ page }) => {
@@ -289,7 +293,7 @@ test.describe("Assets – full backend e2e", () => {
     const tagChip = assetTags.getByTestId("tag-chip").filter({ hasText: TAG_NAME });
 
     // Open the asset and add a tag via the editable tag input (Enter submits).
-    await loginAndOpenAsset(page, "sunset-beach.jpg");
+    await loginAndOpenAsset(page, "street-crossing.jpg");
     await assetTags.getByTestId("tag-input").fill(TAG_NAME);
     await assetTags.getByTestId("tag-input").press("Enter");
 
@@ -297,7 +301,7 @@ test.describe("Assets – full backend e2e", () => {
     await expect(tagChip).toBeVisible({ timeout: 10_000 });
 
     // Reload from the backend (re-login drops in-memory auth) and confirm it stuck.
-    await loginAndOpenAsset(page, "sunset-beach.jpg");
+    await loginAndOpenAsset(page, "street-crossing.jpg");
     await expect(tagChip).toBeVisible({ timeout: 10_000 });
 
     // Remove the tag via the chip's delete icon; the row refreshes from the backend.
@@ -305,7 +309,7 @@ test.describe("Assets – full backend e2e", () => {
     await expect(tagChip).toBeHidden({ timeout: 10_000 });
 
     // Reload again and confirm the removal persisted.
-    await loginAndOpenAsset(page, "sunset-beach.jpg");
+    await loginAndOpenAsset(page, "street-crossing.jpg");
     await expect(tagChip).toBeHidden({ timeout: 10_000 });
   });
 });

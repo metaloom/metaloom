@@ -8,8 +8,8 @@ import { test, expect, Page, APIRequestContext } from "@playwright/test";
  *   VITE_API_BASE_URL=/api/v1 VITE_PROXY_TARGET=http://localhost:8092
  *
  * The assertions lean on the demo corpus seeded by DemoDatabaseInitializer — transcript text
- * ("quarterly update", "dividends", "championship finals") and filenames (sunset-beach.jpg,
- * drone-coastal.mp4). Search documents come from the V2.59 triggers, which the demo seeding
+ * ("quarterly update", "dividends", "championship finals") and filenames (street-crossing.jpg,
+ * team-meeting.mp4). Search documents come from the V2.59 triggers, which the demo seeding
  * cannot bypass, so no search-specific fixture is needed.
  */
 
@@ -115,10 +115,10 @@ test.describe("Search - backend e2e", () => {
   });
 
   test("a filename term finds the asset", async ({ page }) => {
-    await searchFor(page, "sunset");
+    await searchFor(page, "crossing");
 
     await expect(page.getByTestId("search-results")).toBeVisible({ timeout: 15_000 });
-    expect((await hitTitles(page)).join(" ")).toContain("sunset-beach");
+    expect((await hitTitles(page)).join(" ")).toContain("street-crossing");
   });
 
   test("the type filter narrows the result set to one kind", async ({ page }) => {
@@ -143,9 +143,9 @@ test.describe("Search - backend e2e", () => {
   test("typeahead suggests an asset from a prefix", async ({ page }) => {
     await login(page);
 
-    await page.getByTestId("global-search-input").fill("dro");
+    await page.getByTestId("global-search-input").fill("tea");
     await expect(page.getByTestId("global-search-suggestions")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByTestId("global-search-suggestions")).toContainText("drone-coastal");
+    await expect(page.getByTestId("global-search-suggestions")).toContainText("team-meeting");
   });
 
   // ── Contract checks with no UI affordance ───────────────────────────

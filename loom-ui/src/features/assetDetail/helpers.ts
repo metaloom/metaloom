@@ -1,6 +1,7 @@
 import { Asset, AssetType, AssetStatus, Comment } from "../../types";
 import { AssetResponse, assetBinaryUrl } from "../../api/assets";
 import { CommentResponse } from "../../api/comments";
+import { durationSeconds } from "../assets/assetMapping";
 
 /** Map a REST comment response onto the local Comment view model. */
 export function commentResponseToComment(c: CommentResponse, assetId = ""): Comment {
@@ -36,15 +37,16 @@ export function apiToAsset(r: AssetResponse): Asset {
     status: "ready" as AssetStatus,
     tags: (r.tags ?? []).map(t => t.name),
     description: "",
-    duration: video?.duration,
+    duration: durationSeconds(video?.duration),
     width: video?.width ?? image?.width,
     height: video?.height ?? image?.height,
     fileSize: r.file?.size ?? 0,
     mimeType: mime,
-    // Images are served from the stored binary; other formats have no browser-renderable
-    // preview, so the views fall back to a type placeholder.
-    thumbnailUrl: type === "image" ? assetBinaryUrl(r.uuid) : "",
-    url: type === "image" ? assetBinaryUrl(r.uuid) : "",
+    // Images and videos are served from the stored binary — the detail view puts one in an <img>
+    // and the other in a <video>. Audio and PDFs have no browser-renderable preview, so those
+    // views fall back to a type placeholder.
+    thumbnailUrl: type === "image" || type === "video" ? assetBinaryUrl(r.uuid) : "",
+    url: type === "image" || type === "video" ? assetBinaryUrl(r.uuid) : "",
     ownerId: r.status?.creator?.uuid ?? "",
     collectionIds: (r.collections ?? []).map(c => c.uuid),
     createdAt: r.status?.created ?? "",
@@ -53,10 +55,18 @@ export function apiToAsset(r: AssetResponse): Asset {
   };
 }
 
+/**
+ * A timecode, from a duration in **seconds**.
+ *
+ * Rounded to whole seconds first. Every caller used to hand this an integer, so a fractional input
+ * would have printed its fraction into the string — `13.366667` rendering as `0:13.366667` on an
+ * asset tile. Durations now come off `asset_video_comp`, which measures a clip to the millisecond.
+ */
 export function formatDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+  const total = Math.max(0, Math.round(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
   if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }

@@ -12,7 +12,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
 } from "@mui/material";
 import {
-  ArrowBack, PlayArrowOutlined, PauseOutlined,
+  ArrowBack,
   ChatBubbleOutlineOutlined, BookmarkBorderOutlined,
   ThumbUpAltOutlined, TaskAltOutlined, AccountTreeOutlined,
   FaceOutlined, SearchOutlined,
@@ -142,7 +142,9 @@ export default function AssetDetail() {
   const [tab, setTab] = useState(0);
   const [sidebarQuery, setSidebarQuery] = useState("");
   const [currentTime, setCurrentTime] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  // What the <video> element reports once it has its metadata. Preferred over the asset's own
+  // duration, which is a seeded or probed number and can disagree with the file by a frame.
+  const [playedDuration, setPlayedDuration] = useState(0);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hoveredMarkerId, setHoveredMarkerId] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskResponse | null>(null);
@@ -189,7 +191,6 @@ export default function AssetDetail() {
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const intervalRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [binaryBusy, setBinaryBusy] = useState(false);
   const [registerBinaryOpen, setRegisterBinaryOpen] = useState(false);
@@ -556,20 +557,15 @@ export default function AssetDetail() {
     window.addEventListener("mouseup", onUp);
   }, []);
 
-  // Simulated video progress
-  useEffect(() => {
-    if (playing && asset?.duration) {
-      intervalRef.current = window.setInterval(() => {
-        setCurrentTime(prev => {
-          if (prev >= asset.duration!) { setPlaying(false); return asset.duration!; }
-          return prev + 0.25;
-        });
-      }, 250);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+  // Seek the player. Everything that puts a time on the timeline — a marker, a transcript line, a
+  // detection — goes through here, so the picture follows the click rather than only the playhead.
+  const seekTo = useCallback((time: number) => {
+    setCurrentTime(time);
+    const video = videoRef.current;
+    if (video && Number.isFinite(time)) {
+      video.currentTime = time;
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [playing, asset?.duration]);
+  }, []);
 
   if (!asset) {
     return (
@@ -580,7 +576,10 @@ export default function AssetDetail() {
   }
 
   const isVideo = asset.type === "video";
-  const duration = asset.duration ?? 0;
+  // The element's own duration wins once it has one: the timeline is drawn against what can
+  // actually be scrubbed, and a component row that is a frame out would leave the last marker
+  // unreachable.
+  const duration = playedDuration || asset.duration || 0;
 
   // ── Asset metadata edit / delete / process ──────────────────────────────
   const nameDirty = editName.trim() !== "" && editName.trim() !== asset.name;
@@ -790,6 +789,9 @@ export default function AssetDetail() {
             onChange={e => setEditName(e.target.value)}
             variant="standard"
             fullWidth
+            // The filename is an editable field rather than a heading, so nothing can address it by
+            // text. Named, because it is the one thing on this screen that identifies the asset.
+            inputProps={{ "data-testid": "asset-name", "aria-label": "Asset filename" }}
             InputProps={{ disableUnderline: true, sx: { fontSize: "0.95rem", fontWeight: 700 } }}
             sx={{ "& .MuiInput-root:hover": { bgcolor: tokens.bg.elevated }, borderRadius: tokens.radius.sm, px: 0.5 }}
           />
@@ -936,26 +938,27 @@ export default function AssetDetail() {
         <Box sx={{ flex: "0 0 auto", width: { xs: "100%", lg: `${leftPct}%` }, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {/* Media area */}
           <Box sx={{ position: "relative", bgcolor: "#000", aspectRatio: isVideo ? "16/9" : "auto", maxHeight: { xs: 240, lg: 380 }, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {isVideo ? (
-              <>
-                <MediaPlaceholder type={asset.type} iconSize={64} bgcolor="#000" />
-                {/* Overlay controls */}
-                <Box
-                  sx={{
-                    position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                    opacity: 0, "&:hover": { opacity: 1 }, transition: "opacity 160ms ease",
-                    background: "radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, transparent 70%)",
-                  }}
-                >
-                  <IconButton
-                    onClick={() => setPlaying(!playing)}
-                    sx={{ bgcolor: "rgba(0,0,0,0.6)", border: `2px solid rgba(255,255,255,0.3)`, "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
-                  >
-                    {playing ? <PauseOutlined sx={{ fontSize: 28, color: "#fff" }} /> : <PlayArrowOutlined sx={{ fontSize: 28, color: "#fff" }} />}
-                  </IconButton>
-                </Box>
-              </>
-            ) : asset.url ? (
+            {isVideo && asset.url ? (
+              // The browser's own player, pointed at the stored binary. The controls are the
+              // browser's too: the range support on /assets/:uuid/binary/data is what makes
+              // scrubbing work, and reimplementing a transport over it would buy nothing the
+              // timeline below does not already give.
+              <Box
+                component="video"
+                ref={videoRef}
+                data-testid="asset-video"
+                src={asset.url}
+                controls
+                playsInline
+                preload="metadata"
+                onLoadedMetadata={e => {
+                  const el = e.currentTarget as HTMLVideoElement;
+                  if (Number.isFinite(el.duration)) setPlayedDuration(el.duration);
+                }}
+                onTimeUpdate={e => setCurrentTime((e.currentTarget as HTMLVideoElement).currentTime)}
+                sx={{ width: "100%", height: "100%", objectFit: "contain", display: "block", bgcolor: "#000" }}
+              />
+            ) : !isVideo && asset.url ? (
               <ZoomableImage
                 src={asset.url}
                 alt={asset.name}
@@ -993,7 +996,7 @@ export default function AssetDetail() {
                 currentTime={currentTime}
                 markers={markers}
                 hoveredMarkerId={hoveredMarkerId}
-                onSeek={setCurrentTime}
+                onSeek={seekTo}
                 onMarkerClick={handleMarkerClick}
                 onMarkerHover={setHoveredMarkerId}
                 rangeMode={regionMode}
@@ -1323,7 +1326,7 @@ export default function AssetDetail() {
                   <TranscriptPanel
                     sections={tr.sections}
                     currentTime={currentTime}
-                    onSeek={setCurrentTime}
+                    onSeek={seekTo}
                     onSectionsChange={sections => handleTranscriptSectionsChange(tr.uuid, sections)}
                   />
                 </Box>
@@ -1455,7 +1458,7 @@ export default function AssetDetail() {
                     key={c.id}
                     comment={c}
                     highlighted={highlightedId === c.id || hoveredMarkerId === c.id}
-                    onTimeClick={(t) => { setCurrentTime(t); setHighlightedId(null); }}
+                    onTimeClick={(t) => { seekTo(t); setHighlightedId(null); }}
                     onHover={setHoveredMarkerId}
                     currentUserUuid={userUuid}
                     token={token}
@@ -1535,7 +1538,7 @@ export default function AssetDetail() {
                     key={a.id}
                     ann={a}
                     highlighted={highlightedId === a.id || hoveredMarkerId === a.id}
-                    onTimeClick={(t) => { setCurrentTime(t); setHighlightedId(null); }}
+                    onTimeClick={(t) => { seekTo(t); setHighlightedId(null); }}
                     onHover={setHoveredMarkerId}
                     token={token}
                     currentUserUuid={userUuid}
@@ -1579,7 +1582,7 @@ export default function AssetDetail() {
                 faces={detectedFaces}
                 clusters={faceClusters}
                 persons={persons}
-                onSeek={isVideo ? setCurrentTime : undefined}
+                onSeek={isVideo ? seekTo : undefined}
               />
             )}
           </Box>

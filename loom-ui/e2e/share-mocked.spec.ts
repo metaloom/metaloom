@@ -21,7 +21,8 @@ const VIDEO = {
   filename: "autumn-cut-02.mp4",
   mimeType: "video/mp4",
   size: 184320512,
-  duration: 92.5,
+  // Milliseconds, as the share endpoint sends it; api/shares.ts normalises to seconds.
+  duration: 92_500,
   width: 1920,
   height: 1080,
   title: "Autumn campaign, cut 2",
@@ -70,14 +71,26 @@ async function mockShare(
     targetType?: "ASSET" | "COLLECTION";
     assets?: unknown[];
     gone?: boolean;
+    /** Feedback the recipient left on an earlier visit, already on the server when the page loads. */
+    seedComments?: Record<string, unknown>[];
+    seedAnnotations?: Record<string, unknown>[];
   } = {},
 ) {
   const slug = options.slug ?? OPEN_SLUG;
   const targetType = options.targetType ?? "COLLECTION";
   const assets = options.assets ?? [VIDEO, STILL];
-  const comments: Record<string, unknown>[] = [];
+  const comments: Record<string, unknown>[] = [...(options.seedComments ?? [])];
   const reactions: Record<string, unknown>[] = [];
-  const annotations: Record<string, unknown>[] = [];
+  const annotations: Record<string, unknown>[] = [...(options.seedAnnotations ?? [])];
+  /** Every uuid a DELETE named, so a removed row can be told apart from one that never rendered. */
+  const deleted: string[] = [];
+
+  const removeFrom = (list: Record<string, unknown>[], url: string) => {
+    const uuid = decodeURIComponent(url.split("?")[0].split("/").pop() ?? "");
+    deleted.push(uuid);
+    const index = list.findIndex((entry) => (entry.uuid as string) === uuid);
+    if (index >= 0) list.splice(index, 1);
+  };
 
   await page.route("**/api/v1/**", (route) => route.fulfill(json({ data: [] })));
 
@@ -102,6 +115,13 @@ async function mockShare(
     return route.fulfill(json({ data: comments }));
   });
 
+  // Sub-resource deletes. The list patterns above stop at `comments`/`annotations`, so these never
+  // shadow one another whatever order they are registered in.
+  await page.route(/\/api\/v1\/shares\/[^/]+\/comments\/[^/]+$/, (route) => {
+    removeFrom(comments, route.request().url());
+    return route.fulfill({ status: 204, body: "" });
+  });
+
   await page.route(/\/api\/v1\/shares\/[^/]+\/reactions(\?|$)/, async (route) => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() ?? "{}");
@@ -120,6 +140,11 @@ async function mockShare(
       return route.fulfill(json(created, 201));
     }
     return route.fulfill(json({ data: annotations }));
+  });
+
+  await page.route(/\/api\/v1\/shares\/[^/]+\/annotations\/[^/]+$/, (route) => {
+    removeFrom(annotations, route.request().url());
+    return route.fulfill({ status: 204, body: "" });
   });
 
   await page.route(/\/api\/v1\/shares\/[^/]+\/assets(\?|$)/, (route) => route.fulfill(json({ data: assets })));
@@ -152,7 +177,7 @@ async function mockShare(
     );
   });
 
-  return { slug, annotations };
+  return { slug, annotations, comments, deleted };
 }
 
 test.describe("Customer share area – mocked", () => {
@@ -330,6 +355,102 @@ test.describe("Customer share area – mocked", () => {
     await page.waitForTimeout(500);
     // The database refuses a zero-extent box; discarding it here means the visitor never sees a 400.
     expect(annotations).toHaveLength(0);
+  });
+
+  test("a mark left earlier renders with its timecode and can be removed", async ({ page }) => {
+    const { annotations, deleted } = await mockShare(page, {
+      targetType: "ASSET",
+      assets: [VIDEO],
+      seedAnnotations: [
+        {
+          uuid: "an-seed-1",
+          assetUuid: VIDEO.uuid,
+          kind: "TEMPORAL",
+          timeFrom: 45,
+          text: "The logo pops in a frame late",
+          authorName: "Maria from Acme",
+          created: "",
+        },
+      ],
+    });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+
+    const mark = page.getByTestId("share-annotation");
+    await expect(mark).toHaveCount(1, { timeout: 10_000 });
+    await expect(mark).toContainText("The logo pops in a frame late");
+    // The timecode is what makes a mark actionable — a note with no moment attached is a comment.
+    await expect(mark).toContainText("0:45");
+
+    await mark.getByRole("button", { name: /delete/i }).click();
+    await expect.poll(() => deleted, { timeout: 10_000 }).toContain("an-seed-1");
+    expect(annotations).toHaveLength(0);
+    await expect(page.getByTestId("share-annotation")).toHaveCount(0);
+  });
+
+  test("a note typed against the playhead is posted as a mark", async ({ page }) => {
+    const { annotations } = await mockShare(page, { targetType: "ASSET", assets: [VIDEO] });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+    await expect(page.getByTestId("share-media-video")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("share-mark-input").fill("Hold this frame a beat longer");
+    await page.getByTestId("share-mark-submit").click();
+
+    await expect.poll(() => annotations.length, { timeout: 10_000 }).toBe(1);
+    const mark = annotations[0] as Record<string, unknown>;
+    expect(mark).toMatchObject({ kind: "TEMPORAL", text: "Hold this frame a beat longer", assetUuid: VIDEO.uuid });
+    // Anchored where the player is, never typed by hand — so the field is left empty again after.
+    expect(typeof mark.timeFrom).toBe("number");
+    await expect(page.getByTestId("share-annotation")).toContainText("Hold this frame a beat longer");
+    await expect(page.getByTestId("share-mark-input")).toHaveValue("");
+  });
+
+  test("replying to a comment posts against the parent and nests under it", async ({ page }) => {
+    const { comments } = await mockShare(page, {
+      targetType: "ASSET",
+      assets: [VIDEO],
+      seedComments: [
+        { uuid: "seed-1", text: "The grade is too warm", authorName: "Maria from Acme", created: "" },
+      ],
+    });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+
+    await expect(page.getByTestId("share-comment")).toHaveCount(1, { timeout: 10_000 });
+    await page.getByTestId("share-comment-reply").click();
+    await expect(page.getByText(/replying to Maria from Acme/i)).toBeVisible();
+
+    await page.getByTestId("share-comment-input").fill("Agreed, pulling it back");
+    await page.getByTestId("share-comment-submit").click();
+
+    await expect(page.getByTestId("share-comment")).toHaveCount(2, { timeout: 10_000 });
+    // The parent uuid is what keeps this a thread rather than a second unrelated remark.
+    expect(comments[comments.length - 1]).toMatchObject({ parentUuid: "seed-1", text: "Agreed, pulling it back" });
+    // Only the root carries a reply affordance — a reply to a reply would have nowhere to nest.
+    await expect(page.getByTestId("share-comment-reply")).toHaveCount(1);
+    await expect(page.getByText(/replying to/i)).toHaveCount(0);
+  });
+
+  test("deleting a comment issues the DELETE and drops the row", async ({ page }) => {
+    const { comments, deleted } = await mockShare(page, {
+      targetType: "ASSET",
+      assets: [VIDEO],
+      seedComments: [
+        { uuid: "seed-1", text: "Second cut runs long", authorName: "Maria from Acme", created: "" },
+      ],
+    });
+    await page.goto(`/ui/share/${OPEN_SLUG}`);
+    await page.getByTestId("share-gate-skip").click();
+
+    await expect(page.getByTestId("share-comment")).toHaveCount(1, { timeout: 10_000 });
+    await page.getByTestId("share-comment-delete").click();
+
+    await expect.poll(() => deleted, { timeout: 10_000 }).toContain("seed-1");
+    expect(comments).toHaveLength(0);
+    // The list is re-read after the delete, so the row goes without a reload.
+    await expect(page.getByTestId("share-comment")).toHaveCount(0);
+    await expect(page.getByTestId("share-comments-empty")).toBeVisible();
   });
 
   test("a revoked, expired or unknown link says so without saying which", async ({ page }) => {

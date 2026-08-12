@@ -231,85 +231,6 @@ server already puts in the JWT.
 
 ---
 
-## Task 4: E2E for the memory screens, and the create-overwrites-existing bug it was hiding
-
-**Argumentation Summary:** The agent memory system (`228b0f97`, `6d454bc0`) shipped
-[MemoryView.tsx](../../loom-ui/src/features/memory/MemoryView.tsx) (322 lines, routed at `/memory`
-from [AppShell.tsx:59](../../loom-ui/src/layout/AppShell.tsx)) and `MemoryDenylistAdmin`
-([AdminArea.tsx:1363](../../loom-ui/src/features/admin/AdminArea.tsx), routed at
-`/admin/memory-denylist`) with **no Playwright spec of any kind**. Re-measured against the working
-tree, thirteen testids are still referenced by nothing in `e2e/`: `memory-view`, `memory-table`,
-`memory-new`, `memory-editor-{id,title,body,save}`, `memory-delete-confirm`, `memory-empty`,
-`memory-empty-scopes`, `memory-denylist-{admin,add,save,name,pattern,message,empty,error}`.
-(`memory-search` is the one exception — [list-search-mocked.spec.ts:152](../../loom-ui/e2e/list-search-mocked.spec.ts)
-drives it.) The only other mention of `/memory` in the suite is a navigation click in
-[routing-mocked.spec.ts](../../loom-ui/e2e/routing-mocked.spec.ts), which asserts the URL and stops.
-The denylist is a **safety control** — a rule that silently stops matching is exactly the failure a
-test is for. Compounding it, the endpoints are not registered unless `LOOM_AGENT_MEMORY_ENABLED=true`
-([../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.8), so the disabled path is untested too.
-
-**Improvement Summary:** Two mocked specs covering the memory CRUD lifecycle and the denylist rule
-lifecycle, plus a backend spec proving a denied pattern actually blocks a write — and the one bug
-the absent coverage was already hiding: "New" overwrites an existing note instead of reporting a
-conflict, because `createMemoryEntry` is never called (step 2).
-
-```
-1. loom-ui/e2e/memory-mocked.spec.ts -- route GET /memory/scopes, GET /memory, and
-   GET|POST|PUT|DELETE /memory/entry:
-     - the scope tabs render from /memory/scopes (testid `memory-scope-tab-${scope.scope}`);
-       picking one re-requests /memory?scope=… and fills `memory-table`
-     - `memory-empty-scopes` when /memory/scopes returns { scopes: [] }
-     - MemoryView.tsx:253 renders ONE element whose testid is `memory-empty` when the scope has no
-       entries and `memory-no-match` when the search box filtered them all away -- assert both
-     - `memory-new` is disabled for a scope with `writable: false`; assert that, it is the only
-       thing enforcing the human-curated shared scopes client-side
-     - create: `memory-new` -> fill `memory-editor-id` / `-title` / `-body` -> `memory-editor-save`
-       -> assert the request goes to `/memory/entry?scope=…&id=…` with body `{ body, title }`. The
-       id is a nested path and travels as the `id` QUERY PARAM, not in the route (entryQuery(),
-       api/memory.ts:75)
-     - edit an existing entry, and rename one: handleSave (MemoryView.tsx:118) writes the new id
-       and then DELETEs the old one, so assert both calls and their order
-     - delete via `memory-delete-confirm`
-     - a 4xx on save toasts and does NOT clear the editor (MemoryView.tsx:118-133 already does
-       this correctly -- the spec locks it in)
-     - endpoints 404 (LOOM_AGENT_MEMORY_ENABLED unset) -> an explanatory state, not a blank page
-2. Fix the create path while writing the spec above. `createMemoryEntry` (POST, 409 on an existing
-   id) is exported from api/memory.ts:120 and called from NOWHERE: `memory-new` runs the same
-   `saveMemoryEntry` PUT as an edit, so creating a note whose id already exists silently
-   OVERWRITES it instead of reporting the conflict -- and the rename branch will clobber a note it
-   never showed the user. Route `memory-new` through createMemoryEntry, surface the 409 in the
-   editor, and cover both in the spec. (If POST is judged wrong, delete the dead client function
-   rather than leaving a 409-aware call nothing makes.)
-3. loom-ui/e2e/memory-denylist-mocked.spec.ts -- route /memory-deny-rules (note the REST path is
-   `memory-deny-rules`, NOT `memory-denylist`; the testids use the other spelling):
-     - list renders rows as `memory-denylist-row-${r.name}`; `memory-denylist-empty` on { data: [] }
-     - add a rule: `memory-denylist-add` -> name/pattern/message -> `memory-denylist-save` ->
-       assert POST /memory-deny-rules with { name, pattern, message }
-     - edit uses POST /memory-deny-rules/:uuid, not PUT (loom convention, api/memoryDenylist.ts:80)
-     - `memory-denylist-toggle-${name}` flips `enabled` via that same POST
-     - an invalid-regex 400 from the server renders `memory-denylist-error` inline
-       (AdminArea.tsx:1518), not a toast alone
-     - the search box at AdminArea.tsx:1426 narrows the table
-     - reaching the screen: it is an admin TAB at /admin/memory-denylist (AdminArea.tsx:1549/1586)
-       and a MANAGEMENT sidebar entry (Sidebar.tsx:95) -- it is NOT inside sidebar-group-acl
-4. loom-ui/e2e/memory-backend.spec.ts -- against a demo server with LOOM_AGENT_MEMORY_ENABLED=true:
-     create a rule, then attempt a memory write that matches the pattern, assert it is refused with
-     the rule's message. This is the only test that proves the denylist is load-bearing.
-```
-
-**Backend dependency:** none new — the routes exist and are complete.
-`loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/rest/MemoryEndpoint.java`,
-`MemoryDenyRuleEndpoint.java` and their `*EndpointService` siblings; enforcement lives in
-`loom/agent/memory/src/main/java/io/metaloom/loom/agent/memory/MemoryDenylist.java` and
-`tool/PutMemoryTool.java`. The backend spec needs `LOOM_AGENT_MEMORY_ENABLED=true` on the server.
-
-**References:** [memory.ts](../../loom-ui/src/api/memory.ts) ·
-[memoryDenylist.ts](../../loom-ui/src/api/memoryDenylist.ts) ·
-[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7.8 · commits `228b0f97`, `6d454bc0`
-
-**Test Requirements:** The three specs above.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/memory-mocked.spec.ts e2e/memory-denylist-mocked.spec.ts`
-(the backend spec runs only against a live server, per §8.3).
 
 ---
 
@@ -484,53 +405,6 @@ inputs that specs locate. `cd loom-ui && ./node_modules/.bin/playwright test` an
 
 ---
 
-## Task 20: Unsaved pipeline edits are lost on any route change
-
-**Argumentation Summary:** [PipelineEditor.tsx:3517](../../loom-ui/src/features/pipeline/PipelineEditor.tsx)
-guards **one** path: selecting a different pipeline in the editor's own sidebar defers behind a
-discard-confirm (`pendingSwitch` / `confirmSwitch`). Every other exit is unguarded — clicking
-`/assets` in the app sidebar, following a notification deep link, or closing the tab discards the
-canvas silently, and the editor is the one screen in the app where a user can lose twenty minutes of
-work in one click. There is **no `beforeunload` handler and no router blocker anywhere in
-`loom-ui/src` except `UploadContext.tsx:68`**, which already demonstrates the pattern for the upload
-queue. [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §11.2 describes this as "the `dirty` flag warns
-but nothing blocks navigation", which overstates the current behaviour: outside the pipeline list
-there is no warning at all.
-
-**Improvement Summary:** Reuse the upload queue's guard for the pipeline canvas — a `beforeunload`
-while dirty and a route-change confirm — and correct the gotcha row.
-
-```
-1. Extract the guard so it is not written twice: src/hooks/useUnsavedChanges.ts taking
-   (isDirty: boolean, message: string). It registers/removes the `beforeunload` listener exactly the
-   way UploadContext.tsx:68-69 does.
-2. features/pipeline/PipelineEditor.tsx: call it with the existing `dirty` state (set at :3512 and
-   cleared on save at :3486). Reuse the existing discard-confirm dialog for in-app navigation rather
-   than adding a second one.
-3. In-app route changes: react-router's `useBlocker` requires a data router; this app uses
-   <BrowserRouter> + <Routes> (src/main.tsx, layout/AppShell.tsx), so useBlocker is NOT available.
-   Either migrate to createBrowserRouter or intercept at the Sidebar: have LayoutContext expose a
-   `guard` callback that Sidebar.tsx consults before navigating. Pick one and say which in the spec;
-   do not half-do both.
-4. features/uploads/UploadContext.tsx: migrate it onto the new hook so there is one implementation.
-5. Correct the ../loom/ui/LOOM_UI.md §11.2 row "Unsaved pipeline edits" -- it currently claims a
-   warning that only exists for the in-editor pipeline switch.
-```
-
-**Backend dependency:** none.
-
-**References:** [PipelineEditor.tsx](../../loom-ui/src/features/pipeline/PipelineEditor.tsx) ·
-[UploadContext.tsx](../../loom-ui/src/features/uploads/UploadContext.tsx) ·
-[../loom/ui/LOOM_UI_PIPELINE_EDITOR.md](../loom/ui/LOOM_UI_PIPELINE_EDITOR.md) ·
-[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §11.2
-
-**Test Requirements:**
-- `loom-ui/src/hooks/useUnsavedChanges.test.ts` — vitest over the pure add/remove-listener logic
-  (the hook body must be split so the listener wiring is testable without a renderer, per §8.1).
-- Extend `loom-ui/e2e/pipeline-crud-mocked.spec.ts`: edit a node parameter, click
-  `sidebar-item-/assets`, assert the confirm dialog appears and Cancel keeps the edit.
-- `cd loom-ui && ./node_modules/.bin/vitest run src/hooks/useUnsavedChanges.test.ts && ./node_modules/.bin/playwright test e2e/pipeline-crud-mocked.spec.ts`
-
 ---
 
 ## Task 19: i18n — hardcoded English toasts, four missing keys, and no parity guard
@@ -583,17 +457,19 @@ vitest that fails on the next divergence.
 
 ## Task 9: The unreferenced-testid ratchet, and the index of the batches that close the backlog
 
-**Argumentation Summary:** Re-measured against the working tree on 2026-08-12: of **491** distinct
-literal `data-testid` values in `loom-ui/src`, **116 (24 %)** are referenced by no spec in
+**Argumentation Summary:** Re-measured against the working tree on 2026-08-12: of **492** distinct
+literal `data-testid` values in `loom-ui/src`, **99 (20 %)** are referenced by no spec in
 `loom-ui/e2e/`. The share and remix features shipped after the 2026-08-11 audit and brought 25 of
-their own, which is the point — **the ratio has held at roughly a quarter for two audits running**,
+their own, which is the point — **the ratio held at roughly a quarter for two audits running**,
 so this is not a backlog that is being worked off but a rate at which new affordances arrive
 untested. Each unreferenced id is a shipped affordance no test touches, and the list is dominated by
 **loading and error testids**: they exist precisely because someone anticipated the state, and they
 are the states a `*-backend.spec.ts` against healthy demo data can never reach — only a mocked spec
-can. Seventeen of the 116 are the memory screens (Task 4) and five are the admin totals (Task 17);
-the remaining 92 are split across Tasks 21–31 below, **eight cases per task** so no single task
-becomes a sitting of forty assertions nobody finishes.
+can. The seventeen memory ids are **closed** (Task 4, see below); five are the admin totals
+(Task 17), and the remaining 92 are split across Tasks 21–31 below, **eight cases per task** so no
+single task becomes a sitting of forty assertions nobody finishes. Thirty of those 92 are now closed
+too (the annotation/comment cluster, the share dialog/feedback cluster and the asset-detail overflow
+cluster below), leaving **62**.
 
 The workflow cluster that led this list is **closed** (2026-08-12): `dedup-confirm`, `dedup-reject`,
 `dedup-group-score`, `workflow-already-rated`, `workflow-already-tagged`, `workflow-tags` and
@@ -601,6 +477,56 @@ The workflow cluster that led this list is **closed** (2026-08-12): `dedup-confi
 [workflow-dedup-mocked.spec.ts](../../loom-ui/e2e/workflow-dedup-mocked.spec.ts),
 [workflow-rating-mocked.spec.ts](../../loom-ui/e2e/workflow-rating-mocked.spec.ts) and
 [workflow-tagging-mocked.spec.ts](../../loom-ui/e2e/workflow-tagging-mocked.spec.ts).
+
+The annotation/comment cluster is **closed** (2026-08-12): `annotation-composer`,
+`annotation-region-toggle`, `annotation-cancel`, `comment-reply`, `comment-cancel`,
+`tasks-comment-input`, `tasks-comment-post`, `tasks-comment-reply-banner` and
+`tasks-comment-reply-cancel` now have eight cases across
+[annotations-mocked.spec.ts](../../loom-ui/e2e/annotations-mocked.spec.ts),
+[comments-mocked.spec.ts](../../loom-ui/e2e/comments-mocked.spec.ts) and
+[tasks-comments-mocked.spec.ts](../../loom-ui/e2e/tasks-comments-mocked.spec.ts). Two of the
+batch's assumptions did not survive contact with the code, and
+[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §11.2 now records both: **`comment-reply` renders
+only in the task drawer** — `AssetDetail` passes no `onReply` and its `handlePostComment` sends no
+`parentUuid`, so the asset comment thread is flat and that id could only be covered from
+`tasks-comments-mocked` — and **`*-cancel` is on the edit form, not the composer**, so what those
+cases guard is a stale *draft* re-opening, not a composer that fails to empty.
+
+The share dialog/feedback cluster is **closed** (2026-08-12): `share-dialog-error`,
+`share-dialog-done`, `share-dialog-download`, `share-dialog-feedback`, `share-annotation`,
+`share-comment-reply`, `share-comment-delete`, `share-mark-input` and `share-mark-submit` now have
+eight cases across [share-dialog-mocked.spec.ts](../../loom-ui/e2e/share-dialog-mocked.spec.ts) and
+[share-mocked.spec.ts](../../loom-ui/e2e/share-mocked.spec.ts). The dialog was already right about
+the failure mode Task 14 names — a create that answers 500 leaves the dialog open with its error
+banner — and the spec now holds it there.
+
+The asset-detail overflow cluster is **closed** (2026-08-12): `asset-share-menu-item`,
+`asset-add-to-remix-menu-item`, `asset-transcript-create-menu-item`,
+`transcript-create-source-input`, `transcript-create-lang-input`,
+`transcript-create-submit-button`, `asset-task-create-due-date-input`, `asset-remix-chip`,
+`add-to-remix-dialog`, `add-to-remix-input`, `add-to-remix-submit` and `video-timeline-bar` now
+have eleven cases across
+[transcripts-mocked.spec.ts](../../loom-ui/e2e/transcripts-mocked.spec.ts),
+[share-dialog-mocked.spec.ts](../../loom-ui/e2e/share-dialog-mocked.spec.ts),
+[remix-mocked.spec.ts](../../loom-ui/e2e/remix-mocked.spec.ts),
+[asset-tasks-mocked.spec.ts](../../loom-ui/e2e/asset-tasks-mocked.spec.ts) and the new
+[asset-timeline-mocked.spec.ts](../../loom-ui/e2e/asset-timeline-mocked.spec.ts). Two of the
+batch's assumptions did not survive contact with the code, and
+[../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §11.2 now records both: **there is no `<video>`
+element to read `currentTime` back from** — `AssetDetail` renders a placeholder and a simulated
+clock, and its `videoRef` is never attached — so the seek is asserted through the playhead and the
+time readout; and **the markers are annotations and temporal tags, not segments or detections** —
+`commentResponseToComment` drops the timestamps, so the `comment` marker type the component
+declares is unreachable from REST. `VideoTimeline` had no test handles beyond the bar, so the
+markers, the range highlights, the playhead and the time readout gained `data-testid`s of their own
+(`video-timeline-marker`, `-range`, `-playhead`, `-current-time`) — four ids added, all referenced.
+
+The memory cluster is **closed** (2026-08-12): all seventeen ids across `MemoryView` and
+`MemoryDenylistAdmin` are now driven by
+[memory-mocked.spec.ts](../../loom-ui/e2e/memory-mocked.spec.ts) and
+[memory-denylist-mocked.spec.ts](../../loom-ui/e2e/memory-denylist-mocked.spec.ts) — which is how
+the create-overwrites-existing bug surfaced (Task 4). That work added one id of its own,
+`memory-editor-error`, hence 492 rather than 491.
 
 **Improvement Summary:** Add a vitest ratchet that fails when the unreferenced set grows, so the
 batches below are worked off against a floor that cannot slip, and record the count where the next
@@ -618,13 +544,13 @@ agent will read it.
        (scripts/capture-node-screenshots.mjs). `storage-backends` and `storage-categories` are
        also driven by a capture script but are real affordances -- they belong to Task 27, not the
        allowlist.
-     - Baseline: 116 unreferenced of 491 total. Anything that reduces it should reduce the
+     - Baseline: 99 unreferenced of 492 total. Anything that reduces it should reduce the
        constant in the same commit.
 2. Extend the same file with the `console.log`-of-a-password grep guard from Task 15 rather than
    adding a second scanning test.
-3. Update ../loom/ui/LOOM_UI.md §8.2 (the spec count, currently "87 specs / 53 mocked / 31 backend"
-   -- recount, do not trust it) and §11.1 (the testid ratio) in the same change; Task 10 owns the
-   wider refresh of that file.
+3. Update ../loom/ui/LOOM_UI.md §8.2 (the spec count -- recount, do not trust it; it reads
+   "98 specs / 63 mocked / 32 backend" as of 2026-08-12) and §11.1 (the testid ratio) in the same
+   change; Task 10 owns the wider refresh of that file.
 ```
 
 **Backend dependency:** none.
@@ -680,187 +606,6 @@ most of these are one fixture field:
 
 ---
 
-## Task 22: E2E batch — the share dialog's outcomes and the feedback panel
-
-**Argumentation Summary:** [share-dialog-mocked.spec.ts](../../loom-ui/e2e/share-dialog-mocked.spec.ts)
-covers link creation, the copy button, expiry and the password toggle — the happy path only. What
-happens when share creation *fails* (`share-dialog-error`) is untested, and so is every affordance on
-[ShareFeedbackPanel.tsx](../../loom-ui/src/features/share/ShareFeedbackPanel.tsx), which is where the
-feedback a recipient left comes back to the person who sent the link. Nine testids, no references.
-
-**Improvement Summary:** Eight cases across the dialog and the feedback panel.
-
-```
-Extend loom-ui/e2e/share-dialog-mocked.spec.ts (dialog) and loom-ui/e2e/share-mocked.spec.ts
-(panel), whichever owns the screen:
-  1. `share-dialog-error`    -- the create call answers 500; the dialog stays OPEN and says so.
-                                A dialog that closes on a failed write is Task 14's failure mode
-  2. `share-dialog-done`     -- closes the dialog and leaves the link in place
-  3. `share-dialog-download` -- toggling downloads-allowed travels in the create/update body
-  4. `share-dialog-feedback` -- toggling feedback-allowed likewise
-  5. `share-annotation`      -- an annotation left by a recipient renders in the panel
-  6. `share-comment-reply`   -- replying to a recipient comment posts with the parent uuid
-  7. `share-comment-delete`  -- deleting one issues the DELETE and drops the row
-  8. `share-mark-input` + `share-mark-submit` -- leaving a mark posts its text
-```
-
-**Backend dependency:** none.
-
-**References:** [ShareDialog.tsx](../../loom-ui/src/features/share/ShareDialog.tsx) ·
-[ShareFeedbackPanel.tsx](../../loom-ui/src/features/share/ShareFeedbackPanel.tsx) · Task 14 · Task 9
-
-**Test Requirements:** The eight cases above.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/share-dialog-mocked.spec.ts e2e/share-mocked.spec.ts`
-
----
-
-## Task 23: E2E batch — annotation composer and the comment reply/cancel affordances
-
-**Argumentation Summary:** [annotations-mocked.spec.ts](../../loom-ui/e2e/annotations-mocked.spec.ts),
-[comments-mocked.spec.ts](../../loom-ui/e2e/comments-mocked.spec.ts) and
-[tasks-comments-mocked.spec.ts](../../loom-ui/e2e/tasks-comments-mocked.spec.ts) all test the *post*
-path and none of them test *not* posting. Every cancel and reply affordance across the three —
-`annotation-composer`, `annotation-region-toggle`, `annotation-cancel`, `comment-reply`,
-`comment-cancel`, `tasks-comment-input`, `tasks-comment-post`, `tasks-comment-reply-banner`,
-`tasks-comment-reply-cancel` — is unreferenced. Cancel paths are where half-written state leaks: a
-composer that keeps its text after a cancel, or a reply banner that survives its own cancel button,
-sends the next comment to the wrong parent.
-
-**Improvement Summary:** Eight cases covering opening, replying and abandoning.
-
-```
-  1. annotations-mocked: `annotation-composer` opens on the asset detail and takes text
-  2. annotations-mocked: `annotation-region-toggle` arms region mode -- the next drag draws a
-     region and the POST carries its bbox
-  3. annotations-mocked: `annotation-cancel` closes the composer, issues NO POST, and the composer
-     reopens EMPTY (the leak this case exists for)
-  4. comments-mocked:    `comment-reply` opens the reply composer with the parent comment named
-  5. comments-mocked:    `comment-cancel` abandons it without a POST
-  6. tasks-comments-mocked: `tasks-comment-input` + `tasks-comment-post` post a task comment
-  7. tasks-comments-mocked: `tasks-comment-reply-banner` names the comment being replied to
-  8. tasks-comments-mocked: `tasks-comment-reply-cancel` clears the banner, and the NEXT post goes
-     out with no parent uuid -- the assertion that makes case 7 worth anything
-```
-
-**Backend dependency:** none.
-
-**References:** [AssetDetail.tsx](../../loom-ui/src/features/assetDetail/AssetDetail.tsx) ·
-[CommentItem.tsx](../../loom-ui/src/features/assetDetail/CommentItem.tsx) ·
-[TasksView.tsx](../../loom-ui/src/features/tasks/TasksView.tsx) · Task 9
-
-**Test Requirements:** The eight cases above.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/annotations-mocked.spec.ts e2e/comments-mocked.spec.ts e2e/tasks-comments-mocked.spec.ts`
-
----
-
-## Task 24: E2E batch — the asset detail overflow menu, transcript creation and the video timeline
-
-**Argumentation Summary:** The asset detail overflow menu gained three entries — share, add-to-remix
-and create-transcript — as those features landed, and no spec opens any of them; the transcript
-dialog behind one of them
-([transcripts-mocked.spec.ts](../../loom-ui/e2e/transcripts-mocked.spec.ts) tests reading transcripts,
-not creating one) is likewise untouched. Separately,
-[VideoTimeline.tsx](../../loom-ui/src/features/assetDetail/VideoTimeline.tsx) has **no owning spec at
-all**: `video-timeline-bar` is the seek surface for every video in the product and no test has ever
-clicked it.
-
-**Improvement Summary:** Seven cases on the existing asset-detail specs plus one new spec for the
-timeline.
-
-```
-  1. `asset-transcript-create-menu-item` opens the create dialog
-  2. `transcript-create-lang-input` + `transcript-create-source-input` + `transcript-create-submit-button`
-     POST the new transcript with both fields, and the dialog closes only on success
-  3. `asset-share-menu-item` opens the share dialog from an asset (not only from a collection,
-     which is all share-dialog-mocked covers today)
-  4. `asset-add-to-remix-menu-item` opens the add-to-remix dialog
-  5. `asset-remix-chip` renders on an asset that belongs to a remix and links to it
-  6. `asset-task-create-due-date-input` -- the due date travels in the task POST body
-  7. NEW loom-ui/e2e/asset-timeline-mocked.spec.ts: `video-timeline-bar` renders one marker per
-     segment/detection the asset carries, positioned by timecode
-  8. …and clicking the bar seeks the <video> element to the corresponding time (read
-     `currentTime` back through page.evaluate; jsdom is not available and the real element is)
-```
-
-**Backend dependency:** none.
-
-**References:** [AssetDetail.tsx](../../loom-ui/src/features/assetDetail/AssetDetail.tsx) ·
-[VideoTimeline.tsx](../../loom-ui/src/features/assetDetail/VideoTimeline.tsx) · Task 9
-
-**Test Requirements:** Cases 1–6 on the existing asset-detail specs, plus the new
-`e2e/asset-timeline-mocked.spec.ts`.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/asset-timeline-mocked.spec.ts e2e/transcripts-mocked.spec.ts e2e/asset-tasks-mocked.spec.ts`
-
----
-
-## Task 25: E2E batch — the remix dialog
-
-**Argumentation Summary:** [remix-mocked.spec.ts](../../loom-ui/e2e/remix-mocked.spec.ts) covers
-creating a remix from a bulk selection and removing a member. The dialog's other half — adding an
-existing asset to a remix, renaming one, deleting one, and what it shows when a remix is empty — is
-eight unreferenced testids across
-[AddToRemixDialog.tsx](../../loom-ui/src/features/remix/AddToRemixDialog.tsx) and
-[RemixDialog.tsx](../../loom-ui/src/features/remix/RemixDialog.tsx). Remix membership decides what
-the asset grid collapses into one card, so a silent failure here hides assets from their owner.
-
-**Improvement Summary:** Eight cases on the existing remix spec.
-
-```
-  1. `add-to-remix-dialog`  opens from the asset detail menu (Task 24 case 4 opens it; this one
-                            asserts its contents -- the remixes offered)
-  2. `add-to-remix-input`   filters that list
-  3. `add-to-remix-submit`  POSTs the membership and the asset joins the remix
-  4. `remix-name-input`     renaming a remix PATCHes it and the card relabels
-  5. `remix-members`        lists the members in order
-  6. `remix-member-count`   agrees with the number of rows -- these disagree the moment one write
-                            fails, which is what makes it worth asserting together
-  7. `remix-delete`         deletes the remix and its members reappear as individual assets
-  8. `remix-empty`          a remix whose last member was removed says so
-```
-
-**Backend dependency:** none.
-
-**References:** [../features/remix/REMIX.md](../features/remix/REMIX.md) ·
-[AddToRemixDialog.tsx](../../loom-ui/src/features/remix/AddToRemixDialog.tsx) · Task 9
-
-**Test Requirements:** The eight cases above.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/remix-mocked.spec.ts`
-
----
-
-## Task 26: E2E batch — chat session creation, saving and the files panel
-
-**Argumentation Summary:** [chat-sessions-mocked.spec.ts](../../loom-ui/e2e/chat-sessions-mocked.spec.ts)
-reads the published-session list; nothing creates or edits one. Nine testids across
-[ChatSessionsView.tsx](../../loom-ui/src/features/chatSessions/ChatSessionsView.tsx) and
-[ChatSessionDetail.tsx](../../loom-ui/src/features/chatSessions/ChatSessionDetail.tsx) are
-unreferenced, including both save buttons — a session save that silently drops the description or the
-tags is invisible until somebody goes looking for a session they published.
-
-**Improvement Summary:** Eight cases on the existing spec.
-
-```
-  1. `chat-session-create-dialog` opens and POSTs a session
-  2. `chat-session-create-tags`   tags set at creation travel in that POST
-  3. `chat-sessions-mine-tab`     narrows the list to sessions this user owns (assert the request
-                                  the tab issues, not only the rows -- filtering client-side over
-                                  one page would look identical and be wrong)
-  4. `chat-session-description-input` + `chat-session-save` persist an edited description
-  5. `chat-session-tags-input`    adds a tag on the detail screen
-  6. `chat-session-ctx-save`      saves the session CONTEXT, which is a separate write from 4 --
-                                  assert it hits its own route
-  7. `session-files-panel`        lists the files attached to a session
-  8. `session-files-empty`        a session with no files says so
-```
-
-**Backend dependency:** none.
-
-**References:** [../loom/ui/LOOM_UI.md](../loom/ui/LOOM_UI.md) §7 · Task 9
-
-**Test Requirements:** The eight cases above.
-`cd loom-ui && ./node_modules/.bin/playwright test e2e/chat-sessions-mocked.spec.ts`
-
----
 
 ## Task 27: E2E batch — the admin loading states nobody can reach with real data
 

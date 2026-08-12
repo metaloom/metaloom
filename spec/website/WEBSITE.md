@@ -674,11 +674,35 @@ Filenames must stay stable so refreshes overwrite in place: `chat`, `chat-sessio
 images in the bundle — `uploads` and `uploads-sidebar` — come from a **different, mocked** script
 ([Capturing the upload screen](#capturing-the-upload-screen-docsui)); this one does not take them.
 
-* `DemoDatabaseInitializer` seeds every screen with real content, and **paints real image bytes**, so
-  the asset browser shows pictures. Video/audio/PDF stay as placeholders — expected, not a failure.
-  The exception is faces: account pictures and person images are **shipped photographs**
-  (`loom/core/src/main/resources/demo/portraits/`, three faces × two framings), because a painted
-  gradient does not read as a person. `persons.png` is the shot that shows them.
+It also writes outside its own bundle, into the bundle of whichever page uses the shot:
+`docs/loom/search-indices/` gets the two index screens, and `docs/getting-started/` gets
+`loom-ui-chat` and `loom-ui-assets` — the same two screens the guide opens on. Those were refreshed
+by hand until they were the stalest pictures on the site; taking them in this pass is what keeps
+Getting Started and the UI tour showing one product.
+
+The script also takes `workflow-rating`, `workflow-tagging` and `workflow-dedup`. Only
+`workflow-dedup` is checked in and used, on § Reviewing Duplicates — it is the one of the three whose
+picture carries information the prose cannot (the keep framed in green, both sizes, the score). The
+other two are left on the floor deliberately: the rating and tagging screens are described by their
+key tables, and a figure of "one asset with a star row under it" adds a megabyte and no meaning.
+
+* **The pictures come from `demo-content/`**, which the demo `Containerfile` copies to
+  `/demo-content` and points `LOOM_DEMO_CONTENT_DIR` at. `DemoDatabaseInitializer` seeds sixteen
+  photographs, five clips and every account and person picture out of it, resized to 1600 px on the
+  way in — Loom has no thumbnail service, so the grid loads the stored binary itself and the
+  originals would make the first screen a ~16 MB download. Audio and PDF stay as placeholders:
+  the directory holds neither.
+* **Without that directory the images are painted**, which is what every plain server does — the demo
+  seed has no flag and runs on all of them. That fall-back is a supported state, not a broken one,
+  but it is not what these screenshots are of. Faces then come from the six 512x512 crops shipped in
+  `loom/core/src/main/resources/demo/portraits/`, and the demo seeds three people instead of five,
+  because the jar carries three faces and two people wearing one face reads as a clustering bug.
+* **Video tiles are frames, decoded by the browser.** There is still no poster-frame endpoint; the
+  grid and the share view point a muted `<video preload="metadata" src="…#t=1">` at the same binary
+  an `<img>` would have loaded, and the range support on `/assets/:uuid/binary/data` serves the one
+  frame. `assets.png` and `share-collection.png` both depend on that.
+* **The asset detail view plays the clip.** It used to draw a placeholder over a `setInterval` that
+  counted seconds nobody could see; `asset-detail.png` on a video is now a real player.
 * **The ACL screens sit in a collapsed sub-group**; `openAclGroup()` must click
   `[data-testid="sidebar-group-acl"]` first or the nav click times out. `clickNav` matches
   `^\d*<label>\d*$` so a badge counter (Tasks) still resolves.
@@ -761,7 +785,7 @@ released screen and not the one in the working tree — which is easy to miss, b
 in the shot looks current.
 
 The demo database gives this something to show: two of the three demo accounts have pictures, the
-three demo people have galleries with one designated avatar each, and the demo pools include an S3
+five demo people have galleries with one designated avatar each, and the demo pools include an S3
 one — which is the case worth having in the shot, because it is the one that renders as *Not
 measurable* rather than green.
 
@@ -809,7 +833,7 @@ inside the bundle of the page that uses it — the same reason the two search-in
   20-row sample cap, which is what puts the "... and 4 more" line in the picture.
 * **Don't hand-undo the damage.** Recreating the database is one command and cannot leave a
   half-restored row behind; `DemoDatabaseInitializer` reseeds on the next start.
-* The demo database is expected to pass all 29 checks. If `db-integrity-clean.png` is not clean, that
+* The demo database is expected to pass all 28 checks. If `db-integrity-clean.png` is not clean, that
   is a finding about the demo seed, not a capture problem — fix the seed.
 
 ## Capturing Debug Mode screenshots (`docs/pipeline/`)
@@ -850,8 +874,19 @@ Filenames, in the order the page uses them: `debug-held-full` (whole application
 * **Probe the dev server over HTTP, not TCP.** Vite binds the `localhost` name, which on a
   dual-stack host may be `::1` alone; a `net.connect` to `127.0.0.1` reports a running server as
   absent. (`npx` also hangs here — call `node_modules/.bin/vite` directly.)
-* The stand-in thumbnail is a gradient with three detection boxes, PNG-encoded inline by the script
-  (~40 lines over `zlib`) so the capture needs nothing installed beyond what `loom-ui` already has.
+* **Nothing in these pictures is a stand-in.** The payloads and every image in them come from
+  `DebugScreenshotFixtureGenerator`, which runs the real thumbnail and facedetect nodes; the script
+  only plays them back. Regenerate the fixtures whenever either node's behaviour changes — the
+  committed set once still carried `face_count: 10` and `confidence: 1.0` from before the node
+  clustered its detections, and the prose beside the picture had been written against those numbers.
+* **The source clip is the corpus's, not the demo container's.** Both this capture and the detection
+  player deliberately use `pexels-jack-sparrow-5977460.mp4` rather than `demo-content/`'s meeting
+  footage. The page's argument is that the default 30° face angle finds *nothing* on conversational
+  footage; over the demo clip the default finds two faces and 90° merges one man's profile and
+  frontal views into a single subject. Both are true results and neither illustrates the point.
+* **Click *Pipelines* once.** A second click on a sidebar entry is a navigation *out of* the editor
+  as far as the unsaved-changes guard is concerned, and the guard answers with the discard dialog —
+  which then sits over the canvas and swallows every later click in the script.
 
 ## Configuration
 

@@ -27,7 +27,7 @@
 - [x] loom-ui: `chatSessions.ts`, `ChatSessionsView`, `ChatSessionDetail` (incl. context editor),
       routes + sidebar entry
 - [x] Demo data (`DemoDatabaseInitializer` — 3 sessions, refs, pins) and
-      `loom-ui/e2e/chat-sessions-mocked.spec.ts` (3 tests)
+      `loom-ui/e2e/chat-sessions-mocked.spec.ts` (11 tests — CRUD, tabs, detail saves, files panel)
 - [ ] **Filesystem snapshot / restore** (§6) — columns exist, nothing writes them; no `runnerd`
       `/snapshot`+`/restore`; the sandbox workspace is a **tmpfs**
 - [ ] **Run-time context assembly** (§5.2) — `AgentLoop` never reads `chat_session_context_ref`
@@ -214,11 +214,16 @@ client [`loom-ui/src/api/chatSessions.ts`](../../../loom-ui/src/api/chatSessions
 ./setup-pool.sh                                                  # required before any DB test
 mvn -q test -pl loom/db/jooq -Dtest=ChatSessionDaoTest           # DAO + cascade coverage
 mvn -q test -pl loom/agent/chat -Dtest=AgentLoopTest             # loop incl. capture path
-cd loom-ui && npx playwright test e2e/chat-sessions-mocked.spec.ts   # mocked e2e (3 tests)
+cd loom-ui && ./node_modules/.bin/playwright test e2e/chat-sessions-mocked.spec.ts   # mocked e2e (11 tests)
 ```
 
 `chat-sessions-mocked.spec.ts` intercepts `/chat-sessions*` and `/sessions/*/files`, so it needs no
 backend. Backend endpoint coverage is the gap listed in §9.3.
+
+The mock filters `?scope=mine|published` **server-side** (mine = created by the logged-in user), and
+seeds a session published by another user plus one whose workspace listing is empty. Tests therefore
+assert the request the UI issued, not only the rows it rendered — a view that fetched one page and
+filtered it client-side would render identically and still be wrong.
 
 ## 12. Conventions & Gotchas
 

@@ -18,6 +18,16 @@ interface StoredComment {
   status: { creator: { uuid: string }; created: string };
 }
 
+/** What the browser actually sent, so a *missing* write can be asserted rather than inferred. */
+interface Recorder {
+  /** Bodies of every POST /comments/:uuid (the update route). */
+  updates: { uuid: string; body: Record<string, unknown> }[];
+}
+
+function recorder(): Recorder {
+  return { updates: [] };
+}
+
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
@@ -30,8 +40,8 @@ function asset() {
   };
 }
 
-async function installMocks(page: Page) {
-  const comments: StoredComment[] = [];
+async function installMocks(page: Page, seed: StoredComment[], rec: Recorder) {
+  const comments: StoredComment[] = [...seed];
   let seq = 0;
 
   // Catch-all first (lowest priority) — empty collections for the many
@@ -78,13 +88,14 @@ async function installMocks(page: Page) {
     }
     // POST update
     const body = JSON.parse(route.request().postData() || "{}");
+    rec.updates.push({ uuid, body });
     if (found && body.text != null) found.text = body.text;
     return json(route, found ?? {}, 200);
   });
 }
 
-async function loginAndOpenAssetDetail(page: Page) {
-  await installMocks(page);
+async function loginAndOpenAssetDetail(page: Page, seed: StoredComment[] = [], rec: Recorder = recorder()) {
+  await installMocks(page, seed, rec);
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
@@ -97,6 +108,16 @@ async function loginAndOpenAssetDetail(page: Page) {
   await assetLink.click();
   await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
   await page.getByRole("tab", { name: /comments/i }).click();
+  return rec;
+}
+
+function seededComment(text: string): StoredComment {
+  return {
+    uuid: "seeded-comment",
+    text,
+    assetUuid: ASSET_UUID,
+    status: { creator: { uuid: ME_UUID }, created: new Date().toISOString() },
+  };
 }
 
 test.describe("Comments – mocked e2e", () => {
@@ -124,5 +145,35 @@ test.describe("Comments – mocked e2e", () => {
     await page.locator("div").filter({ hasText: editedText }).last().hover();
     await page.getByTestId("comment-delete").click();
     await expect(page.getByText(editedText, { exact: true })).toBeHidden({ timeout: 10_000 });
+  });
+
+  /**
+   * The cancel half of the edit round-trip above. `comment-cancel` sits on the edit form — the
+   * asset composer itself has no cancel, it is simply always open on the tab. What this guards is
+   * the draft: an editor that kept the abandoned text would re-open on it, and the next save would
+   * write words the author already backed out of.
+   */
+  test("cancelling a comment edit writes nothing and re-opens on the stored text", async ({ page }) => {
+    const text = "the stored comment";
+    const rec = await loginAndOpenAssetDetail(page, [seededComment(text)]);
+
+    await expect(page.getByText(text, { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    await page.locator("div").filter({ hasText: text }).last().hover();
+    await page.getByTestId("comment-edit").click();
+    await page.getByTestId("comment-edit-field").fill("abandoned text");
+    await page.getByTestId("comment-cancel").click();
+
+    // The form closes, the list still shows what the server holds, and no write went out.
+    await expect(page.getByTestId("comment-edit-field")).toHaveCount(0);
+    await expect(page.getByText(text, { exact: true })).toBeVisible();
+    await expect(page.getByText("abandoned text", { exact: true })).toHaveCount(0);
+    expect(rec.updates).toEqual([]);
+
+    // Re-opening starts from the stored text, not from the draft that was thrown away.
+    await page.locator("div").filter({ hasText: text }).last().hover();
+    await page.getByTestId("comment-edit").click();
+    await expect(page.getByTestId("comment-edit-field")).toHaveValue(text);
+    expect(rec.updates).toEqual([]);
   });
 });

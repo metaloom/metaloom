@@ -54,11 +54,18 @@ function seededTask(): StoredTask {
   };
 }
 
-async function installMocks(page: Page, seed: StoredTask[]) {
+/** What the page asked the backend to do: the call order, and the create bodies themselves. */
+interface Captured {
+  calls: string[];
+  creates: Record<string, unknown>[];
+}
+
+async function installMocks(page: Page, seed: StoredTask[]): Promise<Captured> {
   const tasks: StoredTask[] = [...seed];
   const assigned = new Set(seed.map(t => t.uuid));
   let seq = 0;
-  const calls: string[] = [];
+  const captured: Captured = { calls: [], creates: [] };
+  const calls = captured.calls;
 
   // Catch-all first (lowest priority) — empty collections for the many
   // list endpoints AssetDetail fans out to (reactions, transcripts, …).
@@ -79,6 +86,7 @@ async function installMocks(page: Page, seed: StoredTask[]) {
   await page.route(/\/api\/v1\/tasks(\?|$)/, route => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
+      captured.creates.push(body);
       const created: StoredTask = {
         uuid: `task-${++seq}`,
         title: body.title ?? "",
@@ -114,11 +122,11 @@ async function installMocks(page: Page, seed: StoredTask[]) {
     return json(route, found ?? {}, 201);
   });
 
-  return calls;
+  return captured;
 }
 
 async function loginAndOpenTasksTab(page: Page, seed: StoredTask[]) {
-  const calls = await installMocks(page, seed);
+  const captured = await installMocks(page, seed);
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
@@ -131,7 +139,7 @@ async function loginAndOpenTasksTab(page: Page, seed: StoredTask[]) {
   await assetLink.click();
   await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
   await page.getByRole("tab", { name: /tasks/i }).click();
-  return calls;
+  return captured;
 }
 
 test.describe("Asset tasks – mocked e2e", () => {
@@ -157,7 +165,7 @@ test.describe("Asset tasks – mocked e2e", () => {
   });
 
   test("Create Task chains task creation with asset assignment", async ({ page }) => {
-    const calls = await loginAndOpenTasksTab(page, []);
+    const { calls } = await loginAndOpenTasksTab(page, []);
 
     await page.getByTestId("asset-actions-menu-button").click();
     await page.getByTestId("asset-task-create-menu-item").click();
@@ -173,6 +181,43 @@ test.describe("Asset tasks – mocked e2e", () => {
 
     // The UI must first create the task and then assign it to the asset.
     expect(calls).toEqual(["POST /tasks (task-1)", "POST /assets/tasks (task-1)"]);
+  });
+
+  test("the due date travels in the task create body as a second-precision instant", async ({ page }) => {
+    const { creates } = await loginAndOpenTasksTab(page, []);
+
+    await page.getByTestId("asset-actions-menu-button").click();
+    await page.getByTestId("asset-task-create-menu-item").click();
+
+    await page.getByTestId("asset-task-create-title-input").fill("Grade the intro");
+    await page.getByTestId("asset-task-create-due-date-input").fill("2026-09-15");
+    await Promise.all([
+      page.waitForRequest(req => /\/api\/v1\/tasks(\?|$)/.test(req.url()) && req.method() === "POST"),
+      page.getByTestId("asset-task-create-submit-button").click(),
+    ]);
+
+    expect(creates).toHaveLength(1);
+    // The REST API takes yyyy-MM-dd'T'HH:mm:ssX — a date input yields a date-only value, which
+    // parses as UTC midnight, and the milliseconds JS adds have to come back off before sending.
+    expect(creates[0]).toMatchObject({ title: "Grade the intro", dueDate: "2026-09-15T00:00:00Z" });
+
+    await expect(page.getByTestId("asset-task-due-date")).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("a task created without a due date sends none at all", async ({ page }) => {
+    const { creates } = await loginAndOpenTasksTab(page, []);
+
+    await page.getByTestId("asset-actions-menu-button").click();
+    await page.getByTestId("asset-task-create-menu-item").click();
+    await page.getByTestId("asset-task-create-title-input").fill("No deadline");
+    await Promise.all([
+      page.waitForRequest(req => /\/api\/v1\/tasks(\?|$)/.test(req.url()) && req.method() === "POST"),
+      page.getByTestId("asset-task-create-submit-button").click(),
+    ]);
+
+    // An empty field must not become "Invalid Date" — the key is left out entirely.
+    expect(creates).toHaveLength(1);
+    expect(creates[0]).not.toHaveProperty("dueDate");
   });
 
   test("task drawer shows taskStatus, priority, due date and assignees but no tags", async ({ page }) => {

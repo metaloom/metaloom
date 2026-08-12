@@ -14,8 +14,10 @@ public interface RemixModelBuilder extends ModelBuilder, UserModelBuilder {
 	 * Build a remix response without its member count.
 	 *
 	 * <p>
-	 * The list route uses this one: counting the members of every remix on a page would be one query
-	 * per row. A caller that needs the count for a single remix uses the overload below.
+	 * {@code memberCount} is a primitive, so what this actually sends is <b>zero</b> — and a remix
+	 * card reading "0 assets" over three thumbnails is worse than no count at all. The list route
+	 * therefore uses {@link #toRemixList(Page, java.util.function.ToLongFunction)} and pays for the
+	 * counts; this overload is for the callers that genuinely have none to give.
 	 * </p>
 	 */
 	default RemixResponse toResponse(Remix remix) {
@@ -50,6 +52,20 @@ public interface RemixModelBuilder extends ModelBuilder, UserModelBuilder {
 
 	default RemixListResponse toRemixList(Page<Remix> page) {
 		return setPage(new RemixListResponse(), page, this::toResponse);
+	}
+
+	/**
+	 * A page of remixes, each with its member count.
+	 *
+	 * <p>
+	 * One count query per row. That is the cost of the band on the asset browser saying what it is
+	 * counting: a page holds at most a few dozen remixes, the count is an indexed lookup on the join
+	 * table, and the alternative — which is what this route did — is every card claiming zero members
+	 * whatever it holds.
+	 * </p>
+	 */
+	default RemixListResponse toRemixList(Page<Remix> page, java.util.function.ToLongFunction<java.util.UUID> memberCount) {
+		return setPage(new RemixListResponse(), page, remix -> toResponse(remix, memberCount.applyAsLong(remix.getUuid())));
 	}
 
 	default RemixMemberListResponse toRemixMemberList(Page<RemixMember> page) {

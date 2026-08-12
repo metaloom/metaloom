@@ -3,7 +3,7 @@
   "generatedBy" : "io.metaloom.loom.test.integration.node.DebugScreenshotFixtureGenerator",
   "thumbnail" : {
     "flag" : "DONE",
-    "path" : "/tmp/debug-fixture-thumb15861083754873075317/thumbnail_bin/9dc6/9dc6cd0498cf65a637e623b1904676c79bd65d72567b9f6711e388ccbe63676707033a6ee9793557d86a72014d351f424c92ecc066edd0688c4ce34268c1c226.thumb",
+    "path" : "/tmp/debug-fixture-thumb1933582935595877965/thumbnail_bin/9dc6/9dc6cd0498cf65a637e623b1904676c79bd65d72567b9f6711e388ccbe63676707033a6ee9793557d86a72014d351f424c92ecc066edd0688c4ce34268c1c226.thumb",
     "cols" : 6,
     "rows" : 1,
     "tileSize" : 384
@@ -19,7 +19,7 @@
   "facedetectWide" : {
     "maxFaceAngle" : 90.0,
     "flag" : "SUCCESS",
-    "faceCount" : 10,
+    "faceCount" : 2,
     "elements" : [ {
       "index" : 0,
       "type" : "face",
@@ -31,8 +31,9 @@
         "w" : 286,
         "h" : 288
       },
-      "confidence" : 1.0,
+      "confidence" : 0.82454526,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 1,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -46,8 +47,9 @@
         "w" : 331,
         "h" : 321
       },
-      "confidence" : 1.0,
+      "confidence" : 0.8013588,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 0,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -61,8 +63,9 @@
         "w" : 244,
         "h" : 286
       },
-      "confidence" : 1.0,
+      "confidence" : 0.65007585,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 1,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -76,8 +79,9 @@
         "w" : 282,
         "h" : 298
       },
-      "confidence" : 1.0,
+      "confidence" : 0.80414706,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 1,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -91,8 +95,9 @@
         "w" : 343,
         "h" : 331
       },
-      "confidence" : 1.0,
+      "confidence" : 0.79094195,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 0,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -106,8 +111,9 @@
         "w" : 254,
         "h" : 291
       },
-      "confidence" : 1.0,
+      "confidence" : 0.6145337,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 1,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -121,8 +127,9 @@
         "w" : 333,
         "h" : 324
       },
-      "confidence" : 1.0,
+      "confidence" : 0.7550585,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 0,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -136,8 +143,9 @@
         "w" : 286,
         "h" : 299
       },
-      "confidence" : 1.0,
+      "confidence" : 0.6975452,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 1,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -151,8 +159,9 @@
         "w" : 263,
         "h" : 287
       },
-      "confidence" : 1.0,
+      "confidence" : 0.6850023,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 1,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     }, {
@@ -166,12 +175,13 @@
         "w" : 330,
         "h" : 305
       },
-      "confidence" : 1.0,
+      "confidence" : 0.7988632,
       "coordinates" : "ABSOLUTE_PIXELS",
+      "cluster" : 0,
       "imageWidth" : 3840,
       "imageHeight" : 2160
     } ],
-    "markdown" : "| # | confidence | box (x, y, w, h) | frame |\n|---|---|---|---|\n| 0 | 1.0 | 2773, 622, 286, 288 | 255 |\n| 1 | 1.0 | 1036, 721, 331, 321 | 255 |\n| 2 | 1.0 | 2721, 612, 244, 286 | 240 |\n| 3 | 1.0 | 2752, 597, 282, 298 | 270 |\n| 4 | 1.0 | 1029, 702, 343, 331 | 270 |\n| 5 | 1.0 | 2679, 628, 254, 291 | 195 |\n| 6 | 1.0 | 1006, 725, 333, 324 | 240 |\n| 7 | 1.0 | 2693, 583, 286, 299 | 210 |\n| 8 | 1.0 | 2719, 620, 263, 287 | 225 |\n| 9 | 1.0 | 1040, 748, 330, 305 | 195 |\n",
+    "markdown" : "| # | confidence | box (x, y, w, h) | frame |\n|---|---|---|---|\n| 0 | 0.82454526 | 2773, 622, 286, 288 | 255 |\n| 1 | 0.8013588 | 1036, 721, 331, 321 | 255 |\n| 2 | 0.65007585 | 2721, 612, 244, 286 | 240 |\n| 3 | 0.80414706 | 2752, 597, 282, 298 | 270 |\n| 4 | 0.79094195 | 1029, 702, 343, 331 | 270 |\n| 5 | 0.6145337 | 2679, 628, 254, 291 | 195 |\n| 6 | 0.7550585 | 1006, 725, 333, 324 | 240 |\n| 7 | 0.6975452 | 2693, 583, 286, 299 | 210 |\n| 8 | 0.6850023 | 2719, 620, 263, 287 | 225 |\n| 9 | 0.7988632 | 1040, 748, 330, 305 | 195 |\n",
     "images" : [ "wide-detections.jpg", "wide-detections-0.jpg", "wide-detections-1.jpg", "wide-detections-2.jpg", "wide-detections-3.jpg", "wide-detections-4.jpg", "wide-detections-5.jpg", "wide-detections-6.jpg", "wide-detections-7.jpg", "wide-detections-8.jpg", "wide-detections-9.jpg" ]
   }
 }

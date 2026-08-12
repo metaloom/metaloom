@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 import {
   BatchOutcome,
   UploadSummary,
@@ -58,16 +59,9 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   }, [showToast, t]);
 
   // Reloading drops the File handles and the endpoint cannot resume, so an in-flight batch is lost
-  // for good. Warn before that happens.
-  useEffect(() => {
-    if (!summary.isActive) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [summary.isActive]);
+  // for good. Warn before that happens. No nav guard goes with it: the queue is module-level and
+  // outlives every route change, so leaving the upload screen costs nothing.
+  useUnsavedChanges(summary.isActive, t("uploads.unloadWarning"));
 
   return <UploadContext.Provider value={summary}>{children}</UploadContext.Provider>;
 }

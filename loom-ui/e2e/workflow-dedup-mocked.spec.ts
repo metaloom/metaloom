@@ -84,8 +84,8 @@ async function installMocks(page: Page, groups: unknown[] = [pendingGroup()], pa
   await page.route(/\/api\/v1\/assets\/[^/?]+$/, route => {
     const uuid = decodeURIComponent(route.request().url().split("/assets/")[1].split("?")[0]);
     return json(route, uuid === KEEP_UUID
-      ? asset(KEEP_UUID, "drone-coastal.mp4", 52_000_000)
-      : asset(DUP_UUID, "drone-coastal-720p.mp4", 18_000_000));
+      ? asset(KEEP_UUID, "city-traffic.mp4", 52_000_000)
+      : asset(DUP_UUID, "city-traffic-720p.mp4", 18_000_000));
   });
 
   return patches;
@@ -115,9 +115,9 @@ test.describe("Workflow deduplication – mocked e2e", () => {
     await expect(group).toHaveAttribute("data-group-uuid", GROUP_UUID);
 
     // The keep is the larger file; both members show their discovery-time size.
-    await expect(page.getByTestId("dedup-keep")).toContainText("drone-coastal.mp4");
+    await expect(page.getByTestId("dedup-keep")).toContainText("city-traffic.mp4");
     await expect(page.getByTestId("dedup-keep")).toContainText("50 MB");
-    await expect(page.getByTestId(`dedup-member-${DUP_UUID}`)).toContainText("drone-coastal-720p.mp4");
+    await expect(page.getByTestId(`dedup-member-${DUP_UUID}`)).toContainText("city-traffic-720p.mp4");
     await expect(page.getByTestId(`dedup-member-${DUP_UUID}`)).toContainText("17 MB");
   });
 

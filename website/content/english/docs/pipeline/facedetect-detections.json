@@ -3,7 +3,7 @@
   "source" : "pexels-jack-sparrow-5977460.mp4",
   "node" : "facedetect",
   "options" : {
-    "videoChopRate" : 5,
+    "videoChopRate" : 15,
     "videoScaleSize" : 512,
     "minFaceHeightFactor" : 0.05,
     "maxFaceAngle" : 90.0
@@ -35,8 +35,9 @@
       "w" : 286,
       "h" : 288
     },
-    "confidence" : 1.0,
+    "confidence" : 0.82454526,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 1,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -50,8 +51,9 @@
       "w" : 331,
       "h" : 321
     },
-    "confidence" : 1.0,
+    "confidence" : 0.8013588,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 0,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -65,8 +67,9 @@
       "w" : 244,
       "h" : 286
     },
-    "confidence" : 1.0,
+    "confidence" : 0.65007585,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 1,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -80,8 +83,9 @@
       "w" : 282,
       "h" : 298
     },
-    "confidence" : 1.0,
+    "confidence" : 0.80414706,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 1,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -95,8 +99,9 @@
       "w" : 343,
       "h" : 331
     },
-    "confidence" : 1.0,
+    "confidence" : 0.79094195,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 0,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -110,8 +115,9 @@
       "w" : 254,
       "h" : 291
     },
-    "confidence" : 1.0,
+    "confidence" : 0.6145337,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 1,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -125,8 +131,9 @@
       "w" : 333,
       "h" : 324
     },
-    "confidence" : 1.0,
+    "confidence" : 0.7550585,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 0,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -140,8 +147,9 @@
       "w" : 286,
       "h" : 299
     },
-    "confidence" : 1.0,
+    "confidence" : 0.6975452,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 1,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -155,8 +163,9 @@
       "w" : 263,
       "h" : 287
     },
-    "confidence" : 1.0,
+    "confidence" : 0.6850023,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 1,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   }, {
@@ -170,8 +179,9 @@
       "w" : 330,
       "h" : 305
     },
-    "confidence" : 1.0,
+    "confidence" : 0.7988632,
     "coordinates" : "ABSOLUTE_PIXELS",
+    "cluster" : 0,
     "imageWidth" : 3840,
     "imageHeight" : 2160
   } ]

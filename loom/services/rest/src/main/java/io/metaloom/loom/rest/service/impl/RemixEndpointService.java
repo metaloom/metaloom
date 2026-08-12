@@ -54,7 +54,7 @@ public class RemixEndpointService extends AbstractCRUDEndpointService<RemixDao, 
 
 	@Override
 	public void list(LoomRoutingContext lrc) {
-		list(lrc, READ_REMIX, modelBuilder::toRemixList);
+		list(lrc, READ_REMIX, page -> modelBuilder.toRemixList(page, dao()::countAssets));
 	}
 
 	@Override
@@ -183,7 +183,7 @@ public class RemixEndpointService extends AbstractCRUDEndpointService<RemixDao, 
 			Asset asset = loadAsset(assetUuid);
 			PagingParameters paging = lrc.pagingParams();
 			Page<Remix> page = dao().loadPageByAsset(asset.getUuid(), paging.from(), paging.limit());
-			lrc.send(modelBuilder.toRemixList(page));
+			lrc.send(modelBuilder.toRemixList(page, dao()::countAssets));
 		}, READ_REMIX, READ_ASSET);
 	}
 

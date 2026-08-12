@@ -66,8 +66,10 @@ function apiToWorkflowAsset(r: AssetResponse): Asset {
     height: video?.height ?? image?.height,
     fileSize: r.file?.size ?? 0,
     mimeType: mime,
-    thumbnailUrl: "",
-    url: "",
+    // The review panes below put this straight into an <img src>. Left empty it renders as a broken
+    // image with the filename beside it, on the one screen whose whole job is to show the asset.
+    thumbnailUrl: previewUrlOf(r),
+    url: previewUrlOf(r),
     ownerId: r.status?.creator?.uuid ?? "",
     collectionIds: (r.collections ?? []).map(c => c.uuid),
     createdAt: r.status?.created ?? "",
@@ -108,12 +110,29 @@ function assetTypeOf(asset?: AssetResponse): AssetType {
 /**
  * Preview URL for an asset, or "" when it has none.
  *
- * Only images can be rendered by an `<img>` — there is no thumbnail service and no poster frames,
- * so most dedup members (near-duplicate detection runs on video) show the type placeholder. That is
- * the honest result, not a broken image.
+ * Images and videos are both previewed from the stored binary — `AssetThumbnail` puts one in an
+ * `<img>` and decodes a frame of the other in a muted `<video>`. Audio and documents have no
+ * browser-renderable preview and get the type placeholder, which is the honest result rather than a
+ * broken image.
  */
 function previewUrlOf(asset?: AssetResponse): string {
-  return asset && assetTypeOf(asset) === "image" ? assetBinaryUrl(asset.uuid) : "";
+  const type = asset ? assetTypeOf(asset) : "unknown";
+  return asset && (type === "image" || type === "video") ? assetBinaryUrl(asset.uuid) : "";
+}
+
+/**
+ * The asset under review.
+ *
+ * Renders through {@link AssetThumbnail} rather than a bare `<img>`: an asset with no preview — an
+ * audio take, a PDF, a file whose binary is missing — then shows its type placeholder instead of a
+ * broken-image glyph with the filename printed beside it.
+ */
+function WorkflowPreview({ asset, block = false }: { asset: Asset; block?: boolean }) {
+  return (
+    <Box sx={{ position: "relative", width: "100%", height: block ? "auto" : "100%", aspectRatio: block ? "16 / 9" : undefined }}>
+      <AssetThumbnail type={asset.type} src={asset.thumbnailUrl} iconSize={48} alt={asset.name} fit="contain" />
+    </Box>
+  );
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -319,7 +338,7 @@ function RatingMode({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
       <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 300 }}>
-        <img src={asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+        <WorkflowPreview asset={asset} />
       </Box>
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 1 }}>
         <Box sx={{ flex: 1 }}>
@@ -359,7 +378,7 @@ function TaggingMode({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
       <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 300 }}>
-        <img src={asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+        <WorkflowPreview asset={asset} />
       </Box>
       <Box sx={{ px: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
@@ -548,7 +567,7 @@ function FaceDetectionMode({
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
       {/* Asset preview with face bboxes */}
       <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 200 }}>
-        <img src={asset.thumbnailUrl} alt={asset.name} style={{ width: "100%", display: "block", objectFit: "contain" }} />
+        <WorkflowPreview asset={asset} block />
         {faces.map(f => {
           const clusterDec = clusterDecisions[f.clusterId ?? ""];
           return (
@@ -674,7 +693,7 @@ function ObjectDetectionMode({
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
       {/* Asset preview with bounding boxes */}
       <Box sx={{ position: "relative", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 200 }}>
-        <img src={asset.thumbnailUrl} alt={asset.name} style={{ width: "100%", display: "block", objectFit: "contain" }} />
+        <WorkflowPreview asset={asset} block />
         {objects.map((obj, idx) => {
           const dec = decisions[obj.id];
           const color = dec === "confirmed" ? tokens.accent.green : dec === "rejected" ? tokens.accent.red : idx === selectedIdx ? tokens.primary.main : tokens.accent.amber;
@@ -781,7 +800,7 @@ function LLMMode({
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, overflow: "auto" }}>
       <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#000", borderRadius: tokens.radius.lg, overflow: "hidden", minHeight: 300 }}>
-        <img src={asset.thumbnailUrl} alt={asset.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+        <WorkflowPreview asset={asset} />
       </Box>
       <Box sx={{ px: 1 }}>
         <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.95rem", mb: 0.5 }}>{asset.name}</Typography>

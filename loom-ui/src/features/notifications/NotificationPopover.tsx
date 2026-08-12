@@ -12,6 +12,7 @@ import {
 import { tokens } from "../../theme";
 import EmptyState from "../../components/EmptyState";
 import { useNotifications } from "../../context/NotificationContext";
+import { useLayout } from "../../context/LayoutContext";
 import { NotificationResponse, NotificationType } from "../../api/notifications";
 import { notificationLink } from "./notificationLink";
 
@@ -108,6 +109,7 @@ export default function NotificationPopover() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { items, unreadCount, loading, refresh, markRead, markAllRead, dismiss, clear } = useNotifications();
+  const { requestNavigation } = useLayout();
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null);
 
   const open = (e: React.MouseEvent<HTMLElement>) => {
@@ -122,7 +124,9 @@ export default function NotificationPopover() {
     const link = notificationLink(notification);
     if (link) {
       setAnchor(null);
-      navigate(link);
+      // A deep link leaves the current screen like any sidebar entry does, so it asks the
+      // guarding screen first rather than discarding its unsaved work.
+      requestNavigation(() => navigate(link));
     }
   };
 

@@ -194,6 +194,15 @@ Decisions, and why:
   split out of `TagDaoTest`.
 * **The UI's auth token is in memory only.** A full page reload logs the session out, so the e2e spec
   exercises `?remix=` through browser history rather than a fresh `page.goto`.
+* **The remix mock in `remix-mocked.spec.ts` is stateful.** Name, membership and existence live in
+  closures the route handlers mutate. Every write in this feature is only observable through the
+  read that follows it — `RemixDialog` reloads after each member change — so a mock replaying a
+  fixed member list cannot tell a working remove from a no-op.
+* **`AddToRemixDialog`'s picker does not filter on the keystroke that opens its list.** MUI's
+  `handleInputChange` clears `inputPristine` and then `handleOpen` sets it again, and the free-solo
+  `onInputChange` handler makes the typed text the component's `value`, so the filter runs against
+  an empty string for that one render. Real typing self-corrects on the second character; a
+  Playwright `fill()` into a closed picker does not, so a filter test must click the field first.
 * **`AuditedTables` is not test-guarded.** Its javadoc claimed `DbIntegrityChecksTest` asserted it;
   no test has ever referenced the class, and the `share` tables from `V2.97` are missing from it as a
   result. `remix` and `remix_member` were added by hand.

@@ -15,7 +15,7 @@ import { test, expect, Page } from "@playwright/test";
  *   GET/POST /api/v1/assets/:uuid/comments   and   POST/DELETE /api/v1/comments/:uuid
  */
 
-/** Login and open the detail view of the demo asset "sunset-beach.jpg". */
+/** Login and open the detail view of the demo asset "street-crossing.jpg". */
 async function loginAndOpenAssetDetail(page: Page) {
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
@@ -26,7 +26,7 @@ async function loginAndOpenAssetDetail(page: Page) {
   await page.getByRole("button", { name: "Assets" }).first().click();
   await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible({ timeout: 10_000 });
 
-  const assetLink = page.getByText("sunset-beach.jpg").first();
+  const assetLink = page.getByText("street-crossing.jpg").first();
   await expect(assetLink).toBeVisible({ timeout: 10_000 });
   await assetLink.click();
   await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });

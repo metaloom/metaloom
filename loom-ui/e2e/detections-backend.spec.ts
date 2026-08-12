@@ -25,17 +25,22 @@ test.describe("Detections – backend e2e", () => {
   test("object detection page loads detections from API", async ({ page }) => {
     await loginAndGoToDetection(page);
 
-    // Switch to object detection tab if needed
-    const objTab = page.getByText(/object/i).first();
-    if (await objTab.isVisible().catch(() => false)) {
-      await objTab.click();
-    }
+    // By role: the page has a tab called Objects and also lists assets whose names contain "object".
+    await page.getByRole("tab", { name: /objects/i }).click();
+    // The panel fetches its own page of detections, so wait for a group rather than for a label:
+    // scanning while the list is still empty finds nothing and reports it as "no detections".
+    await expect(page.getByTestId("objectdetection-group").first()).toBeVisible({ timeout: 15_000 });
 
-    // Wait for detections to load — demo data has labels like car, person, building, tree
-    const labels = ["car", "person", "building", "tree"];
+    // Wait for detections to load. The demo seeds these labels on the street-crossing photograph,
+    // the cyclist, the dog walker and the traffic clip.
+    //
+    // `.first()` matters: each label heads a group and can appear more than once on the page, and a
+    // locator that resolves to several elements throws in strict mode — which the catch below would
+    // swallow, leaving every label "not found" whatever the screen holds.
+    const labels = ["car", "person", "bicycle", "dog", "bus", "traffic light"];
     let foundAny = false;
     for (const label of labels) {
-      const loc = page.getByText(label, { exact: false });
+      const loc = page.getByText(label, { exact: false }).first();
       if (await loc.isVisible({ timeout: 5_000 }).catch(() => false)) {
         foundAny = true;
         break;
@@ -54,13 +59,20 @@ test.describe("Detections – backend e2e", () => {
 
     // Use page.evaluate to perform API calls directly
     const result = await page.evaluate(async () => {
-      const baseUrl = (window as unknown as Record<string, string>).__VITE_API_BASE_URL__ ||
-        import.meta?.url ? "/api/v1" : "/api/v1";
+      // Both arms of the ternary this replaces were "/api/v1", and the `import.meta` in its
+      // condition made the whole function unserialisable — page.evaluate refused to run it at all.
+      const baseUrl = "/api/v1";
 
-      // Get token from localStorage
-      const stored = localStorage.getItem("loom_auth");
-      const token = stored ? JSON.parse(stored).token : null;
-      if (!token) return { error: "No auth token found" };
+      // Sign in again for a bearer token, the way the sibling backend specs do. There is nothing to
+      // read out of localStorage: AuthContext keeps the token in memory and the server sets an
+      // HttpOnly cookie beside it, so a `loom_auth` key has never existed.
+      const loginRes = await fetch(`${baseUrl}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "finger" }),
+      });
+      if (!loginRes.ok) return { error: `login failed ${loginRes.status}` };
+      const token = (await loginRes.json()).token as string;
 
       const headers = {
         "Content-Type": "application/json",
@@ -129,7 +141,8 @@ test.describe("Detections – backend e2e", () => {
       (result as Record<string, Record<string, unknown>>).created.uuid
     );
     expect((result as Record<string, Record<string, unknown>>).updated.confidence).toBe(0.99);
-    expect((result as Record<string, unknown>).deleteStatus).toBe(200);
+    // 204, not 200: LoomRoutingContext.sendNoContent() is what every delete route answers with.
+    expect((result as Record<string, unknown>).deleteStatus).toBe(204);
   });
 
   test("bulk create detections via API", async ({ page }) => {
@@ -140,9 +153,14 @@ test.describe("Detections – backend e2e", () => {
     await expect(page.getByPlaceholder("Username")).toBeHidden({ timeout: 10_000 });
 
     const result = await page.evaluate(async () => {
-      const stored = localStorage.getItem("loom_auth");
-      const token = stored ? JSON.parse(stored).token : null;
-      if (!token) return { error: "No auth token found" };
+      // See the note in the CRUD test above: there is no token in localStorage to read.
+      const loginRes = await fetch(`/api/v1/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "admin", password: "finger" }),
+      });
+      if (!loginRes.ok) return { error: `login failed ${loginRes.status}` };
+      const token = (await loginRes.json()).token as string;
 
       const headers = {
         "Content-Type": "application/json",
@@ -198,7 +216,7 @@ test.describe("Detections – backend e2e", () => {
  * Manually-created detections get the default label "object" (demo detections use
  * real labels like car/person), so the test isolates its own rows by that label.
  */
-const DETECTION_IMAGE_ASSET = "sunset-beach.jpg";
+const DETECTION_IMAGE_ASSET = "street-crossing.jpg";
 
 async function loginAndGoToAssets(page: Page) {
   await page.goto("/");

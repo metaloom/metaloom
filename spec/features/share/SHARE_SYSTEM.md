@@ -417,7 +417,8 @@ cd loom-ui
 | `ShareFeedbackDaoTest` | Every loader is scoped by share — one link cannot resolve another's rows by uuid |
 | `PublicShareEndpointTest` | The only endpoint test that never signs in. Password, expiry, session binding, forged tokens, and **an asset outside the share** |
 | `PublicShareFeedbackEndpointTest` | Capabilities off by default; author taken from the row not the request; one link cannot touch another's feedback |
-| `e2e/share-mocked.spec.ts` | The only Playwright spec that never signs in. If the route moves back under `AuthGate`, all twelve fail. Also pins that the region overlay is click-through until armed, and that a stray click draws nothing |
+| `e2e/share-mocked.spec.ts` | The only Playwright spec that never signs in. If the route moves back under `AuthGate`, all sixteen fail. Also pins that the region overlay is click-through until armed, that a stray click draws nothing, and the feedback panel's own writes: a mark posted at the playhead, a reply carrying its parent uuid, and a delete that issues the DELETE and drops the row |
+| `e2e/share-dialog-mocked.spec.ts` | The owner's side. A **failed create leaves the dialog open** rather than closing on a link that was never minted; Done closes without revoking; the download and feedback checkboxes travel in the update body, and one feedback box sends all three server flags |
 | `shareExpiry.test.ts` | Expiry maths, password shape, timecode/size formatting, comment threading including orphan promotion |
 
 > The mocked share spec serves a **real** one-second MP4 from `e2e/fixtures/tiny.mp4`. Invalid bytes
@@ -449,6 +450,20 @@ the screenshot script can name the same URL:
 The collection link already carries feedback from "Maria from Acme" — a comment with a reply, a
 spatiotemporal mark and an approval. Seeding it matters more than it looks: an empty feedback panel
 and a broken one render identically.
+
+**Both links now open on real footage.** The *Demo Videos* collection holds three clips seeded from
+`demo-content/videos/`, with bytes in the content-addressed store and an `asset_video_comp` row
+each, so the viewer's player plays and its timecodes are the file's own. Before that the shared
+assets were rows without binaries: every share screen answered 404 on
+`/shares/:slug/assets/:uuid/binary/data` and the player fell straight through to its "no preview"
+card — a demo of the feature that could not demonstrate it. `capture-share-screenshots.mjs` serves
+the same three files, so the pictures on the website and the container a reader downloads show one
+thing.
+
+**Durations cross the wire in milliseconds.** `asset_video_comp.media_duration` is a millisecond
+column and `ShareModelBuilder` passes it through; `api/shares.ts` divides on the way in, because the
+timecode on a tile, a marked moment and `HTMLMediaElement.currentTime` all count in seconds. A
+fixture that serves seconds mocks an API that does not exist.
 
 ---
 

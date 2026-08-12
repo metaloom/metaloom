@@ -22,6 +22,7 @@ import GlobalSearchField from "./GlobalSearchField";
 import NotificationPopover from "../features/notifications/NotificationPopover";
 import { useAuth } from "../context/AuthContext";
 import { useUploads } from "../features/uploads/UploadContext";
+import { useLayout } from "../context/LayoutContext";
 import { useTranslation } from "react-i18next";
 
 interface NavItem {
@@ -132,7 +133,14 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
   const { username, logout } = useAuth();
   const { t } = useTranslation();
   const uploads = useUploads();
+  const { requestNavigation } = useLayout();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+
+  /**
+   * The sidebar is the main way out of every screen, so it is where unsaved work is defended:
+   * a screen that registered a nav guard (the pipeline editor while dirty) gets to ask first.
+   */
+  const go = (path: string) => requestNavigation(() => navigate(path));
 
   const SECTIONS = navSections(t, uploads.activeCount);
 
@@ -173,7 +181,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
       <ListItemButton
         data-testid={`sidebar-item-${item.path}`}
         selected={isActive(item.path)}
-        onClick={() => navigate(item.path)}
+        onClick={() => go(item.path)}
         sx={{
           borderRadius: tokens.radius.md,
           px: collapsed ? 1 : 1.5,
@@ -306,7 +314,7 @@ export default function Sidebar({ collapsed, onCollapse }: Props) {
             <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.82rem" }}>{username ?? t("sidebar.fallback.unknown")}</Typography>
           </Box>
           <Divider />
-          <MenuItem data-testid="sidebar-avatar-profile" onClick={() => { setUserMenuAnchor(null); navigate("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
+          <MenuItem data-testid="sidebar-avatar-profile" onClick={() => { setUserMenuAnchor(null); go("/profile"); }} sx={{ gap: 1.5, fontSize: "0.85rem" }}>
             <PersonOutlined sx={{ fontSize: 18 }} /> {t("sidebar.menu.profile")}
           </MenuItem>
           <MenuItem data-testid="sidebar-avatar-logout" onClick={() => { setUserMenuAnchor(null); logout(); }} sx={{ gap: 1.5, fontSize: "0.85rem", color: tokens.accent.red }}>

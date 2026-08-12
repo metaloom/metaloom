@@ -55,6 +55,22 @@ export interface MemoryWriteRequest {
   title?: string;
 }
 
+/**
+ * Carries the HTTP status alongside the message.
+ *
+ * The caller has to tell a 409 (this id is taken — the editor says so inline and keeps the draft)
+ * apart from every other failure, which a bare `Error` cannot.
+ */
+export class MemoryApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "MemoryApiError";
+    this.status = status;
+  }
+}
+
 function authHeaders(token: string): Record<string, string> {
   return {
     "Content-Type": "application/json",
@@ -65,7 +81,7 @@ function authHeaders(token: string): Record<string, string> {
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
+    throw new MemoryApiError(res.status, `API error ${res.status}: ${text}`);
   }
   return res.json() as Promise<T>;
 }
@@ -147,6 +163,6 @@ export async function deleteMemoryEntry(token: string, scope: string, id: string
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
+    throw new MemoryApiError(res.status, `API error ${res.status}: ${text}`);
   }
 }

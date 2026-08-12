@@ -25,8 +25,13 @@ interface StoredTranscript {
 }
 
 interface Captured {
+  creates: Record<string, unknown>[];
   updates: unknown[];
   deletes: string[];
+}
+
+function newCaptured(): Captured {
+  return { creates: [], updates: [], deletes: [] };
 }
 
 function json(route: Route, body: unknown, status = 200) {
@@ -64,8 +69,8 @@ function seedTranscript(): StoredTranscript {
   };
 }
 
-async function installMocks(page: Page, captured: Captured) {
-  const transcripts: StoredTranscript[] = [seedTranscript()];
+async function installMocks(page: Page, captured: Captured, options: { createStatus?: number; seed?: StoredTranscript[] } = {}) {
+  const transcripts: StoredTranscript[] = options.seed ?? [seedTranscript()];
 
   // Catch-all first (lowest priority) — empty collections for the many list
   // endpoints AssetDetail fans out to (reactions, comments, tasks, …).
@@ -86,6 +91,10 @@ async function installMocks(page: Page, captured: Captured) {
   await page.route(/\/api\/v1\/assets\/[^/]+\/transcripts$/, route => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
+      captured.creates.push(body);
+      if (options.createStatus && options.createStatus >= 400) {
+        return json(route, { message: "the transcript could not be created" }, options.createStatus);
+      }
       const created: StoredTranscript = {
         uuid: `transcript-${transcripts.length + 1}`,
         assetUuid: ASSET_UUID,
@@ -117,8 +126,8 @@ async function installMocks(page: Page, captured: Captured) {
   });
 }
 
-async function loginAndOpenAssetDetail(page: Page, captured: Captured) {
-  await installMocks(page, captured);
+async function loginAndOpenAssetDetail(page: Page, captured: Captured, options: { createStatus?: number; seed?: StoredTranscript[] } = {}) {
+  await installMocks(page, captured, options);
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
@@ -134,7 +143,7 @@ async function loginAndOpenAssetDetail(page: Page, captured: Captured) {
 
 test.describe("Transcripts – mocked e2e", () => {
   test("editing a section title and blurring persists via updateTranscript", async ({ page }) => {
-    const captured: Captured = { updates: [], deletes: [] };
+    const captured = newCaptured();
     await loginAndOpenAssetDetail(page, captured);
 
     const titleField = page.getByTestId("transcript-section-title");
@@ -155,7 +164,7 @@ test.describe("Transcripts – mocked e2e", () => {
   });
 
   test("deleting a transcript removes it from the panel", async ({ page }) => {
-    const captured: Captured = { updates: [], deletes: [] };
+    const captured = newCaptured();
     await loginAndOpenAssetDetail(page, captured);
 
     const deleteBtn = page.getByTestId("transcript-delete");
@@ -170,5 +179,71 @@ test.describe("Transcripts – mocked e2e", () => {
 
     expect(captured.deletes).toEqual([TRANSCRIPT_UUID]);
     await expect(page.getByTestId("transcript-section-title")).toBeHidden({ timeout: 10_000 });
+  });
+
+  test("the overflow menu opens the add-transcript dialog", async ({ page }) => {
+    const captured = newCaptured();
+    await loginAndOpenAssetDetail(page, captured);
+
+    await page.getByTestId("asset-actions-menu-button").click();
+    await page.getByTestId("asset-transcript-create-menu-item").click();
+
+    await expect(page.getByRole("heading", { name: "Add Transcript" })).toBeVisible();
+    await expect(page.getByTestId("transcript-create-source-input")).toBeVisible();
+    await expect(page.getByTestId("transcript-create-lang-input")).toBeVisible();
+
+    // Opening the dialog must not have written anything — the transcript is created on submit.
+    expect(captured.creates).toHaveLength(0);
+  });
+
+  test("creating a transcript posts source and language and closes the dialog", async ({ page }) => {
+    // Seed nothing, so the panel that appears afterwards can only be the new transcript.
+    const captured = newCaptured();
+    await loginAndOpenAssetDetail(page, captured, { seed: [] });
+    await expect(page.getByTestId("asset-actions-menu-button")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("asset-actions-menu-button").click();
+    await page.getByTestId("asset-transcript-create-menu-item").click();
+
+    await page.getByTestId("transcript-create-source-input").fill("manual");
+    await page.getByTestId("transcript-create-lang-input").fill("de");
+    await Promise.all([
+      page.waitForRequest(req =>
+        /\/api\/v1\/assets\/[^/]+\/transcripts$/.test(req.url()) && req.method() === "POST"
+      ),
+      page.getByTestId("transcript-create-submit-button").click(),
+    ]);
+
+    expect(captured.creates).toHaveLength(1);
+    // Both fields travel, and the transcript starts empty — the dialog captures provenance,
+    // not content, and the sections are typed in afterwards.
+    expect(captured.creates[0]).toMatchObject({
+      source: "manual",
+      lang: "de",
+      transcriptJson: { sections: [] },
+    });
+
+    // The dialog closes and the new transcript joins the panel under its "source · lang" heading.
+    await expect(page.getByRole("heading", { name: "Add Transcript" })).toHaveCount(0);
+    await expect(page.getByText("manual · de")).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("a create that fails leaves the dialog open with what was typed", async ({ page }) => {
+    const captured = newCaptured();
+    await loginAndOpenAssetDetail(page, captured, { seed: [], createStatus: 500 });
+    await expect(page.getByTestId("asset-actions-menu-button")).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("asset-actions-menu-button").click();
+    await page.getByTestId("asset-transcript-create-menu-item").click();
+    await page.getByTestId("transcript-create-source-input").fill("manual");
+    await page.getByTestId("transcript-create-lang-input").fill("de");
+    await page.getByTestId("transcript-create-submit-button").click();
+
+    await expect(page.getByText("Failed to add transcript")).toBeVisible({ timeout: 10_000 });
+
+    // Closing on a failed write would read as success and lose the typed fields with it.
+    await expect(page.getByRole("heading", { name: "Add Transcript" })).toBeVisible();
+    await expect(page.getByTestId("transcript-create-source-input")).toHaveValue("manual");
+    expect(captured.creates).toHaveLength(1);
   });
 });

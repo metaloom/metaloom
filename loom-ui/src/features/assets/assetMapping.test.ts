@@ -62,12 +62,41 @@ describe("toAsset", () => {
     expect(toAsset({ uuid: "a2" }).name).toBe("a2");
   });
 
-  it("gives non-images no thumbnail url — an <img> cannot render them", () => {
+  it("previews video from the same binary — the tile renders it in a <video>, not an <img>", () => {
     const asset = toAsset({
       uuid: "a3",
       file: { mimeType: "video/mp4", filename: "clip.mp4", size: 1, origin: "", firstSeen: "" },
     });
-    expect(asset.thumbnailUrl).toBe("");
+    expect(asset.thumbnailUrl).toBe(`${API_BASE_URL}/assets/a3/binary/data`);
+  });
+
+  it("gives audio and documents no preview url — nothing in a browser renders them", () => {
+    const audio = toAsset({
+      uuid: "a4",
+      file: { mimeType: "audio/mpeg", filename: "take.mp3", size: 1, origin: "", firstSeen: "" },
+    });
+    const doc = toAsset({
+      uuid: "a5",
+      file: { mimeType: "application/pdf", filename: "brief.pdf", size: 1, origin: "", firstSeen: "" },
+    });
+    expect(audio.thumbnailUrl).toBe("");
+    expect(doc.thumbnailUrl).toBe("");
+  });
+
+  // asset_video_comp.media_duration is milliseconds and the REST layer passes it through unchanged,
+  // while the timeline and an HTMLMediaElement both count in seconds. Read raw, a 28 second clip
+  // renders as "7:51:07".
+  it("converts the component's millisecond duration to seconds", () => {
+    const asset = toAsset({
+      uuid: "a6",
+      file: { mimeType: "video/mp4", filename: "clip.mp4", size: 1, origin: "", firstSeen: "" },
+      videoComponents: [{ width: 1920, height: 1080, duration: 28267 }],
+    });
+    expect(asset.duration).toBeCloseTo(28.267, 3);
+  });
+
+  it("leaves duration undefined when there is no video component", () => {
+    expect(toAsset({ uuid: "a7" }).duration).toBeUndefined();
   });
 });
 
@@ -117,5 +146,7 @@ describe("hitToCard", () => {
     expect(hitToCard({ ...hit, mimeType: "video/mp4" }).type).toBe("video");
     expect(hitToCard({ ...hit, mimeType: undefined }).type).toBe("unknown");
     expect(hitToCard({ ...hit, mimeType: undefined }).thumbnailUrl).toBe("");
+    expect(hitToCard({ ...hit, mimeType: "video/mp4" }).thumbnailUrl).toBe(`${API_BASE_URL}/assets/h1/binary/data`);
+    expect(hitToCard({ ...hit, mimeType: "audio/mpeg" }).thumbnailUrl).toBe("");
   });
 });

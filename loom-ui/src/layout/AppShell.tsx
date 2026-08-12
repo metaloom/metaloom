@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Box } from "@mui/material";
 import Sidebar from "./Sidebar";
@@ -27,13 +27,29 @@ import ChatSessionsView from "../features/chatSessions/ChatSessionsView";
 import ChatSessionDetail from "../features/chatSessions/ChatSessionDetail";
 import AssetPoolsView from "../features/assetPools/AssetPoolsView";
 import UploadView from "../features/uploads/UploadView";
-import { LayoutContext } from "../context/LayoutContext";
+import { LayoutContext, type NavGuard } from "../context/LayoutContext";
+import { runGuarded } from "../hooks/useUnsavedChanges";
 
 export default function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // A ref, not state: registering a guard must not re-render the shell (and with it every route),
+  // and `requestNavigation` has to read the guard that is current at click time.
+  const navGuard = useRef<NavGuard | null>(null);
+  const setNavGuard = useCallback((guard: NavGuard | null) => {
+    navGuard.current = guard;
+  }, []);
+  const requestNavigation = useCallback((proceed: () => void) => {
+    runGuarded(navGuard.current, proceed);
+  }, []);
+
+  const layout = useMemo(
+    () => ({ sidebarCollapsed, setSidebarCollapsed, setNavGuard, requestNavigation }),
+    [sidebarCollapsed, setNavGuard, requestNavigation],
+  );
+
   return (
-    <LayoutContext.Provider value={{ sidebarCollapsed, setSidebarCollapsed }}>
+    <LayoutContext.Provider value={layout}>
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden", bgcolor: tokens.bg.base }}>
       <Sidebar collapsed={sidebarCollapsed} onCollapse={setSidebarCollapsed} />
       <Box

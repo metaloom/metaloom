@@ -94,6 +94,27 @@ describe("session-scoped calls", () => {
     expect(options.credentials).toBe("include");
   });
 
+  // The server sends asset_video_comp.media_duration, which is milliseconds. Every consumer on this
+  // side — the timecode on a tile, the marked moments, the player itself — counts in seconds.
+  it("converts asset durations to seconds on the way in", async () => {
+    mockFetchOk({
+      data: [
+        { uuid: "a1", filename: "team-meeting.mp4", mimeType: "video/mp4", duration: 28267 },
+        { uuid: "a2", filename: "street-crossing.jpg", mimeType: "image/jpeg" },
+      ],
+    });
+
+    const body = await listSharedAssets(SLUG, SESSION);
+
+    expect(body.data[0].duration).toBeCloseTo(28.267, 3);
+    expect(body.data[1].duration).toBeUndefined();
+  });
+
+  it("survives a response with no data array at all", async () => {
+    mockFetchOk({});
+    expect((await listSharedAssets(SLUG, SESSION)).data).toEqual([]);
+  });
+
   it("posts a comment to the share-scoped route", async () => {
     const fetchMock = mockFetchOk({ uuid: "c1" }, 201);
 

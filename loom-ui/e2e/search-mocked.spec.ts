@@ -36,7 +36,7 @@ function hit(index: number, overrides: Record<string, unknown> = {}) {
     uuid: `asset-${index}`,
     assetUuid: `asset-${index}`,
     score: 1 - index / 100,
-    title: `sunset-beach-${index}.jpg`,
+    title: `street-crossing-${index}.jpg`,
     subtitle: "Campaign Media",
     matchedIn: "title",
     highlights: [`a <b>quarterly</b> report for asset ${index}`],
@@ -73,7 +73,7 @@ async function installMocks(page: Page, options: Options = {}): Promise<Recorder
     recorder.suggestions.push(route.request().url());
     return json(route, options.suggestions ?? {
       data: [
-        { text: "sunset-beach.jpg", type: "asset", uuid: "asset-1", score: 0.9 },
+        { text: "street-crossing.jpg", type: "asset", uuid: "asset-1", score: 0.9 },
         { text: "sunrise-ridge.jpg", type: "asset", uuid: "asset-2", score: 0.7 },
       ],
     });
@@ -173,7 +173,7 @@ test.describe("Search – mocked e2e", () => {
 
     await page.getByTestId("global-search-input").fill("sun");
     await expect(page.getByTestId("global-search-suggestions")).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId("global-search-suggestion-0")).toContainText("sunset-beach.jpg");
+    await expect(page.getByTestId("global-search-suggestion-0")).toContainText("street-crossing.jpg");
 
     // Debounced: the four keystrokes of "sun" collapse into a single call.
     expect(recorder.suggestions).toHaveLength(1);
@@ -220,7 +220,7 @@ test.describe("Search – mocked e2e", () => {
     await page.getByTestId("global-search-input").fill("sun");
     await page.getByTestId("global-search-suggestion-0").click();
 
-    await expect(page).toHaveURL(/\/ui\/search\?q=sunset-beach\.jpg$/);
+    await expect(page).toHaveURL(/\/ui\/search\?q=street-crossing\.jpg$/);
   });
 
   test("the view seeds its field from the q parameter", async ({ page }) => {

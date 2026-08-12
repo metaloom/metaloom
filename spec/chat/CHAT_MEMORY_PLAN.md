@@ -251,12 +251,15 @@ and the suite fails confusingly.
 | Endpoint | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/test/MemoryEndpointTest.java`, `MemoryDenyRuleEndpointTest.java` |
 | GraphQL | `loom/core/src/test/java/io/metaloom/loom/core/endpoint/graphql/MemoryGraphQLTest.java` |
 | Runner daemon | `loom/agent/session-runner/test_runnerd.py` — `/memory_sync` write, prune and path-escape cases |
+| UI (mocked) | `loom-ui/e2e/memory-mocked.spec.ts` — scope tabs, empty vs no-match, read-only scope, create/edit/**rename**/delete verbs and query params, the 409 path, and the 404 state when the feature is off · `loom-ui/e2e/memory-denylist-mocked.spec.ts` — rule CRUD over `memory-deny-rules`, POST-not-PUT updates, the enable toggle, and the inline invalid-regex error |
+| UI (backend) | `loom-ui/e2e/memory-backend.spec.ts` — note lifecycle against a real server, and the one test that proves the denylist is load-bearing: a rule is created, a matching write is refused **400** with the rule's own message (which does not echo the match), the title is checked as well as the body, nothing is left behind, and disabling the rule lets the same write through. Needs `LOOM_AGENT_MEMORY_ENABLED=true` — the demo container image sets it. |
 
 ⚠️ Endpoint tests must grant `*_MEMORY` via the **group + role** pattern used by `SkillEndpointTest`;
 direct user grants are limited to one permission per user.
 
-**Not covered** (see §8): a podman sandbox integration test asserting `EROFS` on `/memory`, and an
-e2e (`e2e-test/`) spec for the memory UI and cross-chat recall.
+**Not covered** (see §8): a podman sandbox integration test asserting `EROFS` on `/memory`, and a
+Java e2e (`e2e-test/`) spec for cross-chat recall — one chat stores a fact, a second recalls it.
+The memory screens themselves are covered by the Playwright specs above.
 
 ---
 
@@ -284,8 +287,9 @@ complete — see §2 for the code map. Open work:
 - [ ] **Sandbox integration test** — provision a runner with memory enabled, assert
       `cat /memory/user/x.md` shows rendered frontmatter, `echo > /memory/…` returns
       `Read-only file system`, put→cat reflects the change and delete→cat prunes it.
-- [ ] **e2e spec** (`e2e-test/`) — one chat stores a fact, a second chat recalls it; the `/memory`
-      view lists and edits it.
+- [ ] **e2e spec** (`e2e-test/`) — one chat stores a fact, a second chat recalls it. The UI half
+      (the `/memory` view listing and editing a note) is done: `loom-ui/e2e/memory-mocked.spec.ts`
+      and `memory-backend.spec.ts` (§7); what is still missing is the cross-chat recall path.
 - [ ] **Denylist rule caching** — `MemoryDenylist.check()` re-reads `loadEnabled()` per call (§4).
 - [ ] **Per-scope ACLs.** One flat permission set cannot express "read shared, don't write shared":
       `UPDATE_MEMORY` grants write to every visible scope and `SHARED_WRITE_ENABLED` is a

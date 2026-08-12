@@ -43,13 +43,25 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const REMIX_UUID = "c0000000-0000-0000-0000-000000000001";
 const SHA512 = "a".repeat(128);
 
+// The demo container's own media. The grid tiles are real previews — an <img> for a picture and a
+// muted <video> seeking one frame for a clip — so a fixture with no bytes behind it photographs a
+// wall of placeholder icons instead of a remix.
+const DEMO_CONTENT = path.resolve(ROOT, "../demo-content");
+const file = rel => fs.readFileSync(path.join(DEMO_CONTENT, rel));
+
 const ASSETS = [
-  { uuid: "a0000000-0000-0000-0000-000000000001", filename: "coastal-drone.mp4", mimeType: "video/mp4", size: 184_320_512 },
-  { uuid: "a0000000-0000-0000-0000-000000000002", filename: "coastal-cut-30s.mp4", mimeType: "video/mp4", size: 42_100_000 },
-  { uuid: "a0000000-0000-0000-0000-000000000003", filename: "coastal-still.jpg", mimeType: "image/jpeg", size: 2_400_000 },
-  { uuid: "a0000000-0000-0000-0000-000000000004", filename: "harbour-timelapse.mp4", mimeType: "video/mp4", size: 96_000_000 },
-  { uuid: "a0000000-0000-0000-0000-000000000005", filename: "market-street.jpg", mimeType: "image/jpeg", size: 3_100_000 },
-  { uuid: "a0000000-0000-0000-0000-000000000006", filename: "interview-raw.mov", mimeType: "video/quicktime", size: 512_000_000 },
+  { uuid: "a0000000-0000-0000-0000-000000000001", filename: "team-meeting.mp4", mimeType: "video/mp4", size: 5_895_293,
+    bytes: file("videos/video-01-work-meeting-around-table.mp4") },
+  { uuid: "a0000000-0000-0000-0000-000000000002", filename: "team-meeting-cut.mp4", mimeType: "video/mp4", size: 2_154_678,
+    bytes: file("videos/video-01-work-meeting-around-table-cut.mp4") },
+  { uuid: "a0000000-0000-0000-0000-000000000003", filename: "team-meeting-still.jpg", mimeType: "image/jpeg", size: 138_972,
+    bytes: file("videos/video-01-work-meeting-around-table-still.jpg") },
+  { uuid: "a0000000-0000-0000-0000-000000000004", filename: "city-traffic.mp4", mimeType: "video/mp4", size: 11_342_857,
+    bytes: file("videos/video-02-busy-street-traffic.mp4") },
+  { uuid: "a0000000-0000-0000-0000-000000000005", filename: "street-crossing.jpg", mimeType: "image/jpeg", size: 536_000,
+    bytes: file("images/image-01-people-crossing-street.jpg") },
+  { uuid: "a0000000-0000-0000-0000-000000000006", filename: "coworkers-laptop.jpg", mimeType: "image/jpeg", size: 532_000,
+    bytes: file("images/image-02-coworkers-laptop-table.jpg") },
 ];
 
 const assetResponse = a => ({
@@ -63,16 +75,16 @@ const assetResponse = a => ({
 const REMIXES = [
   {
     uuid: REMIX_UUID,
-    name: "Coastal drone — cuts",
-    description: "The original coastal drone footage, the 30-second cut made from it, and a still pulled out of that cut.",
+    name: "Team meeting — cuts",
+    description: "The original meeting footage, the ten-second cut made from it, and a still pulled out of that cut.",
     sourceAssetUuid: ASSETS[0].uuid,
     memberCount: 3,
     status: { created: "2026-08-11T10:00:00Z", edited: "2026-08-11T10:00:00Z" },
   },
   {
     uuid: "c0000000-0000-0000-0000-000000000002",
-    name: "Harbour timelapse — versions",
-    description: "The graded and ungraded versions of the harbour timelapse.",
+    name: "City traffic — versions",
+    description: "The graded and ungraded versions of the traffic plate.",
     sourceAssetUuid: ASSETS[3].uuid,
     memberCount: 2,
     status: { created: "2026-08-11T10:00:00Z", edited: "2026-08-11T10:00:00Z" },
@@ -97,6 +109,15 @@ const json = (body, status = 200) => ({ status, contentType: "application/json",
 async function mockRest(page) {
   await page.route("**/api/v1/**", route => route.fulfill(json({ data: [] })));
   await page.route("**/api/v1/login", route => route.fulfill(json({ token: "fake-jwt" })));
+
+  // The tile previews. Same route the product uses; the bytes are the file the asset names.
+  await page.route(/\/api\/v1\/assets\/[^/?]+\/binary\/data/, route => {
+    const uuid = route.request().url().split("/assets/")[1].split("/")[0];
+    const asset = ASSETS.find(a => a.uuid === uuid);
+    return asset
+      ? route.fulfill({ status: 200, contentType: asset.mimeType, body: asset.bytes })
+      : route.fulfill({ status: 404, body: "" });
+  });
   await page.route("**/api/v1/me", route =>
     route.fulfill(json({ uuid: "11111111-1111-1111-1111-111111111111", username: "admin", enabled: true })));
   await page.route(/\/api\/v1\/libraries(\?|$)/, route =>
@@ -207,7 +228,7 @@ async function main() {
     await page.getByTestId("bulk-actions-menu-button").click();
     await page.getByTestId("bulk-combine-remix").click();
     await page.getByTestId("remix-create-dialog").waitFor({ timeout: 15_000 });
-    await page.getByTestId("remix-create-name").fill("Coastal drone — cuts");
+    await page.getByTestId("remix-create-name").fill("Team meeting — cuts");
     await shot(page, "remix-create.png");
     await page.close();
   }

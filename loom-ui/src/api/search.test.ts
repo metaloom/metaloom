@@ -148,7 +148,7 @@ describe("search API client", () => {
       uuid: "t1",
       assetUuid: "a1",
       score: 0.42,
-      title: "drone-coastal.mp4",
+      title: "team-meeting.mp4",
       subtitle: "Campaign Media",
       matchedIn: "body",
       highlights: ["… reduced processing costs by nearly a <b>third</b> …"],
@@ -201,7 +201,7 @@ describe("search API client", () => {
 
   it("searchSuggestions sends the prefix as q and returns the data array", async () => {
     const fetchMock = mockFetchOk({
-      data: [{ text: "drone-coastal.mp4", type: "asset", uuid: "a1", score: 0.9 }],
+      data: [{ text: "team-meeting.mp4", type: "asset", uuid: "a1", score: 0.9 }],
     });
 
     const result = await searchSuggestions(TOKEN, "dro", { limit: 8 });
@@ -211,7 +211,7 @@ describe("search API client", () => {
     expect(query.get("q")).toBe("dro");
     expect(query.get("limit")).toBe("8");
     expect(result).toHaveLength(1);
-    expect(result[0].text).toBe("drone-coastal.mp4");
+    expect(result[0].text).toBe("team-meeting.mp4");
   });
 
   it("searchSuggestions returns an empty array when the response omits data", async () => {

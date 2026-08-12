@@ -223,6 +223,7 @@ so a regression that orphans the screen fails the profile suite rather than pass
 | Collapsed rail (56px) | Sub-group header is dropped; its items render flat — an icon rail has no second level |
 | Test ids | `sidebar-group-<key>` (e.g. `sidebar-group-acl`), `sidebar-item-<path>` |
 | i18n | `sidebar.divider.{ai,content,management}`, `sidebar.group.acl`, `sidebar.nav.*`, `sidebar.admin.*` |
+| Navigating | Through `useLayout().requestNavigation`, never `navigate` directly — the sidebar is the main way out of every screen, so it is where unsaved work is defended (§7.9) |
 
 > **Gotcha:** E2E specs targeting an ACL screen must click `getByTestId("sidebar-group-acl")`
 > first — `getByRole("button", { name: "Users" })` alone does not resolve. `users-backend`,
@@ -305,6 +306,14 @@ export const API_BASE_URL =
 | `memory.ts` · `memoryDenylist.ts` | `/memory`, `/memory/entry`, `/memory/scopes` · `/memory-deny-rules` |
 | `users.ts` · `groups.ts` · `roles.ts` · `tokens.ts` · `blacklist.ts` | `/users` · `/groups` · `/roles` · `/tokens` · `/blacklists` |
 
+> **`/memory/entry` — POST and PUT are not interchangeable.** The note id is a nested path and
+> travels as the `id` **query parameter** (`entryQuery`), so both verbs hit the same route. POST
+> *creates* and answers **409** on a taken id; PUT upserts. `MemoryView` picks by whether the id
+> being written is the one the editor was opened on: a new note and a **rename** both claim an id
+> the user was never shown, so both go over POST and surface the 409 inline
+> (`memory-editor-error`) with the draft intact. Using PUT there overwrites a stranger's note
+> silently — it did, until `memory-mocked.spec.ts` pinned the verbs.
+
 ---
 
 ## 6. State and contexts
@@ -318,7 +327,7 @@ export const API_BASE_URL =
 | `ThemeContext` | `context/ThemeContext.tsx` | `mode` (`dark`\|`light`), `toggleMode`, `setMode` | `localStorage` key `loom-ui-theme` |
 | `ToastContext` | `context/ToastContext.tsx` | transient toasts (in-memory, no history) | No |
 | `NotificationContext` | `context/NotificationContext.tsx` | `items`, `unreadCount`, `loading`, `refresh`, `markRead`, `markAllRead`, `dismiss`, `clear` — the durable inbox, seeded from `/notifications` and appended from the `NOTIFICATION` socket channel | **No** — server-backed |
-| `LayoutContext` | `context/LayoutContext.tsx` | `sidebarCollapsed`, `setSidebarCollapsed` | **No** — plain `useState` in `AppShell` |
+| `LayoutContext` | `context/LayoutContext.tsx` | `sidebarCollapsed`, `setSidebarCollapsed`, `setNavGuard`, `requestNavigation` — the last two are the unsaved-work route guard (§7.9) | **No** — plain `useState` in `AppShell` |
 | `UploadContext` | `features/uploads/UploadContext.tsx` | `UploadSummary` — items, counts, weighted `percent`, `isActive` | **No** — mirrors the module-level queue; see [LOOM_UI_UPLOAD.md](LOOM_UI_UPLOAD.md) |
 
 Other persisted state: `loom-ui-language` (`i18n/i18n.ts`), `loom.chat.splitPct` /
@@ -355,14 +364,38 @@ LoginPage → AuthProvider.login() → POST /login
 `components/AssetThumbnail.tsx` + `components/MediaPlaceholder.tsx`, URL from
 `api/assets.ts → assetBinaryUrl(uuid)`.
 
-There is no thumbnail service and no derived-image endpoint. A preview *is* the stored binary
+There is still no thumbnail service and no derived-image endpoint. A preview *is* the stored binary
 (`GET /assets/:uuid/binary/data`), which only resolves for assets with an `asset_location` row.
 
 | Concern | Rule |
 |---------|------|
-| Which assets | **Images only** — a browser cannot decode `video/*`, `audio/*` or PDF in an `<img>`. No poster frames are generated. |
-| Auth | `<img>` cannot carry `Authorization`, so it relies on the HttpOnly cookie. This requires same-origin — a cross-origin `VITE_API_BASE_URL` silently yields 401s and placeholder icons everywhere. |
+| Images | An `<img>` at the binary URL. |
+| Video | A **muted `<video preload="metadata" src="…#t=1">`** at the same URL, non-interactive and `pointerEvents: none` — it is a tile, not a player. The browser decodes one frame a second in; the range support on the binary route serves it without shipping the file, and the `#t=` offset avoids the black leader frame that is often frame 0. This is the poster mechanism, and it is entirely client-side: the server still generates nothing. |
+| Audio, PDF, unknown | `MediaPlaceholder`. Nothing in a browser renders them. |
+| Auth | `<img>`/`<video>` cannot carry `Authorization`, so both rely on the HttpOnly cookie. This requires same-origin — a cross-origin `VITE_API_BASE_URL` silently yields 401s and placeholder icons everywhere. |
 | Failure | `onError` swaps in `MediaPlaceholder`. A missing preview is the normal case, not an error to surface. |
+
+The share viewer's grid follows the same rule against `sharedBinaryUrl` (`ShareTile`), so the
+customer-facing tiles and the internal ones agree.
+
+### 7.2.1 The asset detail player
+
+`features/assetDetail/AssetDetail.tsx` renders a real `<video controls preload="metadata">` at
+`assetBinaryUrl(asset.id)` for a video asset, and `VideoTimeline` is driven off it: `onTimeUpdate`
+feeds `currentTime`, `onLoadedMetadata` supplies the duration, and every seek in the screen — the
+timeline bar, a marker, a transcript line, a detection — goes through one `seekTo` that sets
+`video.currentTime`. The element's own duration wins over the component's, so the bar cannot end
+before the last frame.
+
+It replaced a `MediaPlaceholder` with a fake play button over a `setInterval` that advanced a
+counter by 0.25 s. That is worth recording because it looked like a player in every screenshot: the
+timeline moved, the timecode counted up, and nothing was ever decoded.
+
+**Durations are milliseconds on the wire.** `asset_video_comp.media_duration` is a millisecond
+column and the REST layer passes it through unchanged, while `formatDuration`, `VideoTimeline` and
+`HTMLMediaElement.currentTime` all count in seconds. `assetMapping.durationSeconds` converts at the
+boundary, in `toAsset`, `hitToCard` and `apiToAsset`; `api/shares.ts` does the same for the customer
+projection. Read raw, a 28 second clip renders as "7:51:07".
 
 ### 7.3 Serving under `/ui/` (base path)
 
@@ -531,6 +564,35 @@ tasks attached to assets with priority/status/due dates.
 > because `BootstrapInitializer` swallows the failure, everything *after* the detections
 > (transcripts, the VLM component) is silently missing from the demo.
 
+### 7.9 Unsaved-work guards
+
+Some screens hold work that exists only in the browser: an in-flight upload batch, an edited
+pipeline canvas. Leaving costs the user that work, and the two ways of leaving need two different
+mechanisms — both in `src/hooks/useUnsavedChanges.ts`, one implementation for the whole app.
+
+| Exit | Mechanism | API |
+|------|-----------|-----|
+| The document unloads — reload, close, an external link | The browser's own confirm; nothing else can intercept it | `useUnsavedChanges(isDirty, message)` |
+| The route changes — sidebar click, notification deep link | No browser event fires. `LayoutContext` carries a nav guard that `AppShell` holds in a ref; the guarding screen shows its own dialog and resumes the navigation | `useNavigationGuard(active, onBlocked)` |
+
+`LayoutContext.requestNavigation(proceed)` is the route-change half's entry point, and the rule that
+makes it work: **every navigation control outside a screen's own body goes through it instead of
+calling `navigate` directly** — today `Sidebar` (nav items and the avatar menu's Profile) and
+`NotificationPopover`. One screen guards at a time; `setNavGuard(null)` on unmount, since the screen
+leaving *is* the exit. The guard owns the deferred navigation: it runs `proceed` once the user
+agrees, and dropping it cancels.
+
+`useBlocker` would be the router's answer to the same problem, but it needs a data router and the
+app mounts `<BrowserRouter>` + `<Routes>` (§4.1). Intercepting at the navigation controls was
+chosen over migrating to `createBrowserRouter`.
+
+Who guards what today:
+
+| Screen | Dirty when | Unload warning | Route guard |
+|--------|-----------|----------------|-------------|
+| `PipelineEditor` | `dirty` — any canvas/parameter/edge edit | Yes | Yes — reuses the discard-confirm dialog (`pipeline-switch-confirm`) that the in-editor pipeline switch already showed |
+| `UploadProvider` | `summary.isActive` | Yes — reloading drops the `File` handles and the endpoint cannot resume | **No**, deliberately: the queue is module-level and survives every route change, so leaving the screen costs nothing |
+
 ---
 
 ## 8. Test setup
@@ -546,12 +608,12 @@ tasks attached to assets with priority/status/due dates.
 > component is a *mocked* Playwright spec (§8.2). Do not add RTL/jsdom to test a component —
 > extract the logic into a `.ts` module or write a mocked e2e.
 
-41 test files today:
+42 test files today:
 
 | Area | Files |
 |------|-------|
 | `src/api/` | `agent`, `annotations`, `binaries`, `chat`, `chatMessageMapper`, `comments`, `dedup`, `paging`, `listPaging`, `pipelineEvents`, `reactions`, `search`, `skills`, `tags`, `tasks`, `transcripts` |
-| `src/hooks/` | `pagedList` — the pure half of `usePagedList`, since the hook itself needs a renderer this repo does not have |
+| `src/hooks/` | `pagedList` — the pure half of `usePagedList`, since the hook itself needs a renderer this repo does not have; `useUnsavedChanges` — likewise the listener wiring and guard dispatch, not the hooks around them |
 | Feature helpers | `assets/assetMapping`, `chat/pipelineGraphLayout`, `library/libraryAssets`, `monitoring/runMetrics`, `pipeline/contentTypes`, `pipeline/portResolvers`, `search/highlight`, `search/searchHits`, `workflow/ratingPersistence`, `workflow/dedupGroups` |
 
 > `listPaging.test.ts` is table-driven over all sixteen paged clients rather than sixteen
@@ -570,12 +632,12 @@ tasks attached to assets with priority/status/due dates.
 reuses an existing server outside CI. `VITE_*` vars are inherited by the dev server from the
 Playwright invocation, so no explicit env block is needed.
 
-87 specs in two flavours, distinguished by filename suffix:
+99 specs in two flavours, distinguished by filename suffix:
 
 | Suffix | Backend | Nature |
 |--------|---------|--------|
-| `*-mocked.spec.ts` (53) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
-| `*-backend.spec.ts` (31) | **Yes** | Real Loom server with demo data |
+| `*-mocked.spec.ts` (64) | **No** | The component/integration test tier. Every `**/api/v1/**` call is intercepted with `page.route(...)` and fulfilled with fixture JSON — typically a broad catch-all plus specific overrides for `/login` and `/me`. |
+| `*-backend.spec.ts` (32) | **Yes** | Real Loom server with demo data |
 | `login.spec.ts`, `pipeline-loading.spec.ts`, `pipeline-versions.spec.ts` | mixed | Legacy names predating the suffix convention |
 
 > **Gotcha:** `page.route` handlers are matched **most-recently-registered first**, which is why every
@@ -645,7 +707,8 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | `NotificationProvider` / `useNotifications` | `src/context/NotificationContext.tsx` | Durable per-user inbox (§6) |
 | `NotificationPopover` | `src/features/notifications/NotificationPopover.tsx` | Sidebar bell, unread badge, mark-read, dismiss, clear |
 | `notificationLink` | `src/features/notifications/notificationLink.ts` | Deep link for a notification, or null when it has no subject |
-| `LayoutContext` / `useLayout` | `src/context/LayoutContext.tsx` | Sidebar collapse (not persisted) |
+| `LayoutContext` / `useLayout` | `src/context/LayoutContext.tsx` | Sidebar collapse (not persisted) + the nav guard for unsaved work (§7.9) |
+| `useUnsavedChanges` / `useNavigationGuard` / `bindUnloadWarning` / `runGuarded` | `src/hooks/useUnsavedChanges.ts` | `beforeunload` warning and in-app route guard for a screen with unsaved work (§7.9) |
 | `tokens` / `buildTheme` / `setActiveTokens` | `src/theme/index.ts` | Design tokens + MUI theme (no `tokens.ts`) |
 | `EmptyState` | `src/components/EmptyState.tsx` | Shared feature-page empty state (§7.5) |
 | `StatusChip` / `Tone` / `toneStyles` | `src/components/StatusChip.tsx` | green/amber/red/neutral status pill. Extracted from `MaintenanceView` so the two operator screens paint the same states the same colour |
@@ -705,11 +768,16 @@ Shell and cross-cutting only — pipeline internals are tabulated in
 | Empty views drop their table | `TasksView` / `SkillManagementView` render no `<Table>` when empty (§7.5) |
 | One shared WebSocket | Filter pipeline events client-side by `pipelineName`; close code `4401` disables reconnect (§7.4) |
 | React Flow node identity | Use `useNodesState`/`useEdgesState`; reset only on `pipeline.id` **or** `reloadKey` change (see [PIPELINE_EDITOR.md](PIPELINE_EDITOR.md)) |
-| Unsaved pipeline edits | The `dirty` flag warns but nothing blocks navigation; edits are lost |
+| Navigating away from unsaved work | A screen with work only the browser holds registers a guard via `useUnsavedChanges` / `useNavigationGuard` (§7.9). A *new* navigation control outside a screen body must call `requestNavigation`, not `navigate` — otherwise it discards the pipeline canvas silently, as every exit but the editor's own list once did |
 | No error boundaries | A render throw blanks the app; there is no fallback UI |
 | Missing i18n key | Renders the raw key — always add to both locale files |
 | MUI `select` test ids | `inputProps` lands on the hidden native input, which is never clickable. Use `SelectProps.SelectDisplayProps` (`ShareDialog`'s expiry field) |
+| Comment replies are **task-only** | `CommentItem` renders `comment-reply` only when its parent passes `onReply`. `TasksView` does — reply banner (`tasks-comment-reply-banner`), `parentUuid` on the create, one-level threading via `features/tasks/commentThread.ts`. `AssetDetail`'s comments tab does **not**, and its `handlePostComment` never sends a `parentUuid`, so an asset comment thread is flat |
+| `*-cancel` is on the **edit** form | `comment-cancel` / `annotation-cancel` abandon an *edit*, not a compose. Neither composer has a cancel button — both are simply always open on their tab, and the drafts they discard live in `CommentItem` / `AnnotationItem` local state, re-seeded from the stored value on each `onStartEdit` |
 | Deep-link **then** sign in | A mocked spec that logs in and *then* calls `page.goto` throws the in-memory token away and lands back on the login form |
+| There is no `<video>` on asset detail | `AssetDetail` renders a `MediaPlaceholder` and advances `currentTime` on a `setInterval`; the `videoRef` it declares is never attached. A seek is observable through `video-timeline-playhead` and `video-timeline-current-time`, not through a media element. The only real `<video controls>` in the app is `features/share/ShareMedia.tsx` |
+| Timeline markers come from **annotations and temporal tags** | Both ride along on `GET /assets/:uuid` and carry `area.from`/`area.to` in **milliseconds**; the timeline works in seconds. `VideoTimeline` declares a `comment` marker type, but `commentResponseToComment` drops the timestamps, so a REST comment can never place one — the gap is in the mapper, not the timeline. A tag with no `area` is not a marker |
+| `duration` lives on `videoComponents[0]` | The mime type alone decides an asset *is* a video; a video response with no `videoComponents` gives `duration = 0`, and every marker position divides by it |
 
 ### 11.3 Performance
 

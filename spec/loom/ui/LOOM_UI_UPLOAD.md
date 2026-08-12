@@ -24,7 +24,7 @@
 - [x] Uploads survive route changes — the queue is a module-level store, not component state
 - [x] Sidebar entry with active-count badge and a live progress bar
 - [x] Toasts on batch completion, failure and cancellation
-- [x] `beforeunload` warning while a batch is in flight
+- [x] `beforeunload` warning while a batch is in flight (shared `useUnsavedChanges` hook)
 - [x] Library selection (required) with the effective storage pool shown read-only
 - [x] Pool override selector, rendered only when `GET /pools` is readable
 - [x] Backend: optional `poolUuid` form field on `POST /assets/upload`, guarded by `READ_ASSET_POOL`
@@ -193,7 +193,7 @@ is a success, not a failure, and the UI says so:
 | `summarize` | `uploadQueue.ts` | Derives `UploadSummary` (counts, weighted percent) |
 | `setUploadToken` | `uploadQueue.ts` | Pushes the session token in — the queue has no React context |
 | `setUploaderForTesting` | `uploadQueue.ts` | Transport seam; production never calls it |
-| `UploadProvider` / `useUploads` | `features/uploads/UploadContext.tsx` | React binding, toasts, `beforeunload` guard |
+| `UploadProvider` / `useUploads` | `features/uploads/UploadContext.tsx` | React binding, toasts, `beforeunload` guard via the shared `useUnsavedChanges` hook |
 | `UploadView` | `features/uploads/UploadView.tsx` | The `/uploads` screen |
 | `formatBytes` / `percentOf` / `progressLabel` | `features/uploads/uploadFormat.ts` | Pure formatters |
 | `uploadAssetWithProgress` | `loom-ui/src/api/assets.ts` | XHR upload: progress, abort, 200/201 discrimination |
@@ -420,8 +420,11 @@ capture rules: [../../website/WEBSITE.md](../../website/WEBSITE.md) § Capturing
 - 🔴 **`ConcurrentHashMap.computeIfAbsent` does not cache a throw**, which is why a 404 for an
   unknown pool repeats correctly instead of being memoized. `BinaryStorageResolver` otherwise never
   evicts — editing a pool still needs a restart.
-- 🔴 **Reload cancels everything.** No resume exists. `UploadProvider` installs a `beforeunload`
-  handler only while `isActive`, so the warning does not fire on an idle page.
+- 🔴 **Reload cancels everything.** No resume exists. `UploadProvider` calls
+  `useUnsavedChanges(summary.isActive, …)` ([LOOM_UI.md](LOOM_UI.md) §7.9), so the `beforeunload`
+  warning is installed only while a batch runs and does not fire on an idle page. It registers no
+  route guard: the queue is module-level and outlives every navigation, so only unloading costs
+  anything.
 - 🔴 **The asset grid does not auto-refresh from the server.** `AssetBrowser` reloads when the queue's
   settled count grows; without that, background-uploaded assets would not appear until a manual
   reload.

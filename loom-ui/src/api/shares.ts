@@ -50,6 +50,13 @@ export interface SharedAssetResponse {
   filename: string;
   mimeType: string;
   size?: number;
+  /**
+   * Seconds, normalised on the way in by {@link toSharedAsset}.
+   *
+   * The server sends `asset_video_comp.media_duration`, which is milliseconds, but everything on
+   * this side of the wire — the timecode in a tile, an `HTMLMediaElement.currentTime`, a marked
+   * moment — counts in seconds.
+   */
   duration?: number;
   width?: number;
   height?: number;
@@ -166,7 +173,19 @@ export async function listSharedAssets(
     headers: shareHeaders(sessionToken),
     credentials: "include",
   });
-  return handleResponse<SharedAssetListResponse>(res);
+  const body = await handleResponse<SharedAssetListResponse>(res);
+  return { ...body, data: (body.data ?? []).map(toSharedAsset) };
+}
+
+/**
+ * Normalise one shared asset: the only field that needs it is the duration, which crosses the wire
+ * in milliseconds. Doing it here rather than at each of the three places that render a timecode
+ * keeps the seconds-vs-milliseconds question from having to be re-answered per component.
+ */
+function toSharedAsset(asset: SharedAssetResponse): SharedAssetResponse {
+  return asset.duration === undefined || asset.duration === null
+    ? asset
+    : { ...asset, duration: asset.duration / 1000 };
 }
 
 export async function loadSharedAsset(slug: string, sessionToken: string, assetUuid: string): Promise<SharedAssetResponse> {
@@ -175,7 +194,7 @@ export async function loadSharedAsset(slug: string, sessionToken: string, assetU
     headers: shareHeaders(sessionToken),
     credentials: "include",
   });
-  return handleResponse<SharedAssetResponse>(res);
+  return toSharedAsset(await handleResponse<SharedAssetResponse>(res));
 }
 
 /**

@@ -16,7 +16,8 @@
 //   UI_BASE_URL  (default http://localhost:8092/ui/)
 //   LOOM_USER    (default admin)
 //   LOOM_PASS    (default finger)
-//   OUT_DIR      (default ../website/content/english/docs/ui)
+//   OUT_DIR      (default ../website/content/english/docs/ui; the search-index and
+//                 getting-started shots are written relative to it)
 
 import { chromium } from "playwright";
 import { fileURLToPath } from "url";
@@ -32,12 +33,18 @@ const OUT = process.env.OUT_DIR
   ? path.resolve(process.env.OUT_DIR)
   : path.resolve(__dirname, "../../website/content/english/docs/ui");
 
-// Most shots belong to the UI page bundle. The search index ones belong to the page that documents
-// them, because asciidoc resolves a bare image:: filename inside the bundle of the page using it.
+// Most shots belong to the UI page bundle. The others belong to the page that documents them,
+// because asciidoc resolves a bare image:: filename inside the bundle of the page using it.
 const SEARCH_INDEX_OUT = path.resolve(OUT, "../loom/search-indices");
+
+// Getting Started opens on two of the same screens. They used to be refreshed by hand and were
+// therefore the first pictures on the site to go stale; taking them in the same pass as their
+// docs/ui twins is what keeps the two pages showing one product.
+const GETTING_STARTED_OUT = path.resolve(OUT, "../getting-started");
 
 fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(SEARCH_INDEX_OUT, { recursive: true });
+fs.mkdirSync(GETTING_STARTED_OUT, { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -70,12 +77,26 @@ async function main() {
   // Click a sidebar nav entry by its exact label (avoids deep-link reloads,
   // which do not work because the SPA has no basename under /ui/).
   // The digits allow for a badge counter rendered inside the entry (e.g. "Tasks" + "3").
+  //
+  // Leaving the pipeline editor goes through the unsaved-changes guard, which answers with a
+  // discard dialog. Until it is answered the dialog sits over the page and swallows every
+  // subsequent click, so one unanswered dialog costs not this screenshot but all of them. Discard
+  // is the right answer here: this run never edits a pipeline, and anything it did edit is a
+  // screenshot fixture rather than somebody's work.
+  const dismissDiscardDialog = async () => {
+    const dialog = page.getByTestId("pipeline-discard-dialog");
+    if (!(await dialog.isVisible().catch(() => false))) return;
+    await page.getByTestId("pipeline-switch-confirm").click({ timeout: 4000 });
+    await sleep(600);
+  };
+
   const clickNav = async (label) => {
     const item = page
       .locator(".MuiListItemButton-root")
       .filter({ hasText: new RegExp(`^\\d*${label}\\d*$`) })
       .first();
     await item.click({ timeout: 8000 });
+    await dismissDiscardDialog();
     await sleep(1200);
   };
 
@@ -114,12 +135,16 @@ async function main() {
   // ---- Chat (landing) ----
   await capture("chat.png", async () => {
     await shot("chat.png", { settle: 1500 });
+    // The same screen, for the page that shows it first. Taken here rather than in a second pass:
+    // it is the same session, the same seeded conversation and the same window.
+    await shot("loom-ui-chat.png", { settle: 200, dir: GETTING_STARTED_OUT });
   });
 
   // ---- Assets ----
   await capture("assets.png", async () => {
     await clickNav("Assets");
     await shot("assets.png");
+    await shot("loom-ui-assets.png", { settle: 200, dir: GETTING_STARTED_OUT });
   });
 
   // ---- Asset detail ----
@@ -129,7 +154,7 @@ async function main() {
   await capture("asset-detail.png", async () => {
     const card = page
       .locator("main .MuiPaper-root")
-      .filter({ hasText: "sunset-beach.jpg" })
+      .filter({ hasText: "street-crossing.jpg" })
       .first();
     await card.click({ timeout: 8000 });
     await page.waitForURL(/\/assets\/.+/, { timeout: 8000 }).catch(() => {});
@@ -165,12 +190,19 @@ async function main() {
 
   // ---- A person's own page: their pictures and their avatar ----
   // Reached by clicking through from the Persons panel rather than by deep link, for the same reason
-  // clickNav exists. The demo seeds every person with pictures, so this has something to show.
+  // clickNav exists.
+  //
+  // A named person rather than "the first one": the demo seeds two of its five people with two
+  // framings of one face and the rest with a single picture, and the figure this fills is captioned
+  // "their pictures and avatar". Landing on a one-picture person illustrates the caption's plural
+  // with a gallery of one.
   await capture("persons.png", async () => {
     await clickNav("Detection");
     await page.locator('[data-testid="facedetection-section-persons"]').click({ timeout: 8000 });
     await sleep(600);
-    await page.locator('[data-testid="person-name"]').first().click({ timeout: 8000 });
+    const withGallery = page.locator('[data-testid="person-name"]').filter({ hasText: "Alice Smith" }).first();
+    const person = (await withGallery.count()) > 0 ? withGallery : page.locator('[data-testid="person-name"]').first();
+    await person.click({ timeout: 8000 });
     await page.locator('[data-testid="person-detail"]').waitFor({ timeout: 8000 });
     await shot("persons.png", { settle: 1400 });
   });

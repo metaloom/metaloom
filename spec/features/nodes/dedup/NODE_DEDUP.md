@@ -358,7 +358,7 @@ graph TB
 - [x] `V2.61` / `V2.62`, `DedupGroupDao` + jOOQ impl, six REST routes with keyset paging, DTOs, Java + Python clients
 - [x] 28 module tests, `DedupGroupEndpointTest` (14), `DedupGroupDaoTest` (7) incl. both delete cascades
 - [x] 🟢 Review UI is **real**, not a mock — `DeduplicationMode` in `WorkflowView.tsx` against the live routes, with optimistic write and rollback ([../../../workflows/WORKFLOW_DEDUP.md](../../../workflows/WORKFLOW_DEDUP.md))
-- [x] Demo data: `DemoDatabaseInitializer.seedDemoDedupGroup` seeds one PENDING group over `drone-coastal.mp4` and its 720p re-encode, and `seedFingerprintComps` seeds the fingerprints that pair would have been discovered from — one bit apart, which is the `0.5` the group records ([../../../loom/SEARCH_LUCENE.md](../../../loom/SEARCH_LUCENE.md) §4.2)
+- [x] Demo data: `DemoDatabaseInitializer.seedDemoDedupGroup` seeds one PENDING group over `city-traffic.mp4` and its 720p re-encode — both real files from `demo-content/videos/`, so the proposal is over footage a hasher would genuinely pair, and `seedFingerprintComps` seeds the fingerprints that pair would have been discovered from — one bit apart, which is the `0.5` the group records ([../../../loom/SEARCH_LUCENE.md](../../../loom/SEARCH_LUCENE.md) §4.2)
 - [x] Customer docs `website/content/english/docs/nodes/dedup/index.adoc` with `nodeviz`, plus the review screen in `docs/ui/index.adoc`
 
 ### Open

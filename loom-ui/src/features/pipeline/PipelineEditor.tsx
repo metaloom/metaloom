@@ -56,6 +56,7 @@ import { subscribePipelineEvents, type PipelineEventMessage } from "../../api/pi
 import { useAuth } from "../../context/AuthContext";
 import { useSpace } from "../../context/SpaceContext";
 import { useNodeRegistry } from "../../context/NodeRegistryContext";
+import { useNavigationGuard, useUnsavedChanges } from "../../hooks/useUnsavedChanges";
 import { hiddenOfflineCount, nodeIdOf, offlineReason, selectPickerNodes, type PickerEntry } from "./nodePicker";
 import type { ContentType, NodeDescriptor, NodeCategory, PortGroup, PortSpec } from "../../types/nodeDescriptors";
 import { contentTypeColor, findContentType, isAssignable, isWildcard } from "./contentTypes";
@@ -2891,6 +2892,13 @@ export default function PipelineEditor() {
   const [deletingPipeline, setDeletingPipeline] = useState(false);
   /** Pipeline the user tried to switch to while unsaved; drives the discard-confirm dialog. */
   const [pendingSwitch, setPendingSwitch] = useState<Pipeline | null>(null);
+  /**
+   * Navigation out of the editor deferred by the unsaved-changes guard — a sidebar click or a
+   * notification deep link. Wrapped in an object because `useState` would otherwise call the
+   * function it is handed. It drives the same discard dialog as `pendingSwitch`: leaving the
+   * screen and switching pipelines cost the user the same thing.
+   */
+  const [pendingNav, setPendingNav] = useState<{ proceed: () => void } | null>(null);
   // Live run state, driven by the pipeline-events WebSocket (see the subscription
   // effect below). `activeNodeIds` pulses nodes currently processing; `nodeResults`
   // tints a node green/red once it completes/fails.
@@ -3523,10 +3531,35 @@ export default function PipelineEditor() {
     applySelect(p);
   }, [selected, dirty, applySelect]);
 
-  const confirmSwitch = useCallback(() => {
+  /** The discard-confirm's only action: drop the edits and do whatever they were blocking. */
+  const confirmDiscard = useCallback(() => {
     if (pendingSwitch) applySelect(pendingSwitch);
+    // `applySelect` clears `dirty` for a switch; a navigation has to clear it itself, or the
+    // guard re-registers and blocks the very navigation the user just confirmed.
+    if (pendingNav) {
+      setDirty(false);
+      pendingNav.proceed();
+    }
     setPendingSwitch(null);
-  }, [pendingSwitch, applySelect]);
+    setPendingNav(null);
+  }, [pendingSwitch, pendingNav, applySelect]);
+
+  /** Cancel: the deferred navigation is dropped, which leaves the user on the canvas. */
+  const cancelDiscard = useCallback(() => {
+    setPendingSwitch(null);
+    setPendingNav(null);
+  }, []);
+
+  // Leaving the document — reload, close, an external link — can only be met with the browser's
+  // own confirm.
+  useUnsavedChanges(dirty, t("pipeline.editor.switchDirtyMessage"));
+
+  // Leaving the screen fires no browser event, so the sidebar and the notification list hand the
+  // navigation here instead; it waits in `pendingNav` until the dialog is answered.
+  useNavigationGuard(
+    dirty,
+    useCallback((proceed: () => void) => setPendingNav({ proceed }), []),
+  );
 
   // Create a brand-new pipeline or clone the selected one. Clone seeds the new
   // pipeline with a deep copy of the current definition (validated first, as a
@@ -4766,10 +4799,11 @@ export default function PipelineEditor() {
         </DialogActions>
       </Dialog>
 
-      {/* Unsaved-changes guard when switching pipelines */}
+      {/* Unsaved-changes guard — switching pipelines, and leaving the editor entirely */}
       <Dialog
-        open={Boolean(pendingSwitch)}
-        onClose={() => setPendingSwitch(null)}
+        open={Boolean(pendingSwitch || pendingNav)}
+        onClose={cancelDiscard}
+        data-testid="pipeline-discard-dialog"
         PaperProps={{
           sx: {
             bgcolor: tokens.bg.panel,
@@ -4788,12 +4822,12 @@ export default function PipelineEditor() {
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setPendingSwitch(null)} sx={{ color: tokens.text.secondary }}>
+          <Button onClick={cancelDiscard} sx={{ color: tokens.text.secondary }}>
             {t("common.cancel")}
           </Button>
           <Button
             data-testid="pipeline-switch-confirm"
-            onClick={confirmSwitch}
+            onClick={confirmDiscard}
             variant="contained"
             color="error"
             sx={{ fontWeight: 600 }}

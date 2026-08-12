@@ -79,7 +79,8 @@ that `PipelineGraphParser` on the Java side must be able to read verbatim.
 - [x] Live node pulsing / last-result tinting from the pipeline-events WebSocket
 - [x] Affinity groups (top-level `affinity` field) editable and rendered as outlined node clusters
 - [x] Unsaved-changes guard when switching pipelines in the list
-- [ ] Route-level navigation guard (leaving `/pipelines` dirty still loses edits silently)
+- [x] Route-level navigation guard — sidebar/deep-link navigation and `beforeunload`, via
+      `useUnsavedChanges` / `useNavigationGuard` ([LOOM_UI.md](LOOM_UI.md) §7.9)
 - [ ] Undo / redo
 - [x] Live validation while editing — debounced `POST /pipelines/validate` 500ms after the canvas
       settles, plus the blocking check on save and clone (§7.2)
@@ -451,7 +452,7 @@ The default is an **absolute dev URL**, not a same-origin `/api/v1` path: the Vi
 | Breakpoints | Debug mode only. Click a node's left-margin gutter dot to arm/disarm. Once something is actually held, the toolbar grows a held-count chip, **Step** (release one) and **Continue** (release every holding node). The transport is hidden while nothing is held — controls that are almost always disabled are just clutter |
 | Re-execution | Debug mode only, and only while the selected node is **held for the inspected item** (`heldElementSeq`). The held panel (`pipeline-node-held-panel`) says so, and from then on the parameter form edits a **run-scoped draft** rather than the definition: `changeParameter` routes to `onDraftChange` instead of `onParameterChange`, and a drafted key never marks the editor dirty. **Re-execute** sends the draft; **Save to pipeline** (`pipeline-node-save-draft`, disabled until something is changed) writes it into the definition and stores a new version — the only button here that crosses from run state into the pipeline. Once a node has more than one attempt, an **Attempt** selector (`pipeline-node-generation`) pins which one the canvas and Results tab show |
 | Node detail sidebar | 280px; tabs Config / Log (mock) / JSON. Parameter editors by `ParameterType`: `ENUM`→select, `BOOLEAN`→switch, `INTEGER`/`NUMBER`(+`FLOAT`)→numeric field, `ENUM_SET`(+`STRING_LIST`)→comma-separated, `PORT_LIST`→`BucketListEditor` repeatable rows (see below), `CODE`/`JSON`→multiline with per-parameter parse-error flag, else text |
-| Dirty tracking | Any canvas change, parameter/affinity/edge edit, node add/delete → `dirty`. Switching pipelines while dirty opens a discard-confirm (`pipeline-switch-confirm`). Leaving the route does not. |
+| Dirty tracking | Any canvas change, parameter/affinity/edge edit, node add/delete → `dirty`. Every exit while dirty goes through one discard-confirm (`pipeline-switch-confirm`, dialog `pipeline-discard-dialog`): switching pipelines in the list holds a `pendingSwitch`, leaving the screen holds a `pendingNav` handed over by the `LayoutContext` nav guard ([LOOM_UI.md](LOOM_UI.md) §7.9), and Cancel drops the deferred navigation so the canvas is kept. Confirming a navigation clears `dirty` first — otherwise the guard would block the navigation it just released. A reload or tab close gets the browser's own `beforeunload` confirm |
 | i18n | All user-visible strings under the `pipeline.*` namespace in `loom-ui/src/i18n/locales/{en,de}.json` |
 | **Not implemented** | No autosave (saving is always the explicit button), no undo/redo, no node copy/paste or multi-select, no drag-and-drop from the palette — nodes are added by click/Enter and land at a computed position |
 
@@ -552,7 +553,7 @@ yarn playwright test e2e/pipeline-crud-mocked.spec.ts
 | `src/features/pipeline/resultRenderers.test.ts` | One case per content-type family; hash/path truncation; MANY summarisation; empty selective port; markdown-table key union, pipe/newline escaping and origin-seq numbering |
 | `src/features/pipeline/nodeResultDetail.test.ts` | `viewersFor()`: Raw always offered, a node's description outranking its own image, no one-row table for a lone scalar, a player only for a playable `media/*` value, a capped preview adding no image tab |
 | `e2e/pipeline-ports-mocked.spec.ts` | Valid port-to-port connect; typed rejection toast; XOR sibling disabling; **save → reload → save round trip preserving ports and `branch`** |
-| `e2e/pipeline-crud-mocked.spec.ts` | Create / clone / delete / unsaved-switch guard |
+| `e2e/pipeline-crud-mocked.spec.ts` | Create / clone / delete / unsaved-changes guard — both switching pipelines and leaving the editor via `sidebar-item-/assets`, where Cancel has to keep the edited parameter. Its `sha512` descriptor declares the fixture's only parameter, on that node because the minimap swallows clicks on the lower-right `thumbnail` |
 | `e2e/pipeline-run-mocked.spec.ts`, `pipeline-run-cancel-mocked.spec.ts`, `pipeline-run-items-mocked.spec.ts` | Run dispatch, cancel, item drill-down |
 | `e2e/pipeline-versions-mocked.spec.ts`, `pipeline-versions.spec.ts`, `pipeline-diff-backend.spec.ts` | Version badge, restore, diff |
 | `e2e/pipeline-events-mocked.spec.ts` | Node pulsing / last-result tinting from WS frames; `NODE_STATS` counters rendering **only** in debug mode, and `activeCount` driving the pulse |

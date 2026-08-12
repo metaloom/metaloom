@@ -18,7 +18,19 @@ const TASK_UUID = "33333333-3333-3333-3333-333333333333";
 interface StoredComment {
   uuid: string;
   text: string;
+  /** Set on replies. `threadComments` groups on it, one level deep. */
+  parentUuid?: string;
   status: { creator: { uuid: string }; created: string };
+}
+
+/** What the browser actually sent, so an *absent* parentUuid can be asserted rather than inferred. */
+interface Recorder {
+  /** Bodies of every POST /tasks/:uuid/comments, in order. */
+  posts: { text?: string; parentUuid?: string }[];
+}
+
+function recorder(): Recorder {
+  return { posts: [] };
 }
 
 function json(route: Route, body: unknown, status = 200) {
@@ -34,7 +46,7 @@ function task() {
   };
 }
 
-async function installMocks(page: Page, seed: StoredComment[]) {
+async function installMocks(page: Page, seed: StoredComment[], rec: Recorder) {
   const comments: StoredComment[] = [...seed];
   let seq = 0;
 
@@ -57,9 +69,12 @@ async function installMocks(page: Page, seed: StoredComment[]) {
   await page.route(/\/api\/v1\/tasks\/[^/]+\/comments$/, route => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
+      rec.posts.push(body);
       const created: StoredComment = {
         uuid: `comment-${++seq}`,
         text: body.text ?? "",
+        // Echoed back so the reply threads under its parent on the next render.
+        ...(body.parentUuid ? { parentUuid: body.parentUuid } : {}),
         status: { creator: { uuid: ME_UUID }, created: new Date().toISOString() },
       };
       comments.push(created);
@@ -84,8 +99,8 @@ async function installMocks(page: Page, seed: StoredComment[]) {
   });
 }
 
-async function loginAndOpenTaskDrawer(page: Page, seed: StoredComment[]) {
-  await installMocks(page, seed);
+async function loginAndOpenTaskDrawer(page: Page, seed: StoredComment[], rec: Recorder = recorder()) {
+  await installMocks(page, seed, rec);
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
@@ -97,6 +112,20 @@ async function loginAndOpenTaskDrawer(page: Page, seed: StoredComment[]) {
 
   await page.getByText("Mock task").first().click();
   await expect(page.getByRole("heading", { name: "Mock task" })).toBeVisible({ timeout: 10_000 });
+  return rec;
+}
+
+/** Arm the reply banner against the (single) root comment on screen. */
+async function startReply(page: Page) {
+  await page.getByTestId("comment-item").first().hover();
+  await page.getByTestId("comment-reply").first().click();
+  await expect(page.getByTestId("tasks-comment-reply-banner")).toBeVisible({ timeout: 5_000 });
+}
+
+async function postComment(page: Page, text: string) {
+  await page.getByTestId("tasks-comment-input").fill(text);
+  await page.getByTestId("tasks-comment-post").click();
+  await expect(page.getByText(text, { exact: true })).toBeVisible({ timeout: 10_000 });
 }
 
 function ownComment(): StoredComment {
@@ -147,5 +176,74 @@ test.describe("Task comments – mocked e2e", () => {
     await page.locator("div").filter({ hasText: "task-comment-by-someone-else" }).last().hover();
     await expect(page.getByTestId("comment-edit")).toHaveCount(0);
     await expect(page.getByTestId("comment-delete")).toHaveCount(0);
+  });
+
+  test("the drawer composer posts a top-level comment", async ({ page }) => {
+    const rec = await loginAndOpenTaskDrawer(page, []);
+
+    // Nothing to send until something is typed.
+    await expect(page.getByTestId("tasks-comment-post")).toBeDisabled();
+    await page.getByTestId("tasks-comment-input").fill("   ");
+    await expect(page.getByTestId("tasks-comment-post")).toBeDisabled();
+
+    await postComment(page, "a fresh task comment");
+
+    expect(rec.posts).toHaveLength(1);
+    expect(rec.posts[0].text).toBe("a fresh task comment");
+    // No reply was armed, so nothing may be smuggled into parentUuid.
+    expect(rec.posts[0].parentUuid).toBeUndefined();
+
+    // The composer empties, and the comment lands as a root rather than an indented reply.
+    await expect(page.getByTestId("tasks-comment-input")).toHaveValue("");
+    await expect(page.getByTestId("comment-item")).toHaveCount(1);
+    await expect(page.getByTestId("comment-reply-item")).toHaveCount(0);
+  });
+
+  test("replying names the comment being answered and threads the post under it", async ({ page }) => {
+    const rec = await loginAndOpenTaskDrawer(page, [ownComment()]);
+
+    await expect(page.getByText("task-comment-by-me", { exact: true })).toBeVisible({ timeout: 10_000 });
+    // The banner is a reply-only affordance — it must not be sitting there by default.
+    await expect(page.getByTestId("tasks-comment-reply-banner")).toHaveCount(0);
+
+    await startReply(page);
+    // It names the comment being answered, so the author can see which thread they are in.
+    await expect(page.getByTestId("tasks-comment-reply-banner")).toContainText("task-comment-by-me");
+
+    await postComment(page, "an answer to that");
+
+    expect(rec.posts).toHaveLength(1);
+    expect(rec.posts[0].parentUuid).toBe("own-comment");
+    // One root, one reply indented under it — and the banner is spent.
+    await expect(page.getByTestId("comment-item")).toHaveCount(1);
+    await expect(page.getByTestId("comment-reply-item")).toHaveCount(1);
+    await expect(page.getByTestId("tasks-comment-reply-banner")).toHaveCount(0);
+  });
+
+  /**
+   * The assertion that makes the banner worth having. A cancel that only hides the banner while
+   * leaving `replyTo` set would send the next comment — a new, unrelated one — into someone else's
+   * thread, and nothing on screen would say so.
+   */
+  test("cancelling a reply clears the banner and the next post carries no parent", async ({ page }) => {
+    const rec = await loginAndOpenTaskDrawer(page, [ownComment()]);
+
+    await expect(page.getByText("task-comment-by-me", { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    await startReply(page);
+    // Text typed before the cancel must not go out as a reply either.
+    await page.getByTestId("tasks-comment-input").fill("changed my mind");
+    await page.getByTestId("tasks-comment-reply-cancel").click();
+    await expect(page.getByTestId("tasks-comment-reply-banner")).toHaveCount(0);
+
+    await postComment(page, "changed my mind");
+
+    expect(rec.posts).toHaveLength(1);
+    expect(rec.posts[0].text).toBe("changed my mind");
+    expect(rec.posts[0].parentUuid).toBeUndefined();
+
+    // Two roots, no reply — the abandoned parent did not survive the cancel.
+    await expect(page.getByTestId("comment-item")).toHaveCount(2);
+    await expect(page.getByTestId("comment-reply-item")).toHaveCount(0);
   });
 });

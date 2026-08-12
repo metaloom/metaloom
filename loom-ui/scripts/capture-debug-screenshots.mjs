@@ -477,10 +477,13 @@ async function main() {
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.getByTestId("pipeline-canvas").waitFor({ timeout: 20_000 }).catch(async () => {
+  // Exactly one click, and only when the editor is not already open. Clicking Pipelines a second
+  // time is a navigation *out of* the editor as far as the unsaved-changes guard is concerned, and
+  // the guard answers it with the discard dialog — which then sits over the canvas and swallows
+  // every click the rest of this script makes.
+  if (!(await page.getByTestId("pipeline-canvas").isVisible().catch(() => false))) {
     await page.getByRole("button", { name: "Pipelines" }).first().click();
-  });
-  await page.getByRole("button", { name: "Pipelines" }).first().click();
+  }
   await page.getByTestId("pipeline-canvas").waitFor({ timeout: 20_000 });
   await page.getByTestId("pipeline-node-thumb").waitFor({ timeout: 20_000 });
   await sleep(1200);

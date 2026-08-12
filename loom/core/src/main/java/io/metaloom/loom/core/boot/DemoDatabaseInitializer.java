@@ -8,6 +8,7 @@ import java.awt.RenderingHints;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -49,14 +51,11 @@ import io.metaloom.loom.db.model.annotation.Annotation;
 import io.metaloom.loom.db.model.annotation.AnnotationDao;
 import io.metaloom.loom.api.annotation.AnnotationType;
 import io.metaloom.loom.db.model.asset.Asset;
-import io.metaloom.loom.db.model.asset.AssetAudioComp;
 import io.metaloom.loom.db.model.asset.AssetBinary;
 import io.metaloom.loom.db.model.asset.AssetBinaryDao;
 import io.metaloom.loom.db.model.asset.AssetComponentDao;
 import io.metaloom.loom.db.model.asset.AssetDao;
 import io.metaloom.loom.db.model.asset.AssetFingerprintComp;
-import io.metaloom.loom.db.model.asset.AssetDocComp;
-import io.metaloom.loom.db.model.asset.AssetGeoComp;
 import io.metaloom.loom.db.model.asset.AssetImageComp;
 import io.metaloom.loom.db.model.asset.AssetJsonComp;
 import io.metaloom.loom.db.model.asset.AssetTranscriptComp;
@@ -193,7 +192,204 @@ public class DemoDatabaseInitializer {
 	/**
 	 * Name of the demo remix. Fixed so the documentation and the screenshot script can name the same thing the demo container shows.
 	 */
-	private static final String DEMO_REMIX_NAME = "Coastal drone — cuts";
+	private static final String DEMO_REMIX_NAME = "Team meeting — cuts";
+
+	/**
+	 * The demo's video files, and the metadata a probe would report for them.
+	 *
+	 * <p>
+	 * Hard-coded because the demo container ships no ffprobe and no video decoder — the JRE image is an Alpine JRE with an AWT stack and nothing
+	 * else. The values below are {@code ffprobe} output for the files in {@code demo-content/videos/}, quoted rather than guessed; the derived clips'
+	 * commands are in that directory's README. Without an {@code asset_video_comp} row the UI has no duration and its timeline divides by zero.
+	 * </p>
+	 *
+	 * @param filename
+	 *            the name the asset carries in the demo
+	 * @param source
+	 *            the file below the demo content directory
+	 * @param width
+	 *            frame width in pixels
+	 * @param height
+	 *            frame height in pixels
+	 * @param durationMs
+	 *            duration in milliseconds, which is the unit {@code AssetVideoComp} stores
+	 * @param frameCount
+	 *            number of frames in the video stream
+	 * @param fps
+	 *            frames per second
+	 * @param sizeBytes
+	 *            length of the file, used as the asset's size where the file itself is not there to be measured
+	 */
+	private record DemoVideo(String filename, String source, int width, int height, long durationMs, long frameCount, float fps,
+		long sizeBytes) {
+	}
+
+	private static final DemoVideo DEMO_VIDEO_MEETING = new DemoVideo("team-meeting.mp4",
+		"videos/video-01-work-meeting-around-table.mp4", 1920, 1080, 28_267L, 848L, 30f, 5_895_293L);
+
+	private static final DemoVideo DEMO_VIDEO_TRAFFIC = new DemoVideo("city-traffic.mp4",
+		"videos/video-02-busy-street-traffic.mp4", 1920, 1080, 13_367L, 401L, 30f, 11_342_857L);
+
+	private static final DemoVideo DEMO_VIDEO_MEETING_CUT = new DemoVideo("team-meeting-cut.mp4",
+		"videos/video-01-work-meeting-around-table-cut.mp4", 1920, 1080, 10_000L, 300L, 30f, 2_154_678L);
+
+	/** The deduplication proposal's duplicate: the same footage as {@link #DEMO_VIDEO_TRAFFIC}, re-encoded smaller. */
+	private static final DemoVideo DEMO_VIDEO_TRAFFIC_DUPLICATE = new DemoVideo("city-traffic-720p.mp4",
+		"videos/video-02-busy-street-traffic-720p.mp4", 1280, 720, 13_367L, 401L, 30f, 4_019_459L);
+
+	/**
+	 * The demo's photographs: the name the asset carries, the file it is seeded from, and the palette painted in its place when there is no demo
+	 * content directory.
+	 *
+	 * <p>
+	 * Every entry has a palette so that both modes seed the same roster. A server with no {@code demo-content/} therefore still has sixteen image
+	 * assets under these names — painted rather than photographed, which is the degraded state and reads as one.
+	 * </p>
+	 */
+	private record DemoImage(String filename, String source, Palette palette) {
+	}
+
+	/**
+	 * Order matters: the tags, tasks, comments, detections and remix below index into this list, and the asset browser shows it in seeded order.
+	 * The six {@code image-*} photographs come first because they are the ones with people and objects in them.
+	 */
+	private static final DemoImage[] DEMO_IMAGES = {
+		new DemoImage("street-crossing.jpg", "images/image-01-people-crossing-street.jpg", Palette.CITY),
+		new DemoImage("coworkers-laptop.jpg", "images/image-02-coworkers-laptop-table.jpg", Palette.STUDIO),
+		new DemoImage("friends-outdoors.jpg", "images/image-03-three-friends-outdoors.jpg", Palette.STUDIO),
+		new DemoImage("cyclist-city.jpg", "images/image-04-man-riding-bicycle.jpg", Palette.CITY),
+		new DemoImage("woman-walking-dog.jpg", "images/image-05-woman-walking-dog.jpg", Palette.FOREST),
+		new DemoImage("street-food-vendor.jpg", "images/image-06-street-food-vendor.jpg", Palette.CITY),
+		new DemoImage("curved-architecture.jpg", "images/artistic-01-curved-architecture.jpg", Palette.CITY),
+		new DemoImage("abstract-facade.jpg", "images/artistic-02-abstract-facade.jpg", Palette.CITY),
+		new DemoImage("sand-dune.jpg", "images/artistic-03-sand-dune-abstract.jpg", Palette.SUNSET),
+		new DemoImage("sea-stack-beach.jpg", "images/artistic-04-sea-stack-black-beach.jpg", Palette.SUNSET),
+		new DemoImage("misty-forest-path.jpg", "images/artistic-05-misty-forest-path.jpg", Palette.FOREST),
+		new DemoImage("waterfall-long-exposure.jpg", "images/artistic-06-waterfall-long-exposure.jpg", Palette.FOREST),
+		new DemoImage("alpine-lake-autumn.jpg", "images/artistic-07-alpine-lake-autumn.jpg", Palette.LAKE),
+		new DemoImage("glowing-autumn-forest.jpg", "images/artistic-08-glowing-autumn-forest.jpg", Palette.AUTUMN),
+		new DemoImage("mountain-lake-reflection.jpg", "images/artistic-09-mountain-lake-reflection.jpg", Palette.SNOW),
+		new DemoImage("autumn-forest-path.jpg", "images/artistic-10-autumn-forest-path.jpg", Palette.AUTUMN)
+	};
+
+	// Indices into DEMO_IMAGES, named because the wiring below is about what is in the picture, not about its position.
+	private static final int IMG_CROSSING = 0;
+	private static final int IMG_COWORKERS = 1;
+	private static final int IMG_FRIENDS = 2;
+	private static final int IMG_CYCLIST = 3;
+	private static final int IMG_DOG_WALKER = 4;
+	private static final int IMG_FOOD_VENDOR = 5;
+	private static final int IMG_ARCHITECTURE = 6;
+	private static final int IMG_SEA_STACK = 9;
+	private static final int IMG_FOREST_PATH = 10;
+	private static final int IMG_ALPINE_LAKE = 12;
+	private static final int IMG_MOUNTAIN_LAKE = 14;
+
+	/**
+	 * A detection box, in the normalised 0..1 coordinates {@code detection} stores.
+	 *
+	 * <p>
+	 * Normalised, so the boxes survive the initializer resizing the photograph on its way in.
+	 * </p>
+	 */
+	private record Box(float x, float y, float width, float height) {
+	}
+
+	// The four faces in demo-content/images/image-02-coworkers-laptop-table.jpg, measured against the
+	// photograph. These are not decoration: GET /assets/:uuid/detections/:uuid/crop cuts exactly this
+	// rectangle out of the stored bytes, so a box that is nearly right produces a crop that is wrong.
+	private static final Box FACE_COWORKER_BLOND = new Box(0.187f, 0.037f, 0.094f, 0.172f);
+	private static final Box FACE_COWORKER_STANDING = new Box(0.537f, 0.008f, 0.081f, 0.155f);
+	private static final Box FACE_COWORKER_GLASSES = new Box(0.398f, 0.325f, 0.102f, 0.225f);
+	private static final Box FACE_COWORKER_SEATED = new Box(0.717f, 0.458f, 0.081f, 0.192f);
+
+	// The three faces in demo-content/images/image-03-three-friends-outdoors.jpg.
+	private static final Box FACE_FRIEND_PROFILE = new Box(0.272f, 0.183f, 0.089f, 0.233f);
+	private static final Box FACE_FRIEND_CENTRE = new Box(0.411f, 0.283f, 0.089f, 0.200f);
+	private static final Box FACE_FRIEND_RIGHT = new Box(0.620f, 0.275f, 0.089f, 0.183f);
+
+	/**
+	 * The one frame of the meeting clip that also exists as a still.
+	 *
+	 * <p>
+	 * The clip's face detections all sit on it, and their crops are cut from it. Nothing in the server container can decode a video, so a box on any
+	 * other frame would be a row the face panel could only render as an empty placeholder.
+	 * </p>
+	 */
+	private static final String DEMO_VIDEO_MEETING_POSTER = "videos/video-01-work-meeting-around-table-poster.jpg";
+
+	// Two of the four faces on that frame, measured against it. Everyone in this clip is turned towards
+	// somebody else, which is why both are scored below the frontal boxes above.
+	private static final Box FACE_MEETING_LEFT_WOMAN = new Box(0.209f, 0.285f, 0.056f, 0.118f);
+	private static final Box FACE_MEETING_RIGHT_MAN = new Box(0.582f, 0.222f, 0.063f, 0.125f);
+
+	/**
+	 * Where a demo account picture or person image comes from.
+	 *
+	 * <p>
+	 * Two sources per face: a file under the demo content directory, and the 512x512 crop shipped in the jar for installations that have no such
+	 * directory. The shipped crops are cut from three Pexels portraits, so three of these faces are the same people in both modes; the two that are
+	 * not have no shipped crop at all and their person records are only seeded when the media is present. Five people sharing three faces would read
+	 * as a clustering bug rather than as demo data.
+	 * </p>
+	 *
+	 * @param source
+	 *            the file below the demo content directory
+	 * @param cropEdge
+	 *            side of the square to cut from an uncropped original, or 0 when the file is already a square portrait
+	 * @param cropX
+	 *            left edge of that square, in source pixels
+	 * @param cropY
+	 *            top edge of that square, in source pixels
+	 * @param close
+	 *            the shipped crop used as the tight framing when there is no demo content, or null when this face has none
+	 * @param wide
+	 *            the shipped crop used as the wide framing, or null
+	 */
+	private record DemoFaceSource(String source, int cropEdge, int cropX, int cropY, Portrait close, Portrait wide) {
+	}
+
+	/**
+	 * The faces the demo puts names to.
+	 *
+	 * <p>
+	 * {@code ADMIN} is the primary account picture. Its geometry is the {@code frost-wide} crop recorded in
+	 * {@code loom/core/src/main/resources/demo/portraits/README.txt}, reused rather than re-derived, because the shipped crop and the one cut here
+	 * have to be the same face in the same framing — otherwise the demo's own account changes appearance depending on which image it is running.
+	 * </p>
+	 */
+	private static final class DemoFace {
+
+		static final DemoFaceSource ADMIN = new DemoFaceSource("users/primary-pexels-merlin-11167639.jpg", 1800, 322, 450,
+			Portrait.FROST_CLOSE, Portrait.FROST_WIDE);
+
+		static final DemoFaceSource EDITOR = new DemoFaceSource("users/user-03-man-black-shirt.jpg", 0, 0, 0,
+			Portrait.VIOLET_CLOSE, Portrait.VIOLET_WIDE);
+
+		static final DemoFaceSource JOHN = new DemoFaceSource("persons/person-02-man-blue-shirt.jpg", 0, 0, 0,
+			Portrait.TEAL_CLOSE, Portrait.TEAL_WIDE);
+
+		static final DemoFaceSource ALICE = new DemoFaceSource("persons/person-01-woman-long-hair.jpg", 0, 0, 0,
+			Portrait.FROST_CLOSE, Portrait.FROST_WIDE);
+
+		static final DemoFaceSource BOB = new DemoFaceSource("persons/person-04-man-beard.jpg", 0, 0, 0,
+			Portrait.VIOLET_CLOSE, Portrait.VIOLET_WIDE);
+
+		/** No shipped crop: Carol exists only where the demo media does. */
+		static final DemoFaceSource CAROL = new DemoFaceSource("persons/user-02-woman-glasses.jpg", 0, 0, 0, null, null);
+
+		/** No shipped crop: Dana exists only where the demo media does. */
+		static final DemoFaceSource DANA = new DemoFaceSource("persons/person-08-older-woman.jpg", 0, 0, 0, null, null);
+
+		private DemoFace() {
+		}
+	}
+
+	/** How much tighter the second framing of a person's gallery is cut than the first. */
+	private static final double PORTRAIT_CLOSE_ZOOM = 0.72;
+
+	/** How much wider than its box a face crop is cut. A detector's box stops at the hairline. */
+	private static final double FACE_CROP_MARGIN = 0.45;
 
 	/**
 	 * Fixed slugs for the two demo share links.
@@ -215,6 +411,16 @@ public class DemoDatabaseInitializer {
 
 	/** The node kind {@code FingerprintNode} writes its components under. */
 	private static final String DEMO_FINGERPRINT_NODE_KIND = "fingerprint";
+
+	/**
+	 * The node kind the seeded image and video components are attributed to.
+	 *
+	 * <p>
+	 * {@code metadata} is the node that would have produced them on a real ingest, and the read side coalesces components by producer precedence — so
+	 * an invented kind would sort somewhere nothing expects. These rows are seeded rather than produced, but they are the shape that node writes.
+	 * </p>
+	 */
+	private static final String DEMO_MEDIA_NODE_KIND = "metadata";
 
 	/** Bit pattern of the original of the seeded near-duplicate pair; the re-encode flips one of its bits. */
 	private static final int DEMO_FINGERPRINT_BASE_BYTE = 0xB4;
@@ -282,6 +488,16 @@ public class DemoDatabaseInitializer {
 	private final ShareFeedbackDao shareFeedbackDao;
 	private final AuthenticationService authService;
 	private final LoomOptions options;
+
+	/**
+	 * The checked-in media, or an unavailable library when this installation ships none.
+	 *
+	 * <p>
+	 * Resolved in {@link #init()} rather than in the constructor: the initializer is built by Dagger at wiring time, and the relative fall-back path
+	 * is only meaningful once the process has its working directory.
+	 * </p>
+	 */
+	private DemoMediaLibrary media = new DemoMediaLibrary(null);
 
 	/** Running detection ordinal per {@code asset|nodeKind|frame}; see {@link #createDetection}. */
 	private final Map<String, Integer> detectionOrdinals = new HashMap<>();
@@ -354,7 +570,14 @@ public class DemoDatabaseInitializer {
 			return;
 		}
 		UUID adminUuid = admin.getUuid();
-		log.info("Populating demo data…");
+		media = new DemoMediaLibrary(options.getDemo().resolveContentDirectory());
+		if (media.isAvailable()) {
+			log.info("Populating demo data from {}…", media.root());
+		} else {
+			// Not a failure: the demo seed runs on every installation, and only the demo image carries the
+			// media. Everywhere else the pictures are painted, which is what this branch has always done.
+			log.info("Populating demo data (no demo content directory — images will be painted)…");
+		}
 
 		// --- Space ---
 		Space space = spaceDao.createSpace(adminUuid, DEMO_SPACE_NAME);
@@ -488,8 +711,8 @@ public class DemoDatabaseInitializer {
 		// Account pictures. Two of the three, deliberately: every screen that renders a username has to
 		// look right both with a picture and with the initials fall-back, and a demo where everybody has
 		// one only ever exercises half of that.
-		createUserAvatar(admin, admin, "admin-avatar.jpg", Portrait.VIOLET_CLOSE);
-		createUserAvatar(admin, editor, "editor-avatar.jpg", Portrait.FROST_CLOSE);
+		createUserAvatar(admin, admin, "admin-avatar.jpg", DemoFace.ADMIN);
+		createUserAvatar(admin, editor, "editor-avatar.jpg", DemoFace.EDITOR);
 
 		// --- Roles ---
 		Role editorRole = createDemoRole(admin, "Editor");
@@ -564,24 +787,30 @@ public class DemoDatabaseInitializer {
 		createDemoToken(admin, "Mobile App Key", "demo-mobile-token-value");
 
 		// --- Assets ---
-		// Image assets are created with real bytes on disk (see createImageAsset), so the asset
-		// browser and the detail view render an actual preview instead of a type placeholder.
-		Asset[] imageAssets = {
-			createImageAsset(admin, campaignLibrary, "sunset-beach.jpg", "image/jpeg", "/demo/photos/sunset-beach.jpg", Palette.SUNSET),
-			createImageAsset(admin, campaignLibrary, "mountain-lake.jpg", "image/jpeg", "/demo/photos/mountain-lake.jpg", Palette.LAKE),
-			createImageAsset(admin, campaignLibrary, "city-skyline.png", "image/png", "/demo/photos/city-skyline.png", Palette.CITY),
-			createImageAsset(admin, campaignLibrary, "portrait-studio.jpg", "image/jpeg", "/demo/photos/portrait-studio.jpg", Palette.STUDIO),
-			createImageAsset(admin, campaignLibrary, "forest-trail.jpg", "image/jpeg", "/demo/photos/forest-trail.jpg", Palette.FOREST),
-			createImageAsset(admin, campaignLibrary, "autumn-leaves.jpg", "image/jpeg", "/demo/photos/autumn-leaves.jpg", Palette.AUTUMN),
-			createImageAsset(admin, campaignLibrary, "snow-peaks.jpg", "image/jpeg", "/demo/photos/snow-peaks.jpg", Palette.SNOW),
-		};
+		// Images and videos are created with real bytes on disk, so the asset browser, the detail view
+		// and both share links render actual media instead of a type placeholder. Where there is no demo
+		// content directory the images are painted and the videos become rows without bytes, which is
+		// what the demo did everywhere before the media was checked in.
+		Asset[] imageAssets = new Asset[DEMO_IMAGES.length];
+		for (int i = 0; i < DEMO_IMAGES.length; i++) {
+			imageAssets[i] = createImageAsset(admin, campaignLibrary, DEMO_IMAGES[i]);
+		}
 
 		Asset[] videoAssets = {
-			createAsset(admin, "drone-coastal.mp4", "video/mp4", 52_000_000, "/demo/videos/drone-coastal.mp4"),
-			createAsset(admin, "timelapse-city.mp4", "video/mp4", 38_000_000, "/demo/videos/timelapse-city.mp4"),
-			createAsset(admin, "interview-clip.mov", "video/quicktime", 120_000_000, "/demo/videos/interview-clip.mov"),
+			createVideoAsset(admin, campaignLibrary, DEMO_VIDEO_MEETING),
+			createVideoAsset(admin, campaignLibrary, DEMO_VIDEO_TRAFFIC),
+			createVideoAsset(admin, campaignLibrary, DEMO_VIDEO_MEETING_CUT),
 		};
 
+		// One frame pulled out of the cut. An image by format, and the third member of the remix below —
+		// which is the point of a remix: it groups things that are versions of one another regardless of
+		// media type.
+		Asset stillAsset = createMediaImageAsset(admin, campaignLibrary, "team-meeting-still.jpg",
+			"videos/video-01-work-meeting-around-table-still.jpg", Palette.STUDIO);
+
+		// The demo has no audio and no PDF to seed: every clip in demo-content/ is silent and the set
+		// carries no document. These stay rows without bytes, which is also a case worth having on the
+		// screen — the asset browser has to look right for material Loom only knows about.
 		Asset[] audioAssets = {
 			createAsset(admin, "ambient-rain.mp3", "audio/mpeg", 8_500_000, "/demo/audio/ambient-rain.mp3"),
 			createAsset(admin, "podcast-episode1.mp3", "audio/mpeg", 45_000_000, "/demo/audio/podcast-episode1.mp3"),
@@ -592,9 +821,11 @@ public class DemoDatabaseInitializer {
 			createAsset(admin, "meeting-notes.pdf", "application/pdf", 340_000, "/demo/docs/meeting-notes.pdf"),
 		};
 
-		// A scanned page: an image by format, a document by content. It carries the demo `vlm` component below.
-		Asset scanAsset = createImageAsset(admin, campaignLibrary, "scanned-invoice.png", "image/png", "/demo/docs/scanned-invoice.png",
-			Palette.SCAN);
+		// A scanned page: an image by format, a document by content. It carries the demo `vlm` component
+		// below. Painted rather than photographed even with demo content present — the set has no scan,
+		// and a photograph of a landscape would not read as one.
+		Asset scanAsset = createPaintedImageAsset(admin, campaignLibrary, "scanned-invoice.png", "image/png",
+			"/demo/docs/scanned-invoice.png", Palette.SCAN);
 		tagDao.tagAsset(tagImage, scanAsset);
 		tagDao.tagAsset(tagDocument, scanAsset);
 
@@ -602,24 +833,31 @@ public class DemoDatabaseInitializer {
 		for (Asset a : imageAssets) {
 			tagDao.tagAsset(tagImage, a);
 		}
-		tagDao.tagAsset(tagNature, imageAssets[0]);
-		tagDao.tagAsset(tagNature, imageAssets[1]);
-		tagDao.tagAsset(tagLandscape, imageAssets[1]);
-		tagDao.tagAsset(tagCity, imageAssets[2]);
-		tagDao.tagAsset(tagPortrait, imageAssets[3]);
-		tagDao.tagAsset(tagNature, imageAssets[4]);
-		tagDao.tagAsset(tagNature, imageAssets[5]);
-		tagDao.tagAsset(tagLandscape, imageAssets[6]);
+		tagDao.tagAsset(tagImage, stillAsset);
+		tagDao.tagAsset(tagCity, imageAssets[IMG_CROSSING]);
+		tagDao.tagAsset(tagPortrait, imageAssets[IMG_COWORKERS]);
+		tagDao.tagAsset(tagPortrait, imageAssets[IMG_FRIENDS]);
+		tagDao.tagAsset(tagCity, imageAssets[IMG_CYCLIST]);
+		tagDao.tagAsset(tagCity, imageAssets[IMG_FOOD_VENDOR]);
+		tagDao.tagAsset(tagCity, imageAssets[IMG_ARCHITECTURE]);
+		tagDao.tagAsset(tagNature, imageAssets[IMG_DOG_WALKER]);
+		tagDao.tagAsset(tagNature, imageAssets[IMG_SEA_STACK]);
+		tagDao.tagAsset(tagNature, imageAssets[IMG_FOREST_PATH]);
+		tagDao.tagAsset(tagNature, imageAssets[IMG_ALPINE_LAKE]);
+		tagDao.tagAsset(tagNature, imageAssets[IMG_MOUNTAIN_LAKE]);
+		tagDao.tagAsset(tagLandscape, imageAssets[IMG_SEA_STACK]);
+		tagDao.tagAsset(tagLandscape, imageAssets[IMG_ALPINE_LAKE]);
+		tagDao.tagAsset(tagLandscape, imageAssets[IMG_MOUNTAIN_LAKE]);
 		// The one curated tag: on the same asset the demo rates 9, so the review screen shows an asset
 		// that already carries both kinds of decision. tagAsset defaults node_kind to 'manual', which is
 		// what makes it read as a person's tag rather than a pipeline's.
-		tagDao.tagAsset(tagHero, imageAssets[0]);
+		tagDao.tagAsset(tagHero, imageAssets[IMG_CROSSING]);
 
 		// Tag videos
 		for (Asset a : videoAssets) {
 			tagDao.tagAsset(tagVideo, a);
 		}
-		tagDao.tagAsset(tagNature, videoAssets[0]);
+		tagDao.tagAsset(tagPortrait, videoAssets[0]);
 		tagDao.tagAsset(tagCity, videoAssets[1]);
 		tagDao.tagAsset(tagPortrait, videoAssets[2]);
 
@@ -637,6 +875,7 @@ public class DemoDatabaseInitializer {
 		for (Asset a : imageAssets) {
 			collectionDao.link(imagesCollection, a);
 		}
+		collectionDao.link(imagesCollection, stillAsset);
 		for (Asset a : videoAssets) {
 			collectionDao.link(videosCollection, a);
 		}
@@ -644,20 +883,20 @@ public class DemoDatabaseInitializer {
 		// --- Tasks ---
 		// Every task is attached to the asset it is about, so the Tasks tab of the asset detail
 		// view has content and the task board shows a realistic mix of statuses and priorities.
-		Task taskColourGrade = createAssetTask(admin, imageAssets[0], "Colour-grade the hero shot",
-			"The white balance drifts warm in the top-left quadrant — regrade before the campaign export.",
+		Task taskColourGrade = createAssetTask(admin, imageAssets[IMG_CROSSING], "Colour-grade the hero shot",
+			"The dusk white balance drifts cool across the crossing — regrade before the campaign export.",
 			TaskPriority.HIGH, TaskStatus.PENDING, 3);
-		Task taskBuildingRights = createAssetTask(admin, imageAssets[2], "Clear building rights",
-			"Confirm the property release for the skyline before this goes into the paid campaign.",
+		Task taskBuildingRights = createAssetTask(admin, imageAssets[IMG_ARCHITECTURE], "Clear building rights",
+			"Confirm the property release for the facade before this goes into the paid campaign.",
 			TaskPriority.CRITICAL, TaskStatus.REVIEW, 1);
-		Task taskRetouch = createAssetTask(admin, imageAssets[3], "Retouch studio portrait",
-			"Light skin retouching and a tighter crop for the 1:1 social variant.",
+		Task taskRetouch = createAssetTask(admin, imageAssets[IMG_COWORKERS], "Retouch the team shot",
+			"Light retouching and a tighter crop for the 1:1 social variant.",
 			TaskPriority.MEDIUM, TaskStatus.ACCEPTED, 7);
-		createAssetTask(admin, videoAssets[1], "Tag city timelapse",
-			"Assign accurate location and time-of-day tags to timelapse-city.mp4 for discoverability.",
+		createAssetTask(admin, videoAssets[1], "Tag the traffic clip",
+			"Assign accurate location and time-of-day tags to city-traffic.mp4 for discoverability.",
 			TaskPriority.LOW, TaskStatus.PENDING, 14);
-		Task taskInterviewCut = createAssetTask(admin, videoAssets[2], "Approve interview cut",
-			"Review the latest interview cut and approve it for publishing.",
+		Task taskInterviewCut = createAssetTask(admin, videoAssets[2], "Approve the meeting cut",
+			"Review the latest cut of the meeting footage and approve it for publishing.",
 			TaskPriority.HIGH, TaskStatus.REVIEW, 2);
 		Task taskTranscript = createAssetTask(admin, audioAssets[1], "Check transcript accuracy",
 			"Spot-check the ASR transcript of the podcast episode against the audio.",
@@ -685,18 +924,18 @@ public class DemoDatabaseInitializer {
 		// bell shows a badge AND the popover shows both renderings on first boot.
 		seedDemoNotification(admin, NotificationType.TASK_ASSIGNED, false,
 			"editor assigned you \"Clear building rights\"",
-			"Confirm the property release for the skyline before this goes into the paid campaign.",
+			"Confirm the property release for the facade before this goes into the paid campaign.",
 			taskBuildingRights);
 		seedDemoNotification(admin, NotificationType.TASK_COMMENT, false,
-			"editor commented on \"Approve interview cut\"",
+			"editor commented on \"Approve the meeting cut\"",
 			"The second cut is tighter — take another look when you get a moment.",
 			taskInterviewCut);
 		seedDemoNotification(admin, NotificationType.TASK_STATUS_CHANGED, true,
-			"editor moved \"Retouch studio portrait\" from PENDING to ACCEPTED",
+			"editor moved \"Retouch the team shot\" from PENDING to ACCEPTED",
 			null, taskRetouch);
 
 		// --- Annotations ---
-		Annotation ann1 = annotationDao.createAnnotation(admin, imageAssets[0], "Color correction needed", AnnotationType.FEEDBACK);
+		Annotation ann1 = annotationDao.createAnnotation(admin, imageAssets[IMG_CROSSING], "Color correction needed", AnnotationType.FEEDBACK);
 		ann1.setDescription("The white balance is slightly off in the top-left quadrant.");
 		ann1.setAreaStartX(0);
 		ann1.setAreaStartY(0);
@@ -704,13 +943,13 @@ public class DemoDatabaseInitializer {
 		ann1.setAreaHeight(400);
 		annotationDao.store(ann1);
 
-		Annotation ann2 = annotationDao.createAnnotation(admin, videoAssets[0], "Audio peak", AnnotationType.FEEDBACK);
-		ann2.setDescription("Transient peak exceeds -3dB at this timestamp.");
+		Annotation ann2 = annotationDao.createAnnotation(admin, videoAssets[0], "Speaker cut off", AnnotationType.FEEDBACK);
+		ann2.setDescription("The person on the left leaves frame mid-sentence here.");
 		ann2.setTimeFrom(8000L);
 		ann2.setTimeTo(9000L);
 		annotationDao.store(ann2);
 
-		Annotation ann3 = annotationDao.createAnnotation(admin, imageAssets[1], "Crop suggestion", AnnotationType.FEEDBACK);
+		Annotation ann3 = annotationDao.createAnnotation(admin, imageAssets[IMG_COWORKERS], "Crop suggestion", AnnotationType.FEEDBACK);
 		ann3.setDescription("Consider a tighter crop for the hero banner variant.");
 		annotationDao.store(ann3);
 
@@ -718,11 +957,11 @@ public class DemoDatabaseInitializer {
 
 		// --- Reactions ---
 		Reaction rx1 = reactionDao.createReaction(admin, "THUMBSUP");
-		rx1.setAssetUuid(imageAssets[0].getUuid());
+		rx1.setAssetUuid(imageAssets[IMG_CROSSING].getUuid());
 		reactionDao.store(rx1);
 
 		Reaction rx2 = reactionDao.createReaction(admin, "SATISFIED");
-		rx2.setAssetUuid(imageAssets[1].getUuid());
+		rx2.setAssetUuid(imageAssets[IMG_COWORKERS].getUuid());
 		reactionDao.store(rx2);
 
 		Reaction rx3 = reactionDao.createReaction(admin, "PLUS_ONE");
@@ -732,19 +971,19 @@ public class DemoDatabaseInitializer {
 		log.info("Created {} demo reactions", 3);
 
 		// --- Ratings ---
-		// A rating is a reaction of its own type carrying a number, which is why one can sit on
-		// imageAssets[0] alongside the THUMBSUP above: the unique index is per (creator, type, asset).
+		// A rating is a reaction of its own type carrying a number, which is why one can sit on the
+		// crossing shot alongside the THUMBSUP above: the unique index is per (creator, type, asset).
 		// Three values spanning the scale, so the demo rating filter below has something to route -
 		// a 9 down 'keep', a 2 down 'trash', and a 7 that matches neither and lands in 'other'.
-		createRating(admin, imageAssets[0], 9);
-		createRating(admin, imageAssets[3], 2);
+		createRating(admin, imageAssets[IMG_CROSSING], 9);
+		createRating(admin, imageAssets[IMG_CYCLIST], 2);
 		createRating(admin, videoAssets[0], 7);
 		log.info("Created {} demo ratings", 3);
 
 		// --- Comments ---
 		createComment(admin, "Review notes", "The white balance looks slightly off in the second half.");
 		createComment(admin, "Approved", "Looks great, ready for distribution.");
-		createComment(admin, "Tagging feedback", "Please add location tags for the city timelapse assets.");
+		createComment(admin, "Tagging feedback", "Please add location tags for the city traffic assets.");
 		log.info("Created {} demo comments", 3);
 
 		// --- Skills ---
@@ -820,10 +1059,10 @@ public class DemoDatabaseInitializer {
 			.add(new JsonObject().put("role", "assistant").put("content", "Yes, I recommend re-uploading from the original RAW files to preserve quality.")));
 
 		Chat taggingChat = createDemoChat(admin, "Tagging strategy", new JsonArray()
-			.add(new JsonObject().put("role", "user").put("content", "What tagging convention should we use for the city timelapse collection?"))
+			.add(new JsonObject().put("role", "user").put("content", "What tagging convention should we use for the city traffic collection?"))
 			.add(new JsonObject().put("role", "assistant").put("content", "I suggest using hierarchical tags: location/city/landmark, and adding time-of-day tags like golden-hour or blue-hour."))
 			.add(new JsonObject().put("role", "user").put("content", "Good idea. Can you apply those to the existing assets?"))
-			.add(new JsonObject().put("role", "assistant").put("content", "Done. I tagged 12 timelapse assets with the new convention.")
+			.add(new JsonObject().put("role", "assistant").put("content", "Done. I tagged 12 street assets with the new convention.")
 				.put("references", new JsonArray()
 					.add(new JsonObject().put("type", "collection").put("label", "Demo Videos")))));
 
@@ -831,11 +1070,11 @@ public class DemoDatabaseInitializer {
 			.add(new JsonObject().put("role", "user").put("content", "Prepare the Q3 campaign stills for export. Use the grading skill and the tagging convention we agreed on."))
 			.add(new JsonObject().put("role", "assistant").put("content", "I graded 7 stills against the campaign reference. Two drifted warm and are regraded; one still needs a property release before it can ship.")
 				.put("references", new JsonArray()
-					.add(new JsonObject().put("type", "asset").put("label", "sunset-beach.jpg"))
-					.add(new JsonObject().put("type", "asset").put("label", "city-skyline.png"))
+					.add(new JsonObject().put("type", "asset").put("label", "street-crossing.jpg"))
+					.add(new JsonObject().put("type", "asset").put("label", "curved-architecture.jpg"))
 					.add(new JsonObject().put("type", "skill").put("label", "campaign-grading"))))
 			.add(new JsonObject().put("role", "user").put("content", "Open a task for the release and tag everything else."))
-			.add(new JsonObject().put("role", "assistant").put("content", "Done — a CRITICAL task is on city-skyline.png, and the remaining stills carry location and time-of-day tags.")
+			.add(new JsonObject().put("role", "assistant").put("content", "Done — a CRITICAL task is on curved-architecture.jpg, and the remaining stills carry location and time-of-day tags.")
 				.put("references", new JsonArray()
 					.add(new JsonObject().put("type", "task").put("label", "Clear building rights"))
 					.add(new JsonObject().put("type", "skill").put("label", "hierarchical-tagging")))));
@@ -848,7 +1087,7 @@ public class DemoDatabaseInitializer {
 			"How the Q3 campaign stills were reviewed against the house look, and what was rejected.",
 			new String[] { "campaign", "review" }, true);
 		ChatSession taggingSession = createDemoChatSession(admin, taggingChat, "Tagging convention",
-			"The agreed hierarchical tagging convention for city timelapse footage.",
+			"The agreed hierarchical tagging convention for city street footage.",
 			new String[] { "tagging", "convention" }, true);
 		ChatSession exportSession = createDemoChatSession(admin, exportChat, "Q3 campaign export",
 			"Grading, rights check and tagging for the Q3 campaign export — builds on the two sessions above.",
@@ -892,7 +1131,7 @@ public class DemoDatabaseInitializer {
 		log.info("Created {} demo memory entries", 3);
 
 		// --- Blacklist entries ---
-		createBlacklist(admin, imageAssets[0], "Duplicate low-res variant");
+		createBlacklist(admin, imageAssets[IMG_CROSSING], "Duplicate low-res variant");
 		createBlacklist(admin, videoAssets[1], "Copyright strike - pending review");
 		log.info("Created {} demo blacklist entries", 2);
 
@@ -913,18 +1152,33 @@ public class DemoDatabaseInitializer {
 		// was found in leaves their picture standing.
 		//
 		// One face per person, in two framings where they have two pictures — a gallery of two different
-		// people under one name would misread as a clustering bug rather than as demo data.
+		// people under one name would misread as a clustering bug rather than as demo data. With demo
+		// content present the second framing is a tighter crop of the same photograph, which is what a
+		// second framing of one face is; without it, the two shipped crops of one portrait do the job.
 		Person johnDoe = createPerson(admin, "jdoe", "John", "Doe");
-		createPersonImage(admin, johnDoe, "john-doe-portrait.jpg", Portrait.TEAL_CLOSE, true);
-		createPersonImage(admin, johnDoe, "john-doe-profile.jpg", Portrait.TEAL_WIDE, false);
+		createPersonImage(admin, johnDoe, "john-doe-portrait.jpg", DemoFace.JOHN, true, true);
+		createPersonImage(admin, johnDoe, "john-doe-profile.jpg", DemoFace.JOHN, false, false);
 
 		Person aliceSmith = createPerson(admin, "asmith", "Alice", "Smith");
-		createPersonImage(admin, aliceSmith, "alice-smith-portrait.jpg", Portrait.FROST_CLOSE, true);
-		createPersonImage(admin, aliceSmith, "alice-smith-profile.jpg", Portrait.FROST_WIDE, false);
+		createPersonImage(admin, aliceSmith, "alice-smith-portrait.jpg", DemoFace.ALICE, true, true);
+		createPersonImage(admin, aliceSmith, "alice-smith-profile.jpg", DemoFace.ALICE, false, false);
 
 		Person bobWilson = createPerson(admin, "bwilson", "Bob", "Wilson");
-		createPersonImage(admin, bobWilson, "bob-wilson-portrait.jpg", Portrait.VIOLET_WIDE, true);
-		log.info("Created {} demo persons", 3);
+		createPersonImage(admin, bobWilson, "bob-wilson-portrait.jpg", DemoFace.BOB, false, true);
+
+		// Two more, one picture each — but only where there is demo media to give them a face of their
+		// own. The jar ships three faces; a fourth and fifth person would have to reuse one, and two
+		// people wearing the same face is exactly what a broken clustering run looks like.
+		int personCount = 3;
+		if (media.isAvailable()) {
+			Person carolReed = createPerson(admin, "creed", "Carol", "Reed");
+			createPersonImage(admin, carolReed, "carol-reed-portrait.jpg", DemoFace.CAROL, true, true);
+
+			Person danaOkafor = createPerson(admin, "dokafor", "Dana", "Okafor");
+			createPersonImage(admin, danaOkafor, "dana-okafor-portrait.jpg", DemoFace.DANA, true, true);
+			personCount = 5;
+		}
+		log.info("Created {} demo persons", personCount);
 
 		// --- Clusters ---
 		createCluster(admin, "Face Cluster A", "face");
@@ -933,36 +1187,69 @@ public class DemoDatabaseInitializer {
 		log.info("Created {} demo clusters", 3);
 
 		// --- Detections ---
-		// Face detections on image assets
-		Detection faceOne = createDetection(admin, imageAssets[0], "face", 0, 0.3f, 0.2f, 0.12f, 0.2f, 0.97f,
-			new JsonObject().put("gender", "male").put("age", 30));
-		Detection faceTwo = createDetection(admin, imageAssets[0], "face", 0, 0.55f, 0.15f, 0.1f, 0.18f, 0.94f,
-			new JsonObject().put("gender", "female").put("age", 25));
-		createDetection(admin, imageAssets[3], "face", 0, 0.42f, 0.15f, 0.13f, 0.22f, 0.91f,
-			new JsonObject().put("gender", "male").put("age", 45));
+		// The boxes are measured against the photographs they sit on rather than invented. Two screens
+		// draw them: the asset detail overlay puts them on the picture, and each one is also cut out and
+		// stored as a FACE_CROP attachment below, which is what the face panel and the cluster review
+		// screen show. A plausible-looking box on a real picture is a crop of somebody's elbow, and
+		// those screens are then a grid of elbows.
+		//
+		// Four faces on the coworkers shot, three on the friends shot — which is how many are in them.
+		String coworkersSource = DEMO_IMAGES[IMG_COWORKERS].source();
+		String friendsSource = DEMO_IMAGES[IMG_FRIENDS].source();
 
-		// Face detections on video assets (different frames)
-		createDetection(admin, videoAssets[0], "face", 60, 0.4f, 0.1f, 0.15f, 0.22f, 0.92f,
-			new JsonObject().put("gender", "female").put("age", 28));
-		createDetection(admin, videoAssets[0], "face", 180, 0.2f, 0.3f, 0.1f, 0.18f, 0.89f,
-			new JsonObject().put("gender", "male").put("age", 35));
-		createDetection(admin, videoAssets[2], "face", 300, 0.45f, 0.2f, 0.1f, 0.18f, 0.96f,
-			new JsonObject().put("gender", "female").put("age", 32));
+		Detection faceOne = seedFace(admin, imageAssets[IMG_COWORKERS], coworkersSource, 0, FACE_COWORKER_BLOND, 0.97f,
+			new JsonObject().put("gender", "male").put("age", 32));
+		Detection faceTwo = seedFace(admin, imageAssets[IMG_COWORKERS], coworkersSource, 0, FACE_COWORKER_STANDING, 0.95f,
+			new JsonObject().put("gender", "male").put("age", 36));
+		seedFace(admin, imageAssets[IMG_COWORKERS], coworkersSource, 0, FACE_COWORKER_GLASSES, 0.98f,
+			new JsonObject().put("gender", "male").put("age", 29));
+		seedFace(admin, imageAssets[IMG_COWORKERS], coworkersSource, 0, FACE_COWORKER_SEATED, 0.93f,
+			new JsonObject().put("gender", "female").put("age", 27));
+
+		seedFace(admin, imageAssets[IMG_FRIENDS], friendsSource, 0, FACE_FRIEND_CENTRE, 0.96f,
+			new JsonObject().put("gender", "female").put("age", 26));
+		seedFace(admin, imageAssets[IMG_FRIENDS], friendsSource, 0, FACE_FRIEND_RIGHT, 0.94f,
+			new JsonObject().put("gender", "female").put("age", 24));
+		// In profile, and scored like one. A detector reports a turned head with less confidence, and a
+		// demo where every box is over 0.9 teaches that the score never means anything.
+		seedFace(admin, imageAssets[IMG_FRIENDS], friendsSource, 0, FACE_FRIEND_PROFILE, 0.71f,
+			new JsonObject().put("gender", "male").put("age", 31).put("pose", "profile"));
+
+		// Face detections on the meeting clip.
+		//
+		// All on frame 30, and only on frame 30, because that is the one frame of the clip that exists
+		// as a still: the crops are cut from the poster beside it. Boxes on a frame nothing can decode
+		// would be a face panel of empty rectangles — the server container ships no imaging natives, so
+		// it cannot open the video at all.
+		seedFace(admin, videoAssets[0], DEMO_VIDEO_MEETING_POSTER, 30, FACE_MEETING_LEFT_WOMAN, 0.88f,
+			new JsonObject().put("gender", "female").put("age", 28).put("pose", "profile"));
+		seedFace(admin, videoAssets[0], DEMO_VIDEO_MEETING_POSTER, 30, FACE_MEETING_RIGHT_MAN, 0.90f,
+			new JsonObject().put("gender", "male").put("age", 35).put("pose", "profile"));
 
 		// A face group awaiting review, as the facedetect node would leave it.
 		//
 		// Without this the review screen is empty in the demo, which reads as "the feature does not
-		// work" rather than "nothing has been proposed yet". The two faces on the first image become
-		// one pending proposal; a reviewer confirms or rejects it.
-		createPendingFaceCluster(admin, imageAssets[0], faceOne, faceTwo);
+		// work" rather than "nothing has been proposed yet". Two of the four faces on the coworkers shot
+		// become one pending proposal; a reviewer confirms or rejects it.
+		//
+		// Deliberately not attached to any of the five demo people: their portraits are stock and do not
+		// appear in this footage (demo-content/README.md says so), and a seeded match the recogniser
+		// would never make is the one thing this demo must not claim.
+		createPendingFaceCluster(admin, imageAssets[IMG_COWORKERS], faceOne, faceTwo);
 
-		// Object detections on image assets
-		Detection car = createDetection(admin, imageAssets[0], "objectdetection", 0, 0.1f, 0.4f, 0.25f, 0.3f, 0.95f,
+		// Object detections on image assets — the crossing shot, which is the one with traffic in it.
+		Detection car = createDetection(admin, imageAssets[IMG_CROSSING], "objectdetection", 0, 0.667f, 0.383f, 0.267f, 0.150f, 0.95f,
 			new JsonObject().put("label", "car"));
-		Detection person = createDetection(admin, imageAssets[0], "objectdetection", 0, 0.5f, 0.2f, 0.12f, 0.35f, 0.92f,
+		Detection person = createDetection(admin, imageAssets[IMG_CROSSING], "objectdetection", 0, 0.072f, 0.275f, 0.139f, 0.708f, 0.92f,
 			new JsonObject().put("label", "person"));
-		createDetection(admin, imageAssets[2], "objectdetection", 0, 0.05f, 0.05f, 0.4f, 0.7f, 0.96f,
-			new JsonObject().put("label", "building"));
+		createDetection(admin, imageAssets[IMG_CROSSING], "objectdetection", 0, 0.472f, 0.242f, 0.194f, 0.758f, 0.97f,
+			new JsonObject().put("label", "person"));
+		createDetection(admin, imageAssets[IMG_CROSSING], "objectdetection", 0, 0.172f, 0.075f, 0.122f, 0.192f, 0.90f,
+			new JsonObject().put("label", "traffic light"));
+		createDetection(admin, imageAssets[IMG_CYCLIST], "objectdetection", 0, 0.18f, 0.42f, 0.64f, 0.50f, 0.94f,
+			new JsonObject().put("label", "bicycle"));
+		createDetection(admin, imageAssets[IMG_DOG_WALKER], "objectdetection", 0, 0.52f, 0.55f, 0.26f, 0.36f, 0.93f,
+			new JsonObject().put("label", "dog"));
 
 		// Two of the boxes have been reviewed, the rest are still pending.
 		//
@@ -973,22 +1260,26 @@ public class DemoDatabaseInitializer {
 		detectionDao.updateReview(car.getUuid(), ReviewStatus.CONFIRMED, "van", admin.getUuid());
 		detectionDao.updateReview(person.getUuid(), ReviewStatus.REJECTED, null, admin.getUuid());
 
-		// Object detections on video assets
-		createDetection(admin, videoAssets[0], "objectdetection", 30, 0.75f, 0.1f, 0.2f, 0.5f, 0.88f,
-			new JsonObject().put("label", "tree"));
-		createDetection(admin, videoAssets[1], "objectdetection", 60, 0.6f, 0.3f, 0.1f, 0.3f, 0.91f,
-			new JsonObject().put("label", "person"));
+		// Object detections on the traffic clip, which is the object-detection sample.
+		createDetection(admin, videoAssets[1], "objectdetection", 30, 0.41f, 0.52f, 0.11f, 0.24f, 0.91f,
+			new JsonObject().put("label", "car"));
+		createDetection(admin, videoAssets[1], "objectdetection", 120, 0.62f, 0.30f, 0.19f, 0.28f, 0.88f,
+			new JsonObject().put("label", "bus"));
 
-		log.info("Created {} demo detections", 11);
+		log.info("Created {} demo detections", 17);
 
 		// --- Transcripts ---
-		// Transcript for drone-coastal.mp4 (videoAssets[0]) — 3 sections
+		// The demo clips are silent — every file in demo-content/videos/ is a video stream and nothing
+		// else — so these are seeded rather than produced, and the meeting footage is the one they are
+		// written for: what a transcript of four people round a table would say.
+		//
+		// Transcript for team-meeting.mp4 (videoAssets[0]) — 3 sections
 		createTranscript(admin, videoAssets[0], "en", "whisper-1", "asr-pipeline",
 			"Welcome everyone to the quarterly update. We have a packed agenda today covering product launches, financial results, and team updates.",
 			"First up, let's discuss the new product launch. The campaign alpha assets are performing exceptionally well across all channels. Social engagement is up forty percent compared to last quarter.",
 			"Moving on to financials. Q1 revenue came in twelve percent above target. Our media pipeline automation reduced processing costs by nearly a third. The investment in the new encoding infrastructure is already paying dividends.");
 
-		// Transcript for interview-clip.mov (videoAssets[2]) — 2 sections
+		// Transcript for team-meeting-cut.mp4 (videoAssets[2]) — 2 sections
 		createTranscript(admin, videoAssets[2], "en", "whisper-1", "asr-pipeline",
 			"Let's talk about the highlight reel we produced for the championship finals. The broadcast team pulled together the package in record time using our automated workflows.",
 			"Finally, some team updates. We're welcoming two new members to Media Ops next week. Please make sure to update your project permissions and onboard them into the relevant pipelines.");
@@ -1007,31 +1298,43 @@ public class DemoDatabaseInitializer {
 		createVlmOlmOcrComp(admin, scanAsset);
 
 		// --- Captioning (image + video) ---
-		createImageCaptioningComp(admin, imageAssets[0]);
+		// Both on assets that carry detections, so the caption, the palette and the boxes on the same
+		// screen are about the same picture.
+		createImageCaptioningComp(admin, imageAssets[IMG_COWORKERS]);
 		createVideoCaptioningComp(admin, videoAssets[1]);
 
 		// --- Dominant colour ---
-		createDominantColorComp(admin, imageAssets[0]);
+		createDominantColorComp(admin, imageAssets[IMG_COWORKERS], FACE_COWORKER_GLASSES);
 
 		// --- Deduplication review queue ---
-		Asset dupAsset = seedDemoDedupGroup(admin, videoAssets[0]);
+		// Over the traffic clip, because that is the pair the checked-in media actually is: the same
+		// footage at two bitrates. The meeting clip and its cut are a remix, not a duplicate.
+		Asset dupAsset = seedDemoDedupGroup(admin, campaignLibrary, videoAssets[1]);
 
 		// --- Fingerprints for the similarity index ---
 		// Seeded after the dedup group so both features demo off the same two videos: the proposal in
 		// the review queue and the k-NN hit behind it describe one pair, not two unrelated fixtures.
-		seedFingerprintComps(assetComponentDao, adminUuid, videoAssets[0], dupAsset, videoAssets[1], videoAssets[2]);
+		//
+		// The meeting clip is the one unrelated video. Its cut deliberately gets no fingerprint at all:
+		// a cut of the source really is a near-duplicate of it, so seeding it as "unrelated" — 64 of 256
+		// bits away — would put a claim in the index that the fingerprint node would never make.
+		seedFingerprintComps(assetComponentDao, adminUuid, videoAssets[1], dupAsset, videoAssets[0]);
 
-		// --- Remix: an original and the two cuts made from it ---
-		seedDemoRemix(admin, videoAssets[0], videoAssets[1], imageAssets[0]);
+		// --- Remix: an original, the cut made from it, and a still pulled out of that cut ---
+		seedDemoRemix(admin, videoAssets[0], videoAssets[2], stillAsset);
 
 		// --- Customer-facing share links ---
 		seedDemoShares(admin, videosCollection, videoAssets[0]);
 
+		// "with media" counts the assets that have bytes behind them: the photographs, the still and the
+		// videos when there is a content directory. The audio and PDF rows never do, and the dedup
+		// duplicate is counted with the videos it was cut from.
+		int withMedia = imageAssets.length + 1 + (media.isAvailable() ? videoAssets.length + 1 : 0) + 1;
 		log.info(
-			"Demo data initialization complete — created {} assets ({} with previewable binaries), {} tags, {} collections, {} pipelines, {} users, "
+			"Demo data initialization complete — created {} assets ({} with media), {} tags, {} collections, {} pipelines, {} users, "
 				+ "{} groups, {} roles, {} tasks, {} skills, {} chat sessions, {} memory entries, {} annotations, {} reactions.",
-			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length + 1,
-			imageAssets.length + 1, 8, 2, 3, 2, 2, 2, 7, 3, 3, 3, 3, 3);
+			imageAssets.length + videoAssets.length + audioAssets.length + docAssets.length + 3,
+			withMedia, 8, 2, 3, 2, 2, 2, 7, 3, 3, 3, 3, 3);
 	}
 
 	/**
@@ -1177,8 +1480,8 @@ public class DemoDatabaseInitializer {
 	 * That is the whole point of the model: a person's picture is theirs, and deleting the material they were found in cannot take it away.
 	 * </p>
 	 */
-	private Attachment createPersonImage(User admin, Person person, String filename, Portrait portrait, boolean avatar) {
-		byte[] bytes = loadPortrait(portrait);
+	private Attachment createPersonImage(User admin, Person person, String filename, DemoFaceSource face, boolean close, boolean avatar) {
+		byte[] bytes = loadFace(face, close);
 		if (bytes == null) {
 			return null;
 		}
@@ -1210,8 +1513,8 @@ public class DemoDatabaseInitializer {
 	 * is called once per account rather than building a gallery.
 	 * </p>
 	 */
-	private Attachment createUserAvatar(User admin, User owner, String filename, Portrait portrait) {
-		byte[] bytes = loadPortrait(portrait);
+	private Attachment createUserAvatar(User admin, User owner, String filename, DemoFaceSource face) {
+		byte[] bytes = loadFace(face, true);
 		if (bytes == null) {
 			return null;
 		}
@@ -1342,6 +1645,64 @@ public class DemoDatabaseInitializer {
 		return detection;
 	}
 
+	/** A detection whose box was measured against the picture rather than typed out four floats at a time. */
+	private Detection createDetection(User admin, Asset asset, String type, int frameNumber, Box box, float confidence, JsonObject meta) {
+		return createDetection(admin, asset, type, frameNumber, box.x(), box.y(), box.width(), box.height(), confidence, meta);
+	}
+
+	/**
+	 * One face detection, together with the crop the product serves for it.
+	 *
+	 * @param source
+	 *            the file below the demo content directory the box was measured against — the photograph itself for a still, and the poster frame for
+	 *            the clip, since that is the frame the boxes sit on
+	 */
+	private Detection seedFace(User admin, Asset asset, String source, int frameNumber, Box box, float confidence, JsonObject meta) {
+		Detection detection = createDetection(admin, asset, "face", frameNumber, box, confidence, meta);
+		createFaceCrop(admin, asset, detection, source, box);
+		return detection;
+	}
+
+	/**
+	 * Cut one face out of the picture it was found in and store it as a {@code FACE_CROP} attachment.
+	 *
+	 * <p>
+	 * {@code GET /assets/:uuid/detections/:uuid/crop} serves a <em>stored</em> attachment rather than cutting one on demand — the server container
+	 * ships no imaging natives and could not decode a video frame at all, so the producing node writes the crop it already cut to compute the
+	 * embedding. Without these rows the face panel and the cluster review screen fall back to an icon, which is what they did for every demo asset
+	 * before the media was real.
+	 * </p>
+	 *
+	 * <p>
+	 * The crop is padded around the box, because a detector's box is tight on the face and a picture <em>of</em> somebody wants their hair and chin in
+	 * it. Nothing is stored where there is no demo media to cut from: the painted fall-back has no faces in it to find.
+	 * </p>
+	 */
+	private void createFaceCrop(User admin, Asset asset, Detection detection, String source, Box box) {
+		if (!media.isAvailable()) {
+			return;
+		}
+		byte[] bytes = media.regionCrop(source, box.x(), box.y(), box.width(), box.height(), FACE_CROP_MARGIN);
+		if (bytes == null) {
+			return;
+		}
+		SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+		if (storeBinary(bytes, sha512) == null) {
+			return;
+		}
+
+		String filename = "face-" + detection.getUuid() + ".jpg";
+		Attachment crop = attachmentDao.createAttachment(admin.getUuid(), sha512, filename, bytes.length, "image/jpeg", AttachmentType.FACE_CROP);
+		crop.setUuid(UUIDUtils.randomUUID());
+		crop.setDetectionUuid(detection.getUuid());
+		crop.setAssetUuid(asset.getUuid());
+		crop.setCreator(admin);
+		crop.setEditor(admin);
+		crop.setCreated(Instant.now());
+		crop.setEdited(Instant.now());
+		attachmentDao.store(crop);
+	}
+
 	/**
 	 * Seed a workflow star rating: an asset reaction of type {@code RATING} carrying the value.
 	 *
@@ -1437,7 +1798,7 @@ public class DemoDatabaseInitializer {
 	private Remix seedDemoRemix(User admin, Asset source, Asset derivedVideo, Asset derivedStill) {
 		Remix remix = remixDao.createRemix(admin.getUuid(), DEMO_REMIX_NAME);
 		remix.setUuid(UUIDUtils.randomUUID());
-		remix.setDescription("The original coastal drone footage, the shorter cut made from it, and a still frame pulled out of that cut.");
+		remix.setDescription("The original meeting footage, the shorter cut made from it, and a still frame pulled out of that cut.");
 		remixDao.store(remix);
 
 		remixDao.linkAsset(remix.getUuid(), source.getUuid(), RemixRole.SOURCE, 0, admin.getUuid());
@@ -1539,14 +1900,19 @@ public class DemoDatabaseInitializer {
 	 * </p>
 	 *
 	 * <p>
-	 * Deliberately <b>PENDING</b> and never CONFIRMED. A confirmed group is an instruction to the apply node to move a file, and the demo container's
-	 * media only exists as database rows - the first apply run would report failures over seeded fiction.
+	 * The re-encode is a real file where there is demo media — {@code ffmpeg} scaled the traffic clip to 720p, and the README beside it records the
+	 * command — so the proposal is over two files a hasher would genuinely reduce to the same neighbourhood, not over two rows.
+	 * </p>
+	 *
+	 * <p>
+	 * Deliberately <b>PENDING</b> and never CONFIRMED. A confirmed group is an instruction to the apply node to move a file, and the demo's media sits
+	 * in a content-addressed store the apply node does not own - the first apply run would report failures over seeded fiction.
 	 * </p>
 	 *
 	 * @return the duplicate asset, so {@link #seedFingerprintComps} can give the same pair the fingerprints this proposal claims to come from
 	 */
-	private Asset seedDemoDedupGroup(User admin, Asset keepAsset) {
-		Asset dupAsset = createAsset(admin, "drone-coastal-720p.mp4", "video/mp4", 18_000_000, "/demo/videos/drone-coastal-720p.mp4");
+	private Asset seedDemoDedupGroup(User admin, Library library, Asset keepAsset) {
+		Asset dupAsset = createVideoAsset(admin, library, DEMO_VIDEO_TRAFFIC_DUPLICATE);
 
 		DedupGroup group = dedupGroupDao.createGroup(admin.getUuid(), "metaloom-multisector-v1");
 		group.setKeepAssetUuid(keepAsset.getUuid());
@@ -1557,8 +1923,11 @@ public class DemoDatabaseInitializer {
 		group.setScore(DEMO_FINGERPRINT_PAIR_SCORE);
 		dedupGroupDao.storeGroup(group);
 
-		dedupGroupDao.addMember(group.getUuid(), keepAsset.getUuid(), DedupGroupMember.ROLE_KEEP, 1.0f, 52_000_000L, 0L);
-		dedupGroupDao.addMember(group.getUuid(), dupAsset.getUuid(), DedupGroupMember.ROLE_DUP, DEMO_FINGERPRINT_PAIR_SCORE, 18_000_000L, 0L);
+		// The member sizes are the assets' own, so the "keep the largest complete candidate" rule the
+		// machine applied can be checked against the two rows the reviewer is shown.
+		dedupGroupDao.addMember(group.getUuid(), keepAsset.getUuid(), DedupGroupMember.ROLE_KEEP, 1.0f, keepAsset.getSize(), 0L);
+		dedupGroupDao.addMember(group.getUuid(), dupAsset.getUuid(), DedupGroupMember.ROLE_DUP, DEMO_FINGERPRINT_PAIR_SCORE,
+			dupAsset.getSize(), 0L);
 
 		log.info("Created demo dedup review group: {} vs {}", keepAsset.getFilename(), dupAsset.getFilename());
 		return dupAsset;
@@ -2265,34 +2634,38 @@ public class DemoDatabaseInitializer {
 	 * Create the JSON component a {@code dominant-color} node writes: the palette of the whole frame plus one entry per detected face. Shape mirrors a real
 	 * run ({@code schemaType=dominant-color}, one row per asset with every region inside {@code data.regions}).
 	 *
-	 * <p>The colours match the caption seeded for the same asset - a sunset over hills - so the demo reads coherently: a vivid orange dominant with a violet
-	 * sky behind it.
+	 * <p>The colours match the photograph and the caption seeded for the same asset - four colleagues round a light wooden table - so the demo reads
+	 * coherently: warm tan wood, an off-white wall behind it, and one slate-blue shirt. The {@code face-0} region is the box the demo actually seeds
+	 * as a detection on this asset, in the pixel coordinates of the stored (resized) picture; a region over an area no detector reported would make
+	 * the two screens that show them contradict each other.
 	 */
-	private void createDominantColorComp(User admin, Asset asset) {
+	private void createDominantColorComp(User admin, Asset asset, Box face) {
+		int width = 1600;
+		int height = 1067;
 		AssetJsonComp comp = assetComponentDao.createJsonComp(admin.getUuid(), asset.getUuid(), "dominant-color");
 		comp.setSchemaType("dominant-color");
 		comp.setVariant("");
 		comp.setProducerVersion("dominant-color/1");
 		comp.setData(new JsonObject()
-			.put("image", new JsonObject().put("width", 1920).put("height", 1080))
+			.put("image", new JsonObject().put("width", width).put("height", height))
 			.put("sampling", new JsonObject().put("maxSamples", 40000).put("clusterCount", 5).put("seed", 42).put("alphaThreshold", 128))
 			.put("regions", new JsonArray()
 				.add(new JsonObject()
 					.put("id", "whole")
 					.put("source", "image")
 					.put("kind", "IMAGE")
-					.put("bbox", new JsonObject().put("x", 0).put("y", 0).put("w", 1920).put("h", 1080))
+					.put("bbox", new JsonObject().put("x", 0).put("y", 0).put("w", width).put("h", height))
 					.put("pixels", 39204)
 					.put("converged", true)
-					.put("dominant", demoColor(0.4712d, "#E2711D", 226, 113, 29, 30.5d, 77.3d, 50.0d,
-						60.13d, 38.21d, 62.35d, 73.13d, 58.5d, "orange", "MEDIUM", "STRONG", "orange", "Orange", 3.91d))
+					.put("dominant", demoColor(0.4183d, "#C8A87C", 200, 168, 124, 34.7d, 40.9d, 63.5d,
+						70.69d, 5.53d, 27.10d, 27.66d, 78.5d, "brown", "LIGHT", "MUTED", "tan", "Hellbraun", 4.62d))
 					.put("palette", new JsonArray()
-						.add(demoColor(0.4712d, "#E2711D", 226, 113, 29, 30.5d, 77.3d, 50.0d,
-							60.13d, 38.21d, 62.35d, 73.13d, 58.5d, "orange", "MEDIUM", "STRONG", "orange", "Orange", 3.91d))
-						.add(demoColor(0.3105d, "#6B4E8C", 107, 78, 140, 268.7d, 28.4d, 42.7d,
-							37.94d, 25.11d, -28.63d, 38.08d, 311.3d, "purple", "DARK", "MUTED", "dark purple", "dunkles Violett", 5.02d))
-						.add(demoColor(0.2183d, "#F2C57C", 242, 197, 124, 37.1d, 81.6d, 71.8d,
-							82.05d, 6.94d, 41.22d, 41.80d, 80.4d, "yellow", "LIGHT", "MUTED", "light yellow", "helles Gelb", 9.44d))))
+						.add(demoColor(0.4183d, "#C8A87C", 200, 168, 124, 34.7d, 40.9d, 63.5d,
+							70.69d, 5.53d, 27.10d, 27.66d, 78.5d, "brown", "LIGHT", "MUTED", "tan", "Hellbraun", 4.62d))
+						.add(demoColor(0.3306d, "#E8E4DC", 232, 228, 220, 40.0d, 20.7d, 88.6d,
+							90.69d, -0.04d, 4.37d, 4.38d, 90.5d, "white", "VERY_LIGHT", "ACHROMATIC", "off white", "Cremeweiß", 2.84d))
+						.add(demoColor(0.2511d, "#3E4A5B", 62, 74, 91, 215.2d, 19.0d, 30.0d,
+							31.06d, -0.24d, -11.59d, 11.59d, 268.8d, "blue", "DARK", "MUTED", "slate blue", "Schieferblau", 6.15d))))
 				.add(new JsonObject()
 					.put("id", "face-0")
 					.put("source", "facedetect")
@@ -2300,17 +2673,21 @@ public class DemoDatabaseInitializer {
 					.put("label", "face")
 					.put("type", "face")
 					.put("frame", 0)
-					.put("confidence", 0.94d)
-					.put("bbox", new JsonObject().put("x", 612).put("y", 288).put("w", 216).put("h", 216))
+					.put("confidence", 0.98d)
+					.put("bbox", new JsonObject()
+						.put("x", Math.round(face.x() * width))
+						.put("y", Math.round(face.y() * height))
+						.put("w", Math.round(face.width() * width))
+						.put("h", Math.round(face.height() * height)))
 					.put("pixels", 6400)
 					.put("converged", true)
-					.put("dominant", demoColor(0.6418d, "#C68642", 198, 134, 66, 30.9d, 50.0d, 51.8d,
-						61.02d, 15.36d, 39.85d, 42.71d, 68.9d, "brown", "MEDIUM", "MUTED", "muted brown", "gedämpftes Braun", 7.68d))
+					.put("dominant", demoColor(0.6418d, "#C68642", 198, 134, 66, 30.9d, 53.7d, 51.8d,
+						61.18d, 18.04d, 45.59d, 49.03d, 68.4d, "brown", "MEDIUM", "MUTED", "muted brown", "gedämpftes Braun", 7.68d))
 					.put("palette", new JsonArray()
-						.add(demoColor(0.6418d, "#C68642", 198, 134, 66, 30.9d, 50.0d, 51.8d,
-							61.02d, 15.36d, 39.85d, 42.71d, 68.9d, "brown", "MEDIUM", "MUTED", "muted brown", "gedämpftes Braun", 7.68d))
+						.add(demoColor(0.6418d, "#C68642", 198, 134, 66, 30.9d, 53.7d, 51.8d,
+							61.18d, 18.04d, 45.59d, 49.03d, 68.4d, "brown", "MEDIUM", "MUTED", "muted brown", "gedämpftes Braun", 7.68d))
 						.add(demoColor(0.3582d, "#3A2A1E", 58, 42, 30, 25.7d, 31.8d, 17.3d,
-							19.71d, 6.12d, 9.84d, 11.59d, 58.1d, "brown", "VERY_DARK", "ACHROMATIC", "black", "Schwarz", 0d)))))
+							18.58d, 5.50d, 10.72d, 12.05d, 62.8d, "brown", "VERY_DARK", "ACHROMATIC", "black", "Schwarz", 0d)))))
 			.put("truncated", new JsonObject().put("regions", 0).put("dropped", 0)));
 		assetComponentDao.upsertJsonComp(comp);
 		log.info("Created demo dominant-color component for asset: {}", asset.getFilename());
@@ -2346,7 +2723,7 @@ public class DemoDatabaseInitializer {
 		comp.setVariant("");
 		comp.setProducerVersion("SmolVLM");
 		comp.setData(new JsonObject()
-			.put("caption", "A warm sunset over rolling hills, the sky washed in orange and violet."));
+			.put("caption", "Four colleagues gathered around a laptop at a light wooden table, laughing at something on the screen."));
 		assetComponentDao.upsertJsonComp(comp);
 		log.info("Created demo captioning/caption component for asset: {}", asset.getFilename());
 	}
@@ -2358,10 +2735,10 @@ public class DemoDatabaseInitializer {
 	 */
 	private void createVideoCaptioningComp(User admin, Asset asset) {
 		JsonArray scenes = new JsonArray()
-			.add(new JsonObject().put("seq", 0).put("fromFrame", 0).put("toFrame", 120)
-				.put("caption", "An aerial shot sweeps along a rugged coastline as waves break on the rocks below."))
-			.add(new JsonObject().put("seq", 1).put("fromFrame", 121).put("toFrame", 260)
-				.put("caption", "The camera turns inland over green cliffs dotted with grazing sheep."));
+			.add(new JsonObject().put("seq", 0).put("fromFrame", 0).put("toFrame", 200)
+				.put("caption", "A raised view of a busy intersection: pedestrians cross in both directions while taxis wait at the line."))
+			.add(new JsonObject().put("seq", 1).put("fromFrame", 201).put("toFrame", 400)
+				.put("caption", "The lights change and traffic moves off, a bus pulling away behind a cyclist."));
 
 		AssetJsonComp comp = assetComponentDao.createJsonComp(admin.getUuid(), asset.getUuid(), "captioning");
 		comp.setSchemaType("video-caption");
@@ -2369,8 +2746,8 @@ public class DemoDatabaseInitializer {
 		comp.setProducerVersion("qwen25vl-awq");
 		comp.setData(new JsonObject()
 			.put("caption",
-				"Scene 1 [frames 0-120]: An aerial shot sweeps along a rugged coastline as waves break on the rocks below.\n"
-					+ "Scene 2 [frames 121-260]: The camera turns inland over green cliffs dotted with grazing sheep.")
+				"Scene 1 [frames 0-200]: A raised view of a busy intersection: pedestrians cross in both directions while taxis wait at the line.\n"
+					+ "Scene 2 [frames 201-400]: The lights change and traffic moves off, a bus pulling away behind a cyclist.")
 			.put("variant", "scene")
 			.put("model", "qwen25vl-awq")
 			.put("frameCount", 6)
@@ -2384,18 +2761,22 @@ public class DemoDatabaseInitializer {
 	// The asset browser renders a preview from GET /assets/:uuid/binary/data, which needs real
 	// bytes on disk and an asset_location row pointing at them. Without those every demo asset
 	// falls back to a type placeholder icon, which is what "no thumbnails are displayed" means.
-	// Asset previews are synthesised rather than shipped so the repository carries no library-sized
-	// binary blobs and the demo never claims to show photography it does not have. Faces are the one
-	// exception: a painted portrait does not read as a person, so avatars and person images come from
-	// the shipped photographs below.
+	//
+	// Where a demo content directory is present (the demo container ships one at /demo-content) the
+	// bytes are the checked-in photographs and clips. Where it is not — every plain server, because
+	// this seed has no flag and runs everywhere — images are painted from the palettes below and the
+	// videos become rows without bytes, which is what the demo did before the media was checked in.
+	// Faces are the one thing that is never painted: a gradient does not read as a person, so the six
+	// shipped crops stand in for the account and person pictures.
 
 	/**
-	 * The shipped portrait photographs, used for account pictures and person images.
+	 * The shipped portrait photographs, used for account pictures and person images where there is no demo content directory.
 	 *
 	 * <p>
 	 * Three faces, each in a wide and a close framing, checked in under {@code demo/portraits/} as 512x512 JPEGs — the size an avatar (48-72px) and a
 	 * person's picture gallery actually need. The two framings of one face are the same person, which is what a person's gallery is: several pictures of
-	 * them. Sources are Pexels photographs (free licence, no attribution required); see {@code demo/portraits/README.txt}.
+	 * them. Sources are Pexels photographs (free licence, no attribution required); see {@code demo/portraits/README.txt}, which also records the crop
+	 * geometry {@link DemoFace#ADMIN} reuses to cut the same framing out of the uncropped original.
 	 * </p>
 	 */
 	private enum Portrait {
@@ -2432,6 +2813,34 @@ public class DemoDatabaseInitializer {
 			log.warn("Could not read demo portrait {} — the picture will be skipped", path, e);
 			return null;
 		}
+	}
+
+	/**
+	 * One face, from the demo media where there is any and from the shipped crops otherwise.
+	 *
+	 * @param close
+	 *            the tight framing rather than the wide one — what an avatar wants, and the second picture in a person's gallery
+	 * @return 512x512 JPEG bytes, or null when neither source has this face, in which case the caller skips the picture
+	 */
+	private byte[] loadFace(DemoFaceSource face, boolean close) {
+		if (media.isAvailable()) {
+			byte[] bytes = face.cropEdge() > 0
+				// An uncropped original has one recorded square and no second framing — it is an account
+				// picture, and an account has at most one. Only the already-square portraits, which are
+				// person gallery material, are re-cut tighter for a second picture of the same face.
+				? media.portraitCrop(face.source(), face.cropEdge(), face.cropX(), face.cropY())
+				: media.portrait(face.source(), close ? PORTRAIT_CLOSE_ZOOM : 1.0);
+			if (bytes != null) {
+				return bytes;
+			}
+		}
+		Portrait shipped = close ? face.close() : face.wide();
+		if (shipped == null) {
+			// A face that only exists in the demo media. The caller creates no picture, and the person it
+			// belongs to is not seeded at all — see the persons section of init().
+			return null;
+		}
+		return loadPortrait(shipped);
 	}
 
 	/**
@@ -2477,17 +2886,117 @@ public class DemoDatabaseInitializer {
 	}
 
 	/**
-	 * Create an asset backed by real bytes: paint the image, store it content-addressed under the configured upload directory, and record the
-	 * {@code asset_location} row the download endpoint resolves.
-	 *
-	 * <p>The asset's sha512 and size are the ones of the stored file — a demo asset whose hash did not match its bytes would break the very dedupe
-	 * story the product is built on.</p>
+	 * One photograph from the demo roster: the checked-in file where there is one, the painted stand-in where there is not.
 	 */
-	private Asset createImageAsset(User admin, Library library, String filename, String mimeType, String origin, Palette palette) {
-		byte[] bytes = renderDemoImage(palette, mimeType);
-		SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+	private Asset createImageAsset(User admin, Library library, DemoImage image) {
+		return createMediaImageAsset(admin, library, image.filename(), image.source(), image.palette());
+	}
 
-		Asset asset = assetDao.createAsset(admin, sha512, mimeType, filename, origin, bytes.length);
+	/**
+	 * An image asset backed by a file below the demo content directory, falling back to a painted one.
+	 *
+	 * <p>
+	 * The stored bytes are the photograph resized to {@link DemoMediaLibrary#MAX_IMAGE_EDGE} — see that constant for why the original is not what the
+	 * demo serves. Always {@code image/jpeg}: the library re-encodes, so the mime type describes what was stored rather than what was read.
+	 * </p>
+	 */
+	private Asset createMediaImageAsset(User admin, Library library, String filename, String source, Palette fallback) {
+		byte[] bytes = media.isAvailable() ? media.image(source) : null;
+		if (bytes == null) {
+			return createPaintedImageAsset(admin, library, filename, "image/jpeg", "/demo/photos/" + filename, fallback);
+		}
+		return createBinaryBackedAsset(admin, library, filename, "image/jpeg", "/demo/photos/" + filename, bytes, true);
+	}
+
+	/**
+	 * An image asset whose bytes are painted rather than photographed.
+	 *
+	 * <p>
+	 * The palette is salted with the filename, so two assets sharing a palette still get different bytes — and therefore different content hashes,
+	 * which is what an asset is keyed by.
+	 * </p>
+	 */
+	private Asset createPaintedImageAsset(User admin, Library library, String filename, String mimeType, String origin, Palette palette) {
+		byte[] bytes = renderDemoImage(palette, mimeType, filename.hashCode());
+		return createBinaryBackedAsset(admin, library, filename, mimeType, origin, bytes, true);
+	}
+
+	/**
+	 * One demo video: the checked-in clip where there is one, and otherwise a row with no bytes.
+	 *
+	 * <p>
+	 * The {@code asset_video_comp} row is written either way. Its numbers describe the file the demo is about, which is a fact about that file rather
+	 * than about whether this installation happens to carry it — and without a duration the asset detail timeline divides by zero.
+	 * </p>
+	 */
+	private Asset createVideoAsset(User admin, Library library, DemoVideo video) {
+		String origin = "/demo/videos/" + video.filename();
+		Path source = media.isAvailable() ? media.file(video.source()) : null;
+
+		Asset asset = source != null
+			? createFileBackedAsset(admin, library, video.filename(), "video/mp4", origin, source)
+			: createAsset(admin, video.filename(), "video/mp4", video.sizeBytes(), origin);
+
+		seedVideoComp(admin, asset, video);
+		return asset;
+	}
+
+	/**
+	 * Create an asset backed by a file on disk: hash it as it is copied, store it content-addressed under the configured upload directory, and record
+	 * the {@code asset_location} row the download endpoint resolves.
+	 *
+	 * <p>
+	 * Streamed rather than read into a byte array: the demo container runs with a 512 MB heap and the largest clip is 11 MB, which is survivable but
+	 * pointless to hold.
+	 * </p>
+	 */
+	private Asset createFileBackedAsset(User admin, Library library, String filename, String mimeType, String origin, Path source) {
+		SHA512 sha512 = sha512Of(source);
+		long size;
+		try {
+			size = Files.size(source);
+		} catch (IOException e) {
+			log.warn("Could not measure demo media {} — the asset will be created without bytes", source, e);
+			return createAsset(admin, filename, mimeType, 0, origin);
+		}
+		if (sha512 == null) {
+			return createAsset(admin, filename, mimeType, size, origin);
+		}
+
+		Asset asset = storeAssetRow(admin, sha512, mimeType, filename, origin, size);
+		String path = storeBinary(source, sha512);
+		linkBinary(admin, library, asset, path, mimeType);
+		log.info("Created demo asset with binary: {} ({} bytes, from {})", filename, size, source.getFileName());
+		return asset;
+	}
+
+	/**
+	 * Create an asset backed by bytes already in memory.
+	 *
+	 * <p>
+	 * The asset's sha512 and size are the ones of the stored file — a demo asset whose hash did not match its bytes would break the very dedupe story
+	 * the product is built on.
+	 * </p>
+	 *
+	 * @param describeImage
+	 *            whether to write the {@code asset_image_comp} row carrying the stored picture's dimensions
+	 */
+	private Asset createBinaryBackedAsset(User admin, Library library, String filename, String mimeType, String origin, byte[] bytes,
+		boolean describeImage) {
+		SHA512 sha512 = SHA512.fromString(hex(digest("SHA-512", bytes)));
+		Asset asset = storeAssetRow(admin, sha512, mimeType, filename, origin, bytes.length);
+
+		String path = storeBinary(bytes, sha512);
+		linkBinary(admin, library, asset, path, mimeType);
+		if (describeImage) {
+			seedImageComp(admin, asset, bytes);
+		}
+		log.info("Created demo asset with binary: {} ({} bytes)", filename, bytes.length);
+		return asset;
+	}
+
+	private Asset storeAssetRow(User admin, SHA512 sha512, String mimeType, String filename, String origin, long size) {
+		Asset asset = assetDao.createAsset(admin, sha512, mimeType, filename, origin, size);
 		asset.setUuid(UUIDUtils.randomUUID());
 		asset.setCreator(admin);
 		asset.setEditor(admin);
@@ -2495,20 +3004,82 @@ public class DemoDatabaseInitializer {
 		asset.setEdited(Instant.now());
 		asset.setFirstSeen(Instant.now());
 		assetDao.store(asset);
-
-		String path = storeBinary(bytes, sha512);
-		if (path != null) {
-			AssetBinary binary = assetBinaryDao.createAssetBinary(path, asset.getUuid(), admin.getUuid(), library.getUuid());
-			binary.setUuid(UUIDUtils.randomUUID());
-			binary.setMimeType(mimeType);
-			binary.setCreator(admin);
-			binary.setEditor(admin);
-			binary.setCreated(Instant.now());
-			binary.setEdited(Instant.now());
-			assetBinaryDao.store(binary);
-		}
-		log.info("Created demo asset with binary: {} ({} bytes)", filename, bytes.length);
 		return asset;
+	}
+
+	/** Record the {@code asset_location} row, unless the bytes could not be written and there is nothing to point at. */
+	private void linkBinary(User admin, Library library, Asset asset, String path, String mimeType) {
+		if (path == null) {
+			return;
+		}
+		AssetBinary binary = assetBinaryDao.createAssetBinary(path, asset.getUuid(), admin.getUuid(), library.getUuid());
+		binary.setUuid(UUIDUtils.randomUUID());
+		binary.setMimeType(mimeType);
+		binary.setCreator(admin);
+		binary.setEditor(admin);
+		binary.setCreated(Instant.now());
+		binary.setEdited(Instant.now());
+		assetBinaryDao.store(binary);
+	}
+
+	/**
+	 * Describe the picture that was actually stored.
+	 *
+	 * <p>
+	 * Measured from the stored bytes rather than from the palette or from the source file, because the initializer resizes on the way in: the
+	 * dimensions the UI shows have to be the dimensions of the file it can download.
+	 * </p>
+	 */
+	private void seedImageComp(User admin, Asset asset, byte[] bytes) {
+		BufferedImage decoded;
+		try {
+			decoded = ImageIO.read(new ByteArrayInputStream(bytes));
+		} catch (IOException e) {
+			log.warn("Could not measure the stored demo image for {} — it will have no dimensions", asset.getFilename(), e);
+			return;
+		}
+		if (decoded == null) {
+			return;
+		}
+		AssetImageComp comp = assetComponentDao.createImageComp(admin.getUuid(), asset.getUuid(), DEMO_MEDIA_NODE_KIND);
+		comp.setStreamIndex(0);
+		comp.setMediaWidth(decoded.getWidth());
+		comp.setMediaHeight(decoded.getHeight());
+		comp.setImageEncoding("image/jpeg".equals(asset.getMimeType()) ? "jpeg" : "png");
+		assetComponentDao.upsertImageComp(comp);
+	}
+
+	/** Describe the video stream, from the table beside {@link DemoVideo} rather than from a probe the container does not ship. */
+	private void seedVideoComp(User admin, Asset asset, DemoVideo video) {
+		AssetVideoComp comp = assetComponentDao.createVideoComp(admin.getUuid(), asset.getUuid(), DEMO_MEDIA_NODE_KIND);
+		comp.setStreamIndex(0);
+		comp.setMediaWidth(video.width());
+		comp.setMediaHeight(video.height());
+		comp.setMediaDuration(video.durationMs());
+		comp.setFrameCount(video.frameCount());
+		comp.setFps(video.fps());
+		comp.setVideoEncoding("h264");
+		comp.setRotation(0);
+		assetComponentDao.upsertVideoComp(comp);
+	}
+
+	/**
+	 * Hash a file without holding it.
+	 *
+	 * @return the digest, or null when the file cannot be read — the caller then creates the asset without bytes
+	 */
+	private static SHA512 sha512Of(Path source) {
+		try (InputStream in = Files.newInputStream(source);
+			DigestInputStream digest = new DigestInputStream(in, MessageDigest.getInstance("SHA-512"))) {
+			byte[] buffer = new byte[64 * 1024];
+			while (digest.read(buffer) != -1) {
+				// Reading is the work; the digest is updated as a side effect.
+			}
+			return SHA512.fromString(hex(digest.getMessageDigest().digest()));
+		} catch (IOException | NoSuchAlgorithmException e) {
+			log.warn("Could not hash demo media {} — the asset will be created without bytes", source, e);
+			return null;
+		}
 	}
 
 	/**
@@ -2517,11 +3088,9 @@ public class DemoDatabaseInitializer {
 	 * @return the stored path, or null when the directory is not writable — the asset is still created, it just has no preview
 	 */
 	private String storeBinary(byte[] bytes, SHA512 sha512) {
-		String hex = sha512.toString();
-		Path dir = Paths.get(options.getStorage().getUploadDirectory(), hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6));
-		Path target = dir.resolve(hex);
+		Path target = binaryTarget(sha512);
 		try {
-			Files.createDirectories(dir);
+			Files.createDirectories(target.getParent());
 			if (!Files.exists(target)) {
 				Files.write(target, bytes);
 			}
@@ -2532,10 +3101,39 @@ public class DemoDatabaseInitializer {
 		}
 	}
 
+	/** The same, copying a file rather than writing a buffer. */
+	private String storeBinary(Path source, SHA512 sha512) {
+		Path target = binaryTarget(sha512);
+		try {
+			Files.createDirectories(target.getParent());
+			if (!Files.exists(target)) {
+				Files.copy(source, target);
+			}
+			return target.toString();
+		} catch (IOException e) {
+			log.warn("Could not store demo binary at {} — the asset will have no preview", target, e);
+			return null;
+		}
+	}
+
+	private Path binaryTarget(SHA512 sha512) {
+		String hex = sha512.toString();
+		return Paths.get(options.getStorage().getUploadDirectory(), hex.substring(0, 2), hex.substring(2, 4), hex.substring(4, 6))
+			.resolve(hex);
+	}
+
 	/**
 	 * Paint one demo image. No text is drawn: the JRE in the demo container has no fontconfig, and a missing font would fail the whole seeding run.
+	 *
+	 * <p>
+	 * Deterministic: the same palette and salt in, the same bytes out, so a re-run stores the same content-addressed file.
+	 * </p>
+	 *
+	 * @param seedSalt
+	 *            mixed into the palette's own seed, so two assets painted from one palette still differ. They have to: an asset is keyed by the hash
+	 *            of its bytes, and the roster has sixteen entries sharing seven palettes.
 	 */
-	private static byte[] renderDemoImage(Palette palette, String mimeType) {
+	private static byte[] renderDemoImage(Palette palette, String mimeType, long seedSalt) {
 		int w = palette.width;
 		int h = palette.height;
 		BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
@@ -2547,7 +3145,7 @@ public class DemoDatabaseInitializer {
 		Color bottom = new Color(palette.bottom);
 		Color accent = new Color(palette.accent);
 		Color ridge = new Color(palette.ridge);
-		Random rnd = new Random(palette.seed);
+		Random rnd = new Random(palette.seed * 31 + seedSalt);
 
 		g.setPaint(new GradientPaint(0, 0, top, 0, h, bottom));
 		g.fillRect(0, 0, w, h);

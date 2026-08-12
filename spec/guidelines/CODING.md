@@ -54,6 +54,15 @@ the spec in the same change (§ Spec below).
 * New features must ship meaningful default demo data — `DemoDatabaseInitializer`
   (`loom/core/src/main/java/io/metaloom/loom/core/boot/`). It seeds the demo space, collections,
   libraries, pools and pipelines the demo container starts with.
+* **Media comes from `demo-content/`**, read through `DemoMediaLibrary`. The demo `Containerfile`
+  copies that directory to `/demo-content` and sets `LOOM_DEMO_CONTENT_DIR`; the plain server image
+  ships neither, and the initializer then paints its images and creates the videos as rows without
+  bytes. Both states have to work: the seed has no flag and runs on every installation, so anything
+  new that reads a file must degrade the way `DemoMediaLibrary` does — log a warning, answer null,
+  and cost one picture rather than the rest of the seed.
+* **Never fail the seed.** `BootstrapInitializer` swallows the exception and the guard at the top of
+  `init()` never runs again once an asset exists, so a throw halfway through leaves a database that
+  is permanently half-seeded.
 * If a feature genuinely cannot run in the demo container (e.g. it needs a GPU sidecar), follow the
   existing precedent: leave it out and say so in the spec rather than seeding something that fails.
 

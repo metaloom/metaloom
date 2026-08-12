@@ -373,13 +373,16 @@ function AssetFacts({ asset }: { asset: SharedAssetResponse }) {
 /**
  * One tile in the collection grid.
  *
- * The thumbnail is the stored image itself for images, and a labelled placeholder otherwise — the
- * same rule the internal asset grid follows, for the same reason: there is no thumbnail service, so
- * a poster frame for a video does not exist to show.
+ * The thumbnail is the stored binary itself — an `<img>` for a picture, and for a clip a muted
+ * `<video>` seeking one frame out of the same bytes. The same rule the internal asset grid follows,
+ * for the same reason: there is no thumbnail service and no poster-frame endpoint, so the only way
+ * to show a frame is to let the browser decode one. Anything else gets a labelled placeholder.
  */
 function ShareTile({ slug, asset, onOpen }: { slug: string; asset: SharedAssetResponse; onOpen: () => void }) {
   const [failed, setFailed] = useState(false);
-  const isImage = mediaKindOf(asset.mimeType) === "image";
+  const kind = mediaKindOf(asset.mimeType);
+  const isImage = kind === "image";
+  const isVideo = kind === "video";
   return (
     <Box
       data-testid="share-tile"
@@ -408,6 +411,18 @@ function ShareTile({ slug, asset, onOpen }: { slug: string; asset: SharedAssetRe
             loading="lazy"
             onError={() => setFailed(true)}
             sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : isVideo && !failed ? (
+          <Box
+            component="video"
+            // A second in, not frame 0, which is often a fade-in or a black leader frame.
+            src={`${sharedBinaryUrl(slug, asset.uuid)}#t=1`}
+            muted
+            playsInline
+            preload="metadata"
+            aria-label={asset.title || asset.filename}
+            onError={() => setFailed(true)}
+            sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
           />
         ) : (
           <Box

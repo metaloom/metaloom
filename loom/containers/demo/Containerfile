@@ -16,6 +16,10 @@ ENV LOOM_AGENT_MEMORY_ENABLED=true
 # Reindex button is the repair.
 ENV LOOM_VECTOR_INDEX_PROVIDER=lucene
 ENV LOOM_SIMILARITY_ENABLED=true
+# The media DemoDatabaseInitializer seeds. Only this image carries it: the seed itself runs
+# everywhere (there is no demo flag), and a missing directory is what makes the plain server image
+# fall back to the images the initializer paints for itself.
+ENV LOOM_DEMO_CONTENT_DIR=/demo-content
 # Semantic search stays off: it needs an embeddings host the demo container cannot reach, and a
 # row that reports "disabled, and here is why" is a more honest demo than one that errors.
 ENV JAVA_TOOL_OPTIONS="-Xms512m -Xmx512m"
@@ -34,6 +38,9 @@ RUN adduser -D -u 1000 -G root -h /loom loom && \
     chmod 770 /loom -R
 ADD --chown=1000:0 ./loom/containers/demo/target/loom-demo.jar /loom/loom.jar
 ADD --chown=1000:0 ./loom-ui/build /loom/ui
+# Read-only source material, not a volume: the seeder copies out of it into /uploads, and a demo
+# whose pictures depend on what somebody mounted is not a demo.
+ADD --chown=1000:0 ./demo-content /demo-content
 
 USER loom
 WORKDIR /loom

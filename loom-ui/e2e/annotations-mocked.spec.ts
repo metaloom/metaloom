@@ -18,6 +18,24 @@ const ME_UUID = "11111111-1111-1111-1111-111111111111";
 const OTHER_UUID = "99999999-9999-9999-9999-999999999999";
 const ASSET_UUID = "22222222-2222-2222-2222-222222222222";
 
+/** A 1x1 JPEG, so the media pane lays out a real image for the region drag rather than a broken one. */
+const TINY_JPEG = Buffer.from(
+  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==",
+  "base64",
+);
+
+/** What the browser actually sent, so a *missing* write can be asserted rather than inferred. */
+interface Recorder {
+  /** Bodies of every POST /annotations. */
+  creates: Record<string, unknown>[];
+  /** Bodies of every POST /annotations/:uuid (the update route). */
+  updates: { uuid: string; body: Record<string, unknown> }[];
+}
+
+function recorder(): Recorder {
+  return { creates: [], updates: [] };
+}
+
 interface StoredAnnotation {
   uuid: string;
   type?: string;
@@ -50,7 +68,7 @@ function annotation(overrides: Partial<StoredAnnotation> = {}): StoredAnnotation
   };
 }
 
-async function installMocks(page: Page, seed: StoredAnnotation[]) {
+async function installMocks(page: Page, seed: StoredAnnotation[], rec: Recorder) {
   const annotations: StoredAnnotation[] = [...seed];
   const reactions: StoredReaction[] = [];
   let seq = 0;
@@ -77,6 +95,9 @@ async function installMocks(page: Page, seed: StoredAnnotation[]) {
     json(route, { data: [asset()], _metainfo: { totalCount: 1 } })
   );
   await page.route(/\/api\/v1\/assets\/[^/]+$/, route => json(route, asset()));
+  await page.route(/\/api\/v1\/assets\/[^/]+\/binary\/data/, route =>
+    route.fulfill({ status: 200, contentType: "image/jpeg", body: TINY_JPEG })
+  );
 
   // Annotation reactions: list + create.
   await page.route(/\/api\/v1\/annotations\/[^/]+\/reactions$/, route => {
@@ -111,6 +132,7 @@ async function installMocks(page: Page, seed: StoredAnnotation[]) {
     }
     // POST update
     const body = JSON.parse(route.request().postData() || "{}");
+    rec.updates.push({ uuid, body });
     const existing = annotations.find(a => a.uuid === uuid);
     const updated: StoredAnnotation = {
       ...(existing ?? annotation({ uuid })),
@@ -126,6 +148,7 @@ async function installMocks(page: Page, seed: StoredAnnotation[]) {
   await page.route(/\/api\/v1\/annotations$/, route => {
     if (route.request().method() === "POST") {
       const body = JSON.parse(route.request().postData() || "{}");
+      rec.creates.push(body);
       const created: StoredAnnotation = {
         uuid: `created-${++seq}`,
         type: body.type ?? "FEEDBACK",
@@ -142,8 +165,8 @@ async function installMocks(page: Page, seed: StoredAnnotation[]) {
   });
 }
 
-async function loginAndOpenAnnotations(page: Page, seed: StoredAnnotation[]) {
-  await installMocks(page, seed);
+async function loginAndOpenAnnotations(page: Page, seed: StoredAnnotation[], rec: Recorder = recorder()) {
+  await installMocks(page, seed, rec);
   await page.goto("/");
   await page.getByPlaceholder("Username").fill("admin");
   await page.getByPlaceholder("Password").fill("finger");
@@ -156,6 +179,30 @@ async function loginAndOpenAnnotations(page: Page, seed: StoredAnnotation[]) {
   await assetLink.click();
   await expect(page).toHaveURL(/\/assets\/[0-9a-f-]+/, { timeout: 5_000 });
   await page.getByRole("tab", { name: /annotations/i }).click();
+  return rec;
+}
+
+/** Rubber-band a box over the image, in fractions of the image container. */
+async function drawRegion(page: Page, x0: number, y0: number, x1: number, y1: number) {
+  const image = page.getByTestId("zoomable-image");
+  await expect(image).toBeVisible({ timeout: 10_000 });
+  const box = await image.boundingBox();
+  if (!box) throw new Error("zoomable-image has no bounding box");
+  await page.mouse.move(box.x + box.width * x0, box.y + box.height * y0);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * x1, box.y + box.height * y1, { steps: 10 });
+  await page.mouse.up();
+}
+
+/**
+ * ZoomableImage reports a region as a fraction of its container and AssetDetail converts it to
+ * permille, so the expected numbers are the drag fractions × 1000. The tolerance absorbs the
+ * pixel rounding of the mouse path — the point is that the drawn box travelled, not that it
+ * survived to the unit.
+ */
+function expectPermille(actual: unknown, expected: number) {
+  expect(typeof actual).toBe("number");
+  expect(Math.abs((actual as number) - expected)).toBeLessThan(25);
 }
 
 test.describe("Annotation authoring – mocked e2e", () => {
@@ -213,5 +260,113 @@ test.describe("Annotation authoring – mocked e2e", () => {
     // Authorship gating: no edit/delete affordances for another user's annotation.
     await expect(page.getByTestId("annotation-edit")).toHaveCount(0);
     await expect(page.getByTestId("annotation-delete")).toHaveCount(0);
+  });
+
+  test("the composer takes text and gates the post button on a title", async ({ page }) => {
+    await loginAndOpenAnnotations(page, []);
+
+    const composer = page.getByTestId("annotation-composer");
+    await expect(composer).toBeVisible({ timeout: 10_000 });
+
+    // Both fields live inside the composer, and nothing can be posted yet.
+    await expect(composer.getByTestId("annotation-new-title")).toHaveValue("");
+    await expect(composer.getByTestId("annotation-new-desc")).toHaveValue("");
+    await expect(composer.getByTestId("annotation-post")).toBeDisabled();
+
+    // A description on its own is not enough — an annotation is titled or it is nothing.
+    await composer.getByTestId("annotation-new-desc").fill("a body without a title");
+    await expect(composer.getByTestId("annotation-post")).toBeDisabled();
+
+    // …and whitespace does not count as a title either.
+    await composer.getByTestId("annotation-new-title").fill("   ");
+    await expect(composer.getByTestId("annotation-post")).toBeDisabled();
+
+    await composer.getByTestId("annotation-new-title").fill("A real title");
+    await expect(composer.getByTestId("annotation-post")).toBeEnabled();
+    // Typing the title did not disturb what was already in the description.
+    await expect(composer.getByTestId("annotation-new-desc")).toHaveValue("a body without a title");
+  });
+
+  /**
+   * The toggle is the whole difference between a drag that pans the image and a drag that draws a
+   * box, so the unarmed half of this case is the load-bearing one: without it, an annotation that
+   * silently picked up whatever region was lying around would still pass.
+   */
+  test("the region toggle arms region mode and the drawn box rides along with the POST", async ({ page }) => {
+    const rec = recorder();
+    await loginAndOpenAnnotations(page, [], rec);
+
+    const composer = page.getByTestId("annotation-composer");
+    await expect(composer).toBeVisible({ timeout: 10_000 });
+
+    // Unarmed: the same drag draws nothing, and the annotation goes out with no area.
+    await drawRegion(page, 0.20, 0.30, 0.60, 0.70);
+    await expect(composer.getByText(/Region captured/)).toHaveCount(0);
+    await composer.getByTestId("annotation-new-title").fill("No region");
+    await composer.getByTestId("annotation-post").click();
+    await expect.poll(() => rec.creates.length, { timeout: 10_000 }).toBe(1);
+    expect(rec.creates[0].area).toBeUndefined();
+
+    // Armed: the hint appears, the drag is captured, and the area rides along.
+    await composer.getByTestId("annotation-region-toggle").click();
+    await expect(composer.getByText(/Draw a box on the image/)).toBeVisible();
+
+    await drawRegion(page, 0.20, 0.30, 0.60, 0.70);
+    await expect(composer.getByText(/Region captured/)).toBeVisible({ timeout: 5_000 });
+
+    await composer.getByTestId("annotation-new-title").fill("Region marker");
+    await composer.getByTestId("annotation-post").click();
+    await expect.poll(() => rec.creates.length, { timeout: 10_000 }).toBe(2);
+
+    const area = rec.creates[1].area as Record<string, unknown>;
+    expect(area).toBeTruthy();
+    expectPermille(area.startX, 200);
+    expectPermille(area.startY, 300);
+    expectPermille(area.width, 400);
+    expectPermille(area.height, 400);
+
+    // Twice on screen: the sidebar entry, plus a chip in the region strip over the media pane.
+    // That strip lists only annotations that came back carrying an area, so the second mention is
+    // the round-trip made visible — the region-less one posted first appears once.
+    await expect(page.getByText("Region marker", { exact: true })).toHaveCount(2, { timeout: 10_000 });
+    await expect(page.getByText("No region", { exact: true })).toHaveCount(1);
+
+    // Posting disarms region mode and clears the pending box, so the next annotation starts clean.
+    await expect(composer.getByText(/Region captured/)).toHaveCount(0);
+    await expect(composer.getByText(/Draw a box on the image/)).toHaveCount(0);
+  });
+
+  /**
+   * `annotation-cancel` sits on the *edit* form, not on the composer — the composer has no cancel
+   * button, it is simply always open on the tab. The leak this guards is the draft: an editor that
+   * kept the abandoned text would re-open on it, and the next save would write words the author
+   * already backed out of.
+   */
+  test("cancelling an annotation edit writes nothing and re-opens on the stored text", async ({ page }) => {
+    const rec = recorder();
+    await loginAndOpenAnnotations(
+      page,
+      [annotation({ title: "Stored title", description: "Stored body" })],
+      rec,
+    );
+
+    await expect(page.getByText("Stored title", { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    await page.getByTestId("annotation-edit").first().click();
+    await page.getByTestId("annotation-title-field").fill("Abandoned title");
+    await page.getByTestId("annotation-edit-field").fill("Abandoned body");
+    await page.getByTestId("annotation-cancel").click();
+
+    // The form closes, the list still shows what the server holds, and no write went out.
+    await expect(page.getByTestId("annotation-title-field")).toHaveCount(0);
+    await expect(page.getByText("Stored title", { exact: true })).toBeVisible();
+    await expect(page.getByText("Abandoned title", { exact: true })).toHaveCount(0);
+    expect(rec.updates).toEqual([]);
+
+    // Re-opening starts from the stored text, not from the draft that was thrown away.
+    await page.getByTestId("annotation-edit").first().click();
+    await expect(page.getByTestId("annotation-title-field")).toHaveValue("Stored title");
+    await expect(page.getByTestId("annotation-edit-field")).toHaveValue("Stored body");
+    expect(rec.updates).toEqual([]);
   });
 });

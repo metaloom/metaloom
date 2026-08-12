@@ -14,6 +14,10 @@ ENV LOOM_AUTH_KEYSTORE_PATH=/keystore/keystore.jks
 ENV LOOM_BINARY_DIR=/uploads
 ENV LOOM_TEMP_DIR=/tmp
 ENV HOME=/loom
+# See the JVM Containerfile: the media DemoDatabaseInitializer seeds. A directory rather than a
+# classpath resource, which is also what lets it work here — the native image ships no resource
+# config for demo media.
+ENV LOOM_DEMO_CONTENT_DIR=/demo-content
 
 EXPOSE 8092
 EXPOSE 8091
@@ -35,6 +39,7 @@ RUN apt-get update && \
 ADD --chown=1000:0 ./loom/containers/demo/target/loom-demo /loom/loom
 RUN chmod 770 /loom/loom
 ADD --chown=1000:0 ./loom-ui/build /loom/ui
+ADD --chown=1000:0 ./demo-content /demo-content
 
 USER loom
 WORKDIR /loom

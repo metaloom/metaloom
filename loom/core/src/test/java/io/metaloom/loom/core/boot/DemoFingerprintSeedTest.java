@@ -59,19 +59,19 @@ public class DemoFingerprintSeedTest extends AbstractEndpointTest {
 
 	private static final String ALGO = SimilarityOptions.DEFAULT_ALGORITHM;
 
-	/** The four demo videos, in the order {@link DemoDatabaseInitializer#seedFingerprintComps} takes them. */
+	/** Four demo videos, in the order {@link DemoDatabaseInitializer#seedFingerprintComps} takes them. */
 	private Asset original;
 	private Asset nearDuplicate;
-	private Asset timelapse;
-	private Asset interview;
+	private Asset meeting;
+	private Asset cut;
 
 	private List<AssetFingerprintComp> seed() {
-		original = seedAsset("drone-coastal.mp4");
-		nearDuplicate = seedAsset("drone-coastal-720p.mp4");
-		timelapse = seedAsset("timelapse-city.mp4");
-		interview = seedAsset("interview-clip.mov");
+		original = seedAsset("city-traffic.mp4");
+		nearDuplicate = seedAsset("city-traffic-720p.mp4");
+		meeting = seedAsset("team-meeting.mp4");
+		cut = seedAsset("team-meeting-cut.mp4");
 		return DemoDatabaseInitializer.seedFingerprintComps(daos().assetComponentDao(), adminUuid(),
-			original, nearDuplicate, timelapse, interview);
+			original, nearDuplicate, meeting, cut);
 	}
 
 	private Asset seedAsset(String filename) {
@@ -95,7 +95,7 @@ public class DemoFingerprintSeedTest extends AbstractEndpointTest {
 
 		// Scoped to the seeded assets: the pooled database is shared and pre-populated, so an absolute
 		// count over the algorithm would assert somebody else's fixtures.
-		Set<UUID> seeded = Set.of(original.getUuid(), nearDuplicate.getUuid(), timelapse.getUuid(), interview.getUuid());
+		Set<UUID> seeded = Set.of(original.getUuid(), nearDuplicate.getUuid(), meeting.getUuid(), cut.getUuid());
 		List<AssetFingerprintComp> found = daos().assetComponentDao().findByAlgorithm(ALGO).stream()
 			.filter(comp -> seeded.contains(comp.getAssetUuid()))
 			.collect(Collectors.toList());
@@ -161,7 +161,7 @@ public class DemoFingerprintSeedTest extends AbstractEndpointTest {
 			"The re-encode of the same footage must be reported as a near-duplicate, got " + hits);
 		assertTrue(!hits.contains(original.getUuid().toString()), "The query asset must be excluded from its own result");
 		// The unrelated videos are seeded at least 64 of 256 bits away, which scores below the 0.10 floor.
-		assertTrue(!hits.contains(timelapse.getUuid().toString()) && !hits.contains(interview.getUuid().toString()),
+		assertTrue(!hits.contains(meeting.getUuid().toString()) && !hits.contains(cut.getUuid().toString()),
 			"An unrelated demo video must not be proposed as a duplicate, got " + hits);
 
 		SimilarAssetResponse hit = response.getData().stream()

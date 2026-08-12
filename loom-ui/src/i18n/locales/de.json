@@ -219,7 +219,8 @@
       "completedWithDuplicates": "{{count}} Datei(en) hochgeladen, {{duplicates}} bereits in Loom",
       "failed": "{{count}} Upload(s) fehlgeschlagen",
       "cancelled": "{{count}} Upload(s) abgebrochen"
-    }
+    },
+    "unloadWarning": "Uploads laufen noch. Wenn Sie diese Seite verlassen, werden sie abgebrochen."
   },
   "library": {
     "title": "Bibliotheken",
@@ -2042,6 +2043,7 @@
     "new": "Neue Notiz",
     "id": "Id",
     "idHelp": "Kleingeschriebener Pfad mit der Endung .md, z. B. projects/loom-db.md",
+    "idTaken": "Eine Notiz mit dieser Id existiert in diesem Bereich bereits. Bitte eine andere Id wählen.",
     "noteTitle": "Titel",
     "updated": "Aktualisiert",
     "session": "Sitzung",

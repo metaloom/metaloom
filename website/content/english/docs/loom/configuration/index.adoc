@@ -267,6 +267,24 @@ Settings for the agent link:../chat/#memory[memory bank] (`LOOM_AGENT_MEMORY_*`)
 | `LOOM_AGENT_MEMORY_MOUNT_PATH` | `/memory` | Sandbox mount path for memory
 |===
 
+=== Demo content
+
+A fresh, empty database is populated with example content on first start — a space, some
+collections and libraries, a few pipelines, and a set of assets to browse. This setting decides
+where the pictures and clips behind those assets come from.
+
+[options="header",cols="2,1,2"]
+|===
+| Variable | Default | Description
+| `LOOM_DEMO_CONTENT_DIR` | _(unset)_ | Directory holding the example media (`images/`, `videos/`, `persons/`, `users/`). When unset, `/demo-content` and `./demo-content` are tried in that order
+|===
+
+The demo container ships this material and points the setting at it, which is why its asset browser
+shows photographs and plays video. On a plain server the directory is not present and the example
+images are drawn at start-up instead, so the screens still have something in them. Either way the
+example content only ever appears in a database that was empty to begin with — it is never added to
+one that already holds assets.
+
 == CLI
 
 The Loom server main entry point is `LoomServerRunner`. Configuration is driven via the YAML

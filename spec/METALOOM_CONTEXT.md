@@ -617,6 +617,7 @@ is the external `io.metaloom.fs` artifact), `llm-common`, `node-runtime`, `nodes
 | `LoomImpl` | `io.metaloom.loom.core` | Entry point; builds the Dagger component, runs bootstrap |
 | `BootstrapInitializer` | `io.metaloom.loom.core.boot` | Startup/shutdown sequence (🔴 no JVM shutdown hook — see §6) |
 | `DemoDatabaseInitializer` | `io.metaloom.loom.core.boot` | Demo data — **extend when adding a feature** (CODING.md) |
+| `DemoMediaLibrary` | `io.metaloom.loom.core.boot` | Reads `demo-content/`; no directory ⇒ the images are painted |
 | `LoomCoreComponent` | `io.metaloom.loom.core.dagger` | Dagger component wiring all services, incl. `SearchModule`, `SimilarityModule` |
 | `RESTService` | `io.metaloom.loom.rest` | REST router; endpoints injected via `EndpointModule` |
 | `PipelineRunEngine` | `io.metaloom.loom.pipeline.engine` | Owns run state; walks the graph, dispatches tasks |
@@ -780,6 +781,7 @@ and subcomponents for request scope (`RestComponent` per REST request).
 | SQL migrations | `loom/db/flyway/src/main/resources/db/migration/` |
 | Test DB pool setup | `./setup-pool.sh`, `loom-test-env/`, `loom/fixture/`, `loom/DEVELOPMENT.md` |
 | Demo data | `loom/core/.../boot/DemoDatabaseInitializer.java` |
+| Demo media | `demo-content/` — container `/demo-content`, `LOOM_DEMO_CONTENT_DIR` |
 | **Loom-side pipeline engine & graph** | `loom/pipeline/src/main/java/io/metaloom/loom/pipeline/{engine,graph}/` |
 | Pipeline REST endpoints & services | `loom/services/rest/.../endpoint/impl/Pipeline*.java`, `.../service/impl/` |
 | Pipeline dispatch protocol model | `loom-shared/pipeline-model/` (`NodeTask`, `NodeTaskResult`) |

@@ -101,7 +101,8 @@ public class DetectionPlayerFixtureGenerator {
 	/** Set {@code -Dloom.regenerateDetectionTrack=true} to run. */
 	private static final String REGENERATE = "loom.regenerateDetectionTrack";
 
-	/** The same two-people clip the debug screenshots use, so the page tells one story throughout. */
+	/** The same meeting clip the debug screenshots use, so the page tells one story throughout. It is
+	 * the demo container's own footage: a reader who downloads the image can find this file in it. */
 	private static final Path SOURCE = Path.of("/opt/metaloom/loom-testdata/folderA/folderB/pexels-jack-sparrow-5977460.mp4");
 
 	/** The page bundle of {@code /docs/pipeline/}: co-located resources, like every other figure there. */
