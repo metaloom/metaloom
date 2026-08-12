@@ -270,9 +270,17 @@ cp ../services/graphql/src/main/resources/loom.graphqls \
 
 ### Swagger UI / GraphiQL wiring
 
-Both plugins (`themes/meghna-hugo/static/plugins/{swagger,graphiql}/`) are loaded on **every** page
-via `[[params.plugins.js]]`, so each **must bail out when its mount div is absent** — otherwise it
-renders into `null` and throws site-wide. Mount points are raw-HTML blocks (`#swagger-ui`,
+Both plugins (`themes/meghna-hugo/static/plugins/{swagger,graphiql}/`) are **page-scoped, not
+global** — Swagger UI is ~1.8 MB and GraphiQL ~3.7 MB, more than the rest of the site's JavaScript
+combined, and exactly two pages mount them. They are declared in the front matter of those two
+pages via `page_js` / `page_css` (see [Content conventions](#content-conventions)) and are
+deliberately **absent from `[[params.plugins.js]]` / `[[.css]]`**; the config carries a comment
+saying so. **List order is the load order** — bundle before the mounting script (React → ReactDOM →
+the GraphiQL UMD bundle → `graphiql.js`).
+
+Each script still **bails out when its mount div is absent**, and that guard stays: it costs
+nothing, and it is what stops a copy-pasted mount div — or a page that lists the bundle without one
+— from rendering into `null` and throwing. Mount points are raw-HTML blocks (`#swagger-ui`,
 `#graphiql`) in the two pages; per-page `data-openapi-url` / `data-graphql-url` / `data-schema-url`
 attributes override the defaults, which must stay **site-relative**. Swagger options:
 `docExpansion:'none'`, `filter:true`, `deepLinking:true`, alphabetical sorting,
@@ -513,6 +521,16 @@ face.
 **Front matter** is YAML between `---`. Only `title` is required; `weight` orders siblings,
 `page_css: css/<name>.css` gives one page its own stylesheet, `aliases: [/old/]` keeps an old URL
 alive, `image`/`image_webp` name a blog teaser by **bare file name** inside the bundle.
+
+**Per-page assets — `page_css` and `page_js`.** Both take one entry or a list, and both are the
+front-matter counterpart to `[[params.plugins.css]]` / `[[.js]]`: use them whenever an asset is
+worth more than the pages that do *not* use it. A `page_css` entry that resolves under `assets/`
+(`css/<name>.css`) goes through the pipeline and is minified; anything else — a vendored
+`plugins/<name>/…` path under `static/` — is emitted as a plain link. `page_js` (footer, after the
+global plugin list, **order preserved**) is always a static path. `/tour/`, `/studio/`, `/`,
+`/features/` and `/pipeline-editor/` take the asset form; the two API-explorer pages take the
+plugin form ([Swagger UI / GraphiQL wiring](#swagger-ui--graphiql-wiring)). Read in
+`partials/head.html` and `partials/footer.html`.
 
 **AsciiDoc body**: `== Heading`, `[source,bash]----…----`, `|===` tables, `link:target[Label]`,
 admonitions. Internal links are **relative targets that resolve to Hugo pretty URLs**
@@ -855,7 +873,7 @@ is restricted to `^HUGO_` and `^CI$`, so **templates can read no other env var**
 | `params.discordLink` | `https://discord.gg/3Dy2SxKUtw` | Header icon. **Must live under `[params]`** — as a root key templates cannot read it |
 | `params.canonical_base` | `https://metaloom.io` | Base for absolute social metadata. Duplicates `baseURL` **on purpose** — see Gotchas |
 | `[[params.social]]` | Discord · GitHub · email | Footer contact pills (`icon`, `label`, `link`) |
-| `[[params.plugins.css]]` / `[[.js]]` | 9 / 15 entries | Bootstrap, FontAwesome5, Themify, slick, magnific-popup, lazy-load, bootstrap-toc, **swagger**, **graphiql**, **nodeviz** |
+| `[[params.plugins.css]]` / `[[.js]]` | 7 / 10 entries | Bootstrap, FontAwesome5, Themify, slick, magnific-popup, lazy-load, bootstrap-toc, **nodeviz**, **detectionplayer**. **swagger** and **graphiql** are deliberately *not* here — they are per-page `page_js` / `page_css` |
 
 There is **no `[markup]` / `[markup.asciidocExt]` block** — Asciidoctor runs with Hugo defaults, and
 shared attributes come from `docs/variables.adoc-include` instead.
@@ -887,6 +905,7 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Change home / tour / studio / feature copy | `website/data/en/{home,tour,studio,feature}.yml` — **never the layout** |
 | Add an illustration to `/tour/` or `/studio/` | `layouts/partials/{tour,studio}/art-<name>.html` (selected by the `art:` key in the YAML) + `assets/css/{tour,studio}.css` |
 | Give one page its own stylesheet | Front matter `page_css: css/<name>.css` + the asset under `themes/meghna-hugo/assets/css/` |
+| Load a heavy plugin on one page only | Front matter `page_js:` / `page_css:` listing `plugins/<name>/…` static paths — **not** `[[params.plugins.js]]`. Order in the list is the load order |
 | Redirect an old URL | `aliases:` in the target's front matter; the stub comes from `layouts/alias.html` |
 | Add scroll reveal to a page | `data-reveal-scope` + `.reveal` + the two `reveal-*` partials |
 | Add a release announcement | `content/english/announcements/<slug>/index.adoc` with `status` / `status_label` / `version` / `image` |
@@ -1007,6 +1026,9 @@ review**.
 3. Spot-check: `/docs/` card grid, one leaf page with the sidebar TOC, `/docs/loom/rest-api/`
    (Swagger UI loads), `/docs/loom/graphql-api/` (GraphiQL builds the schema offline),
    `/docs/nodes/facedetect/` (nodeviz diagram + hover card), `/pipeline-editor/` (demo loads).
+   After touching `page_js` / `page_css` or the plugin lists, also confirm the **negative**:
+   `grep -rl 'plugins/swagger\|plugins/graphiql' dist --include=*.html` must name those two pages
+   and nothing else, and a third page must log no such network request and no console error.
 4. `node check-links.mjs` on its own for a quick link pass while editing.
 5. Visual checks without a browser — serve `dist/` and drive the Playwright/Chromium under
    `loom-ui/`:
@@ -1116,7 +1138,6 @@ review**.
 - [ ] The broken-link check never fetches **external** links; a dead `https://` link is invisible.
 - [ ] The RSS `<link>`/`<guid>` still come from `site.BaseURL` (Hugo's internal template), so the
       `localhost:1313` flake can still reach the feed. A custom RSS template would fix it.
-- [ ] Only load the ~1 MB Swagger UI bundle on the REST API page instead of globally.
 - [ ] **Fill in the Impressum placeholders** (address, a direct channel besides email).
 - [ ] Self-host the two web fonts instead of Google's CDN — that transfer is the only reason the
       Impressum needs a Google Fonts paragraph.

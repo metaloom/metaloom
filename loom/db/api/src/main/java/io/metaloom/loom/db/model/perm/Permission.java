@@ -95,6 +95,15 @@ public enum Permission {
 	DELETE_COLLECTION,        // doc:yes  ui:yes test:none
 	UPDATE_COLLECTION,        // doc:yes  ui:yes test:none
 
+	// Remix. A remix is a named group of assets that are versions of one another. Kept separate from the
+	// asset permissions on purpose: grouping is curation, and a curator may build and rename groups
+	// without being allowed to mutate the underlying assets. Reading a remix's members additionally
+	// requires READ_ASSET, so a remix cannot be a side channel around asset visibility.
+	CREATE_REMIX,             // doc:yes  ui:yes test:RemixEndpointTest (403 cases)
+	READ_REMIX,               // doc:yes  ui:yes test:RemixEndpointTest (403 cases)
+	DELETE_REMIX,             // doc:yes  ui:yes test:RemixEndpointTest (403 cases)
+	UPDATE_REMIX,             // doc:yes  ui:yes test:RemixMemberEndpointTest (403 cases)
+
 	// Share link. Governs the share ROW - creating a link, changing its expiry or password, revoking it.
 	// The visitor who opens the link holds no permission at all and is never resolved to a user; what they
 	// may do is decided entirely from the share row in ShareAccessService. There is deliberately no

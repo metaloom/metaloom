@@ -30,6 +30,7 @@ import io.metaloom.loom.rest.endpoint.impl.BlacklistEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ChatEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ClusterEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.RemixEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PublicShareEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ShareLinkEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
@@ -239,7 +240,7 @@ public class LoomOpenAPI {
 		endpoints.add(new AssetBinaryEndpoint(null, deps, examples));
 		endpoints.add(new AssetComponentEndpoint(null, deps, examples));
 		endpoints.add(
-			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps,
+			new AssetEndpoint(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, deps,
 				examples));
 		endpoints.add(new AssetPoolEndpoint(null, deps, examples));
 		endpoints.add(new AttachmentEndpoint(null, deps, examples));
@@ -247,6 +248,7 @@ public class LoomOpenAPI {
 		endpoints.add(new ChatEndpoint(null, deps, examples));
 		endpoints.add(new ClusterEndpoint(null, deps, examples));
 		endpoints.add(new CollectionEndpoint(null, null, deps, examples));
+		endpoints.add(new RemixEndpoint(null, deps, examples));
 		endpoints.add(new ShareLinkEndpoint(null, deps, examples));
 		endpoints.add(new PublicShareEndpoint(null, deps, examples));
 		endpoints.add(new CommentEndpoint(null, null, deps, examples));
@@ -568,6 +570,7 @@ public class LoomOpenAPI {
 		map.put("chat-sessions", "Chat sessions - publishable snapshots of a chat's working state");
 		map.put("chats", "AI agent chats and the SSE run stream");
 		map.put("clusters", "Face/embedding clusters");
+		map.put("remixes", "Remixes: named groups of assets that are versions of one another, and their members");
 		map.put("collections", "Asset collections");
 		map.put("comments", "Comments and their reactions");
 		map.put("detections", "The cross-asset detection review queue. Detections themselves are created and reviewed under their asset.");

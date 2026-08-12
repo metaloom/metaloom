@@ -75,7 +75,7 @@ when they disagree, the code wins and this file gets fixed in the same change
 | **Attachment** | Loom | A derived auxiliary binary (thumbnail, contact sheet, poster frame, waveform, proxy, extracted audio) with node provenance; content-addressed by sha512 in a pool. |
 | **Blacklist** | Loom | A block entry on an asset (copyright, virus scan) with a review count and label. |
 | **Annotation** | Loom | A time- or area-scoped marker on an asset: FEEDBACK, TAG or CHAPTER. |
-| **Asset Remix** | Loom | A derivation link between two assets. Schema-only — no DAO, no code references. |
+| **Remix** | Loom | A named group of assets that are versions of one another: an original (the SOURCE member) plus the cuts, re-encodes and edits made from it. Curation, not deduplication and not similarity. Replaced the schema-only `asset_remix` pair table in V2.100. |
 
 ---
 

@@ -47,10 +47,9 @@ link = "plugins/slick/slick.css"
 link = "https://fonts.googleapis.com/css?family=Anaheim|Quattrocento+Sans:400,700&display=swap"
 [[params.plugins.css]]
 link = "plugins/toc/bootstrap-toc.min.css"
-[[params.plugins.css]]
-link = "plugins/swagger/swagger-ui.css"
-[[params.plugins.css]]
-link = "plugins/graphiql/graphiql.min.css"
+# The Swagger UI and GraphiQL stylesheets are NOT listed here. They are declared per page in
+# `page_css` front matter (docs/loom/rest-api, docs/loom/graphql-api) — see the head.html
+# comment. Site-wide they cost every page ~570 KB of CSS that two pages use.
 
 
 
@@ -73,20 +72,10 @@ link = "plugins/lazy-load/lozad.min.js"
 link = "plugins/toc/bootstrap-toc.min.js"
 [[params.plugins.js]]
 link = "plugins/toc/toc.js"
-[[params.plugins.js]]
-link = "plugins/swagger/swagger-ui-bundle.js"
-[[params.plugins.js]]
-link = "plugins/swagger/swagger-ui-standalone-preset.js"
-[[params.plugins.js]]
-link = "plugins/swagger/swagger.js"
-[[params.plugins.js]]
-link = "plugins/graphiql/react.production.min.js"
-[[params.plugins.js]]
-link = "plugins/graphiql/react-dom.production.min.js"
-[[params.plugins.js]]
-link = "plugins/graphiql/graphiql.min.js"
-[[params.plugins.js]]
-link = "plugins/graphiql/graphiql.js"
+# Swagger UI (3 files) and GraphiQL (4 files) are NOT listed here — they are declared per page
+# in `page_js` front matter (docs/loom/rest-api, docs/loom/graphql-api). Between them they are
+# ~5.5 MB, larger than the rest of the site's JavaScript combined, and exactly two pages mount
+# them. nodeviz and detectionplayer stay global: they are small and used across many docs pages.
 [[params.plugins.js]]
 link = "plugins/nodeviz/nodeviz.js"
 [[params.plugins.js]]

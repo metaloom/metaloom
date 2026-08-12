@@ -14,8 +14,10 @@ import java.util.List;
  * </p>
  *
  * <p>
- * {@code DbIntegrityChecksTest} asserts this list against the live schema, so a table added with the
- * standard audit block and not added here fails a test rather than quietly going unchecked.
+ * Nothing enforces this list. It used to claim {@code DbIntegrityChecksTest} asserted it against the
+ * live schema; no test has ever referenced this class, and the {@code share} tables added by
+ * {@code V2.97} are missing from it as a result. A table added with the standard audit block and not
+ * added here goes silently unchecked, so add it by hand.
  * </p>
  */
 final class AuditedTables {
@@ -32,7 +34,6 @@ final class AuditedTables {
 		"asset_location",
 		"asset_node_result",
 		"asset_pool",
-		"asset_remix",
 		"asset_segment_comp",
 		"asset_transcript_comp",
 		"asset_video_comp",
@@ -60,6 +61,8 @@ final class AuditedTables {
 		"pipeline_run_item",
 		"project",
 		"reaction",
+		"remix",
+		"remix_member",
 		"role",
 		"skill",
 		"skill_version",
@@ -69,10 +72,8 @@ final class AuditedTables {
 		"user",
 		"vector_config");
 
-	/** The ones without a {@code uuid} column, so a finding cannot be named by one. */
-	static boolean hasUuid(String table) {
-		return !"asset_remix".equals(table);
-	}
+	// Every table above carries a uuid. The hasUuid() exception that used to live here existed solely
+	// for asset_remix, which V2.100 dropped.
 
 	private AuditedTables() {
 	}

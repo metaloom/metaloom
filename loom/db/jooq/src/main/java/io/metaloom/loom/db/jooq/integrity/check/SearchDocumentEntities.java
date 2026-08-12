@@ -36,6 +36,7 @@ public final class SearchDocumentEntities {
 		tables.put(SearchEntityType.ANNOTATION, "annotation");
 		tables.put(SearchEntityType.PERSON, "person");
 		tables.put(SearchEntityType.COLLECTION, "collection");
+		tables.put(SearchEntityType.REMIX, "remix");
 		tables.put(SearchEntityType.LIBRARY, "library");
 		// No trigger produces these two yet (V2.58/V2.59 has no refresh function for either), but the
 		// type is declared and a document could be written by hand, so they are checked anyway.

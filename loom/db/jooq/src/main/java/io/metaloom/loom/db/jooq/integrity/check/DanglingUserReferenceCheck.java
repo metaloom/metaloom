@@ -20,10 +20,15 @@ import io.metaloom.loom.db.jooq.integrity.AbstractSqlCheck;
  * <li>{@code token.editor_uuid} - {@code V2.1__add_acl.sql} adds a foreign key for
  * {@code creator_uuid} and simply omits the line for {@code editor_uuid}, while {@code user},
  * {@code role} and {@code group} in the same file get both.</li>
- * <li>{@code asset_remix.editor_uuid} - {@code V2.8__add_asset.sql} repeats the same omission.</li>
  * <li>{@code vector_config.creator_uuid} and {@code editor_uuid} -
  * {@code V2.6__add_vector_config.sql} declares no primary key and no foreign keys at all.</li>
  * </ul>
+ *
+ * <p>
+ * {@code asset_remix.editor_uuid} used to be the third entry. {@code V2.100} dropped that table and
+ * its replacement, {@code remix}/{@code remix_member}, declares foreign keys on both actor columns,
+ * so Postgres enforces them and there is nothing left here to notice.
+ * </p>
  *
  * <p>
  * Detecting these is not the same as fixing them. The constraints should still be added; until they
@@ -58,19 +63,6 @@ public final class DanglingUserReferenceCheck extends AbstractSqlCheck {
 			"An API token names an editor that is not a user. The column has no foreign key -"
 				+ " V2.1 declared one for creator_uuid only."),
 			"token", List.of("uuid"), List.of("editor_uuid"));
-	}
-
-	public static DanglingUserReferenceCheck assetRemixEditor() {
-		// asset_remix has no uuid at all: it is keyed by the pair of assets it links.
-		return new DanglingUserReferenceCheck(new DbIntegrityCheckInfo(
-			DbIntegrityCodes.DANGLING_ASSET_REMIX_EDITOR,
-			"Remix link editor",
-			DbIntegrityCategory.DANGLING,
-			DbIntegritySeverity.ERROR,
-			"asset_remix", "editor_uuid",
-			"A remix link names an editor that is not a user. The column has no foreign key -"
-				+ " V2.8 repeated the V2.1 omission."),
-			"asset_remix", List.of("asset_a_uuid", "asset_b_uuid"), List.of("editor_uuid"));
 	}
 
 	public static DanglingUserReferenceCheck vectorConfigActor() {

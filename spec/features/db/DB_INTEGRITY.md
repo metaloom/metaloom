@@ -104,7 +104,6 @@ alike in the catalogue table is indistinguishable from one row listed twice.
 | Code | Name | Sev | What it finds |
 |---|---|---|---|
 | `DANGLING_TOKEN_EDITOR` | API token editor | ERROR | `token.editor_uuid` naming no user. V2.1 declares the FK for `creator_uuid` and omits this one |
-| `DANGLING_ASSET_REMIX_EDITOR` | Remix link editor | ERROR | Same omission repeated by V2.8 |
 | `DANGLING_VECTOR_CONFIG_ACTOR` | Vector config creator and editor | ERROR | `vector_config.creator_uuid`/`editor_uuid`. V2.6 declares no PK and no FKs at all |
 | `DANGLING_SEARCH_DOCUMENT` | Search document target | ERROR | A `search_document` row whose subject is gone - a gap in the V2.58/V2.59 triggers |
 | `STALE_SEARCH_TOMBSTONE` | Search deletion tombstone | WARN | A `search_document_deleted` row whose subject exists again |
@@ -292,8 +291,11 @@ query parameters per request, and there is no cache, schedule or store to tune.
 - **`AuditedTables.ALL` and `SearchDocumentEntities.TABLES` are hand-written lists.** Both are guarded
   by `DbIntegrityChecksTest`, which is what stops a new table or entity type from quietly losing
   coverage. Add to them when adding either.
-- **`asset_remix` has no `uuid`** - it is keyed by `(asset_a_uuid, asset_b_uuid)`. `AuditedTables.hasUuid`
-  is the exception list, currently of size one.
+- **Every audited table now has a `uuid`.** `asset_remix` was the one exception, and `AuditedTables.hasUuid`
+  existed solely for it; `V2.100` dropped the table and the exception went with it.
+- **`AuditedTables.ALL` is not test-guarded**, despite what its javadoc used to claim - no test has ever
+  referenced the class. The `share` tables from `V2.97` are missing from it as a result. Add new audited
+  tables by hand and check by hand.
 - **`token.token` is the SQL column; `TOKEN_` is the generated Java field.** jOOQ renames it because
   `token` collides with the table. Raw SQL in a check or a test must use the former.
 - **Running the report changes nothing** - no repair, no write, no stored result. Keep it that way; a
@@ -359,9 +361,9 @@ query parameters per request, and there is no cache, schedule or store to tune.
   i18n (en + de), 15 vitest and 10 Playwright cases
 - [x] Demo data grant on the editor role
 - [x] Customer documentation page, with screenshots of the admin panel clean and with findings
-- [ ] The five missing foreign keys these checks detect are still missing - detection is not a fix.
-  `token.editor_uuid`, `asset_remix.editor_uuid` and `vector_config`'s two, plus `vector_config`'s
-  absent primary key, want a migration of their own
+- [ ] The missing foreign keys these checks detect are still missing - detection is not a fix.
+  `token.editor_uuid` and `vector_config`'s two, plus `vector_config`'s absent primary key, want a
+  migration of their own. (`asset_remix.editor_uuid` was the fifth; `V2.100` dropped that table.)
 - [ ] `search_document` anti-joins have not been `EXPLAIN`ed against a million-row catalogue; if the
   report ever gets slow, that is the first place to look
 - [ ] No check covers `attachment_binary.pool_uuid` or `asset_location.pool_uuid` reachability

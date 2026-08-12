@@ -27,6 +27,7 @@ import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshCluster;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshCollection;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshLibrary;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshPerson;
+import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshRemix;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshSimple;
 import io.metaloom.loom.db.jooq.routines.JooqSearchDocumentRefreshTag;
 import io.metaloom.loom.db.jooq.routines.JooqSearchExtractJsonText;
@@ -1195,6 +1196,19 @@ public class Routines {
         , UUID pUuid
     ) {
         JooqSearchDocumentRefreshPerson p = new JooqSearchDocumentRefreshPerson();
+        p.setPUuid(pUuid);
+
+        p.execute(configuration);
+    }
+
+    /**
+     * Call <code>public.search_document_refresh_remix</code>
+     */
+    public static void searchDocumentRefreshRemix(
+          Configuration configuration
+        , UUID pUuid
+    ) {
+        JooqSearchDocumentRefreshRemix p = new JooqSearchDocumentRefreshRemix();
         p.setPUuid(pUuid);
 
         p.execute(configuration);

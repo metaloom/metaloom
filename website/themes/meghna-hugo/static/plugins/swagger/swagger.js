@@ -1,7 +1,8 @@
 window.onload = function() {
-  // This script is loaded on every page (params.plugins.js in config.toml), but only
-  // the REST API page provides a mount point. Without this guard SwaggerUIBundle tries
-  // to render into `null` and throws React error #200 on every page of the site.
+  // This script is loaded only by the pages that declare it in `page_js` front matter
+  // (currently the REST API page). The guard stays anyway: it costs nothing and it is what
+  // stops a copy-pasted #swagger-ui mount div, or a page that lists the bundle without one,
+  // from making SwaggerUIBundle render into `null` and throw React error #200.
   var mount = document.getElementById('swagger-ui');
   if (!mount) {
     return;

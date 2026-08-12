@@ -977,6 +977,13 @@ const PERMISSION_GROUPS: Record<string, string[]> = {
   Space: ["CREATE_SPACE", "READ_SPACE", "DELETE_SPACE", "UPDATE_SPACE"],
   Cluster: ["CREATE_CLUSTER", "READ_CLUSTER", "DELETE_CLUSTER", "UPDATE_CLUSTER"],
   Collection: ["CREATE_COLLECTION", "READ_COLLECTION", "DELETE_COLLECTION", "UPDATE_COLLECTION"],
+  // Grouping assets into remixes is curation, so it is granted apart from the asset permissions: a
+  // curator can build and rename groups without being able to mutate the assets in them. Listing a
+  // remix's members additionally needs READ_ASSET server-side.
+  Remix: ["CREATE_REMIX", "READ_REMIX", "DELETE_REMIX", "UPDATE_REMIX"],
+  // Governs the share link itself. The visitor who opens one holds no permission at all - what they
+  // may do is decided from the share row.
+  "Share link": ["CREATE_SHARE", "READ_SHARE", "DELETE_SHARE", "UPDATE_SHARE"],
   Comment: ["CREATE_COMMENT", "READ_COMMENT", "DELETE_COMMENT", "UPDATE_COMMENT"],
   // READ + UPDATE is the reviewer's set: see the queue, decide a group. CREATE belongs to the
   // discovery node's credentials, DELETE discards a proposal outright.

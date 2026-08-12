@@ -18,7 +18,6 @@ import io.metaloom.loom.db.jooq.tables.JooqAssetJsonComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetLocation;
 import io.metaloom.loom.db.jooq.tables.JooqAssetNodeResult;
 import io.metaloom.loom.db.jooq.tables.JooqAssetPool;
-import io.metaloom.loom.db.jooq.tables.JooqAssetRemix;
 import io.metaloom.loom.db.jooq.tables.JooqAssetSegmentComp;
 import io.metaloom.loom.db.jooq.tables.JooqAssetTask;
 import io.metaloom.loom.db.jooq.tables.JooqAssetTranscriptComp;
@@ -64,6 +63,8 @@ import io.metaloom.loom.db.jooq.tables.JooqProject;
 import io.metaloom.loom.db.jooq.tables.JooqProjectCollection;
 import io.metaloom.loom.db.jooq.tables.JooqProjectLibrary;
 import io.metaloom.loom.db.jooq.tables.JooqReaction;
+import io.metaloom.loom.db.jooq.tables.JooqRemix;
+import io.metaloom.loom.db.jooq.tables.JooqRemixMember;
 import io.metaloom.loom.db.jooq.tables.JooqRole;
 import io.metaloom.loom.db.jooq.tables.JooqRoleGroup;
 import io.metaloom.loom.db.jooq.tables.JooqRolePermission;
@@ -208,11 +209,6 @@ public class Tables {
      * directory or an S3 bucket where binary data is stored.
      */
     public static final JooqAssetPool ASSET_POOL = JooqAssetPool.ASSET_POOL;
-
-    /**
-     * Store information on remixes of binaries.
-     */
-    public static final JooqAssetRemix ASSET_REMIX = JooqAssetRemix.ASSET_REMIX;
 
     /**
      * Time-ranged results: scenes, silence, shot changes, chapters.
@@ -464,6 +460,19 @@ public class Tables {
      * Stores social reactions on multiple elements
      */
     public static final JooqReaction REACTION = JooqReaction.REACTION;
+
+    /**
+     * A named group of assets that are versions of one another - an original
+     * plus the cuts, re-encodes and edits made from it. Replaces the
+     * never-written asset_remix pair table from V2.8.
+     */
+    public static final JooqRemix REMIX = JooqRemix.REMIX;
+
+    /**
+     * Membership of one asset in one remix. Unique per (remix, asset); cascades
+     * away with either side.
+     */
+    public static final JooqRemixMember REMIX_MEMBER = JooqRemixMember.REMIX_MEMBER;
 
     /**
      * The table <code>public.role</code>.

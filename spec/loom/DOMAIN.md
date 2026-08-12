@@ -42,8 +42,9 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
       documented graduation path and is deliberately not read by search (V2.58)
 - [ ] Row-level ACL: `search_document.library_uuids` / `space_uuids` / `collection_uuids` are written
       but read by nothing
-- [ ] `vector_config`, `asset_remix`, `asset_user_meta`, `tag_user_meta`, `annotation_asset` have no
-      DAO and no code references — schema-only
+- [ ] `vector_config`, `asset_user_meta`, `tag_user_meta`, `annotation_asset` have no
+      DAO and no code references — schema-only (`asset_remix` was the fifth until `V2.100` replaced
+      it with `remix`/`remix_member`, which have the full stack)
 - [ ] `search_document_deleted` tombstones and the `dirty` / `es_synced_at` outbox columns are unused
       by the Postgres search provider (reserved for an external index)
 
@@ -52,7 +53,7 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 | # | Domain group | Entities |
 |---|--------------|----------|
 | 1 | Identity & Access (RBAC) | User, Group, Role, Permission, Token |
-| 2 | Assets & Media | Asset, Asset Location, Asset Pool, Asset Remix, Asset User Meta, Attachment, Blacklist, Annotation |
+| 2 | Assets & Media | Asset, Asset Location, Asset Pool, Remix, Asset User Meta, Attachment, Blacklist, Annotation |
 | 3 | Organization | Space, Library, Collection, Tag |
 | 4 | Asset Components & Node Results | 9 `asset_*_comp` tables, Asset Node Result |
 | 5 | AI / ML | Embedding, Cluster, Detection, Person, Vector Config |
@@ -85,7 +86,7 @@ common columns are omitted below. On machine-written tables (`asset_*_comp`,
 | **Asset** | `asset` | The **bytes**: `uuid` PK, `sha512sum` UNIQUE NOT NULL (content identity), `sha256sum`, `md5sum`, `chunk_hash`, `zero_chunk_count`, `is_complete`, `size`, `mime_type`, `filename`, `initial_origin`, `first_seen`. Everything derived by *interpretation* lives in a component table. | ← Location, Component, Detection, Embedding, Annotation, Attachment | V2.8; PK moved to `uuid` and `is_complete` added in V2.46 |
 | **Asset Location** | `asset_location` | Physical placement of the binary: `path` (fs path *within the pool*, or an S3 object key), `filekey_inode`, lock, state, license. **0..n per asset**, natural key `(library_uuid, path)`. Exposed over REST as "binary". | → Asset, Library, Asset Pool | V2.10; `pool_uuid` V2.20; key fixed V2.48; `(pool_uuid, path)` index V2.63 |
 | **Asset Pool** | `asset_pool` | Storage backend — filesystem dir **XOR** S3 bucket (CHECK constraint), free/used space tracked. | ← Asset Location, ← Library, ← Attachment Binary, ← Chat Session | V2.20, V2.24 |
-| **Asset Remix** | `asset_remix` | Derivation/relation link between two assets (`asset_a_uuid`/`asset_b_uuid`). **No DAO, no code references.** | Asset ↔ Asset | V2.8 |
+| **Remix** | `remix`, `remix_member` | A named group of assets that are versions of one another — an original plus the cuts, re-encodes and edits made from it. Members carry a role (`SOURCE`/`DERIVED`, at most one SOURCE, enforced by a partial unique index); `remix.source_asset_uuid` is a denormalised pointer the DAO keeps in step. Deleting an asset removes its membership and nulls the pointer rather than taking the group with it. Full DAO/REST/client/UI/MCP stack — see [../features/remix/REMIX.md](../features/remix/REMIX.md). | Asset ↔ Remix | V2.100, replacing the never-written `asset_remix` from V2.8 |
 | **Asset User Meta** | `asset_user_meta` | Per-user metadata overlay (PK `asset_uuid`+`user_uuid`). **No DAO.** Deleting the asset removes the notes on it (V2.73); the user is untouched. | Asset ↔ User | V2.8, V2.73 |
 | **Attachment** | `attachment`, `attachment_binary` | Derived/auxiliary binaries. `attachment_type` ∈ ASSET_THUMBNAIL, EMBEDDING_ATTACHMENT, CONTACT_SHEET, POSTER_FRAME, WAVEFORM, PROXY, EXTRACTED_AUDIO. Carries node provenance (`node_kind`/`node_id`/`producer_version`/`variant`/`run_uuid`/`task_uuid`); idempotency is a **partial** unique index `(asset_uuid, type, node_kind, variant) WHERE asset_uuid IS NOT NULL AND node_kind IS NOT NULL`. `attachment_binary` is content-addressed by `sha512sum` and points at a pool. | → Asset (CASCADE), → Embedding (CASCADE), → Asset Pool | V2.13; provenance V2.44; `pool_uuid` V2.63 |
 | **Blacklist** | `blacklist` | Blocked assets (copyright, virus scan) with review count and a `name` label. Identity is `(asset_uuid, creator_uuid)`. | → Asset | V2.14; `name` V2.50 |
@@ -418,7 +419,7 @@ graph TD
     SD[search_document]
     DG[dedup_group_member]
     ATT[attachment]
-    REMIX[asset_remix]
+    REMIX[remix + remix_member]
     AUM[asset_user_meta]
 
     ASSET --> LOC --> POOL
@@ -438,7 +439,7 @@ graph TD
     ASSET -- asset_task --> TASK
     ASSET --> COM & REA & BL & ATT & AUM
     EMB --> ATT
-    ASSET -->|asset_a / asset_b| REMIX
+    ASSET -- remix_member --> REMIX
     ASSET --> SD
     ASSET --> DG
 ```

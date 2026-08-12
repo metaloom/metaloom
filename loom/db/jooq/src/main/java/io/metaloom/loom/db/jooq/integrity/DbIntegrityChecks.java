@@ -48,7 +48,6 @@ public final class DbIntegrityChecks {
 		// Only references the schema does not enforce. The 236 declared foreign keys are Postgres's
 		// job; sweeping them would be 236 queries for a hit rate of zero.
 		DanglingUserReferenceCheck.tokenEditor(),
-		DanglingUserReferenceCheck.assetRemixEditor(),
 		DanglingUserReferenceCheck.vectorConfigActor(),
 		DanglingSearchDocumentCheck.documents(),
 		DanglingSearchDocumentCheck.staleTombstones(),

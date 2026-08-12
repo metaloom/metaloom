@@ -12,6 +12,7 @@ import io.metaloom.loom.db.model.chatsession.ChatSessionDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.remix.RemixDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.embedding.EmbeddingDao;
 import io.metaloom.loom.db.model.group.GroupDao;
@@ -82,6 +83,9 @@ public interface DaoCollection {
 	LibraryDao libraryDao();
 
 	CollectionDao collectionDao();
+
+	/** Named groups of assets that are versions of one another. See {@link RemixDao}. */
+	RemixDao remixDao();
 
 	BlacklistDao blacklistDao();
 

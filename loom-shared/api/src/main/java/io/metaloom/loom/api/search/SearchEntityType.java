@@ -23,6 +23,9 @@ public enum SearchEntityType {
 
 	COLLECTION("collection"),
 
+	/** A named group of assets that are versions of one another. Keywords carry the member filenames. */
+	REMIX("remix"),
+
 	LIBRARY("library"),
 
 	DETECTION("detection"),

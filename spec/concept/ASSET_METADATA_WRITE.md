@@ -21,7 +21,7 @@ Dublin Core mapping, or the precedence rules.
 | [NODE_WATERMARK.md](../features/nodes/watermark/NODE_WATERMARK.md) | The **worked example of a node that produces new bytes** — `.part` + atomic move, `FfmpegRunner`, artifact cache path, "the source file is never modified" |
 | [../guidelines/NEW_NODE.md](../guidelines/NEW_NODE.md) | Rules: registration touch-points, persistence template, required tests |
 | [NODE_S3SINK.md](../features/nodes/s3-sink/NODE_S3SINK.md) | The existing "get bytes out of MetaLoom" node — the natural downstream of this one |
-| [../loom/DOMAIN.md](../loom/DOMAIN.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) | `asset`, `attachment`, `asset_remix` |
+| [../loom/DOMAIN.md](../loom/DOMAIN.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) | `asset`, `attachment`, `remix` |
 
 ---
 
@@ -71,7 +71,7 @@ design record says in bold: **"The source file is never modified."**
 | **The node already has almost everything it needs to read.** `AbstractMediaNode.fetchAsset()` does `client().loadAsset(sha512)`, and `AssetResponse` carries `tags`, `annotations`, `collections`, `geo`, `geoComponents`, `image/video/audio/documentComponents`, `hashes`, `locations` | `AbstractMediaNode.java:75-86`, `AssetResponse.java` |
 | Transcripts and JSON components need one extra call each | `listAssetTranscripts(assetUuid)`, `listAssetJsonComps(assetUuid)` |
 | 🟡 There is still **no licence field** anywhere — `AssetResponse` has `// private List<LicenseInfo> licenses` commented out | `AssetResponse.java:40`; see [METADATA_OVERVIEW.md §5.3](../features/nodes/metadata/METADATA_OVERVIEW.md) |
-| Lineage between two assets: only `asset_remix (asset_a_uuid, asset_b_uuid, meta)` — untyped, undirected, unused by any node | `V2.8__add_asset.sql` |
+| Lineage between two assets: `remix`/`remix_member` (V2.100) is human-curated grouping with a SOURCE role — usable for "these are versions of one another", but **no node writes it** and it carries no relation type | `V2.100__add_remix.sql`, [../features/remix/REMIX.md](../features/remix/REMIX.md) |
 
 ---
 
@@ -368,7 +368,7 @@ rights-management information) — separate from any infringement question. Ther
 |---|---|---|---|
 | **G1** | 🔴 Java `AttachmentType` has 2 values; the PG enum has 7. No type fits "a file carrying this asset's metadata" | Sync the enum, and add `SIDECAR` + `RENDITION` to both (a migration `ALTER TYPE … ADD VALUE` + the Java enum + the model). Pre-existing bug — it blocks any node from creating a `CONTACT_SHEET` today either | 1 |
 | **G2** | Attachment provenance is invisible above the DB — `node_kind`/`node_id`/`producer_version`/`variant` cannot be set through REST | Already tracked as **A1** in [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §3](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md). This concept is a second consumer of that work; **do not fork it** | 1 |
-| **G3** | No typed lineage between a source asset and a derived one. `asset_remix` is an untyped, undirected pair table with no writer | Decide: extend `asset_remix` with a `relation` discriminator + direction, or add `asset_derivation (source_uuid, derived_uuid, node_kind, node_id, producer_version, relation)`. Needed the moment T2 produces a **new asset** rather than an attachment | 2 |
+| **G3** | No typed *machine* lineage between a source asset and a derived one. `remix`/`remix_member` (V2.100) added human-curated grouping with a SOURCE role, which is not the same thing: it carries no relation type and no node provenance, and nothing writes it automatically | Add `asset_derivation (source_uuid, derived_uuid, node_kind, node_id, producer_version, relation)`. Extending `remix_member` was considered and rejected — a node's assertion and a person's curation should not share a table. Needed the moment T2 produces a **new asset** rather than an attachment | 2 |
 | **G4** | Nothing to write for licence — no field in the schema or `AssetResponse` (`// private List<LicenseInfo> licenses` is commented out) | The ingest concept's §5.4 / G10 (`asset_rights_comp`). Until then the node reads `rights` out of the `metadata` JSON component | 2 |
 | **G5** | No per-asset "what was published where" record | The ledger + `attachment.variant` covers it thinly. A real publish history is a separate feature | 3 |
 | **G6** | Re-registration path for T3 (new asset row + `asset_location` rebind + lineage) | Only if T3 is ever built — and only after the scanner behaviour in §4.3 is verified | 3 |
@@ -528,7 +528,7 @@ read rule — is **done**: [METADATA_OVERVIEW.md](../features/nodes/metadata/MET
 | Attachment schema + provenance columns | `loom/db/flyway/…/V2.44__attachment_provenance.sql` |
 | Attachment Java enum (out of sync) | `loom-shared/…/io/metaloom/loom/api/attachment/AttachmentType.java` |
 | Attachment REST + storage | `loom/services/rest/…/service/impl/AttachmentEndpointService.java`, `BinaryStorage`, `BinaryStorageResolver` |
-| Lineage table (untyped, unused) | `asset_remix` in `V2.8__add_asset.sql` |
+| Human-curated grouping (no node writer) | `remix`/`remix_member` in `V2.100__add_remix.sql` |
 | The settled "attachment vs new asset" table | [REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md §2](REST_CORTEX_METADATA_BINARY_HANDLING_PLAN.md) |
 | Transcript storage | `V2.39__rework_asset_transcript_comp.sql` (`transcript_text`, `transcript_json`, `lang`, `stream_index`) |
 | The canonical envelope this node serialises | [METADATA_OVERVIEW.md §6](../features/nodes/metadata/METADATA_OVERVIEW.md) |

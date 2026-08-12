@@ -28,6 +28,7 @@ import io.metaloom.loom.rest.service.impl.JsonCompEndpointService;
 import io.metaloom.loom.rest.service.impl.NodeResultEndpointService;
 import io.metaloom.loom.rest.service.impl.ClusterEndpointService;
 import io.metaloom.loom.rest.service.impl.CollectionEndpointService;
+import io.metaloom.loom.rest.service.impl.RemixEndpointService;
 import io.metaloom.loom.rest.service.impl.ShareLinkEndpointService;
 import io.metaloom.loom.rest.service.impl.LibraryEndpointService;
 import io.metaloom.loom.rest.service.impl.DedupGroupEndpointService;
@@ -62,6 +63,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 
 	private final ClusterEndpointService clusterService;
 	private final CollectionEndpointService collectionService;
+	private final RemixEndpointService remixService;
 	private final ShareLinkEndpointService shareService;
 	private final LibraryEndpointService libraryService;
 	private final ModelExamples examples;
@@ -85,6 +87,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		CollectionEndpointService collectionService,
 		LibraryEndpointService libraryService,
 		ShareLinkEndpointService shareService,
+		RemixEndpointService remixService,
 		EndpointDependencies deps, ModelExamples examples) {
 		super(deps);
 		this.service = service;
@@ -106,6 +109,7 @@ public class AssetEndpoint extends AbstractEndpoint {
 		this.clusterService = clusterService;
 		this.collectionService = collectionService;
 		this.shareService = shareService;
+		this.remixService = remixService;
 		this.libraryService = libraryService;
 		this.examples = examples;
 	}
@@ -317,6 +321,14 @@ public class AssetEndpoint extends AbstractEndpoint {
 			examples.collectionListResponseExample(),
 			lrc -> {
 				collectionService.listCollectionsOfAsset(lrc, lrc.pathParamUUID("uuid"));
+			});
+
+		// The remixes this asset takes part in - the asset detail view's "also a version of" chips.
+		addListRoute(basePath() + "/:uuid/remixes", GET,
+			"Load a paged list of the remixes the asset belongs to",
+			examples.remixListResponseExample(),
+			lrc -> {
+				remixService.listRemixesOfAsset(lrc, lrc.pathParamUUID("uuid"));
 			});
 
 		// The links that publish this asset. Read-only here: creating one needs a target type, so it goes through

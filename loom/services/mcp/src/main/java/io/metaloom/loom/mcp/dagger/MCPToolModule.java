@@ -15,9 +15,11 @@ import io.metaloom.loom.mcp.tool.impl.GetAssetTool;
 import io.metaloom.loom.mcp.tool.impl.GetJobTool;
 import io.metaloom.loom.mcp.tool.impl.GetNodeDescriptorTool;
 import io.metaloom.loom.mcp.tool.impl.GetPipelineTool;
+import io.metaloom.loom.mcp.tool.impl.GetRemixTool;
 import io.metaloom.loom.mcp.tool.impl.ListCollectionsTool;
 import io.metaloom.loom.mcp.tool.impl.ListNodeDescriptorsTool;
 import io.metaloom.loom.mcp.tool.impl.ListPipelinesTool;
+import io.metaloom.loom.mcp.tool.impl.ListRemixesTool;
 import io.metaloom.loom.mcp.tool.impl.PipelineAuthoringGuideTool;
 import io.metaloom.loom.mcp.tool.impl.RunNodeGraphTool;
 import io.metaloom.loom.mcp.tool.impl.RunNodeProbeTool;
@@ -40,6 +42,8 @@ public class MCPToolModule {
 		GetAssetTool getAssetTool,
 		SearchTranscriptTool searchTranscriptTool,
 		ListCollectionsTool listCollectionsTool,
+		ListRemixesTool listRemixesTool,
+		GetRemixTool getRemixTool,
 		AssetStatisticsTool assetStatisticsTool,
 		ListPipelinesTool listPipelinesTool,
 		GetPipelineTool getPipelineTool,
@@ -58,6 +62,9 @@ public class MCPToolModule {
 			getAssetTool,
 			searchTranscriptTool,
 			listCollectionsTool,
+			// Remixes: the groups of assets that are versions of one another, and what is in one.
+			listRemixesTool,
+			getRemixTool,
 			assetStatisticsTool,
 			listPipelinesTool,
 			getPipelineTool,

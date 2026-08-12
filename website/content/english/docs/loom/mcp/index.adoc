@@ -253,6 +253,15 @@ link:../features/[Features].
 | Lists the collections assets are grouped into.
 | `READ_COLLECTION`
 
+| `list_remixes`
+| Lists remixes - named groups of assets that are versions of one another, such as an original video
+  and the cuts made from it.
+| `READ_REMIX`
+
+| `get_remix`
+| Loads one remix and the assets in it, each with its role: the original, or something made from it.
+| `READ_REMIX`, `READ_ASSET`
+
 | `asset_statistics`
 | Aggregate figures for the library: how many assets, how much storage, and the split across images,
   video, audio and documents.

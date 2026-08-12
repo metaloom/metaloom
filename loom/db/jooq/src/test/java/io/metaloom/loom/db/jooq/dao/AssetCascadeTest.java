@@ -5,6 +5,7 @@ import static io.metaloom.loom.db.jooq.tables.JooqAssetTask.ASSET_TASK;
 import static io.metaloom.loom.db.jooq.tables.JooqAssetUserMeta.ASSET_USER_META;
 import static io.metaloom.loom.db.jooq.tables.JooqCollectionAsset.COLLECTION_ASSET;
 import static io.metaloom.loom.db.jooq.tables.JooqLibraryAsset.LIBRARY_ASSET;
+import static io.metaloom.loom.db.jooq.tables.JooqRemixMember.REMIX_MEMBER;
 import static io.metaloom.loom.db.jooq.tables.JooqTagAsset.TAG_ASSET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,6 +46,8 @@ import io.metaloom.loom.db.model.person.Person;
 import io.metaloom.loom.db.model.reaction.Reaction;
 import io.metaloom.loom.db.model.tag.AssetTag;
 import io.metaloom.loom.db.model.task.Task;
+import io.metaloom.loom.db.model.remix.Remix;
+import io.metaloom.loom.db.model.remix.RemixRole;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.utils.hash.SHA512;
 import io.vertx.core.json.JsonObject;
@@ -90,8 +93,13 @@ import io.vertx.core.json.JsonObject;
  *
  * <p>
  * Everything is created through the DAOs (not raw SQL) so the test also exercises the DAO-level FK wiring. The one link table that has no DAO
- * writer — {@code annotation_asset} — is inserted directly with jOOQ, mirroring {@code AnnotationDaoTest}. {@code asset_remix} also cascades (V2.8)
- * but has no DAO yet, so it is intentionally left out until those operations exist.
+ * writer — {@code annotation_asset} — is inserted directly with jOOQ, mirroring {@code AnnotationDaoTest}.
+ * </p>
+ *
+ * <p>
+ * {@code remix_member} is covered here too (V2.100). Its remix is a shared object like the collection and the library: the membership cascades with
+ * the asset while the remix itself, and the other asset's membership in it, must survive. The remix additionally carries a {@code SET NULL} pointer
+ * at its source asset, so deleting the source is asserted to leave the remix behind with the pointer cleared rather than taking the group with it.
  * </p>
  */
 public class AssetCascadeTest extends AbstractJooqTest {
@@ -344,6 +352,8 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		UUID collection;
 		UUID task;
 		UUID library;
+		/** A remix holding both assets, with the victim as its SOURCE so the SET NULL pointer is exercised too. */
+		UUID remix;
 		/** A comment and a reaction on the <b>task</b> - social content that is not about any asset. */
 		UUID taskComment;
 		UUID taskReaction;
@@ -391,6 +401,10 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		reactionDao().store(taskReaction);
 		s.taskReaction = taskReaction.getUuid();
 
+		Remix remix = remixDao().createRemix(user, "shared-remix-" + seed);
+		remixDao().store(remix);
+		s.remix = remix.getUuid();
+
 		return s;
 	}
 
@@ -406,6 +420,11 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		taskDao().assignToAsset(s.task, asset.getUuid());
 
 		libraryDao().linkAsset(s.library, asset.getUuid());
+
+		// The victim is the remix's SOURCE, the bystander a DERIVED member: one delete then exercises both
+		// the CASCADE on remix_member and the SET NULL on remix.source_asset_uuid.
+		remixDao().linkAsset(s.remix, asset.getUuid(),
+			seed.endsWith("-victim") ? RemixRole.SOURCE : RemixRole.DERIVED, null, user.getUuid());
 
 		// asset_user_meta still has no DAO writer, so that row is inserted directly.
 		context.ctx().insertInto(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, ASSET_USER_META.USER_UUID, ASSET_USER_META.META)
@@ -463,6 +482,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertEquals(0, countFor(ASSET_TASK, ASSET_TASK.ASSET_UUID, l.asset), "asset_task must cascade with the asset (V2.73)");
 		assertEquals(0, countFor(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, l.asset), "asset_user_meta must cascade with the asset (V2.73)");
 		assertEquals(0, countFor(LIBRARY_ASSET, LIBRARY_ASSET.ASSET_UUID, l.asset), "library_asset must cascade with the asset (V2.74)");
+		assertEquals(0, countFor(REMIX_MEMBER, REMIX_MEMBER.ASSET_UUID, l.asset), "remix_member must cascade with the asset (V2.100)");
 		assertNull(commentDao().load(l.comment), "a comment about the asset must cascade with it (V2.74)");
 		assertNull(commentDao().load(l.reply), "the reply subtree goes with the comment it hangs from (V2.35)");
 		assertNull(reactionDao().load(l.commentReaction), "a reaction on a cascade-deleted comment goes with it (V2.35)");
@@ -478,6 +498,7 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertEquals(1, countFor(ASSET_TASK, ASSET_TASK.ASSET_UUID, l.asset), "the other asset must stay on the task");
 		assertEquals(1, countFor(ASSET_USER_META, ASSET_USER_META.ASSET_UUID, l.asset), "the other asset must keep its per-user meta");
 		assertEquals(1, countFor(LIBRARY_ASSET, LIBRARY_ASSET.ASSET_UUID, l.asset), "the other asset must stay in the library");
+		assertEquals(1, countFor(REMIX_MEMBER, REMIX_MEMBER.ASSET_UUID, l.asset), "the other asset must stay in the remix");
 		assertNotNull(commentDao().load(l.comment), "a comment on the other asset must survive");
 		assertNotNull(commentDao().load(l.reply), "a reply on the other asset must survive");
 		assertNotNull(reactionDao().load(l.commentReaction), "a reaction on the other asset's comment must survive");
@@ -495,6 +516,9 @@ public class AssetCascadeTest extends AbstractJooqTest {
 		assertNotNull(collectionDao().load(s.collection), "the collection must survive");
 		assertNotNull(taskDao().load(s.task), "the task must survive");
 		assertNotNull(libraryDao().load(s.library), "the library must survive");
+		Remix remix = remixDao().load(s.remix);
+		assertNotNull(remix, "the remix must survive - losing the source asset must not delete the group built around it");
+		assertNull(remix.getSourceAssetUuid(), "the remix's source pointer must be nulled, not left dangling (V2.100 SET NULL)");
 		assertNotNull(commentDao().load(s.taskComment), "a comment on the task is not about any asset and must survive");
 		assertNotNull(reactionDao().load(s.taskReaction), "a reaction on the task is not about any asset and must survive");
 		assertNotNull(userDao().load(ADMIN_UUID), "the user who wrote all of this must survive");

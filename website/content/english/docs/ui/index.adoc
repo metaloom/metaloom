@@ -41,6 +41,8 @@ operating the installation.
 * *Uploads* — multi-file drag-and-drop ingest with per-file progress that keeps running in the background
 * *Collections* — organise assets into colour-coded collections, and share one with somebody
   outside your installation (see link:../loom/sharing/[Sharing])
+* *Remixes* — group the versions of one piece of work into a single card in the asset grid
+  (see link:../loom/remixes/[Remixes])
 * *Tasks* — a Kanban-style task board with priority, status, due dates and per-asset tasks
 * *Detection* — review face, object and LLM detections; manage face clusters and persons
 * *Tags* — manage tags grouped by collection
@@ -113,7 +115,7 @@ The memory view lets an administrator browse and edit those notes; the agent see
 
 image::memory.png[Agent memory view,role=img-fluid]
 
-[#assets]
+[#search]
 == Search
 
 The search box sits at the top of the left navigation and is available from every screen. Unlike the
@@ -206,6 +208,7 @@ running. When that happens the search box does not appear at all, and the search
 backend is configured and why it cannot answer. Every other part of Loom keeps working normally — a
 search outage never takes the rest of the application with it.
 
+[#assets]
 == Assets
 
 The asset browser shows every asset with search, status and type filters and switchable grid/list and

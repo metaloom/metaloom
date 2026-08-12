@@ -106,7 +106,10 @@
       "image": "Bild",
       "audio": "Audio",
       "document": "Dokument",
-      "clear": "Filter zurücksetzen"
+      "clear": "Filter zurücksetzen",
+      "remix": "Remixe",
+      "remixCount_one": "{{count}} Remix",
+      "remixCount_other": "{{count}} Remixe"
     },
     "tooltip": {
       "small": "Klein — nur Vorschaubild",
@@ -131,7 +134,8 @@
       "delete": "Löschen",
       "apply": "Anwenden",
       "bulkTag": "Taggen",
-      "bulkDelete": "Löschen"
+      "bulkDelete": "Löschen",
+      "moreActions": "Weitere Aktionen"
     },
     "select": {
       "count": "{{count}} ausgewählt"
@@ -756,6 +760,14 @@
         "READ_COLLECTION": "Collections ansehen — kuratierte Asset-Sammlungen.",
         "DELETE_COLLECTION": "Collections löschen — kuratierte Asset-Sammlungen.",
         "UPDATE_COLLECTION": "Bestehende Collections bearbeiten — kuratierte Asset-Sammlungen.",
+        "CREATE_REMIX": "Neue Remixe anlegen — benannte Gruppen von Assets, die Versionen voneinander sind.",
+        "READ_REMIX": "Remixe und die darin enthaltenen Assets ansehen.",
+        "DELETE_REMIX": "Remixe löschen. Die enthaltenen Assets bleiben unberührt.",
+        "UPDATE_REMIX": "Remixe umbenennen und ihre Zusammensetzung ändern.",
+        "CREATE_SHARE": "Freigabelinks erstellen, die ein Asset oder eine Collection nach außen veröffentlichen.",
+        "READ_SHARE": "Freigabelinks und das darüber gegebene Feedback ansehen.",
+        "DELETE_SHARE": "Freigabelinks widerrufen.",
+        "UPDATE_SHARE": "Einen Freigabelink ändern — Ablauf, Passwort oder was Besucher dürfen.",
         "CREATE_COMMENT": "Neue Kommentare anlegen — Benutzerkommentare zu Assets.",
         "READ_COMMENT": "Kommentare ansehen — Benutzerkommentare zu Assets.",
         "DELETE_COMMENT": "Kommentare löschen — Benutzerkommentare zu Assets.",
@@ -2088,6 +2100,7 @@
       "annotation": "Annotationen",
       "person": "Personen",
       "collection": "Kollektionen",
+      "remix": "Remixe",
       "library": "Bibliotheken",
       "cluster": "Cluster",
       "detection": "Erkennungen",
@@ -2255,6 +2268,56 @@
     },
     "action": {
       "share": "Teilen"
+    }
+  },
+  "remix": {
+    "card": {
+      "badge": "Remix",
+      "members_one": "{{count}} Asset",
+      "members_other": "{{count}} Assets"
+    },
+    "action": {
+      "combine": "Zu Remix zusammenfassen",
+      "addTo": "Zu Remix hinzufügen…"
+    },
+    "dialog": {
+      "createTitle": "Remix anlegen",
+      "createHint_one": "Das {{count}} ausgewählte Asset zu einem benannten Remix zusammenfassen.",
+      "createHint_other": "Die {{count}} ausgewählten Assets zu einem benannten Remix zusammenfassen.",
+      "createSubmit": "Remix anlegen",
+      "nameLabel": "Name des Remix",
+      "empty": "Dieser Remix enthält noch keine Assets.",
+      "delete": "Remix löschen",
+      "pickTitle": "Zu Remix hinzufügen",
+      "pickHint": "Einen vorhandenen Remix wählen oder einen Namen für einen neuen eingeben.",
+      "pickLabel": "Remix",
+      "pickSubmit": "Hinzufügen"
+    },
+    "member": {
+      "makeSource": "Als Original festlegen",
+      "isSource": "Das ist das Original",
+      "sourceLabel": "Original",
+      "remove": "Aus dem Remix entfernen"
+    },
+    "detail": {
+      "title": "Remixe",
+      "none": "Gehört zu keinem Remix."
+    },
+    "toast": {
+      "created_one": "Remix mit {{count}} Asset angelegt",
+      "created_other": "Remix mit {{count}} Assets angelegt",
+      "renamed": "Remix umbenannt",
+      "deleted": "Remix gelöscht",
+      "added": "Zum Remix hinzugefügt"
+    },
+    "error": {
+      "create": "Der Remix konnte nicht angelegt werden",
+      "load": "Der Remix konnte nicht geladen werden",
+      "rename": "Der Remix konnte nicht umbenannt werden",
+      "delete": "Der Remix konnte nicht gelöscht werden",
+      "removeMember": "Das Asset konnte nicht aus dem Remix entfernt werden",
+      "setSource": "Das Original konnte nicht geändert werden",
+      "add": "Das Asset konnte nicht zum Remix hinzugefügt werden"
     }
   }
 }

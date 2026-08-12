@@ -16,6 +16,8 @@ import io.metaloom.loom.db.model.blacklist.Blacklist;
 import io.metaloom.loom.db.model.chat.Chat;
 import io.metaloom.loom.db.model.cluster.Cluster;
 import io.metaloom.loom.db.model.collection.Collection;
+import io.metaloom.loom.db.model.remix.Remix;
+import io.metaloom.loom.db.model.remix.RemixRole;
 import io.metaloom.loom.db.model.share.Share;
 import io.metaloom.loom.db.model.comment.Comment;
 import io.metaloom.loom.db.model.embedding.Embedding;
@@ -107,9 +109,30 @@ public class TestFixtureProvider extends AbstractFixtureProvider {
 		// Create chat
 		Chat chat = createChat(user);
 
+		// A remix over the fixture asset, so a test can read one without creating it first.
+		createRemix(user, asset, videoAsset);
+
 		// A share link over the fixture collection, so a test can read one without creating it first.
 		createShare(user, collection);
 
+	}
+
+	/**
+	 * One remix holding two fixture assets.
+	 *
+	 * <p>
+	 * The first asset is its SOURCE, so a test reading the fixture sees the shape a real remix has - one original and one thing made from it -
+	 * rather than an undifferentiated pair.
+	 * </p>
+	 */
+	private Remix createRemix(User user, Asset source, Asset derived) {
+		Remix remix = remixDao().createRemix(user, "Fixture Remix");
+		remix.setUuid(REMIX_UUID);
+		remix.setDescription("The fixture asset and one thing made from it.");
+		remixDao().store(remix);
+		remixDao().linkAsset(remix.getUuid(), source.getUuid(), RemixRole.SOURCE, 0, user.getUuid());
+		remixDao().linkAsset(remix.getUuid(), derived.getUuid(), RemixRole.DERIVED, 1, user.getUuid());
+		return remix;
 	}
 
 	/**

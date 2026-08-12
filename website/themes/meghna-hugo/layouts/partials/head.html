@@ -21,12 +21,19 @@
 	{{ $styles := resources.Get "css/main.css" | minify }}
 	<link rel="stylesheet" href="{{ $styles.RelPermalink }}" media="screen">
 
-	{{/* Page-specific stylesheet, named by front matter `page_css: css/<name>.css` (an asset
-	     path). The /tour/ and /studio/ pages use it so their stylesheets never load on the
-	     docs or the landing page. */}}
+	{{/* Page-specific stylesheets, named by front matter `page_css` — one entry or a list.
+	     An entry that resolves under assets/ (`css/<name>.css`) goes through the pipeline and
+	     is minified; anything else is emitted as a plain static link, which is how the two API
+	     explorer pages pull in their vendored plugin CSS (~570 KB) without putting it on all
+	     ~90 pages. The /tour/ and /studio/ pages use the asset form so their stylesheets never
+	     load on the docs or the landing page. */}}
 	{{ with .Params.page_css }}
+	{{ range (cond (reflect.IsSlice .) . (slice .)) }}
 	{{ with resources.Get . }}
 	<link rel="stylesheet" href="{{ (. | minify).RelPermalink }}" media="screen">
+	{{ else }}
+	<link rel="stylesheet" href="{{ . | relURL }}">
+	{{ end }}
 	{{ end }}
 	{{ end }}
 

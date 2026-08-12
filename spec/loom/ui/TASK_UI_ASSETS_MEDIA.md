@@ -206,7 +206,9 @@ if internal, spec note only and no test.
 * **Asset Location** — no endpoint; path/filekey/pool/`lockedBy` are embedded read-only in
   `AssetResponse` and rendered by `AssetLocationInfo` in `AssetDetail.tsx`. Lock/unlock or
   relocate needs a backend route first.
-* **Asset Remix** — the `asset_remix` table exists ([../DOMAIN.md](../DOMAIN.md) group 2) but no
-  endpoint and no UI type. Asset-to-asset derivation browsing is a backend task.
+* **Remix** — shipped. Remix cards lead the asset grid, clicking one opens a dialog that writes
+  `?remix=<uuid>` into the URL, the selection bar's `...` menu combines a selection into a remix, and
+  the asset detail page carries remix chips plus *Add to remix…*. See
+  [../../features/remix/REMIX.md](../../features/remix/REMIX.md) §6.
 _Git HEAD revision: `742dae2d`_
 _Last updated: 2026-08-06 (reference sweep — no content changes)_

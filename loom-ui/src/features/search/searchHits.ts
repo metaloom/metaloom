@@ -22,6 +22,10 @@ export function hitTarget(hit: SearchHitResponse): string | null {
       return "/tags";
     case "collection":
       return "/collections";
+    // A remix has no page of its own: it opens as a dialog over the asset grid, and ?remix= is the
+    // same deep link the grid itself writes.
+    case "remix":
+      return `/assets?remix=${encodeURIComponent(hit.uuid)}`;
     case "library":
       return "/library";
     case "person":

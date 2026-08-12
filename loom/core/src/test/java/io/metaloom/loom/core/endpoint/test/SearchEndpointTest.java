@@ -18,6 +18,7 @@ import io.metaloom.loom.db.model.asset.Asset;
 import io.metaloom.loom.db.model.group.Group;
 import io.metaloom.loom.db.model.perm.Permission;
 import io.metaloom.loom.db.model.role.Role;
+import io.metaloom.loom.db.model.remix.Remix;
 import io.metaloom.loom.db.model.tag.Tag;
 import io.metaloom.loom.db.model.user.User;
 import io.metaloom.loom.rest.model.auth.AuthLoginResponse;
@@ -49,6 +50,12 @@ public class SearchEndpointTest extends AbstractEndpointTest {
 			"video/mp4", filename, "/media/" + filename, 2048L);
 		daos.assetDao().store(asset);
 		return asset;
+	}
+
+	private Remix seedRemix(String name) {
+		Remix remix = daos().remixDao().createRemix(adminUuid(), name);
+		daos().remixDao().store(remix);
+		return remix;
 	}
 
 	private Tag seedTag(String name) {
@@ -205,6 +212,50 @@ public class SearchEndpointTest extends AbstractEndpointTest {
 			"The caller may not read assets, so no asset may be returned");
 		assertFalse(response.getMetainfo().getWarnings().isEmpty(),
 			"Withholding a type must be reported rather than silently reducing the result set");
+	}
+
+	/**
+	 * Remixes are searchable, and narrowed by {@code READ_REMIX} like every other type.
+	 */
+	@Test
+	public void testSearchFindsARemix() throws LoomClientException {
+		Remix remix = seedRemix("razorbill_probe group");
+
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+		SearchResultResponse response = client.search("razorbill_probe").sync().body();
+
+		assertTrue(response.getData().stream().anyMatch(hit -> remix.getUuid().equals(hit.getUuid())),
+			"A remix should be findable through the cross-entity search route");
+	}
+
+	@Test
+	public void testSearchNarrowsRemixesByPermission() throws LoomClientException {
+		Remix remix = seedRemix("guillemot_probe group");
+
+		LoomHttpClient client = loginWith("search-no-remix", Permission.READ_SEARCH, Permission.READ_TAG);
+		SearchResultResponse response = client.search("guillemot_probe").sync().body();
+
+		assertFalse(response.getData().stream().anyMatch(hit -> remix.getUuid().equals(hit.getUuid())),
+			"A caller without READ_REMIX must not see remix hits");
+		assertFalse(response.getMetainfo().getWarnings().isEmpty(),
+			"Withholding the remix type must be reported rather than silently narrowing the result");
+	}
+
+	/** The assets view narrows to remixes with types=remix, which must exclude the asset hit. */
+	@Test
+	public void testSearchTypeFilterReturnsOnlyRemixes() throws LoomClientException {
+		Remix remix = seedRemix("fulmar_probe group");
+		Asset asset = seedAsset("fulmar_probe.mp4");
+
+		LoomHttpClient client = httpClient();
+		loginAdmin(client);
+		SearchResultResponse response = client.search("fulmar_probe", "types", "remix").sync().body();
+
+		assertTrue(response.getData().stream().anyMatch(hit -> remix.getUuid().equals(hit.getUuid())),
+			"The remix should be returned");
+		assertFalse(response.getData().stream().anyMatch(hit -> asset.getUuid().equals(hit.getUuid())),
+			"types=remix must exclude the asset that matches the same term");
 	}
 
 	@Test

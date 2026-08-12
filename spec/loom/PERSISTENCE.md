@@ -151,7 +151,7 @@ There is **no `V2.4`**; the chain is `V1`, `V2.1`–`V2.3`, `V2.5`–`V2.84`.
 | `V2.5__add_loom` | singleton `loom` row + `loom_events` enum |
 | `V2.6__add_vector_config` | vector_config |
 | `V2.7__add_collection` | collection, tag_collection, collection_cluster |
-| `V2.8__add_asset` | asset + asset_remix, collection_asset, tag_asset, asset_user_meta, asset_task |
+| `V2.8__add_asset` | asset + asset_remix (dropped by V2.100), collection_asset, tag_asset, asset_user_meta, asset_task |
 | `V2.9__add_library` | library, library_asset, library_collection |
 | `V2.10__add_asset_location` | asset_location |
 | `V2.11__add_project` | project (+library/collection joins) — exposed as *Space* |
@@ -541,7 +541,7 @@ Schema current through **`V2.84`**. Work items live in
 - [ ] `AnnotationDaoTest` does not implement `CRUDDaoTestcases`
 - [ ] Delete-cascade tests missing for Library, Space, Token, Blacklist, Attachment, MemoryEntry, MemoryDenyRule; for AssetPool only the `library.pool_uuid` RESTRICT is covered — `asset_location.pool_uuid` and `attachment_binary.pool_uuid` are not
 - [ ] `vector_config` (V2.6) has a generated table but no DAO
-- [ ] `asset_remix` (V2.8) has a generated table but no DAO operations
+- [x] `asset_remix` (V2.8) had a generated table but no DAO operations — dropped by `V2.100` and replaced by `remix`/`remix_member` with the full stack ([../features/remix/REMIX.md](../features/remix/REMIX.md))
 - [ ] `JooqTestContext.afterEach` is disabled — leased test databases are never released
 - [ ] `loom-db-memory` is unused; either wire it up or delete the module
 

@@ -881,11 +881,12 @@ CRUDDao<VectorConfig>`, **cannot be implemented against this table as it stands*
 defect is not theoretical: the runtime integrity report already hunts for its consequences —
 `DbIntegrityCodes.DUPLICATE_VECTOR_CONFIG_UUID` (`RowCountCheck.java:57`) and
 `DANGLING_VECTOR_CONFIG_ACTOR` exist precisely because the schema cannot prevent them. The
-same file carries two more: `DANGLING_TOKEN_EDITOR` and `DANGLING_ASSET_REMIX_EDITOR`
-(`DanglingUserReferenceCheck.java:53,66`) — `V2.1:141` gives `token` a FK for `creator_uuid`
-only, and `V2.8:76-78` does the same for `asset_remix`, so in both tables `editor_uuid` is a
-`NOT NULL uuid` referencing nothing. Detecting a broken invariant at runtime is a fallback for
-data that predates a constraint; here there is no constraint to have predated.
+same file carries one more: `DANGLING_TOKEN_EDITOR` (`DanglingUserReferenceCheck.tokenEditor()`)
+— `V2.1:141` gives `token` a FK for `creator_uuid` only, so `editor_uuid` is a `NOT NULL uuid`
+referencing nothing. (`DANGLING_ASSET_REMIX_EDITOR` was a third until `V2.100` dropped
+`asset_remix`; its replacement declares both actor foreign keys.) Detecting a broken invariant at
+runtime is a fallback for data that predates a constraint; here there is no constraint to have
+predated.
 
 **Improvement Summary:** Add the primary key and the four foreign keys the schema always
 implied, turning three runtime integrity checks into structural impossibilities.
@@ -895,10 +896,11 @@ implied, turning three runtime integrity checks into structural impossibilities.
    — PERSISTENCE_TASKS.md Task 6 records that a repo-wide grep finds it only under
    loom/db/jooq/src/jooq/ — so the table is empty on every installation and no dedup or
    backfill step is needed. Confirm that against a pooled DB rather than assuming it, and for
-   token / asset_remix run the two integrity checks first (GET /api/v1/db-integrity, or call
+   token run the integrity check first (GET /api/v1/db-integrity, or call
    DanglingUserReferenceCheck directly) to see whether any real row would block the
    constraint.
-2. loom/db/flyway/src/main/resources/db/migration/V2.100__vector_config_constraints.sql:
+2. loom/db/flyway/src/main/resources/db/migration/V2.103__vector_config_constraints.sql
+   (V2.100-V2.102 are taken by the remix feature — check the highest version before writing):
      ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_pkey" PRIMARY KEY ("uuid");
      ALTER TABLE "vector_config" ALTER COLUMN "uuid" SET NOT NULL;   -- if not implied
      ALTER TABLE "vector_config" ADD CONSTRAINT "vector_config_creator_uuid_fkey"
@@ -910,15 +912,14 @@ implied, turning three runtime integrity checks into structural impossibilities.
    is worse than blocking the delete. If step 1 found rows with a dangling actor, decide
    between repairing them and relaxing the column to nullable per the V2.47 precedent — and
    write which, and why, into the file comment.
-3. In the SAME migration, the two omissions of the same shape:
+3. In the SAME migration, the remaining omission of the same shape:
      ALTER TABLE "token" ADD CONSTRAINT "token_editor_uuid_fkey"
        FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
-     ALTER TABLE "asset_remix" ADD CONSTRAINT "asset_remix_editor_uuid_fkey"
-       FOREIGN KEY ("editor_uuid") REFERENCES "user" ("uuid");
-   V2.1:141 and V2.8:78 declared the creator side and forgot the editor side.
-4. Update spec/features/db/DB_INTEGRITY.md: the three checks stay (they still guard older
+   V2.1:141 declared the creator side and forgot the editor side. (V2.8 repeated it for
+   asset_remix; that table no longer exists.)
+4. Update spec/features/db/DB_INTEGRITY.md: the checks stay (they still guard older
    installations mid-upgrade) but must now record that the schema prevents the condition from
-   V2.100 onward. Do not delete the checks or their tests.
+   this migration onward. Do not delete the checks or their tests.
 5. Regenerate jOOQ (loom/db/jooq/generate.sh). JooqVectorConfigRecord becomes an
    UpdatableRecordImpl — that type change is the unblocking effect and is the thing to verify.
    Re-run ./setup-pool.sh with loom/db/flyway installed first.
@@ -955,7 +956,7 @@ round-tripping an insert and an update through jOOQ. `./setup-pool.sh`, then
 |---|---|
 | **`asset_node_result` write path** — `origin` hard-coded to `COMPUTED` in `AbstractMediaNode:149`, no `runUuid`/`taskUuid` on `NodeResultCreateRequest`, `cortex_instance` never joined. The **columns already exist** (`V2.45`); this is a writer gap, not a schema gap | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 18** |
 | **`dedup_group.keep_asset_uuid` vs. `dedup_group_member.role`** — `DedupGroupDaoImpl.updateStatus` never rewrites `role`, and the *"The DAO keeps them consistent"* comment at `V2.61__add_dedup_group.sql:12` is false. Fix the comment there, not here | [WORKFLOW_TASKS.md](WORKFLOW_TASKS.md) **Task 3** |
-| DAO / model / DAO-test gaps (`VectorConfigDao` — **blocked by Task 24**, `asset_remix` operations, `SpaceDaoTest`, missing cascade suites) | [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Progress Assessment |
+| DAO / model / DAO-test gaps (`VectorConfigDao` — **blocked by Task 24**, `SpaceDaoTest`, missing cascade suites) | [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) · [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Progress Assessment |
 | Execution-ledger retention / partitioning — decided, not built (7 days of per-item detail, 30 for failures, the `pipeline_run` row forever) | [METALOOM_ARCHITECTURE_TASK.md](METALOOM_ARCHITECTURE_TASK.md) · [../features/pipeline/PIPELINE.md](../features/pipeline/PIPELINE.md) §10.1a |
 | `timestamptz` sweep (§8.1) — no migration uses it; converting is a whole-schema change | [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §8.1 |
 | Content-mutation model (§2.2) — a changed file is a different asset and nothing migrates the old row's tags/detections/components; no `superseded_by_uuid` | [DB_SCHEMA_FEEDBACK.md](../features/db/DB_SCHEMA_FEEDBACK.md) §2.2 |
@@ -1092,7 +1093,7 @@ mvn test -pl loom/core              # endpoint tests (needs the pool)
 
 - [ ] **Task 15** — `user_permission` / `token_permission` primary keys (🔴 HIGH)
 - [ ] **Task 24** — `vector_config` primary key + four missing actor FKs (`vector_config`
-      creator/editor, `token.editor_uuid`, `asset_remix.editor_uuid`)
+      creator/editor, `token.editor_uuid`)
       (🔴 HIGH; **blocks** [PERSISTENCE_TASKS.md](PERSISTENCE_TASKS.md) Task 6)
 - [ ] **Task 16** — `pipeline_run_item.asset_uuid`, `pipeline_run.pipeline_version_uuid`,
       `pipeline_node_task.leased_by` FKs (🔴 HIGH)

@@ -81,6 +81,12 @@ import io.metaloom.loom.rest.model.collection.CollectionAssetRequest;
 import io.metaloom.loom.rest.model.collection.CollectionCreateRequest;
 import io.metaloom.loom.rest.model.collection.CollectionListResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
+import io.metaloom.loom.rest.model.remix.RemixCreateRequest;
+import io.metaloom.loom.rest.model.remix.RemixListResponse;
+import io.metaloom.loom.rest.model.remix.RemixMemberListResponse;
+import io.metaloom.loom.rest.model.remix.RemixMemberRequest;
+import io.metaloom.loom.rest.model.remix.RemixResponse;
+import io.metaloom.loom.rest.model.remix.RemixUpdateRequest;
 import io.metaloom.loom.rest.model.share.ShareAnnotationListResponse;
 import io.metaloom.loom.rest.model.share.ShareAnnotationRequest;
 import io.metaloom.loom.rest.model.share.ShareAnnotationResponse;
@@ -1084,6 +1090,60 @@ public class LoomHttpClientImpl extends AbstractLoomOkHttpClient {
 	@Override
 	public LoomClientHttpRequest<CollectionListResponse> listAssetCollections(UUID assetUuid) {
 		return getRequest("assets/" + assetUuid + "/collections", CollectionListResponse.class);
+	}
+
+
+	// REMIXES
+
+	@Override
+	public LoomClientHttpRequest<RemixResponse> loadRemix(UUID remixUuid) {
+		return getRequest("remixes/" + remixUuid, RemixResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<RemixResponse> createRemix(RemixCreateRequest request) {
+		return postRequest("remixes", request, RemixResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<RemixResponse> updateRemix(UUID remixUuid, RemixUpdateRequest request) {
+		return postRequest("remixes/" + remixUuid, request, RemixResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<RemixListResponse> listRemixes() {
+		return getRequest("remixes", RemixListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> deleteRemix(UUID remixUuid) {
+		return deleteRequest("remixes/" + remixUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<RemixResponse> addRemixAssets(UUID remixUuid, RemixMemberRequest request) {
+		return postRequest("remixes/" + remixUuid + "/assets", request, RemixResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<NoResponse> removeRemixAsset(UUID remixUuid, UUID assetUuid) {
+		return deleteRequest("remixes/" + remixUuid + "/assets/" + assetUuid);
+	}
+
+	@Override
+	public LoomClientHttpRequest<RemixMemberListResponse> listRemixAssets(UUID remixUuid) {
+		return getRequest("remixes/" + remixUuid + "/assets", RemixMemberListResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<RemixResponse> setRemixSource(UUID remixUuid, UUID assetUuid) {
+		return postRequest("remixes/" + remixUuid + "/source",
+			new RemixMemberRequest().setSourceAssetUuid(assetUuid), RemixResponse.class);
+	}
+
+	@Override
+	public LoomClientHttpRequest<RemixListResponse> listAssetRemixes(UUID assetUuid) {
+		return getRequest("assets/" + assetUuid + "/remixes", RemixListResponse.class);
 	}
 
 

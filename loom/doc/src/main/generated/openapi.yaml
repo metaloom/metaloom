@@ -79,6 +79,9 @@ tags:
   description: Registered Cortex processor nodes
 - name: reactions
   description: Reactions
+- name: remixes
+  description: "Remixes: named groups of assets that are versions of one another,\
+    \ and their members"
 - name: roles
   description: Roles of the RBAC model
 - name: search
@@ -5466,6 +5469,127 @@ paths:
     - name: reactionUuid
       in: path
       description: UUID of the referenced reaction
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/assets/{uuid}/remixes:
+    description: Load a paged list of the remixes the asset belongs to
+    get:
+      tags:
+      - assets
+      summary: Load a paged list of the remixes the asset belongs to
+      description: Load a paged list of the remixes the asset belongs to
+      operationId: getAssetsByUuidRemixes
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The remix list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: Beach clip and its cuts
+                  description: The original beach clip plus the two edits cut from
+                    it.
+                  sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  memberCount: 3
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: Beach clip and its cuts
+                  description: The original beach clip plus the two edits cut from
+                    it.
+                  sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  memberCount: 3
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
       required: true
       schema:
         type: string
@@ -16467,7 +16591,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 89b1865e-9ff8-4670-a5b4-571616f34553
+                  versionUuid: 60e44c0b-76fa-4d2f-8067-bddea81c79dc
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16488,7 +16612,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 029226ab-3f03-4c6c-bb86-fc0ec274aedd
+                  versionUuid: d2b9deb3-7c21-44fe-b0f3-18493dbbe03d
                   versionNumber: 1
                   name: my-pipeline
                   description: A sample pipeline
@@ -16561,7 +16685,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 951d49d5-4351-423e-be83-3ac59d2496ce
+                versionUuid: 9bc46c2d-d091-467d-8917-e4e9bc95757b
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16620,7 +16744,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: db6e7603-7c9f-4e86-a00b-542183c9b3c9
+                versionUuid: c0947635-4ea5-45ff-9f06-2fb1cd92a87a
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16692,7 +16816,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: cb20c3d5-ded9-4e4d-97eb-f58f3639f854
+                versionUuid: 8b53daea-ceab-4a9d-b2bb-34bba77aca86
                 versionNumber: 1
                 name: my-pipeline
                 description: A sample pipeline
@@ -16801,7 +16925,7 @@ paths:
           content:
             application/json:
               example:
-                runUuid: e7fa2579-3b22-4a0b-9974-43a33b9e2dc4
+                runUuid: e0657a9b-84e3-4324-8b43-339fd55ce43c
                 processorNodeId: cortex-01
                 dispatched: true
                 message: Pipeline run dispatched
@@ -16889,11 +17013,11 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 6ce965fb-23d7-4632-ab3e-519a229ca0eb
-                  pipelineUuid: 4ba8c323-fb9c-41cf-84c9-837d2c6b1680
+                - uuid: ec533057-5af1-40e3-bb70-8604d17670ab
+                  pipelineUuid: f96e7fec-56eb-4911-8033-2d2c80141ff7
                   pipelineVersion: 1
-                  started: 2026-08-11T21:25:21.004531416Z
-                  finished: 2026-08-11T21:25:21.004544346Z
+                  started: 2026-08-12T17:15:40.807349045Z
+                  finished: 2026-08-12T17:15:40.807359395Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -16901,11 +17025,11 @@ paths:
                   skippedCount: 2
                   dryRun: false
                   durationMs: 45000
-                - uuid: 8c84ede1-c470-421a-aabc-525804994ec0
-                  pipelineUuid: ec89c697-503d-4b94-b0da-e774f7d83ee3
+                - uuid: 7bbfde54-7db0-45c1-9d64-db3ba408574c
+                  pipelineUuid: da062b9a-5f5b-408a-a7f1-02854363b665
                   pipelineVersion: 1
-                  started: 2026-08-11T21:25:21.004569336Z
-                  finished: 2026-08-11T21:25:21.004571956Z
+                  started: 2026-08-12T17:15:40.807382385Z
+                  finished: 2026-08-12T17:15:40.807384675Z
                   status: SUCCESS
                   mediaCount: 100
                   successCount: 95
@@ -16968,11 +17092,11 @@ paths:
           content:
             application/json:
               example:
-                uuid: db4925fa-41e9-4c58-bca9-e674e5c8250a
-                pipelineUuid: dc4c76b0-7443-46fb-96d7-9b03c1ffd8c7
+                uuid: b45d8bfc-8857-4d0f-bb2d-90c315c6c50d
+                pipelineUuid: 4bb03ab7-c097-4529-924c-251e9e257a35
                 pipelineVersion: 1
-                started: 2026-08-11T21:25:21.004615496Z
-                finished: 2026-08-11T21:25:21.004618306Z
+                started: 2026-08-12T17:15:40.807420165Z
+                finished: 2026-08-12T17:15:40.807422355Z
                 status: SUCCESS
                 mediaCount: 100
                 successCount: 95
@@ -17314,15 +17438,15 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 037a403c-5c31-4d48-933d-3e4f8a24f24f
-                  runUuid: 7ee0ddd2-9930-4469-a3a9-5e74456f80e6
+                - uuid: b36de127-d954-4e89-b193-d724b14ca3f5
+                  runUuid: d310bcca-1967-4dc2-a4ec-4b0689b0dc25
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
                   sizeBytes: 1048576
                   state: SUCCESS
-                - uuid: 30d2dec9-2c46-42d2-a61c-0f763122ea99
-                  runUuid: f05f69fa-a638-4c8d-9fcc-362072d07702
+                - uuid: 91b67de0-5cb1-4180-acc2-ed1699477b69
+                  runUuid: fba1974e-72d6-4775-a078-2e9130d85999
                   itemSeq: 1
                   mediaPath: /media/example.mp4
                   sha512: 0f8ef1c9...
@@ -17394,9 +17518,9 @@ paths:
             application/json:
               example:
                 data:
-                - uuid: 12b126af-3f27-4ed5-8d09-5858630de4f4
-                  itemUuid: 4df81fa2-c320-44c6-b42d-cdf71e4b4ce7
-                  runUuid: 1f71a33c-7477-41de-9938-1d50f9d4a4f2
+                - uuid: 66e6ce99-9787-4998-8025-448924fa28be
+                  itemUuid: 6970a059-6db4-49df-875b-9cd9e650bdc7
+                  runUuid: 87ada1e2-a7cc-442c-900a-5cb49a170217
                   nodeId: pn2
                   nodeKind: sha512
                   elementSeq: 0
@@ -17859,7 +17983,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 4c922170-f432-42dd-a15e-f757ee6ffd49
+                  versionUuid: b8507116-ff3b-4e10-8501-001eb76e8141
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -17880,7 +18004,7 @@ paths:
                     edited: 2018-11-20T20:12:01Z
                   meta:
                     abc: cdef
-                  versionUuid: 2ed85466-8f56-463c-ae53-8743da64c21b
+                  versionUuid: 55727487-a6f5-4c47-8063-f409b03f8441
                   versionNumber: 2
                   name: my-pipeline
                   description: A sample pipeline
@@ -17956,7 +18080,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: ad5f0706-5a63-492b-9e96-3fea3ef0d913
+                versionUuid: 5c690880-38da-4f55-aab6-427ac3ad8bc1
                 versionNumber: 2
                 name: my-pipeline
                 description: A sample pipeline
@@ -18042,7 +18166,7 @@ paths:
                   edited: 2018-11-20T20:12:01Z
                 meta:
                   abc: cdef
-                versionUuid: 0646809e-2846-45ad-842b-b61071c67944
+                versionUuid: 1e8a92f5-1028-461d-a3ed-c8dec20828e8
                 versionNumber: 2
                 name: restored-pipeline
                 description: Restored from version 1
@@ -19029,6 +19153,640 @@ paths:
     - name: assetUuid
       in: path
       description: UUID of the referenced asset
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/remixes:
+    description: "Create a new remix, optionally with its members"
+    get:
+      tags:
+      - remixes
+      summary: Load a paged list of remixes
+      description: Load a paged list of remixes
+      operationId: getRemixes
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The remix list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: Beach clip and its cuts
+                  description: The original beach clip plus the two edits cut from
+                    it.
+                  sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  memberCount: 3
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  status:
+                    creator:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    created: 2018-10-12T14:15:06Z
+                    editor:
+                      uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                      name: joedoe
+                    edited: 2018-11-20T20:12:01Z
+                  meta:
+                    abc: cdef
+                  name: Beach clip and its cuts
+                  description: The original beach clip plus the two edits cut from
+                    it.
+                  sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  memberCount: 3
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - remixes
+      summary: "Create a new remix, optionally with its members"
+      description: "Create a new remix, optionally with its members"
+      operationId: postRemixes
+      requestBody:
+        content:
+          application/json:
+            example:
+              meta:
+                abc: cdef
+              name: Beach clip and its cuts
+              description: The original beach clip plus the two edits cut from it.
+              assetUuids:
+              - f04e89d0-076d-4d90-b192-715a25a2cd59
+              - 86abc160-4da2-4951-a91f-da0c33fbc634
+              sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+      responses:
+        "200":
+          description: The remix response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: Beach clip and its cuts
+                description: The original beach clip plus the two edits cut from it.
+                sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                memberCount: 3
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+  /api/v1/remixes/{uuid}:
+    description: Load a remix
+    get:
+      tags:
+      - remixes
+      summary: Load a remix
+      description: Load a remix
+      operationId: getRemixesByUuid
+      responses:
+        "200":
+          description: The remix response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: Beach clip and its cuts
+                description: The original beach clip plus the two edits cut from it.
+                sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                memberCount: 3
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - remixes
+      summary: Update a remix
+      description: Update a remix
+      operationId: postRemixesByUuid
+      requestBody:
+        content:
+          application/json:
+            example:
+              meta:
+                abc: cdef
+              name: Beach clip and its cuts
+              description: The original beach clip plus the two edits cut from it.
+              sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+      responses:
+        "200":
+          description: The remix response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: Beach clip and its cuts
+                description: The original beach clip plus the two edits cut from it.
+                sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                memberCount: 3
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    delete:
+      tags:
+      - remixes
+      summary: Delete a remix
+      description: Delete a remix
+      operationId: deleteRemixesByUuid
+      responses:
+        "204":
+          description: The delete response
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/remixes/{uuid}/assets:
+    description: Load a paged list of the assets in the remix
+    get:
+      tags:
+      - remixes
+      summary: Load a paged list of the assets in the remix
+      description: Load a paged list of the assets in the remix
+      operationId: getRemixesByUuidAssets
+      parameters:
+      - name: filter
+        in: query
+        description: Filter the elements
+        schema:
+          type: string
+        example: "name[eq]=joedoe"
+      - name: limit
+        in: query
+        description: Limit the page size
+        schema:
+          type: string
+        example: "25"
+      - name: from
+        in: query
+        description: Seek to the element with the given UUID
+        schema:
+          type: string
+        example: e829f0f1-4775-4857-a326-850440cf9577
+      - name: sort
+        in: query
+        description: Sort the elements by the provided field
+        schema:
+          type: string
+        example: username
+      - name: dir
+        in: query
+        description: Sort order direction
+        schema:
+          type: string
+        example: ASCENDING
+      responses:
+        "200":
+          description: The remix member list response
+          content:
+            application/json:
+              example:
+                data:
+                - uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                  assetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                  role: SOURCE
+                  ordinal: 0
+                  filename: beach.mp4
+                  mimeType: video/mp4
+                  sha512sum: 0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123
+                  size: 4711
+                  added: 1.78652973E9
+                  addedBy: 86abc160-4da2-4951-a91f-da0c33fbc634
+                _metainfo:
+                  perPage: 2
+                  totalCount: 28
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    post:
+      tags:
+      - remixes
+      summary: Add one or more assets to the remix
+      description: Add one or more assets to the remix
+      operationId: postRemixesByUuidAssets
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuids:
+              - 86abc160-4da2-4951-a91f-da0c33fbc634
+      responses:
+        "200":
+          description: The remix response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: Beach clip and its cuts
+                description: The original beach clip plus the two edits cut from it.
+                sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                memberCount: 3
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/remixes/{uuid}/assets/{assetUuid}:
+    description: Remove an asset from the remix
+    delete:
+      tags:
+      - remixes
+      summary: Remove an asset from the remix
+      description: Remove an asset from the remix
+      operationId: deleteRemixesByUuidAssetsByAssetUuid
+      responses:
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: assetUuid
+      in: path
+      description: UUID of the referenced asset
+      required: true
+      schema:
+        type: string
+        format: uuid
+  /api/v1/remixes/{uuid}/source:
+    description: Set which member asset is the source of the remix
+    post:
+      tags:
+      - remixes
+      summary: Set which member asset is the source of the remix
+      description: Set which member asset is the source of the remix
+      operationId: postRemixesByUuidSource
+      requestBody:
+        content:
+          application/json:
+            example:
+              assetUuids:
+              - 86abc160-4da2-4951-a91f-da0c33fbc634
+      responses:
+        "200":
+          description: The remix response
+          content:
+            application/json:
+              example:
+                uuid: 0f3332a6-e404-4777-88a9-1fa984a311bc
+                status:
+                  creator:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  created: 2018-10-12T14:15:06Z
+                  editor:
+                    uuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                    name: joedoe
+                  edited: 2018-11-20T20:12:01Z
+                meta:
+                  abc: cdef
+                name: Beach clip and its cuts
+                description: The original beach clip plus the two edits cut from it.
+                sourceAssetUuid: f04e89d0-076d-4d90-b192-715a25a2cd59
+                memberCount: 3
+        "400":
+          description: Bad request - validation error or malformed path/query parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "401":
+          description: "Unauthorized - the token is missing, expired or invalid"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "403":
+          description: Forbidden - the user lacks the required permission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "404":
+          description: Not found - no such resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericMessageResponse"
+    parameters:
+    - name: uuid
+      in: path
+      description: UUID of the resource
       required: true
       schema:
         type: string

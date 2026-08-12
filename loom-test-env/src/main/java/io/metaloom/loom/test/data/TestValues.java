@@ -101,6 +101,8 @@ public interface TestValues {
 
 	public static final UUID COLLECTION_UUID = UUID.fromString("5293b186-64e9-4713-8565-97d6a5ac22a6");
 
+	public static final UUID REMIX_UUID = UUID.fromString("2b6f0c4d-9e11-4a58-9f7c-3d0e5a1c8b42");
+
 	public static final UUID SHARE_UUID = UUID.fromString("9c1f6b2e-05d7-4f3a-b8e1-6a7c4d29e310");
 
 	/**

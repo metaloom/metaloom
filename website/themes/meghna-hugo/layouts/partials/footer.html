@@ -84,6 +84,18 @@
 <script src="{{ .link | relURL }}"></script>
 {{ end }}
 
+{{/*
+  Page JS plugins — the front-matter counterpart to the list above, mirroring `page_css` in
+  head.html. Order is preserved, so a bundle can be listed before the script that uses it.
+  Swagger UI (~1.8 MB) and GraphiQL (~3.7 MB) are declared this way by the two pages that mount
+  them rather than globally: they are larger than the rest of the site's JS combined and exactly
+  two pages use them.
+*/}}
+{{ "<!-- Page JS Plugins -->" | safeHTML }}
+{{ range .Params.page_js }}
+<script src="{{ . | relURL }}"></script>
+{{ end }}
+
 {{ "<!-- Main Script -->" | safeHTML }}
 {{ $script := resources.Get "js/script.js" | minify | fingerprint "sha384"}}
 <script src="{{ $script.RelPermalink }}" integrity="{{ $script.Data.Integrity }}"></script>

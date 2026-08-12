@@ -21,7 +21,7 @@
 > | Finding | Check |
 > |---|---|
 > | `token.editor_uuid` has no foreign key (V2.1 declares one for `creator_uuid` only) | `DANGLING_TOKEN_EDITOR` |
-> | `asset_remix.editor_uuid` repeats the same omission (V2.8) | `DANGLING_ASSET_REMIX_EDITOR` |
+> | ~~`asset_remix.editor_uuid` repeats the same omission (V2.8)~~ — resolved: V2.100 dropped the table; `remix`/`remix_member` declare both actor foreign keys | check retired |
 > | `vector_config` has no primary key and no foreign keys at all (V2.6) | `DANGLING_VECTOR_CONFIG_ACTOR`, `DUPLICATE_VECTOR_CONFIG_UUID` |
 >
 > 🔴 **Detection is not a fix.** The constraints are still absent and should be added by a migration
@@ -417,7 +417,7 @@ which, per row.
 | `asset_doc_comp` (+ GIN `text_search`) | `V2.38` | DAO exists; OCR/Tika write `asset_json_comp` instead | Point the two nodes at it, or drop (§3.1) |
 | `embedding.vector real[]` | `V2.43` | No ANN index, no node producer, effectively zero rows | Blocked on the §4.2 decision |
 | `vector_config` | `V2.6` | No DAO, jOOQ-generated code only | Tracked in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
-| `asset_remix` | `V2.8` | No DAO, jOOQ-generated code only | Tracked in [../loom/PERSISTENCE_TASKS.md](../tasks/PERSISTENCE_TASKS.md) |
+| ~~`asset_remix`~~ | `V2.8` | Dropped by `V2.100` | Done — replaced by `remix`/`remix_member` ([../remix/REMIX.md](../remix/REMIX.md)) |
 | `asset_user_meta`, `tag_user_meta` | `V2.2`, `V2.8` | No DAO, no hand-written Java | Drop, or spec the feature |
 | `annotation_asset` | `V2.16` | Vestigial M:N alongside `annotation.asset_uuid` | Drop (§5.3) |
 | `search_document.dirty`, `.es_synced_at`, `search_document_deleted` | `V2.58` | Outbox for an external index; unused by the Postgres provider — the migration says so itself | Keep as documented dead weight until an external indexer exists ([search/SEARCH.md](search/SEARCH.md)) |

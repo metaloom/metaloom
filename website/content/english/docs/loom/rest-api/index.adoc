@@ -1,5 +1,13 @@
 ---
 title: REST API
+# Swagger UI is loaded here only — this page and /docs/loom/graphql-api/ are the only two that
+# mount an API explorer. The bundle must come before swagger.js, which mounts into #swagger-ui.
+page_css:
+  - plugins/swagger/swagger-ui.css
+page_js:
+  - plugins/swagger/swagger-ui-bundle.js
+  - plugins/swagger/swagger-ui-standalone-preset.js
+  - plugins/swagger/swagger.js
 ---
 
 Loom exposes its full functionality via a versioned REST API.

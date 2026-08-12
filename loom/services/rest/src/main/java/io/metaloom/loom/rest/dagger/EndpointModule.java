@@ -18,6 +18,7 @@ import io.metaloom.loom.rest.endpoint.impl.BlacklistEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ChatEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ClusterEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CollectionEndpoint;
+import io.metaloom.loom.rest.endpoint.impl.RemixEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.PublicShareEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.ShareLinkEndpoint;
 import io.metaloom.loom.rest.endpoint.impl.CommentEndpoint;
@@ -78,6 +79,7 @@ public class EndpointModule {
 		ClusterEndpoint clusterEndpoint,
 		DetectionEndpoint detectionEndpoint,
 		CollectionEndpoint collectionEndpoint,
+		RemixEndpoint remixEndpoint,
 		ShareLinkEndpoint shareLinkEndpoint,
 		PublicShareEndpoint publicShareEndpoint,
 		EmbeddingEndpoint embeddingEndpoint,
@@ -125,6 +127,7 @@ public class EndpointModule {
 			clusterEndpoint,
 			detectionEndpoint,
 			collectionEndpoint,
+			remixEndpoint,
 			shareLinkEndpoint,
 			publicShareEndpoint,
 			embeddingEndpoint,

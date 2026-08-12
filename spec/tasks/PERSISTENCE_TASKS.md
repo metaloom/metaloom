@@ -49,7 +49,18 @@ dependent tests, otherwise you get `NoSuchMethodError` on the generated Dagger f
 
 ---
 
-## Task 7: Implement Asset Remix DAO operations
+## Task 7: Implement Asset Remix DAO operations — SUPERSEDED (2026-08-12)
+
+> **Outcome:** not implemented as written. The task proposed bolting link/unlink/list methods onto
+> `AssetDao` over the existing pair table, which cannot express the feature that table was meant to
+> carry: a *named group* with an identified original. `V2.100` drops `asset_remix` and replaces it
+> with `remix` + `remix_member`, carried through DAO, REST, both clients, the UI, MCP and the
+> customer docs. See [ASSET_REMIX_PLAN.md](ASSET_REMIX_PLAN.md) for the work and
+> [../features/remix/REMIX.md](../features/remix/REMIX.md) for the resulting design.
+>
+> The one part of this task that was carried out verbatim: the deferral comment at
+> `AssetCascadeTest` is gone, and the cascade is asserted — by `remix_member` rather than
+> `asset_remix`.
 
 **Argumentation Summary:** `asset_remix` (`V2.8`) models derivation links between assets, but the only non-generated reference to it is a comment in `AssetCascadeTest:87` — "`asset_remix` also cascades (V2.8) but has no DAO yet, so it is intentionally left out until those operations exist." The table is unreachable from application code, and its cascade is therefore untested.
 
@@ -85,7 +96,7 @@ TagDaoImpl/AssetDaoImpl).
 - [x] Task 4 — `AssetBinaryDaoTest` + resolve the `AssetBinaryDao`/`AssetLocationDao` duplication
 - [ ] Task 5 — `RoleDaoTest` CRUD + `loadByName`
 - [ ] Task 6 — `VectorConfigDao` stack
-- [ ] Task 7 — Asset remix operations + cascade test
+- [x] Task 7 — Asset remix operations + cascade test (superseded by [ASSET_REMIX_PLAN.md](ASSET_REMIX_PLAN.md); `asset_remix` dropped in `V2.100`)
 
 Closed items are not kept here; the outcome record lives in
 [../loom/PERSISTENCE.md](../loom/PERSISTENCE.md) §Progress Assessment, which also tracks the
@@ -124,5 +135,5 @@ fixed in `BootstrapInitializer.deinit()` (see [../loom/SERVER.md](../loom/SERVER
 | DI registration | `DaoCollection`, `DaoCollectionImpl`, `JooqLoomDaoBindModule` |
 
 _Git HEAD revision: `1e12f39e`_
-_Last updated: 2026-08-06 (closed Task 3 — `ChatDaoTest` now covers CRUD, the `chat.messages` JSONB
+_Last updated: 2026-08-12 (Task 7 superseded by ASSET_REMIX_PLAN.md — `asset_remix` dropped in V2.100 and replaced by `remix`/`remix_member`). Earlier: 2026-08-06 (closed Task 3 — `ChatDaoTest` now covers CRUD, the `chat.messages` JSONB
 deep-equality round-trip and the V2.52 SET NULL detach. Earlier: dropped the closed-gap table and the completed PERSISTENCE.md re-sync task — that tracker now runs to V2.74; rewrote the RoleDaoTest task, which was stale: the class is no longer empty, it covers role_permission but still lacks CRUD and loadByName; numbered the tasks and fixed the broken ../ links to spec/loom/)_

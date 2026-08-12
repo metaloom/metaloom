@@ -17,6 +17,7 @@ public interface LoomModelBuilder extends
 	SkillModelBuilder,
 	MemoryDenyRuleModelBuilder,
 	CollectionModelBuilder,
+	RemixModelBuilder,
 	ShareModelBuilder,
 	ClusterModelBuilder,
 	CommentModelBuilder,

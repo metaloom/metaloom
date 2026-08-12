@@ -6,6 +6,7 @@ import {
   FormControl, Select, MenuItem, SelectChangeEvent,
   Button, Checkbox, InputLabel,
   Dialog, DialogTitle, DialogContent, DialogActions,
+  Menu,
 } from "@mui/material";
 import {
   SearchOutlined, GridViewOutlined, FormatListBulletedOutlined,
@@ -13,7 +14,7 @@ import {
   FilterListOutlined, Circle, PhotoSizeSelectSmallOutlined,
   PhotoSizeSelectActualOutlined, PhotoSizeSelectLargeOutlined,
   CloudUploadOutlined, DeleteOutlined, LocalOfferOutlined, CloseOutlined,
-  PermMediaOutlined,
+  PermMediaOutlined, MoreVertOutlined, LayersOutlined,
 } from "@mui/icons-material";
 import { tokens } from "../../theme";
 import AssetThumbnail from "../../components/AssetThumbnail";
@@ -36,6 +37,10 @@ import { useToast } from "../../context/ToastContext";
 import { useUploads } from "../uploads/UploadContext";
 import { enqueue } from "../uploads/uploadQueue";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
+import RemixCard from "../remix/RemixCard";
+import RemixDialog from "../remix/RemixDialog";
+import { combineIntoRemix, listRemixes, searchRemixes, type RemixResponse } from "../../api/remixes";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(1)} TB`;
@@ -277,7 +282,10 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [cardSize, setCardSize] = useState<CardSize>("medium");
-  const [typeFilter, setTypeFilter] = useState<AssetType | "all">("all");
+  // "remix" is a filter over a different kind of thing than the mime-based options, which is why it
+  // is not an AssetType: picking it hides the asset grid entirely and leaves only the remix band.
+  const [typeFilter, setTypeFilter] = useState<AssetType | "all" | "remix">("all");
+  const remixOnly = typeFilter === "remix";
 
   // ── Browse mode ──
   // The server caps /assets at 25 rows, so the collection arrives a page at a time.
@@ -326,6 +334,20 @@ export default function AssetBrowser({ embedded = false }: Props) {
   const [bulkTagOpen, setBulkTagOpen] = useState(false);
   const [bulkTag, setBulkTag] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  /** Anchor for the bulk "..." menu. The bar holds Tag and Delete inline; anything rarer goes here. */
+  const [bulkMenuAnchor, setBulkMenuAnchor] = useState<HTMLElement | null>(null);
+
+  // ── Remixes ──
+  // Fetched separately from the assets rather than merged into one feed: a union query over two
+  // tables would need a shared sort key and a compound cursor, and the band reads better pinned
+  // above the grid anyway. Member assets stay in the main feed - hiding them would mean an
+  // anti-join on the hottest query in the product and assets that silently vanish once grouped.
+  const [remixes, setRemixes] = useState<RemixResponse[]>([]);
+  const [remixName, setRemixName] = useState("");
+  const [remixDialogOpen, setRemixDialogOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  /** The opened remix lives in the URL so it is deep-linkable, shareable and drivable from a test. */
+  const openRemixUuid = searchParams.get("remix");
 
   const reload = page.reload;
 
@@ -343,7 +365,9 @@ export default function AssetBrowser({ embedded = false }: Props) {
     const timer = setTimeout(() => {
       searchAssets(
         token,
-        { q: term, limit: PAGE_SIZE, mime: mimeFilterFor(typeFilter) },
+        // "remix" narrows a different axis than mime, so it contributes no mime prefix here; the
+        // asset search it guards is not rendered under that filter anyway.
+        { q: term, limit: PAGE_SIZE, mime: remixOnly ? undefined : mimeFilterFor(typeFilter) },
         { signal: controller.signal },
       )
         .then(resp => {
@@ -438,6 +462,76 @@ export default function AssetBrowser({ embedded = false }: Props) {
     }
   };
 
+  /**
+   * Fill the remix band.
+   *
+   * With a query, the band shows the remixes that match it; without one, it shows the first page of
+   * all of them. Both go through here so the band means the same thing in both modes: "the remixes
+   * relevant to what you are looking at".
+   *
+   * A search hit is not a RemixResponse - it carries a uuid and a title and no member count - so it
+   * is mapped onto the card shape with the count omitted rather than faked.
+   */
+  const reloadRemixes = useCallback(async () => {
+    if (!token) return;
+    try {
+      if (term) {
+        const response = await searchRemixes(token, term, { limit: PAGE_SIZE });
+        // memberCount is deliberately omitted: a search hit does not carry one, and the card shows
+        // no count rather than a made-up one.
+        setRemixes((response.data ?? []).map(hit => ({
+          uuid: hit.uuid,
+          name: hit.title,
+          description: hit.subtitle,
+        })));
+      } else {
+        const response = await listRemixes(token);
+        setRemixes(response.data ?? []);
+      }
+    } catch {
+      // A caller without READ_REMIX gets a 403 from either route. That is a narrowed permission
+      // rather than an error worth a toast: the band simply does not appear.
+      setRemixes([]);
+    }
+  }, [token, term]);
+
+  useEffect(() => { reloadRemixes(); }, [reloadRemixes]);
+
+  const openRemix = (remix: RemixResponse) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("remix", remix.uuid);
+    setSearchParams(next, { replace: false });
+  };
+
+  const closeRemix = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("remix");
+    setSearchParams(next, { replace: false });
+  };
+
+  /**
+   * Combine the current selection into a new remix.
+   *
+   * One request, not a create followed by an add: the members ride along with the create, so a
+   * failure cannot leave a named but empty remix behind.
+   */
+  const handleCombineIntoRemix = async () => {
+    if (!token || selected.size === 0 || !remixName.trim()) return;
+    setBulkBusy(true);
+    try {
+      const remix = await combineIntoRemix(token, remixName.trim(), Array.from(selected));
+      showToast(t("remix.toast.created", { count: remix.memberCount }), "success");
+      setRemixDialogOpen(false);
+      setRemixName("");
+      exitSelection();
+      await reloadRemixes();
+    } catch {
+      showToast(t("remix.error.create"), "error");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (!token || selected.size === 0) return;
     setBulkBusy(true);
@@ -492,7 +586,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
     }
 
     let res = assets;
-    if (typeFilter !== "all") res = res.filter(a => a.type === typeFilter);
+    if (typeFilter !== "all" && !remixOnly) res = res.filter(a => a.type === typeFilter);
     // Search is unavailable but the user typed anyway: fall back to filtering the pages already
     // loaded, and say so below rather than pretending this covered the catalog.
     if (term) {
@@ -548,7 +642,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
           <FormControl size="small" sx={{ minWidth: 80 }}>
             <Select
               value={typeFilter}
-              onChange={(e: SelectChangeEvent) => setTypeFilter(e.target.value as AssetType | "all")}
+              onChange={(e: SelectChangeEvent) => setTypeFilter(e.target.value as AssetType | "all" | "remix")}
               displayEmpty
               sx={{ fontSize: "0.78rem", bgcolor: tokens.bg.elevated }}
             >
@@ -557,6 +651,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <MenuItem value="image">{t("assets.filter.image")}</MenuItem>
               <MenuItem value="audio">{t("assets.filter.audio")}</MenuItem>
               <MenuItem value="document">{t("assets.filter.document")}</MenuItem>
+              <MenuItem value="remix" data-testid="assets-filter-remix">{t("assets.filter.remix")}</MenuItem>
             </Select>
           </FormControl>
 
@@ -624,6 +719,27 @@ export default function AssetBrowser({ embedded = false }: Props) {
               onClick={handleBulkDelete} sx={{ fontSize: "0.75rem", color: tokens.accent.red }}>
               {t("assets.button.bulkDelete")}
             </Button>
+            <Tooltip title={t("assets.button.moreActions")}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={selected.size === 0 || bulkBusy}
+                  onClick={e => setBulkMenuAnchor(e.currentTarget)}
+                  data-testid="bulk-actions-menu-button"
+                >
+                  <MoreVertOutlined sx={{ fontSize: 16 }} />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Menu anchorEl={bulkMenuAnchor} open={Boolean(bulkMenuAnchor)} onClose={() => setBulkMenuAnchor(null)}>
+              <MenuItem
+                data-testid="bulk-combine-remix"
+                onClick={() => { setBulkMenuAnchor(null); setRemixName(""); setRemixDialogOpen(true); }}
+              >
+                <LayersOutlined sx={{ fontSize: 16, mr: 1 }} />
+                {t("remix.action.combine")}
+              </MenuItem>
+            </Menu>
             <IconButton size="small" onClick={exitSelection}><CloseOutlined sx={{ fontSize: 16 }} /></IconButton>
           </Box>
         )}
@@ -632,9 +748,11 @@ export default function AssetBrowser({ embedded = false }: Props) {
           <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.72rem" }} data-testid="assets-count">
             {/* In search mode the server's hit total; otherwise the size of the collection, which
                 is not the same as the number of rows fetched so far. */}
-            {searchMode
-              ? t("assets.search.hits", { count: searchTotal })
-              : `${typeFilter === "all" ? page.totalCount : filtered.length} ${t("assets.count")}`}
+            {remixOnly
+              ? t("assets.filter.remixCount", { count: remixes.length })
+              : searchMode
+                ? t("assets.search.hits", { count: searchTotal })
+                : `${typeFilter === "all" ? page.totalCount : filtered.length} ${t("assets.count")}`}
           </Typography>
           {(typeFilter !== "all" || query) && (
             <Chip
@@ -667,7 +785,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
               <Skeleton key={i} variant="rounded" height={160} sx={{ borderRadius: tokens.radius.lg, bgcolor: tokens.bg.elevated }} />
             ))}
           </Box>
-        ) : assets.length === 0 && !searchMode ? (
+        ) : assets.length === 0 && remixes.length === 0 && !searchMode ? (
           // Nothing at all yet — invite the user to upload their first asset.
           <EmptyState
             icon={PermMediaOutlined}
@@ -679,7 +797,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
             testId="assets-empty-state"
             compact={embedded}
           />
-        ) : filtered.length === 0 ? (
+        ) : (remixOnly ? remixes.length === 0 : filtered.length === 0 && remixes.length === 0) ? (
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, gap: 1 }} data-testid="assets-no-match">
             <SearchOutlined sx={{ fontSize: 36, color: tokens.text.tertiary }} />
             <Typography variant="body2" color="text.secondary">
@@ -688,7 +806,13 @@ export default function AssetBrowser({ embedded = false }: Props) {
           </Box>
         ) : viewMode === "grid" ? (
           <Box sx={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${cardSize === "small" ? "120px" : cardSize === "large" ? "260px" : "190px"}, 1fr))`, gap: cardSize === "small" ? 1 : 2 }}>
-            {filtered.map(a => (
+            {/* Remixes lead the grid. Not a separate view: a remix is something you browse
+                alongside your assets, and pinning it here keeps one screen instead of two. In
+                search mode these are the remixes matching the query, not all of them. */}
+            {remixes.map(r => (
+              <RemixCard key={r.uuid} remix={r} cardSize={cardSize} onOpen={openRemix} />
+            ))}
+            {!remixOnly && filtered.map(a => (
               <AssetCard
                 key={a.id}
                 asset={a}
@@ -702,7 +826,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
           </Box>
         ) : (
           <Paper elevation={0} sx={{ bgcolor: tokens.bg.elevated, border: `1px solid ${tokens.border.subtle}`, borderRadius: tokens.radius.lg, overflow: "hidden" }}>
-            {filtered.map((a, i) => (
+            {(remixOnly ? [] : filtered).map((a, i) => (
               <React.Fragment key={a.id}>
                 <AssetRow
                   asset={a}
@@ -719,7 +843,7 @@ export default function AssetBrowser({ embedded = false }: Props) {
 
         {/* Browse mode pages the collection; in search mode the server already returned the top
             hits and deep paging is the /search screen's job, not the grid's. */}
-        {!searchMode && !page.loading && (
+        {!searchMode && !remixOnly && !page.loading && (
           <ListPaging
             loaded={assets.length}
             total={page.totalCount}
@@ -730,6 +854,46 @@ export default function AssetBrowser({ embedded = false }: Props) {
           />
         )}
       </Box>
+
+      {/* Name the remix about to be made from the selection. */}
+      <Dialog
+        open={remixDialogOpen}
+        onClose={() => setRemixDialogOpen(false)}
+        data-testid="remix-create-dialog"
+        PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 420 } }}
+      >
+        <DialogTitle sx={{ fontSize: "1rem", fontWeight: 700, pb: 1 }}>{t("remix.dialog.createTitle")}</DialogTitle>
+        <DialogContent sx={{ pt: "8px !important" }}>
+          <Typography variant="body2" sx={{ color: tokens.text.secondary, mb: 1.5 }}>
+            {t("remix.dialog.createHint", { count: selected.size })}
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            size="small"
+            label={t("remix.dialog.nameLabel")}
+            value={remixName}
+            onChange={e => setRemixName(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleCombineIntoRemix(); }}
+            inputProps={{ "data-testid": "remix-create-name" }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setRemixDialogOpen(false)} size="small">{t("common.cancel")}</Button>
+          <Button
+            onClick={handleCombineIntoRemix}
+            size="small"
+            variant="contained"
+            disabled={!remixName.trim() || bulkBusy}
+            data-testid="remix-create-submit"
+          >
+            {t("remix.dialog.createSubmit")}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* The opened remix. Its open state lives in ?remix=<uuid>, so a deep link lands here. */}
+      <RemixDialog remixUuid={openRemixUuid} onClose={closeRemix} onChanged={reloadRemixes} />
 
       {/* Upload dialog */}
       <Dialog open={uploadOpen} onClose={() => setUploadOpen(false)} PaperProps={{ sx: { bgcolor: tokens.bg.panel, border: `1px solid ${tokens.border.default}`, minWidth: 420 } }}>

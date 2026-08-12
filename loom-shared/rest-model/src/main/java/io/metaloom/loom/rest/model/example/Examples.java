@@ -15,6 +15,7 @@ import io.metaloom.loom.rest.model.pool.AssetPoolExamples;
 import io.metaloom.loom.rest.model.auth.AuthLoginExamples;
 import io.metaloom.loom.rest.model.cluster.ClusterExamples;
 import io.metaloom.loom.rest.model.collection.CollectionExamples;
+import io.metaloom.loom.rest.model.remix.RemixExamples;
 import io.metaloom.loom.rest.model.comment.CommentExamples;
 import io.metaloom.loom.rest.model.detection.DetectionExamples;
 import io.metaloom.loom.rest.model.embedding.EmbeddingExamples;
@@ -63,6 +64,7 @@ public interface Examples extends
 	ClusterExamples,
 	CommentExamples,
 	CollectionExamples,
+	RemixExamples,
 	ShareExamples,
 	DetectionExamples,
 	EmbeddingExamples,

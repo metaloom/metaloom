@@ -110,6 +110,9 @@
     "name" : "reactions",
     "description" : "Reactions"
   }, {
+    "name" : "remixes",
+    "description" : "Remixes: named groups of assets that are versions of one another, and their members"
+  }, {
     "name" : "roles",
     "description" : "Roles of the RBAC model"
   }, {
@@ -7786,6 +7789,174 @@
         "name" : "reactionUuid",
         "in" : "path",
         "description" : "UUID of the referenced reaction",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/assets/{uuid}/remixes" : {
+      "description" : "Load a paged list of the remixes the asset belongs to",
+      "get" : {
+        "tags" : [ "assets" ],
+        "summary" : "Load a paged list of the remixes the asset belongs to",
+        "description" : "Load a paged list of the remixes the asset belongs to",
+        "operationId" : "getAssetsByUuidRemixes",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The remix list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "Beach clip and its cuts",
+                    "description" : "The original beach clip plus the two edits cut from it.",
+                    "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "memberCount" : 3
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "Beach clip and its cuts",
+                    "description" : "The original beach clip plus the two edits cut from it.",
+                    "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "memberCount" : 3
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
         "required" : true,
         "schema" : {
           "type" : "string",
@@ -23673,7 +23844,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "d18071c5-80dc-41a7-82ac-c88d7832550a",
+                    "versionUuid" : "4ec7da02-7043-4e0e-a594-7a8081eaaba2",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23700,7 +23871,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "ba5eab6b-ac90-4a99-8393-daced47423fb",
+                    "versionUuid" : "bb485343-fd21-4dab-b5dc-0e8d2c8cc5ad",
                     "versionNumber" : 1,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -23807,7 +23978,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "31bb2818-9177-41e5-8529-050cfbd52dc7",
+                  "versionUuid" : "cb0067a5-7eeb-4126-a538-e78aa2bc39d2",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -23893,7 +24064,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "07cab25f-5933-491a-9129-b4b586b685e0",
+                  "versionUuid" : "5528dd2d-f045-4fea-aa7b-93a71808b247",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24000,7 +24171,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "03a00b7a-e6da-4bc6-8787-909840faaa49",
+                  "versionUuid" : "50078097-207a-4704-a942-b805e45267fc",
                   "versionNumber" : 1,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -24162,7 +24333,7 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "runUuid" : "4ef0a790-b460-42a3-bf85-b601a74b027a",
+                  "runUuid" : "db7a965e-aca8-4232-ada6-a26c5272e284",
                   "processorNodeId" : "cortex-01",
                   "dispatched" : true,
                   "message" : "Pipeline run dispatched"
@@ -24288,11 +24459,11 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "0ecb40e1-38d5-4fb1-a18d-a83634c75b73",
-                    "pipelineUuid" : "c1f5bc9d-1e33-42f8-ad81-a0caedbbd58f",
+                    "uuid" : "d7356484-a9f4-4782-b6db-a5914e9214cd",
+                    "pipelineUuid" : "cb6c02de-ecf8-45c9-ae9d-2bdb929449e8",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-11T21:25:20.852093434Z",
-                    "finished" : "2026-08-11T21:25:20.852191034Z",
+                    "started" : "2026-08-12T17:15:40.667468491Z",
+                    "finished" : "2026-08-12T17:15:40.667565541Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -24301,11 +24472,11 @@
                     "dryRun" : false,
                     "durationMs" : 45000
                   }, {
-                    "uuid" : "9beafce8-1b49-4fc3-9a45-4584457d1fb2",
-                    "pipelineUuid" : "20117c56-d97d-43b8-878e-74e4c892255f",
+                    "uuid" : "60a553be-d698-4418-b1f5-08be209ccece",
+                    "pipelineUuid" : "f3d7b1b6-3030-4f4c-8974-eeff3b3a8357",
                     "pipelineVersion" : 1,
-                    "started" : "2026-08-11T21:25:20.852331323Z",
-                    "finished" : "2026-08-11T21:25:20.852336113Z",
+                    "started" : "2026-08-12T17:15:40.667707601Z",
+                    "finished" : "2026-08-12T17:15:40.667712251Z",
                     "status" : "SUCCESS",
                     "mediaCount" : 100,
                     "successCount" : 95,
@@ -24398,11 +24569,11 @@
             "content" : {
               "application/json" : {
                 "example" : {
-                  "uuid" : "b7251947-3a38-4019-891c-0d909faa64f6",
-                  "pipelineUuid" : "4e6249fc-f8ce-4b14-aa19-749a45a2c343",
+                  "uuid" : "a48be07e-fdb6-41f1-9315-eb528f6f55fa",
+                  "pipelineUuid" : "58ef0407-fdb2-46a8-ac10-1a3ce61b0461",
                   "pipelineVersion" : 1,
-                  "started" : "2026-08-11T21:25:20.853067189Z",
-                  "finished" : "2026-08-11T21:25:20.853074079Z",
+                  "started" : "2026-08-12T17:15:40.668454610Z",
+                  "finished" : "2026-08-12T17:15:40.668461740Z",
                   "status" : "SUCCESS",
                   "mediaCount" : 100,
                   "successCount" : 95,
@@ -24892,16 +25063,16 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "c4b7705c-1b58-43c9-be52-342344e6f3c3",
-                    "runUuid" : "56943ecc-e347-4360-9440-a4132023d9d8",
+                    "uuid" : "84d4488b-4597-4c38-9451-3472e7fc91eb",
+                    "runUuid" : "c42945ce-a815-4cdd-a0f5-143e756b16ba",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
                     "sizeBytes" : 1048576,
                     "state" : "SUCCESS"
                   }, {
-                    "uuid" : "88ddd964-11bc-4a64-857c-19e71ae3b5f2",
-                    "runUuid" : "39687310-7ee4-4370-bd77-88eb5665a47c",
+                    "uuid" : "7ba2250c-e7e8-45ab-bb9c-8187d103aa0b",
+                    "runUuid" : "972ceb03-8323-4475-a8f4-93f13d9131e2",
                     "itemSeq" : 1,
                     "mediaPath" : "/media/example.mp4",
                     "sha512" : "0f8ef1c9...",
@@ -25002,9 +25173,9 @@
               "application/json" : {
                 "example" : {
                   "data" : [ {
-                    "uuid" : "a1bea1c8-3c40-47ba-9654-e2095d3e7645",
-                    "itemUuid" : "538baffa-877d-4948-9511-d2248d102b8a",
-                    "runUuid" : "d021551c-8438-435d-b6cf-1df362bf8bdd",
+                    "uuid" : "901d1bc7-e9db-41a8-a4e1-c1369b24603f",
+                    "itemUuid" : "28dfa59a-35ad-4c1a-912a-88670d872dd4",
+                    "runUuid" : "fc244104-6d82-4765-947b-99f5769efc4f",
                     "nodeId" : "pn2",
                     "nodeKind" : "sha512",
                     "elementSeq" : 0,
@@ -25670,7 +25841,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "eff72c0a-bc47-4c8e-9cbe-ad7cb0643f1d",
+                    "versionUuid" : "2cd2a6bb-0478-4486-b206-c40a98226c3c",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25697,7 +25868,7 @@
                     "meta" : {
                       "abc" : "cdef"
                     },
-                    "versionUuid" : "38b847e2-d0a6-480f-82dd-ab193f432d02",
+                    "versionUuid" : "9dd0b7d2-b0d1-40a1-8d32-24789be911e5",
                     "versionNumber" : 2,
                     "name" : "my-pipeline",
                     "description" : "A sample pipeline",
@@ -25808,7 +25979,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "e6b6c38b-f3ea-4569-8448-7d0846d77e1c",
+                  "versionUuid" : "4329a211-4b3d-47ad-b360-5bb4cccb5ddc",
                   "versionNumber" : 2,
                   "name" : "my-pipeline",
                   "description" : "A sample pipeline",
@@ -25933,7 +26104,7 @@
                   "meta" : {
                     "abc" : "cdef"
                   },
-                  "versionUuid" : "4d0472c7-d990-4f87-9095-e0a0cac2bbd4",
+                  "versionUuid" : "245e1a57-0c27-4b48-8b7a-2e27fc8d8c44",
                   "versionNumber" : 2,
                   "name" : "restored-pipeline",
                   "description" : "Restored from version 1",
@@ -27384,6 +27555,930 @@
         "name" : "assetUuid",
         "in" : "path",
         "description" : "UUID of the referenced asset",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/remixes" : {
+      "description" : "Create a new remix, optionally with its members",
+      "get" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Load a paged list of remixes",
+        "description" : "Load a paged list of remixes",
+        "operationId" : "getRemixes",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The remix list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "Beach clip and its cuts",
+                    "description" : "The original beach clip plus the two edits cut from it.",
+                    "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "memberCount" : 3
+                  }, {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "status" : {
+                      "creator" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "created" : "2018-10-12T14:15:06Z",
+                      "editor" : {
+                        "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                        "name" : "joedoe"
+                      },
+                      "edited" : "2018-11-20T20:12:01Z"
+                    },
+                    "meta" : {
+                      "abc" : "cdef"
+                    },
+                    "name" : "Beach clip and its cuts",
+                    "description" : "The original beach clip plus the two edits cut from it.",
+                    "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "memberCount" : 3
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Create a new remix, optionally with its members",
+        "description" : "Create a new remix, optionally with its members",
+        "operationId" : "postRemixes",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "meta" : {
+                  "abc" : "cdef"
+                },
+                "name" : "Beach clip and its cuts",
+                "description" : "The original beach clip plus the two edits cut from it.",
+                "assetUuids" : [ "f04e89d0-076d-4d90-b192-715a25a2cd59", "86abc160-4da2-4951-a91f-da0c33fbc634" ],
+                "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The remix response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "Beach clip and its cuts",
+                  "description" : "The original beach clip plus the two edits cut from it.",
+                  "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "memberCount" : 3
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/remixes/{uuid}" : {
+      "description" : "Load a remix",
+      "get" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Load a remix",
+        "description" : "Load a remix",
+        "operationId" : "getRemixesByUuid",
+        "responses" : {
+          "200" : {
+            "description" : "The remix response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "Beach clip and its cuts",
+                  "description" : "The original beach clip plus the two edits cut from it.",
+                  "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "memberCount" : 3
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Update a remix",
+        "description" : "Update a remix",
+        "operationId" : "postRemixesByUuid",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "meta" : {
+                  "abc" : "cdef"
+                },
+                "name" : "Beach clip and its cuts",
+                "description" : "The original beach clip plus the two edits cut from it.",
+                "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The remix response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "Beach clip and its cuts",
+                  "description" : "The original beach clip plus the two edits cut from it.",
+                  "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "memberCount" : 3
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Delete a remix",
+        "description" : "Delete a remix",
+        "operationId" : "deleteRemixesByUuid",
+        "responses" : {
+          "204" : {
+            "description" : "The delete response"
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/remixes/{uuid}/assets" : {
+      "description" : "Load a paged list of the assets in the remix",
+      "get" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Load a paged list of the assets in the remix",
+        "description" : "Load a paged list of the assets in the remix",
+        "operationId" : "getRemixesByUuidAssets",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "description" : "Filter the elements",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "name[eq]=joedoe"
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Limit the page size",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "25"
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "description" : "Seek to the element with the given UUID",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "e829f0f1-4775-4857-a326-850440cf9577"
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "description" : "Sort the elements by the provided field",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "username"
+        }, {
+          "name" : "dir",
+          "in" : "query",
+          "description" : "Sort order direction",
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "ASCENDING"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "The remix member list response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "data" : [ {
+                    "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                    "assetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                    "role" : "SOURCE",
+                    "ordinal" : 0,
+                    "filename" : "beach.mp4",
+                    "mimeType" : "video/mp4",
+                    "sha512sum" : "0e3e75234abc68f4378a86b3f4b32a198ba301845b0cd6e50106e874345700cc6663a86c1ea125dc5e92be17c98f9a0f85ca9d5f595db2012f7cc3571945c123",
+                    "size" : 4711,
+                    "added" : 1.78652973E9,
+                    "addedBy" : "86abc160-4da2-4951-a91f-da0c33fbc634"
+                  } ],
+                  "_metainfo" : {
+                    "perPage" : 2,
+                    "totalCount" : 28
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Add one or more assets to the remix",
+        "description" : "Add one or more assets to the remix",
+        "operationId" : "postRemixesByUuidAssets",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuids" : [ "86abc160-4da2-4951-a91f-da0c33fbc634" ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The remix response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "Beach clip and its cuts",
+                  "description" : "The original beach clip plus the two edits cut from it.",
+                  "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "memberCount" : 3
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/remixes/{uuid}/assets/{assetUuid}" : {
+      "description" : "Remove an asset from the remix",
+      "delete" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Remove an asset from the remix",
+        "description" : "Remove an asset from the remix",
+        "operationId" : "deleteRemixesByUuidAssetsByAssetUuid",
+        "responses" : {
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      }, {
+        "name" : "assetUuid",
+        "in" : "path",
+        "description" : "UUID of the referenced asset",
+        "required" : true,
+        "schema" : {
+          "type" : "string",
+          "format" : "uuid"
+        }
+      } ]
+    },
+    "/api/v1/remixes/{uuid}/source" : {
+      "description" : "Set which member asset is the source of the remix",
+      "post" : {
+        "tags" : [ "remixes" ],
+        "summary" : "Set which member asset is the source of the remix",
+        "description" : "Set which member asset is the source of the remix",
+        "operationId" : "postRemixesByUuidSource",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "example" : {
+                "assetUuids" : [ "86abc160-4da2-4951-a91f-da0c33fbc634" ]
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "The remix response",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "uuid" : "0f3332a6-e404-4777-88a9-1fa984a311bc",
+                  "status" : {
+                    "creator" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "created" : "2018-10-12T14:15:06Z",
+                    "editor" : {
+                      "uuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                      "name" : "joedoe"
+                    },
+                    "edited" : "2018-11-20T20:12:01Z"
+                  },
+                  "meta" : {
+                    "abc" : "cdef"
+                  },
+                  "name" : "Beach clip and its cuts",
+                  "description" : "The original beach clip plus the two edits cut from it.",
+                  "sourceAssetUuid" : "f04e89d0-076d-4d90-b192-715a25a2cd59",
+                  "memberCount" : 3
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Bad request - validation error or malformed path/query parameter",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Unauthorized - the token is missing, expired or invalid",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Forbidden - the user lacks the required permission",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found - no such resource",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "500" : {
+            "description" : "Internal server error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "parameters" : [ {
+        "name" : "uuid",
+        "in" : "path",
+        "description" : "UUID of the resource",
         "required" : true,
         "schema" : {
           "type" : "string",

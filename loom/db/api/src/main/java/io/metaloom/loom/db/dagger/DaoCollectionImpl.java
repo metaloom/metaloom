@@ -14,6 +14,7 @@ import io.metaloom.loom.db.model.blacklist.BlacklistDao;
 import io.metaloom.loom.db.model.chat.ChatDao;
 import io.metaloom.loom.db.model.cluster.ClusterDao;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.remix.RemixDao;
 import io.metaloom.loom.db.model.cortex.CortexInstanceDao;
 import io.metaloom.loom.db.model.comment.CommentDao;
 import io.metaloom.loom.db.model.detection.DetectionDao;
@@ -59,6 +60,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	private final Lazy<AssetBinaryDao> assetBinaryDao;
 	private final Lazy<AttachmentDao> attachmentDao;
 	private final Lazy<CollectionDao> collectionDao;
+	private final Lazy<RemixDao> remixDao;
 	private final Lazy<ShareDao> shareDao;
 	private final Lazy<ShareFeedbackDao> shareFeedbackDao;
 	private final Lazy<LibraryDao> libraryDao;
@@ -96,7 +98,7 @@ public class DaoCollectionImpl implements DaoCollection {
 	public DaoCollectionImpl(Lazy<UserDao> userDao, Lazy<PermissionDao> permissionDao,
 		Lazy<RoleDao> roleDao, Lazy<GroupDao> groupDao, Lazy<AssetBinaryDao> assetBinaryDao, Lazy<AssetDao> assetDao,
 		Lazy<AssetComponentDao> assetComponentDao, Lazy<AssetNodeResultDao> assetNodeResultDao,
-		Lazy<CollectionDao> collectionDao, Lazy<LibraryDao> libraryDao,
+		Lazy<CollectionDao> collectionDao, Lazy<RemixDao> remixDao, Lazy<LibraryDao> libraryDao,
 		Lazy<ShareDao> shareDao, Lazy<ShareFeedbackDao> shareFeedbackDao,
 		Lazy<AnnotationDao> annotationDao, Lazy<TaskDao> taskDao, Lazy<ReactionDao> reactionDao,
 		Lazy<BlacklistDao> blacklistDao, Lazy<CommentDao> commentDao, Lazy<SpaceDao> spaceDao,
@@ -121,6 +123,7 @@ public class DaoCollectionImpl implements DaoCollection {
 		this.assetBinaryDao = assetBinaryDao;
 		this.libraryDao = libraryDao;
 		this.collectionDao = collectionDao;
+		this.remixDao = remixDao;
 		this.shareDao = shareDao;
 		this.shareFeedbackDao = shareFeedbackDao;
 		this.annotationDao = annotationDao;
@@ -212,6 +215,11 @@ public class DaoCollectionImpl implements DaoCollection {
 	@Override
 	public CollectionDao collectionDao() {
 		return collectionDao.get();
+	}
+
+	@Override
+	public RemixDao remixDao() {
+		return remixDao.get();
 	}
 
 	@Override

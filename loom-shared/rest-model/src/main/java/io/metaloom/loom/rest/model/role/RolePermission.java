@@ -86,6 +86,19 @@ public enum RolePermission {
 	DELETE_COLLECTION,
 	UPDATE_COLLECTION,
 
+	// Remix
+	CREATE_REMIX,
+	READ_REMIX,
+	DELETE_REMIX,
+	UPDATE_REMIX,
+
+	// Share link. Mirrored late: V2.96 added these to the database enum and to Permission without
+	// mirroring them here, which left them ungrantable over the REST API and RolePermissionParityTest red.
+	CREATE_SHARE,
+	READ_SHARE,
+	DELETE_SHARE,
+	UPDATE_SHARE,
+
 	// Comment
 	CREATE_COMMENT,
 	READ_COMMENT,

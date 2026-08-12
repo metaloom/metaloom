@@ -83,6 +83,9 @@ import io.metaloom.loom.db.model.person.PersonDao;
 import io.metaloom.loom.db.model.collection.Collection;
 import io.metaloom.loom.auth.AuthenticationService;
 import io.metaloom.loom.db.model.collection.CollectionDao;
+import io.metaloom.loom.db.model.remix.Remix;
+import io.metaloom.loom.db.model.remix.RemixDao;
+import io.metaloom.loom.db.model.remix.RemixRole;
 import io.metaloom.loom.db.model.share.Share;
 import io.metaloom.loom.db.model.share.ShareAnnotation;
 import io.metaloom.loom.db.model.share.ShareAnnotationKind;
@@ -184,6 +187,11 @@ public class DemoDatabaseInitializer {
 	private static final String DEMO_POOL_ARCHIVE = "Archive S3";
 
 	/**
+	 * Name of the demo remix. Fixed so the documentation and the screenshot script can name the same thing the demo container shows.
+	 */
+	private static final String DEMO_REMIX_NAME = "Coastal drone — cuts";
+
+	/**
 	 * Fixed slugs for the two demo share links.
 	 *
 	 * <p>
@@ -235,6 +243,7 @@ public class DemoDatabaseInitializer {
 	private final ChatSessionDao chatSessionDao;
 	private final MemoryEntryDao memoryEntryDao;
 	private final DedupGroupDao dedupGroupDao;
+	private final RemixDao remixDao;
 	private final ShareDao shareDao;
 	private final ShareFeedbackDao shareFeedbackDao;
 	private final AuthenticationService authService;
@@ -253,13 +262,14 @@ public class DemoDatabaseInitializer {
 		AssetComponentDao assetComponentDao, ChatDao chatDao, PipelineVersionDao pipelineVersionDao,
 		PipelineRunDao pipelineRunDao, AssetBinaryDao assetBinaryDao, SkillDao skillDao, SkillVersionDao skillVersionDao,
 		ChatSessionDao chatSessionDao, MemoryEntryDao memoryEntryDao, DedupGroupDao dedupGroupDao, AttachmentDao attachmentDao,
-		ShareDao shareDao, ShareFeedbackDao shareFeedbackDao, AuthenticationService authService, LoomOptions options) {
+		ShareDao shareDao, ShareFeedbackDao shareFeedbackDao, RemixDao remixDao, AuthenticationService authService, LoomOptions options) {
 		this.userDao = userDao;
 		this.assetDao = assetDao;
 		this.spaceDao = spaceDao;
 		this.tagDao = tagDao;
 		this.collectionDao = collectionDao;
 		this.shareDao = shareDao;
+		this.remixDao = remixDao;
 		this.shareFeedbackDao = shareFeedbackDao;
 		this.authService = authService;
 		this.libraryDao = libraryDao;
@@ -972,6 +982,9 @@ public class DemoDatabaseInitializer {
 		// --- Deduplication review queue ---
 		seedDemoDedupGroup(admin, videoAssets[0]);
 
+		// --- Remix: an original and the two cuts made from it ---
+		seedDemoRemix(admin, videoAssets[0], videoAssets[1], imageAssets[0]);
+
 		// --- Customer-facing share links ---
 		seedDemoShares(admin, videosCollection, videoAssets[0]);
 
@@ -1371,6 +1384,29 @@ public class DemoDatabaseInitializer {
 		assetDao.store(asset);
 		log.info("Created demo asset: {}", filename);
 		return asset;
+	}
+
+	/**
+	 * One remix, so the asset browser has a remix card to show on first boot.
+	 *
+	 * <p>
+	 * Modelled on the realistic case rather than the minimal one: a source video, a second video cut from it, and a still pulled out of it. That mix
+	 * is the point - a remix groups things that are versions of one another regardless of media type, which is what distinguishes it from a
+	 * collection (a topic) and from a dedup group (the same bytes twice).
+	 * </p>
+	 */
+	private Remix seedDemoRemix(User admin, Asset source, Asset derivedVideo, Asset derivedStill) {
+		Remix remix = remixDao.createRemix(admin.getUuid(), DEMO_REMIX_NAME);
+		remix.setUuid(UUIDUtils.randomUUID());
+		remix.setDescription("The original coastal drone footage, the shorter cut made from it, and a still frame pulled out of that cut.");
+		remixDao.store(remix);
+
+		remixDao.linkAsset(remix.getUuid(), source.getUuid(), RemixRole.SOURCE, 0, admin.getUuid());
+		remixDao.linkAsset(remix.getUuid(), derivedVideo.getUuid(), RemixRole.DERIVED, 1, admin.getUuid());
+		remixDao.linkAsset(remix.getUuid(), derivedStill.getUuid(), RemixRole.DERIVED, 2, admin.getUuid());
+
+		log.info("Created demo remix: {} ({} members)", DEMO_REMIX_NAME, remixDao.countAssets(remix.getUuid()));
+		return remix;
 	}
 
 	/**

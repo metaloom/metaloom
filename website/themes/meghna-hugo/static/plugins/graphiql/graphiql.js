@@ -1,8 +1,9 @@
 // Mounts a GraphiQL explorer into #graphiql, if present on the page.
 //
-// This mirrors plugins/swagger/swagger.js: the script is loaded on every page
-// (declared globally in config.toml) so it MUST bail out when its mount point is
-// absent, otherwise it would render into null and throw site-wide.
+// This mirrors plugins/swagger/swagger.js: the script is loaded only by the pages that
+// declare it in `page_js` front matter. The bail-out stays regardless — it costs nothing
+// and it is what stops a stray mount div, or a page listing the bundle without one, from
+// rendering into null and throwing.
 //
 // On the static website there is no backend, so the schema is built in-browser
 // from the staged SDL (`GraphiQL.GraphQL.buildSchema`) and query execution is

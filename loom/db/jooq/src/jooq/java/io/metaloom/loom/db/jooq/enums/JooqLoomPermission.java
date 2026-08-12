@@ -307,7 +307,15 @@ public enum JooqLoomPermission implements EnumType {
 
     UPDATE_SHARE("UPDATE_SHARE"),
 
-    DELETE_SHARE("DELETE_SHARE");
+    DELETE_SHARE("DELETE_SHARE"),
+
+    READ_REMIX("READ_REMIX"),
+
+    CREATE_REMIX("CREATE_REMIX"),
+
+    UPDATE_REMIX("UPDATE_REMIX"),
+
+    DELETE_REMIX("DELETE_REMIX");
 
     private final String literal;
 

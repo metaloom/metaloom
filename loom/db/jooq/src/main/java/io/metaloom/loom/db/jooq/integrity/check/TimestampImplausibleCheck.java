@@ -56,7 +56,7 @@ public final class TimestampImplausibleCheck extends AbstractSweepCheck {
 
 		return AuditedTables.ALL.stream()
 			.map(table -> branch(table,
-				AuditedTables.hasUuid(table) ? "t.\"uuid\"" : null,
+				"t.\"uuid\"",
 				"'created=' || t.\"created\" || ' edited=' || t.\"edited\"",
 				predicate))
 			.toList();

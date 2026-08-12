@@ -115,7 +115,7 @@ public interface SearchIndexer {                  // write side; Postgres binds 
 | Enum | Values | Note |
 |---|---|---|
 | `SearchCapability` | `LEXICAL PHRASE FUZZY HIGHLIGHT FACETS EXACT_TOTAL DEEP_PAGING SEMANTIC HYBRID SUGGEST` | Postgres never advertises `DEEP_PAGING`. It advertises `SEMANTIC` and `HYBRID` **only** when semantic search is enabled and both an embedding host and a vector index answer — see below |
-| `SearchEntityType` | `ASSET TRANSCRIPT TAG ANNOTATION PERSON COLLECTION LIBRARY DETECTION SEGMENT CLUSTER` | wire form = lowercase `id()` = `search_document.entity_type` |
+| `SearchEntityType` | `ASSET TRANSCRIPT TAG ANNOTATION PERSON COLLECTION REMIX LIBRARY DETECTION SEGMENT CLUSTER` | wire form = lowercase `id()` = `search_document.entity_type`. `REMIX` added by V2.103 |
 | `SearchMode` | `LEXICAL SEMANTIC HYBRID` | non-`LEXICAL` ⇒ 400 `SEARCH_UNSUPPORTED` **unless the matching capability is advertised** ([SEMANTIC_SEARCH.md](SEMANTIC_SEARCH.md)) |
 | `SearchSortMode` | `RELEVANCE NEWEST OLDEST NAME SIZE` | built into `ORDER BY` from the enum, never from input |
 
@@ -249,14 +249,36 @@ truncates at 512 KB and sets `body_truncated`. ⚠️ **The cap is hardcoded in 
 `LOOM_SEARCH_BODY_MAX_BYTES` mirrors it for the Java side but does **not** drive the trigger; changing
 one without the other silently desynchronises them.
 
-### 4.2 Triggers (`V2.59`)
+### 4.1b What feeds a `remix` document (`V2.103`)
+
+| Field | Source | Weight |
+|---|---|---|
+| `title` | `remix.name` | A |
+| `subtitle` | `remix.description` | B |
+| `keywords` | the `asset.filename` of every member, space-joined | D |
+
+The member filenames are the reason remixes are indexed at all rather than merely listed. People
+look for a group by naming a file in it, not by a group name they may never have chosen
+deliberately. Weight D keeps a filename match below a name match, so a remix *called* "Coastal
+drone" outranks one that merely *contains* `coastal-drone.mp4`.
+
+Three edits change the document, so three triggers reach it: the remix row, its membership, and the
+filename of any member (see §4.2).
+
+### 4.2 Triggers (`V2.59`, extended by `V2.103`)
 
 - `search_tg_refresh_by_asset_uuid()` — one generic function on `asset_location`, `asset_json_comp`,
   `asset_transcript_comp`, `asset_segment_comp`, `detection`, `tag_asset`, `library_asset`,
   `collection_asset`. Reads `asset_uuid` via `to_jsonb(OLD/NEW)`, refreshes old and new.
 - `search_tg_refresh_asset()` on `asset` (INSERT/UPDATE only — DELETE is the FK cascade).
-- `search_tg_refresh_entity('<type>')` on `tag`, `person`, `collection`, `library`, `cluster`, `annotation`.
+- `search_tg_refresh_entity('<type>')` on `tag`, `person`, `collection`, `library`, `cluster`,
+  `annotation`, `remix` (V2.103 replaced the function wholesale to add the last branch).
 - `search_tg_tag_fanout()` — a tag rename refreshes every asset carrying it (bounded fan-out).
+- `search_tg_refresh_remix_member()` on `remix_member` — keyed on `remix_uuid`, not `asset_uuid`:
+  the document being rebuilt belongs to the remix (V2.103).
+- `search_tg_remix_asset_fanout()` — an asset rename refreshes every remix holding it. Same shape and
+  reasoning as the tag fan-out; without it a rename leaves the remix findable under a filename that
+  no longer exists (V2.103).
 - `search_tg_tombstone()` / `search_tg_untombstone()` maintain `search_document_deleted`.
 - The migration ends with `SELECT search_document_rebuild();` as the backfill.
 
@@ -574,6 +596,7 @@ Every unchecked box below has a numbered work item in
 - [x] 84 tests green, incl. delete-cascade, rebuild-equals-incremental, type-narrowing permission case
 - [ ] `SearchDocumentCodegenTest` — never written (§8.2) — **Task 5**
 - [ ] Source coverage for annotation / person / collection / library / cluster documents (§8.2) — **Task 6**
+      (`remix` is covered, by `RemixSearchTest`: sources, all three staleness paths, and rebuild-equals-incremental)
 - [ ] `/search/suggestions` ranks by trigram similarity only — no dedicated prefix index
 - [ ] `/search/assets` returns `SearchResultResponse`, not `AssetResponse` — a UI grid cannot render it unchanged. Settled deliberately (one hit model, no subclassing); recorded here because it surprises every new client author
 - [ ] `DETECTION` and `SEGMENT` documents are not emitted; the labels/titles live in the owning asset's `keywords`, so the two types are accepted by the API but can never produce a hit — **Task 2**

@@ -79,6 +79,7 @@ public class SearchEndpointService extends AbstractEndpointService {
 		TYPE_PERMISSIONS.put(SearchEntityType.ANNOTATION, Permission.READ_ANNOTATION);
 		TYPE_PERMISSIONS.put(SearchEntityType.PERSON, Permission.READ_PERSON);
 		TYPE_PERMISSIONS.put(SearchEntityType.COLLECTION, Permission.READ_COLLECTION);
+		TYPE_PERMISSIONS.put(SearchEntityType.REMIX, Permission.READ_REMIX);
 		TYPE_PERMISSIONS.put(SearchEntityType.LIBRARY, Permission.READ_LIBRARY);
 		TYPE_PERMISSIONS.put(SearchEntityType.DETECTION, Permission.READ_DETECTION);
 		TYPE_PERMISSIONS.put(SearchEntityType.CLUSTER, Permission.READ_CLUSTER);

@@ -28,8 +28,8 @@ public final class DbIntegrityCodes {
 	/** {@code token.editor_uuid} names no user. V2.1 adds a foreign key for creator_uuid only. */
 	public static final String DANGLING_TOKEN_EDITOR = "DANGLING_TOKEN_EDITOR";
 
-	/** {@code asset_remix.editor_uuid} names no user. V2.8 repeats the V2.1 omission. */
-	public static final String DANGLING_ASSET_REMIX_EDITOR = "DANGLING_ASSET_REMIX_EDITOR";
+	// DANGLING_ASSET_REMIX_EDITOR was retired by V2.100: that migration dropped asset_remix, and the
+	// remix/remix_member tables replacing it declare foreign keys on both actor columns.
 
 	/** {@code vector_config.creator_uuid}/{@code editor_uuid} name no user. V2.6 declares no constraints at all. */
 	public static final String DANGLING_VECTOR_CONFIG_ACTOR = "DANGLING_VECTOR_CONFIG_ACTOR";

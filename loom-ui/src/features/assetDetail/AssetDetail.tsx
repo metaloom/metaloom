@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ShareDialog from "../share/ShareDialog";
+import AddToRemixDialog from "../remix/AddToRemixDialog";
+import { listAssetRemixes, type RemixResponse } from "../../api/remixes";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box, Typography, Chip, IconButton, Tab, Tabs,
@@ -15,7 +17,7 @@ import {
   ThumbUpAltOutlined, TaskAltOutlined, AccountTreeOutlined,
   FaceOutlined, SearchOutlined,
   MoreVertOutlined, SendOutlined, AddTaskOutlined,
-  CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined,
+  CollectionsOutlined, CropFreeOutlined, SaveOutlined, DeleteOutlineOutlined, LayersOutlined,
   DownloadOutlined, UploadFileOutlined, LinkOutlined,
   StorageOutlined, LockOutlined, LaunchOutlined,
   CenterFocusStrongOutlined, CheckOutlined, AddOutlined, ShareOutlined } from "@mui/icons-material";
@@ -147,6 +149,9 @@ export default function AssetDetail() {
   // Create-task dialog (creates a task and assigns it to this asset)
   const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  /** The remixes this asset takes part in - rendered as chips beside the collection chips. */
+  const [assetRemixes, setAssetRemixes] = useState<RemixResponse[]>([]);
+  const [addToRemixOpen, setAddToRemixOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskPriority, setTaskPriority] = useState("MEDIUM");
@@ -174,6 +179,7 @@ export default function AssetDetail() {
   const [pipelineMenuAnchor, setPipelineMenuAnchor] = useState<null | HTMLElement>(null);
   const { showToast } = useToast();
   const { t: tCommon } = useTranslation();
+  const { t: tRemix } = useTranslation("translation", { keyPrefix: "remix" });
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -210,6 +216,12 @@ export default function AssetDetail() {
       setAssetCollections((resp.collections ?? []).map(c => ({ uuid: c.uuid, name: c.name })));
       // Storage locations of the binary (path / pool / state / license)
       setAssetLocations(resp.locations ?? []);
+      // Remix membership is its own route: the asset response has no remixes field, and adding one
+      // would make every asset read pay for a join most callers do not want.
+      listAssetRemixes(token, id)
+        .then(r => setAssetRemixes(r.data ?? []))
+        // 403 for a caller without READ_REMIX. The chips just do not appear.
+        .catch(() => setAssetRemixes([]));
       // Extract annotations from the asset response
       const restAnnotations: Annotation[] = (resp.annotations ?? []).map((a: AnnotationResponseItem) => annotationResponseToAnnotation(a, id));
       setAnnotations(restAnnotations);
@@ -805,6 +817,20 @@ export default function AssetDetail() {
                 sx={{ height: 16, fontSize: "0.65rem", bgcolor: `${tokens.primary.main}22`, color: tokens.primary.main, "& .MuiChip-icon": { color: tokens.primary.main } }}
               />
             ))}
+            {/* Remix chips. Clicking one goes back to the asset browser with that remix open -
+                the same ?remix= deep link the grid writes, so there is one way in. */}
+            {assetRemixes.map(r => (
+              <Chip
+                key={r.uuid}
+                data-testid="asset-remix-chip"
+                icon={<LayersOutlined sx={{ fontSize: 10 }} />}
+                label={r.name}
+                size="small"
+                clickable
+                onClick={() => navigate(`/assets?remix=${encodeURIComponent(r.uuid)}`)}
+                sx={{ height: 16, fontSize: "0.65rem", bgcolor: `${tokens.primary.main}18`, color: tokens.primary.light, "& .MuiChip-icon": { color: tokens.primary.light } }}
+              />
+            ))}
           </Box>
         </Box>
         {/* Save filename/meta */}
@@ -854,6 +880,10 @@ export default function AssetDetail() {
           <MenuItem data-testid="asset-task-create-menu-item" onClick={() => { setActionMenuAnchor(null); setTaskCreateOpen(true); }}>
             <ListItemIcon><AddTaskOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tAD("action.createTask")}</ListItemText>
+          </MenuItem>
+          <MenuItem data-testid="asset-add-to-remix-menu-item" onClick={() => { setActionMenuAnchor(null); setAddToRemixOpen(true); }}>
+            <ListItemIcon><LayersOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
+            <ListItemText primaryTypographyProps={{ fontSize: "0.85rem" }}>{tRemix("action.addTo")}</ListItemText>
           </MenuItem>
           <MenuItem data-testid="asset-transcript-create-menu-item" onClick={() => { setActionMenuAnchor(null); setTranscriptAddOpen(true); }}>
             <ListItemIcon><AddOutlined sx={{ fontSize: 16 }} /></ListItemIcon>
@@ -1756,6 +1786,17 @@ export default function AssetDetail() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <AddToRemixDialog
+        open={addToRemixOpen}
+        assetUuid={id ?? ""}
+        onClose={() => setAddToRemixOpen(false)}
+        onAdded={() => {
+          if (token && id) {
+            listAssetRemixes(token, id).then(r => setAssetRemixes(r.data ?? [])).catch(() => undefined);
+          }
+        }}
+      />
 
       {shareOpen && (
         <ShareDialog

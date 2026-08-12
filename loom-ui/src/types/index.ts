@@ -447,6 +447,7 @@ export type SearchEntityType =
   | "annotation"
   | "person"
   | "collection"
+  | "remix"
   | "library"
   | "detection"
   | "segment"
@@ -455,7 +456,7 @@ export type SearchEntityType =
 /** Every type the API accepts as `types=` input. */
 export const SEARCH_ENTITY_TYPES: readonly SearchEntityType[] = [
   "asset", "transcript", "tag", "annotation", "person",
-  "collection", "library", "detection", "segment", "cluster",
+  "collection", "remix", "library", "detection", "segment", "cluster",
 ];
 
 /**

@@ -106,7 +106,10 @@
       "image": "Image",
       "audio": "Audio",
       "document": "Document",
-      "clear": "Clear filters"
+      "clear": "Clear filters",
+      "remix": "Remixes",
+      "remixCount_one": "{{count}} remix",
+      "remixCount_other": "{{count}} remixes"
     },
     "tooltip": {
       "small": "Small — thumbnail only",
@@ -131,7 +134,8 @@
       "delete": "Delete",
       "apply": "Apply",
       "bulkTag": "Tag",
-      "bulkDelete": "Delete"
+      "bulkDelete": "Delete",
+      "moreActions": "More actions"
     },
     "select": {
       "count": "{{count}} selected"
@@ -765,6 +769,14 @@
         "READ_COLLECTION": "View collections — curated sets of assets.",
         "DELETE_COLLECTION": "Delete collections — curated sets of assets.",
         "UPDATE_COLLECTION": "Edit existing collections — curated sets of assets.",
+        "CREATE_REMIX": "Create new remixes — named groups of assets that are versions of one another.",
+        "READ_REMIX": "View remixes and the assets in them.",
+        "DELETE_REMIX": "Delete remixes. The assets in them are not affected.",
+        "UPDATE_REMIX": "Rename remixes and change which assets belong to them.",
+        "CREATE_SHARE": "Create share links that publish an asset or collection to somebody outside this installation.",
+        "READ_SHARE": "View share links and the feedback left through them.",
+        "DELETE_SHARE": "Revoke share links.",
+        "UPDATE_SHARE": "Change a share link — its expiry, password or what visitors may do.",
         "CREATE_COMMENT": "Create new comments — user comments on assets.",
         "READ_COMMENT": "View comments — user comments on assets.",
         "DELETE_COMMENT": "Delete comments — user comments on assets.",
@@ -2097,6 +2109,7 @@
       "annotation": "Annotations",
       "person": "People",
       "collection": "Collections",
+      "remix": "Remixes",
       "library": "Libraries",
       "cluster": "Clusters",
       "detection": "Detections",
@@ -2264,6 +2277,56 @@
     },
     "action": {
       "share": "Share"
+    }
+  },
+  "remix": {
+    "card": {
+      "badge": "Remix",
+      "members_one": "{{count}} asset",
+      "members_other": "{{count}} assets"
+    },
+    "action": {
+      "combine": "Combine into remix",
+      "addTo": "Add to remix…"
+    },
+    "dialog": {
+      "createTitle": "Create a remix",
+      "createHint_one": "Group the {{count}} selected asset into a named remix.",
+      "createHint_other": "Group the {{count}} selected assets into a named remix.",
+      "createSubmit": "Create remix",
+      "nameLabel": "Remix name",
+      "empty": "This remix has no assets yet.",
+      "delete": "Delete remix",
+      "pickTitle": "Add to remix",
+      "pickHint": "Choose an existing remix, or type a name to create a new one.",
+      "pickLabel": "Remix",
+      "pickSubmit": "Add"
+    },
+    "member": {
+      "makeSource": "Make this the original",
+      "isSource": "This is the original",
+      "sourceLabel": "Original",
+      "remove": "Remove from remix"
+    },
+    "detail": {
+      "title": "Remixes",
+      "none": "Not part of any remix."
+    },
+    "toast": {
+      "created_one": "Remix created with {{count}} asset",
+      "created_other": "Remix created with {{count}} assets",
+      "renamed": "Remix renamed",
+      "deleted": "Remix deleted",
+      "added": "Added to remix"
+    },
+    "error": {
+      "create": "Could not create the remix",
+      "load": "Could not load the remix",
+      "rename": "Could not rename the remix",
+      "delete": "Could not delete the remix",
+      "removeMember": "Could not remove the asset from the remix",
+      "setSource": "Could not change the original",
+      "add": "Could not add the asset to the remix"
     }
   }
 }

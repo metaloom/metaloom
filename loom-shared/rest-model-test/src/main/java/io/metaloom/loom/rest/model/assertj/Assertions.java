@@ -12,6 +12,7 @@ import io.metaloom.loom.rest.model.common.AbstractListResponse;
 import io.metaloom.loom.rest.model.embedding.EmbeddingResponse;
 import io.metaloom.loom.rest.model.group.GroupResponse;
 import io.metaloom.loom.rest.model.collection.CollectionResponse;
+import io.metaloom.loom.rest.model.remix.RemixResponse;
 import io.metaloom.loom.rest.model.share.ShareResponse;
 import io.metaloom.loom.rest.model.library.LibraryResponse;
 import io.metaloom.loom.rest.model.person.PersonResponse;
@@ -91,6 +92,10 @@ public class Assertions extends org.assertj.core.api.Assertions {
 
 	public static ShareModelAssert assertThat(ShareResponse model) {
 		return new ShareModelAssert(model);
+	}
+
+	public static RemixModelAssert assertThat(RemixResponse model) {
+		return new RemixModelAssert(model);
 	}
 
 	public static CollectionModelAssert assertThat(CollectionResponse model) {

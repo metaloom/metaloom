@@ -43,7 +43,7 @@ public final class TimestampEditedBeforeCreatedCheck extends AbstractSweepCheck 
 	private static List<String> branches() {
 		return AuditedTables.ALL.stream()
 			.map(table -> branch(table,
-				AuditedTables.hasUuid(table) ? "t.\"uuid\"" : null,
+				"t.\"uuid\"",
 				"'created=' || t.\"created\" || ' edited=' || t.\"edited\"",
 				"t.\"edited\" < t.\"created\""))
 			.toList();

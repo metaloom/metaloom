@@ -486,47 +486,6 @@ must stay green if the generator is touched.
 
 ---
 
-## Task 16: Load Swagger UI and GraphiQL only on the pages that use them
-
-**Argumentation Summary:** Both plugins are registered in `config.toml` under `[[params.plugins.js]]`
-and `[[params.plugins.css]]`, so every page on the site — all ~90 of them, including every node page
-and the marketing front door — downloads and parses roughly a megabyte of JavaScript that two pages
-use. Both scripts already have to bail out when their mount div is absent, which is a workaround for
-the same problem. The docs are also the part of the site most likely to be read on a slow connection
-from a phone, and the reader has already paid for a 7 MB search model on the pages that use it.
-
-**Improvement Summary:** Move the two plugin bundles from the global plugin lists to per-page assets,
-using the same `page_css`-style mechanism the theme already has for page-scoped stylesheets.
-
-```
-1. Remove the swagger (3 js + 1 css) and graphiql (4 js + 1 css) entries from the
-   [[params.plugins.js]] / [[params.plugins.css]] lists in website/config.toml. Leave nodeviz and
-   detectionplayer global — they are small and used across many docs pages.
-2. Add a front-matter-driven per-page hook in the theme, mirroring the existing page_css convention:
-   a `page_js:` (list) key read in layouts/_default/baseof.html (or the docs single layout), emitting
-   the scripts only for pages that declare it.
-3. Declare the bundles on the two pages:
-   - website/content/english/docs/loom/rest-api/index.adoc  -> the three swagger js + swagger css
-   - website/content/english/docs/loom/graphql-api/index.adoc -> the four graphiql js + css
-4. KEEP the bail-out guards in plugins/swagger/swagger.js and plugins/graphiql/graphiql.js. They are
-   cheap and they are what stops a copy-pasted mount div from throwing site-wide.
-5. Verify the two explorers still work: /docs/loom/rest-api/ must load the Swagger UI with
-   docExpansion:'none', filter:true, deepLinking:true, persistAuthorization and validatorUrl: null
-   (the site must never ship a reader's spec to validator.swagger.io), and /docs/loom/graphql-api/
-   must build its schema offline from the staged SDL.
-6. Confirm #swagger-ui keeps its own light surface from custom.less — the CSS is now loaded on one
-   page only, so a rule that relied on it being global will break.
-7. Update spec/website/WEBSITE.md § Swagger UI / GraphiQL wiring (it currently states both are loaded
-   on every page and explains why the guards exist) and drop the § Known gaps entry.
-```
-
-**References:** [WEBSITE.md](../website/WEBSITE.md) § *Swagger UI / GraphiQL wiring*, § *Content
-conventions* (`page_css`) · `website/config.toml` lines 51–89
-**Test Requirements:** `cd website && ./build.sh`. Then serve `dist/` and check with
-Playwright/Chromium under `loom-ui/`: `/docs/loom/rest-api/` renders operations, `/docs/loom/graphql-api/`
-renders the explorer, and a third page (e.g. `/docs/nodes/facedetect/`) reports **no** swagger or
-graphiql request in the network log and no console errors.
-
 ---
 
 ## Related task files

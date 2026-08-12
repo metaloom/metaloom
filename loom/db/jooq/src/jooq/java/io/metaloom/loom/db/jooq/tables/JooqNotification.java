@@ -304,7 +304,7 @@ public class JooqNotification extends TableImpl<JooqNotificationRecord> {
     @Override
     public List<Check<JooqNotificationRecord>> getChecks() {
         return Arrays.asList(
-            Internal.createCheck(this, DSL.name("notification_type_check"), "(((type)::text = ANY ((ARRAY['TASK_ASSIGNED'::character varying, 'TASK_UNASSIGNED'::character varying, 'TASK_STATUS_CHANGED'::character varying, 'TASK_COMMENT'::character varying, 'COMMENT_REPLY'::character varying, 'PIPELINE_RUN_FAILED'::character varying, 'SHARE_FEEDBACK'::character varying])::text[])))", true)
+            Internal.createCheck(this, DSL.name("notification_type_check"), "(((type)::text = ANY ((ARRAY['TASK_ASSIGNED'::character varying, 'TASK_UNASSIGNED'::character varying, 'TASK_STATUS_CHANGED'::character varying, 'TASK_COMMENT'::character varying, 'COMMENT_REPLY'::character varying, 'PIPELINE_RUN_FAILED'::character varying, 'NODE_RUN_COMPLETED'::character varying, 'SHARE_FEEDBACK'::character varying])::text[])))", true)
         );
     }
 

@@ -21,6 +21,7 @@ It exposes a REST API over HTTP, a GraphQL API, and a gRPC API for managing digi
 * *Search Indices* — Inspecting, reindexing and syncing the search, face and duplicate indices. See link:search-indices[Search Indices].
 * *Storage Usage* — How much space each kind of content uses, and how full each storage backend is. See link:storage[Storage Usage].
 * *Sharing* — Send a link to somebody without a Loom account, and collect their feedback on it. See link:sharing[Sharing].
+* *Remixes* — Group the versions of one piece of work — the original, the cuts, the re-encodes — into a single card. See link:remixes[Remixes].
 * *Artifacts* — Maven coordinates, containers and the Helm chart. See link:artifacts[Artifacts].
 * *Features* — Assets, users, groups, roles, tags, pipelines and more. See link:features[Features].
 * *Chat & AI Agent* — Conversational assistant with Sessions, Skills, Memory and an optional coding sandbox. See link:chat[Chat & AI Agent].
