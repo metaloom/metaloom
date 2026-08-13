@@ -1,5 +1,6 @@
 ---
 title: Database Integrity
+description: "The consistency checks the database cannot enforce on its own, the report that runs them, and how to read a finding."
 ---
 
 = Database Integrity

@@ -1,5 +1,6 @@
 ---
 title: Consistency
+description: "Tells a complete file from a truncated one before anything expensive runs on it."
 ---
 
 The consistency node checks that a media file is complete and not corrupt by counting **zero chunks**

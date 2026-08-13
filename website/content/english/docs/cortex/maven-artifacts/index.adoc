@@ -1,5 +1,6 @@
 ---
 title: Maven Artifacts
+description: "The Cortex Maven coordinates: the shared BOM, the core pipeline interfaces and the per-node modules."
 ---
 
 All Cortex artifacts are published under the `io.metaloom` group and should generally be consumed with the shared BOM.

@@ -1,5 +1,6 @@
 ---
 title: OCR
+description: "Reads the text off a scan or a screenshot so it can be searched."
 ---
 
 The OCR node extracts text from images and document scans using **Tesseract** (via Tess4J). The

@@ -1,5 +1,6 @@
 ---
 title: Tika
+description: "Gets metadata and embedded text out of very nearly any file format."
 ---
 
 The Tika node extracts **format metadata and embedded text** from virtually any file type using Apache

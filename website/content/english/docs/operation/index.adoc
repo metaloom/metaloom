@@ -1,5 +1,6 @@
 ---
 title: Operation
+description: "How Loom and Cortex behave together at runtime — who stores what, who drives a run, how workers register, and what a task looks like from both ends."
 weight: 4
 ---
 

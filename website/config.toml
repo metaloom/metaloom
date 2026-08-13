@@ -161,6 +161,10 @@ weight = 8
 ############################# Default Parameters ##########################
 [params]
 logo = "images/logo_word_big.svg"
+# Appended to the site name in the <title> and og:title of the home page only
+# (partials/func/page-title.html). A bare "MetaLoom" is a brand; the front door's title is the
+# one that has to say what the site is to a reader who has never heard of it.
+title_tagline = "Open Source Media Asset Platform"
 # Community link — used by the header icon and available to any page that needs it.
 discordLink = "https://discord.gg/3Dy2SxKUtw"
 # Base for the absolute URLs in the social metadata (partials/card.html). It duplicates

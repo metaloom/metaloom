@@ -1,5 +1,6 @@
 ---
 title: S3 Source
+description: "Feeds a pipeline from S3-compatible object storage."
 ---
 
 The S3 source is a **source node** — the entry point of a pipeline. Instead of processing a media

@@ -1,5 +1,6 @@
 ---
 title: Loom UI
+description: "A screenshot tour of the Loom UI, the browser interface bundled into the server itself — chat, assets, uploads, pipelines, faces and every administration screen."
 weight: 7
 ---
 

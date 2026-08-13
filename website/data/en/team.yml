@@ -1,19 +1,81 @@
-############################### team ############################
+############################### /team/ ##########################################
+# Copy only. Structure lives in themes/meghna-hugo/layouts/team/list.html, styling in the
+# "/team/" block of assets/css/home.css.
+#
+# This file used to be unrendered Meghna sample copy. It is now the source of a real page.
+#
+# The CV below is transcribed from https://jotschi.de and must stay in step with it — including
+# what it does NOT say: there is no entry between 2021 and 2023 there, and there is none here.
+# `note` lines are the role's own bullet points, not an interpretation of them. The MetaLoom row
+# is the exception and is sourced from this repository (the first blog post is dated 2021-05-12
+# and the footer's copyright starts the same year).
+
 team:
-  enable : true
-  title : The Developer
-  team_member :
-    - name : Johannes Schüth
-      image : images/team/js.jpg
-      image_webp : images/team/js.webp
-      designation : Developer
-      content : Johannes main focus is backend development but he does not mind devops and the occasional frontend development. He recharges his coding battery by outdoor photography or working on his IBM 5150. Besides retro computing his hobbies also include electronics and astronomy.
-      social :
-        - icon : ti-twitter-alt
-          link : "https://twitter.com/jotschi"
-        - icon : ti-linkedin
-          link : "https://www.linkedin.com/in/johannes-sch%C3%BCth-01a024156/"
-        - icon : ti-github
-          link : "https://github.com/jotschi"
-        - icon : ti-home
-          link : "https://jotschi.de"
+  title: "Who builds MetaLoom"
+  # Kept short on purpose: this is one person's page, and padding it with invented roles would be
+  # the first dishonest thing on the site.
+  intro: "MetaLoom is written by one developer. Everything on this site — the server, the processing engine, the UI, the documentation and this page — comes from the same desk in Vienna."
+
+  people:
+    - name: "Johannes Schüth"
+      role: "Developer · Vienna, Austria"
+      image: images/team/js.jpg
+      image_webp: images/team/js.webp
+      alt: "Portrait of Johannes Schüth"
+      bio: |-
+        Johannes' main focus is Java backend development, though he does not mind devops or the
+        occasional bit of frontend work. MetaLoom grew out of both halves of his day job — backend
+        systems and, more recently, running machine-learning workloads in production — and out of
+        a personal archive that had become too large to find anything in.
+
+        He recharges his coding battery with outdoor photography or by working on his IBM 5150.
+        Besides retro computing his hobbies include electronics and astronomy.
+      links:
+        - label: "jotschi.de"
+          icon: "ti-home"
+          link: "https://jotschi.de"
+        - label: "GitHub"
+          icon: "fab fa-github"
+          link: "https://github.com/jotschi"
+        - label: "LinkedIn"
+          icon: "ti-linkedin"
+          link: "https://www.linkedin.com/in/johannes-sch%C3%BCth-01a024156/"
+        - label: "Discord"
+          icon: "fab fa-discord"
+          link: "https://discord.gg/3Dy2SxKUtw"
+        - label: "jotschi@metaloom.io"
+          icon: "ti-email"
+          link: "mailto:jotschi@metaloom.io"
+
+      cv_title: "Curriculum vitae"
+      cv:
+        - when: "2021 — present"
+          what: "MetaLoom"
+          where: "Open source, Vienna"
+          note: "Author and maintainer: the Loom asset server, the Cortex processing engine, the web UI and this documentation."
+        - when: "2023 — present"
+          what: "Senior Software Developer"
+          where: "APA-IT, Austria"
+          note: "Backend development, AI/ML development, AI/ML ops."
+        - when: "2008 — 2021"
+          what: "Lead Developer"
+          where: "APA-IT (Gentics Software), Austria"
+          note: "Backend development, customer consulting, devops assistance, test development."
+        - when: "2007"
+          what: "Junior Developer"
+          where: "Swoppen, Germany"
+        - when: "2006 — 2007"
+          what: "Media Informatics"
+          where: "Albert Einstein University, Germany"
+        - when: "2005 — 2006"
+          what: "Civil service"
+          where: "Germany"
+        - when: "2002 — 2005"
+          what: "High school"
+          where: "Mauritius Gymnasium, Germany"
+
+  # Sits under the CV. There is no "join us" here because there is nothing to join yet; what there
+  # is, is a project that takes contributions.
+  outro:
+    title: "Working on it with him"
+    content: "MetaLoom is open source under the Apache License 2.0. Issues, pull requests and awkward questions are all welcome — the Discord is the fastest way to reach a person."

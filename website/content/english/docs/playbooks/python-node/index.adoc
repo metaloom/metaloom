@@ -1,5 +1,6 @@
 ---
 title: A Custom Node in Python
+description: "Add a processing node of your own, written in Python, and get Loom dispatching real pipeline work to it — no JVM build and no rebuild of the Cortex server."
 weight: 6
 ---
 

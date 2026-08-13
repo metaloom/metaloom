@@ -197,16 +197,105 @@ jQuery(function ($) {
 	}
 })();
 
-/* Site header: solidify the sticky navigation once the page is scrolled. Purely cosmetic —
-   the header is legible in either state. */
+/* Site header behaviour on scroll. Two effects, one scroll listener.
+ *
+ * 1. `.is-scrolled` (every viewport) solidifies the translucent bar and — see the "Site header"
+ *    block in custom.less — draws it in its compact state: less padding, a smaller logo, a shorter
+ *    search box. It is the same header, closer to the edge of the screen.
+ *
+ *    It is a SCHMITT TRIGGER, not a threshold: compact above COMPACT_AT, expand again only below
+ *    EXPAND_AT, and hold whatever it is between the two. A single threshold made the logo jitter,
+ *    and not only for the obvious reason that a reader hovering on the line flips it every few
+ *    pixels. The header is `position: sticky`, so it is IN FLOW: compacting it takes ~15px out of
+ *    the document, everything below moves up, and the browser's scroll anchoring corrects for that
+ *    by moving the scroll position back — across the same threshold, which expands the header,
+ *    which puts the 15px back, which trips the anchor again. That loop runs at frame rate off one
+ *    flick of the wheel. The band has to stay comfortably wider than the height the header gives
+ *    up (56px against 15px here), or it comes back.
+ *
+ * 2. `.is-hidden` (below the lg breakpoint only) slides the whole bar out of the way while the
+ *    reader is scrolling DOWN and brings it straight back on the first upward scroll. On a phone
+ *    the bar is a permanent ~15% of the viewport spent on navigation nobody is using mid-article;
+ *    reading is what the screen is for. It comes back on an upward flick, which is the gesture a
+ *    reader already makes when they want the chrome — so the bar is never more than one flick away
+ *    and there is no separate control to discover.
+ *
+ * Four states must NOT hide the bar, because the reader is using it: the hamburger panel is open,
+ * the search box has focus, the search overlay is up, or the page is scrolled to the very top
+ * (where hiding it would just make the first flick of a page load flicker).
+ *
+ * Everything here is decoration: with JavaScript off the header keeps its full-size, always-visible
+ * state, which is the state it is designed in.
+ */
 (function () {
 	var nav = document.querySelector('.navigation');
 	if (!nav) return;
 
+	var MOBILE = '(max-width: 991px)';
+	/* The two edges of the compact state. Anything between them keeps the state it already has. */
+	var COMPACT_AT = 80;
+	var EXPAND_AT = 24;
+	var TOP_ZONE = 90;   /* above this the bar always shows — one header's worth of page */
+	/* Asymmetric on purpose. Hiding needs only a deliberate downward scroll, but *showing* has to
+	   ignore the small upward corrections a page makes on its own — a late-loading image, a font
+	   swap or Chromium's scroll anchoring all nudge the offset back a few pixels, and a symmetric
+	   threshold made the bar reappear a moment after every flick, which reads as flicker. */
+	var HIDE_AFTER = 8;
+	var SHOW_AFTER = 26;
+
+	var lastY = window.pageYOffset || document.documentElement.scrollTop;
+	var up = 0, down = 0;
+	var compact = false;
+	var ticking = false;
+
+	function held() {
+		var panel = nav.querySelector('.navbar-collapse');
+		if (panel && panel.classList.contains('show')) return true;
+		if (document.body.classList.contains('docs-search-open')) return true;
+		var focused = document.activeElement;
+		return !!(focused && nav.contains(focused));
+	}
+
 	function sync() {
-		nav.classList.toggle('is-scrolled', (window.pageYOffset || document.documentElement.scrollTop) > 12);
+		var y = window.pageYOffset || document.documentElement.scrollTop;
+		var delta = y - lastY;
+		lastY = y;
+
+		if (compact) {
+			if (y < EXPAND_AT) compact = false;
+		} else if (y > COMPACT_AT) {
+			compact = true;
+		}
+		nav.classList.toggle('is-scrolled', compact);
+
+		/* Travel since the last direction change, not the size of one scroll event. A phone
+		   delivers a flick as dozens of small deltas, so a per-event threshold would never fire
+		   on a slow drag and would fire on every jitter. */
+		if (delta > 0) { up = 0; down += delta; }
+		else if (delta < 0) { down = 0; up -= delta; }
+
+		if (!window.matchMedia(MOBILE).matches || held() || y <= TOP_ZONE) {
+			nav.classList.remove('is-hidden');
+		} else if (down > HIDE_AFTER) {
+			nav.classList.add('is-hidden');
+		} else if (up > SHOW_AFTER) {
+			nav.classList.remove('is-hidden');
+		}
+
+		ticking = false;
+	}
+
+	function onScroll() {
+		if (ticking) return;
+		ticking = true;
+		window.requestAnimationFrame(sync);
 	}
 
 	sync();
-	window.addEventListener('scroll', sync, { passive: true });
+	window.addEventListener('scroll', onScroll, { passive: true });
+	/* A hidden bar must not stay hidden once the reason to hide it is gone: rotating to landscape
+	   can cross the breakpoint, and opening the menu or the search box is a request for it. */
+	window.addEventListener('resize', function () { lastY = window.pageYOffset; sync(); });
+	document.addEventListener('focusin', function () { if (held()) nav.classList.remove('is-hidden'); });
+	nav.addEventListener('click', function () { nav.classList.remove('is-hidden'); });
 })();

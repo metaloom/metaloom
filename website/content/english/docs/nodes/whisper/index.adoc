@@ -1,5 +1,6 @@
 ---
 title: Speech-to-Text (Whisper)
+description: "Turns the speech in your media into a transcript you can search."
 ---
 
 The Whisper node transcribes the audio track of a media file into text using a **Whisper**

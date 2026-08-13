@@ -1,5 +1,6 @@
 ---
 title: Metrics
+description: "The Prometheus meters a Cortex worker exposes, and what each one measures about the tasks it runs."
 ---
 
 = Cortex Metrics

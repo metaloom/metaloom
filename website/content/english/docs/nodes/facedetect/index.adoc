@@ -1,5 +1,6 @@
 ---
 title: Face Detection
+description: "Finds the faces in your media and sorts them into the people it believes it saw."
 ---
 
 The face detection node finds faces in images and video frames, computes a **face embedding** (a

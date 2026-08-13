@@ -1,5 +1,6 @@
 ---
 title: Watermark
+description: "Marks the media itself: a logo, a copyright line, a preview badge."
 ---
 
 The watermark node **stamps your own image onto an asset** — a logo, a copyright mark, a "preview"

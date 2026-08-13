@@ -1,11 +1,11 @@
 ---
 title: "Video Fingerprinting"
+description: "Experiments in generating perceptual video fingerprints, stage by stage, from a source frame to the hex value that identifies the footage."
 date: 2021-06-21T21:51:12+06:00
 image: "photo-1585079374502-415f8516dcc3.jpg"
 image_webp: "photo-1585079374502-415f8516dcc3.webp"
 image_credit: Photo by George Prentzas on Unsplash
 author: jotschi
-description : "In this post I want to share my experiments on how to generate video fingerprints."
 hidden: false
 ---
 
@@ -80,7 +80,7 @@ In order to speedup the process some of the frames after a taken frame will be o
 Resize the source frame to 512x512.
 
 .Source frame
-image::stage-1.jpg[]
+image::stage-1.jpg[The unmodified source frame at 512x512: a cartoon squirrel climbing a tree trunk, with a green meadow and pink blossom behind it]
 
 ### Stage 2 - Preparation
 
@@ -89,35 +89,35 @@ Blur the image and normalize again. Now stack the resulting frame with the previ
 Resize to 16x16 pixel
 
 .Reduced
-image::stage-2.jpg[]
+image::stage-2.jpg[The same frame in greyscale at 16x16, blurred and normalised — the tree is a dark band on the left, the sky a bright blur on the right, and no detail smaller than the trunk survives]
 
 ### Stage 3 - Normalize
 
 Normalize the image
 
 .Normalized
-image::stage-3.jpg[]
+image::stage-3.jpg[The 16x16 greyscale frame after normalisation: the same shapes with the bright areas pulled back and the contrast spread across the full grey range]
 
 ### Stage 4 - Stacking
 
 Stack the frame with the previously frame
 
 .Stacked
-image::stage-4.jpg[]
+image::stage-4.jpg[The frame stacked with its predecessor: the two 16x16 greyscale images averaged into one, so moving detail smears and the static trunk and horizon stay put]
 
 ### Stage 5 - Normalize
 
 Normalize the stacked image to reduce bright spots that may have been created due to stacking.
 
 .Normalized
-image::stage-5.jpg[]
+image::stage-5.jpg[The stacked frame after a second normalisation, which pulls back the bright spots stacking created]
 
 ### Stage 6 - Binary
 
 Convert grey values to one bit precision.
 
 .Result
-image::stage-6.jpg[]
+image::stage-6.jpg[The finished 16x16 mask reduced to one bit per pixel: pure black and white blocks, which read straight off as the bits of the fingerprint]
 
 The result image content gets converted into hex which forms the final fingerprint value.
 

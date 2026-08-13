@@ -1,5 +1,6 @@
 ---
 title: Metrics
+description: "The Prometheus meters the Loom server exposes on its dedicated monitoring port, and what each one measures."
 ---
 
 = Loom Metrics

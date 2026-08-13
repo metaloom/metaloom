@@ -1,5 +1,6 @@
 ---
 title: Storage Usage
+description: "See how much space the media, thumbnails, face crops and profile pictures take, and how much room is left in each storage pool."
 ---
 
 = Storage Usage

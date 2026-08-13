@@ -1,5 +1,6 @@
 ---
 title: VLM
+description: "Reads a picture with a vision model — including document pages, as clean markdown."
 ---
 
 The VLM node reads an image with a **vision-language model** served over an OpenAI-compatible

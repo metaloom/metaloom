@@ -1,5 +1,6 @@
 ---
 title: Scene Detection
+description: "Finds where a video cuts, and hands back the pieces between the cuts."
 ---
 
 The scene detection node finds **scene boundaries** (cuts) in a video using optical-flow analysis, and

@@ -1,5 +1,6 @@
 ---
 title: Filter
+description: "Sends each item down the branch it belongs to, so the rest of the graph runs on less."
 ---
 
 The Filter node is a **router**. Instead of producing metadata, it decides which group each item

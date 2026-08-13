@@ -1,11 +1,11 @@
 ---
 title: "Day2 - Project Setup"
+description: "The tooling behind the project, and a disclaimer about tooling arguments in general."
 date: 2021-05-16T14:51:12+06:00
 image: terry-vlisidis-WsEbnsnKbUE-unsplash.jpg
 image_webp: terry-vlisidis-WsEbnsnKbUE-unsplash.webp
 image_credit: Photo by Terry Vlisidis on Unsplash
 author: jotschi
-description : "Let's talk about the project setup."
 ---
 
 :icons: font

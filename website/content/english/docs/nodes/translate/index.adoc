@@ -1,5 +1,6 @@
 ---
 title: Translate
+description: "Moves text the pipeline produced into another language."
 ---
 
 The translate node **turns text your pipeline has already produced into another language**. Like

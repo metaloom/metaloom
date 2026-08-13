@@ -1,5 +1,6 @@
 ---
 title: Text-to-Speech (TTS)
+description: "Speaks any text the pipeline produced back onto the asset."
 ---
 
 The TTS node **generates narration audio from text**. Unlike the analysis nodes, which describe a

@@ -1,5 +1,6 @@
 ---
 title: Deploying with Docker
+description: "Build a production-shaped MetaLoom stack on a single host with Docker or Podman — PostgreSQL, the Loom server and Cortex workers in separate containers, with state that survives a restart."
 weight: 1
 ---
 

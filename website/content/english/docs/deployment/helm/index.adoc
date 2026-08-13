@@ -1,5 +1,6 @@
 ---
 title: Helm Charts
+description: "The two Helm charts MetaLoom ships — one for the Loom server, one for the Cortex workers — with their values, database options and verification steps."
 weight: 3
 ---
 

@@ -1022,12 +1022,59 @@ html { scrollbar-gutter: stable; }
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   backdrop-filter: blur(16px) saturate(150%);
   border-bottom: 1px solid rgba(255, 255, 255, .06);
-  transition: background-color .25s ease-in 0s, border-color .25s ease-in 0s, box-shadow .25s ease-in 0s;
+  transition: background-color .25s ease-in 0s, border-color .25s ease-in 0s, box-shadow .25s ease-in 0s,
+              transform .28s ease 0s;
 }
 .navigation.is-scrolled {
   background-color: rgba(11, 14, 19, .93);
   border-bottom-color: rgba(255, 255, 255, .09);
   box-shadow: 0 16px 40px -30px rgba(0, 0, 0, .9);
+}
+
+/* Scrolled = compact. The reader has left the top of the page, so the header stops introducing
+   the site and becomes a way back to it: less padding, a smaller logo, tighter links and a
+   shorter field. Every dimension animates from the same .25s, so it reads as one bar shrinking
+   rather than four things moving. Nothing is removed — a control that disappears on scroll is a
+   control the reader has to scroll back up to look for.
+
+   ⚠️ These rules change the header's HEIGHT, and the header is in flow (`position: sticky`), so
+   the whole document gets ~15px shorter when they apply. That is why `.is-scrolled` is switched
+   with a hysteresis band in assets/js/script.js rather than at a threshold: scroll anchoring
+   compensates for the shift by moving the scroll position, and a single threshold turns that into
+   a feedback loop that flickers the logo at frame rate. If the compact state is ever made
+   dramatically shorter, widen the band to match — it must stay well above the height given up. */
+.navigation.is-scrolled .navbar { padding: .3rem 0; }
+.navigation.is-scrolled .navbar-nav .nav-link { padding-bottom: 5px; padding-top: 5px; }
+.navigation.is-scrolled .navbar-nav .nav-link-icon {
+  height: 30px;
+  line-height: 28px;
+  width: 30px;
+}
+.navigation.is-scrolled .docs-search-input { padding-bottom: 5px; padding-top: 5px; }
+
+/* Below the lg breakpoint the bar slides away while the reader scrolls down and returns on the
+   first upward scroll (`.is-hidden`, set from assets/js/script.js, which also refuses to hide it
+   while the menu, the search box or the search overlay is in use). On a phone a permanent header
+   is ~15% of the viewport spent on navigation nobody is reading mid-article.
+
+   Desktop keeps its header at all times: there is room for it, and the box-shadow already tells
+   the reader the page is scrolled. */
+@media (max-width: 991px) {
+  .navigation.is-hidden {
+    transform: translateY(-100%);
+  }
+}
+
+/* The shrinking and the sliding are decoration; the two end states are not. A reader who has
+   asked for less motion still gets the compact bar and still gets it back on an upward scroll —
+   both just arrive without the tween. */
+@media (prefers-reduced-motion: reduce) {
+  .navigation,
+  .navigation .navbar,
+  .navigation .navbar-brand img,
+  .navigation .navbar-nav .nav-link {
+    transition: none;
+  }
 }
 /* Browsers without backdrop-filter get an opaque bar instead of a washed-out one. */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -1036,6 +1083,7 @@ html { scrollbar-gutter: stable; }
 
 .navigation .navbar {
   padding: .6rem 0;
+  transition: padding .25s ease-in 0s;
 }
 
 .navigation .navbar-brand img {
@@ -1043,7 +1091,7 @@ html { scrollbar-gutter: stable; }
   width: auto;
   transition: height .25s ease-in 0s, opacity .2s ease-in 0s;
 }
-.navigation.is-scrolled .navbar-brand img { height: 30px; }
+.navigation.is-scrolled .navbar-brand img { height: 28px; }
 .navigation .navbar-brand:hover img { opacity: .85; }
 
 .navbar-expand-lg .navbar-nav .nav-link {
@@ -1154,6 +1202,77 @@ html { scrollbar-gutter: stable; }
 }
 
 /* ==========================================================
+   Breadcrumb trail (partials/breadcrumb.html)
+
+   A single muted line under the header, on every page that has an ancestor above its section.
+   It is deliberately quiet: it is orientation, not navigation the reader came for, and it sits
+   directly above an <h1> that must stay the loudest thing on the page.
+
+   The trail scrolls inside itself rather than wrapping. `/docs/nodes/facedetect/` is already
+   four crumbs, and a wrapped trail on a phone pushes the title below the fold — while an
+   unwrapped one would widen the document and make the whole page scroll sideways.
+   ========================================================== */
+.breadcrumb-bar {
+  padding: 14px 0 0;
+}
+
+.breadcrumb-trail {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  padding: 0 0 2px;
+  list-style: none;
+  font-size: 0.79rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+
+  /* The bar is one line of small text; a scrollbar under it would be half its height. The
+     overflow is still reachable by touch, wheel-shift and keyboard focus. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.breadcrumb-trail::-webkit-scrollbar { display: none; }
+
+.breadcrumb-crumb {
+  flex: 0 0 auto;
+  color: var(--ml-muted);
+}
+
+.breadcrumb-crumb + .breadcrumb-crumb::before {
+  content: "›";
+  padding: 0 8px;
+  color: var(--ml-line-hi);
+}
+
+.breadcrumb-trail a {
+  color: var(--ml-muted);
+  text-decoration: none;
+  transition: color .18s ease-in 0s;
+}
+.breadcrumb-trail a:hover,
+.breadcrumb-trail a:focus-visible {
+  color: var(--ml-accent);
+  text-decoration: none;
+}
+
+.breadcrumb-current {
+  color: var(--ml-fg-dim);
+}
+
+@media (max-width: 767px) {
+  .breadcrumb-bar { padding-top: 10px; }
+  .breadcrumb-trail { font-size: 0.75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .breadcrumb-trail a { transition: none; }
+}
+
+/* ==========================================================
    Documentation search
 
    The box is the last thing in the header menu, right of Docs. The results panel is NOT in the
@@ -1259,6 +1378,126 @@ html { scrollbar-gutter: stable; }
   }
   .docs-search-hint {
     display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The phone overlay
+
+   Where the box sits when it is not being used is the right place for it: last in the hamburger
+   panel, next to Docs. It is the wrong place to *use* it from. That panel puts the field most of
+   a screen down, the software keyboard then takes the bottom half of what is left, and results
+   dropped under the field land in the strip that is left over — which is often no strip at all.
+
+   On focus, docs-search.js sets `docs-search-open` on <body> and the field moves to the top of
+   the screen with the results filling everything above the keyboard. The panel's height is set
+   from the *visual* viewport in the script, because the keyboard's height is not something CSS
+   can ask for.
+
+   This is a phone-only mode: at 992px and up the box stays in the bar and the panel keeps its
+   min(70vh, 560px).
+   --------------------------------------------------------------------------- */
+.docs-search-close {
+  display: none;
+}
+
+@media (max-width: 991px) {
+  /* Two properties of the header have to be switched off for the pinned field to work at all,
+     and both are easy to reintroduce by accident:
+
+     * `backdrop-filter` makes an element the containing block for its `position: fixed`
+       descendants. With it on, the field below would be pinned to the top of the *header*
+       rather than to the top of the *screen* — which looks identical until the header moves.
+     * `sticky-top`'s z-index makes the header a stacking context, which would cap the field at
+       1020 and let the body-level results panel (1040) paint straight over it.
+
+     Both are only suspended while the overlay is up. The header is completely covered by the
+     field bar at that point, so nothing about it is visible to lose. */
+  .docs-search-open .navigation {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: transparent;
+    border-bottom-color: transparent;
+    box-shadow: none;
+    z-index: 1050;
+  }
+
+  /* Raising the header to 1050 raises everything inside it, so the open hamburger panel — the
+     one the reader tapped the box from — would paint its whole menu over the results. While the
+     overlay is up the header IS the search bar: brand, toggle, links and the panel's own surface
+     all step out, leaving a zero-height strip behind the pinned field. They come straight back
+     when the overlay closes; nothing is unmounted. */
+  .docs-search-open .navigation .navbar-brand,
+  .docs-search-open .navigation .navbar-toggler,
+  .docs-search-open .navigation .navbar-nav {
+    display: none;
+  }
+  .docs-search-open .navigation .navbar { padding: 0; }
+  .docs-search-open .navigation .navbar-collapse {
+    background: none;
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  .docs-search-open .docs-search-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* Above the header (1030 in Bootstrap's sticky-top) and above the results panel's 1040 —
+       the field must stay reachable while the panel is scrolled. */
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 14px;
+    width: auto;
+    background: var(--ml-bg-alt);
+    border-bottom: 1px solid var(--ml-line-hi);
+  }
+
+  .docs-search-open .docs-search-input {
+    flex: 1 1 auto;
+    /* 16px, because anything smaller makes iOS Safari zoom the whole page on focus — which
+       moves the field the reader is typing into off the side of the screen. */
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+
+  .docs-search-open .docs-search-close {
+    display: block;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--ml-fg-dim);
+    background: transparent;
+    border: 1px solid var(--ml-line-hi);
+    border-radius: var(--ml-radius-sm);
+  }
+  .docs-search-open .docs-search-close:hover,
+  .docs-search-open .docs-search-close:focus-visible {
+    color: var(--ml-accent-bright);
+    border-color: var(--ml-accent);
+  }
+
+  /* Full-bleed results under the pinned field. The rounded floating card reads as a menu over a
+     page; at this size it is the page. */
+  .docs-search-open .docs-search-panel {
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, .6);
+  }
+
+  /* Three lines of snippet per row is a scannable list on a laptop and a wall of text on a
+     phone, where about four rows have to fit above the keyboard. */
+  .docs-search-open .dsr-snippet {
+    -webkit-line-clamp: 2;
   }
 }
 

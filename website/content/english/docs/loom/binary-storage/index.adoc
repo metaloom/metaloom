@@ -1,5 +1,6 @@
 ---
 title: Binary Storage
+description: "Where an asset's bytes live, how to get them in and back out, and the difference between uploading a file and referencing one that already exists on disk."
 ---
 
 Every asset in Loom has two halves: the *record* — filename, hashes, tags, everything a pipeline

@@ -1,5 +1,6 @@
 ---
 title: MCP Server
+description: "Loom speaks the Model Context Protocol, so an AI client can search your media, read an asset, explain a pipeline or run a node against a file."
 ---
 
 Loom speaks the **Model Context Protocol (MCP)** — the open protocol AI clients use to reach the

@@ -1,6 +1,8 @@
 <head>
 	<meta charset="utf-8">
-	<title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} | {{ site.Title }}{{ end }}</title>
+	{{/* One title builder for the tab strip and the social cards — partials/func/page-title.html,
+	     which also carries the rule that keeps every title on the site unique. */}}
+	<title>{{ partial "func/page-title.html" . }}</title>
 
 	{{ "<!-- mobile responsive meta -->" | safeHTML }}
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -35,6 +37,28 @@
 	<link rel="stylesheet" href="{{ . | relURL }}">
 	{{ end }}
 	{{ end }}
+	{{ end }}
+
+	{{/* The 404 page cannot use `page_css`: Hugo synthesises its page rather than reading one from
+	     content/, and a content/404.md is published as an ordinary /404/ page instead of becoming
+	     the error document. Its stylesheet is therefore named here, and only here — it is ~3 KB
+	     that no other page has any use for. The layout is themes/meghna-hugo/layouts/404.html.
+
+	     `noindex` for the same reason: GitHub Pages serves this document with a 404 status, so a
+	     crawler will not index it anyway, but a stray link to /404.html would otherwise be an
+	     invitation to. */}}
+	{{ if eq .Kind "404" }}
+	{{ with resources.Get "css/404.css" }}
+	<link rel="stylesheet" href="{{ (. | minify).RelPermalink }}" media="screen">
+	{{ end }}
+	{{ end }}
+
+	{{/* `noindex: true` in front matter keeps a page out of the search results without hiding it
+	     from a reader who has a link. It is for pages that exist for the site's own plumbing or
+	     that have been superseded — the taxonomy listings, the legacy documentation stubs — where
+	     an index entry competes with the page that should have been found instead. */}}
+	{{ if or (eq .Kind "404") .Params.noindex }}
+	<meta name="robots" content="noindex">
 	{{ end }}
 
 	{{ "<!--Favicon-->" | safeHTML }}

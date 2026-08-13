@@ -1,0 +1,61 @@
+{{- /*
+  Returns the full document title for a page — what goes in <title> and in og:title/twitter:title.
+
+  Called from partials/head.html and partials/card.html so the two can never drift:
+
+      {{ partial "func/page-title.html" . }}
+
+  Three rules, in order:
+
+  1. **The home page** carries the site name plus its tagline (`params.title_tagline`). A bare
+     "MetaLoom" is a brand, not a description, and it is the one page whose title has to say what
+     the site is to a reader who has never heard of it.
+
+  2. **`seo_title` in front matter wins outright** — the escape hatch for a page whose visible
+     <h1> is deliberately short. It is used verbatim, without a section qualifier.
+
+  3. **Otherwise the parent section qualifies the title**, which is what makes every title on the
+     site unique. Eight titles used to be duplicated — /docs/loom/configuration/ and
+     /docs/cortex/configuration/ (and the legacy /docs/configuration/ stub) all published
+     "Configuration | MetaLoom", and so did both Metrics, both Containers, both Artifacts, both
+     Examples, both Maven Artifacts, both REST API and both Features pages. Duplicate titles are
+     the one on-page signal a search engine has for "these two pages are the same page", and they
+     are equally useless in a browser's tab strip and history.
+
+     The qualifier is skipped where it would add nothing: pages directly under /docs/ (the parent
+     is the docs landing page, so "Getting Started · Documentation" says the obvious twice), and
+     top-level pages, whose parent is the home page.
+
+  Result shapes:
+
+      /                            MetaLoom — Open Source Media Asset Platform
+      /docs/getting-started/       Getting Started | MetaLoom
+      /docs/loom/configuration/    Configuration · Loom | MetaLoom
+      /docs/cortex/configuration/  Configuration · Cortex | MetaLoom
+      /docs/nodes/whisper/         Whisper · Nodes | MetaLoom
+*/ -}}
+{{- $full := "" -}}
+
+{{- if .IsHome -}}
+  {{- $full = site.Title -}}
+  {{- with site.Params.title_tagline }}{{ $full = printf "%s — %s" site.Title . }}{{ end -}}
+{{- else -}}
+  {{- $name := .Title -}}
+  {{- $qualifier := "" -}}
+
+  {{- with .Params.seo_title -}}
+    {{- $name = . -}}
+  {{- else -}}
+    {{- with .Parent -}}
+      {{- if and (not .IsHome) (ne .RelPermalink (relURL "docs/")) (ne .Title $name) -}}
+        {{- $qualifier = .Title -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+
+  {{- $full = cond (eq $qualifier "")
+      (printf "%s | %s" $name site.Title)
+      (printf "%s · %s | %s" $name $qualifier site.Title) -}}
+{{- end -}}
+
+{{- return $full -}}

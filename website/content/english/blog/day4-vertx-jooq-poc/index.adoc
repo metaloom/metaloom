@@ -1,11 +1,11 @@
 ---
 title: "Day4 - Vert.x jOOQ PoC"
+description: "A reactive database layer proof of concept — why jOOQ over the alternatives, and what the reactive route costs when transactions are involved."
 date: 2021-05-19T21:51:12+06:00
 image: jan-antonin-kolar-lRoX0shwjUQ-unsplash.jpg
 image_webp: jan-antonin-kolar-lRoX0shwjUQ-unsplash.webp
 image_credit: Photo by Jan Antonin Kolar on Unsplash
 author: jotschi
-description : "In this post I want to walk you through a PoC I created that covers database handling with Vert.x and jOOQ."
 hidden: false
 ---
 
@@ -47,7 +47,7 @@ link:https://twitter.com/julienviet[Julien Viet] suggested to take a look at lin
 
 The project provides ways to integrate link:https://vertx.io/[Vert.x] which is the core library for MetaLoom with jOOQ. It will automatically generate the needed DAO code that utilizes Vert.x and the link:https://vertx.io/docs/vertx-pg-client/java/[reactive Vert.x SQL client].
 
-image:meme.gif[]
+image:meme.gif[Ryan Gosling leaning out of a car window looking baffled, captioned "What do you want?"]
 
 The project does however offer you multiple options on how to handle the database access. You can basically choose between using the API reactive or non-reactive with either the JDBC driver (blocking) or the Vert.x RX SQL client (non-blocking).
 

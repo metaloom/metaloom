@@ -1,5 +1,6 @@
 ---
 title: Search Indices
+description: "The indices behind search, face matching and duplicate detection — what each one holds, when to rebuild it, and what a rebuild costs."
 ---
 
 = Search Indices

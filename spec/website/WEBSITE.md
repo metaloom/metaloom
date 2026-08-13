@@ -41,10 +41,14 @@ coding agent that has to add or restructure site content, or fix the build/publi
   site; it used to be 0.131, which could not (see [Prerequisites](#prerequisites)).
 * Publish is manual: the **sibling `metaloom-website` repo** runs `pull.sh` to copy `website/dist`
   → its `docs/`, served by GitHub Pages at `metaloom.io`.
-* Seven top-level areas besides `/docs/`: `/tour/`, `/features/`, `/studio/`,
-  `/pipeline-editor/`, `/announcements/`, `/blog/`, `/author/`.
+* Nine top-level areas besides `/docs/`: `/tour/`, `/features/`, `/studio/`,
+  `/pipeline-editor/`, `/announcements/`, `/blog/`, `/author/`, `/faq/`, `/team/`.
   ⚠️ `/tour/` **used to be `/studios/`** — renamed so it could not be confused with `/studio/`; a
   Hugo alias keeps the old URL alive.
+* **Every page carries a unique `<title>` and a hand-written `<meta name="description">`.** Both are
+  rules enforced by construction rather than by a gate — see [Titles, descriptions and indexing](#titles-descriptions-and-indexing).
+* Site chrome beyond the header: a **breadcrumb trail** under it on every page with an ancestor, and
+  a **404 page** with an animated node-graph background. See [Site chrome](#site-chrome).
 * Three **generated artefacts are staged into `static/` by hand** and go stale silently: the OpenAPI
   document, the GraphQL SDL and the node-descriptor snapshot. See
   [Staged generated artefacts](#staged-generated-artefacts).
@@ -146,18 +150,20 @@ website/
 ├── pom.xml                # Maven module registration only
 ├── content/english/       # contentDir — see the page inventory below
 ├── content-off/           # parked, NOT built: java-ffm-graph-storage-poc/
-├── data/en/*.yml          # LIVE: home · tour · studio · feature. The other 11 are dead Meghna copy
+├── data/en/*.yml          # LIVE: home · tour · studio · feature · faq · team. The other 9 are dead Meghna copy
 ├── i18n/en.yaml           # UI strings (menu labels, footer headings, "Read more")
 ├── static/                # verbatim → dist/: images/ · CNAME · .nojekyll
 │   ├── docs/examples/     #   openapi.{json,yaml} · schema.graphql   (staged, generated)
 │   ├── pipeline-editor/   #   node-descriptors.json                  (staged, generated)
 │   └── images/og-*.jpg    #   1200×630 social cards
 ├── themes/meghna-hugo/    # the only theme
-│   ├── layouts/           #   index · alias · 404 · _default · docs · announcements · author
-│   │                      #   · features · tour · studio · pipeline-editor · partials
+│   ├── layouts/           #   index · alias · 404 · robots.txt · _default · docs · announcements
+│   │                      #   · author · features · tour · studio · faq · team · pipeline-editor
+│   │                      #   · partials (incl. breadcrumb.html, func/page-title.html)
 │   ├── less/              #   main.less + includes/{custom,adoc,docs,toc,variables}.less → assets/css/main.css
-│   ├── assets/css/        #   main.css (compiled) · home.css · tour.css · studio.css · pipeline-editor.css
-│   ├── assets/js/         #   script.js · reveal.js · pipeline-editor.js · docs-search.js
+│   ├── assets/css/        #   main.css (compiled) · home.css (also /faq/ + /team/) · tour.css
+│   │                      #   · studio.css · pipeline-editor.css · 404.css
+│   ├── assets/js/         #   script.js · reveal.js · pipeline-editor.js · docs-search.js · 404.js
 │   ├── assets/images/scenery/  # 4 photos, Hugo-processed to webp; shared by /tour/ and /studio/
 │   └── static/plugins/    #   15 vendored plugins incl. swagger · graphiql · nodeviz · toc
 │                          #   · ternlight (the 10 MB embedding model, committed)
@@ -183,6 +189,9 @@ Every content page is a **page bundle**: a directory with `index.adoc`/`index.md
 | `/announcements/` | `_index.adoc` + `metaloom-1-0-0/index.adoc` | in the pages | `layouts/announcements/{list,single}.html` |
 | `/blog/` | `_index.md` + 6 post bundles | in the posts | `layouts/_default/{list,article,single}.html` |
 | `/author/jotschi/` | `author/jotschi.md` | in the page | `layouts/author/single.html` |
+| `/faq/` | `_index.md` (front matter only) | `data/en/faq.yml` | `layouts/faq/list.html` |
+| `/team/` | `_index.md` (front matter only) | `data/en/team.yml` | `layouts/team/list.html` |
+| `/404.html` | **none** — Hugo synthesises it | in the layout | `layouts/404.html` + `assets/{css,js}/404.*` |
 | `/docs/**` | `.adoc` (below) | in the pages | `layouts/docs/{list,single}.html` |
 
 Blog posts: `day0-let-there-be-loom`, `day1-project-design`, `day2-project-setup`,
@@ -605,19 +614,125 @@ There is **one palette for the whole site** — CSS custom properties at the top
 >
 > **No CJK text anywhere** — the site ships no CJK webfont, so a Japanese line renders as tofu.
 
-Site chrome: `partials/navigation.html` (sticky, translucent, `.is-scrolled` past 12 px,
-`.is-active` + `aria-current` on the current section, hamburger → X, and the **docs search box**
-at the end of the menu — [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md)) and `partials/footer.html`
-(four columns, labels from `i18n/en.yaml`, contact pills from `[[params.social]]`, the Impressum
-link, the *1.0.0 — not released yet* badge). **Footer headings carry `data-toc-skip`** and
-`plugins/toc/toc.js` scopes bootstrap-toc to `.docs-main-content`, or they land in the docs TOC.
-
-`partials/card.html` builds OG/Twitter metadata for every page: title `<page> | MetaLoom` (bare
-`MetaLoom` on `/`), a description chain (page → `.Summary` → site param, truncated to 200 chars),
-`summary_large_image` with `/images/og-default.jpg` as the fallback, canonical, `og:site_name`,
-`og:type`, `og:locale`, `og:image:alt`, article timestamps. Blog images resolve through
-`partials/func/page-image.html` (prefers `image_webp`, falls back to `image` then
+`partials/card.html` builds OG/Twitter metadata for every page: the title from
+`partials/func/page-title.html` (below), a description chain (page → `.Summary` → site param,
+truncated to 200 chars), `summary_large_image` with `/images/og-default.jpg` as the fallback,
+canonical, `og:site_name`, `og:type`, `og:locale`, `og:image:alt`, article timestamps. Blog images
+resolve through `partials/func/page-image.html` (prefers `image_webp`, falls back to `image` then
 `/images/banner_square.webp`).
+
+## Site chrome
+
+`partials/navigation.html` + `partials/breadcrumb.html` + `partials/footer.html`, in that order,
+are on every page. The footer is four columns, labels from `i18n/en.yaml`, contact pills from
+`[[params.social]]`, the Impressum link and the *1.0.0 — not released yet* badge. **Footer headings
+carry `data-toc-skip`** and `plugins/toc/toc.js` scopes bootstrap-toc to `.docs-main-content`, or
+they land in the docs TOC.
+
+### The header, and what scrolling does to it
+
+Sticky, translucent, `.is-active` + `aria-current` on the current section, hamburger → X, and the
+**docs search box** at the end of the menu ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md)). Two classes are
+set from `assets/js/script.js` in one rAF-throttled scroll listener:
+
+| Class | When | Effect |
+|---|---|---|
+| `.is-scrolled` | past 80 px, every viewport; released again below 24 px | Solid bar, and the **compact state**: `.navbar` padding `.6rem → .3rem`, logo `34px → 28px`, tighter links, shorter search field. 58 px of header becomes 42 px |
+| `.is-hidden` | **below 992 px only**, scrolling down | The whole bar slides out with `translateY(-100%)` and returns on the first upward scroll |
+
+* ⚠️ **`.is-scrolled` is a hysteresis band, not a threshold, and it has to stay one.** The compact
+  rules change the header's *height*, and the header is in flow (`position: sticky`), so applying
+  them takes ~15 px out of the document. The browser's scroll anchoring corrects for that shift by
+  moving the scroll position — back across a single threshold, which expands the header, which puts
+  the 15 px back. One flick of the wheel then flickers the logo at frame rate. Two edges 56 px apart
+  cannot be crossed by a 15 px correction, which is what makes it stable; keep the band comfortably
+  wider than the height the compact state gives up.
+
+* **Travel since the last direction change, not per-event delta.** A flick arrives as dozens of
+  small scroll events, so a per-event threshold never fires on a slow drag. Hide after 8 px of
+  downward travel, show after 26 px of upward — asymmetric because a late image, a font swap or
+  Chromium's scroll anchoring nudges the offset back a few pixels on its own, and a symmetric
+  threshold made the bar flicker back after every flick.
+* **Four states refuse to hide it**, because the reader is using it: the hamburger panel is open,
+  focus is inside the header, `docs-search-open` is on `<body>`
+  ([WEBSITE_SEARCH.md](WEBSITE_SEARCH.md) § *The phone overlay*), or the page is within 90 px of the
+  top.
+* Desktop never hides the bar. There is room for it, and the shadow already says the page is
+  scrolled.
+* With JavaScript off the header keeps its full-size, always-visible state — the state it is
+  designed in.
+
+### The breadcrumb trail
+
+`partials/breadcrumb.html`, rendered from the end of `partials/navigation.html` so no layout has to
+remember it. It emits nothing unless `len .Ancestors >= 2`, which is what keeps `/`, `/tour/`,
+`/features/`, `/faq/`, `/team/` and `/docs/` itself free of a stub reading "Home ›".
+
+* It sits **under** the sticky header rather than inside it: below 992 px the header slides away,
+  and a trail travelling with it would be one more thing covering the page.
+* The last crumb is the current page — text with `aria-current="page"`, not a link.
+* It scrolls inside itself (`overflow-x: auto`, no visible scrollbar) rather than wrapping.
+  `/docs/nodes/facedetect/` is four crumbs; wrapped, that pushes the `<h1>` below the fold on a
+  phone, and unwrapped it would make the whole document scroll sideways.
+* The same trail is emitted once more as **schema.org `BreadcrumbList`** JSON-LD, with absolute URLs
+  built from `params.canonical_base`. ⚠️ `jsonify` output inside `<script>` **needs `| safeJS`** or
+  Go's contextual escaper publishes it as a quoted, backslash-escaped string that no consumer can
+  read.
+* **The docs layouts dropped their `.page-eyebrow` when this landed.** It named the parent section,
+  which is exactly what the trail now says one line higher and with links. The other reading layouts
+  keep theirs — "Blog", "Project", "About author" are not what their trail says.
+
+### The 404 page
+
+`layouts/404.html`, `assets/css/404.css`, `assets/js/404.js` — a node graph drifting behind the
+copy, which is the site's own vocabulary (nodes, edges, something travelling along an edge).
+
+* **It has no content file.** Hugo synthesises the 404's page context; a `content/404.md` is
+  published as an ordinary `/404/` page and does **not** become the error document. That is why the
+  heading is written in the layout and the stylesheet is named in `partials/head.html`, which is
+  also where the page gets `<meta name="robots" content="noindex">`.
+* The animation is hand-written against a 2D canvas — no d3, no graph library. The site vendors no
+  bundler, and every plugin it ships is paid for by more than one page.
+* `prefers-reduced-motion` paints **one frame and stops** — the same picture, holding still, not a
+  blank canvas. It also stops on `visibilitychange` and when the canvas leaves the viewport.
+* The two blurred washes are CSS, not canvas, so the page has its colours before and without the
+  script.
+
+## Titles, descriptions and indexing
+
+Four rules, each enforced by construction rather than by a build gate.
+
+**1. Every `<title>` is unique.** `partials/func/page-title.html` returns the document title and is
+called by *both* `partials/head.html` and `partials/card.html`, so the tab strip and the social card
+cannot drift apart. In order: the home page gets `site.Title — params.title_tagline`; a page with
+`seo_title` in front matter gets that verbatim; everything else gets its parent section as a
+qualifier — `Configuration · Loom | MetaLoom` against `Configuration · Cortex | MetaLoom`. The
+qualifier is skipped where it would repeat the obvious (pages directly under `/docs/`, whose parent
+is the docs landing page, and top-level pages, whose parent is the home page).
+
+> Eight titles used to be duplicated: both Configuration pages plus the legacy stub, both Metrics,
+> both Containers, both Artifacts, both Examples, both Maven Artifacts, both REST API and both
+> Features pages. A duplicate title is the one on-page signal that says "these two pages are the
+> same page".
+
+**2. Every page has a hand-written `description`.** The fallback chain in `head.html` (page → auto
+summary → site param) is the safety net, not the plan: an auto summary of a page that opens with an
+admonition or a table reads as garbage in a search result. On **docs single pages the description is
+also rendered as the lead** under the `<h1>`, so write it as a sentence that works as both. Node
+pages keep theirs **short** on purpose — a lead that restates the opening paragraph word for word is
+the same fact twice, a centimetre apart.
+
+**3. `robots.txt` is a template**, `themes/meghna-hugo/layouts/robots.txt`, replacing Hugo's
+built-in (which emits `User-agent: *` and nothing else). It states `Allow: /` and names the sitemap
+absolutely, from `params.canonical_base`. There is no `Disallow`; nothing on this site is private,
+and the built site *is* the publish repo's `docs/` folder, so a path excluded there would still be
+public.
+
+**4. `noindex: true` in front matter** emits `<meta name="robots" content="noindex">`. It is for
+pages that exist for the site's plumbing or that have been superseded, where an index entry competes
+with the page that should have been found instead: `/tags/`, `/categories/` and the three legacy
+documentation stubs (`docs/rest/`, `docs/test/`, `docs/configuration/`). The 404 gets it
+unconditionally.
 
 ## Legal pages (`docs/legal/`)
 
@@ -937,7 +1052,13 @@ shared attributes come from `docs/variables.adoc-include` instead.
 | Add a docs **section** | New folder with `_index.adoc` (**not** `index.adoc`) + child `index.adoc` pages; link it from `docs/_index.adoc` |
 | Add a task-oriented guide | `docs/playbooks/<name>/index.adoc` — link from `playbooks/_index.adoc` **and** `docs/_index.adoc` |
 | Add/redraw a node diagram | The `data-nodeviz` block on the page; renderer `themes/meghna-hugo/static/plugins/nodeviz/nodeviz.js` |
-| Change home / tour / studio / feature copy | `website/data/en/{home,tour,studio,feature}.yml` — **never the layout** |
+| Change home / tour / studio / feature / FAQ / team copy | `website/data/en/{home,tour,studio,feature,faq,team}.yml` — **never the layout** |
+| Add or edit an FAQ entry | `data/en/faq.yml` — it feeds the page *and* the schema.org `FAQPage` metadata |
+| Change the 404 page or its animation | `layouts/404.html`, `assets/css/404.css`, `assets/js/404.js` |
+| Change the breadcrumb | `partials/breadcrumb.html`; styling is the *Breadcrumb trail* block in `custom.less` |
+| Fix a duplicated or wrong `<title>` | `partials/func/page-title.html`, or `seo_title` in the page's front matter |
+| Keep a page out of search results | `noindex: true` in its front matter |
+| Change `robots.txt` | `themes/meghna-hugo/layouts/robots.txt` (Hugo's built-in is overridden) |
 | Add an illustration to `/tour/` or `/studio/` | `layouts/partials/{tour,studio}/art-<name>.html` (selected by the `art:` key in the YAML) + `assets/css/{tour,studio}.css` |
 | Give one page its own stylesheet | Front matter `page_css: css/<name>.css` + the asset under `themes/meghna-hugo/assets/css/` |
 | Load a heavy plugin on one page only | Front matter `page_js:` / `page_css:` listing `plugins/<name>/…` static paths — **not** `[[params.plugins.js]]`. Order in the list is the load order |
@@ -1020,9 +1141,11 @@ shared attributes come from `docs/variables.adoc-include` instead.
   into a scratch dir: `hugo -d /tmp/distcheck && node check-links.mjs /tmp/distcheck`.
 * **`build.sh` runs `yarn install`**, which rewrites `themes/meghna-hugo/yarn.lock`. Restore it;
   don't commit that churn with a content change.
-* **11 of the 15 `data/en/*.yml` files are dead.** Only `home`, `tour`, `studio` and `feature` are
-  rendered; `about`, `service`, `skill`, `funfacts`, `pricing`, `testimonial`, `portfolio`, `team`,
-  `contact`, `banner`, `cta` are unwired legacy Meghna copy. Do not "fix" copy that cannot appear.
+* **9 of the 15 `data/en/*.yml` files are dead.** Only `home`, `tour`, `studio`, `feature`, `faq`
+  and `team` are rendered; `about`, `service`, `skill`, `funfacts`, `pricing`, `testimonial`,
+  `portfolio`, `contact`, `banner`, `cta` are unwired legacy Meghna copy. Do not "fix" copy that
+  cannot appear. (`team.yml` *was* one of the dead ones and now backs `/team/`; the theme's original
+  `partials/team.html` grid is still unused, because a page about one person is not a grid.)
 * **`content-off/` is parked content** — outside `contentDir`, not built. Use it to disable a page
   without deleting it.
 * **Legacy stub pages exist under `docs/`** (`rest/`, `test/`, top-level `configuration/`) — not
@@ -1084,6 +1207,21 @@ review**.
    surface on purpose).
 8. If a page moved, confirm `dist/<old-path>/index.html` exists and carries a **relative** refresh
    target (`dist/studios/index.html` → `/tour/`).
+9. **Titles and descriptions.** Both must be unique across the build output:
+   ```bash
+   grep -rh "<title>" --include=*.html dist | sort | uniq -c | awk '$1>1'
+   grep -rh '<meta name="description"' --include=*.html dist | sort | uniq -c | awk '$1>1'
+   ```
+   Either command printing a line is a defect. `dist/404.html` is the one page allowed to fall back
+   to the site description, and it is `noindex`.
+10. **The header on a phone.** In a touch context, scroll down: `.navigation` gains `is-hidden` and
+    its `getBoundingClientRect().top` goes negative. Scroll up ~30 px: it comes back. Open the
+    hamburger, then scroll — it must **not** hide. Repeat with the search box focused.
+11. **The 404.** Load `/404.html`: `.nf-canvas` has non-transparent pixels and two successive
+    `toDataURL()` calls differ. Repeat with `reducedMotion: 'reduce'` — the two calls must now be
+    **identical** and still non-empty.
+12. **JSON-LD.** `JSON.parse` every `script[type="application/ld+json"]` on `/faq/` (one `FAQPage`)
+    and on a deep docs page (one `BreadcrumbList`). A parse error means a missing `| safeJS`.
 9. Dry-run publish: `./pull.sh` in the sibling repo, inspect `docs/`, do **not** push unless
    releasing.
 
@@ -1127,6 +1265,19 @@ review**.
 - [x] Both build gates shipping: the localhost-attribute check and `check-links.mjs` (targets + anchors)
 - [x] Absolute metadata built from `params.canonical_base`, closing the `localhost:1313` flake for pages
 - [x] Site header, footer, social cards, page-image resolution, scroll reveal extracted to `reveal.js`
+- [x] **`/faq/`** — data-driven from `data/en/faq.yml`, native `<details>` entries, and the same
+      questions emitted as schema.org `FAQPage` metadata
+- [x] **`/team/`** — `data/en/team.yml` (which was dead Meghna copy until it backed this page), with
+      the CV transcribed from `jotschi.de`
+- [x] **A 404 page of its own** — a drifting node graph on a canvas, no library, one static frame
+      under `prefers-reduced-motion`, `noindex`
+- [x] **A breadcrumb trail** under the header on every page with an ancestor, plus `BreadcrumbList`
+      JSON-LD, replacing the docs layouts' section eyebrow
+- [x] **The header compacts on scroll and, on a phone, gets out of the way** — sliding back on the
+      first upward scroll, and refusing to hide while the menu or the search box is in use
+- [x] **A unique `<title>` and a hand-written `<meta name="description">` on every page**, an
+      explicit `robots.txt` naming the sitemap, and a `noindex` switch for the plumbing pages
+- [x] Alt text on every image in the build output
 - [x] GitHub Pages publish flow via the sibling repo (`pull.sh`, `CNAME`)
 
 ### Known gaps and defects
@@ -1171,13 +1322,21 @@ review**.
 - [ ] Staging the three generated artefacts is a manual `cp` — nothing fails when they go stale.
       A `build.sh` freshness check or a Maven copy step would close it.
 - [ ] The broken-link check never fetches **external** links; a dead `https://` link is invisible.
+- [ ] **Nothing enforces the title/description rules.** Both are checked by hand
+      ([Test Setup](#test-setup) steps 9); a `check-metadata.mjs` in `build.sh` would close it, and
+      the two `uniq -c` commands are most of it already.
+- [ ] `/faq/` and `/team/` are **not in the docs search index**, which covers `/docs/**` only. The
+      FAQ answers the questions readers most often search for, so it is the strongest candidate for
+      the "widen the index" item in [WEBSITE_SEARCH.md](WEBSITE_SEARCH.md).
 - [ ] The RSS `<link>`/`<guid>` still come from `site.BaseURL` (Hugo's internal template), so the
       `localhost:1313` flake can still reach the feed. A custom RSS template would fix it.
 - [ ] **Fill in the Impressum placeholders** (address, a direct channel besides email).
 - [ ] Self-host the two web fonts instead of Google's CDN — that transfer is the only reason the
       Impressum needs a Google Fonts paragraph.
-- [ ] Delete or park the 11 unrendered `data/en/*.yml` files and their partials.
-- [ ] Remove/consolidate the legacy stubs `docs/rest/`, `docs/test/`, `docs/configuration/`.
+- [ ] Delete or park the 9 remaining unrendered `data/en/*.yml` files and their partials.
+- [ ] Remove/consolidate the legacy stubs `docs/rest/`, `docs/test/`, `docs/configuration/`. They
+      are now `noindex: true` so they cannot outrank the pages that replaced them, but `docs/test/`
+      is still an empty page with a title.
 - [ ] `/studio/` carries no pricing — the "announced with 1.0.0" lines must be replaced once
       decision D-5 in the Studio plan is made.
 - [ ] Flip the 1.0.0 announcement to `status: released` when the release is cut (badge label,
@@ -1188,6 +1347,8 @@ review**.
 - [ ] Keep customer docs in sync with the specs under `spec/` and with node model defaults (ongoing).
 
 ---
-_Git HEAD revision: `4c02c3a5`_
-_Last updated: 2026-08-11 (docs/loom/mcp/ — the MCP server page: transports, token, tool inventory).
-Earlier: (client-side semantic search over /docs/ — see WEBSITE_SEARCH.md)_
+_Git HEAD revision: `c1e95640`_
+_Last updated: 2026-08-13 (site-wide metadata and chrome pass: unique titles, hand-written
+descriptions everywhere, robots.txt, a `noindex` switch, a breadcrumb trail, a compacting header
+that gets out of the way on phones, and the new /faq/, /team/ and 404 pages).
+Earlier: 2026-08-11 (docs/loom/mcp/ — the MCP server page: transports, token, tool inventory)_

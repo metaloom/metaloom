@@ -14,7 +14,13 @@ This file tracks no progress — the linked specs do.
 
 ---
 
+
+
 ## Tasks
+* Custom 404 page loom
+
+* Add coachmarks in certain features that help the user find the right documentation.Either have fixed links to metaloom.io (which could break) - or add a redirection page on the website which will automatically redirect the user to a page which matches semantic search query on the website semantic search index.
+
 
 * **Video Manipulation Node** — the video half of
   [../features/nodes/image-manipulation/NODE_IMAGE_MANIPULATION.md](../features/nodes/image-manipulation/NODE_IMAGE_MANIPULATION.md):

@@ -1,5 +1,6 @@
 ---
 title: Dominant Colour
+description: "Makes colour searchable — the exact values, and the words people use for them."
 ---
 
 Colour is one of the first things anyone notices about a picture and one of the last things most

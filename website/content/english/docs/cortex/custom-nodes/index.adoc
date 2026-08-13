@@ -1,5 +1,6 @@
 ---
 title: Writing a Custom Node
+description: "Write a processing node of your own against the slim Cortex node API, and have a worker serve it."
 ---
 
 A custom node is an ordinary Java class on a Cortex worker's classpath. It runs as soon as the worker

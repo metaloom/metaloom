@@ -1,5 +1,6 @@
 ---
 title: Getting Started
+description: "Run a complete MetaLoom stack locally in a few minutes with the demo container — no build tools, no configuration files, and real content on every screen from the first click."
 weight: 1
 ---
 

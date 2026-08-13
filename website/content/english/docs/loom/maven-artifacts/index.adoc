@@ -1,5 +1,6 @@
 ---
 title: Maven Artifacts
+description: "The Loom Maven coordinates: the BOM that aligns versions, the client modules and the shared model."
 ---
 
 All Loom artifacts are published under the `io.metaloom` group.

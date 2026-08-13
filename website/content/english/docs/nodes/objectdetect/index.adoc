@@ -1,5 +1,6 @@
 ---
 title: Object Detection
+description: "Finds the things in a picture and boxes them, with a confidence for each."
 ---
 
 The object detection node finds objects — people, vehicles, animals, furniture — in images and video

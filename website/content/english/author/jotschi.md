@@ -1,5 +1,6 @@
 ---
 title: "Johannes Schüth"
+description: "Johannes Schüth — Java backend developer in Vienna, and the author of MetaLoom."
 image : /images/team/js.jpg
 image_webp : /images/team/js.webp
 email: "jotschi@metaloom.io"

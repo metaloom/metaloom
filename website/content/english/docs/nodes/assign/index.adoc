@@ -1,5 +1,6 @@
 ---
 title: Assign
+description: "Puts an asset into a collection or a set — curation as a step in the graph."
 ---
 
 Curation is a decision, not a file operation. When you put a photo in a collection you are saying

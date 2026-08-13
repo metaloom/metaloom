@@ -1,5 +1,6 @@
 ---
 title: Documentation
+description: "The MetaLoom reference: Loom the asset server, Cortex the processing engine, the node catalogue, the APIs, the playbooks and how to deploy all of it."
 ---
 
 MetaLoom is built around two cooperating systems:

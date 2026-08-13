@@ -1,5 +1,6 @@
 ---
 title: LLM Enrichment
+description: "Puts a language model in the pipeline and keeps what it answers."
 ---
 
 The LLM node sends asset metadata to a **Large Language Model** and stores the model's response as

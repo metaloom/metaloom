@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Home page (/) and /features/.
+   Home page (/), /features/, /faq/ and /team/.
 
    Loaded only by pages carrying `page_css: css/home.css` in front matter (see
    partials/head.html). Everything is scoped under .hm-page and prefixed .hm-*.
@@ -498,9 +498,146 @@ html {
 }
 .hm-features-foot { border-top: 1px solid var(--hm-line); margin-top: 64px; padding: 34px 0 42px; text-align: center; }
 
+/* ==========================================================================
+   /faq/ — data/en/faq.yml + layouts/faq/list.html
+
+   Each entry is a native <details>. The rules below only dress it: the open/closed state, the
+   keyboard handling and the announcement to a screen reader are the element's own, which is why
+   nothing here is conditional on a script having run.
+   ========================================================================== */
+.hm-faq-group { padding: 52px 0 0; }
+.hm-faq-group .hm-feature-group-title {
+  border-bottom: 1px solid var(--hm-line);
+  margin-bottom: 6px;
+  padding-bottom: 14px;
+}
+
+.hm-faq {
+  border-bottom: 1px solid var(--hm-line);
+}
+
+.hm-faq-q {
+  align-items: baseline;
+  color: var(--hm-fg);
+  cursor: pointer;
+  display: flex;
+  font-family: "Quattrocento Sans", sans-serif;
+  font-size: 1.04rem;
+  font-weight: 700;
+  gap: 18px;
+  justify-content: space-between;
+  line-height: 1.45;
+  padding: 20px 2px;
+  transition: color .18s ease;
+}
+.hm-faq-q:hover { color: var(--hm-accent-bright); }
+.hm-faq-q:focus-visible { outline: 2px solid var(--hm-accent); outline-offset: 3px; }
+
+/* The default triangle is replaced rather than kept beside a second mark: `list-style` is what
+   Firefox and Chromium read, `::-webkit-details-marker` is what older WebKit reads. */
+.hm-faq-q { list-style: none; }
+.hm-faq-q::-webkit-details-marker { display: none; }
+
+.hm-faq-mark {
+  border-right: 2px solid var(--hm-accent);
+  border-bottom: 2px solid var(--hm-accent);
+  flex: 0 0 auto;
+  height: 8px;
+  margin-top: 6px;
+  transform: rotate(45deg);
+  transition: transform .2s ease;
+  width: 8px;
+}
+.hm-faq[open] .hm-faq-mark { transform: rotate(-135deg); }
+
+.hm-faq-a {
+  color: var(--hm-fg-dim);
+  font-size: 15.5px;
+  line-height: 1.7;
+  max-width: 74ch;
+  padding: 0 2px 24px;
+}
+.hm-faq-a p { margin: 0 0 12px; }
+.hm-faq-a p:last-child { margin-bottom: 0; }
+.hm-faq-a strong { color: var(--hm-fg); }
+.hm-faq-a code {
+  background: rgba(255, 255, 255, .06);
+  border-radius: 4px;
+  font-size: .92em;
+  padding: 1px 5px;
+}
+
+/* ==========================================================================
+   /team/ — data/en/team.yml + layouts/team/list.html
+   ========================================================================== */
+.hm-person {
+  align-items: start;
+  display: grid;
+  gap: 34px;
+  grid-template-columns: 200px 1fr;
+  padding: 52px 0 0;
+}
+.hm-person-photo {
+  border: 1px solid var(--hm-line);
+  border-radius: 14px;
+  display: block;
+  height: auto;
+  width: 100%;
+}
+.hm-page .hm-person-name { font-size: 1.6rem; margin: 0 0 4px; }
+.hm-person-role {
+  color: var(--hm-accent);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  margin: 0 0 18px;
+  text-transform: uppercase;
+}
+.hm-person-bio { color: var(--hm-fg-dim); font-size: 16px; line-height: 1.7; max-width: 68ch; }
+.hm-person-bio p { margin: 0 0 14px; }
+
+.hm-person-links { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 0; padding: 0; list-style: none; }
+.hm-page a.hm-person-link {
+  align-items: center;
+  border: 1px solid var(--hm-line);
+  border-radius: 40px;
+  color: var(--hm-fg-dim);
+  display: inline-flex;
+  font-size: 14px;
+  gap: 8px;
+  padding: 7px 16px;
+  transition: border-color .18s ease, color .18s ease;
+}
+.hm-page a.hm-person-link:hover { border-color: var(--hm-accent); color: var(--hm-accent-bright); text-decoration: none; }
+
+/* The CV. A timeline is a list of dated facts, so it is a <dl> — the year is the term and what
+   happened is the description. */
+.hm-cv { margin: 0; }
+.hm-cv-row {
+  border-top: 1px solid var(--hm-line);
+  display: grid;
+  gap: 4px 28px;
+  grid-template-columns: 150px 1fr;
+  padding: 18px 0;
+}
+.hm-cv-when {
+  color: var(--hm-muted);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13.5px;
+  letter-spacing: .02em;
+  margin: 0;
+  padding-top: 2px;
+}
+.hm-cv-what { margin: 0; }
+.hm-cv-what strong { color: var(--hm-fg); display: block; font-size: 1.02rem; }
+.hm-cv-where { color: var(--hm-accent); font-size: 14px; }
+.hm-cv-note { color: var(--hm-muted); font-size: 14.5px; line-height: 1.6; margin: 6px 0 0; }
+
 /* ------------------------------------------------------------ responsive */
 @media (max-width: 991px) {
   .hm-section { padding: 72px 0; }
+  .hm-person { gap: 26px; grid-template-columns: 150px 1fr; }
+  .hm-cv-row { grid-template-columns: 120px 1fr; }
   .hm-notice { gap: 26px; grid-template-columns: 1fr; padding: 34px 30px; }
   .hm-facts { border-left: 0; border-top: 1px solid rgba(226, 168, 110, .28); display: flex; flex-wrap: wrap; gap: 18px 34px; padding: 22px 0 0; }
   .hm-fact + .hm-fact { margin-top: 0; }
@@ -514,6 +651,9 @@ html {
 
 @media (max-width: 575px) {
   .hm-wrap { padding: 0 20px; }
+  .hm-person { grid-template-columns: 1fr; }
+  .hm-person-photo { max-width: 200px; }
+  .hm-cv-row { grid-template-columns: 1fr; }
   .hm-hero { min-height: 74vh; padding-top: 64px; }
   .hm-tiles, .hm-feature-grid { grid-template-columns: 1fr; }
   .hm-blog-head { align-items: flex-start; flex-direction: column; gap: 12px; }

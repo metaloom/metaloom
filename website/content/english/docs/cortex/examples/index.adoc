@@ -1,5 +1,6 @@
 ---
 title: Examples
+description: "Three worked examples of extending Cortex with processing logic of your own — a Java node, a Java daemon and a Python worker."
 ---
 
 The `examples/` directory of the source repository contains three customer-facing examples showing how

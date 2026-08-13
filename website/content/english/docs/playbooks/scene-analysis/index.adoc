@@ -1,5 +1,6 @@
 ---
 title: Scene-Level Video Analysis
+description: "Cut video into scenes and describe them — from the soundtrack, from the picture, or both — so a two-hour recording stops being a single unit of retrieval."
 weight: 4
 ---
 

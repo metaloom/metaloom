@@ -1,5 +1,6 @@
 ---
 title: Artifacts
+description: "What Loom publishes and where — JVM artifacts, the command line client and the container deployment assets."
 ---
 
 Loom publishes JVM artifacts, a command line client and container deployment assets separately.

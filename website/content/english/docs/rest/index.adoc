@@ -1,5 +1,9 @@
 ---
 title: REST API
+description: "Superseded placeholder — the maintained REST API reference is at /docs/loom/rest-api/."
+# Superseded placeholder. It stays reachable for anyone holding an old link, but it must not
+# compete in search with the page that replaced it.
+noindex: true
 ---
 
 .Try the example

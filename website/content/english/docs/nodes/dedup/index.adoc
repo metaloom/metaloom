@@ -1,5 +1,6 @@
 ---
 title: Deduplication
+description: "Finds the copies you did not know you had, and says which one is redundant."
 ---
 
 The deduplication nodes find duplicate media and tell you which copy is redundant. They do not move

@@ -1,0 +1,75 @@
+{{/*
+  /faq/ — the questions a visitor asks before they read anything else.
+
+  Copy comes from data/en/faq.yml, so there is exactly one place to edit an answer; the styling
+  is the FAQ block in assets/css/home.css, shared with / and /features/.
+
+  Two things about the markup are deliberate:
+
+  * Each entry is a native <details>/<summary>. It opens, closes, announces its state to a screen
+    reader and is keyboard-operable with no JavaScript at all — and on a site whose whole premise
+    is that things keep working when a script does not, an accordion built out of divs and click
+    handlers would be the odd one out.
+  * Every question carries an id derived from its own text, so a single answer can be linked
+    directly. Browsers scroll to a target inside a closed <details> and modern ones open it.
+
+  The same questions are emitted once more as schema.org FAQPage metadata. That is the form a
+  search engine reads them in, and answers written for a person are exactly what belongs there —
+  so it is generated from the same data rather than maintained beside it.
+*/}}
+{{ define "main" }}
+{{ $faq := (index hugo.Data site.Language.Lang).faq.faq }}
+
+{{ partial "navigation.html" . }}
+
+<main class="hm-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
+
+  <div class="hm-wrap hm-features-head">
+    <h1 class="hm-title reveal">{{ .Title }}</h1>
+    {{ with .Params.subtitle }}<p class="hm-lead reveal">{{ . | markdownify }}</p>{{ end }}
+  </div>
+
+  <div class="hm-wrap">
+    {{ range $faq.groups }}
+    <section class="hm-faq-group">
+      <h2 class="hm-feature-group-title reveal">{{ .title }}</h2>
+      <div class="hm-faq-list">
+        {{ range $i, $item := .items }}
+        <details class="hm-faq reveal" id="{{ $item.q | urlize }}" data-reveal-delay="{{ mod $i 3 }}">
+          <summary class="hm-faq-q">
+            <span>{{ $item.q }}</span>
+            <span class="hm-faq-mark" aria-hidden="true"></span>
+          </summary>
+          <div class="hm-faq-a">{{ $item.a | markdownify }}</div>
+        </details>
+        {{ end }}
+      </div>
+    </section>
+    {{ end }}
+
+    <div class="hm-features-foot">
+      <p class="hm-lead reveal">Still unanswered? The documentation goes considerably deeper, and
+        the Discord is where questions get answered by a person.</p>
+      <p class="hm-more reveal">
+        <a class="hm-btn hm-btn-primary" href="{{ "docs/" | relURL }}">Open the docs</a>
+        <a class="hm-btn hm-btn-ghost" href="{{ site.Params.discordLink }}" rel="noopener">Ask on Discord</a>
+      </p>
+    </div>
+  </div>
+</main>
+
+{{ partial "reveal-script.html" . }}
+
+{{- $items := slice -}}
+{{- range $faq.groups -}}
+  {{- range .items -}}
+    {{- $items = $items | append (dict
+      "@type" "Question"
+      "name" .q
+      "acceptedAnswer" (dict "@type" "Answer" "text" (.a | markdownify | plainify | trim " \n\t\r"))) -}}
+  {{- end -}}
+{{- end -}}
+{{- /* safeJS: inside <script>, Go's contextual escaper would publish this as a quoted string. */ -}}
+<script type="application/ld+json">{{ (dict "@context" "https://schema.org" "@type" "FAQPage" "mainEntity" $items) | jsonify | safeJS }}</script>
+{{ end }}

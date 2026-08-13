@@ -1,11 +1,11 @@
 ---
 title: "Day1 - Project Design"
+description: "Designing the project — the building blocks carried over from Mesh, and the decision to hand-write the schema and the spec rather than generate them from code."
 date: 2021-05-13T14:51:12+06:00
 image: eleventh-wave-JsjtrixOiWc-unsplash.jpg
 image_webp: eleventh-wave-JsjtrixOiWc-unsplash.webp
 image_credit: Photo by Eleventh Wave on Unsplash
 author: jotschi
-description : "In this post I would like to share how I approach the design for Loom."
 ---
 
 :icons: font

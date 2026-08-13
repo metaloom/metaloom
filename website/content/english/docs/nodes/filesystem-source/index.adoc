@@ -1,5 +1,6 @@
 ---
 title: Filesystem Source
+description: "Feeds a pipeline from a folder on disk — the usual way material gets in."
 ---
 
 The filesystem source is a **source node** — the entry point of a pipeline. Instead of processing a

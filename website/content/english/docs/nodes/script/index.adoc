@@ -1,5 +1,6 @@
 ---
 title: Script
+description: "A few lines of your own code, as a step in the graph."
 ---
 
 The script node runs **a small piece of code you write** as a step in your pipeline. It reads the

@@ -19,11 +19,13 @@
 - id: portfolio
   translation: Portfolio
 - id: team
-  translation: Team
+  translation: The team
 - id: pricing
   translation: Pricing
 - id: blog
   translation: Blog
+- id: faq
+  translation: FAQ
 - id: contact
   translation: Contact
 - id: documentation
@@ -32,6 +34,8 @@
   translation: Search the documentation
 - id: searchDocsPlaceholder
   translation: Search the docs…
+- id: searchDocsClose
+  translation: Close search
 - id: legal
   translation: Legal & Licensing
 - id: modelLicenses

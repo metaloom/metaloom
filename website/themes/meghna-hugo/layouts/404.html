@@ -1,17 +1,55 @@
+{{/*
+  404. Served by GitHub Pages for anything the site does not have.
+
+  This page has no content file. Hugo synthesises the 404's page context — a `content/404.md` is
+  published as an ordinary /404/ page and does not become the error document — so the heading is
+  written here and the stylesheet is named in partials/head.html, which also marks the page
+  `noindex`. The animated background is assets/js/404.js, loaded at the bottom of this file and
+  nowhere else on the site.
+
+  The page is content first: heading, note and three ways onward are plain markup that stand on
+  their own. The canvas behind them is decoration and says so — `aria-hidden`, no pointer events,
+  and it is simply absent when the script does not run.
+*/}}
 {{ define "main" }}
 
 {{ partial "navigation.html" . }}
 
-<section class="section">
-  <div class="container">
-    <div class="row">
-      <div class="col-12 text-center">
-        <h1>404</h1>
-        <h2>Page Not Found</h2>
-				<a class="btn btn-main" href="{{ site.BaseURL | relLangURL }}">Back to home</a>
-      </div>
-    </div>
+<main class="nf-page">
+  {{/* The canvas paints into this; the two blurred washes behind it are CSS, so a reader whose
+       browser blocks the script still gets the site's colours rather than a flat rectangle. */}}
+  <div class="nf-bg" aria-hidden="true">
+    <span class="nf-wash nf-wash-teal"></span>
+    <span class="nf-wash nf-wash-blue"></span>
+    <canvas class="nf-canvas" data-nf-graph></canvas>
   </div>
-</section>
 
+  <div class="nf-inner">
+    <p class="nf-code">404</p>
+    <h1 class="nf-title">Lost the thread</h1>
+    <p class="nf-note">
+      Every page on this site is indexed, embedded and searchable — and this one is not any of
+      those, because it does not exist. For a project whose entire job is finding things you have
+      lost, we would rather you did not dwell on it.
+    </p>
+    <p class="nf-sub">
+      Try the search in the header — it reads the whole documentation without ever asking a
+      server — or pick up one of these threads:
+    </p>
+
+    <div class="nf-actions">
+      <a class="nf-btn nf-btn-primary" href="{{ site.Home.RelPermalink }}">Home</a>
+      <a class="nf-btn nf-btn-ghost" href="{{ "docs/" | relURL }}">Documentation</a>
+      <a class="nf-btn nf-btn-ghost" href="{{ "tour/" | relURL }}">Take the tour</a>
+    </div>
+
+    <p class="nf-hint">
+      Landed here from a link on metaloom.io? That is a broken thread on our side —
+      <a href="{{ site.Params.discordLink }}" rel="noopener">tell us on Discord</a>.
+    </p>
+  </div>
+</main>
+
+{{ $nf := resources.Get "js/404.js" | minify | fingerprint "sha384" }}
+<script src="{{ $nf.RelPermalink }}" integrity="{{ $nf.Data.Integrity }}" defer></script>
 {{ end }}

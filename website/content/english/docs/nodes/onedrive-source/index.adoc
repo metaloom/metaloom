@@ -1,5 +1,6 @@
 ---
 title: OneDrive Source
+description: "Feeds a pipeline from OneDrive and SharePoint document libraries."
 ---
 
 The OneDrive source is a **source node** — the entry point of a pipeline. Instead of processing a

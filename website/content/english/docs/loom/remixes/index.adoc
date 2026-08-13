@@ -1,5 +1,6 @@
 ---
 title: Remixes
+description: "Group the camera original, the cut, the still and the web encode as one named thing, with one of them marked as the original."
 ---
 
 = Remixes

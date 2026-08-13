@@ -1,11 +1,11 @@
 ---
 title: "Day3 - Vert.x Dagger PoC"
+description: "A proof of concept combining Eclipse Vert.x with Dagger dependency injection across Maven modules."
 date: 2021-05-17T14:51:12+06:00
 image: christian-wiediger-WkfDrhxDMC8-unsplash.jpg
 image_webp: christian-wiediger-WkfDrhxDMC8-unsplash.webp
 image_credit: Photo by Christian Wiediger on Unsplash
 author: jotschi
-description : "This post explains a Vert.x Dagger proof of concept."
 ---
 
 :icons: font

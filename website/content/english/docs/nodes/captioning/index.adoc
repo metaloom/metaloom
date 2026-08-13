@@ -1,5 +1,6 @@
 ---
 title: Captioning
+description: "Describes what a picture or a clip shows, in a sentence a person would write."
 ---
 
 The captioning node generates a **natural-language caption** — a short description of what the media

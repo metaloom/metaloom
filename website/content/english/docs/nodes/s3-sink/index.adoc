@@ -1,5 +1,6 @@
 ---
 title: S3 Sink
+description: "Puts what the pipeline produced into an S3 bucket, registered as assets."
 ---
 
 The S3 sink is an **output node**. It takes the files other nodes produce — contact sheets, depth

@@ -1,5 +1,6 @@
 ---
 title: Features
+description: "What Loom does with assets, metadata, users and permissions — a feature-by-feature map into the reference pages that cover each one in depth."
 ---
 
 Loom provides a comprehensive set of features for managing digital media assets and their associated metadata.

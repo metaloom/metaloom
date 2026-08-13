@@ -1,5 +1,6 @@
 ---
 title: Containers
+description: "The Loom server container image, its variants and the volumes, ports and environment it expects."
 ---
 
 The Loom server is distributed as the `metaloom/loom-server` image (JVM and `-native` variants). For a

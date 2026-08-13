@@ -27,6 +27,30 @@
 
 ---
 
+## Site-wide pass of 2026-08-13
+
+Status of the batch requested on 2026-08-13. Everything marked done is in the tree and described in
+[WEBSITE.md](../website/WEBSITE.md) — that file, not this list, is the reference.
+
+* [x] `robots.txt` that allows indexing and names the sitemap (`layouts/robots.txt`)
+* [x] FAQ page — `/faq/`, from `data/en/faq.yml`, with `FAQPage` metadata
+* [x] Alt text on images — the seven that had none were in two blog posts
+* [x] Team page — `/team/`, Johannes with the CV transcribed from jotschi.de
+* [x] Custom 404 with an animated node-graph background, blur and teal/blue washes
+* [x] Mobile search: the box becomes a top-of-screen overlay on focus and the results are sized to
+      the visual viewport, so the keyboard can no longer cover them
+      ([WEBSITE_SEARCH.md](../website/WEBSITE_SEARCH.md) § *The phone overlay*)
+* [x] Unique page titles — `partials/func/page-title.html`; eight were duplicated
+* [x] Meta descriptions — hand-written on all 100 pages that had none
+* [x] Breadcrumb below the top nav, with `BreadcrumbList` JSON-LD
+* [x] Top nav compacts on scroll and hides on downward scroll below 992 px
+* [ ] **Case studies page — deliberately not written.** Nothing is released and there are no
+      customers, so every study would have to be invented. Revisit when there is a real deployment
+      to describe; the honest interim form is a set of clearly-labelled reference scenarios.
+* Add llms.txt
+* TOS?
+---
+
 ## Task 1: Complete the Impressum — it is missing the address and the second contact channel
 
 **Argumentation Summary:** `website/content/english/docs/legal/impressum/index.adoc` carries a

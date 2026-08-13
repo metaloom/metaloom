@@ -1,5 +1,6 @@
 ---
 title: Thumbnail
+description: "A contact sheet of a video, so the interface has something to show."
 ---
 
 The thumbnail node generates a **contact-sheet preview** (a tiled grid of frames) for a video, giving

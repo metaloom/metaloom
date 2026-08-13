@@ -1,5 +1,6 @@
 ---
 title: Deploying on Kubernetes
+description: "Run MetaLoom in a cluster — the server, a pool of Cortex workers, and the service account and RBAC that let the chat agent spawn per-session sandbox Pods."
 weight: 2
 ---
 

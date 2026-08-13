@@ -26,12 +26,8 @@
 
       <div class="{{ if $isRoot }}col-lg-10{{ else }}col-lg-9{{ end }}">
         <header class="page-head{{ if $isRoot }} page-head-center{{ end }}">
-          {{/* The eyebrow names the section this page sits in. Anything directly under /docs/
-               (and /docs/ itself, whose parent is the home page) gets "Documentation" —
-               unless that is what the title already says, as on /docs/ itself. */}}
-          {{ $eyebrow := i18n "documentation" }}
-          {{ with .Parent }}{{ if not (or .IsHome (eq .RelPermalink (relURL "docs/"))) }}{{ $eyebrow = .Title }}{{ end }}{{ end }}
-          {{ if ne $eyebrow .Title }}<p class="page-eyebrow">{{ $eyebrow }}</p>{{ end }}
+          {{/* No eyebrow — see the note in docs/single.html. The breadcrumb under the header
+               names the section, and links it. */}}
           <h1>{{ .Title }}</h1>
           {{ with .Params.subtitle }}<p class="page-lead">{{ . | markdownify }}</p>{{ end }}
         </header>

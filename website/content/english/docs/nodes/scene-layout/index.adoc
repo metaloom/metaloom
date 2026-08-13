@@ -1,5 +1,6 @@
 ---
 title: Scene Layout
+description: "Works out how the things in a picture stand in relation to each other."
 ---
 
 Detection tells you *what* is in a picture and where its box sits. Scene layout tells you **how

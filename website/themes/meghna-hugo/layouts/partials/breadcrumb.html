@@ -1,0 +1,52 @@
+{{- /*
+  Breadcrumb trail, rendered from partials/navigation.html directly under the header on every
+  page that has somewhere to go up to.
+
+  Why it exists: most of this site is /docs/**, four levels deep in places, and most readers
+  arrive from a search engine or a deep link rather than from /docs/. The topic rail answers
+  "what else is in this section" but only on large screens, and it never says which section the
+  current page is *in*. The trail answers that everywhere, in one line, with every step clickable.
+
+  It renders only where it has something to say: a page needs at least a home ancestor plus a
+  section ancestor (`len .Ancestors` >= 2), so /, /tour/, /features/, /docs/ and the other
+  depth-one pages get nothing rather than a stub reading "Home ›".
+
+  The last crumb is the current page: text, not a link, marked `aria-current="page"`. A link to
+  the page you are on is a control that does nothing.
+
+  The JSON-LD block below is the same trail in the form search engines read. Its URLs must be
+  absolute and are built from `site.Params.canonical_base` for the reason given in card.html —
+  site.BaseURL intermittently resolves to localhost:1313 mid-build.
+*/ -}}
+{{- if ge (len .Ancestors) 2 -}}
+{{- $base := strings.TrimSuffix "/" (or site.Params.canonical_base (strings.TrimSuffix "/" site.BaseURL)) -}}
+{{- $home := or site.Params.home "Home" -}}
+<nav class="breadcrumb-bar" aria-label="Breadcrumb">
+	<div class="container">
+		<ol class="breadcrumb-trail">
+			{{- range $i, $crumb := .Ancestors.Reverse }}
+			<li class="breadcrumb-crumb">
+				<a href="{{ $crumb.RelPermalink }}">{{ if $crumb.IsHome }}{{ $home }}{{ else }}{{ $crumb.Title }}{{ end }}</a>
+			</li>
+			{{- end }}
+			<li class="breadcrumb-crumb breadcrumb-current" aria-current="page">{{ .Title }}</li>
+		</ol>
+	</div>
+</nav>
+{{- $items := slice -}}
+{{- range $i, $crumb := .Ancestors.Reverse -}}
+	{{- $items = $items | append (dict
+		"@type" "ListItem"
+		"position" (add $i 1)
+		"name" (cond $crumb.IsHome $home $crumb.Title)
+		"item" (printf "%s%s" $base $crumb.RelPermalink)) -}}
+{{- end -}}
+{{- $items = $items | append (dict
+	"@type" "ListItem"
+	"position" (add (len .Ancestors) 1)
+	"name" .Title
+	"item" (printf "%s%s" $base .RelPermalink)) -}}
+{{- /* safeJS, or Go's contextual escaper treats the JSON as a string literal inside <script> and
+       publishes a quoted, backslash-escaped blob that no consumer can parse. */ -}}
+<script type="application/ld+json">{{ (dict "@context" "https://schema.org" "@type" "BreadcrumbList" "itemListElement" $items) | jsonify | safeJS }}</script>
+{{- end -}}

@@ -1,5 +1,6 @@
 ---
 title: Loom
+description: "Loom is the media asset management server at the heart of MetaLoom — the REST, GraphQL and gRPC APIs, the UI, storage, permissions, search and the chat agent."
 weight: 5
 ---
 

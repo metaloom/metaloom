@@ -1,5 +1,6 @@
 ---
 title: AI Code Generation Disclosure
+description: "When AI-assisted code generation started being used on MetaLoom, what it covers and what it does not change."
 ---
 
 **AI-assisted code generation was used in building MetaLoom.** This page states when that started,

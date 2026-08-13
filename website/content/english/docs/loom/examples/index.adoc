@@ -1,5 +1,6 @@
 ---
 title: Examples
+description: "The runnable example projects in the source repository, for both Loom and Cortex use cases."
 ---
 
 The `/examples` directory of the source repository contains runnable example projects.

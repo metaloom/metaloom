@@ -1,0 +1,88 @@
+{{/*
+  /team/ — who writes MetaLoom.
+
+  Copy comes from data/en/team.yml (which was dead Meghna sample copy until this page existed).
+  Styling is the /team/ block in assets/css/home.css, shared with /, /features/ and /faq/.
+
+  The CV is a <dl>: a list of dated facts, where the date is the term and what happened is the
+  description. `partials/team.html` — the theme's original grid of cards — stays unused; a page
+  about one person is not a grid.
+
+  Note the portrait resolves through partials/func/page-image.html's convention: `image_webp`
+  first, `image` as the fallback, both site-absolute paths under static/.
+*/}}
+{{ define "main" }}
+{{ $team := (index hugo.Data site.Language.Lang).team.team }}
+
+{{ partial "navigation.html" . }}
+
+<main class="hm-page" data-reveal-scope>
+  {{ partial "reveal-bootstrap.html" . }}
+
+  <div class="hm-wrap hm-features-head">
+    <h1 class="hm-title reveal">{{ or $team.title .Title }}</h1>
+    {{ with $team.intro }}<p class="hm-lead reveal">{{ . | markdownify }}</p>{{ end }}
+  </div>
+
+  <div class="hm-wrap">
+    {{ range $team.people }}
+    {{ $alt := .alt }}
+    {{ $cvTitle := .cv_title }}
+    <section class="hm-person reveal">
+      <div>
+        {{ with (or .image_webp .image) }}
+        <img class="hm-person-photo" src="{{ . | relURL }}" alt="{{ $alt }}" loading="lazy">
+        {{ end }}
+      </div>
+      <div>
+        <h2 class="hm-title hm-person-name">{{ .name }}</h2>
+        <p class="hm-person-role">{{ .role }}</p>
+        <div class="hm-person-bio">{{ .bio | markdownify }}</div>
+
+        {{ with .links }}
+        <ul class="hm-person-links">
+          {{ range . }}
+          <li>
+            <a class="hm-person-link" href="{{ .link | safeURL }}"{{ if hasPrefix .link "http" }} rel="noopener"{{ end }}>
+              <i class="{{ .icon }}" aria-hidden="true"></i>{{ .label }}
+            </a>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+      </div>
+    </section>
+
+    {{ with .cv }}
+    <section class="hm-faq-group">
+      <h2 class="hm-feature-group-title reveal">{{ or $cvTitle "Curriculum vitae" }}</h2>
+      <dl class="hm-cv">
+        {{ range . }}
+        <div class="hm-cv-row reveal">
+          <dt class="hm-cv-when">{{ .when }}</dt>
+          <dd class="hm-cv-what">
+            <strong>{{ .what }}</strong>
+            {{ with .where }}<span class="hm-cv-where">{{ . }}</span>{{ end }}
+            {{ with .note }}<p class="hm-cv-note">{{ . }}</p>{{ end }}
+          </dd>
+        </div>
+        {{ end }}
+      </dl>
+    </section>
+    {{ end }}
+    {{ end }}
+
+    {{ with $team.outro }}
+    <div class="hm-features-foot">
+      <p class="hm-lead reveal">{{ .content | markdownify }}</p>
+      <p class="hm-more reveal">
+        <a class="hm-btn hm-btn-primary" href="https://github.com/metaloom" rel="noopener">MetaLoom on GitHub</a>
+        <a class="hm-btn hm-btn-ghost" href="{{ site.Params.discordLink }}" rel="noopener">Join the Discord</a>
+      </p>
+    </div>
+    {{ end }}
+  </div>
+</main>
+
+{{ partial "reveal-script.html" . }}
+{{ end }}

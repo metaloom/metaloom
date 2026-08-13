@@ -248,6 +248,41 @@
 	document.body.appendChild(panel);
 
 	/**
+	 * Below the lg breakpoint the box is the last thing inside the collapsed hamburger panel,
+	 * which puts it most of a screen down the page — and the software keyboard then takes the
+	 * bottom 40-50% of what is left. Dropping a results panel under the field there put every
+	 * result behind the keyboard: the reader typed, the panel said "6 results", and there was
+	 * nowhere on screen those results could be.
+	 *
+	 * So on a phone the search becomes an overlay instead: `docs-search-open` on <body> pins the
+	 * field to the top of the screen (custom.less) and `place()` below sizes the panel to the
+	 * *visual* viewport, which is the part of the page the keyboard is not covering.
+	 */
+	var PHONE = window.matchMedia('(max-width: 991px)');
+	var overlaid = false;
+
+	function overlay(on) {
+		if (on === overlaid) return;
+		overlaid = on;
+		document.body.classList.toggle('docs-search-open', on);
+	}
+
+	/* The overlay outlives the results panel on purpose. `close()` runs on every empty query —
+	 * including the one that fires when the index finishes loading a moment after focus — and an
+	 * overlay torn down there would drop the field back into the hamburger panel underneath the
+	 * reader's keyboard, one keystroke into their search. It ends when the field is no longer the
+	 * thing being used, which is what this asks. */
+	function searching() {
+		return !panel.hidden || (activeInput && document.activeElement === activeInput);
+	}
+
+	/* Leaving the search altogether: give the field up first, so the keyboard goes with it. */
+	function dismiss() {
+		if (activeInput) activeInput.blur();
+		close();
+	}
+
+	/**
 	 * The panel hangs off <body>, not off the header.
 	 *
 	 * The header is `sticky-top` with its own stacking context and a backdrop filter; a panel
@@ -258,13 +293,44 @@
 	function place() {
 		if (!activeInput) return;
 		var box = activeInput.getBoundingClientRect();
-		var width = Math.min(Math.max(box.width, 380), window.innerWidth - 24);
-		// Right edges flush. The box lives at the end of the menu, so growing the panel leftwards
-		// is what keeps it under its own control instead of drifting toward the middle.
-		var left = Math.max(12, Math.min(box.right - width, window.innerWidth - width - 12));
+		var top, left, width;
+
+		if (overlaid) {
+			// Full bleed, hung off the bottom edge of the pinned bar rather than off the field
+			// inside it — six pixels under the input is six pixels *inside* the bar, and the bar
+			// paints over the panel it is meant to sit above.
+			var bar = activeInput.parentNode.getBoundingClientRect();
+			top = bar.bottom;
+			left = 0;
+			width = window.innerWidth;
+		} else {
+			width = Math.min(Math.max(box.width, 380), window.innerWidth - 24);
+			// Right edges flush. The box lives at the end of the menu, so growing the panel
+			// leftwards is what keeps it under its own control instead of drifting toward the
+			// middle.
+			left = Math.max(12, Math.min(box.right - width, window.innerWidth - width - 12));
+			top = box.bottom + 6;
+		}
+
 		panel.style.left = left + 'px';
-		panel.style.top = (box.bottom + 6) + 'px';
+		panel.style.top = top + 'px';
 		panel.style.width = width + 'px';
+
+		if (!overlaid) {
+			// Desktop keeps the stylesheet's min(70vh, 560px).
+			panel.style.maxHeight = '';
+			return;
+		}
+
+		/* The keyboard is not something a page can measure directly. What it can measure is the
+		 * visual viewport — the part of the layout viewport actually on screen — which the
+		 * keyboard shrinks on iOS and which resizing does not report anywhere else. `offsetTop`
+		 * matters because a pinch-zoomed or keyboard-scrolled visual viewport starts partway down
+		 * the layout viewport that `position: fixed` is measured against. Falling back to
+		 * innerHeight on a browser without it is the old behaviour, which is right there. */
+		var vv = window.visualViewport;
+		var bottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+		panel.style.maxHeight = Math.max(120, bottom - top - 12) + 'px';
 	}
 
 	/**
@@ -323,6 +389,7 @@
 
 		panel.hidden = false;
 		activeInput.setAttribute('aria-expanded', 'true');
+		overlay(PHONE.matches);
 		place();
 
 		if (indexState === 'failed') {
@@ -397,6 +464,7 @@
 	function close() {
 		panel.hidden = true;
 		clear();
+		if (!searching()) overlay(false);
 		if (activeInput) {
 			activeInput.setAttribute('aria-expanded', 'false');
 			activeInput.removeAttribute('aria-activedescendant');
@@ -427,6 +495,10 @@
 
 		function begin() {
 			activeInput = input;
+			// On a phone the overlay opens on focus, not on the first result: the field has to be
+			// at the top of the screen before the keyboard arrives, or it moves out from under
+			// the reader's own finger a keystroke later.
+			overlay(PHONE.matches);
 			loadIndex();
 			loadModel();
 			// Coming back to a box that still holds a query should show its results again rather
@@ -435,6 +507,13 @@
 		}
 
 		input.addEventListener('focus', begin);
+		/* Dismissing the keyboard with the system back gesture blurs the field without clicking
+		   anything, and an overlay left standing there is a search bar the reader cannot get rid
+		   of. Deferred by a tick so the tap that caused the blur — a result row, the × — lands
+		   first; a blur with results still on screen is a reader scrolling them, not leaving. */
+		input.addEventListener('blur', function () {
+			setTimeout(function () { if (!searching()) overlay(false); }, 0);
+		});
 		input.addEventListener('input', function () {
 			begin();
 			if (input.value.trim() === lastQuery) return;
@@ -446,21 +525,38 @@
 		});
 
 		input.addEventListener('keydown', function (e) {
-			if (e.key === 'Escape') { close(); input.blur(); return; }
+			if (e.key === 'Escape') { dismiss(); return; }
 			if (panel.hidden) return;
 			if (e.key === 'ArrowDown') { e.preventDefault(); highlightRow(activeRow + 1); }
 			else if (e.key === 'ArrowUp') { e.preventDefault(); highlightRow(activeRow - 1); }
 			else if (e.key === 'Enter' && activeRow >= 0) { e.preventDefault(); rows[activeRow].click(); }
 		});
 
+		// The way out of the phone overlay. It is in every box's markup and hidden everywhere the
+		// overlay is not up, so there is never a second dismiss control on the desktop bar.
+		var closer = root.querySelector('.docs-search-close');
+		if (closer) {
+			closer.addEventListener('click', function () {
+				input.value = '';
+				lastQuery = '';
+				dismiss();
+			});
+		}
+
 		root.addEventListener('submit', function (e) { e.preventDefault(); });
 	});
 
 	document.addEventListener('click', function (e) {
-		if (panel.hidden) return;
+		if (panel.hidden && !overlaid) return;
 		if (panel.contains(e.target)) return;
 		if (activeInput && activeInput.parentNode.contains(e.target)) return;
-		close();
+		/* The tap that opened the overlay is still in flight. Focus moves the field to the top of
+		   the screen between the press and the click, so the click is delivered to whatever is
+		   now under the finger — the menu, a heading, the page — and this handler would read the
+		   reader's own tap on the search box as a tap away from it. A genuine tap elsewhere blurs
+		   the field first, so the field still holding focus is what tells the two apart. */
+		if (activeInput && document.activeElement === activeInput) return;
+		dismiss();
 	});
 
 	document.addEventListener('keydown', function (e) {
@@ -477,4 +573,23 @@
 
 	window.addEventListener('resize', place);
 	window.addEventListener('scroll', place, { passive: true });
+
+	/* The keyboard opening, closing or being scrolled away resizes the visual viewport without
+	   firing a single window resize event on iOS. Without these two the panel keeps whatever
+	   height it was given before the keyboard appeared — which is the whole defect. */
+	if (window.visualViewport) {
+		window.visualViewport.addEventListener('resize', place);
+		window.visualViewport.addEventListener('scroll', place);
+	}
+
+	/* Rotating a phone into landscape, or a desktop window narrowing past the breakpoint, changes
+	   which of the two layouts is correct. */
+	var onBreakpoint = function () {
+		var live = !panel.hidden || (activeInput && document.activeElement === activeInput);
+		if (!live && !overlaid) return;
+		overlay(!!live && PHONE.matches);
+		place();
+	};
+	if (PHONE.addEventListener) PHONE.addEventListener('change', onBreakpoint);
+	else if (PHONE.addListener) PHONE.addListener(onBreakpoint);
 }());

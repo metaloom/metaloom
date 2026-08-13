@@ -67,3 +67,8 @@
 		</nav>
 	</div>
 </section>
+{{/* The trail sits under the bar rather than inside it: the header is sticky and, below the lg
+     breakpoint, slides away while the reader scrolls down — a breadcrumb that travelled with it
+     would be one more thing covering the page. It renders itself only where there is something
+     to climb; see partials/breadcrumb.html. */}}
+{{ partial "breadcrumb.html" . }}

@@ -1,5 +1,6 @@
 ---
 title: Containers
+description: "The Cortex worker container image, and why its media paths have to be the ones Loom hands out."
 ---
 
 Cortex is distributed as the `metaloom/cortex-server` image. It runs as a **daemon**: it connects to a

@@ -1,5 +1,6 @@
 ---
 title: Pipeline Mechanism
+description: "How a pipeline works: a directed graph of nodes authored in the Loom UI, versioned on the server, and executed against registered Cortex workers — including ports, runs and debug mode."
 weight: 2
 ---
 

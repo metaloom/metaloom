@@ -1,5 +1,6 @@
 ---
 title: Quality
+description: "Measures how good a file actually is, so the poor ones can be caught early."
 ---
 
 The quality node measures **perceptual quality metrics** of an image or video — resolution,

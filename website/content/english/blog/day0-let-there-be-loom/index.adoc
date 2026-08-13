@@ -1,12 +1,12 @@
 ---
 title: "Day0 - Let there be Loom"
+description: "The first post: what Loom is, what MetaLoom is, and why a headless media asset management server was worth starting."
 date: 2021-05-12T14:51:12+06:00
 image: banner_square.svg
 image_webp: banner_square.webp
 image_credit: Jotschi
 twitter_author: jotschi
 author: jotschi
-description : "What is Loom? This post will address all these questions."
 ---
 
 :icons: font

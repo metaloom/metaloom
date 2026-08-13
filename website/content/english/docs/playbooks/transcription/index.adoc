@@ -1,5 +1,6 @@
 ---
 title: Transcribing for the Chat Agent
+description: "Turn a library of video and audio into stored transcripts, and make the chat agent able to answer from them."
 weight: 3
 ---
 

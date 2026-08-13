@@ -1,5 +1,6 @@
 ---
 title: GraphQL API
+description: "Loom's GraphQL API for nested queries over the asset model — fetch an asset with its components and locations in one request, with a GraphiQL explorer on the page."
 # GraphiQL is loaded here only — this page and /docs/loom/rest-api/ are the only two that mount
 # an API explorer. Order matters: React, then ReactDOM, then the GraphiQL UMD bundle (which
 # re-exports graphql-js as GraphiQL.GraphQL), then graphiql.js which mounts into #graphiql.

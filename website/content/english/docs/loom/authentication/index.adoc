@@ -1,5 +1,6 @@
 ---
 title: Authentication
+description: "How Loom authenticates callers — JWT bearer tokens, the initial admin account, API keys and OAuth2 against an external identity provider."
 ---
 
 Loom uses JWT (JSON Web Token) bearer tokens for API authentication.

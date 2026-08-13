@@ -1,5 +1,6 @@
 ---
 title: Java Client Usage
+description: "The typed Java HTTP client for the Loom REST API — how to build it, authenticate it and use it from a JVM application."
 ---
 
 The `loom-client-rest` module provides a typed HTTP client for JVM applications.

@@ -1,5 +1,6 @@
 ---
 title: Legal & Licensing
+description: "MetaLoom is Apache 2.0, but a running deployment also answers to the licences of the model weights it loads. This section is where both are written down."
 weight: 11
 ---
 

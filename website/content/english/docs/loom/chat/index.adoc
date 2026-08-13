@@ -1,5 +1,6 @@
 ---
 title: Chat & AI Agent
+description: "The built-in AI assistant — a server-side agentic loop that answers questions about your assets with your own permissions, plus Skills, Memory, Sessions and an optional coding sandbox."
 ---
 
 Loom ships with a built-in **AI assistant** — an OpenAI-style chat, backed by a *server-side agentic

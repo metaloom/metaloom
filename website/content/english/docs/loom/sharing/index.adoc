@@ -1,5 +1,6 @@
 ---
 title: Sharing
+description: "Share a file or a whole collection with someone who has no account — one link, with the expiry and the permissions you choose."
 ---
 
 = Sharing

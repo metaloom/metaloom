@@ -209,7 +209,8 @@ honest.
   field that grew on focus would drag every nav link sideways with it.
 * Below 992 px it sits inside the collapsed hamburger panel, full width, **after** the links — the
   same position relative to *Docs* that it has on the desktop bar. No `order` is used: the collapsed
-  panel is `display: block`, so it follows DOM order regardless.
+  panel is `display: block`, so it follows DOM order regardless. That is where it *lives*; it is not
+  where it is *used* — see [The phone overlay](#the-phone-overlay).
 * **Nothing loads until focus.** The model is 7 MB and most visitors never search.
 * **The box is hidden until JavaScript proves it works.** `docs-search-bootstrap.html` adds
   `docs-search-js` to `<html>` synchronously during parse and removes it again after 2.5 s if
@@ -222,6 +223,48 @@ honest.
 * Highlighting is **per word, not per query** — a semantic hit is precisely the case where the whole
   phrase does not appear. Built from DOM nodes, never from markup.
 * Deep links land correctly because headings already carry `scroll-margin-top: 96px`.
+
+### The phone overlay
+
+Below 992 px the box **becomes an overlay on focus**. The collapsed hamburger panel puts the field
+most of a screen down the page and the software keyboard then takes the bottom 40-50% of what is
+left, so a panel dropped under the field landed in the strip between them — often no strip at all.
+The results said "6 results" and there was nowhere on screen those results could be.
+
+`docs-search.js` therefore sets **`docs-search-open` on `<body>`** whenever the field takes focus at
+that width. The rules are in the *phone overlay* block of `less/includes/custom.less`:
+
+* The form is pinned to the top of the screen (`position: fixed`), full width, with the input at
+  **16 px** — anything smaller makes iOS Safari zoom the page on focus.
+* The results panel is drawn full-bleed under it, and `place()` sizes it from
+  **`window.visualViewport`** (`offsetTop + height`), which is the only thing a page can measure
+  that knows where the keyboard is. `window.innerHeight` is the fallback where that API is absent.
+* `dsr-snippet` clamps to two lines instead of three: about four rows have to fit above a keyboard.
+* A `.docs-search-close` button (in `partials/docs-search.html`, hidden everywhere else) is the way
+  out, because Escape is not a key this reader has.
+
+Four things about it are load-bearing and each was a defect first:
+
+1. **`close()` must not end the overlay.** `render()` calls `close()` for an empty query — including
+   the call that fires when the index finishes loading, a moment *after* focus. Tearing the overlay
+   down there dropped the field back under the keyboard one keystroke into the search. The overlay
+   ends when `searching()` is false (panel hidden **and** the field no longer focused), or on an
+   explicit `dismiss()`.
+2. **The header's `backdrop-filter` must be switched off while the overlay is up.** An element with
+   `backdrop-filter` is the containing block for its `position: fixed` descendants, so the field
+   would be pinned to the top of the *header* rather than of the *screen* — identical-looking until
+   the header moves.
+3. **The header's z-index is raised to 1050 and its own contents are hidden.** `sticky-top` makes
+   the header a stacking context, which would cap the field below the body-level panel at 1040;
+   raising it takes the open hamburger menu with it, which then paints over the results. Brand,
+   toggle, links and the panel's surface all step out for the duration.
+4. **A click while the field still holds focus is not a click away.** Focus moves the field to the
+   top of the screen between the press and the click, so the click is delivered to whatever is now
+   under the finger — and the outside-click handler read the reader's own tap on the box as a tap
+   away from it. A genuine tap elsewhere blurs the field first, which is what tells them apart.
+
+`assets/js/script.js` refuses to hide the site header while `docs-search-open` is set, so the two
+behaviours cannot fight over the top of the screen ([WEBSITE.md](WEBSITE.md) § *Site chrome*).
 
 ## Build wiring and gates
 
@@ -311,7 +354,13 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
 7. **Degradation, all four:** block the wasm (substring results survive, status says why); block the
    index (honest failure message); block the script (the box removes itself after 2.5 s, rail
    intact); disable JavaScript (no box, rail and content unaffected).
-8. **Gates.** Rename `dist/search/docs-index.json` → `check-links.mjs` fails on
+8. **The phone overlay**, in a touch context (Playwright's `devices['Pixel 7']` will do). Open the
+   hamburger, tap the box: `document.body.classList` gains `docs-search-open`, the form reports
+   `position: fixed` with `top: 0`, and it is still there a second later — that delay is when the
+   index lands and the `close()` regression used to fire. Type a query: the panel's `left` is 0, its
+   width is the viewport, and `elementFromPoint` at the centre of the field returns the input and
+   not the results panel or a nav link. Tap the ×: the class is gone and the field is blurred.
+9. **Gates.** Rename `dist/search/docs-index.json` → `check-links.mjs` fails on
    `data-search-index-url`. Rename `post-single-content` in one built page → the builder names it.
 
 ## Progress Assessment
@@ -323,6 +372,8 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
 - [x] `docs-search.js`: lazy loading, substring pass, cosine pass, merge with per-page cap,
       per-word highlighting, full keyboard and ARIA handling
 - [x] Three placements covering the rail, the sub-lg breakpoint and the rail-free `/docs/`
+- [x] **The phone overlay** — on focus below 992 px the field pins to the top of the screen and the
+      results fill the visual viewport, so the keyboard can no longer cover every result
 - [x] Progressive-enhancement bootstrap mirroring `reveal-bootstrap.html`; all four degradation
       paths verified
 - [x] Both build gates taught the four `data-*-url` attributes
@@ -342,5 +393,7 @@ Then drive it with the Playwright/Chromium already installed under `loom-ui/`:
       so this only becomes a gap if a second language is ever added.
 
 ---
-_Git HEAD revision: `4c02c3a5`_
-_Last updated: 2026-08-09 (initial specification; box placed in the site header, right of Docs)_
+_Git HEAD revision: `c1e95640`_
+_Last updated: 2026-08-13 (the phone overlay: the box pins to the top of the screen on focus and the
+results are sized to the visual viewport, so a software keyboard can no longer cover them).
+Earlier: 2026-08-09 (initial specification; box placed in the site header, right of Docs)_

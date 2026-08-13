@@ -1,5 +1,6 @@
 ---
 title: REST API
+description: "The full Loom REST API, rooted at /api/v1, with its authentication rules and an embedded Swagger explorer over the generated OpenAPI document."
 # Swagger UI is loaded here only — this page and /docs/loom/graphql-api/ are the only two that
 # mount an API explorer. The bundle must come before swagger.js, which mounts into #swagger-ui.
 page_css:

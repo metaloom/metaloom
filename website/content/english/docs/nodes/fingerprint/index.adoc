@@ -1,5 +1,6 @@
 ---
 title: Fingerprint
+description: "Recognises the same footage after a re-encode, a resize or a trim."
 ---
 
 The fingerprint node computes a **perceptual, multi-sector video fingerprint**. Unlike a content hash,

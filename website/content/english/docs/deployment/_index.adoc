@@ -1,5 +1,6 @@
 ---
 title: Container Images
+description: "The OCI container images MetaLoom ships, in JVM and native variants, and which one to reach for."
 weight: 10
 ---
 

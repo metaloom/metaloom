@@ -1,5 +1,6 @@
 ---
 title: Playbooks
+description: "Task-oriented guides that walk a whole job end to end, where the reference pages describe one component at a time."
 weight: 8
 ---
 

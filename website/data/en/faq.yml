@@ -1,0 +1,185 @@
+############################# FAQ (/faq/) ######################################
+# Copy only. Structure lives in themes/meghna-hugo/layouts/faq/list.html, styling in the
+# "FAQ" block of assets/css/home.css (shared with / and /features/).
+#
+# Rules for this file, because an FAQ is where a project is most tempted to oversell:
+#
+#  * Every answer must be true of the tree TODAY. Nothing is released yet, and the page says so
+#    rather than working around it. Where a thing is planned, the answer says "planned".
+#  * No numbers that nothing measures — no throughput figures, no "scales to N", no accuracy
+#    claims. The product ships no benchmark suite, so any number here would be invented.
+#  * `a` is Markdown and may link into /docs/. Prefer linking the reference over restating it:
+#    a duplicated explanation is one that goes stale silently.
+#  * The two Studio promises are load-bearing (spec/website/WEBSITE.md § Conventions): nothing
+#    open source moves into Studio, and Studio does not meter processing. Do not soften them.
+#
+# The questions are also emitted as schema.org FAQPage metadata by the layout, so keep each `q`
+# a real question a person would type.
+
+faq:
+  groups:
+    - title: "The project"
+      items:
+        - q: "What is MetaLoom?"
+          a: >-
+            An open source media asset platform. You point it at your files and it transcribes,
+            detects, describes and indexes what is inside them, then gives you that back as an
+            archive you can search, browse and drive from an API. It is two cooperating pieces:
+            **Loom**, the asset management server and its web UI, and **Cortex**, the processing
+            engine that runs the pipelines. The [documentation](/docs/) starts with both.
+
+        - q: "Is MetaLoom released yet?"
+          a: >-
+            No. The version in the tree is `1.0.0-SNAPSHOT`, there are no published artifacts, and
+            interfaces can still move. What does exist is a demo container that runs today — see
+            [Getting Started](/docs/getting-started/) — and a written scope for
+            [1.0.0](/announcements/metaloom-1-0-0/). Treat everything you read here as a
+            description of a project under active development rather than of a shipped product.
+
+        - q: "Who is behind it?"
+          a: >-
+            One developer: Johannes Schüth, in Vienna. The [team page](/team/) has the longer
+            version. Contributions and questions are welcome in the
+            [Discord](https://discord.gg/3Dy2SxKUtw) or on
+            [GitHub](https://github.com/metaloom).
+
+        - q: "What licence is it under, and can I use it commercially?"
+          a: >-
+            MetaLoom itself is **Apache License 2.0**, which permits commercial use. The models you
+            run it with are a separate question: MetaLoom ships no model weights at all — every
+            model is a configuration value you supply — and two of the *defaults* are
+            non-commercial, namely the face model packs and the default image-generation model.
+            [Model Licenses](/docs/legal/model-licenses/) maps every node to the model it loads by
+            default, its licence and whether that licence allows commercial use, and gives a
+            permissive-only configuration.
+
+        - q: "How is it different from a media library or a DAM I can buy?"
+          a: >-
+            Two things. It runs on your own hardware, so the media never has to leave it. And the
+            processing is a **pipeline you assemble yourself** out of nodes — transcription, face
+            detection, captioning, deduplication, translation and so on — rather than a fixed
+            feature set. You can try that model in the browser without installing anything, in the
+            [pipeline editor](/pipeline-editor/).
+
+    - title: "Running it"
+      items:
+        - q: "What do I need to run MetaLoom?"
+          a: >-
+            For a first look: Docker, and one command — the demo image bundles the server, its
+            database and sample content ([Getting Started](/docs/getting-started/)). For a real
+            deployment: PostgreSQL, the Loom server and at least one Cortex worker. The
+            [Docker playbook](/docs/playbooks/docker/) builds that on a single host and the
+            [Kubernetes playbook](/docs/playbooks/kubernetes/) does it in a cluster.
+
+        - q: "Do I need a GPU?"
+          a: >-
+            Not to run MetaLoom, and not for the whole node catalogue — hashing, metadata
+            extraction, thumbnails, format inspection and deduplication are ordinary CPU work. The
+            AI nodes are where a GPU matters: speech-to-text, vision-language captioning, object
+            and face detection, depth maps, image and video generation. Several of those talk to a
+            model server or a sidecar you host, so which hardware they need is decided by the model
+            you point them at, not by MetaLoom.
+
+        - q: "Does any of my media leave my machine?"
+          a: >-
+            Only if you configure a node to send it somewhere. MetaLoom has no hosted service, no
+            telemetry and no phone-home. Nodes that call a model do so against the endpoint you
+            configure, which is normally one you run yourself; the speech-to-text node runs the
+            model locally in-process. The cloud *source* nodes are the deliberate exception — they
+            exist to pull files in from Google Drive or OneDrive, so they talk to those services by
+            definition.
+
+        - q: "How do I get my media in?"
+          a: >-
+            Point a filesystem source at a folder, upload through the UI or the API, or pull from
+            S3, Google Drive or OneDrive with the matching source node. Files can be *referenced*
+            where they already are rather than copied — see
+            [Binary Storage](/docs/loom/binary-storage/).
+
+        - q: "Can I automate it, or script against it?"
+          a: >-
+            Yes — everything the UI does goes through the same public API. There is a
+            [REST API](/docs/loom/rest-api/) with a generated OpenAPI document, a
+            [GraphQL API](/docs/loom/graphql-api/), clients for
+            [Java](/docs/loom/java-client/) and [Python](/docs/loom/python-client/), a
+            [command line tool](/docs/cli/) and an [MCP server](/docs/loom/mcp/) for driving
+            MetaLoom from an AI coding agent.
+
+    - title: "What it does with your media"
+      items:
+        - q: "What can it actually find in a file?"
+          a: >-
+            Depends on which nodes you put in the pipeline. Speech becomes a transcript; faces
+            become detections that can be clustered into people; objects, scenes, dominant colours,
+            depth and image quality all become stored properties; documents and images give up
+            their embedded metadata and text; and a vision-language model can describe or caption a
+            frame in prose. The [node catalogue](/docs/nodes/) is the full list, one page per node,
+            each with a picture of the node running.
+
+        - q: "Which file formats are supported?"
+          a: >-
+            Video, images, audio and documents. Format handling is delegated to the libraries that
+            do it best — FFmpeg and OpenCV for media, Apache Tika for the long tail of document and
+            container formats — so the answer is close to "what those read". Individual nodes state
+            what they accept on their own page.
+
+        - q: "Can I search by meaning rather than by filename?"
+          a: >-
+            Yes. Loom indexes text and embeddings and can answer similarity queries — the
+            near-duplicate video review workflow is built on the same machinery. See
+            [Search Indices](/docs/loom/search-indices/). The built-in
+            [chat agent](/docs/loom/chat/) puts a natural-language front end on it.
+
+        - q: "Can I add a processing step of my own?"
+          a: >-
+            Yes, and it is a supported path rather than a fork. A node can be written in Java
+            ([examples](/docs/cortex/examples/)) or in Python
+            ([playbook](/docs/playbooks/python-node/)), and the `script` node runs a small snippet
+            inline without building anything at all.
+
+        - q: "Does it change or delete my files?"
+          a: >-
+            Not unless you ask it to. Analysis nodes only read. The nodes that write — the ones
+            that move, watermark or transform a file — are separate, named for what they do, and
+            deduplication in particular never moves anything until a person has confirmed the
+            match.
+
+    - title: "MetaLoom Studio and the commercial side"
+      items:
+        - q: "What is MetaLoom Studio?"
+          a: >-
+            A proposed commercial edition, built on top of the open source platform for teams who
+            would rather not run it themselves. It is a plan, not a product: see
+            [MetaLoom Studio](/studio/).
+
+        - q: "Will features move from the open source project into Studio?"
+          a: >-
+            No. Nothing that is open source today moves behind the commercial edition, and Studio
+            does not meter processing. Those two promises are written into the plan on purpose, and
+            this page is one of the places they are kept.
+
+        - q: "What does Studio cost?"
+          a: >-
+            Nothing has been priced yet, because nothing has been released yet. Pricing will be
+            announced with 1.0.0.
+
+    - title: "This website"
+      items:
+        - q: "Does this site track me?"
+          a: >-
+            No. There is no analytics of any kind, no cookies set by this site and no tracking
+            scripts. It is static files on GitHub Pages. What the hosting itself processes — and
+            the one third-party request the site makes, for its webfonts — is written down in the
+            [Impressum](/docs/legal/impressum/#datenschutz).
+
+        - q: "How does the documentation search work without a server?"
+          a: >-
+            It runs in your browser. Every documentation page is embedded at build time and the
+            search box downloads that index plus a 7 MB model the first time you focus it, then
+            matches locally — both literally and by meaning. Nothing about a search is sent
+            anywhere, because there is nowhere to send it to.
+
+        - q: "Was this documentation written by an AI?"
+          a: >-
+            Partly, and the project says which parts and since when rather than leaving you to
+            guess: see [AI Disclosure](/docs/legal/ai-disclosure/).

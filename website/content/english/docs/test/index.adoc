@@ -1,5 +1,9 @@
 ---
 title: Administration Guide
+description: "Superseded placeholder — administration is covered by the Loom UI tour and the configuration reference."
+# Superseded placeholder. It stays reachable for anyone holding an old link, but it must not
+# compete in search with the page that replaced it.
+noindex: true
 ---
 
 == Docs

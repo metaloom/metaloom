@@ -1,5 +1,6 @@
 ---
 title: Asset Metadata
+description: "Recovers what a file already knew about itself — who, when, where, and under what licence."
 ---
 
 Every media file arrives already knowing things about itself. Who took the photograph, when, and

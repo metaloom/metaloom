@@ -1,5 +1,6 @@
 ---
 title: Monitoring API
+description: "The liveness, readiness and metrics endpoints a Cortex worker serves, and how to wire them to Kubernetes probes."
 ---
 
 = Monitoring API

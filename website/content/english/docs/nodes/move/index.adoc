@@ -1,5 +1,6 @@
 ---
 title: Move
+description: "Puts a file somewhere else, as a step the pipeline records."
 ---
 
 Every media library eventually needs to put a file somewhere else. Duplicates you have reviewed

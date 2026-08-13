@@ -23,7 +23,7 @@
 {{- else }}{{ with site.Params.description }}{{ $description = . }}{{ end }}{{ end }}{{ end -}}
 {{- $description = trim $description " \n\t\r" | truncate 200 -}}
 
-{{- $title := cond .IsHome site.Title (printf "%s | %s" .Title site.Title) -}}
+{{- $title := partial "func/page-title.html" . -}}
 
 {{/* A page with its own image (blog teasers) shares that; everything else shares the branded
      1200x630 card in static/images/ rather than the square site banner, which social clients

@@ -1,5 +1,6 @@
 ---
 title: Sentiment Analysis
+description: "Scores the tone of text the pipeline already produced."
 ---
 
 The sentiment node **scores the tone of text** your pipeline has already produced. It does not look

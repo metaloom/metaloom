@@ -1,5 +1,6 @@
 ---
 title: Translating Content
+description: "Extract the source text, translate it, and optionally speak the translation back onto the asset as narration — the three jobs a translation pipeline is really made of."
 weight: 5
 ---
 

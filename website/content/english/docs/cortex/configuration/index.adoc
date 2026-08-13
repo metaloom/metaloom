@@ -1,5 +1,6 @@
 ---
 title: Configuration
+description: "Every Cortex setting: the environment variables a worker daemon reads, and the CLI wrapper for running one locally."
 ---
 
 = Cortex Configuration

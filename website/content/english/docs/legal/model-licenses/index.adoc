@@ -1,5 +1,6 @@
 ---
 title: Model Licenses
+description: "An inventory of the model each node loads by default, its licence, and whether that licence permits commercial use — plus a configuration that is permissive throughout."
 ---
 
 MetaLoom ships **no model weights**. Every link:../../nodes/[node] that needs a model references it by

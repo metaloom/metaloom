@@ -1,5 +1,6 @@
 ---
 title: Face Description
+description: "Says who is in the picture in words: one description per detected face."
 ---
 
 The face description node produces a **natural-language description** of the faces detected in an

@@ -1,5 +1,6 @@
 ---
 title: Depth Map
+description: "Recovers how far away everything in a photo is, from the photo alone."
 ---
 
 The depth map node works out **how far each part of a photo is from the camera**, from the photo

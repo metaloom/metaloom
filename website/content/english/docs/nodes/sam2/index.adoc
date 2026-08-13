@@ -1,5 +1,6 @@
 ---
 title: Segment Anything
+description: "Which pixels are the thing, not which rectangle contains it."
 ---
 
 Detection tells you **where** something is: a rectangle around a person, a car, a dog. This node

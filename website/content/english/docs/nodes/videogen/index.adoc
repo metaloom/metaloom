@@ -1,5 +1,6 @@
 ---
 title: Video Generation
+description: "Makes a short clip from a prompt, or from the asset's own image."
 ---
 
 The video-generation node **generates a short video clip with a diffusion model**. Like the

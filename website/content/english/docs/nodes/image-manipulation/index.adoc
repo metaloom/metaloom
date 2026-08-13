@@ -1,5 +1,6 @@
 ---
 title: Image Manipulation
+description: "Straightens, crops and reframes a picture in a single pass."
 ---
 
 The image manipulation node **straightens, crops and reframes a picture in one pass**. It applies the

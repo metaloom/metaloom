@@ -1,5 +1,6 @@
 ---
 title: Python Client Usage
+description: "A synchronous Python binding for the Loom REST API, built on the standard library alone with no third-party dependencies."
 ---
 
 The Python client is a synchronous binding for the Loom REST API. It is built entirely

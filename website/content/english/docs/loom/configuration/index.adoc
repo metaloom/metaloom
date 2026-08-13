@@ -1,5 +1,6 @@
 ---
 title: Configuration
+description: "Every Loom setting: the loom.yml file, the LOOM_ environment overrides layered on top, and the resolution order between them."
 ---
 
 = Configuration

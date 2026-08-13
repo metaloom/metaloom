@@ -1,5 +1,6 @@
 ---
 title: Cortex
+description: "Cortex is the media processing engine — a long-running worker daemon that registers with Loom, runs node tasks against media and feeds the results back."
 weight: 6
 ---
 

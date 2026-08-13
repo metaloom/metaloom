@@ -1,5 +1,6 @@
 ---
 title: Nodes
+description: "Every processing node MetaLoom ships, one page each — what it reads, what it emits, how it is configured and what it looks like running."
 weight: 3
 ---
 

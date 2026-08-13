@@ -1,5 +1,6 @@
 ---
 title: Helm Chart
+description: "Where the Loom Helm chart lives and which guide to follow to deploy it on Kubernetes."
 ---
 
 Kubernetes is the supported production deployment path for Loom. There are two Helm charts in the

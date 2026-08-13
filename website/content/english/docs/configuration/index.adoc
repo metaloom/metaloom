@@ -1,5 +1,9 @@
 ---
 title: Configuration
+description: "A hub pointing at the two configuration references that are maintained — one for Loom, one for Cortex."
+# Superseded placeholder. It stays reachable for anyone holding an old link, but it must not
+# compete in search with the page that replaced it.
+noindex: true
 ---
 
 = Configuration Overview

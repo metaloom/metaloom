@@ -1,5 +1,6 @@
 ---
 title: Artifacts
+description: "What Cortex publishes and where — the JVM modules and the container deployment assets."
 ---
 
 Cortex publishes JVM modules and container deployment assets separately.

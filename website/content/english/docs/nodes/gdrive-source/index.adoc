@@ -1,5 +1,6 @@
 ---
 title: Google Drive Source
+description: "Feeds a pipeline from Google Drive, including shared drives."
 ---
 
 The Google Drive source is a **source node** — the entry point of a pipeline. Instead of processing

@@ -1,5 +1,6 @@
 ---
 title: Tag
+description: "Turns what a pipeline worked out into something you can search for."
 ---
 
 The Tag node writes **tags** onto your assets from rules you configure. It is the step that turns

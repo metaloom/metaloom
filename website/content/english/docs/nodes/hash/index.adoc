@@ -1,5 +1,6 @@
 ---
 title: Hashing
+description: "The content hashes an asset is identified by — its identity, computed once."
 ---
 
 The hashing nodes compute content hashes of a media file. They are the foundation of asset identity in

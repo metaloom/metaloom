@@ -1,5 +1,6 @@
 ---
 title: Content Guard
+description: "Answers whether content crosses a line, with the confidence behind the answer."
 ---
 
 The guard node **screens your content against a harm taxonomy and gives you a yes/no answer with a

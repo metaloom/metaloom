@@ -1,5 +1,6 @@
 ---
 title: Command Line
+description: "The metaloom command line client — the same REST API the web interface uses, in a form you can script."
 weight: 9
 ---
 

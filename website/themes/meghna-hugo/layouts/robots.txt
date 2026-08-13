@@ -1,0 +1,20 @@
+{{- /*
+  robots.txt — served at /robots.txt because `enableRobotsTXT = true` in config.toml.
+
+  Hugo's built-in template emits nothing but `User-agent: *`, which is *implicitly* "index
+  everything" and carries no pointer to the sitemap. This override says so explicitly and names
+  the sitemap, which is the only thing in this file a crawler cannot work out on its own.
+
+  The sitemap URL must be absolute — a crawler reads this file without any page context. It is
+  built from `site.Params.canonical_base` rather than `site.BaseURL` for the same reason
+  partials/card.html is: Hugo intermittently resolves site.BaseURL to http://localhost:1313/ when
+  the theme CSS is rebuilt in the same run. See spec/website/WEBSITE.md § Conventions and Gotchas.
+
+  Nothing on this site is private, so there is no Disallow. If one is ever added, remember the
+  built site is also the publish repo's `docs/` folder — a path excluded here is still public.
+*/ -}}
+{{- $base := strings.TrimSuffix "/" (or site.Params.canonical_base (strings.TrimSuffix "/" site.BaseURL)) -}}
+User-agent: *
+Allow: /
+
+Sitemap: {{ $base }}/sitemap.xml
